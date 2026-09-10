@@ -150,51 +150,65 @@ case "${result#*|}" in
   *) fail "redirigé vers « ${result#*|} », pas vers /onboarding" ;;
 esac
 
-step "3. Tant que rien n'est configuré, l'assistant s'impose"
-# Contrat : une instance sans aucune cible ne peut rien faire. On y ramène,
-# page après page, plutôt que de laisser errer entre des écrans vides. La
-# porte de sortie est l'abandon explicite, vérifié juste après — « forcer »
-# ne doit pas vouloir dire « enfermer ».
+step "3. On ne quitte pas l'assistant tant qu'il n'est pas soldé"
+# Contrat : `pending` et `in_progress` ramènent à l'assistant depuis n'importe
+# quelle page. Seuls « terminé » et « abandonné » en libèrent, et l'abandon
+# passe par une confirmation qui nomme ce qu'on laisse derrière soi.
 after=$(onboarding_json | jq -r .status)
 [ "$after" = "in_progress" ] || fail "après la proposition, statut « $after » au lieu de « in_progress »"
 pass "le fait d'avoir été proposé est enregistré (« in_progress »)"
 
-TARGET_COUNT=$(psql_q "select count(*) from targets;")
-if [ "$TARGET_COUNT" = "0" ]; then
-  for path in / /targets /applications /deployments; do
-    result=$(page "$path")
-    [ "${result%%|*}" = "307" ] \
-      || fail "sans cible, GET $path attendu 307, reçu ${result%%|*}"
-  done
-  pass "aucune cible : /, /targets, /applications et /deployments renvoient tous vers l'assistant"
-else
-  info "$TARGET_COUNT cible(s) déjà déclarée(s) — l'instance est configurée, pas de redirection forcée"
-  result=$(page /)
-  [ "${result%%|*}" = "200" ] || fail "instance configurée : GET / attendu 200, reçu ${result%%|*}"
-  pass "instance configurée : plus aucune redirection subie"
-fi
+for path in / /targets /applications /deployments /admin/settings /jobs; do
+  result=$(page "$path")
+  [ "${result%%|*}" = "307" ] || fail "parcours non soldé : GET $path attendu 307, reçu ${result%%|*}"
+done
+pass "six écrans différents renvoient tous vers l'assistant"
+
+# Le point qui distinguait l'ancien contrat du nouveau : la redirection ne
+# cède pas au second passage.
+result=$(page /)
+[ "${result%%|*}" = "307" ] || fail "second GET / attendu 307, reçu ${result%%|*} — la porte a cédé"
+pass "et elle ne cède pas au second passage"
 
 result=$(page /onboarding)
 [ "${result%%|*}" = "200" ] || fail "GET /onboarding attendu 200, reçu ${result%%|*}"
-pass "l'assistant reste atteignable à la demande"
+pass "l'assistant, lui, reste atteignable"
 
-# L'assistant a sa propre coquille : pas de rail de navigation, sinon on offre
-# douze façons de se perdre dans un panel qu'on découvre.
-BODY_HTML="$WORK/onboarding.html"
-curl -s -b "$JAR" -c "$JAR" "$BASE_URL/onboarding" -o "$BODY_HTML"
+step "3 bis. La coquille de l'assistant est nue"
+# Pas de rail : proposer douze destinations pendant qu'on explique la première
+# étape, c'est offrir douze façons de se perdre.
+OB_HTML="$WORK/onboarding.html"
+curl -s -b "$JAR" -c "$JAR" "$BASE_URL/onboarding" -o "$OB_HTML"
 for marker in 'href="/targets"' 'href="/deployments"' 'href="/jobs"'; do
-  grep -q -- "$marker" "$BODY_HTML" \
-    && fail "le rail de navigation est présent dans l'assistant ($marker)"
+  grep -q -- "$marker" "$OB_HTML" && fail "le rail est présent dans l'assistant ($marker)"
 done
-pass "aucun lien du rail dans l'assistant — la coquille est nue"
+pass "aucun lien du rail dans l'assistant"
 
-step "3 bis. L'abandon est la porte de sortie"
+grep -q "Ce panel orchestre" "$OB_HTML" \
+  || fail "le détail de l'étape n'est pas rendu"
+pass "chaque étape porte son explication détaillée"
+
+grep -q "Plus tard" "$OB_HTML" || fail "aucune sortie visible depuis l'assistant"
+pass "une sortie reste visible — forcer n'est pas enfermer"
+
+step "3 ter. Quitter passe par une confirmation, puis libère"
+# La modale est rendue côté client : on la cherche dans le chunk servi par la
+# page, comme le HTML initial de Radix ne porte pas le contenu d'un dialogue
+# fermé.
+CHUNKS=$(grep -oE '/_next/static/chunks/[A-Za-z0-9_.-]+\.js' "$OB_HTML" | sort -u)
+found=0
+for chunk in $CHUNKS; do
+  if curl -s -b "$JAR" "$BASE_URL$chunk" | grep -q "Quitter l'assistant sans"; then found=1; break; fi
+done
+[ "$found" = "1" ] || fail "la confirmation d'abandon est absente du code servi"
+pass "la confirmation d'abandon est bien servie au navigateur"
+
 code=$(req PATCH /api/onboarding '{"action":"dismiss"}')
 [ "$code" = "200" ] || fail "dismiss → HTTP $code : $(cat "$BODY")"
 result=$(page /)
 [ "${result%%|*}" = "200" ] \
   || fail "après abandon, GET / attendu 200, reçu ${result%%|*} — l'écran serait un piège"
-pass "abandon explicite : on sort de l'assistant même sans cible"
+pass "abandon confirmé : le panel redevient accessible"
 
 # On reprend le parcours pour la suite du script.
 code=$(req PATCH /api/onboarding '{"action":"restart"}')
@@ -434,8 +448,9 @@ result=$(page /)
 pass "GET / → 307 vers ${result#*|} : la relance réarme la redirection"
 
 result=$(page /)
-[ "${result%%|*}" = "200" ] || fail "la redirection se répète après relance"
-pass "et une seule fois, comme au premier jour"
+[ "${result%%|*}" = "307" ] \
+  || fail "après relance, la redirection devrait tenir : GET / a rendu ${result%%|*}"
+pass "et elle tient — un parcours relancé se comporte comme au premier jour"
 
 step "11. Traçabilité"
 code=$(req GET "/api/audit-logs?resourceType=settings&pageSize=50")

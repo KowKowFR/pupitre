@@ -19,6 +19,15 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { CreateRoleForm } from '@/app/(app)/admin/roles/create-role-form';
 import { CreateUserForm } from '@/app/(app)/admin/users/create-user-form';
@@ -119,6 +128,15 @@ export function OnboardingWizard(props: Props) {
     return true;
   }
 
+  /**
+   * Deux gestes seulement peuvent écourter le parcours, et tous deux passent
+   * par une confirmation qui nomme la conséquence. Un bouton qu'on presse par
+   * réflexe n'est pas un choix : une installation à moitié configurée qu'on
+   * redécouvre trois semaines plus tard coûte plus cher que le temps de lire
+   * deux phrases.
+   */
+  const [confirming, setConfirming] = useState<'abandon' | 'skip' | null>(null);
+
   async function leave(action: 'finish' | 'dismiss') {
     if (!(await send({ action }))) return;
     // Le bandeau de reprise vit dans le layout serveur : il faut le refaire
@@ -139,7 +157,20 @@ export function OnboardingWizard(props: Props) {
     void send({ action: 'skip', step });
   }
 
+  function confirmAbandon() {
+    setConfirming(null);
+    void leave('dismiss');
+  }
+
+  function confirmSkip() {
+    setConfirming(null);
+    skip(currentId);
+  }
+
   const previous = index > 0 ? steps[index - 1] : null;
+  /** Ce qu'on laisse derrière soi — nommé, pas compté. */
+  const remaining = actionable.filter((step) => step.outcome === 'todo');
+  const noTarget = props.environment.targets === 0;
 
   return (
     <>
@@ -152,7 +183,12 @@ export function OnboardingWizard(props: Props) {
             <span className="font-mono text-xs text-ink-faint tabular-nums">
               {doneCount}/{actionable.length}
             </span>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void leave('dismiss')}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setConfirming('abandon')}
+            >
               Plus tard
             </Button>
           </>
@@ -176,6 +212,18 @@ export function OnboardingWizard(props: Props) {
                 </div>
                 <CardDescription>{current.summary}</CardDescription>
               </CardHeader>
+
+              <CardContent className="pb-0">
+                <p className="text-ink-muted border-line border-l-2 pl-3 text-sm leading-relaxed">
+                  {current.detail}
+                </p>
+                {current.optional && current.cost ? (
+                  <p className="text-ink-faint pt-3 pl-3 text-xs leading-relaxed">
+                    <span className="text-ink">Si vous la passez : </span>
+                    {current.cost}
+                  </p>
+                ) : null}
+              </CardContent>
 
               <CardContent className="flex flex-col gap-4">
                 {currentId === 'welcome' ? <Welcome /> : null}
@@ -253,7 +301,7 @@ export function OnboardingWizard(props: Props) {
                   size="sm"
                   variant="outline"
                   disabled={busy}
-                  onClick={() => skip(currentId)}
+                  onClick={() => setConfirming('skip')}
                 >
                   <SkipForward />
                   Passer cette étape
@@ -277,6 +325,83 @@ export function OnboardingWizard(props: Props) {
           </div>
         </div>
       </div>
+
+      <Dialog
+        open={confirming === 'abandon'}
+        onOpenChange={(open) => setConfirming(open ? 'abandon' : null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Quitter l&apos;assistant sans l&apos;avoir terminé ?</DialogTitle>
+            <DialogDescription>
+              Vous avez traité {doneCount} étape{doneCount > 1 ? 's' : ''} sur{' '}
+              {actionable.length}.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="flex flex-col gap-3 text-sm">
+            <p className="text-ink-muted leading-relaxed">
+              Le panel restera utilisable, mais dans l&apos;état où vous le laissez. Les étapes
+              non traitées correspondent chacune à un écran : vous pourrez les faire à la main,
+              ou relancer cet assistant depuis les paramètres.
+            </p>
+            {remaining.length > 0 ? (
+              <div className="border-line rounded-md border p-3">
+                <span className="text-ink text-xs">Il reste à faire :</span>
+                <ul className="text-ink-muted mt-1.5 flex flex-col gap-1 text-xs">
+                  {remaining.map((step) => (
+                    <li key={step.id}>· {step.title}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {noTarget ? (
+              <Alert variant="warn">
+                Aucune cible n&apos;est déclarée. Tant qu&apos;il n&apos;en existe pas une, le
+                panel ne peut rien déployer : les écrans d&apos;application et de déploiement
+                resteront vides.
+              </Alert>
+            ) : null}
+          </DialogBody>
+          <DialogFooter>
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
+              Continuer l&apos;assistant
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={confirmAbandon}>
+              Quitter quand même
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirming === 'skip'}
+        onOpenChange={(open) => setConfirming(open ? 'skip' : null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Passer «&nbsp;{current?.title}&nbsp;» ?</DialogTitle>
+            <DialogDescription>{current?.summary}</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="flex flex-col gap-3 text-sm">
+            {current?.cost ? (
+              <p className="text-ink-muted leading-relaxed">{current.cost}</p>
+            ) : null}
+            <p className="text-ink-faint text-xs leading-relaxed">
+              Vous restez dans l&apos;assistant : seule cette étape est marquée comme passée, et
+              elle se refait plus tard depuis l&apos;écran correspondant.
+            </p>
+          </DialogBody>
+          <DialogFooter>
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
+              Revenir à l&apos;étape
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={confirmSkip}>
+              Passer cette étape
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </>
   );
 }

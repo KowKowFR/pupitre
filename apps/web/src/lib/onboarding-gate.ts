@@ -30,21 +30,20 @@ import type { AuthContext } from '@/lib/rbac';
  * au layout serveur de `(app)`, qui charge déjà l'authentification et les
  * paramètres — les deux seules choses dont elle dépend.
  *
- * **Deux conditions, et il suffit de l'une d'elles.**
+ * **La règle tient en une phrase : tant que le parcours n'est pas soldé, on y
+ * revient.** `pending` comme `in_progress` renvoient à l'assistant, depuis
+ * n'importe quelle page. Seuls `completed` et `dismissed` en libèrent.
  *
- * 1. Le drapeau en base vaut `pending` : l'assistant n'a jamais été montré.
- * 2. L'instance n'a **aucune cible** : elle ne peut rien faire, quoi qu'en
- *    dise le drapeau. Un panel sans cible ne déploie pas ; l'y laisser errer
- *    entre des écrans vides ne rend service à personne.
+ * Il n'y a donc qu'une seule sortie avant la fin : l'abandon, et il passe par
+ * une confirmation qui dit ce qu'on laisse derrière soi. C'est délibéré — un
+ * bouton « Plus tard » qu'on presse par réflexe n'est pas un choix, et une
+ * installation à moitié configurée qu'on découvre trois semaines plus tard
+ * coûte plus cher que trente secondes de lecture.
  *
- * La seconde condition cède devant un abandon explicite. C'est la porte de
- * sortie, et elle est nécessaire : sans elle, quelqu'un qui veut simplement
- * regarder le panel avant de brancher une machine serait ramené à l'assistant
- * à chaque page. « Forcer » ne doit pas vouloir dire « enfermer ».
- *
- * Le nombre de cibles ne sert qu'ici, à décider si l'écran s'impose. Dans
- * l'assistant lui-même, l'état réel du parc sert à autre chose : montrer
- * qu'une étape est déjà satisfaite.
+ * On ne compte pas les cibles pour décider. Le drapeau dit ce qui s'est
+ * réellement passé ; le parc, lui, peut être vide pour de bonnes raisons.
+ * L'état réel du parc sert ailleurs : dans l'assistant, à montrer qu'une
+ * étape est déjà satisfaite.
  */
 
 export type OnboardingGate = {
@@ -55,35 +54,22 @@ export type OnboardingGate = {
   applies: boolean;
   /** Parcours ouvert : ni terminé, ni abandonné — on peut le reprendre. */
   resumable: boolean;
-  /** Aucune cible déclarée : l'instance ne peut rien faire en l'état. */
-  unconfigured: boolean;
   /** L'assistant doit s'imposer maintenant. */
   shouldOffer: boolean;
 };
 
-export async function onboardingGate(
-  auth: AuthContext,
-  settings: AppSettings,
-): Promise<OnboardingGate> {
+export function onboardingGate(auth: AuthContext, settings: AppSettings): OnboardingGate {
   const state = settings.onboarding;
   const applies = onboardingApplies(auth.can);
   const steps = onboardingStepsFor(auth.can);
   const settled = isOnboardingSettled(state);
 
-  // Une cible suffit à considérer l'instance configurée : c'est le minimum
-  // sans lequel rien d'autre n'est possible. On ne compte que si la question
-  // se pose encore — inutile d'interroger la base à chaque page une fois
-  // l'assistant soldé.
-  const unconfigured =
-    applies && state.status !== 'dismissed' && (await listTargets()).length === 0;
-
   return {
     state,
     steps,
     applies,
-    unconfigured,
     resumable: applies && !settled,
-    shouldOffer: applies && (state.status === 'pending' || unconfigured),
+    shouldOffer: applies && !settled,
   };
 }
 

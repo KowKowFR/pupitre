@@ -247,6 +247,14 @@ export type OnboardingStepDefinition = {
    */
   optional: boolean;
   cost: string | null;
+  /**
+   * Ce que l'étape fait vraiment, en deux ou trois phrases.
+   *
+   * Vit ici plutôt que dans le JSX parce que c'est du contenu, pas de la mise
+   * en page : il doit être lisible par l'écran de l'assistant comme par un
+   * récapitulatif, sans que deux versions du texte se mettent à diverger.
+   */
+  detail: string;
 };
 
 export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = [
@@ -257,6 +265,11 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
     requires: null,
     optional: false,
     cost: null,
+    detail:
+      "Ce panel orchestre, il n'héberge pas. Il se connecte en SSH à des machines que " +
+      "vous possédez déjà et y installe vos applications, en Docker Compose ou en " +
+      "Kubernetes selon la cible. Rien de ce que vous déployez ne tourne ici : ce " +
+      "conteneur-ci ne porte que le panel, sa base et sa file de tâches.",
   },
   {
     id: 'identity',
@@ -265,6 +278,12 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
     requires: 'settings:manage',
     optional: false,
     cost: null,
+    detail:
+      "Le nom apparaît en haut à gauche et dans le titre de l'onglet — utile dès qu'on " +
+      "administre deux instances. Le fuseau et la locale ne sont pas cosmétiques : " +
+      "toutes les dates affichées en dépendent, et une tâche planifiée « à 3 h » " +
+      "prendra ce fuseau par défaut. Ces réglages se changent à tout moment depuis les " +
+      "paramètres.",
   },
   {
     id: 'target',
@@ -276,6 +295,13 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
       "Sans cible déclarée, rien ne peut être déployé : les écrans d'application et de " +
       'déploiement resteront sans destination. Vous pourrez la déclarer plus tard depuis ' +
       '« Cibles → Ajouter une cible ».',
+    detail:
+      "Une cible est une machine Linux joignable en SSH, avec Docker ou K3s installé. " +
+      "Le panel y construit vos images et y lance vos conteneurs ; il n'y a aucun " +
+      "registre d'images intermédiaire. La clé SSH que vous collez est chiffrée en " +
+      "AES-256-GCM avant d'atteindre la base, et n'en ressort jamais en clair. Dès la " +
+      "cible enregistrée, un contrôle automatique vérifie l'accès, le sudo, le démon " +
+      "Docker et la plage de ports.",
   },
   {
     id: 'role',
@@ -287,6 +313,12 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
       'Les trois rôles installés d’office (administrateur, opérateur, observateur) restent ' +
       'disponibles. Vous n’aurez simplement pas de rôle intermédiaire : toute personne à qui ' +
       'il faut plus que la lecture recevra les droits complets d’un opérateur.',
+    detail:
+      "Un rôle est un jeu de permissions du type « ressource:action » — par exemple « " +
+      "deployment:create » ou « target:delete ». Les rôles sont des données, pas du " +
+      "code : vous pouvez en créer autant que nécessaire et modifier leurs permissions " +
+      "à chaud. Seul « administrateur » est verrouillé, pour qu'une instance ne puisse " +
+      "jamais se retrouver sans personne capable de la réparer.",
   },
   {
     id: 'user',
@@ -297,6 +329,11 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
     cost:
       'Vous resterez seul à pouvoir vous connecter. Chaque geste du panel étant tracé avec son ' +
       'auteur, un compte partagé rend le journal d’audit inexploitable.',
+    detail:
+      "Chaque compte porte un rôle, et chaque geste du panel est tracé avec son auteur " +
+      "dans le journal d'audit. Créer un compte par personne plutôt que d'en partager " +
+      "un rend ce journal exploitable. Chacun pourra ensuite protéger son accès par un " +
+      "second facteur depuis son espace personnel.",
   },
   {
     id: 'security',
@@ -308,6 +345,13 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
       'Les scanners restent actifs avec leurs réglages par défaut. Sans clé d’API, la ' +
       'génération d’AppSpec par description restera indisponible et il faudra écrire le JSON ' +
       'à la main.',
+    detail:
+      "Les images sont analysées avant mise en ligne par Trivy, Grype et Syft, avec un " +
+      "seuil de blocage réglable. Vous pouvez désactiver l'analyse durablement, ou " +
+      "n'écarter qu'un scanner — utile quand un seul d'entre eux n'atteint pas sa base " +
+      "de vulnérabilités. La clé d'API du modèle sert à rédiger une description " +
+      "d'application à partir d'une phrase ; elle est chiffrée comme les clés SSH, et " +
+      "le modèle ne produit jamais de commande shell, seulement du JSON validé.",
   },
   {
     id: 'summary',
@@ -316,6 +360,10 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
     requires: null,
     optional: false,
     cost: null,
+    detail:
+      "Rien de ce qui a été passé n'est perdu : chaque étape correspond à un écran du " +
+      "panel, atteignable à tout moment. Vous pouvez aussi relancer cet assistant " +
+      "depuis les paramètres, autant de fois que vous voulez.",
   },
 ];
 

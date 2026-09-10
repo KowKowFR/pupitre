@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
 export default async function OnboardingPage() {
   const auth = await requirePageSession('/onboarding');
   const record = await getAppSettings();
-  const gate = await onboardingGate(auth, record.settings);
+  const gate = onboardingGate(auth, record.settings);
 
   // Un observateur ne se voit proposer aucune étape : plutôt qu'un 403 sur un
   // écran qui ne lui était pas destiné, on lui dit ce qu'il en est et où aller.

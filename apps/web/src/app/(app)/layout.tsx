@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
    * aucune cible. La porte de sortie reste l'abandon explicite, et le bandeau
    * ci-dessous suffit ensuite à reprendre le parcours sans le subir.
    */
-  const gate = await onboardingGate(auth, settings);
+  const gate = onboardingGate(auth, settings);
   if (gate.shouldOffer) {
     // On enregistre le fait que l'assistant a été montré, mais la redirection
     // ne dépend pas de cette écriture : une instance sans cible doit y être
