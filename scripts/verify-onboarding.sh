@@ -150,18 +150,57 @@ case "${result#*|}" in
   *) fail "redirigé vers « ${result#*|} », pas vers /onboarding" ;;
 esac
 
-step "3. La redirection ne se répète pas — l'écran n'est pas un piège"
+step "3. Tant que rien n'est configuré, l'assistant s'impose"
+# Contrat : une instance sans aucune cible ne peut rien faire. On y ramène,
+# page après page, plutôt que de laisser errer entre des écrans vides. La
+# porte de sortie est l'abandon explicite, vérifié juste après — « forcer »
+# ne doit pas vouloir dire « enfermer ».
 after=$(onboarding_json | jq -r .status)
 [ "$after" = "in_progress" ] || fail "après la proposition, statut « $after » au lieu de « in_progress »"
 pass "le fait d'avoir été proposé est enregistré (« in_progress »)"
 
-result=$(page /)
-[ "${result%%|*}" = "200" ] || fail "second GET / attendu 200, reçu ${result%%|*} → ${result#*|}"
-pass "second GET / → 200 : plus aucune redirection subie"
+TARGET_COUNT=$(psql_q "select count(*) from targets;")
+if [ "$TARGET_COUNT" = "0" ]; then
+  for path in / /targets /applications /deployments; do
+    result=$(page "$path")
+    [ "${result%%|*}" = "307" ] \
+      || fail "sans cible, GET $path attendu 307, reçu ${result%%|*}"
+  done
+  pass "aucune cible : /, /targets, /applications et /deployments renvoient tous vers l'assistant"
+else
+  info "$TARGET_COUNT cible(s) déjà déclarée(s) — l'instance est configurée, pas de redirection forcée"
+  result=$(page /)
+  [ "${result%%|*}" = "200" ] || fail "instance configurée : GET / attendu 200, reçu ${result%%|*}"
+  pass "instance configurée : plus aucune redirection subie"
+fi
 
 result=$(page /onboarding)
 [ "${result%%|*}" = "200" ] || fail "GET /onboarding attendu 200, reçu ${result%%|*}"
 pass "l'assistant reste atteignable à la demande"
+
+# L'assistant a sa propre coquille : pas de rail de navigation, sinon on offre
+# douze façons de se perdre dans un panel qu'on découvre.
+BODY_HTML="$WORK/onboarding.html"
+curl -s -b "$JAR" -c "$JAR" "$BASE_URL/onboarding" -o "$BODY_HTML"
+for marker in 'href="/targets"' 'href="/deployments"' 'href="/jobs"'; do
+  grep -q -- "$marker" "$BODY_HTML" \
+    && fail "le rail de navigation est présent dans l'assistant ($marker)"
+done
+pass "aucun lien du rail dans l'assistant — la coquille est nue"
+
+step "3 bis. L'abandon est la porte de sortie"
+code=$(req PATCH /api/onboarding '{"action":"dismiss"}')
+[ "$code" = "200" ] || fail "dismiss → HTTP $code : $(cat "$BODY")"
+result=$(page /)
+[ "${result%%|*}" = "200" ] \
+  || fail "après abandon, GET / attendu 200, reçu ${result%%|*} — l'écran serait un piège"
+pass "abandon explicite : on sort de l'assistant même sans cible"
+
+# On reprend le parcours pour la suite du script.
+code=$(req PATCH /api/onboarding '{"action":"restart"}')
+[ "$code" = "200" ] || fail "restart → HTTP $code"
+page / >/dev/null
+pass "parcours repris pour la suite"
 
 step "4. Une étape franchie est persistée"
 # L'assistant n'a pas de route à lui pour l'identité : il appelle celle de

@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { HttpError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requireSession, type AuthContext } from '@/lib/rbac';
-import { onboardingEnvironment } from '@/app/(app)/onboarding/gate';
+import { onboardingEnvironment } from '@/lib/onboarding-gate';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

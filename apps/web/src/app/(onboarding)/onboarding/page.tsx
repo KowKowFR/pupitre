@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/empty-state';
 import { requirePageSession } from '@/lib/page-auth';
-import { onboardingEnvironment, onboardingGate } from './gate';
+import { onboardingEnvironment, onboardingGate } from '@/lib/onboarding-gate';
 import { OnboardingWizard } from './onboarding-wizard';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
 export default async function OnboardingPage() {
   const auth = await requirePageSession('/onboarding');
   const record = await getAppSettings();
-  const gate = onboardingGate(auth, record.settings);
+  const gate = await onboardingGate(auth, record.settings);
 
   // Un observateur ne se voit proposer aucune étape : plutôt qu'un 403 sur un
   // écran qui ne lui était pas destiné, on lui dit ce qu'il en est et où aller.

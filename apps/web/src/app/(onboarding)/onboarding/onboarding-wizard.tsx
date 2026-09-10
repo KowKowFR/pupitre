@@ -20,10 +20,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { CreateRoleForm } from '../admin/roles/create-role-form';
-import { CreateUserForm } from '../admin/users/create-user-form';
-import { TargetForm } from '../targets/target-form';
-import { usePreflight } from '../targets/use-preflight';
+import { CreateRoleForm } from '@/app/(app)/admin/roles/create-role-form';
+import { CreateUserForm } from '@/app/(app)/admin/users/create-user-form';
+import { TargetForm } from '@/app/(app)/targets/target-form';
+import { usePreflight } from '@/app/(app)/targets/use-preflight';
 import { IdentityStep, SecurityStep } from './settings-steps';
 
 /**

@@ -30,15 +30,21 @@ import type { AuthContext } from '@/lib/rbac';
  * au layout serveur de `(app)`, qui charge déjà l'authentification et les
  * paramètres — les deux seules choses dont elle dépend.
  *
- * **Ce qui commande : le drapeau en base, jamais l'état réel du parc.**
- * Compter les cibles pour décider serait séduisant — « zéro cible, donc
- * installation neuve » — mais faux dans les deux sens. Un panel dont on vient
- * de supprimer la dernière cible repartirait en mode découverte devant son
- * administrateur ; une installation provisionnée par script, elle, serait
- * traînée dans un assistant dont elle n'a que faire. Le drapeau, lui, dit ce
- * qui s'est réellement passé. L'état réel du parc reste utile, mais seulement
- * *dans* l'assistant : il y sert à montrer qu'une étape est déjà satisfaite,
- * pas à décider si l'écran s'affiche.
+ * **Deux conditions, et il suffit de l'une d'elles.**
+ *
+ * 1. Le drapeau en base vaut `pending` : l'assistant n'a jamais été montré.
+ * 2. L'instance n'a **aucune cible** : elle ne peut rien faire, quoi qu'en
+ *    dise le drapeau. Un panel sans cible ne déploie pas ; l'y laisser errer
+ *    entre des écrans vides ne rend service à personne.
+ *
+ * La seconde condition cède devant un abandon explicite. C'est la porte de
+ * sortie, et elle est nécessaire : sans elle, quelqu'un qui veut simplement
+ * regarder le panel avant de brancher une machine serait ramené à l'assistant
+ * à chaque page. « Forcer » ne doit pas vouloir dire « enfermer ».
+ *
+ * Le nombre de cibles ne sert qu'ici, à décider si l'écran s'impose. Dans
+ * l'assistant lui-même, l'état réel du parc sert à autre chose : montrer
+ * qu'une étape est déjà satisfaite.
  */
 
 export type OnboardingGate = {
@@ -49,22 +55,35 @@ export type OnboardingGate = {
   applies: boolean;
   /** Parcours ouvert : ni terminé, ni abandonné — on peut le reprendre. */
   resumable: boolean;
-  /** Jamais proposé à personne. Le seul cas qui justifie une redirection. */
+  /** Aucune cible déclarée : l'instance ne peut rien faire en l'état. */
+  unconfigured: boolean;
+  /** L'assistant doit s'imposer maintenant. */
   shouldOffer: boolean;
 };
 
-export function onboardingGate(auth: AuthContext, settings: AppSettings): OnboardingGate {
+export async function onboardingGate(
+  auth: AuthContext,
+  settings: AppSettings,
+): Promise<OnboardingGate> {
   const state = settings.onboarding;
   const applies = onboardingApplies(auth.can);
   const steps = onboardingStepsFor(auth.can);
   const settled = isOnboardingSettled(state);
 
+  // Une cible suffit à considérer l'instance configurée : c'est le minimum
+  // sans lequel rien d'autre n'est possible. On ne compte que si la question
+  // se pose encore — inutile d'interroger la base à chaque page une fois
+  // l'assistant soldé.
+  const unconfigured =
+    applies && state.status !== 'dismissed' && (await listTargets()).length === 0;
+
   return {
     state,
     steps,
     applies,
+    unconfigured,
     resumable: applies && !settled,
-    shouldOffer: applies && state.status === 'pending',
+    shouldOffer: applies && (state.status === 'pending' || unconfigured),
   };
 }
 
@@ -77,8 +96,9 @@ export function onboardingGate(auth: AuthContext, settings: AppSettings): Onboar
  * exactement le fait qu'on cherche à enregistrer — « l'assistant a été montré »
  * — et elle suffit à ce que la passe suivante ne redirige plus.
  *
- * Rend `false` si l'écriture échoue : mieux vaut ne pas proposer l'assistant
- * qu'enfermer quelqu'un dans une boucle de redirections.
+ * Rend `false` quand rien n'a changé — l'état était déjà entamé. **Ce n'est
+ * pas un motif de ne pas rediriger** : sur une instance sans cible, l'écran
+ * s'impose que la transition ait eu lieu ou non. L'appelant décide.
  */
 export async function offerOnboarding(auth: AuthContext): Promise<boolean> {
   try {

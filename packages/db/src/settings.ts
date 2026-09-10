@@ -55,15 +55,36 @@ const EMPTY_RECORD: AppSettingsRecord = {
  * Une écriture invalide celui du processus qui écrit ; l'autre rattrape au
  * plus tard au bout du TTL. C'est acceptable ici — aucun de ces réglages n'est
  * une décision de sécurité, et rien ne dépend d'une cohérence à la seconde.
+ *
+ * En revanche il est porté par `globalThis`, et pas par une simple variable de
+ * module. Next découpe le code serveur en chunks et peut charger **plusieurs
+ * copies** de ce module — une pour un Route Handler, une pour un layout. Avec
+ * une variable de module, chaque copie aurait son propre cache : une écriture
+ * passée par l'API invaliderait le sien et laisserait le layout servir la
+ * valeur d'avant pendant tout le TTL. Le symptôme observé était un « relancer
+ * l'assistant » sans effet visible pendant cinq secondes. `globalThis` est
+ * partagé par toutes les copies ; c'est le motif déjà retenu dans ce dépôt
+ * pour les files BullMQ, et pour la même raison.
  */
 const CACHE_TTL_MS = 5_000;
 
 type CacheEntry = { record: AppSettingsRecord; expiresAt: number };
-let cache: CacheEntry | null = null;
+
+declare global {
+  var __tpAppSettingsCache: CacheEntry | null | undefined;
+}
+
+function readCache(): CacheEntry | null {
+  return globalThis.__tpAppSettingsCache ?? null;
+}
+
+function writeCache(entry: CacheEntry): void {
+  globalThis.__tpAppSettingsCache = entry;
+}
 
 /** Vide le cache. Appelée à chaque écriture, et par les tests. */
 export function invalidateAppSettingsCache(): void {
-  cache = null;
+  globalThis.__tpAppSettingsCache = null;
 }
 
 function last4(plaintext: string): string | null {
@@ -100,11 +121,12 @@ function toRecord(row: typeof appSettings.$inferSelect | undefined): AppSettings
  */
 export async function getAppSettings(db: Database = getDb()): Promise<AppSettingsRecord> {
   const now = Date.now();
-  if (cache && cache.expiresAt > now) return cache.record;
+  const cached = readCache();
+  if (cached && cached.expiresAt > now) return cached.record;
 
   const [row] = await db.select().from(appSettings).where(eq(appSettings.id, SINGLETON_ID));
   const record = toRecord(row);
-  cache = { record, expiresAt: now + CACHE_TTL_MS };
+  writeCache({ record, expiresAt: now + CACHE_TTL_MS });
   return record;
 }
 

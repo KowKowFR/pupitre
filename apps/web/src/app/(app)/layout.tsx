@@ -4,8 +4,8 @@ import { onboardingStep } from '@tp/core';
 import { getAppSettings } from '@tp/db';
 import { currentAuth } from '@/lib/page-auth';
 import { AppHeader } from '@/components/app-header';
-import { OnboardingBanner } from './onboarding/onboarding-banner';
-import { offerOnboarding, onboardingGate } from './onboarding/gate';
+import { OnboardingBanner } from '@/components/onboarding-banner';
+import { offerOnboarding, onboardingGate } from '@/lib/onboarding-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,17 +20,22 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
    * seul endroit du parcours authentifié qui dispose à la fois de la session et
    * des paramètres d'instance. `proxy.ts` ne verrait qu'un cookie.
    *
-   * La redirection n'a lieu qu'une fois, au tout premier affichage — et
-   * `offerOnboarding()` change l'état *avant* qu'elle parte, ce qui la rend
-   * finie : ce layout enveloppe aussi `/onboarding`, il se réexécute donc à
-   * l'arrivée, avec un état qui ne redirige plus. Ensuite, plus jamais de
-   * redirection subie : la reprise passe par le bandeau ci-dessous, qu'on peut
-   * ignorer. Un écran dont on ne s'échappe pas sur une installation qu'on
-   * découvre est un désastre.
+   * La redirection ne peut pas boucler : `/onboarding` vit dans son propre
+   * groupe de routes, ce layout ne l'enveloppe pas. C'est aussi ce qui lui
+   * donne une coquille sans rail de navigation.
+   *
+   * Elle s'impose dans deux cas — assistant jamais montré, ou instance sans
+   * aucune cible. La porte de sortie reste l'abandon explicite, et le bandeau
+   * ci-dessous suffit ensuite à reprendre le parcours sans le subir.
    */
-  const gate = onboardingGate(auth, settings);
-  const offered = gate.shouldOffer ? await offerOnboarding(auth) : false;
-  if (offered) redirect('/onboarding');
+  const gate = await onboardingGate(auth, settings);
+  if (gate.shouldOffer) {
+    // On enregistre le fait que l'assistant a été montré, mais la redirection
+    // ne dépend pas de cette écriture : une instance sans cible doit y être
+    // renvoyée même quand l'état n'a plus rien à changer.
+    await offerOnboarding(auth);
+    redirect('/onboarding');
+  }
 
   const done = gate.steps.filter(
     (step) => step.requires !== null && gate.state.completed.includes(step.id),
