@@ -1,0 +1,13 @@
+{
+  "name": "vuln-demo",
+  "version": "1.0.0",
+  "services": [
+    {
+      "name": "web",
+      "source": { "type": "image", "ref": "nginx:1.20.0" },
+      "port": 80,
+      "exposed": true,
+      "healthcheck": { "path": "/", "intervalSec": 5, "timeoutSec": 3, "retries": 12 }
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "bootstrap-tp-v2",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:packages": "pnpm --filter \"@tp/core\" --filter \"@tp/db\" build",
+    "dev": "pnpm build:packages && concurrently -k -n core,db,web,worker -c gray,gray,cyan,magenta \"pnpm --filter @tp/core dev\" \"pnpm --filter @tp/db dev\" \"pnpm --filter @tp/web dev\" \"pnpm --filter @tp/worker dev\"",
+    "build": "pnpm build:packages && pnpm --filter @tp/worker build && pnpm --filter @tp/web build",
+    "typecheck": "pnpm build:packages && pnpm -r typecheck && tsc -p scripts/tsconfig.json",
+    "lint": "pnpm --filter @tp/web lint",
+    "db:generate": "pnpm --filter @tp/db generate",
+    "db:migrate": "pnpm --filter @tp/db migrate",
+    "db:studio": "pnpm --filter @tp/db studio",
+    "test": "pnpm --filter @tp/core test",
+    "db:seed": "pnpm --filter @tp/db seed",
+    "test:driver": "tsx --env-file-if-exists=.env scripts/test-driver.ts",
+    "test:parity": "tsx --env-file-if-exists=.env scripts/test-parity.ts",
+    "test:schedule": "tsx scripts/test-schedule.ts"
+  },
+  "devDependencies": {
+    "@tp/core": "workspace:*",
+    "@tp/db": "workspace:*",
+    "@types/node": "^24.13.4",
+    "concurrently": "^10.0.5",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "yaml": "^2.9.0"
+  }
+}

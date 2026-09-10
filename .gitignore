@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.env
+.env.local
+.env.*.local
+.DS_Store
+npm-debug.log*
+pnpm-debug.log*
+coverage/
+
+# Clé SSH jetable de la cible de test (scripts/setup-test-target.sh)
+.test-target-key
+.test-target-key.pub

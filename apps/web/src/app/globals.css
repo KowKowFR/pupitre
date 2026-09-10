@@ -1,0 +1,474 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Système visuel du control plane.
+ *
+ * Parti pris : une **console d'exploitation**, pas un tableau de bord SaaS.
+ * Les neutres sont des ardoises froides (bleu ~258°) — la teinte du matériel
+ * de baie —, l'accent est un cyan de voyant de lien (« signal »), et les
+ * couleurs sémantiques (vert / ambre / rouge) sont tenues à l'écart de
+ * l'accent pour qu'un état ne se confonde jamais avec un élément cliquable.
+ *
+ * Tout passe par des jetons. Aucune couleur littérale ne doit être écrite
+ * dans un composant : un thème ne se répare pas composant par composant.
+ */
+
+/*
+ * Le thème sombre a trois états : classe `.dark` explicite, classe `.light`
+ * explicite, et rien du tout — le cas par défaut, où seul le média décide.
+ * La variante d'origine ne couvrait que la classe : toutes les utilitaires
+ * `dark:` du code étaient donc muettes sur un poste réglé en sombre.
+ */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(html:not(.light) *, html:not(.light)) {
+      @slot;
+    }
+  }
+  &:where(html.dark *, html.dark) {
+    @slot;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Palette claire — la définition complète. Les deux blocs sombres plus bas ne
+   redéfinissent que des jetons, jamais des règles.
+   -------------------------------------------------------------------------- */
+
+:root {
+  /* Neutres : ardoise froide, pas un gris pur. */
+  --ground: oklch(0.978 0.004 258);
+  --ground-deep: oklch(0.955 0.006 258);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.964 0.005 258);
+  --surface-3: oklch(0.934 0.007 258);
+  --ink: oklch(0.238 0.018 258);
+  --ink-muted: oklch(0.521 0.021 256);
+  --ink-faint: oklch(0.652 0.018 256);
+  --line: oklch(0.906 0.008 256);
+  --line-strong: oklch(0.848 0.011 256);
+
+  /* Signal — cyan de voyant de lien. L'unique accent. */
+  --signal: oklch(0.566 0.116 218);
+  --signal-hover: oklch(0.508 0.118 218);
+  --signal-ink: oklch(0.995 0.005 218);
+  --signal-soft: oklch(0.948 0.031 218);
+  --signal-edge: oklch(0.826 0.068 218);
+
+  /* Sémantique d'exploitation — jamais utilisée comme accent. */
+  --ok: oklch(0.556 0.126 158);
+  --ok-soft: oklch(0.951 0.038 158);
+  --ok-edge: oklch(0.812 0.082 158);
+  --warn: oklch(0.606 0.132 68);
+  --warn-soft: oklch(0.958 0.052 76);
+  --warn-edge: oklch(0.826 0.104 76);
+  --danger: oklch(0.542 0.196 26);
+  --danger-soft: oklch(0.958 0.026 26);
+  --danger-edge: oklch(0.834 0.086 26);
+
+  /*
+   * Le terminal reste sombre dans les deux thèmes : un flux de logs se lit sur
+   * fond noir, c'est un choix, pas un oubli. Ses jetons sont donc définis ici
+   * ET redéfinis en sombre, pour qu'il recule d'un cran par rapport au panneau.
+   */
+  --terminal: oklch(0.208 0.020 258);
+  --terminal-fg: oklch(0.906 0.010 250);
+  --terminal-dim: oklch(0.612 0.018 254);
+  --terminal-line: oklch(0.298 0.020 258);
+  --terminal-ok: oklch(0.796 0.128 158);
+  --terminal-danger: oklch(0.726 0.148 24);
+
+  /*
+   * Échelle de gravité des vulnérabilités. C'est une **échelle ordinale**, pas
+   * une palette : la teinte descend du rouge au bleu ardoise et la saturation
+   * décroît avec elle, pour que « CRITICAL » saute aux yeux au milieu de
+   * quarante lignes de tableau et que « LOW » ne réclame rien.
+   */
+  --sev-critical: oklch(0.502 0.196 26);
+  --sev-critical-ink: oklch(0.99 0.005 26);
+  --sev-high: oklch(0.632 0.162 45);
+  --sev-high-ink: oklch(0.16 0.03 45);
+  --sev-medium: oklch(0.792 0.142 82);
+  --sev-medium-ink: oklch(0.24 0.05 82);
+  --sev-low: oklch(0.756 0.028 250);
+  --sev-low-ink: oklch(0.24 0.02 250);
+
+  /* Profondeur : nette et courte. Un panneau posé, pas une carte flottante. */
+  --shadow-panel: 0 1px 2px oklch(0.238 0.018 258 / 0.05), 0 0 0 1px oklch(0.238 0.018 258 / 0.04);
+  --shadow-raised:
+    0 1px 2px oklch(0.238 0.018 258 / 0.06), 0 6px 16px -6px oklch(0.238 0.018 258 / 0.14);
+  --shadow-pop:
+    0 12px 32px -12px oklch(0.238 0.018 258 / 0.28), 0 2px 6px oklch(0.238 0.018 258 / 0.06);
+
+  /* Jetons shadcn — remappés sur la palette ci-dessus. */
+  --radius: 0.5rem;
+  --background: var(--ground);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--signal);
+  --primary-foreground: var(--signal-ink);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-2);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--signal);
+
+  /* Mouvement — court, décéléré, jamais rebondissant. */
+  --ease-out: cubic-bezier(0.22, 0.8, 0.28, 1);
+  --dur-fast: 110ms;
+  --dur: 180ms;
+  --dur-slow: 340ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --ground: oklch(0.196 0.014 258);
+    --ground-deep: oklch(0.166 0.013 258);
+    --surface: oklch(0.242 0.015 258);
+    --surface-2: oklch(0.291 0.016 258);
+    --surface-3: oklch(0.338 0.017 258);
+    --ink: oklch(0.955 0.005 250);
+    --ink-muted: oklch(0.712 0.018 254);
+    --ink-faint: oklch(0.588 0.018 254);
+    --line: oklch(0.334 0.016 258);
+    --line-strong: oklch(0.424 0.018 258);
+
+    --signal: oklch(0.742 0.104 212);
+    --signal-hover: oklch(0.808 0.094 212);
+    --signal-ink: oklch(0.184 0.032 240);
+    --signal-soft: oklch(0.328 0.049 214);
+    --signal-edge: oklch(0.442 0.076 214);
+
+    --ok: oklch(0.736 0.132 158);
+    --ok-soft: oklch(0.312 0.052 160);
+    --ok-edge: oklch(0.424 0.080 160);
+    --warn: oklch(0.792 0.132 74);
+    --warn-soft: oklch(0.330 0.058 72);
+    --warn-edge: oklch(0.456 0.086 72);
+    --danger: oklch(0.694 0.172 24);
+    --danger-soft: oklch(0.326 0.070 24);
+    --danger-edge: oklch(0.452 0.114 24);
+
+    --sev-critical: oklch(0.582 0.204 26);
+    --sev-critical-ink: oklch(0.99 0.005 26);
+    --sev-high: oklch(0.702 0.152 48);
+    --sev-high-ink: oklch(0.18 0.04 48);
+    --sev-medium: oklch(0.812 0.138 84);
+    --sev-medium-ink: oklch(0.22 0.05 84);
+    --sev-low: oklch(0.482 0.022 250);
+    --sev-low-ink: oklch(0.95 0.005 250);
+
+    --terminal: oklch(0.158 0.013 258);
+    --terminal-fg: oklch(0.882 0.010 250);
+    --terminal-dim: oklch(0.578 0.018 254);
+    --terminal-line: oklch(0.272 0.018 258);
+
+    --shadow-panel: 0 1px 2px oklch(0 0 0 / 0.32), 0 0 0 1px oklch(1 0 0 / 0.03);
+    --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.4), 0 8px 20px -8px oklch(0 0 0 / 0.55);
+    --shadow-pop: 0 16px 40px -16px oklch(0 0 0 / 0.7), 0 2px 6px oklch(0 0 0 / 0.35);
+  }
+}
+
+html.dark {
+  --ground: oklch(0.196 0.014 258);
+  --ground-deep: oklch(0.166 0.013 258);
+  --surface: oklch(0.242 0.015 258);
+  --surface-2: oklch(0.291 0.016 258);
+  --surface-3: oklch(0.338 0.017 258);
+  --ink: oklch(0.955 0.005 250);
+  --ink-muted: oklch(0.712 0.018 254);
+  --ink-faint: oklch(0.588 0.018 254);
+  --line: oklch(0.334 0.016 258);
+  --line-strong: oklch(0.424 0.018 258);
+
+  --signal: oklch(0.742 0.104 212);
+  --signal-hover: oklch(0.808 0.094 212);
+  --signal-ink: oklch(0.184 0.032 240);
+  --signal-soft: oklch(0.328 0.049 214);
+  --signal-edge: oklch(0.442 0.076 214);
+
+  --ok: oklch(0.736 0.132 158);
+  --ok-soft: oklch(0.312 0.052 160);
+  --ok-edge: oklch(0.424 0.080 160);
+  --warn: oklch(0.792 0.132 74);
+  --warn-soft: oklch(0.330 0.058 72);
+  --warn-edge: oklch(0.456 0.086 72);
+  --danger: oklch(0.694 0.172 24);
+  --danger-soft: oklch(0.326 0.070 24);
+  --danger-edge: oklch(0.452 0.114 24);
+
+  --sev-critical: oklch(0.582 0.204 26);
+  --sev-critical-ink: oklch(0.99 0.005 26);
+  --sev-high: oklch(0.702 0.152 48);
+  --sev-high-ink: oklch(0.18 0.04 48);
+  --sev-medium: oklch(0.812 0.138 84);
+  --sev-medium-ink: oklch(0.22 0.05 84);
+  --sev-low: oklch(0.482 0.022 250);
+  --sev-low-ink: oklch(0.95 0.005 250);
+
+  --terminal: oklch(0.158 0.013 258);
+  --terminal-fg: oklch(0.882 0.010 250);
+  --terminal-dim: oklch(0.578 0.018 254);
+  --terminal-line: oklch(0.272 0.018 258);
+
+  --shadow-panel: 0 1px 2px oklch(0 0 0 / 0.32), 0 0 0 1px oklch(1 0 0 / 0.03);
+  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.4), 0 8px 20px -8px oklch(0 0 0 / 0.55);
+  --shadow-pop: 0 16px 40px -16px oklch(0 0 0 / 0.7), 0 2px 6px oklch(0 0 0 / 0.35);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-ground: var(--ground);
+  --color-ground-deep: var(--ground-deep);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-signal: var(--signal);
+  --color-signal-hover: var(--signal-hover);
+  --color-signal-ink: var(--signal-ink);
+  --color-signal-soft: var(--signal-soft);
+  --color-signal-edge: var(--signal-edge);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-edge: var(--ok-edge);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-edge: var(--warn-edge);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-edge: var(--danger-edge);
+
+  --color-sev-critical: var(--sev-critical);
+  --color-sev-critical-ink: var(--sev-critical-ink);
+  --color-sev-high: var(--sev-high);
+  --color-sev-high-ink: var(--sev-high-ink);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-medium-ink: var(--sev-medium-ink);
+  --color-sev-low: var(--sev-low);
+  --color-sev-low-ink: var(--sev-low-ink);
+
+  --color-terminal: var(--terminal);
+  --color-terminal-fg: var(--terminal-fg);
+  --color-terminal-dim: var(--terminal-dim);
+  --color-terminal-line: var(--terminal-line);
+  --color-terminal-ok: var(--terminal-ok);
+  --color-terminal-danger: var(--terminal-danger);
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
+
+  --shadow-panel: var(--shadow-panel);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-pop: var(--shadow-pop);
+
+  /*
+   * Trois faces, trois rôles.
+   * IBM Plex Sans a été dessiné pour l'outillage d'ingénierie ; sa version
+   * condensée sert d'étiquette sérigraphiée ; JetBrains Mono lit un flux de
+   * logs à 11 px sans que le 0, le O et le l se ressemblent.
+   */
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-condensed:
+    var(--font-plex-condensed), var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease-out: var(--ease-out);
+  --default-transition-duration: var(--dur);
+  --default-transition-timing-function: var(--ease-out);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv05" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  /*
+   * Un chiffre ne doit jamais bouger de colonne : durées, ports, compteurs et
+   * horodatages sont partout dans ce panel.
+   */
+  code,
+  kbd,
+  samp,
+  pre,
+  .font-mono,
+  [class*="font-mono"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--signal);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--signal-soft);
+    color: var(--ink);
+  }
+
+  /* Barres de défilement discrètes, alignées sur les jetons. */
+  * {
+    scrollbar-color: var(--line-strong) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+@layer components {
+  /*
+   * Étiquette d'instrument : condensée, capitales, interlettrage ouvert.
+   * Sert aux en-têtes de tableau, aux intitulés de champ et aux surtitres.
+   */
+  .eyebrow {
+    font-family: var(--font-condensed);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  /*
+   * Chevron d'un `<select>` natif.
+   *
+   * Un select ne porte ni pseudo-élément fiable ni `currentColor` dans une
+   * data-URI : le chevron est donc une image SVG encodée, dans un gris ardoise
+   * neutre qui tient sur les deux fonds. `appearance: none` accompagne
+   * obligatoirement la règle, sinon la flèche native se superpose.
+   */
+  .field-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23919aa8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.65rem center;
+    background-size: 0.75rem;
+  }
+
+  /* Filet de séparation entre deux zones d'un même panneau. */
+  .hairline {
+    border-color: var(--line);
+  }
+}
+
+@layer utilities {
+  /*
+   * Balayage lent d'un dégradé sur une barre de progression : la seule façon
+   * de dire « ça travaille » sans faire clignoter quoi que ce soit.
+   */
+  @keyframes signal-sweep {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes signal-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(0.82);
+    }
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.375rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .animate-signal-sweep {
+    background-size: 200% 100%;
+    animation: signal-sweep 1.6s linear infinite;
+  }
+
+  .animate-signal-pulse {
+    animation: signal-pulse 1.4s var(--ease-out) infinite;
+  }
+
+  .animate-rise-in {
+    animation: rise-in var(--dur-slow) var(--ease-out) both;
+  }
+}
+
+/*
+ * Réduction de mouvement : on neutralise, on ne masque pas. Les états restent
+ * lisibles par la forme et la couleur, jamais par la seule animation.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

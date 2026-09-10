@@ -1,0 +1,65 @@
+{
+  "name": "boutique",
+  "version": "2.3.1",
+  "services": [
+    {
+      "name": "front",
+      "source": { "type": "dockerfile", "context": "./front", "dockerfile": "Dockerfile" },
+      "port": 3000,
+      "exposed": true,
+      "replicas": 2,
+      "env": { "API_URL": "http://api:8080", "NODE_ENV": "production" },
+      "resources": { "cpuMilli": 500, "memoryMi": 512 },
+      "healthcheck": {
+        "path": "/healthz",
+        "intervalSec": 10,
+        "timeoutSec": 5,
+        "retries": 3
+      },
+      "dependsOn": ["api"]
+    },
+    {
+      "name": "api",
+      "source": { "type": "dockerfile", "context": "./api", "dockerfile": "docker/Dockerfile" },
+      "port": 8080,
+      "exposed": false,
+      "env": {
+        "DATABASE_HOST": "postgres",
+        "DATABASE_NAME": "boutique",
+        "PORT": "8080"
+      },
+      "secrets": ["DATABASE_PASSWORD", "JWT_SECRET"],
+      "resources": { "cpuMilli": 1000, "memoryMi": 1024 },
+      "healthcheck": {
+        "path": "/api/health",
+        "intervalSec": 10,
+        "timeoutSec": 5,
+        "retries": 5
+      },
+      "volumes": [{ "name": "uploads", "mountPath": "/var/lib/app/uploads", "size": "5Gi" }],
+      "dependsOn": ["postgres"]
+    },
+    {
+      "name": "postgres",
+      "source": { "type": "image", "ref": "postgres:16-alpine" },
+      "port": 5432,
+      "exposed": false,
+      "env": { "POSTGRES_DB": "boutique", "POSTGRES_USER": "boutique" },
+      "secrets": ["POSTGRES_PASSWORD"],
+      "resources": { "cpuMilli": 1000, "memoryMi": 2048 },
+      "healthcheck": {
+        "path": "/",
+        "port": 5432,
+        "intervalSec": 5,
+        "timeoutSec": 3,
+        "retries": 10
+      },
+      "volumes": [{ "name": "data", "mountPath": "/var/lib/postgresql/data", "size": "20Gi" }]
+    }
+  ],
+  "ingress": {
+    "host": "boutique.example.com",
+    "tls": true,
+    "targetService": "front"
+  }
+}

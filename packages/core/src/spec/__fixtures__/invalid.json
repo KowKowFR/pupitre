@@ -1,0 +1,33 @@
+{
+  "_comment": "Cumule volontairement six violations, une par refinement.",
+  "name": "Boutique_Invalide",
+  "version": "2.3",
+  "services": [
+    {
+      "name": "front",
+      "source": { "type": "dockerfile", "context": "./front", "dockerfile": "Dockerfile" },
+      "port": 3000,
+      "exposed": true,
+      "dependsOn": ["api"]
+    },
+    {
+      "name": "front",
+      "source": { "type": "image", "ref": "nginx:alpine" },
+      "port": 8080,
+      "exposed": true,
+      "dependsOn": ["front"]
+    },
+    {
+      "name": "api",
+      "source": { "type": "image", "ref": "node:24-alpine" },
+      "port": 8080,
+      "exposed": false,
+      "dependsOn": ["worker-fantome"]
+    }
+  ],
+  "ingress": {
+    "host": "boutique.example.com",
+    "tls": true,
+    "targetService": "service-qui-nexiste-pas"
+  }
+}

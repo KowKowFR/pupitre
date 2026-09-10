@@ -1,0 +1,57 @@
+{
+  "name": "@tp/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./schedule": {
+      "types": "./dist/schedule.d.ts",
+      "default": "./dist/schedule.js"
+    },
+    "./ssh": {
+      "types": "./dist/ssh/index.d.ts",
+      "default": "./dist/ssh/index.js"
+    },
+    "./drivers": {
+      "types": "./dist/drivers/index.d.ts",
+      "default": "./dist/drivers/index.js"
+    },
+    "./scanners": {
+      "types": "./dist/scanners/index.d.ts",
+      "default": "./dist/scanners/index.js"
+    },
+    "./ai": {
+      "types": "./dist/ai/index.d.ts",
+      "default": "./dist/ai/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && pnpm run copy-assets",
+    "dev": "pnpm run copy-assets && tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test test/*.test.ts",
+    "copy-assets": "mkdir -p dist/ai/prompts dist/spec/__fixtures__ && cp src/ai/prompts/*.md dist/ai/prompts/ && cp src/spec/__fixtures__/*.json dist/spec/__fixtures__/"
+  },
+  "dependencies": {
+    "@openrouter/ai-sdk-provider": "3.0.0",
+    "ai": "7.0.97",
+    "node-ssh": "^13.2.1",
+    "yaml": "^2.9.0",
+    "zod": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.4",
+    "@types/ssh2": "^1.15.6",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3"
+  }
+}

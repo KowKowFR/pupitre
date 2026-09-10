@@ -1,0 +1,26 @@
+-- Fuseau horaire par tâche planifiée.
+--
+-- Pourquoi une colonne plutôt qu'un `TZ` global dans docker-compose.yml : un
+-- `TZ` sur les conteneurs déplacerait d'un coup *toutes* les tâches, y compris
+-- celles déjà installées, et imposerait un fuseau unique à l'instance entière.
+-- La colonne est passée à BullMQ en `{ pattern, tz }` ; ajouter une tâche dans
+-- un autre fuseau ne demande alors ni redéploiement ni concertation.
+--
+-- Pourquoi `UTC` sur l'existant, et non le fuseau des paramètres d'instance :
+-- les tâches déjà en base ont été créées quand `upsertJobScheduler` était appelé
+-- SANS option `tz`. cron-parser retombait sur le fuseau du process, et les
+-- conteneurs `panel` et `worker` n'ont pas de variable `TZ` : elles tournent
+-- donc en UTC. Poser rétroactivement `Europe/Paris` ferait passer un
+-- « 0 3 * * * » de 03:00 UTC à 01:00 UTC — on aurait DÉPLACÉ l'exécution d'une
+-- tâche que personne n'a demandé à changer, sans trace et sans avertissement.
+-- Le défaut « fuseau d'instance » ne vaut donc que pour les tâches créées
+-- ensuite ; il est appliqué côté application (`createScheduledJob`), pas ici.
+-- Le DEFAULT de colonne reste `UTC` pour la même raison : une ligne insérée
+-- hors du panel conserve le comportement historiquement observé.
+ALTER TABLE "scheduled_jobs" ADD COLUMN "timezone" text DEFAULT 'UTC' NOT NULL;--> statement-breakpoint
+-- Dérive sans rapport avec le fuseau, ramassée par la génération : le défaut de
+-- colonne de `app_settings.value` ne contenait pas encore la clé `security`
+-- ajoutée au schéma applicatif. Aucune ligne existante n'est touchée — ce
+-- DEFAULT ne sert qu'à une insertion sans valeur, et le panel écrit toujours
+-- l'objet complet.
+ALTER TABLE "app_settings" ALTER COLUMN "value" SET DEFAULT '{"instanceName":"Control plane","instanceTagline":"Bootstrap TP v2","timezone":"Europe/Paris","locale":"fr-FR","dateStyle":"short","timeStyle":"medium","ai":{"provider":"openrouter","model":"anthropic/claude-sonnet-4.5","enabled":true,"temperature":0.2,"maxTokens":8192},"security":{"scanningEnabled":true,"disabledScanners":[]}}'::jsonb;

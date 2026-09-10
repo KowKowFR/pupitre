@@ -1,0 +1,1 @@
+ALTER TABLE "deployments" ADD COLUMN "scan_config" jsonb;

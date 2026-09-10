@@ -1,0 +1,117 @@
+name: bootstrap-tp-v2
+
+x-app-image: &app-image
+  image: bootstrap-tp-v2:latest
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - .env
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tp}
+      POSTGRES_DB: ${POSTGRES_DB:-tp}
+    ports:
+      # Loopback uniquement : ouvre le dev local (`pnpm dev`) sans exposer la base.
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tp} -d ${POSTGRES_DB:-tp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  panel:
+    <<: *app-image
+    command: ["web"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-tp}:${POSTGRES_PASSWORD:-tp}@postgres:5432/${POSTGRES_DB:-tp}
+      REDIS_URL: redis://redis:6379
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health | grep -q '\"status\":\"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    <<: *app-image
+    command: ["worker"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-tp}:${POSTGRES_PASSWORD:-tp}@postgres:5432/${POSTGRES_DB:-tp}
+      REDIS_URL: redis://redis:6379
+      WORKER_ID: worker-1
+      DRIVER_ROOT_PATH: ${DRIVER_ROOT_PATH:-/opt/bootstrap}
+      # Restreint la plage quand la cible n'ouvre qu'une partie des ports —
+      # c'est le cas du conteneur de test, qui n'en publie que dix.
+      DRIVER_PORT_RANGE: ${DRIVER_PORT_RANGE:-}
+    volumes:
+      # Clés SSH de l'hôte, en lecture seule — exploitées à partir du jalon 3.
+      - ${SSH_KEYS_PATH:-${HOME}/.ssh}:/home/nodejs/.ssh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # Garantit que les migrations du panel sont passées avant le premier job.
+      panel:
+        condition: service_healthy
+
+  # ── Cible SSH de test, hors du démarrage normal ──────────────────────────────
+  # Démarrage explicite :
+  #   docker compose --profile test up -d --build ssh-target
+  # Utilisée par ./scripts/verify-jalon3.sh, jamais par `docker compose up`.
+  ssh-target:
+    profiles: ["test"]
+    build:
+      context: ./scripts/test-target
+      args:
+        AUTHORIZED_KEY: ${TEST_TARGET_PUBLIC_KEY:-}
+    # docker-in-docker : la cible a son propre daemon, comme une vraie machine.
+    privileged: true
+    ports:
+      - "127.0.0.1:${TEST_TARGET_PORT:-2222}:22"
+      # Plage publiée pour joindre depuis le poste les apps déployées sur la
+      # cible. Le driver reçoit la même plage via `portRange`.
+      - "127.0.0.1:30000-30009:30000-30009"
+    volumes:
+      - dind-data:/var/lib/docker
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  dind-data:

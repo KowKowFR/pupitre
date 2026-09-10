@@ -1,0 +1,91 @@
+import {
+  LockedRoleError,
+  RoleInUseError,
+  deleteRole,
+  getRoleByKey,
+  logAudit,
+  roleKeySchema,
+  updateRole,
+  updateRoleSchema,
+} from '@tp/db';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { apiRoute, readJsonBody } from '@/lib/http';
+import { requirePermission } from '@/lib/rbac';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const paramsSchema = z.object({ key: roleKeySchema });
+type Context = { params: Promise<{ key: string }> };
+
+/** Un rôle verrouillé se lit, mais ne se modifie pas : 409, pas 403. */
+function translate(error: unknown): never {
+  if (error instanceof LockedRoleError) {
+    throw new HttpError(409, 'role_locked', error.message, { key: error.key });
+  }
+  if (error instanceof RoleInUseError) {
+    throw new HttpError(409, 'role_in_use', error.message, {
+      key: error.key,
+      userCount: error.userCount,
+    });
+  }
+  throw error;
+}
+
+export const GET = apiRoute<Context>(async (request, context) => {
+  await requirePermission(request, 'role:read');
+  const { key } = paramsSchema.parse(await context.params);
+
+  const role = await getRoleByKey(key);
+  if (!role) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+
+  return NextResponse.json(role);
+});
+
+export const PATCH = apiRoute<Context>(async (request, context) => {
+  const auth = await requirePermission(request, 'role:manage');
+  const { key } = paramsSchema.parse(await context.params);
+  const patch = await readJsonBody(request, updateRoleSchema);
+
+  const before = await getRoleByKey(key);
+  if (!before) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+
+  const after = await updateRole(key, patch).catch(translate);
+  if (!after) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+
+  await logAudit({
+    actorId: auth.userId,
+    action: 'role.updated',
+    resourceType: 'role',
+    resourceId: key,
+    before: { label: before.label, permissions: before.permissions },
+    after: { label: after.label, permissions: after.permissions },
+    ip: auth.ip,
+  });
+
+  return NextResponse.json(after);
+});
+
+export const DELETE = apiRoute<Context>(async (request, context) => {
+  const auth = await requirePermission(request, 'role:manage');
+  const { key } = paramsSchema.parse(await context.params);
+
+  const role = await getRoleByKey(key);
+  if (!role) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+
+  const removed = await deleteRole(key).catch(translate);
+  if (!removed) throw new ConflictError(`Le rôle « ${key} » n'a pas pu être supprimé`);
+
+  await logAudit({
+    actorId: auth.userId,
+    action: 'role.deleted',
+    resourceType: 'role',
+    resourceId: key,
+    before: { label: role.label, permissions: role.permissions },
+    ip: auth.ip,
+  });
+
+  return NextResponse.json({ key, deleted: true });
+});

@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+.git
+.env
+.env.local
+**/.DS_Store
+docker-compose.yml
+README.md

@@ -1,0 +1,20 @@
+{
+  "name": "demo-api",
+  "version": "1.0.0",
+  "services": [
+    {
+      "name": "api",
+      "source": { "type": "image", "ref": "docker.io/library/nginx:1.29-alpine" },
+      "port": 80,
+      "exposed": true,
+      "env": { "NODE_ENV": "production" },
+      "healthcheck": {
+        "path": "/",
+        "intervalSec": 5,
+        "timeoutSec": 3,
+        "retries": 10
+      },
+      "resources": { "cpuMilli": 500, "memoryMi": 256 }
+    }
+  ]
+}
