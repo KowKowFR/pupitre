@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { hostMetricsSchema } from './host-metrics.js';
 import { workloadActionSchema, workloadListSchema, workloadRefSchema } from './workloads.js';
 
 /**
@@ -37,6 +38,14 @@ export const APP_RESTART_JOB = 'app:restart' as const;
  * déploiement, ni être retardée par lui.
  */
 export const WORKLOAD_LIST_JOB = 'workload:list' as const;
+
+/**
+ * Relevé des métriques d'une machine cible. Sur la file de supervision, pour la
+ * même raison que l'inventaire : c'est une lecture, elle ne doit ni retarder un
+ * déploiement, ni être retardée par lui. Le panel n'a aucun autre chemin vers
+ * une machine distante — `ssh2` est hors de son graphe.
+ */
+export const TARGET_METRICS_JOB = 'target:metrics' as const;
 
 /**
  * Suppression et mise à jour d'une charge. Sur `ops` : ce sont des écritures
@@ -133,6 +142,22 @@ export const workloadActionJobResultSchema = z.object({
   ok: z.literal(true),
   lines: z.number().int().nonnegative(),
 });
+
+export const targetMetricsJobDataSchema = z.object({
+  targetId: z.string().uuid(),
+  actorId: z.string().min(1).nullable().default(null),
+  ip: z.string().min(1).nullable().default(null),
+});
+
+/**
+ * Le relevé lui-même. Une machine injoignable rend un rapport `reachable:false`
+ * — pas une tâche en échec : l'écran doit pouvoir dire *pourquoi* il ne sait
+ * rien, et continuer d'afficher ce que la base sait de la machine.
+ */
+export const targetMetricsJobResultSchema = hostMetricsSchema;
+
+export type TargetMetricsJobData = z.infer<typeof targetMetricsJobDataSchema>;
+export type TargetMetricsJobResult = z.infer<typeof targetMetricsJobResultSchema>;
 
 export type WorkloadListJobData = z.infer<typeof workloadListJobDataSchema>;
 export type WorkloadListJobResult = z.infer<typeof workloadListJobResultSchema>;

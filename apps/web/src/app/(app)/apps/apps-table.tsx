@@ -7,7 +7,6 @@ import type { DeploymentStatus } from '@tp/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +30,7 @@ export type LastFailedUpdateRow = {
 export type SupervisedRow = {
   id: string;
   applicationSlug: string;
+  targetId: string;
   targetName: string;
   targetHost: string;
   runtime: 'docker' | 'k3s';
@@ -47,8 +47,22 @@ export type SupervisedRow = {
 
 type ApiError = { error?: { message?: string } };
 
-/** Voyant de lien : la forme porte l'information autant que la couleur. */
-export function HealthDot({ health }: { health: HealthStatus }) {
+const HEALTH_LABEL: Record<HealthStatus, string> = {
+  healthy: 'en marche',
+  unhealthy: 'répond mal',
+  unreachable: 'injoignable',
+  unknown: 'état inconnu',
+};
+
+/**
+ * Voyant de lien : la forme porte l'information autant que la couleur.
+ *
+ * `label` permet de réemployer le même voyant pour l'état d'une **machine**,
+ * dont le vocabulaire n'est pas celui d'une application — « opérationnelle »
+ * plutôt que « en marche ». Un seul voyant dans tout l'écran de supervision,
+ * donc une seule convention de lecture à apprendre.
+ */
+export function HealthDot({ health, label }: { health: HealthStatus; label?: string }) {
   const tone = {
     healthy: 'bg-ok',
     unhealthy: 'bg-warn',
@@ -56,17 +70,10 @@ export function HealthDot({ health }: { health: HealthStatus }) {
     unknown: 'bg-ink-faint',
   }[health];
 
-  const label = {
-    healthy: 'en marche',
-    unhealthy: 'répond mal',
-    unreachable: 'injoignable',
-    unknown: 'état inconnu',
-  }[health];
-
   return (
     <span className="inline-flex items-center gap-2">
       <span className={cn('inline-block size-2 shrink-0 rounded-full', tone)} aria-hidden="true" />
-      <span className="text-xs">{label}</span>
+      <span className="text-xs">{label ?? HEALTH_LABEL[health]}</span>
     </span>
   );
 }
@@ -80,6 +87,14 @@ export function formatSince(iso: string | null): string {
   return `${Math.floor(seconds / 86400)} j`;
 }
 
+/**
+ * Les applications supervisées d'**un** serveur.
+ *
+ * La colonne « Cible » a disparu : elle répétait à chaque ligne ce que le
+ * dépliant qui contient la table annonce déjà une fois. La table ne s'enveloppe
+ * plus d'une `Card` non plus — c'est le panneau du serveur qui porte la
+ * surface, sinon on empile deux cadres pour une seule information.
+ */
 export function AppsTable({
   items,
   canRestart,
@@ -119,103 +134,93 @@ export function AppsTable({
   }
 
   return (
-    <Card>
-      <CardContent className="space-y-4">
-        {error ? <Alert variant="destructive">{error}</Alert> : null}
+    <div className="space-y-3">
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Application</TableHead>
-              <TableHead>Cible</TableHead>
-              <TableHead>État</TableHead>
-              <TableHead>En ligne depuis</TableHead>
-              <TableHead>Adresse</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.map((app) => (
-              <TableRow key={app.id}>
-                <TableCell>
-                  <Link
-                    href={`/apps/${app.id}`}
-                    className="text-sm font-medium underline-offset-4 hover:underline"
-                  >
-                    {app.applicationSlug}
-                  </Link>
-                  <div className="text-ink-faint font-mono text-xs">
-                    v{app.version} · {app.services.length} service
-                    {app.services.length > 1 ? 's' : ''}
-                  </div>
-                </TableCell>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Application</TableHead>
+            <TableHead>État</TableHead>
+            <TableHead>En ligne depuis</TableHead>
+            <TableHead>Adresse</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((app) => (
+            <TableRow key={app.id}>
+              <TableCell>
+                <Link
+                  href={`/apps/${app.id}`}
+                  className="text-sm font-medium underline-offset-4 hover:underline"
+                >
+                  {app.applicationSlug}
+                </Link>
+                <div className="text-ink-faint font-mono text-xs">
+                  v{app.version} · {app.services.length} service
+                  {app.services.length > 1 ? 's' : ''} · {app.runtime}
+                </div>
+              </TableCell>
 
-                <TableCell>
-                  <div className="font-mono text-xs">{app.targetName}</div>
-                  <Badge variant="outline" className="mt-1 font-mono text-[10px]">
-                    {app.runtime}
+              <TableCell>
+                <HealthDot health={app.healthStatus} />
+                {app.status === 'rolled_back' ? (
+                  <Badge variant="warn" className="mt-1 text-[10px]">
+                    version restaurée
                   </Badge>
-                </TableCell>
-
-                <TableCell>
-                  <HealthDot health={app.healthStatus} />
-                  {app.status === 'rolled_back' ? (
-                    <Badge variant="warn" className="mt-1 text-[10px]">
-                      version restaurée
-                    </Badge>
-                  ) : null}
-                  {app.lastFailedUpdate ? (
-                    <div className="mt-1">
-                      <Link href={`/deployments/${app.lastFailedUpdate.deploymentId}`}>
-                        <Badge variant="destructive" className="text-[10px]">
-                          dernière mise à jour échouée
-                        </Badge>
-                      </Link>
-                      <div className="text-ink-faint mt-1 text-[10px]">
-                        v{app.lastFailedUpdate.version}
-                        {app.lastFailedUpdate.failedStep
-                          ? ` · étape ${app.lastFailedUpdate.failedStep}`
-                          : ''}
-                        {app.lastFailedUpdate.mayHaveReplacedServices
-                          ? ' · les conteneurs ont pu être remplacés'
-                          : ''}
-                      </div>
+                ) : null}
+                {app.lastFailedUpdate ? (
+                  <div className="mt-1">
+                    <Link href={`/deployments/${app.lastFailedUpdate.deploymentId}`}>
+                      <Badge variant="destructive" className="text-[10px]">
+                        dernière mise à jour échouée
+                      </Badge>
+                    </Link>
+                    <div className="text-ink-faint mt-1 text-[10px]">
+                      v{app.lastFailedUpdate.version}
+                      {app.lastFailedUpdate.failedStep
+                        ? ` · étape ${app.lastFailedUpdate.failedStep}`
+                        : ''}
+                      {app.lastFailedUpdate.mayHaveReplacedServices
+                        ? ' · les conteneurs ont pu être remplacés'
+                        : ''}
                     </div>
-                  ) : null}
-                </TableCell>
+                  </div>
+                ) : null}
+              </TableCell>
 
-                <TableCell className="font-mono text-xs">{formatSince(app.startedAt)}</TableCell>
+              <TableCell className="font-mono text-xs">{formatSince(app.startedAt)}</TableCell>
 
-                <TableCell className="font-mono text-xs">
-                  {app.url ? (
-                    <a href={app.url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
-                      {app.url.replace(/^https?:\/\//, '')}
-                    </a>
-                  ) : (
-                    <span className="text-ink-faint">—</span>
-                  )}
-                </TableCell>
+              <TableCell className="font-mono text-xs">
+                {app.url ? (
+                  <a href={app.url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                    {app.url.replace(/^https?:\/\//, '')}
+                  </a>
+                ) : (
+                  <span className="text-ink-faint">—</span>
+                )}
+              </TableCell>
 
-                <TableCell className="space-x-2 text-right">
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/apps/${app.id}`}>Logs</Link>
+              <TableCell className="space-x-2 text-right">
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/apps/${app.id}`}>Logs</Link>
+                </Button>
+                {canRestart ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy === app.id}
+                    onClick={() => void restart(app)}
+                  >
+                    {busy === app.id ? 'Envoi…' : 'Redémarrer'}
                   </Button>
-                  {canRestart ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy === app.id}
-                      onClick={() => void restart(app)}
-                    >
-                      {busy === app.id ? 'Envoi…' : 'Redémarrer'}
-                    </Button>
-                  ) : null}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+                ) : null}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

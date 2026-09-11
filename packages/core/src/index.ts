@@ -1,4 +1,5 @@
 export * from './crypto.js';
+export * from './host-metrics.js';
 export * from './permissions.js';
 export * from './pipeline.js';
 export * from './ports.js';

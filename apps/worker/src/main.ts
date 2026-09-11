@@ -9,6 +9,7 @@ import {
   SUPERVISION_QUEUE,
   SCHEDULED_JOB_TYPES,
   SCHEDULED_JOB_TYPES_LIST,
+  TARGET_METRICS_JOB,
   TARGET_PREFLIGHT_JOB,
   WORKLOAD_LIST_JOB,
   WORKLOAD_REMOVE_JOB,
@@ -26,6 +27,7 @@ import {
   handleDeploymentRun,
 } from './handlers/deployment.js';
 import { handleAppLogs, handleAppRestart } from './handlers/app.js';
+import { handleTargetMetrics } from './handlers/host-metrics.js';
 import { handleWorkloadAction, handleWorkloadList } from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
 import { logger } from './logger.js';
@@ -72,6 +74,9 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // L'inventaire est une lecture : sur la file de supervision, il ne retarde
   // aucun déploiement et aucun déploiement ne le retarde.
   [WORKLOAD_LIST_JOB]: handleWorkloadList,
+  // Le relevé de métriques est de la même famille : une lecture courte, qu'un
+  // déploiement en cours ne doit pas faire attendre.
+  [TARGET_METRICS_JOB]: handleTargetMetrics,
 };
 
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
