@@ -1,58 +1,75 @@
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
 import {
   deploymentQuerySchema,
   listApplications,
   listDeployments,
+  listMonitors,
+  listSupervisedApps,
   listTargets,
-  pingDb,
   type DeploymentSummary,
   type PublicTarget,
 } from '@tp/db';
-import { Led, Readout, ReadoutBar } from '@/components/instrument';
+import { Led, Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
-import { PingButton } from '@/components/ping-button';
-import { Badge, CodeBadge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { currentAuth } from '@/lib/page-auth';
-import { getRedis } from '@/lib/redis';
-import { DeploymentStatusBadge, formatDuration } from './deployments/status-badge';
-import { RuntimeBadges, StatusBadge } from './targets/runtime-badges';
+import { AttentionPanel, Panel, PanelEmpty, type AttentionItem } from './attention';
+import { DeploymentStatusBadge } from './deployments/status-badge';
 
 export const dynamic = 'force-dynamic';
-
-async function check(run: () => Promise<unknown>): Promise<boolean> {
-  try {
-    await run();
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Poste d'exploitation.
  *
- * L'ordre de lecture est celui d'une prise de poste : d'abord les relevés
- * (est-ce que la machine tourne ?), puis ce qui a bougé récemment, puis le
- * parc, puis ses propres droits. Chaque bloc n'est rendu que si la permission
- * correspondante est accordée — le tableau de bord ne contourne pas le RBAC.
+ * L'ordre de lecture est une prise de position : **les anomalies d'abord,
+ * l'inventaire en dernier**. Un opérateur ouvre cet écran pour savoir s'il doit
+ * intervenir, pas pour compter ses machines. Les relevés chiffrés gardent leur
+ * place — en bas, où l'on va quand rien ne presse.
+ *
+ * Chaque bloc n'est rendu que si la permission correspondante est accordée : le
+ * tableau de bord ne contourne pas le RBAC, et une anomalie qu'on n'a pas le
+ * droit de voir n'apparaît pas dans le décompte.
  */
+
+const HEALTH_TONE: Record<string, Tone> = {
+  healthy: 'ok',
+  unhealthy: 'warn',
+  unreachable: 'danger',
+  unknown: 'idle',
+};
+
+const HEALTH_LABEL: Record<string, string> = {
+  healthy: 'en marche',
+  unhealthy: 'répond mal',
+  unreachable: 'injoignable',
+  unknown: 'état inconnu',
+};
+
+/** « il y a 3 min ». Rend `null` plutôt qu'un tiret : l'appelant décide. */
+function since(date: Date | null): string | null {
+  if (!date) return null;
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return `il y a ${seconds} s`;
+  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`;
+  if (seconds < 86_400) return `il y a ${Math.floor(seconds / 3600)} h`;
+  return `il y a ${Math.floor(seconds / 86_400)} j`;
+}
+
 export default async function HomePage() {
   const auth = await currentAuth('/');
 
   const canReadTargets = auth?.can('target:read') ?? false;
   const canReadDeployments = auth?.can('deployment:read') ?? false;
   const canReadApplications = auth?.can('application:read') ?? false;
+  const canReadMonitors = auth?.can('monitor:read') ?? false;
 
-  const [db, redis, targets, deployments, applications] = await Promise.all([
-    check(() => pingDb()),
-    check(async () => getRedis().ping()),
+  const [targets, deployments, applications, running, monitors] = await Promise.all([
     canReadTargets ? listTargets() : Promise.resolve<PublicTarget[]>([]),
     canReadDeployments
-      ? listDeployments(deploymentQuerySchema.parse({ pageSize: '8' }))
+      ? listDeployments(deploymentQuerySchema.parse({ pageSize: '6' }))
       : Promise.resolve(null),
     canReadApplications ? listApplications() : Promise.resolve([]),
+    canReadDeployments ? listSupervisedApps() : Promise.resolve([]),
+    canReadMonitors ? listMonitors() : Promise.resolve([]),
   ]);
 
   const recent: DeploymentSummary[] = deployments?.items ?? [];
@@ -60,28 +77,99 @@ export default async function HomePage() {
     (item) => item.status === 'running' || item.status === 'pending',
   ).length;
   const targetsUp = targets.filter((target) => target.status === 'ok').length;
+  const monitorsUp = monitors.filter((monitor) => monitor.status === 'healthy').length;
+  const appsHealthy = running.filter((app) => app.healthStatus === 'healthy').length;
+
+  const attention = collectAttention({ targets, running, monitors, recent });
 
   return (
-    <div className="flex flex-col gap-7">
+    <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Poste d'exploitation"
         title="Tableau de bord"
-        description="Le panel orchestre les déploiements ; il n'est jamais l'application déployée. Cet écran donne l'état de l'instance, ce qui vient de partir et sur quelles machines."
+        description="Ce qui demande une intervention, puis ce qui tourne et ce qui vient de partir."
       />
 
+      <AttentionPanel items={attention} />
+
+      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
+        <Panel
+          title="En marche"
+          href={canReadDeployments ? '/apps' : undefined}
+          linkLabel="Supervision"
+          hint={canReadDeployments ? undefined : 'accès restreint'}
+        >
+          {running.length === 0 ? (
+            <PanelEmpty>
+              Aucune application en marche. Déployez-en une depuis{' '}
+              <Link href="/applications" className="text-signal underline underline-offset-4">
+                Applications
+              </Link>
+              .
+            </PanelEmpty>
+          ) : (
+            <ul className="divide-line divide-y">
+              {running.slice(0, 6).map((app) => (
+                <li
+                  key={app.id}
+                  className="flex items-center gap-3 px-5 py-2.5 text-[0.8125rem]"
+                >
+                  <Led tone={HEALTH_TONE[app.healthStatus] ?? 'idle'} />
+                  <Link
+                    href={`/apps/${app.id}`}
+                    className="text-ink min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
+                  >
+                    {app.applicationSlug}
+                    <span className="text-ink-faint">@{app.targetName}</span>
+                  </Link>
+                  <span className="text-ink-muted shrink-0">
+                    {HEALTH_LABEL[app.healthStatus] ?? app.healthStatus}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+
+        <Panel
+          title="Derniers déploiements"
+          href={canReadDeployments ? '/deployments' : undefined}
+          linkLabel="Historique"
+          hint={canReadDeployments ? undefined : 'accès restreint'}
+        >
+          {recent.length === 0 ? (
+            <PanelEmpty>Aucun déploiement pour l&apos;instant.</PanelEmpty>
+          ) : (
+            <ul className="divide-line divide-y">
+              {recent.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center gap-3 px-5 py-2.5 text-[0.8125rem]"
+                >
+                  <Link
+                    href={`/deployments/${item.id}`}
+                    className="text-ink min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
+                  >
+                    {item.applicationSlug}
+                    <span className="text-ink-faint"> v{item.version}</span>
+                  </Link>
+                  <DeploymentStatusBadge status={item.status} />
+                  <span className="text-ink-faint w-20 shrink-0 text-right text-xs tabular-nums">
+                    {since(item.finishedAt ?? item.createdAt) ?? ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
+
+      {/*
+        L'inventaire ferme l'écran au lieu de l'ouvrir : ces chiffres rassurent,
+        ils ne déclenchent rien. Les mettre en tête repousserait plus bas la
+        seule information pour laquelle on ouvre un tableau de bord.
+      */}
       <ReadoutBar>
-        <Readout
-          label="PostgreSQL"
-          value={db ? 'actif' : 'coupé'}
-          tone={db ? 'ok' : 'danger'}
-          hint="modèle et logs d'activité"
-        />
-        <Readout
-          label="Redis"
-          value={redis ? 'actif' : 'coupé'}
-          tone={redis ? 'ok' : 'danger'}
-          hint="file BullMQ et flux de logs"
-        />
         <Readout
           label="Cibles prêtes"
           value={targetsUp}
@@ -90,172 +178,129 @@ export default async function HomePage() {
           hint={canReadTargets ? 'preflight au vert' : 'accès restreint'}
         />
         <Readout
+          label="Applications en marche"
+          value={appsHealthy}
+          unit={`/ ${running.length}`}
+          tone={running.length === 0 ? 'idle' : appsHealthy === running.length ? 'ok' : 'warn'}
+          hint={`${applications.length} déclarée${applications.length > 1 ? 's' : ''}`}
+        />
+        <Readout
+          label="Sondes au vert"
+          value={monitorsUp}
+          unit={`/ ${monitors.length}`}
+          tone={monitors.length === 0 ? 'idle' : monitorsUp === monitors.length ? 'ok' : 'warn'}
+          hint={canReadMonitors ? 'supervision de sites' : 'accès restreint'}
+        />
+        <Readout
           label="En vol"
           value={inFlight}
           tone={inFlight > 0 ? 'signal' : 'idle'}
           pulse={inFlight > 0}
-          hint={`${applications.length} application${applications.length > 1 ? 's' : ''} déclarée${applications.length > 1 ? 's' : ''}`}
+          hint={inFlight > 0 ? 'déploiement en cours' : 'aucun déploiement en cours'}
         />
       </ReadoutBar>
-
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        {canReadDeployments ? (
-          <Card className="gap-0 py-0">
-            <CardHeader className="flex-row items-center justify-between gap-4 border-b border-line px-5 py-4">
-              <div className="space-y-1">
-                <CardTitle>Derniers déploiements</CardTitle>
-                <CardDescription>
-                  {deployments?.total ?? 0} au total, du plus récent au plus ancien.
-                </CardDescription>
-              </div>
-              <SectionLink href="/deployments">Tout voir</SectionLink>
-            </CardHeader>
-            <CardContent className="px-0">
-              {recent.length === 0 ? (
-                <p className="px-5 py-8 text-center text-[0.8125rem] text-ink-muted">
-                  Rien n&apos;est encore parti. Déclarez une application, puis déployez-la sur une
-                  cible.
-                </p>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {recent.slice(0, 6).map((item) => (
-                    <li key={item.id}>
-                      <Link
-                        href={`/deployments/${item.id}`}
-                        className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-surface-2/70"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[0.8125rem] font-medium text-ink">
-                            {item.applicationSlug}{' '}
-                            <span className="font-mono text-xs font-normal text-ink-faint">
-                              v{item.version}
-                            </span>
-                          </div>
-                          <div className="truncate font-mono text-[0.6875rem] text-ink-faint">
-                            {item.targetName} · {item.runtime}
-                          </div>
-                        </div>
-                        <span className="shrink-0 font-mono text-[0.6875rem] text-ink-faint tabular-nums">
-                          {formatDuration(item.startedAt?.toISOString() ?? null, item.finishedAt?.toISOString() ?? null)}
-                        </span>
-                        <DeploymentStatusBadge status={item.status} />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {canReadTargets ? (
-          <Card className="gap-0 py-0">
-            <CardHeader className="flex-row items-center justify-between gap-4 border-b border-line px-5 py-4">
-              <div className="space-y-1">
-                <CardTitle>Parc de cibles</CardTitle>
-                <CardDescription>Machines joignables en SSH.</CardDescription>
-              </div>
-              <SectionLink href="/targets">Tout voir</SectionLink>
-            </CardHeader>
-            <CardContent className="px-0">
-              {targets.length === 0 ? (
-                <p className="px-5 py-8 text-center text-[0.8125rem] text-ink-muted">
-                  Aucune machine déclarée.
-                </p>
-              ) : (
-                <ul className="divide-y divide-line">
-                  {targets.slice(0, 5).map((target) => (
-                    <li key={target.id}>
-                      <Link
-                        href={`/targets/${target.id}`}
-                        className="flex flex-col gap-1.5 px-5 py-3 transition-colors hover:bg-surface-2/70"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Led
-                            tone={
-                              target.status === 'ok'
-                                ? 'ok'
-                                : target.status === 'unreachable'
-                                  ? 'danger'
-                                  : target.status === 'degraded'
-                                    ? 'warn'
-                                    : 'idle'
-                            }
-                          />
-                          <span className="truncate text-[0.8125rem] font-medium text-ink">
-                            {target.name}
-                          </span>
-                          <span className="ml-auto shrink-0">
-                            <StatusBadge status={target.status} />
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 pl-4">
-                          <CodeBadge>
-                            {target.sshUser}@{target.host}
-                          </CodeBadge>
-                          <RuntimeBadges runtimes={target.runtimesAvailable} />
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        ) : null}
-      </div>
-
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Vos accès</CardTitle>
-            <CardDescription>
-              Rôles issus de <code className="font-mono text-xs">user_roles</code>, permissions
-              effectives résolues en base à chaque requête.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-1.5">
-              {auth?.roles.map((role) => (
-                <Badge key={role} variant="default">
-                  {role}
-                </Badge>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {auth?.permissions.toSorted().map((permission) => (
-                <CodeBadge key={permission}>{permission}</CodeBadge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Chaîne asynchrone</CardTitle>
-            <CardDescription>
-              Route HTTP → BullMQ (<code className="font-mono text-xs">ops</code>) → worker →{' '}
-              <code className="font-mono text-xs">audit_logs</code>. Requiert{' '}
-              <code className="font-mono text-xs">job:manage</code>.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PingButton />
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
 
-function SectionLink({ href, children }: { href: string; children: string }) {
-  return (
-    <Link
-      href={href}
-      className="flex shrink-0 items-center gap-1 text-xs text-ink-muted transition-colors hover:text-signal"
-    >
-      {children}
-      <ArrowUpRight className="size-3.5" />
-    </Link>
-  );
+/**
+ * Rassemble les anomalies des quatre sources qui peuvent en produire.
+ *
+ * Une même panne ne doit apparaître qu'une fois : une cible injoignable rend
+ * ses applications injoignables, et lister les deux ferait croire à deux
+ * incidents. Les cibles muettes sont donc relevées d'abord, et leurs
+ * applications écartées ensuite.
+ */
+function collectAttention({
+  targets,
+  running,
+  monitors,
+  recent,
+}: {
+  targets: PublicTarget[];
+  running: Awaited<ReturnType<typeof listSupervisedApps>>;
+  monitors: Awaited<ReturnType<typeof listMonitors>>;
+  recent: DeploymentSummary[];
+}): AttentionItem[] {
+  const items: AttentionItem[] = [];
+
+  const mute = new Set<string>();
+  for (const target of targets) {
+    if (target.status === 'ok' || target.status === 'unknown') continue;
+    mute.add(target.name);
+    items.push({
+      subject: target.name,
+      detail:
+        target.status === 'unreachable'
+          ? `Machine injoignable — ${target.host}. Les applications qu'elle porte ne peuvent plus être ni supervisées, ni mises à jour.`
+          : `Preflight dégradé sur ${target.host}. Un déploiement peut échouer sans que la cause soit visible.`,
+      severity: target.status === 'unreachable' ? 'danger' : 'warn',
+      href: `/targets/${target.id}`,
+      action: 'Diagnostiquer',
+    });
+  }
+
+  for (const app of running) {
+    if (mute.has(app.targetName)) continue;
+
+    if (app.healthStatus === 'unreachable' || app.healthStatus === 'unhealthy') {
+      items.push({
+        subject: `${app.applicationSlug}@${app.targetName}`,
+        detail:
+          app.healthStatus === 'unreachable'
+            ? "L'application ne répond plus à sa sonde de santé."
+            : 'La sonde de santé répond, mais pas comme attendu.',
+        severity: app.healthStatus === 'unreachable' ? 'danger' : 'warn',
+        href: `/apps/${app.id}`,
+        action: 'Voir les logs',
+      });
+      continue;
+    }
+
+    if (app.lastFailedUpdate) {
+      items.push({
+        subject: `${app.applicationSlug}@${app.targetName}`,
+        detail:
+          `La mise à jour en v${app.lastFailedUpdate.version} a échoué à l'étape ` +
+          `« ${app.lastFailedUpdate.failedStep ?? 'inconnue'} ». ` +
+          (app.lastFailedUpdate.mayHaveReplacedServices
+            ? 'Elle avait commencé à remplacer les conteneurs : vérifiez ce qui tourne.'
+            : 'La version précédente tourne toujours.'),
+        severity: 'warn',
+        href: `/deployments/${app.lastFailedUpdate.deploymentId}`,
+        action: 'Voir la trace',
+      });
+    }
+  }
+
+  for (const monitor of monitors) {
+    if (!monitor.enabled) continue;
+    if (monitor.status !== 'unreachable' && monitor.status !== 'unhealthy') continue;
+    items.push({
+      subject: monitor.name,
+      detail:
+        monitor.status === 'unreachable'
+          ? 'La sonde ne joint plus sa cible depuis le panel.'
+          : 'La sonde joint sa cible, mais la réponse ne correspond pas à ce qui est attendu.',
+      severity: monitor.status === 'unreachable' ? 'danger' : 'warn',
+      href: `/monitors/${monitor.id}`,
+      action: 'Voir la sonde',
+    });
+  }
+
+  // Un déploiement raté d'une application qui tourne encore est déjà relevé
+  // ci-dessus, avec plus de contexte. On ne garde ici que les échecs orphelins.
+  const covered = new Set(running.map((app) => app.lastFailedUpdate?.deploymentId).filter(Boolean));
+  for (const item of recent) {
+    if (item.status !== 'failed' || covered.has(item.id)) continue;
+    items.push({
+      subject: `${item.applicationSlug} v${item.version}`,
+      detail: `Déploiement échoué sur ${item.targetName}${item.failedStep ? ` à l'étape « ${item.failedStep} »` : ''}.`,
+      severity: 'danger',
+      href: `/deployments/${item.id}`,
+      action: 'Voir la trace',
+    });
+  }
+
+  return items;
 }
