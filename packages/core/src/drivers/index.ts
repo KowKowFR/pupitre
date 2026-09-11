@@ -3,6 +3,8 @@ import { K3sDriver } from './k3s/driver.js';
 import type { DeploymentDriver, RuntimeKind } from './types.js';
 
 export * from './types.js';
+export * from './probe.js';
+export * from './secrets.js';
 export * from './proxy.js';
 export * from './backoff.js';
 export * from './retention.js';

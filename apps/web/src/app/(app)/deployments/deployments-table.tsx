@@ -398,7 +398,7 @@ function PurgeDialog({
               ) : null}
 
               <p className="text-ink-faint">
-                Le journal d’audit, lui, conserve la trace de ce qui a été purgé.
+                Les logs d’activité, eux, conservent la trace de ce qui a été purgé.
               </p>
             </>
           )}

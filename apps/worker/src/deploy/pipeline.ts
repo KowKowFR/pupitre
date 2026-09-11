@@ -35,6 +35,7 @@ import {
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
+import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
 
@@ -164,6 +165,9 @@ export async function runDeploymentPipeline(
       : {}),
     portAllocator: createPortAllocator(),
     portRange,
+    // Les valeurs des secrets viennent du magasin de l'application, pas du
+    // déploiement : elles doivent être les mêmes à chaque mise en ligne.
+    resolveSecrets: secretResolverFor(deployment.applicationId),
   };
 
   const driver = getDriver(deployment.runtime);

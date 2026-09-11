@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function AuditPage({ searchParams }: { searchParams: SearchParams }) {
-  await requirePagePermission('/admin/audit', 'audit:read');
+  await requirePagePermission('/admin/logs', 'audit:read');
 
   const raw = await searchParams;
   const flat: Record<string, string> = {};
@@ -28,12 +28,15 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
     <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Traçabilité"
-        title="Journal d'audit"
+        title="Logs"
         description={
           <>
-            Écrit exclusivement par <code className="font-mono text-xs">logAudit()</code> : un point
-            d&apos;entrée unique, jamais un insert dispersé dans un handler. Les refus de
-            permission y figurent au même titre que les actions abouties.
+            Qui a fait quoi, quand et depuis quelle IP — les logs d&apos;activité du panel, à ne pas
+            confondre avec les logs d&apos;un déploiement ni avec ceux d&apos;une application en
+            marche, qui se lisent sur leurs écrans respectifs. Écrits exclusivement par{' '}
+            <code className="font-mono text-xs">logAudit()</code> : un point d&apos;entrée unique,
+            jamais un insert dispersé dans un handler. Les refus de permission y figurent au même
+            titre que les actions abouties.
           </>
         }
         actions={

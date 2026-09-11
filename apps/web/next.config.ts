@@ -32,6 +32,20 @@ const nextConfig: NextConfig = {
       '../../packages/core/src/spec/__fixtures__/*.json',
     ],
   },
+  /**
+   * L'écran de traçabilité s'appelle « Logs » et vit sous `/admin/logs`. Le
+   * chemin `/admin/audit` a existé : il traîne dans des runbooks, des tickets et
+   * des URL filtrées collées à la main. Un 308 le rattrape — les paramètres de
+   * requête sont conservés, donc une URL filtrée reste une URL filtrée.
+   *
+   * La clé de permission, elle, reste `audit:read` : c'est une donnée en base,
+   * pas un libellé.
+   */
+  redirects() {
+    return Promise.resolve([
+      { source: '/admin/audit', destination: '/admin/logs', permanent: true },
+    ]);
+  },
 };
 
 export default nextConfig;

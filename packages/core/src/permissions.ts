@@ -29,6 +29,8 @@ export const PERMISSIONS = [
   'scan:configure',
   'job:read',
   'job:manage',
+  'monitor:read',
+  'monitor:manage',
   'audit:read',
   'settings:read',
   'settings:manage',
@@ -69,7 +71,9 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'scan:configure': 'Choisir les scanners et le seuil de blocage',
   'job:read': 'Consulter les tâches planifiées',
   'job:manage': 'Créer et désactiver des tâches planifiées',
-  'audit:read': "Consulter le journal d'audit",
+  'monitor:read': 'Consulter la supervision des sites et leur historique',
+  'monitor:manage': 'Créer, modifier et suspendre une sonde de supervision',
+  'audit:read': "Consulter les logs d'activité",
   'settings:read': "Consulter les paramètres de l'instance",
   'settings:manage': "Modifier les paramètres de l'instance, y compris l'accès au modèle d'IA",
 };
@@ -193,6 +197,7 @@ export const RESOURCE_LABELS: Record<string, string> = {
   workload: 'Charges des cibles',
   scan: 'Sécurité',
   job: 'Tâches planifiées',
-  audit: "Journal d'audit",
+  monitor: 'Supervision de sites',
+  audit: "Logs d'activité",
   settings: "Paramètres de l'instance",
 };

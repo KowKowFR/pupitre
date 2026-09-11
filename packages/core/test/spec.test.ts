@@ -8,8 +8,13 @@ import {
   parseAppSpec,
   safeParseAppSpec,
   exposedService,
+  secretBindings,
+  secretNamesOf,
+  secretRootName,
+  storedSecretNames,
   topologicalOrder,
 } from '../src/spec/index.js';
+import { completeSecretValues } from '../src/drivers/secrets.js';
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -195,6 +200,207 @@ describe('AppSpec', () => {
         { name: 'cache', dependsOn: ['api'] },
       ]);
       assert.deepEqual(cycle, ['api', 'cache', 'api']);
+    });
+  });
+
+  /**
+   * Deux images, un seul mot de passe, deux noms de variable. C'est le cas de
+   * WordPress + MariaDB et de GLPI + MariaDB, et il était cassé par
+   * construction : le magasin tirait une valeur par nom.
+   */
+  describe('secrets partagés par alias', () => {
+    /** Le squelette de l'exemple canonique de l'invite de génération. */
+    function pair(secrets: {
+      app: readonly unknown[];
+      db: readonly unknown[];
+    }): Record<string, unknown> {
+      return {
+        name: 'boutique',
+        version: '1.0.0',
+        services: [
+          {
+            name: 'web',
+            source: { type: 'image', ref: 'wordpress:6-apache' },
+            port: 80,
+            exposed: true,
+            secrets: secrets.app,
+            dependsOn: ['mariadb'],
+          },
+          {
+            name: 'mariadb',
+            source: { type: 'image', ref: 'mariadb:11' },
+            port: 3306,
+            secrets: secrets.db,
+          },
+        ],
+      };
+    }
+
+    it('relit une AppSpec ancienne, en chaînes nues', () => {
+      const spec = parseAppSpec(
+        pair({ app: ['WORDPRESS_DB_PASSWORD'], db: ['MARIADB_PASSWORD'] }),
+      );
+      assert.deepEqual(spec.services[0]?.secrets, ['WORDPRESS_DB_PASSWORD']);
+      // Deux racines : c'est bien la panne d'origine, et elle reste lisible.
+      assert.deepEqual(storedSecretNames(spec).sort(), [
+        'MARIADB_PASSWORD',
+        'WORDPRESS_DB_PASSWORD',
+      ]);
+    });
+
+    it('accepte un alias et ne compte qu’une racine', () => {
+      const spec = parseAppSpec(
+        pair({
+          app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'MARIADB_PASSWORD' }],
+          db: ['MARIADB_PASSWORD', 'MARIADB_ROOT_PASSWORD'],
+        }),
+      );
+      assert.deepEqual(secretNamesOf(spec).sort(), [
+        'MARIADB_PASSWORD',
+        'MARIADB_ROOT_PASSWORD',
+        'WORDPRESS_DB_PASSWORD',
+      ]);
+      assert.deepEqual(storedSecretNames(spec).sort(), [
+        'MARIADB_PASSWORD',
+        'MARIADB_ROOT_PASSWORD',
+      ]);
+      assert.equal(
+        secretRootName(secretBindings(spec), 'WORDPRESS_DB_PASSWORD'),
+        'MARIADB_PASSWORD',
+      );
+    });
+
+    it('suit une chaîne d’alias jusqu’à la racine', () => {
+      const spec = parseAppSpec(
+        pair({
+          app: [
+            { name: 'A', from: 'B' },
+            { name: 'B', from: 'MARIADB_PASSWORD' },
+          ],
+          db: ['MARIADB_PASSWORD'],
+        }),
+      );
+      assert.deepEqual(storedSecretNames(spec), ['MARIADB_PASSWORD']);
+      assert.equal(secretRootName(secretBindings(spec), 'A'), 'MARIADB_PASSWORD');
+    });
+
+    it('refuse un alias vers un secret inexistant, en le nommant', () => {
+      const result = safeParseAppSpec(
+        pair({ app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'ABSENT' }], db: [] }),
+      );
+      assert.equal(result.success, false);
+      assert.match(
+        result.success ? '' : result.error.issues.map((i) => i.message).join(' '),
+        /secret inconnu « ABSENT »/,
+      );
+    });
+
+    it('refuse un alias vers lui-même', () => {
+      const result = safeParseAppSpec(
+        pair({ app: [{ name: 'PASSWORD', from: 'PASSWORD' }], db: [] }),
+      );
+      assert.equal(result.success, false);
+      assert.match(
+        result.success ? '' : result.error.issues.map((i) => i.message).join(' '),
+        /ne peut pas prendre sa valeur de lui-même/,
+      );
+    });
+
+    it('refuse deux alias qui se pointent l’un l’autre', () => {
+      const result = safeParseAppSpec(
+        pair({ app: [{ name: 'A', from: 'B' }], db: [{ name: 'B', from: 'A' }] }),
+      );
+      assert.equal(result.success, false);
+      assert.match(
+        result.success ? '' : result.error.issues.map((i) => i.message).join(' '),
+        /cycle d'alias de secrets/,
+      );
+    });
+
+    it('refuse un nom déclaré nu ici et aliasé ailleurs', () => {
+      const result = safeParseAppSpec(
+        pair({
+          app: [{ name: 'MARIADB_PASSWORD', from: 'AUTRE' }],
+          db: ['MARIADB_PASSWORD', 'AUTRE'],
+        }),
+      );
+      assert.equal(result.success, false);
+      assert.match(
+        result.success ? '' : result.error.issues.map((i) => i.message).join(' '),
+        /déclaré nu ici et comme alias/,
+      );
+    });
+
+    it('refuse deux alias contradictoires pour un même nom', () => {
+      const result = safeParseAppSpec(
+        pair({
+          app: [{ name: 'P', from: 'X' }],
+          db: [{ name: 'P', from: 'Y' }, 'X', 'Y'],
+        }),
+      );
+      assert.equal(result.success, false);
+      assert.match(
+        result.success ? '' : result.error.issues.map((i) => i.message).join(' '),
+        /un nom ne désigne qu'une valeur/,
+      );
+    });
+
+    it('refuse deux fois le même nom dans un service', () => {
+      const result = safeParseAppSpec(
+        pair({ app: ['P', 'P'], db: [] }),
+      );
+      assert.equal(result.success, false);
+      assert.match(
+        result.success ? '' : result.error.issues.map((i) => i.message).join(' '),
+        /noms de secrets dupliqués/,
+      );
+    });
+
+    it('refuse un alias dont le nom est déjà dans env', () => {
+      const result = safeParseAppSpec({
+        name: 'boutique',
+        version: '1.0.0',
+        services: [
+          {
+            name: 'web',
+            source: { type: 'image', ref: 'x' },
+            port: 80,
+            exposed: true,
+            env: { P: 'x' },
+            secrets: [{ name: 'P', from: 'Q' }, 'Q'],
+          },
+        ],
+      });
+      assert.equal(result.success, false);
+    });
+
+    it('completeSecretValues donne la même valeur aux deux noms', () => {
+      const spec = parseAppSpec(
+        pair({
+          app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'MARIADB_PASSWORD' }],
+          db: ['MARIADB_PASSWORD'],
+        }),
+      );
+      const values = completeSecretValues(spec, { MARIADB_PASSWORD: 's3cr3t' });
+      assert.deepEqual(values, {
+        WORDPRESS_DB_PASSWORD: 's3cr3t',
+        MARIADB_PASSWORD: 's3cr3t',
+      });
+    });
+
+    it('nomme la racine, pas l’alias, quand la valeur manque', () => {
+      const spec = parseAppSpec(
+        pair({
+          app: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'MARIADB_PASSWORD' }],
+          db: ['MARIADB_PASSWORD'],
+        }),
+      );
+      assert.throws(
+        () => completeSecretValues(spec, {}),
+        (error: Error) =>
+          error.message.includes('MARIADB_PASSWORD') &&
+          !error.message.includes('WORDPRESS_DB_PASSWORD'),
+      );
     });
   });
 

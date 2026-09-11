@@ -53,6 +53,8 @@ jq -e '.status == "ok" and .db == "ok" and .redis == "ok"' "$BODY" >/dev/null \
   || fail "/api/health : $(cat "$BODY")"
 pass "/api/health → $(jq -c '{status,db,redis}' "$BODY")"
 
+psql_q() { docker compose exec -T postgres psql -U tp -d tp -tAc "$1"; }
+
 step "1. Un administrateur existe (bootstrap si nécessaire)"
 code=$(req POST /api/auth/sign-in/email "$ADMIN_JAR" \
   "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
@@ -76,6 +78,17 @@ case "$code" in
   409) pass "le viewer existait déjà" ;;
   *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
 esac
+
+# Un compte qui existe déjà garde le rôle qu'un autre script lui a donné : la
+# création répond 409 sans rien corriger. Sans ce réalignement, l'étape 4
+# testait un « viewer » devenu operator — donc titulaire de deployment:create —
+# et recevait un 422 de validation là où elle attendait un 403. Un test qui
+# dépend de l'ordre d'exécution de ses voisins ne prouve rien.
+VIEWER_ACCOUNT_ID=$(psql_q "select id from users where email = '$VIEWER_EMAIL';")
+[ -n "$VIEWER_ACCOUNT_ID" ] || fail "compte « $VIEWER_EMAIL » introuvable après création"
+code=$(req PATCH "/api/admin/users/$VIEWER_ACCOUNT_ID/role" "$ADMIN_JAR" '{"role":"viewer"}')
+[ "$code" = "200" ] || fail "réalignement du rôle → HTTP $code : $(cat "$BODY")"
+pass "rôle réaligné sur « viewer », quel que soit son état d'avant"
 
 step "3. Se connecter en tant que viewer"
 code=$(req POST /api/auth/sign-in/email "$VIEWER_JAR" \

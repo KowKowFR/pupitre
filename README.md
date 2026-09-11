@@ -1089,7 +1089,7 @@ le driver du jalon 4 en aura besoin), le rapport complet dans
 | `/deployments` | `deployment:read` — historique : app, cible, runtime, **scanners et verdict**, statut, durée |
 | `/deployments/:id` | `deployment:read` — onglet **Pipeline** (étapes à gauche, logs live à droite, rollback si échec), badge `rolled_back` distinct de `failed` avec la version restaurée, et onglet **Sécurité** |
 | `/jobs` | `job:read` — tâches planifiées : cron traduit en français, dernier run, prochain run, activation / désactivation, « Lancer », historique des exécutions dépliable. `job:manage` pour agir |
-| `/admin/audit` | `audit:read` — table paginée avec filtres |
+| `/admin/logs` | `audit:read` — logs d’activité : table paginée avec filtres. L’ancien chemin `/admin/audit` redirige en 308 |
 | `/admin/users` | `user:manage` — liste, création, rôle, désactivation |
 
 ## Schéma de base

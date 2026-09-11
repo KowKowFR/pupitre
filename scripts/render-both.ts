@@ -18,7 +18,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
-import { parseAppSpec, exposedService } from '@tp/core';
+import { parseAppSpec, exposedService, secretNamesOf } from '@tp/core';
 // `@tp/core/drivers` tire `ssh2` : acceptable pour un script Node, jamais pour
 // le panel — c'est pourquoi ce sous-chemin existe.
 import {
@@ -48,6 +48,21 @@ function main(): void {
   const spec = parseAppSpec(parsed);
   const appSlug = spec.name;
 
+  /**
+   * Valeurs de remplissage pour les secrets déclarés.
+   *
+   * Cet outil compare **deux rendus** : il n'a ni application en base, ni
+   * magasin de secrets. Or les deux rendus refusent désormais un secret
+   * déclaré sans valeur — à raison, c'est ce qui empêche un `.env` vide de
+   * partir sur une machine. Ici la valeur n'a aucune importance : ce qu'on
+   * vérifie, c'est que la même AppSpec produit un compose ET des manifests
+   * cohérents, pas que le secret soit le bon. La même valeur est donnée aux
+   * deux côtés, ce qui rend d'ailleurs la comparaison plus franche.
+   */
+  const secretValues = Object.fromEntries(
+    secretNamesOf(spec).map((name) => [name, `valeur-de-rendu-${name.toLowerCase()}`]),
+  );
+
   // ─── Docker ────────────────────────────────────────────────────────────────
   const compose = serializeComposeFile(
     renderComposeFile({ spec, appSlug, publishedPort: 30_000 }),
@@ -66,7 +81,7 @@ function main(): void {
   }
 
   // ─── K3s ───────────────────────────────────────────────────────────────────
-  const manifests = k3sRender.renderManifests({ spec, appSlug });
+  const manifests = k3sRender.renderManifests({ spec, appSlug, secretValues });
   const kinds: Record<string, number> = {};
   for (const manifest of manifests) {
     kinds[manifest.kind] = (kinds[manifest.kind] ?? 0) + 1;

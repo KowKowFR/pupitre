@@ -11,6 +11,19 @@ const envSchema = z.object({
   /** Spectateurs de logs simultanés. Chacun tient une session SSH ouverte. */
   SUPERVISION_CONCURRENCY: z.coerce.number().int().min(1).max(64).default(8),
   WORKER_ID: z.string().min(1).default('worker-1'),
+  /**
+   * Plages internes que les sondes de supervision ont le droit d'atteindre,
+   * en CIDR séparés par des virgules — ex. `10.0.0.0/8,192.168.1.0/24`.
+   *
+   * Vide par défaut : seules les adresses **publiques** sont sondables. C'est la
+   * garde SSRF, et elle se lève ici et nulle part ailleurs — pas depuis
+   * l'interface, pas avec une permission. Le raisonnement complet est dans
+   * `packages/core/src/monitoring.ts`.
+   *
+   * Le lien-local (`169.254.0.0/16`, qui porte les services de métadonnées), le
+   * multicast et le réservé restent refusés même s'ils sont listés ici.
+   */
+  MONITOR_ALLOWED_CIDRS: z.string().default(''),
   /** Racine où le driver dépose ses artefacts sur les cibles. */
   DRIVER_ROOT_PATH: z.string().min(1).default('/opt/bootstrap'),
   /**

@@ -33,6 +33,15 @@ const envSchema = z.object({
    */
   OPENROUTER_MODEL: optional(z.string().min(1)),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /**
+   * Plages internes que les sondes de supervision ont le droit d'atteindre, en
+   * CIDR séparés par des virgules. Vide = adresses publiques uniquement.
+   *
+   * Le panel la lit pour **refuser une URL à la création**, avec un message
+   * utile ; le worker la relit pour refuser à chaque saut de redirection. Les
+   * deux doivent porter la même valeur — c'est le `.env` partagé qui l'assure.
+   */
+  MONITOR_ALLOWED_CIDRS: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

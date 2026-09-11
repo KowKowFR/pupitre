@@ -4,5 +4,8 @@ export * from './rbac.js';
 export * from './infra.js';
 export * from './deployments.js';
 export * from './security.js';
+export * from './secrets.js';
 export * from './ops.js';
+export * from './monitors.js';
+export * from './notifications.js';
 export * from './settings.js';

@@ -611,7 +611,7 @@ function UserStep({
     <div className="flex flex-col gap-4">
       <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
         Chaque geste du panel est journalisé avec son auteur. Un compte par personne n&apos;est pas
-        une formalité : c&apos;est ce qui rend le journal d&apos;audit lisible.
+        une formalité : c&apos;est ce qui rend les logs lisibles.
         {existing !== null ? ` Ce panel compte déjà ${existing} compte${existing > 1 ? 's' : ''}.` : ''}
       </p>
       <CreateUserForm roles={roleKeys} onCreated={onCreated} />

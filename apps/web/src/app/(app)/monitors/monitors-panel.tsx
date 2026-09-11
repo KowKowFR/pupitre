@@ -1,0 +1,600 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import * as React from 'react';
+import { formatCadence, type MonitorType } from '@tp/core';
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { EmptyState } from '@/components/empty-state';
+import { HealthDot, formatSince } from '@/app/(app)/apps/apps-table';
+import { cleanConfig, ConfigFields, defaultsOf, type ConfigValues } from './config-fields';
+import { LatencySparkline, OutcomeLegend, OutcomeStrip } from './monitor-charts';
+
+/**
+ * L'écran des sondes.
+ *
+ * Trois principes de lecture, tous demandés par le brief et tenus ici :
+ *
+ *   — l'état se lit **à la forme autant qu'à la couleur** : `HealthDot`, le même
+ *     voyant que l'écran de supervision des applications, donc la même
+ *     convention à apprendre une seule fois ;
+ *   — une sonde **jamais exécutée le dit**, au lieu d'afficher 0 % ;
+ *   — un taux dit **sur quelle fenêtre** il porte et **combien de mesures** le
+ *     composent : « 100 % sur 3 mesures » n'est pas « 100 % sur 1 440 ».
+ *
+ * Et le formulaire ne connaît aucun type de sonde : il se construit à partir du
+ * catalogue que le serveur lui envoie.
+ */
+
+export type MonitorRow = {
+  id: string;
+  name: string;
+  type: MonitorType;
+  typeLabel: string;
+  target: string;
+  targetLink: string | null;
+  intervalSeconds: number;
+  failureThreshold: number;
+  recoveryThreshold: number;
+  enabled: boolean;
+  pausedReason: string | null;
+  applicationId: string | null;
+  hasWebhook: boolean;
+  status: 'unknown' | 'healthy' | 'unhealthy' | 'unreachable';
+  lastOutcome: 'unknown' | 'healthy' | 'unhealthy' | 'unreachable' | null;
+  consecutiveFailures: number;
+  lastCheckedAt: string | null;
+  lastLatencyMs: number | null;
+  lastDetail: string | null;
+  neverRan: boolean;
+  uptime24h: { hours: number; samples: number; up: number; ratio: number | null; label: string };
+  uptime7d: { hours: number; samples: number; up: number; ratio: number | null; label: string };
+  recent: Array<{ at: string; latencyMs: number | null; outcome: string }>;
+  openIncidentSince: string | null;
+};
+
+export type TypeOption = {
+  type: MonitorType;
+  label: string;
+  description: string;
+  neverDoes: string;
+  fields: Parameters<typeof ConfigFields>[0]['fields'];
+  minIntervalSeconds: number;
+  defaultIntervalSeconds: number;
+  defaults: unknown;
+  uptimeMeans: string;
+};
+
+export type AdoptableApp = {
+  applicationId: string;
+  slug: string;
+  name: string;
+  url: string;
+};
+
+type ApiError = { error?: { message?: string } };
+
+async function errorOf(response: Response): Promise<string> {
+  const body = (await response.json().catch(() => ({}))) as ApiError;
+  return body.error?.message ?? `Échec (HTTP ${response.status})`;
+}
+
+/** Les cadences proposées. Filtrées par le minimum que le type déclare. */
+const INTERVAL_CHOICES = [30, 60, 300, 900, 3_600, 6 * 3_600, 12 * 3_600, 86_400];
+
+export function MonitorsPanel({
+  monitors,
+  types,
+  adoptable,
+  canManage,
+  retentionDays,
+}: {
+  monitors: MonitorRow[];
+  types: TypeOption[];
+  adoptable: AdoptableApp[];
+  canManage: boolean;
+  retentionDays: number;
+}) {
+  const router = useRouter();
+  const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const [creating, setCreating] = React.useState(false);
+
+  async function call(path: string, init: RequestInit, key: string): Promise<boolean> {
+    setBusy(key);
+    setError(null);
+    const response = await fetch(path, init);
+    if (!response.ok) {
+      setError(await errorOf(response));
+      setBusy(null);
+      return false;
+    }
+    setBusy(null);
+    router.refresh();
+    return true;
+  }
+
+  async function toggle(monitor: MonitorRow): Promise<void> {
+    await call(
+      `/api/monitors/${monitor.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: !monitor.enabled }),
+      },
+      monitor.id,
+    );
+  }
+
+  async function probeNow(monitor: MonitorRow): Promise<void> {
+    await call(`/api/monitors/${monitor.id}/check`, { method: 'POST' }, monitor.id);
+  }
+
+  async function remove(monitor: MonitorRow): Promise<void> {
+    if (
+      !window.confirm(
+        `Supprimer la sonde « ${monitor.name} » ?\n\n` +
+          "Son historique de mesures et sa chronologie d'incidents partent avec elle.",
+      )
+    ) {
+      return;
+    }
+    await call(`/api/monitors/${monitor.id}`, { method: 'DELETE' }, monitor.id);
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
+
+      {canManage ? (
+        <CreateMonitor
+          types={types}
+          adoptable={adoptable}
+          open={creating}
+          onOpenChange={setCreating}
+          onCreated={() => {
+            setCreating(false);
+            router.refresh();
+          }}
+          onError={setError}
+        />
+      ) : null}
+
+      {monitors.length === 0 ? (
+        <EmptyState
+          title="Aucune sonde"
+          hint={
+            canManage
+              ? "Une sonde part du worker vers l'adresse publique de ce qu'elle surveille. C'est un point de vue différent du healthcheck : elle voit le pare-feu, le proxy et le certificat."
+              : "Aucune sonde n'a encore été déclarée sur cette instance."
+          }
+          action={
+            canManage ? (
+              <Button onClick={() => setCreating(true)}>Déclarer une sonde</Button>
+            ) : null
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {monitors.map((monitor) => (
+            <MonitorCard
+              key={monitor.id}
+              monitor={monitor}
+              canManage={canManage}
+              busy={busy === monitor.id}
+              onToggle={() => void toggle(monitor)}
+              onProbe={() => void probeNow(monitor)}
+              onRemove={() => void remove(monitor)}
+            />
+          ))}
+          <p className="text-[0.6875rem] text-ink-faint">
+            Les mesures sont conservées {retentionDays} jours, puis purgées. Les incidents, eux, ne
+            sont jamais purgés — ce sont eux qui racontent l&apos;histoire.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MonitorCard({
+  monitor,
+  canManage,
+  busy,
+  onToggle,
+  onProbe,
+  onRemove,
+}: {
+  monitor: MonitorRow;
+  canManage: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  onProbe: () => void;
+  onRemove: () => void;
+}) {
+  // Un échec en cours mais pas encore confirmé : l'écran le dit franchement
+  // plutôt que d'afficher « sain » ou « en panne », qui seraient tous deux faux.
+  const pending =
+    monitor.consecutiveFailures > 0 && monitor.consecutiveFailures < monitor.failureThreshold;
+
+  return (
+    <Card className="gap-4">
+      <CardHeader className="flex-row flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 space-y-1">
+          <CardTitle className="flex flex-wrap items-center gap-2">
+            <Link href={`/monitors/${monitor.id}`} className="underline-offset-4 hover:underline">
+              {monitor.name}
+            </Link>
+            <Badge variant="secondary">{monitor.typeLabel}</Badge>
+            {monitor.hasWebhook ? <Badge variant="outline">alerte</Badge> : null}
+            {monitor.applicationId ? <Badge variant="outline">application</Badge> : null}
+          </CardTitle>
+          <CardDescription className="font-mono text-xs break-all">
+            {monitor.targetLink ? (
+              <a
+                href={monitor.targetLink}
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-4"
+              >
+                {monitor.target}
+              </a>
+            ) : (
+              monitor.target
+            )}
+          </CardDescription>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {canManage ? (
+            <>
+              <Button size="sm" variant="outline" disabled={busy} onClick={onProbe}>
+                {busy ? 'Envoi…' : 'Sonder'}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={onToggle}>
+                {monitor.enabled ? 'Suspendre' : 'Reprendre'}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={busy} onClick={onRemove}>
+                Supprimer
+              </Button>
+            </>
+          ) : null}
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/monitors/${monitor.id}`}>Détail</Link>
+          </Button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        {monitor.pausedReason ? (
+          <Alert variant="warn">
+            Sonde suspendue — {monitor.pausedReason}. Elle se reprend avec « Reprendre ».
+          </Alert>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto]">
+          <div className="space-y-1">
+            <HealthDot health={monitor.status} />
+            {monitor.neverRan ? (
+              <p className="text-[0.6875rem] text-ink-faint">
+                Jamais exécutée — première mesure au prochain balayage.
+              </p>
+            ) : (
+              <p className="text-[0.6875rem] text-ink-faint">
+                Mesurée il y a {formatSince(monitor.lastCheckedAt)} ·{' '}
+                {formatCadence(monitor.intervalSeconds)}
+              </p>
+            )}
+            {pending ? (
+              <Badge variant="warn" className="mt-1">
+                {monitor.consecutiveFailures} échec sur {monitor.failureThreshold} — non confirmé
+              </Badge>
+            ) : null}
+            {!monitor.enabled && !monitor.pausedReason ? (
+              <Badge variant="secondary" className="mt-1">
+                suspendue
+              </Badge>
+            ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
+              <span className="text-ink">
+                <span className="eyebrow text-ink-faint">24 h </span>
+                {monitor.uptime24h.label}
+              </span>
+              <span className="text-ink-muted">
+                <span className="eyebrow text-ink-faint">7 j </span>
+                {monitor.uptime7d.label}
+              </span>
+            </div>
+            <OutcomeStrip points={monitor.recent} height={18} />
+            {monitor.recent.length > 0 ? <OutcomeLegend /> : null}
+          </div>
+
+          <div className="flex flex-col items-end justify-center gap-1">
+            <LatencySparkline points={monitor.recent} />
+            <span className="font-mono text-[0.6875rem] text-ink-muted">
+              {monitor.lastLatencyMs === null ? '—' : `${monitor.lastLatencyMs} ms`}
+            </span>
+          </div>
+        </div>
+
+        {monitor.lastDetail ? (
+          <p className="font-mono text-[0.6875rem] break-all text-ink-muted">
+            {monitor.lastDetail}
+          </p>
+        ) : null}
+
+        {monitor.openIncidentSince ? (
+          <Alert variant="destructive">
+            Incident ouvert depuis {formatSince(monitor.openIncidentSince)}.{' '}
+            <Link href={`/monitors/${monitor.id}`} className="underline underline-offset-4">
+              Voir la chronologie
+            </Link>
+          </Alert>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── création ─────────────────────────────────────────────────────────────────
+
+function CreateMonitor({
+  types,
+  adoptable,
+  open,
+  onOpenChange,
+  onCreated,
+  onError,
+}: {
+  types: TypeOption[];
+  adoptable: AdoptableApp[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const first = types[0];
+  const [type, setType] = React.useState<MonitorType>(first?.type ?? 'http');
+  const [name, setName] = React.useState('');
+  const [config, setConfig] = React.useState<ConfigValues>(defaultsOf(first?.defaults));
+  const [intervalSeconds, setIntervalSeconds] = React.useState(
+    first?.defaultIntervalSeconds ?? 60,
+  );
+  const [failureThreshold, setFailureThreshold] = React.useState(3);
+  const [recoveryThreshold, setRecoveryThreshold] = React.useState(2);
+  const [webhookUrl, setWebhookUrl] = React.useState('');
+  const [applicationId, setApplicationId] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = React.useState(false);
+
+  const definition = types.find((option) => option.type === type) ?? first;
+
+  function pickType(next: MonitorType): void {
+    const option = types.find((entry) => entry.type === next);
+    setType(next);
+    setConfig(defaultsOf(option?.defaults));
+    setIntervalSeconds(option?.defaultIntervalSeconds ?? 60);
+    setApplicationId(null);
+  }
+
+  /** Le bouton « Superviser » d'une application : la sonde est pré-remplie. */
+  function adopt(app: AdoptableApp): void {
+    const httpOption = types.find((entry) => entry.type === 'http');
+    setType('http');
+    setConfig({ ...defaultsOf(httpOption?.defaults), url: app.url });
+    setIntervalSeconds(httpOption?.defaultIntervalSeconds ?? 60);
+    setName(app.name);
+    setApplicationId(app.applicationId);
+    onOpenChange(true);
+  }
+
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    setSubmitting(true);
+    onError(null);
+
+    const response = await fetch('/api/monitors', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        type,
+        config: cleanConfig(config),
+        intervalSeconds,
+        failureThreshold,
+        recoveryThreshold,
+        applicationId,
+        webhookUrl: webhookUrl.trim() === '' ? null : webhookUrl.trim(),
+      }),
+    });
+
+    setSubmitting(false);
+    if (!response.ok) {
+      onError(await errorOf(response));
+      return;
+    }
+
+    setName('');
+    setWebhookUrl('');
+    setApplicationId(null);
+    setConfig(defaultsOf(definition?.defaults));
+    onCreated();
+  }
+
+  const intervals = INTERVAL_CHOICES.filter(
+    (seconds) => seconds >= (definition?.minIntervalSeconds ?? 30),
+  );
+
+  return (
+    <div className="space-y-3">
+      {adoptable.length > 0 ? (
+        <Card className="gap-3">
+          <CardHeader>
+            <CardTitle>Applications déployées, pas encore supervisées</CardTitle>
+            <CardDescription>
+              Le panel connaît déjà leur adresse. Il ne crée pas la sonde tout seul — une sonde
+              émet du trafic sortant à la minute, ce n&apos;est pas un effet de bord qu&apos;un
+              déploiement doit produire sans qu&apos;on l&apos;ait demandé. Un clic suffit.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {adoptable.map((app) => (
+              <Button
+                key={app.applicationId}
+                size="sm"
+                variant="outline"
+                onClick={() => adopt(app)}
+              >
+                Superviser {app.slug}
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!open ? (
+        <Button onClick={() => onOpenChange(true)}>Déclarer une sonde</Button>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Nouvelle sonde</CardTitle>
+            {definition ? (
+              <CardDescription>
+                {definition.description} {definition.neverDoes}
+              </CardDescription>
+            ) : null}
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="monitor-name">Nom</Label>
+                  <Input
+                    id="monitor-name"
+                    value={name}
+                    required
+                    maxLength={120}
+                    placeholder="Site vitrine"
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="monitor-type">Type de surveillance</Label>
+                  <Select
+                    id="monitor-type"
+                    value={type}
+                    onChange={(event) => pickType(event.target.value as MonitorType)}
+                  >
+                    {types.map((option) => (
+                      <option key={option.type} value={option.type}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+
+              {definition ? (
+                <ConfigFields
+                  fields={definition.fields}
+                  values={config}
+                  idPrefix="monitor-config"
+                  onChange={(key, value) =>
+                    setConfig((previous) => ({ ...previous, [key]: value }))
+                  }
+                />
+              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="monitor-interval">Cadence</Label>
+                  <Select
+                    id="monitor-interval"
+                    value={String(intervalSeconds)}
+                    onChange={(event) => setIntervalSeconds(Number(event.target.value))}
+                  >
+                    {intervals.map((seconds) => (
+                      <option key={seconds} value={seconds}>
+                        {formatCadence(seconds)}
+                      </option>
+                    ))}
+                  </Select>
+                  {definition ? (
+                    <p className="text-[0.6875rem] text-ink-faint">
+                      Pas plus souvent que{' '}
+                      {formatCadence(definition.minIntervalSeconds)} pour ce type.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="monitor-failure">Seuil de panne</Label>
+                  <Input
+                    id="monitor-failure"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={failureThreshold}
+                    onChange={(event) => setFailureThreshold(Number(event.target.value))}
+                  />
+                  <p className="text-[0.6875rem] text-ink-faint">
+                    Échecs consécutifs avant l&apos;incident. Un rebond isolé n&apos;alerte pas.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="monitor-recovery">Seuil de rétablissement</Label>
+                  <Input
+                    id="monitor-recovery"
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={recoveryThreshold}
+                    onChange={(event) => setRecoveryThreshold(Number(event.target.value))}
+                  />
+                  <p className="text-[0.6875rem] text-ink-faint">
+                    Succès consécutifs avant de refermer l&apos;incident.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="monitor-webhook">Webhook d&apos;alerte — facultatif</Label>
+                <Input
+                  id="monitor-webhook"
+                  type="url"
+                  value={webhookUrl}
+                  placeholder="https://hooks.slack.com/services/…"
+                  onChange={(event) => setWebhookUrl(event.target.value)}
+                />
+                <p className="text-[0.6875rem] text-ink-faint">
+                  Un POST JSON à la panne **et** au rétablissement, jamais à chaque échec. La
+                  charge porte <code className="font-mono">text</code> et{' '}
+                  <code className="font-mono">content</code>, ce que lisent Slack et Discord.
+                  L&apos;URL est chiffrée en base et n&apos;est jamais réaffichée.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Création…' : 'Créer la sonde'}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                  Annuler
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

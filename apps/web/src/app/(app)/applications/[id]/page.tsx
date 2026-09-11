@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getApplication, listApplicationVersions, listTargets } from '@tp/db';
+import { getApplication, listApplicationSecrets, listApplicationVersions, listTargets } from '@tp/db';
 import { z } from 'zod';
 import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buildSecretViews } from '@/lib/application-secrets';
 import { requirePagePermission } from '@/lib/page-auth';
+import { ApplicationSecrets } from './application-secrets';
 import { VersionTimeline, type VersionRow } from './version-timeline';
 
 export const dynamic = 'force-dynamic';
@@ -22,9 +24,10 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const application = await getApplication(parsed.data.id);
   if (!application) notFound();
 
-  const [versions, targets] = await Promise.all([
+  const [versions, targets, storedSecrets] = await Promise.all([
     listApplicationVersions(application.id),
     listTargets(),
+    listApplicationSecrets(application.id),
   ]);
 
   const rows: VersionRow[] = versions.map((version) => ({
@@ -88,6 +91,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           </span>
         </CardContent>
       </Card>
+
+      <ApplicationSecrets
+        applicationId={application.id}
+        secrets={buildSecretViews(spec, storedSecrets)}
+        canEdit={auth.can('application:update')}
+      />
 
       <div className="flex flex-col gap-1 pt-1">
         <h2 className="font-condensed text-lg leading-none font-semibold tracking-[0.005em] text-ink">

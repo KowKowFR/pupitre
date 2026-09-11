@@ -192,6 +192,13 @@ const securityFields = {
    * Vit ici depuis que l'écran de déploiement ne le demande plus : une
    * politique de sécurité qui se choisit au coup par coup, déploiement par
    * déploiement, n'est pas une politique.
+   *
+   * Le défaut est `NONE` — on analyse et on rapporte, on ne bloque pas.
+   * Bloquer d'emblée paraît plus sûr et ne l'est pas : `nginx:1.29-alpine`
+   * porte 26 findings CRITICAL, `httpd:2.4-alpine` en porte 40. Un seuil
+   * bloquant par défaut refuse donc toute image publique dès la première mise
+   * en ligne, et l'opérateur coupe l'analyse entière pour avancer — il se
+   * retrouve sans scan du tout. Informer par défaut, bloquer sur décision.
    */
   failOn: failOnSchema,
 };
@@ -200,7 +207,7 @@ const securityFields = {
 export const securitySettingsSchema = z.object({
   scanningEnabled: securityFields.scanningEnabled.default(true),
   disabledScanners: securityFields.disabledScanners.default([]),
-  failOn: securityFields.failOn.default('CRITICAL'),
+  failOn: securityFields.failOn.default('NONE'),
 });
 
 /** Patch partiel : une clé absente reste absente. */
@@ -215,7 +222,7 @@ export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
 export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
   scanningEnabled: true,
   disabledScanners: [],
-  failOn: 'CRITICAL',
+  failOn: 'NONE',
 };
 
 /**

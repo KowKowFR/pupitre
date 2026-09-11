@@ -42,6 +42,52 @@ export function setAuditFailureReporter(reporter: AuditFailureReporter): void {
 }
 
 /**
+ * Observateur des entrées **réellement écrites**.
+ *
+ * Pourquoi se greffer ici plutôt que d'émettre les notifications depuis chaque
+ * site d'action : `logAudit()` est déjà le point d'entrée unique par lequel
+ * passent tous les événements qui méritent d'être notifiés — un déploiement en
+ * échec, un rollback automatique, une réinitialisation de second facteur, un
+ * changement de rôle. Les réémettre à la main obligerait à toucher le pipeline
+ * de déploiement, deux routes d'administration et le worker, puis à recommencer
+ * au prochain événement. Ici, la correspondance tient dans une seule table de
+ * données (`@tp/core` → `notifiableEventFor`).
+ *
+ * Trois précautions, parce que ce point d'entrée est fragile :
+ *   1. l'observateur est appelé **après** l'écriture, jamais avant : on ne
+ *      notifie pas un événement qui n'a pas été tracé ;
+ *   2. il ne peut pas faire échouer `logAudit()` — son exception est attrapée
+ *      et rapportée comme telle, distincte d'un échec d'écriture ;
+ *   3. il est **synchrone et non attendu** : il doit se contenter d'enfiler une
+ *      tâche. Tout travail réel appartient au worker.
+ *
+ * L'état vit sur `globalThis` et non dans une variable de module : Next découpe
+ * le code serveur en chunks et peut charger plusieurs copies de ce module. Avec
+ * une variable de module, l'observateur installé au démarrage du panel serait
+ * invisible depuis la copie chargée par un Route Handler. Même motif que le
+ * cache des paramètres d'instance, et pour la même raison.
+ */
+export type AuditObserver = (row: AuditLogRow) => void;
+
+declare global {
+  var __tpAuditObserver: AuditObserver | undefined;
+}
+
+export function setAuditObserver(observer: AuditObserver | null): void {
+  globalThis.__tpAuditObserver = observer ?? undefined;
+}
+
+function notifyObserver(row: AuditLogRow): void {
+  const observer = globalThis.__tpAuditObserver;
+  if (!observer) return;
+  try {
+    observer(row);
+  } catch (error) {
+    reportFailure(error, { action: `observer:${row.action}`, resourceType: row.resourceType });
+  }
+}
+
+/**
  * Écrit une ligne d'audit. Retourne `null` si l'écriture a échoué —
  * l'appelant n'a rien à gérer, l'échec est déjà journalisé en erreur.
  */
@@ -63,6 +109,10 @@ export async function logAudit(
         ip: parsed.ip,
       })
       .returning();
+    // `notifyObserver` n'échoue jamais : le placer ici plutôt qu'après le
+    // `try` évite de dupliquer le chemin de retour sans risquer de transformer
+    // un problème de notification en échec d'audit.
+    if (row) notifyObserver(row);
     return row ?? null;
   } catch (error) {
     reportFailure(error, entry);

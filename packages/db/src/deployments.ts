@@ -874,8 +874,9 @@ type PinnedKind = 'in_service' | 'only_handle';
  */
 export async function listPinnedDeployments(
   db: Database = getDb(),
+  filter: { applicationId?: string; targetId?: string } = {},
 ): Promise<Map<string, PinnedKind>> {
-  const live = await listLiveDeployments({}, db);
+  const live = await listLiveDeployments(filter, db);
   const pinned = new Map<string, PinnedKind>();
   for (const row of live) {
     for (const id of row.pinnedIds) {
@@ -888,6 +889,72 @@ export async function listPinnedDeployments(
 /** Les mêmes, sans la raison — l'écran des déploiements grise la case avec. */
 export async function listLiveDeploymentIds(db: Database = getDb()): Promise<Set<string>> {
   return new Set((await listPinnedDeployments(db)).keys());
+}
+
+/**
+ * Ce qui **bloque réellement** la suppression d'une application.
+ *
+ * La question « peut-on supprimer cette application ? » n'est pas « porte-t-elle
+ * des déploiements ? » mais « en reste-t-il un que le panel ne doit pas perdre
+ * de vue ? ». Un déploiement `destroyed` est un enregistrement d'historique :
+ * il ne bloque rien.
+ *
+ * Le verdict et son vocabulaire sont ceux de la purge — `refuse()`, et derrière
+ * lui `listLiveDeployments()`. Un troisième jeu de règles ici aurait garanti
+ * qu'un jour les deux divergent, et c'est exactement l'erreur que corrigeait
+ * déjà `listPinnedDeployments()`.
+ *
+ * Les champs en plus de `PurgeRefusal` ne servent pas au refus mais à ce qui
+ * vient après : ils nomment, cible par cible, ce qu'un forçage abandonnerait.
+ */
+export type ApplicationDeletionBlocker = PurgeRefusal & {
+  applicationId: string;
+  targetId: string;
+  targetHost: string;
+  runtime: 'docker' | 'k3s';
+  publishedPort: number | null;
+};
+
+export async function listApplicationDeletionBlockers(
+  applicationId: string,
+  db: Database = getDb(),
+): Promise<ApplicationDeletionBlocker[]> {
+  const [rows, pinned] = await Promise.all([
+    db
+      .select({
+        id: deployments.id,
+        status: deployments.status,
+        version: deployments.version,
+        applicationId: deployments.applicationId,
+        applicationSlug: applications.slug,
+        targetId: deployments.targetId,
+        targetName: targets.name,
+        targetHost: targets.host,
+        runtime: deployments.runtime,
+        publishedPort: deployments.publishedPort,
+      })
+      .from(deployments)
+      .innerJoin(applications, eq(applications.id, deployments.applicationId))
+      .innerJoin(targets, eq(targets.id, deployments.targetId))
+      .where(eq(deployments.applicationId, applicationId))
+      .orderBy(asc(deployments.version)),
+    listPinnedDeployments(db, { applicationId }),
+  ]);
+
+  const blockers: ApplicationDeletionBlocker[] = [];
+  for (const row of rows) {
+    const refusal = refuse(row, pinned);
+    if (!refusal) continue;
+    blockers.push({
+      ...refusal,
+      applicationId: row.applicationId,
+      targetId: row.targetId,
+      targetHost: row.targetHost,
+      runtime: row.runtime,
+      publishedPort: row.publishedPort,
+    });
+  }
+  return blockers;
 }
 
 type PurgeCandidate = {

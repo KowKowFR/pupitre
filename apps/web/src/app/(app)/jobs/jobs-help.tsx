@@ -295,7 +295,7 @@ export function JobsHelpDialog({
               </li>
               <li>
                 <strong className="text-foreground font-medium">Supprimer</strong> retire la
-                ligne et le scheduler. L&apos;action est tracée dans le journal d&apos;audit,
+                ligne et le scheduler. L&apos;action est tracée dans les logs,
                 comme la création et chaque modification de cadence.
               </li>
             </ul>

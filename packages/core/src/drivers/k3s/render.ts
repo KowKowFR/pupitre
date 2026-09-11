@@ -1,10 +1,14 @@
 import { stringify } from 'yaml';
+import { WORKSPACE_PREFIX } from '../../naming.js';
 import {
   exposedService,
+  serviceSecretNames,
   topologicalOrder,
   type AppSpec,
   type Service,
 } from '../../spec/index.js';
+import { isHttpProbed, probePort } from '../probe.js';
+import { completeSecretValues } from '../secrets.js';
 import type { RenderedFile } from '../types.js';
 import {
   mebibytes,
@@ -38,7 +42,8 @@ import {
  * Les deux rendus partent des **mêmes** fixtures, sans un champ de plus.
  */
 
-export const NAMESPACE_PREFIX = 'app-';
+/** Dérivé de la convention partagée : une seule définition de `app-`. */
+export const NAMESPACE_PREFIX = WORKSPACE_PREFIX;
 
 /** Répertoire, dans la release, où atterrissent les manifests. */
 export const MANIFEST_DIR = 'k8s';
@@ -129,21 +134,15 @@ export function standardLabels(
 export type RenderInput = {
   spec: AppSpec;
   appSlug: string;
-  /** Valeurs des secrets déclarés. Absentes = chaîne vide, comme le `.env` Docker. */
+  /**
+   * Valeurs des secrets déclarés. Une valeur manquante fait **échouer** le
+   * rendu, comme côté Docker : voir `completeSecretValues()`.
+   */
   secretValues?: Record<string, string>;
 };
 
-/**
- * Un service est sondé en HTTP s'il est la porte d'entrée — service exposé ou
- * cible de l'ingress. Les autres sont sondés au niveau TCP : tous ne parlent pas
- * HTTP, et la spec n'a pas à le savoir. Même règle que le rendu Compose.
- */
-function isHttpProbed(spec: AppSpec, service: Service): boolean {
-  return service.exposed || spec.ingress?.targetService === service.name;
-}
-
 function renderProbe(service: Service, http: boolean, initialDelaySeconds: number): Probe {
-  const port = service.healthcheck.port ?? service.port;
+  const port = probePort(service);
   const probe: Probe = {
     ...(http
       ? { httpGet: { path: service.healthcheck.path, port, scheme: 'HTTP' as const } }
@@ -217,10 +216,15 @@ function renderConfigMap(input: RenderInput, service: Service): ConfigMapManifes
 function renderSecret(input: RenderInput, service: Service): SecretManifest | null {
   if (service.secrets.length === 0) return null;
   const { spec, appSlug } = input;
+  // `renderManifests()` a déjà complété et validé la table : chaque nom déclaré
+  // y figure, sans quoi le rendu aurait échoué avant d'arriver ici.
   const values = input.secretValues ?? {};
 
+  // Les noms tels que l'image les attend : un alias est une clé du Secret comme
+  // une autre, et `completeSecretValues()` lui a déjà donné la valeur de sa
+  // racine. Kubernetes n'interpole rien — il reçoit la carte complète.
   const stringData: Record<string, string> = {};
-  for (const name of service.secrets) {
+  for (const name of serviceSecretNames(service)) {
     stringData[name] = values[name] ?? '';
   }
 
@@ -432,7 +436,13 @@ function renderIngress(input: RenderInput): IngressManifest | null {
  * ensuite, les charges de travail en dernier. `kubectl apply -f <dir>` respecte
  * l'ordre lexicographique des fichiers — d'où les préfixes numériques.
  */
-export function renderManifests(input: RenderInput): KubeManifest[] {
+export function renderManifests(rawInput: RenderInput): KubeManifest[] {
+  // Un secret déclaré sans valeur résolue fait échouer le rendu, en le nommant.
+  const input: RenderInput = {
+    ...rawInput,
+    secretValues: completeSecretValues(rawInput.spec, rawInput.secretValues ?? {}),
+  };
+
   const manifests: KubeManifest[] = [renderNamespace(input)];
   const services = topologicalOrder(input.spec);
 

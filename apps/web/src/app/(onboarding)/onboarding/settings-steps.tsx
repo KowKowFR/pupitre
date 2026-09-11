@@ -319,8 +319,8 @@ export function SecurityStep({
         />
         <p className="text-xs text-ink-faint">
           Chiffrée en AES-256-GCM sous <code className="font-mono">MASTER_KEY</code>, comme les
-          credentials SSH. Elle ne ressort jamais de la base : ni par l&apos;API, ni dans le journal
-          d&apos;audit, ni ici. Pour en changer plus tard, on la remplace — on ne la relit pas.
+          credentials SSH. Elle ne ressort jamais de la base : ni par l&apos;API, ni dans les
+          logs, ni ici. Pour en changer plus tard, on la remplace — on ne la relit pas.
         </p>
       </div>
 

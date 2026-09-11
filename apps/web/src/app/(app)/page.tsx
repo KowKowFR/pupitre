@@ -74,7 +74,7 @@ export default async function HomePage() {
           label="PostgreSQL"
           value={db ? 'actif' : 'coupé'}
           tone={db ? 'ok' : 'danger'}
-          hint="modèle et journal d'audit"
+          hint="modèle et logs d'activité"
         />
         <Readout
           label="Redis"

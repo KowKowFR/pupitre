@@ -26,6 +26,8 @@ import type {
   SecretManifest,
   ServiceManifest,
 } from '../src/drivers/k3s/manifest-model.js';
+import { renderFiles as renderComposeFiles } from '../src/drivers/docker/render.js';
+import { completeSecretValues } from '../src/drivers/secrets.js';
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -227,7 +229,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
     });
 
     it('nomme les fichiers pour que kubectl apply -f . respecte l’ordre des types', () => {
-      const files = renderFiles({ spec, appSlug: spec.name });
+      const files = renderFiles({ spec, appSlug: spec.name, secretValues });
       // `kubectl apply -f <dir>` lit les fichiers dans l'ordre lexicographique :
       // c'est le préfixe numérique qui porte l'ordre d'application.
       const sorted = [...files].map((file) => file.path).sort();
@@ -339,13 +341,22 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       }
     });
 
-    it('déclare chaque secret, même sans valeur fournie', () => {
-      const [secret] = byKind<SecretManifest>(
-        renderManifests({ spec, appSlug: spec.name }),
-        'Secret',
-      ).filter((manifest) => manifest.metadata.name === 'api-secrets');
-      assert.deepEqual(secret?.stringData, { DATABASE_PASSWORD: '', JWT_SECRET: '' });
+    it('déclare chaque secret déclaré par le service', () => {
+      const [secret] = byKind<SecretManifest>(manifests, 'Secret').filter(
+        (manifest) => manifest.metadata.name === 'api-secrets',
+      );
+      assert.deepEqual(Object.keys(secret?.stringData ?? {}).sort(), [
+        'DATABASE_PASSWORD',
+        'JWT_SECRET',
+      ]);
       assert.equal(secret?.type, 'Opaque');
+    });
+
+    it('refuse de rendre un secret déclaré sans valeur résolue, comme le rendu Docker', () => {
+      assert.throws(
+        () => renderManifests({ spec, appSlug: spec.name }),
+        /DATABASE_PASSWORD/,
+      );
     });
 
     it('sonde la porte d’entrée en HTTP, les autres en TCP', () => {
@@ -509,9 +520,76 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
 
     it('reste déterministe', () => {
       const spec = fixture('fullstack');
-      const once = renderFiles({ spec, appSlug: spec.name }).map((file) => file.content);
-      const twice = renderFiles({ spec, appSlug: spec.name }).map((file) => file.content);
+      const values = {
+        DATABASE_PASSWORD: 'p4ss',
+        JWT_SECRET: 'jwt',
+        POSTGRES_PASSWORD: 'pg',
+      };
+      const once = renderFiles({ spec, appSlug: spec.name, secretValues: values }).map(
+        (file) => file.content,
+      );
+      const twice = renderFiles({ spec, appSlug: spec.name, secretValues: values }).map(
+        (file) => file.content,
+      );
       assert.deepEqual(once, twice);
+    });
+  });
+
+  /**
+   * Le test qui garantit la règle 1 de CLAUDE.md sur les alias : la résolution
+   * a lieu dans le code neutre, donc les deux rendus reçoivent **la même carte
+   * complète**. Compose aurait su interpoler `${MARIADB_PASSWORD}` depuis le
+   * `.env` ; Kubernetes n'interpole rien. Écrire l'alias côté runtime aurait
+   * fait marcher la même AppSpec d'un côté seulement.
+   */
+  describe('alias de secret — parité Docker / K3s', () => {
+    const spec = parseAppSpec({
+      name: 'boutique',
+      version: '1.0.0',
+      services: [
+        {
+          name: 'web',
+          source: { type: 'image', ref: 'wordpress:6-apache' },
+          port: 80,
+          exposed: true,
+          secrets: [{ name: 'WORDPRESS_DB_PASSWORD', from: 'MARIADB_PASSWORD' }],
+          dependsOn: ['mariadb'],
+        },
+        {
+          name: 'mariadb',
+          source: { type: 'image', ref: 'mariadb:11' },
+          port: 3306,
+          secrets: ['MARIADB_PASSWORD', 'MARIADB_ROOT_PASSWORD'],
+        },
+      ],
+    });
+    const secretValues = { MARIADB_PASSWORD: 'valeur-partagee', MARIADB_ROOT_PASSWORD: 'root' };
+
+    it('le Secret K8s du service applicatif porte le nom aliasé et la valeur de la racine', () => {
+      const manifests = renderManifests({ spec, appSlug: spec.name, secretValues });
+      const secret = manifests.find(
+        (manifest): manifest is SecretManifest =>
+          manifest.kind === 'Secret' && manifest.metadata.name === 'web-secrets',
+      );
+      assert.ok(secret);
+      assert.deepEqual(secret.stringData, { WORDPRESS_DB_PASSWORD: 'valeur-partagee' });
+    });
+
+    it('le `.env` Docker porte les deux noms avec la même valeur', () => {
+      const files = renderComposeFiles({ spec, appSlug: spec.name, publishedPort: null, secretValues });
+      const env = files.find((file) => file.path === '.env');
+      assert.ok(env);
+      assert.match(env.content, /^WORDPRESS_DB_PASSWORD=valeur-partagee$/m);
+      assert.match(env.content, /^MARIADB_PASSWORD=valeur-partagee$/m);
+    });
+
+    it('les deux rendus partent de la même carte, alias compris', () => {
+      const complete = completeSecretValues(spec, secretValues);
+      assert.deepEqual(complete, {
+        WORDPRESS_DB_PASSWORD: 'valeur-partagee',
+        MARIADB_PASSWORD: 'valeur-partagee',
+        MARIADB_ROOT_PASSWORD: 'root',
+      });
     });
   });
 });

@@ -166,6 +166,9 @@ importers:
       node-ssh:
         specifier: ^13.2.1
         version: 13.2.1
+      nodemailer:
+        specifier: ^10.0.5
+        version: 10.0.5
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -2983,6 +2986,10 @@ packages:
   node-ssh@13.2.1:
     resolution: {integrity: sha512-rfl4GWMygQfzlExPkQ2LWyya5n2jOBm5vhEnup+4mdw7tQhNpJWbP5ldr09Jfj93k5SfY5lxcn8od5qrQ/6mBg==}
     engines: {node: '>= 10'}
+
+  nodemailer@10.0.5:
+    resolution: {integrity: sha512-m9pQEvh7trUOpbFr+MbMWh5c+h8Dpjv0iUQN6Xf37Kby5DkF4/G4jteaLd2GdX/LQgP6x5jdn9M95ddAW4nT6g==}
+    engines: {node: '>=20.0.0'}
 
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
@@ -6138,6 +6145,8 @@ snapshots:
       sb-scandir: 3.1.1
       shell-escape: 0.2.0
       ssh2: 1.17.0
+
+  nodemailer@10.0.5: {}
 
   object-assign@4.1.1: {}
 

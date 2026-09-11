@@ -1,0 +1,20 @@
+/**
+ * Amorçage du processus serveur.
+ *
+ * `register()` est appelée une fois, avant que Next n'accepte la première
+ * requête. C'est le seul endroit du panel où l'on peut installer quelque chose
+ * « au démarrage » : un Route Handler n'est chargé qu'à la première requête qui
+ * le vise, et un layout n'est pas réexécuté à chaque navigation.
+ *
+ * On y branche l'observateur du journal d'audit sur la file des notifications.
+ * Sans lui, un changement de rôle ou une réinitialisation de second facteur
+ * seraient tracés — mais n'alerteraient personne.
+ */
+export async function register(): Promise<void> {
+  // `register()` est aussi appelée pour le runtime Edge, où ni `ioredis` ni
+  // `pg` n'existent. L'import est donc dynamique et conditionné.
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+
+  const { installAuditNotifications } = await import('./lib/notifications');
+  installAuditNotifications();
+}

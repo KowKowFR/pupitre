@@ -1,6 +1,6 @@
 import { deployChannel, deploymentJobDataSchema, type DeploymentJobResult } from '@tp/core';
 import { getDriver, getProxyProvider } from '@tp/core/drivers';
-import { disconnect } from '@tp/core/ssh';
+import { disconnect, type ConnectOptions } from '@tp/core/ssh';
 import { finishDeployment, logAudit } from '@tp/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
@@ -169,15 +169,32 @@ export async function handleDeploymentRollback(
   }
 }
 
-/** Destruction : compose down, répertoire supprimé, port libéré, proxy retiré. */
-export async function handleDeploymentDestroy(
-  job: Job<unknown, DeploymentJobResult>,
-): Promise<DeploymentJobResult> {
-  const data = deploymentJobDataSchema.parse(job.data);
-  const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
+export type DestroyOptions = {
+  actorId: string | null;
+  ip: string | null;
+  /** Borne la tentative d'ouverture de session. Défaut : celui du SSH. */
+  connect?: ConnectOptions;
+};
 
-  const { session, ctx, deployment } = await openDeploymentContext(data.deploymentId);
-  const stream = new DeployLogStream(data.deploymentId, getPublisher());
+/**
+ * Destruction : compose down, répertoire supprimé, port libéré, proxy retiré.
+ *
+ * Extraite du handler pour que la suppression en cascade d'une application
+ * l'appelle telle quelle, déploiement par déploiement. Composer plutôt que
+ * réécrire : le jour où la destruction apprend un geste de plus — retirer une
+ * entrée DNS, prévenir un proxy —, la cascade l'apprend sans qu'on y touche.
+ *
+ * Elle **throw** quand la cible est injoignable, et c'est le contrat : c'est à
+ * l'appelant de décider si un échec est fatal ou s'il se rapporte.
+ */
+export async function destroyDeployment(
+  deploymentId: string,
+  options: DestroyOptions,
+): Promise<void> {
+  const { session, ctx, deployment } = await openDeploymentContext(deploymentId, {
+    ...(options.connect ? { connect: options.connect } : {}),
+  });
+  const stream = new DeployLogStream(deploymentId, getPublisher());
 
   try {
     await getProxyProvider(deployment.proxy).unregister(ctx, (line) =>
@@ -185,27 +202,36 @@ export async function handleDeploymentDestroy(
     );
     await getDriver(deployment.runtime).destroy(ctx, (line) => stream.line('deploy', line));
 
-    await finishDeployment(data.deploymentId, 'destroyed', { url: null, publishedPort: null });
+    await finishDeployment(deploymentId, 'destroyed', { url: null, publishedPort: null });
     stream.event({
       type: 'deployment',
-      key: data.deploymentId,
+      key: deploymentId,
       status: 'destroyed',
       detail: null,
     });
 
     await logAudit({
-      actorId: data.actorId,
+      actorId: options.actorId,
       action: 'deployment.destroyed',
       resourceType: 'deployment',
-      resourceId: data.deploymentId,
-      ip: data.ip,
+      resourceId: deploymentId,
+      ip: options.ip,
     });
-
-    log.info('déploiement détruit');
-
-    return { deploymentId: data.deploymentId, status: 'destroyed', url: null, failedStep: null };
   } finally {
     await stream.close();
     await disconnect(session);
   }
+}
+
+/** Destruction unitaire, déclenchée depuis `DELETE /api/deployments/:id`. */
+export async function handleDeploymentDestroy(
+  job: Job<unknown, DeploymentJobResult>,
+): Promise<DeploymentJobResult> {
+  const data = deploymentJobDataSchema.parse(job.data);
+  const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
+
+  await destroyDeployment(data.deploymentId, { actorId: data.actorId, ip: data.ip });
+  log.info('déploiement détruit');
+
+  return { deploymentId: data.deploymentId, status: 'destroyed', url: null, failedStep: null };
 }

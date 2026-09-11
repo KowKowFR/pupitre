@@ -162,6 +162,33 @@ export type LogSink = (line: string) => void;
 export interface DeploymentDriver {
   readonly runtime: RuntimeKind;
 
+  /**
+   * Nom sous lequel ce runtime regroupe l'application sur la machine : projet
+   * Compose côté Docker, namespace côté K3s. Convention `app-{slug}`.
+   *
+   * Seule méthode de l'interface qui ne demande **ni contexte, ni session SSH** :
+   * c'est exactement ce qu'il faut quand la cible est injoignable et qu'on doit
+   * quand même écrire, dans le journal d'activité, ce qu'il restera à nettoyer
+   * à la main. Sur l'interface plutôt que chez l'appelant, parce que ce nom est
+   * une décision du driver — le déduire ailleurs ferait fuir le vocabulaire d'un
+   * runtime hors de sa classe.
+   */
+  workspaceName(appSlug: string): string;
+
+  /**
+   * Les commandes à passer **sur la machine** pour démonter cette application à
+   * la main, quand le panel n'a plus les moyens de le faire lui-même — cible
+   * injoignable, enregistrement effacé de force.
+   *
+   * Sur l'interface pour la même raison que `workspaceName()` : `docker compose
+   * down` et `kubectl delete namespace` sont du vocabulaire de runtime, et la
+   * règle est qu'il ne sort pas d'une classe de driver. Le jour où la
+   * destruction apprend un geste de plus, il s'ajoute ici aussi, au même
+   * endroit. Pure, sans session : c'est justement quand la session est
+   * impossible qu'on en a besoin.
+   */
+  manualCleanup(appSlug: string, rootPath: string): string[];
+
   /** La cible est-elle capable d'accueillir ce déploiement ? */
   preflight(ctx: DriverContext): Promise<PreflightResult>;
 

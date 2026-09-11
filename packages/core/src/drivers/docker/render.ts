@@ -1,10 +1,13 @@
 import { stringify } from 'yaml';
+import { WORKSPACE_PREFIX } from '../../naming.js';
 import {
   exposedService,
   topologicalOrder,
   type AppSpec,
   type Service,
 } from '../../spec/index.js';
+import { isHttpProbed, probePort } from '../probe.js';
+import { completeSecretValues } from '../secrets.js';
 import type { RenderedFile } from '../types.js';
 import {
   seconds,
@@ -21,7 +24,8 @@ import {
  * nommage des images — est décidé ici, parce que c'est une affaire de runtime.
  */
 
-export const PROJECT_PREFIX = 'app-';
+/** Dérivé de la convention partagée : une seule définition de `app-`. */
+export const PROJECT_PREFIX = WORKSPACE_PREFIX;
 
 export function projectName(appSlug: string): string {
   return `${PROJECT_PREFIX}${appSlug}`;
@@ -44,21 +48,30 @@ export function buildImageTag(appSlug: string, service: string, version: string)
 /**
  * Sonde exécutée *dans* le conteneur.
  *
- * La spec neutre dit « ce service est vivant quand ce chemin répond ». Comment
- * le vérifier dépend de l'image : on tente `wget` puis `curl`, présents dans
- * busybox comme dans les bases Debian. Les services non exposés sont sondés au
- * niveau TCP : tous ne parlent pas HTTP, et la spec n'a pas à le savoir.
+ * Qui est sondé en HTTP et qui l'est en TCP n'est pas décidé ici : c'est
+ * `isHttpProbed()`, partagé avec le rendu K3s. Ne reste à ce rendu que le
+ * *comment*, qui dépend de ce que l'image embarque.
+ *
+ * HTTP : `wget` puis `curl`, présents dans busybox comme dans les bases Debian.
+ *
+ * TCP : `nc` puis la redirection `/dev/tcp` de bash. Les deux sont nécessaires
+ * et aucun ne suffit — `postgres:16-alpine` a `nc` mais pas `bash`,
+ * `postgres:16` et `mariadb:11` (Debian) ont `bash` mais **ni `nc`, ni `wget`,
+ * ni `curl`. L'ancienne chaîne `nc || wget || curl` ne trouvait donc aucune de
+ * ses trois commandes sur une base Debian : le shell rendait 127, le conteneur
+ * restait `unhealthy` à vie, et le `depends_on: service_healthy` du service
+ * applicatif bloquait avec lui. Un repli HTTP sur un service qui ne parle pas
+ * HTTP n'aurait de toute façon jamais abouti : il est retiré.
  */
-function renderHealthcheck(service: Service, isExposed: boolean): ComposeHealthcheck {
-  const port = service.healthcheck.port ?? service.port;
+function renderHealthcheck(spec: AppSpec, service: Service): ComposeHealthcheck {
+  const port = probePort(service);
   const timeout = Math.max(1, service.healthcheck.timeoutSec);
 
-  const probe = isExposed
+  const probe = isHttpProbed(spec, service)
     ? `wget --spider -q -T ${timeout} http://127.0.0.1:${port}${service.healthcheck.path} ` +
       `|| curl -fsS -m ${timeout} http://127.0.0.1:${port}${service.healthcheck.path} >/dev/null`
-    : `nc -z 127.0.0.1 ${port} ` +
-      `|| wget --spider -q -T ${timeout} http://127.0.0.1:${port}/ ` +
-      `|| curl -fsS -m ${timeout} http://127.0.0.1:${port}/ >/dev/null`;
+    : `nc -z -w ${timeout} 127.0.0.1 ${port} 2>/dev/null ` +
+      `|| bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port}' 2>/dev/null`;
 
   return {
     test: ['CMD-SHELL', probe],
@@ -147,7 +160,7 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
       );
     }
 
-    composeService.healthcheck = renderHealthcheck(service, isExposed);
+    composeService.healthcheck = renderHealthcheck(spec, service);
 
     const deploy: ComposeDeployDraft = {};
     if (service.replicas > 1) deploy.replicas = service.replicas;
@@ -214,14 +227,12 @@ export function renderFiles(
     },
   ];
 
-  const secretValues = input.secretValues ?? {};
-  const declared = input.spec.services.flatMap((service) => service.secrets);
+  // Échoue si un secret déclaré n'a pas de valeur résolue — voir
+  // `completeSecretValues()`. Le rendu est le dernier endroit où l'on peut
+  // encore nommer le coupable.
+  const complete = completeSecretValues(input.spec, input.secretValues ?? {});
 
-  if (declared.length > 0) {
-    const complete: Record<string, string> = {};
-    for (const name of new Set(declared)) {
-      complete[name] = secretValues[name] ?? '';
-    }
+  if (Object.keys(complete).length > 0) {
     files.push({
       path: '.env',
       content: serializeEnvFile(complete),

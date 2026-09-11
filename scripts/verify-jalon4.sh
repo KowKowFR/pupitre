@@ -122,7 +122,7 @@ pass "$TARGET_NAME — Docker $(jq -r --arg n "$TARGET_NAME" '.items[] | select(
 step "4. POST /api/deployments — la route ne doit pas attendre"
 BEFORE=$(date +%s)
 code=$(req POST /api/deployments \
-  "{\"applicationId\":\"$APP_ID\",\"targetId\":\"$TARGET_ID\",\"runtime\":\"docker\",\"proxy\":\"traefik\"}")
+  "{\"applicationId\":\"$APP_ID\",\"targetId\":\"$TARGET_ID\",\"scanConfig\":{\"scanners\":[],\"failOn\":\"NONE\"},\"runtime\":\"docker\",\"proxy\":\"traefik\"}")
 ELAPSED=$(( $(date +%s) - BEFORE ))
 [ "$code" = "202" ] || fail "attendu 202, reçu HTTP $code : $(cat "$BODY")"
 

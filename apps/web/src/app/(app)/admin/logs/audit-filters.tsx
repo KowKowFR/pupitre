@@ -26,11 +26,11 @@ export function AuditFilters({ defaults }: { defaults: Defaults }) {
       if (text !== '') next.set(key, text);
     }
     next.delete('page');
-    router.push(`/admin/audit?${next.toString()}`);
+    router.push(`/admin/logs?${next.toString()}`);
   }
 
   function reset() {
-    router.push('/admin/audit');
+    router.push('/admin/logs');
   }
 
   return (

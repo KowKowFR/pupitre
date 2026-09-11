@@ -1,5 +1,5 @@
 import { exec, execStream, upload } from '../../ssh/client.js';
-import { topologicalOrder, type Service } from '../../spec/index.js';
+import { storedSecretNames, topologicalOrder, type Service } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
 import { pruneReleases } from '../retention.js';
@@ -68,6 +68,19 @@ const KUBECONFIG_SETUP =
 
 export class K3sDriver implements DeploymentDriver {
   readonly runtime = 'k3s' as const;
+
+  /** Le namespace sous lequel l'application est regroupée sur la cible. */
+  workspaceName(appSlug: string): string {
+    return namespaceName(appSlug);
+  }
+
+  /** Le décalque exact de `destroy()`, à passer à la main sur la machine. */
+  manualCleanup(appSlug: string, rootPath: string): string[] {
+    return [
+      `kubectl delete namespace ${namespaceName(appSlug)} --ignore-not-found`,
+      `rm -rf ${rootPath}/apps/${appSlug}`,
+    ];
+  }
 
   /** `/opt/bootstrap/apps/{slug}` */
   private appPath(ctx: DriverContext): string {
@@ -272,7 +285,8 @@ export class K3sDriver implements DeploymentDriver {
   // ─── render ─────────────────────────────────────────────────────────────────
 
   async render(ctx: DriverContext): Promise<RenderedArtifacts> {
-    const secretNames = [...new Set(ctx.spec.services.flatMap((service) => service.secrets))];
+    // Les racines seulement : un alias n'a pas de valeur propre à demander.
+    const secretNames = storedSecretNames(ctx.spec);
     const secretValues = ctx.resolveSecrets ? await ctx.resolveSecrets(secretNames) : {};
 
     const files = renderFiles({ spec: ctx.spec, appSlug: ctx.appSlug, secretValues });

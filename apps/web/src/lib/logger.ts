@@ -20,6 +20,13 @@ const REDACTED = [
   'encryptedCredential',
   'privateKey',
   'passphrase',
+  // Magasin des secrets d'application : la valeur chiffrée comme la valeur en
+  // clair, sous les noms qu'elles portent selon la couche traversée — corps de
+  // PUT, colonne Drizzle, colonne SQL, table résolue passée au rendu.
+  'encryptedValue',
+  'encrypted_value',
+  'secretValue',
+  'secretValues',
   'authorization',
   'cookie',
   'MASTER_KEY',
@@ -46,6 +53,16 @@ const REDACTED = [
   'backupCode',
   'twoFactorSecret',
   'backup_codes',
+  // Canaux de notification : les champs secrets du catalogue de
+  // `@tp/core/notifications`, sous les noms qu'ils portent selon la couche
+  // traversée — corps de POST/PATCH, objet résolu passé au canal, colonne
+  // Drizzle, colonne SQL. `webhookUrl` est bien un secret : l'URL d'un webhook
+  // Discord contient son jeton d'écriture.
+  'botToken',
+  'webhookUrl',
+  'secrets',
+  'encryptedSecrets',
+  'encrypted_secrets',
 ];
 
 const paths = [

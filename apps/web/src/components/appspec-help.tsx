@@ -135,7 +135,10 @@ const FIELDS: Array<{ name: string; role: string; constraint: React.ReactNode }>
     constraint: (
       <>
         tableau de noms, même forme que les clés d’<Code>env</Code>. Défaut <Code>[]</Code>.
-        Jamais de valeur ici.
+        Jamais de valeur ici. Une entrée peut aussi s’écrire{' '}
+        <Code>{'{ "name": "GLPI_DB_PASSWORD", "from": "MARIADB_PASSWORD" }'}</Code> : le nom
+        reprend alors la valeur d’un autre secret de la spec — une seule valeur, lue sous deux
+        noms, pour une application et sa base qui n’attendent pas la même variable.
       </>
     ),
   },

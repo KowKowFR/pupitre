@@ -80,7 +80,7 @@ export function AuditTable({ page, format }: { page: AuditLogPage; format: Forma
 function Pagination({ page }: { page: AuditLogPage }) {
   if (page.totalPages <= 1) return null;
 
-  const link = (target: number) => `/admin/audit?page=${target}&pageSize=${page.pageSize}`;
+  const link = (target: number) => `/admin/logs?page=${target}&pageSize=${page.pageSize}`;
 
   return (
     <CardFooter className="flex items-center justify-between text-xs">

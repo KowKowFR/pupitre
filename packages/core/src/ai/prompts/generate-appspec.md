@@ -37,7 +37,10 @@ Service {
   exposed      bool     exactement UN service de la spec vaut true
   replicas     int      1..50, défaut 1
   env          object   clés `^[A-Z_][A-Z0-9_]*$`, valeurs littérales, chaînes uniquement
-  secrets      string[] NOMS de secrets seulement, mêmes règles de nommage que `env`
+  secrets      (string | { name: string, from: string })[]
+               NOMS de secrets seulement, mêmes règles de nommage que `env`.
+               La forme { name, from } dit « ce nom reprend la valeur de ce nom-là »
+               — voir § 4bis.
   resources    { cpuMilli: int 10..64000, memoryMi: int 16..262144 }
   healthcheck  { path: string commençant par "/", port?: int,
                  intervalSec: int 1..300, timeoutSec: int 1..120, retries: int 1..50 }
@@ -71,6 +74,11 @@ Ingress {
 8. Si `ingress` est présent, `ingress.targetService` désigne un service
    existant — en pratique celui qui porte `exposed: true`.
 9. `version` est un semver à trois nombres.
+10. Le `from` d'un secret aliasé désigne un secret **déclaré ailleurs dans la
+    spec**. Un alias vers un nom inexistant, vers lui-même, ou deux alias qui se
+    pointent l'un l'autre font rejeter la spec.
+11. Un même nom de secret n'apparaît qu'une fois par service, et ne peut pas
+    être déclaré nu à un endroit et aliasé à un autre.
 
 ## 4. Règles de qualité — non négociables
 
@@ -100,8 +108,13 @@ Ingress {
   existe, `nginx:1.29-alpine` existe, il n'y a aucune raison d'y écrire `latest`.
 - **Un healthcheck sur chaque service.** Pour un service HTTP, `path` est une vraie
   route de santé (`/`, `/healthz`, `/api/health`). Pour un service qui ne parle pas
-  HTTP — une base de données, un cache — renseigne `healthcheck.port` avec son port
-  d'écoute : le driver se rabat alors sur un test de port ouvert, et `path` reste `"/"`.
+  HTTP — une base de données, un cache — laisse `path` à `"/"` : il ne veut rien dire,
+  et il n'est pas lu. Ce qui décide de la sonde n'est pas ce que tu écris dans
+  `path`, c'est la place du service dans la spec : le driver sonde en HTTP le
+  service qui porte `exposed: true` (ou la cible de l'ingress) et teste le port
+  ouvert pour tous les autres. Renseigne `healthcheck.port` quand le port à
+  sonder diffère de `port`, et donne des `retries` généreux à une base : son
+  initialisation au premier démarrage prend du temps.
 - **Des `resources` réalistes.** Un front statique n'a pas besoin de 4 Go. Repères :
   proxy ou front statique `{ cpuMilli: 250, memoryMi: 256 }` ; API applicative
   `{ cpuMilli: 500, memoryMi: 512 }` ; base de données `{ cpuMilli: 1000, memoryMi: 1024 }`.
@@ -124,7 +137,7 @@ Ingress {
   Un secret partagé entre deux services porte le même nom des deux côtés quand les
   deux images l'acceptent (`MARIADB_PASSWORD` de part et d'autre) : c'est ce qui
   garantit qu'ils reçoivent la même valeur. Quand les images imposent des noms
-  différents, déclare-les tous les deux (cf. § 7.3).
+  différents, **relie-les par `from`** — jamais deux noms indépendants (cf. § 4bis).
 - **Communication entre services par leur nom.** Un service joint un autre à
   l'adresse `http://<nom-du-service>:<port>`. Il n'y a pas de `localhost` entre
   deux services.
@@ -132,6 +145,79 @@ Ingress {
   un front dépend de son API.
 - **Reste minimal.** N'ajoute pas de service dont la description ne parle pas.
   Pas de Redis « au cas où », pas de service de métriques non demandé.
+
+## 4bis. Un mot de passe, deux noms : `from`
+
+Une application et sa base sont deux images distinctes, et elles n'attendent
+presque jamais la même variable :
+
+| Image | Variable du mot de passe applicatif |
+| --- | --- |
+| `mariadb` / `mysql` | `MARIADB_PASSWORD` / `MYSQL_PASSWORD` |
+| `postgres` | `POSTGRES_PASSWORD` |
+| `wordpress` | `WORDPRESS_DB_PASSWORD` |
+| `glpi/glpi` | `GLPI_DB_PASSWORD` |
+| `nextcloud` | `MYSQL_PASSWORD` ou `POSTGRES_PASSWORD` (selon la base) |
+
+Le panel génère **une valeur aléatoire par nom déclaré**. Deux noms déclarés nus
+reçoivent donc deux mots de passe **différents**, et l'application ne peut pas
+joindre sa base : la base démarre, l'application répond en erreur, le
+`depends_on` la déclare malade et le déploiement échoue. Ce n'est pas un risque,
+c'est une certitude.
+
+La forme `{ "name": ..., "from": ... }` dit qu'un nom **reprend la valeur d'un
+autre**. Il n'y a alors qu'un secret, qu'une valeur, lue sous deux noms :
+
+```json
+{
+  "name": "web",
+  "env": { "WORDPRESS_DB_HOST": "mariadb:3306", "WORDPRESS_DB_USER": "wordpress" },
+  "secrets": [{ "name": "WORDPRESS_DB_PASSWORD", "from": "MARIADB_PASSWORD" }]
+},
+{
+  "name": "mariadb",
+  "env": { "MARIADB_USER": "wordpress", "MARIADB_DATABASE": "wordpress" },
+  "secrets": ["MARIADB_PASSWORD", "MARIADB_ROOT_PASSWORD"]
+}
+```
+
+Qui porte la valeur et qui la reprend : **la base porte, l'application reprend**.
+C'est la base qui crée le compte au premier démarrage ; son nom de variable est
+donc la racine, et `from` pointe toujours vers elle.
+
+Si les deux images acceptent le même nom, garde le même nom des deux côtés —
+`from` ne sert qu'à réconcilier deux noms imposés.
+
+## 4ter. Les variables sans lesquelles une image de base ne démarre pas
+
+Une base de données officielle **refuse de s'initialiser** si la variable qui
+protège son compte d'administration est absente. Ce n'est pas un réglage
+optionnel : le conteneur s'arrête, `depends_on: service_healthy` bloque, et le
+déploiement échoue sans que rien ne nomme la cause. Déclare-la **toujours**,
+même si la description ne parle pas d'un mot de passe root.
+
+| Image | Obligatoire — l'une de ces variables | Recommandé |
+| --- | --- | --- |
+| `postgres` | `POSTGRES_PASSWORD` (ou `POSTGRES_HOST_AUTH_METHOD=trust`, à proscrire) | `POSTGRES_PASSWORD` en `secrets[]` |
+| `mariadb` | `MARIADB_ROOT_PASSWORD`, `MARIADB_ROOT_PASSWORD_HASH`, `MARIADB_RANDOM_ROOT_PASSWORD` ou `MARIADB_ALLOW_EMPTY_ROOT_PASSWORD` | `MARIADB_ROOT_PASSWORD` en `secrets[]` |
+| `mysql` | `MYSQL_ROOT_PASSWORD`, `MYSQL_RANDOM_ROOT_PASSWORD` ou `MYSQL_ALLOW_EMPTY_PASSWORD` | `MYSQL_ROOT_PASSWORD` en `secrets[]` |
+
+Retiens la forme « mot de passe » et mets-la dans `secrets[]` : le panel en
+génère une valeur forte, personne n'a à la connaître, et les variantes
+`RANDOM_` / `ALLOW_EMPTY_` privent l'opérateur de tout accès d'administration ou
+laissent la base ouverte.
+
+`POSTGRES_PASSWORD` et `MARIADB_ROOT_PASSWORD` jouent d'ailleurs deux rôles
+différents, et c'est une source d'erreur : chez PostgreSQL, `POSTGRES_PASSWORD`
+est **à la fois** le mot de passe du superutilisateur et celui du compte
+`POSTGRES_USER` — un seul secret suffit. Chez MariaDB et MySQL, le compte
+applicatif (`MARIADB_USER`) et le compte root ont **deux** mots de passe
+distincts : il en faut donc **deux** secrets, `MARIADB_PASSWORD` et
+`MARIADB_ROOT_PASSWORD`. En oublier un fait échouer le démarrage.
+
+Les autres variables de ces images (`POSTGRES_DB`, `POSTGRES_USER`,
+`MARIADB_DATABASE`, `MARIADB_USER`, `MYSQL_DATABASE`, `MYSQL_USER`) ne sont pas
+des secrets : elles vont dans `env`.
 
 ## 5. Une application sur étagère vient avec sa base
 
@@ -163,7 +249,10 @@ La recette de branchement, toujours la même :
    nom de base et l'utilisateur sont les mêmes des deux côtés. Il n'y a pas de
    `localhost` entre deux services.
 4. **`secrets`** : le mot de passe de la base est déclaré sous le **même nom**
-   dans les deux services. Aucune valeur, jamais.
+   dans les deux services quand les deux images l'acceptent ; sinon, le nom côté
+   application **reprend** celui de la base par `from` (§ 4bis). Et la base
+   déclare **en plus** son mot de passe d'administration, sans lequel elle ne
+   s'initialise pas (§ 4ter). Aucune valeur, jamais.
 5. **Un volume sur la base** (`/var/lib/mysql`, `/var/lib/postgresql/data`) et un
    volume sur les données de l'application si elle en écrit (téléversements,
    plugins, fichiers de configuration). Sans volume, la première mise à jour
@@ -214,8 +303,9 @@ et un `ingress` qui cible le service exposé.
 La description ne nomme qu'une application ; la spec en contient deux. Regarde le
 branchement : `WORDPRESS_DB_HOST` désigne le **service** `mariadb`, le nom de base
 et l'utilisateur sont identiques des deux côtés, le mot de passe n'existe que sous
-forme de nom — `MARIADB_PASSWORD` — dans les deux services, chacun a son volume, et
-la base est sondée sur son port puisqu'elle ne parle pas HTTP.
+forme de nom et les deux images le lisent sous deux noms **reliés par `from`**, la
+base déclare en plus son `MARIADB_ROOT_PASSWORD`, chacun a son volume, et la base
+est sondée sur son port puisqu'elle ne parle pas HTTP.
 
 ```json
 {
@@ -232,7 +322,7 @@ la base est sondée sur son port puisqu'elle ne parle pas HTTP.
         "WORDPRESS_DB_NAME": "wordpress",
         "WORDPRESS_DB_USER": "wordpress"
       },
-      "secrets": ["WORDPRESS_DB_PASSWORD"],
+      "secrets": [{ "name": "WORDPRESS_DB_PASSWORD", "from": "MARIADB_PASSWORD" }],
       "resources": { "cpuMilli": 500, "memoryMi": 512 },
       "healthcheck": {
         "path": "/wp-admin/install.php",
@@ -266,10 +356,19 @@ la base est sondée sur son port puisqu'elle ne parle pas HTTP.
 }
 ```
 
-Le nom du secret côté application (`WORDPRESS_DB_PASSWORD`) diffère ici de celui de
-la base (`MARIADB_PASSWORD`) parce que les deux images n'attendent pas la même
-variable. C'est le seul cas où deux noms sont admis — et il faudra alors leur
-donner la même valeur. Quand les deux images acceptent le même nom, utilise-le.
+Le nom du secret côté application (`WORDPRESS_DB_PASSWORD`) diffère de celui de la
+base (`MARIADB_PASSWORD`) parce que les deux images n'attendent pas la même
+variable. C'est `from` qui les relie : il n'existe **qu'un** mot de passe, généré
+une fois, écrit en base une fois, et les deux services le lisent chacun sous le
+nom que son image réclame. Deux noms déclarés nus recevraient deux valeurs
+différentes et l'application ne pourrait pas joindre sa base.
+
+`MARIADB_ROOT_PASSWORD`, lui, n'est l'alias de rien : c'est un second mot de
+passe, celui du compte d'administration, et l'image refuse de s'initialiser sans
+lui (§ 4ter).
+
+Quand les deux images acceptent le même nom, utilise le même nom : `from` ne sert
+qu'à réconcilier deux noms imposés.
 
 ### 7.4 Contre-exemple — ce qui fait rejeter la spec
 

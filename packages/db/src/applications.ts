@@ -2,8 +2,8 @@ import { appSpecSchema, type AppSpec } from '@tp/core';
 import { asc, count, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
-import { deployments } from './schema/deployments.js';
-import { applications } from './schema/infra.js';
+import { deployments, portAllocations } from './schema/deployments.js';
+import { applications, targets } from './schema/infra.js';
 
 export type Application = typeof applications.$inferSelect;
 
@@ -126,7 +126,84 @@ export async function deleteApplication(id: string, db: Database = getDb()): Pro
   return row !== undefined;
 }
 
-/** Déploiements rattachés à une application, tous statuts confondus. */
+/**
+ * Ce qu'un effacement forcé a emporté.
+ *
+ * Renvoyé *pour être journalisé* : une fois la transaction passée, ces lignes
+ * n'existent plus nulle part ailleurs.
+ */
+export type ApplicationErasure = {
+  applicationId: string;
+  applicationSlug: string;
+  deploymentIds: string[];
+  releasedPorts: Array<{ targetId: string; targetName: string; port: number }>;
+};
+
+/**
+ * Efface l'application, tout son historique et toutes ses réservations de port,
+ * **sans aucun garde-fou** — c'est l'appelant qui répond du sien.
+ *
+ * Deux appelants, deux gardes : `DELETE /api/applications/:id` n'y vient
+ * qu'après avoir constaté qu'aucun déploiement ne bloque
+ * (`listApplicationDeletionBlockers()`), et le forçage de la cascade n'y vient
+ * qu'après avoir tenté la destruction et **journalisé ce qu'il abandonne**.
+ *
+ * Volontairement distincte de `purgeDeployments()`, qui refuse ce qui est
+ * vivant : desserrer le garde-fou de la purge pour servir le cas du forçage
+ * l'aurait rendu contournable partout ailleurs. Ici le contrat est explicite
+ * dès le nom.
+ *
+ * Les deux clés étrangères sont en `ON DELETE CASCADE` : supprimer
+ * l'application suffirait. On les efface quand même explicitement, parce qu'une
+ * cascade silencieuse ne rend rien — et qu'il faut pouvoir écrire dans le
+ * journal *quels* ports ont été rendus et *quels* déploiements ont disparu.
+ */
+export async function eraseApplication(
+  id: string,
+  db: Database = getDb(),
+): Promise<ApplicationErasure | null> {
+  return db.transaction(async (tx) => {
+    const [application] = await tx
+      .select({ id: applications.id, slug: applications.slug })
+      .from(applications)
+      .where(eq(applications.id, id));
+    if (!application) return null;
+
+    const allocations = await tx
+      .select({
+        targetId: portAllocations.targetId,
+        targetName: targets.name,
+        port: portAllocations.port,
+      })
+      .from(portAllocations)
+      .innerJoin(targets, eq(targets.id, portAllocations.targetId))
+      .where(eq(portAllocations.applicationId, id));
+
+    await tx.delete(portAllocations).where(eq(portAllocations.applicationId, id));
+
+    const erased = await tx
+      .delete(deployments)
+      .where(eq(deployments.applicationId, id))
+      .returning({ id: deployments.id });
+
+    await tx.delete(applications).where(eq(applications.id, id));
+
+    return {
+      applicationId: application.id,
+      applicationSlug: application.slug,
+      deploymentIds: erased.map((row) => row.id),
+      releasedPorts: allocations,
+    };
+  });
+}
+
+/**
+ * Déploiements rattachés à une application, tous statuts confondus.
+ *
+ * **Ne dit pas si l'application est supprimable** : un déploiement `destroyed`
+ * compte ici alors qu'il ne bloque rien. Pour cette question, et elle seule,
+ * c'est `listApplicationDeletionBlockers()` qui fait foi.
+ */
 export async function countDeploymentsFor(
   applicationId: string,
   db: Database = getDb(),

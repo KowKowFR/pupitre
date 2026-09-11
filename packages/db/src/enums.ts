@@ -95,3 +95,30 @@ export const scheduledJobTypeEnum = pgEnum('scheduled_job_type', [
   'preflight',
   'cleanup',
 ]);
+
+/**
+ * D'où vient la valeur d'un secret d'application.
+ *   generated  le panel l'a tirée au sort — personne ne l'a jamais lue
+ *   provided   un opérateur l'a saisie : elle vient d'un tiers (clé d'API…)
+ *
+ * La distinction n'est pas décorative : un secret `generated` n'a aucune raison
+ * d'être affichable, alors qu'un secret `provided` doit pouvoir être remplacé.
+ */
+export const secretOriginEnum = pgEnum('secret_origin', ['generated', 'provided']);
+
+/**
+ * Moyen d'envoi d'une notification.
+ *
+ * Un enum Postgres et non un `text` libre, comme tout le reste : la liste des
+ * canaux est une donnée du domaine, et une valeur inventée en SQL à la main ne
+ * doit pas pouvoir atterrir en base pour n'échouer qu'au moment d'envoyer. Les
+ * quatre valeurs suivent `NOTIFICATION_CHANNEL_KINDS` de `@tp/core` — ajouter
+ * un canal coûte donc une migration, ce qui est le prix normal d'une valeur
+ * d'enum dans ce projet.
+ */
+export const notificationChannelKindEnum = pgEnum('notification_channel_kind', [
+  'smtp',
+  'telegram',
+  'discord',
+  'webhook',
+]);

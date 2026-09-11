@@ -25,7 +25,7 @@ export default async function ForbiddenPage({
             </Alert>
           ) : null}
           <p className="text-[0.8125rem] text-ink-muted">
-            La tentative a été enregistrée dans le journal d&apos;audit.
+            La tentative a été enregistrée dans les logs.
           </p>
           <Link
             href="/"

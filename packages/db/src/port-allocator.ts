@@ -125,6 +125,30 @@ export function createPortAllocator(db: Database = getDb()): PortAllocator {
   return { allocate, release, current };
 }
 
+/**
+ * Réservations d'une application, toutes cibles confondues.
+ *
+ * `port_allocations` est indexée par (cible, application) et non par
+ * déploiement : c'est donc **ici** qu'on lit ce qu'une suppression rendra, et
+ * pas en additionnant les `published_port` des déploiements — un couple peut
+ * tenir une réservation sans qu'aucun déploiement n'ait abouti.
+ */
+export async function listApplicationPortAllocations(
+  applicationId: string,
+  db: Database = getDb(),
+): Promise<Array<{ targetId: string; targetName: string; port: number }>> {
+  return db
+    .select({
+      targetId: portAllocations.targetId,
+      targetName: targets.name,
+      port: portAllocations.port,
+    })
+    .from(portAllocations)
+    .innerJoin(targets, eq(targets.id, portAllocations.targetId))
+    .where(eq(portAllocations.applicationId, applicationId))
+    .orderBy(asc(portAllocations.port));
+}
+
 // ─── vue d'ensemble ───────────────────────────────────────────────────────────
 
 /** Une réservation, telle que l'API et l'UI la présentent. */

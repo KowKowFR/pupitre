@@ -5,6 +5,7 @@ import {
   Gauge,
   KeyRound,
   LogOut,
+  Radar,
   Rocket,
   ScrollText,
   Server,
@@ -26,6 +27,7 @@ type Props = {
   canManageRoles: boolean;
   canReadAudit: boolean;
   canReadJobs: boolean;
+  canReadMonitors: boolean;
   canManageSettings: boolean;
   /** Identité de l'instance, issue des paramètres. Plus rien n'est en dur ici. */
   instanceName: string;
@@ -54,6 +56,7 @@ export function AppHeader({
   canManageRoles,
   canReadAudit,
   canReadJobs,
+  canReadMonitors,
   canManageSettings,
   instanceName,
   instanceTagline,
@@ -63,12 +66,13 @@ export function AppHeader({
     { href: '/targets', label: 'Cibles', icon: <Server />, visible: true },
     { href: '/applications', label: 'Applications', icon: <Boxes />, visible: true },
     { href: '/apps', label: 'Supervision', icon: <Activity />, visible: true },
+    { href: '/monitors', label: 'Sondes', icon: <Radar />, visible: canReadMonitors },
     { href: '/deployments', label: 'Déploiements', icon: <Rocket />, visible: true },
     { href: '/jobs', label: 'Tâches', icon: <Timer />, visible: canReadJobs },
   ];
 
   const administration: NavItem[] = [
-    { href: '/admin/audit', label: 'Audit', icon: <ScrollText />, visible: canReadAudit },
+    { href: '/admin/logs', label: 'Logs', icon: <ScrollText />, visible: canReadAudit },
     { href: '/admin/users', label: 'Utilisateurs', icon: <Users />, visible: canManageUsers },
     { href: '/admin/roles', label: 'Rôles', icon: <KeyRound />, visible: canManageRoles },
     {

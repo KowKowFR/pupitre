@@ -314,9 +314,16 @@ code=$(req GET /api/settings)
 if grep -q "$SENTINEL" "$BODY"; then fail "la clé fuit par GET /api/settings"; fi
 pass "GET /api/settings ne la contient pas"
 
-curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/admin/settings" > "$WORK/settings.html" || true
-if grep -q "$SENTINEL" "$WORK/settings.html"; then fail "la clé fuit dans le HTML de /admin/settings"; fi
-pass "le HTML de /admin/settings ne la contient pas ($(wc -c < "$WORK/settings.html") octets)"
+# /admin/settings/ia, et pas /admin/settings : depuis le découpage des
+# réglages en sous-pages, la racine est un sommaire qui ne rend aucun champ de
+# clé. Y chercher la sentinelle passerait toujours, sans rien prouver. On vise
+# donc la page qui porte réellement le champ, et on vérifie qu'elle le porte.
+curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/admin/settings/ia" > "$WORK/settings.html" || true
+if ! grep -q 'id="apiKey"' "$WORK/settings.html"; then
+  fail "/admin/settings/ia ne rend pas le champ de clé — le grep suivant ne prouverait rien"
+fi
+if grep -q "$SENTINEL" "$WORK/settings.html"; then fail "la clé fuit dans le HTML de /admin/settings/ia"; fi
+pass "le HTML de /admin/settings/ia ne la contient pas ($(wc -c < "$WORK/settings.html") octets)"
 
 curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications/new" > "$WORK/new.html" || true
 if grep -q "$SENTINEL" "$WORK/new.html"; then fail "la clé fuit dans le HTML de /applications/new"; fi

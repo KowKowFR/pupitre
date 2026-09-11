@@ -53,6 +53,11 @@ services:
       PORT: "3000"
       HOSTNAME: 0.0.0.0
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # Garde SSRF de la supervision de sites : plages internes que les sondes
+      # ont le droit d'atteindre. Vide = adresses publiques uniquement.
+      # Le panel la lit pour refuser une cible à la création, le worker pour la
+      # refuser à chaque saut de redirection — les deux doivent avoir la même.
+      MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
@@ -78,6 +83,9 @@ services:
       # Restreint la plage quand la cible n'ouvre qu'une partie des ports —
       # c'est le cas du conteneur de test, qui n'en publie que dix.
       DRIVER_PORT_RANGE: ${DRIVER_PORT_RANGE:-}
+      # Même valeur que côté panel : une garde qui diverge entre les deux
+      # laisserait créer des sondes que le worker refuserait en silence.
+      MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
     volumes:
       # Clés SSH de l'hôte, en lecture seule — exploitées à partir du jalon 3.
       - ${SSH_KEYS_PATH:-${HOME}/.ssh}:/home/nodejs/.ssh:ro
@@ -110,6 +118,27 @@ services:
     volumes:
       - dind-data:/var/lib/docker
     restart: unless-stopped
+
+  # ── Serveur SMTP jetable, hors du démarrage normal ───────────────────────────
+  # Démarrage explicite :
+  #   docker compose --profile test up -d mailpit
+  # Utilisé par ./scripts/verify-notifications.sh pour vérifier le canal e-mail
+  # contre un vrai serveur SMTP plutôt que contre un faux : Mailpit accepte la
+  # session, garde le message, et l'expose sur une API HTTP — ce qui permet de
+  # relire le sujet, la partie texte et la partie HTTP réellement émises.
+  # Il n'envoie rien vers l'extérieur : tout ce qui entre reste dans sa mémoire.
+  # Jamais démarré par `docker compose up`.
+  mailpit:
+    profiles: ["test"]
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "200"
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
 
 volumes:
   pgdata:

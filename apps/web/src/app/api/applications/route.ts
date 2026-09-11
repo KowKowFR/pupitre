@@ -5,6 +5,7 @@ import {
   getApplicationBySlug,
   listApplications,
   logAudit,
+  syncApplicationSecrets,
 } from '@tp/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -52,6 +53,11 @@ export const POST = apiRoute(async (request) => {
     ownerId: auth.userId,
   });
 
+  // Les secrets déclarés reçoivent tout de suite une valeur générée : un
+  // déploiement ne doit jamais échouer parce que personne n'a pensé à les
+  // renseigner. Une valeur venue de l'extérieur se pose ensuite, par PUT.
+  const generated = await syncApplicationSecrets(application.id, input.appSpec);
+
   await logAudit({
     actorId: auth.userId,
     action: 'application.created',
@@ -72,6 +78,8 @@ export const POST = apiRoute(async (request) => {
               JSON.stringify(input.generation.appSpec) !== JSON.stringify(input.appSpec),
           }
         : { origin: 'manual' }),
+      // Les noms, jamais les valeurs.
+      secretsGenerated: generated,
     },
     ip: auth.ip,
   });

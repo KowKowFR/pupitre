@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, describe, it } from 'node:test';
 import { parse as parseYaml } from 'yaml';
-import { parseAppSpec, type AppSpec } from '../src/spec/index.js';
+import { parseAppSpec, storedSecretNames, type AppSpec } from '../src/spec/index.js';
 import {
   networkName,
   projectName,
@@ -14,6 +14,20 @@ import {
   renderFiles,
   serializeComposeFile,
 } from '../src/drivers/docker/render.js';
+import { UnresolvedSecretError } from '../src/drivers/secrets.js';
+
+/**
+ * Valeurs de complaisance pour tous les secrets déclarés par une fixture.
+ * Depuis que le rendu échoue sur un secret non résolu, un test qui n'en fournit
+ * aucun testerait l'échec et non le rendu.
+ */
+function stubSecrets(spec: AppSpec): Record<string, string> {
+  const values: Record<string, string> = {};
+  // Les racines seulement : un alias n'a pas de valeur à fournir, il reprend
+  // celle d'un autre — c'est `completeSecretValues()` qui la lui donne.
+  for (const name of storedSecretNames(spec)) values[name] = `valeur-${name.toLowerCase()}`;
+  return values;
+}
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -45,7 +59,12 @@ function validateWithDockerCompose(name: string, spec: AppSpec, publishedPort: n
   const dir = path.join(workdir, name);
   mkdirSync(dir, { recursive: true });
 
-  for (const file of renderFiles({ spec, appSlug: spec.name, publishedPort })) {
+  for (const file of renderFiles({
+    spec,
+    appSlug: spec.name,
+    publishedPort,
+    secretValues: stubSecrets(spec),
+  })) {
     writeFileSync(path.join(dir, file.path), file.content);
   }
 
@@ -142,7 +161,12 @@ describe('render() — AppSpec vers Compose', () => {
     });
 
     it('génère un .env en 0600 avec les noms déclarés', () => {
-      const files = renderFiles({ spec, appSlug: spec.name, publishedPort: null });
+      const files = renderFiles({
+        spec,
+        appSlug: spec.name,
+        publishedPort: null,
+        secretValues: stubSecrets(spec),
+      });
       const env = files.find((f) => f.path === '.env');
       assert.ok(env);
       assert.equal(env.mode, 0o600);
@@ -160,7 +184,46 @@ describe('render() — AppSpec vers Compose', () => {
       const front = file.services.front?.healthcheck?.test.join(' ') ?? '';
       assert.match(front, /wget --spider .*\/healthz/);
       const postgres = file.services.postgres?.healthcheck?.test.join(' ') ?? '';
-      assert.match(postgres, /nc -z 127\.0\.0\.1 5432/);
+      assert.match(postgres, /nc -z -w \d+ 127\.0\.0\.1 5432/);
+      // Ni `wget`, ni `curl` : un repli HTTP sur un service qui ne parle pas
+      // HTTP n'aboutit jamais, et masquait l'échec réel.
+      assert.doesNotMatch(postgres, /wget|curl/);
+    });
+
+    it('sonde en TCP sans dépendre de `nc`, absent des images Debian', () => {
+      // `postgres:16` et `mariadb:11` n'embarquent ni `nc`, ni `wget`, ni
+      // `curl` — seulement `bash`. Sans ce repli, leur sonde échouait à vie et
+      // le `depends_on: service_healthy` du service applicatif bloquait avec.
+      const postgres = file.services.postgres?.healthcheck?.test.join(' ') ?? '';
+      assert.match(postgres, /bash -c 'exec 3<>\/dev\/tcp\/127\.0\.0\.1\/5432'/);
+    });
+
+    it('refuse de rendre un secret déclaré sans valeur résolue, en le nommant', () => {
+      assert.throws(
+        () => renderFiles({ spec, appSlug: spec.name, publishedPort: null }),
+        (error: unknown) => {
+          assert.ok(error instanceof UnresolvedSecretError);
+          assert.deepEqual(
+            [...error.names].sort(),
+            ['DATABASE_PASSWORD', 'JWT_SECRET', 'POSTGRES_PASSWORD'],
+          );
+          assert.match(error.message, /POSTGRES_PASSWORD/);
+          return true;
+        },
+      );
+    });
+
+    it('accepte un secret délibérément vide — absent n’est pas vide', () => {
+      const values = { ...stubSecrets(spec), JWT_SECRET: '' };
+      const files = renderFiles({
+        spec,
+        appSlug: spec.name,
+        publishedPort: null,
+        secretValues: values,
+      });
+      const env = files.find((f) => f.path === '.env');
+      assert.ok(env);
+      assert.match(env.content, /^JWT_SECRET=$/m);
     });
 
     it('produit un compose.yml validé par Docker', { skip: !dockerAvailable }, () => {

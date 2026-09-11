@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DeleteApplicationDialog } from './delete-dialog';
 
 export type ApplicationRow = {
   id: string;
@@ -46,6 +47,8 @@ export function ApplicationsTable({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [selection, setSelection] = useState<Record<string, string>>({});
+  /** Application dont on est en train de confirmer la suppression, s'il y en a une. */
+  const [deleting, setDeleting] = useState<ApplicationRow | null>(null);
 
   // Politique de scan appliquée au prochain déploiement. Le formulaire arrive
   // avec les trois cases cochées ; l'API, elle, ne scanne rien par défaut.
@@ -85,22 +88,6 @@ export function ApplicationsTable({
     // La route répond 202 sans attendre : on file droit sur la page de suivi.
     const { id } = (await response.json()) as { id: string };
     router.push(`/deployments/${id}`);
-  }
-
-  async function remove(application: ApplicationRow) {
-    if (!window.confirm(`Supprimer l'application « ${application.slug} » ?`)) return;
-    setBusy(application.id);
-    setError(null);
-
-    const response = await fetch(`/api/applications/${application.id}`, { method: 'DELETE' });
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
-      setBusy(null);
-      return;
-    }
-    setBusy(null);
-    router.refresh();
   }
 
   if (items.length === 0) {
@@ -211,7 +198,7 @@ export function ApplicationsTable({
                       size="sm"
                       variant="ghost"
                       disabled={busy === application.id}
-                      onClick={() => void remove(application)}
+                      onClick={() => setDeleting(application)}
                     >
                       Supprimer
                     </Button>
@@ -227,6 +214,22 @@ export function ApplicationsTable({
             Aucune cible avec un runtime exploitable. Lancez un preflight depuis{' '}
             <code className="font-mono">/targets</code>.
           </p>
+        ) : null}
+
+        {/* La confirmation NOMME ce qui disparaît — cible, projet Compose, port
+            — plutôt que de demander « êtes-vous sûr ? ». */}
+        {deleting !== null ? (
+          <DeleteApplicationDialog
+            application={deleting}
+            open
+            onOpenChange={(open) => {
+              if (!open) setDeleting(null);
+            }}
+            onDeleted={() => {
+              setDeleting(null);
+              router.refresh();
+            }}
+          />
         ) : null}
       </CardContent>
     </Card>

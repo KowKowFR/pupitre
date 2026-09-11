@@ -5,10 +5,14 @@
 #   1. lecture des paramètres — défauts complets sur une base vierge
 #   2. modification du nom, et sa réapparition dans le HTML de l'accueil
 #   3. un fuseau inventé est refusé (422)
-#   4. la clé d'API n'apparaît JAMAIS dans une réponse GET
+#   4. la clé d'API n'apparaît JAMAIS dans une réponse GET, ni dans le HTML
+#      d'AUCUNE des pages de réglages — /admin/settings/ia comprise
 #   5. poser une clé ; PATCH sans le champ → conservée ; PATCH `null` → effacée
 #   6. l'audit contient `settings.updated` et ne contient PAS la clé
-#   7. `settings:manage` est requis pour écrire (testé avec un viewer)
+#   7. `settings:manage` est requis pour écrire, et un viewer voit les sections
+#      sans pouvoir les modifier
+#   8. chaque sous-section est atteignable et rend ses champs
+#   9. enregistrer une section ne modifie AUCUNE autre section
 #
 # Usage :
 #   ./scripts/verify-settings.sh
@@ -50,6 +54,50 @@ req() {
 }
 
 psql_q() { docker compose exec -T postgres psql -U tp -d tp -tAc "$1"; }
+
+# Les pages de l'écran de réglages, toutes.
+#
+# Les paramètres ne sont plus une page unique : /admin/settings est un sommaire
+# et chaque domaine a son adresse. Cette liste est ce qui empêche une assertion
+# de non-fuite de se contenter de la première page venue.
+SETTINGS_PAGES="/admin/settings
+/admin/settings/identite
+/admin/settings/regionalisation
+/admin/settings/securite
+/admin/settings/ia
+/admin/settings/demarrage"
+
+# HTML d'une page dans $2, en exigeant un 200 **franc**.
+#
+# Volontairement sans `-L` : une sous-section transformée en redirection ferait
+# passer tous les `grep` qui suivent sans qu'ils regardent le bon document.
+# Exiger le 200 direct, c'est exiger que la page existe vraiment.
+page() {
+  local path="$1" out="$2" jar="${3:-$JAR}" code
+  code=$(curl -s -o "$out" -w '%{http_code}' -b "$jar" -c "$jar" \
+    -H "origin: $BASE_URL" "$BASE_URL$path")
+  [ "$code" = "200" ] || fail "GET $path → HTTP $code (attendu 200, sans redirection)"
+}
+
+# Empreinte des sections AUTRES que celle qu'on vient d'enregistrer.
+#
+# Les sections sont des intentions, pas des clés du JSONB : « régionalisation »
+# recouvre quatre champs de la racine, « IA » recouvre `ai` plus l'état de la
+# clé. L'empreinte les regroupe comme l'écran les regroupe, puis retire celle
+# qui était visée — ce qui reste doit être identique au bit près.
+fingerprint() {
+  local skip="$1" file="$2"
+  jq -S --arg skip "$skip" '{
+    identite: { nom: .settings.instanceName, sous_titre: .settings.instanceTagline },
+    regionalisation: {
+      tz: .settings.timezone, locale: .settings.locale,
+      date: .settings.dateStyle, heure: .settings.timeStyle
+    },
+    securite: .settings.security,
+    ia: (.settings.ai + { cle: .aiApiKeyConfigured, last4: .aiApiKeyLast4 }),
+    demarrage: .settings.onboarding
+  } | del(.[$skip])' "$file"
+}
 
 login() {
   local code
@@ -105,6 +153,18 @@ TZ_COUNT=$(jq -r '.vocabulary.timezones | length' "$BODY")
 [ "$TZ_COUNT" -ge 100 ] || fail "vocabulaire de fuseaux suspect : $TZ_COUNT entrée(s)"
 pass "objet complet sur base vierge — $(jq -r '.settings.instanceName' "$WORK/defaults.json") / $(jq -r '.settings.timezone' "$WORK/defaults.json")"
 info "$TZ_COUNT fuseaux proposés, $(jq -r '.vocabulary.locales | join(", ")' "$BODY")"
+
+# L'assistant de démarrage, soldé immédiatement.
+#
+# La table vient d'être vidée : l'avancement est reparti de zéro, et le layout
+# de `(app)` renvoie alors TOUTE page authentifiée vers /onboarding — un 307.
+# Tous les `grep` sur du HTML qui suivent liraient donc un corps de redirection
+# vide et réussiraient sans regarder le bon document. C'est précisément le
+# genre d'assertion qui ment : on solde le parcours avant de regarder quoi que
+# ce soit, et `page()` exige ensuite un 200 franc.
+code=$(req PATCH /api/onboarding '{"action":"dismiss"}')
+[ "$code" = "200" ] || fail "abandon de l'assistant → HTTP $code : $(cat "$BODY")"
+pass "assistant de démarrage soldé — les écrans du panel répondent de nouveau 200"
 
 step "3. Modifier le nom, et le retrouver dans le HTML"
 NEW_NAME="Panel de vérification"
@@ -200,10 +260,26 @@ jq -e '.aiApiKeyLast4 == "4242"' "$BODY" >/dev/null \
   || fail "4 derniers caractères attendus « 4242 », reçu $(jq -c .aiApiKeyLast4 "$BODY")"
 pass "seuls aiApiKeyConfigured=true et aiApiKeyLast4=\"4242\" sont exposés"
 
-# Le HTML de l'écran ne doit pas non plus la contenir.
-curl -s -b "$JAR" -c "$JAR" -H "origin: $BASE_URL" "$BASE_URL/admin/settings" > "$WORK/settings.html"
-grep -qF "$SECRET_KEY" "$WORK/settings.html" && fail "la clé est dans le HTML de /admin/settings"
-pass "absente aussi du HTML de /admin/settings"
+# Le HTML des écrans ne doit pas non plus la contenir.
+#
+# Cette assertion ne visait qu'/admin/settings. Depuis le découpage, cette
+# adresse est un sommaire : elle ne rend aucun champ de clé, et le grep y
+# passerait quoi qu'il arrive — une assertion qui réussit en regardant au
+# mauvais endroit ment, elle ne protège rien. On balaie donc les six pages, et
+# on prouve séparément que celle qui porte réellement le champ a bien été lue.
+for path in $SETTINGS_PAGES; do
+  page "$path" "$WORK/page.html"
+  grep -qF "$SECRET_KEY" "$WORK/page.html" && fail "la clé est dans le HTML de $path"
+done
+pass "clé absente du HTML des $(echo "$SETTINGS_PAGES" | wc -l | tr -d ' ') pages de réglages"
+
+page /admin/settings/ia "$WORK/ia.html"
+grep -q 'id="apiKey"' "$WORK/ia.html" \
+  || fail "/admin/settings/ia ne rend pas le champ de clé — le grep ci-dessus ne prouverait rien"
+grep -qF "$SECRET_KEY" "$WORK/ia.html" && fail "la clé est dans le HTML de /admin/settings/ia"
+grep -qF "4242" "$WORK/ia.html" \
+  || fail "les 4 derniers caractères devraient être affichés en repère sur la section IA"
+pass "/admin/settings/ia rend bien le champ, avec …4242 en repère et sans la clé"
 
 step "6. Les trois cas du champ aiApiKey"
 code=$(req PATCH /api/settings '{"instanceTagline":"clé inchangée"}')
@@ -248,7 +324,7 @@ jq -e '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey
   || fail "le marqueur de clé attendu est absent : $(jq -c '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey' "$BODY")"
 pass "la clé est réduite à un marqueur : $(jq -r '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey' "$BODY")"
 
-step "8. settings:manage est requis pour écrire"
+step "8. settings:manage pour écrire — un viewer voit, et ne touche à rien"
 code=$(req POST /api/admin/users \
   "{\"name\":\"Viewer paramètres\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
 case "$code" in
@@ -286,6 +362,33 @@ code=$(req GET /api/settings '' "$VIEWER_JAR")
 [ "$code" = "200" ] || fail "un viewer doit pouvoir lire les paramètres : HTTP $code"
 grep -qF "$SECRET_KEY" "$BODY" && fail "la clé fuit dans la lecture d'un viewer"
 pass "lecture autorisée (settings:read), toujours sans la clé"
+
+# Un lecteur doit VOIR les sections — en lecture seule, avec la mention qui
+# l'explique. Des champs actifs qui finiraient en 403 à l'enregistrement
+# seraient une promesse que l'écran ne peut pas tenir.
+for path in $SETTINGS_PAGES; do
+  page "$path" "$WORK/viewer-page.html" "$VIEWER_JAR"
+  grep -qF "$SECRET_KEY" "$WORK/viewer-page.html" && fail "la clé fuit sur $path pour un viewer"
+done
+pass "les pages de réglages répondent 200 à un viewer, sans la clé"
+
+page /admin/settings/ia "$WORK/viewer-ia.html" "$VIEWER_JAR"
+grep -q 'id="apiKey"' "$WORK/viewer-ia.html" \
+  || fail "le viewer ne voit pas la section IA : la lecture seule n'est pas une page vide"
+grep -q 'settings:manage' "$WORK/viewer-ia.html" \
+  || fail "la mention expliquant la lecture seule est absente"
+grep -q 'type="submit"' "$WORK/viewer-ia.html" \
+  && fail "un bouton d'enregistrement est offert à un viewer"
+grep -q 'disabled=""' "$WORK/viewer-ia.html" \
+  || fail "les champs de la section IA ne sont pas désactivés pour un viewer"
+pass "viewer : section visible, champs inactifs, aucun bouton d'enregistrement"
+
+page /admin/settings/demarrage "$WORK/viewer-onb.html" "$VIEWER_JAR"
+grep -q 'settings:manage' "$WORK/viewer-onb.html" \
+  || fail "l'assistant ne dit pas au viewer pourquoi il ne peut pas le relancer"
+grep -q 'Relancer l' "$WORK/viewer-onb.html" \
+  && fail "le bouton de relance est offert à un viewer"
+pass "viewer : l'assistant s'affiche sans son bouton de relance"
 
 code=$(req PATCH /api/settings '{"instanceName":"Détourné par un viewer"}' "$VIEWER_JAR")
 [ "$code" = "403" ] || fail "écriture par un viewer : attendu 403, reçu $code — $(cat "$BODY")"
@@ -353,16 +456,115 @@ code=$(req PATCH /api/settings '{"security":{"disabledScanners":["monde:dominer"
 [ "$code" = "422" ] || fail "scanner inventé : attendu 422, reçu $code"
 pass "un scanner hors vocabulaire est refusé"
 
-step "11. Ménage"
+step "11. Chaque sous-section est atteignable et rend ses champs"
+# /admin/settings n'est pas une redirection : c'est le sommaire, et il mène aux
+# cinq sections. `page` exige un 200 direct, ce qui le prouve.
+page /admin/settings "$WORK/overview.html"
+for target in identite regionalisation securite ia demarrage; do
+  grep -q "/admin/settings/$target" "$WORK/overview.html" \
+    || fail "le sommaire ne mène pas à /admin/settings/$target"
+done
+pass "/admin/settings répond 200 et mène aux cinq sections"
+
+# Une section « atteignable » qui ne rendrait pas ses champs serait une page
+# morte de plus : on nomme donc, pour chacune, les identifiants qu'elle doit
+# porter.
+check_page() {
+  local path="$1"; shift
+  local file="$WORK/section.html" marker
+  page "$path" "$file"
+  for marker in "$@"; do
+    grep -qF "$marker" "$file" || fail "« $marker » absent de $path"
+  done
+  pass "$path — $# marqueur(s) présents"
+}
+
+check_page /admin/settings/identite 'id="instanceName"' 'id="instanceTagline"'
+check_page /admin/settings/regionalisation \
+  'id="timezone"' 'id="locale"' 'id="dateStyle"' 'id="timeStyle"' 'Europe/Paris'
+check_page /admin/settings/securite 'id="failOn"' 'Scanners' 'trivy'
+check_page /admin/settings/ia 'id="aiProvider"' 'id="aiModel"' 'id="apiKey"' 'type="submit"'
+check_page /admin/settings/demarrage 'Relancer l' 'Assistant de d'
+
+step "12. Enregistrer une section ne touche à aucune autre"
+# LE piège de ce test : si les autres sections sont restées à leurs valeurs par
+# défaut, un écrasement par les défauts est indistinguable d'une conservation,
+# et le test réussit alors même que le bug est là. On personnalise donc TOUT
+# avant de ne toucher qu'à une seule chose.
+code=$(req PATCH /api/settings '{
+  "instanceName":"Instance cloisonnée","instanceTagline":"témoin de cloisonnement",
+  "timezone":"Asia/Tokyo","locale":"en-GB","dateStyle":"long","timeStyle":"short",
+  "security":{"scanningEnabled":true,"disabledScanners":["syft"],"failOn":"HIGH"},
+  "ai":{"enabled":false,"provider":"openai","model":"gpt-4.1-mini","temperature":0.65,"maxTokens":1024}
+}')
+[ "$code" = "200" ] || fail "personnalisation préalable → HTTP $code : $(cat "$BODY")"
+jq -e '.settings.instanceTagline == "témoin de cloisonnement"
+       and .settings.timezone == "Asia/Tokyo" and .settings.dateStyle == "long"
+       and .settings.security.disabledScanners == ["syft"]
+       and .settings.security.failOn == "HIGH"
+       and .settings.ai.temperature == 0.65 and .settings.ai.maxTokens == 1024
+       and .aiApiKeyConfigured == true' "$BODY" >/dev/null \
+  || fail "la personnalisation préalable n'a pas pris : $(jq -c .settings "$BODY")"
+pass "les cinq sections portent des valeurs distinctes de leurs défauts"
+
+# $1 nom de la section enregistrée, $2 corps du PATCH (ses seuls champs),
+# $3 expression jq prouvant que la section visée a bien changé — et que ce
+# qu'elle contient d'autre a survécu.
+isolate() {
+  local name="$1" body="$2" probe="$3" before after
+  req GET /api/settings >/dev/null
+  before=$(fingerprint "$name" "$BODY")
+  code=$(req PATCH /api/settings "$body")
+  [ "$code" = "200" ] || fail "PATCH « $name » → HTTP $code : $(cat "$BODY")"
+  jq -e "$probe" "$BODY" >/dev/null \
+    || fail "« $name » : la section n'a pas pris la valeur attendue → $(jq -c .settings "$BODY")"
+  after=$(fingerprint "$name" "$BODY")
+  if [ "$before" != "$after" ]; then
+    diff <(printf '%s\n' "$before") <(printf '%s\n' "$after") | head -20
+    fail "enregistrer « $name » a modifié d'autres sections (voir le diff ci-dessus)"
+  fi
+  pass "« $name » enregistrée seule — les autres sections sont intactes au bit près"
+}
+
+isolate identite \
+  '{"instanceName":"Renommée depuis sa section"}' \
+  '.settings.instanceName == "Renommée depuis sa section"
+   and .settings.instanceTagline == "témoin de cloisonnement"'
+
+isolate regionalisation \
+  '{"timezone":"Europe/Lisbon"}' \
+  '.settings.timezone == "Europe/Lisbon" and .settings.locale == "en-GB"
+   and .settings.dateStyle == "long" and .settings.timeStyle == "short"'
+
+isolate securite \
+  '{"security":{"failOn":"NONE"}}' \
+  '.settings.security == {"scanningEnabled":true,"disabledScanners":["syft"],"failOn":"NONE"}'
+
+isolate ia \
+  '{"ai":{"temperature":0.15}}' \
+  '.settings.ai.temperature == 0.15 and .settings.ai.model == "gpt-4.1-mini"
+   and .settings.ai.maxTokens == 1024 and .settings.ai.enabled == false
+   and .aiApiKeyConfigured == true'
+
+step "13. Ménage"
 req PATCH /api/settings '{"aiApiKey":null}' >/dev/null
 # Réglage de sécurité rendu à son défaut : les autres scripts en dépendent.
-req PATCH /api/settings '{"security":{"scanningEnabled":true,"disabledScanners":[]}}' >/dev/null
+req PATCH /api/settings '{"security":{"scanningEnabled":true,"disabledScanners":[],"failOn":"NONE"}}' >/dev/null
+# L'étape 12 a personnalisé l'IA pour que le cloisonnement se voie : on la rend.
+req PATCH /api/settings \
+  '{"ai":{"enabled":true,"provider":"openrouter","model":"anthropic/claude-sonnet-4.5","baseUrl":"","temperature":0.2,"maxTokens":8192}}' >/dev/null
 code=$(req PATCH /api/settings \
-  '{"instanceName":"Control plane","instanceTagline":"Bootstrap TP v2","timezone":"Europe/Paris","locale":"fr-FR"}')
+  '{"instanceName":"Control plane","instanceTagline":"Bootstrap TP v2","timezone":"Europe/Paris","locale":"fr-FR","dateStyle":"short","timeStyle":"medium"}')
 [ "$code" = "200" ] || fail "restauration → HTTP $code : $(cat "$BODY")"
 pass "paramètres restaurés, clé effacée"
 req DELETE "/api/admin/users/$viewer_id" >/dev/null
 pass "utilisateur viewer supprimé"
+# L'assistant a été abandonné à l'étape 2 pour rendre les pages consultables.
+# On le laisse « terminé » plutôt qu'« abandonné » : c'est l'état d'une
+# instance en service, et celui que les autres scripts trouvent.
+req PATCH /api/onboarding '{"action":"finish"}' >/dev/null
+pass "assistant de démarrage marqué terminé"
 
 printf '\n\033[32m✓ Paramètres d'"'"'instance vérifiés.\033[0m\n'
-printf '\033[2m  Écran : %s/admin/settings\033[0m\n\n' "$BASE_URL"
+printf '\033[2m  Écrans : %s/admin/settings — et ses %s sous-sections\033[0m\n\n' \
+  "$BASE_URL" "$(( $(echo "$SETTINGS_PAGES" | wc -l) - 1 ))"

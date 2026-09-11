@@ -1,7 +1,7 @@
 import { PORT_RANGE_MAX, PORT_RANGE_MIN } from '../../ports.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
 import { exec, execStream, upload } from '../../ssh/client.js';
-import { exposedService, type AppSpec } from '../../spec/index.js';
+import { exposedService, storedSecretNames, type AppSpec } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
 import { listeningPorts } from '../listening.js';
 import { pruneReleases } from '../retention.js';
@@ -49,6 +49,20 @@ const SENTINEL = '---tp-workloads---';
 
 export class DockerComposeDriver implements DeploymentDriver {
   readonly runtime = 'docker' as const;
+
+  /** Le projet Compose sous lequel l'application est regroupée sur la cible. */
+  workspaceName(appSlug: string): string {
+    return projectName(appSlug);
+  }
+
+  /** Le décalque exact de `destroy()`, à passer à la main sur la machine. */
+  manualCleanup(appSlug: string, rootPath: string): string[] {
+    const appPath = `${rootPath}/apps/${appSlug}`;
+    return [
+      `cd ${appPath}/current && docker compose down -v --remove-orphans`,
+      `rm -rf ${appPath}`,
+    ];
+  }
 
   /** `/opt/bootstrap/apps/{slug}` */
   private appPath(ctx: DriverContext): string {
@@ -276,7 +290,8 @@ export class DockerComposeDriver implements DeploymentDriver {
 
   async render(ctx: DriverContext): Promise<RenderedArtifacts> {
     const publishedPort = await this.resolvePublishedPort(ctx);
-    const secretNames = [...new Set(ctx.spec.services.flatMap((service) => service.secrets))];
+    // Les racines seulement : un alias n'a pas de valeur propre à demander.
+    const secretNames = storedSecretNames(ctx.spec);
     const secretValues = ctx.resolveSecrets ? await ctx.resolveSecrets(secretNames) : {};
 
     const files = renderFiles({

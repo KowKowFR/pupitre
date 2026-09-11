@@ -52,6 +52,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         canManageRoles={auth.can('role:manage')}
         canReadAudit={auth.can('audit:read')}
         canReadJobs={auth.can('job:read')}
+        canReadMonitors={auth.can('monitor:read')}
         canManageSettings={auth.can('settings:read')}
         instanceName={settings.instanceName}
         instanceTagline={settings.instanceTagline}

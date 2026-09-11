@@ -152,6 +152,21 @@ function describeHealth(health: unknown): string | null {
   }`;
 }
 
+/**
+ * Un secret, tel qu'il se relit avant déploiement.
+ *
+ * Un nom peut reprendre la valeur d'un autre (`{ name, from }`) : la relecture
+ * doit le montrer, sinon deux noms partageant un seul mot de passe se lisent
+ * comme deux secrets indépendants — exactement le malentendu que `from` corrige.
+ */
+function describeSecret(entry: unknown): string {
+  if (typeof entry === 'string') return entry;
+  if (isRecord(entry) && typeof entry.name === 'string') {
+    return typeof entry.from === 'string' ? `${entry.name} ← ${entry.from}` : entry.name;
+  }
+  return '';
+}
+
 function parseReview(text: string): ReviewSpec | null {
   let raw: unknown;
   try {
@@ -172,7 +187,7 @@ function parseReview(text: string): ReviewSpec | null {
       env: isRecord(service.env)
         ? Object.entries(service.env).map(([key, value]) => [key, str(value)])
         : [],
-      secrets: arr(service.secrets).map((entry) => str(entry)).filter((entry) => entry !== ''),
+      secrets: arr(service.secrets).map(describeSecret).filter((entry) => entry !== ''),
       volumes: arr(service.volumes)
         .filter(isRecord)
         .map((volume) => ({
