@@ -176,7 +176,13 @@ jq -e '[.items[] | select(.status != "success" and .status != "rolled_back")] | 
 pass "la liste ne contient que des déploiements en marche"
 
 # Photo de départ : à la fin du script, elle doit être identique.
-LIVE_BEFORE=$(jq -r '[.items[].applicationSlug] | sort | join(",")' "$BODY")
+# L'identité d'une ligne supervisée est le COUPLE application+cible, pas le
+# seul nom : la même application peut tourner sur deux machines, et deux lignes
+# « demo-api » ne sont alors pas un doublon mais deux déploiements distincts.
+# Comparer les seuls noms ferait passer ce cas normal pour une fuite.
+live_pairs() { jq -r '[.items[] | "\(.applicationSlug)@\(.targetName)"] | sort | join(", ")' "$BODY"; }
+
+LIVE_BEFORE=$(live_pairs)
 
 APP_ID=$(jq -r '.items[0].id' "$BODY")
 APP_SLUG=$(jq -r '.items[0].applicationSlug' "$BODY")
@@ -344,7 +350,7 @@ code=$(req DELETE "/api/applications/$MAJ_APP")
 pass "application de test supprimée"
 
 req GET /api/apps >/dev/null
-LIVE_AFTER=$(jq -r '[.items[].applicationSlug] | sort | join(",")' "$BODY")
+LIVE_AFTER=$(live_pairs)
 [ "$LIVE_AFTER" = "$LIVE_BEFORE" ] \
   || fail "les applications en marche ont changé : « $LIVE_BEFORE » → « $LIVE_AFTER »"
 pass "les applications réellement en marche sont intactes : ${LIVE_AFTER:-aucune}"
