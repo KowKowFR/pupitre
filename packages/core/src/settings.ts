@@ -6,6 +6,19 @@ import {
   type ScanConfig,
   type ScannerKey,
 } from './scan.js';
+import {
+  AI_MODEL_TIER_LABELS,
+  AI_PROVIDERS,
+  aiModelMismatch,
+  aiModelOptions,
+  aiProviderDescriptor,
+  aiProviderDescriptors,
+  defaultAiModel,
+  isAiProvider,
+  type AiModelOption,
+  type AiProvider,
+  type AiProviderDescriptor,
+} from './ai/catalog.js';
 import { z } from 'zod';
 
 /**
@@ -25,14 +38,15 @@ import { z } from 'zod';
  */
 
 /**
- * Modèle par défaut. Choisi pour sa fiabilité en sortie structurée, pas pour
- * son prix : une AppSpec mal formée coûte une relance, donc deux appels.
+ * Modèle par défaut de l'instance neuve — celui d'OpenRouter, le fournisseur
+ * par défaut. Chaque fournisseur a le sien : `defaultAiModel(provider)` est la
+ * fonction à appeler dès qu'on sait de quel fournisseur on parle.
  *
- * Déclaré ici et non dans `ai/model.ts` pour que la racine de `@tp/core` — donc
- * `@tp/db` et le worker — puisse connaître le défaut sans tirer le SDK IA dans
- * son graphe de dépendances. `ai/model.ts` le réexporte sous son nom d'origine.
+ * Le catalogue vit sous `ai/catalog.ts` mais ne dépend de rien : la racine de
+ * `@tp/core` — donc `@tp/db` et le worker — peut donc connaître la liste des
+ * fournisseurs et leurs défauts sans tirer le SDK IA dans son graphe.
  */
-export const DEFAULT_AI_MODEL = 'anthropic/claude-sonnet-4.5';
+export const DEFAULT_AI_MODEL = defaultAiModel('openrouter');
 
 /** Locales proposées. Liste explicite : chacune doit avoir été relue en vrai. */
 export const SUPPORTED_LOCALES = ['fr-FR', 'en-GB', 'en-US', 'de-DE', 'es-ES'] as const;
@@ -41,8 +55,19 @@ export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 export const DATE_STYLES = ['short', 'medium', 'long'] as const;
 export type DateStyleName = (typeof DATE_STYLES)[number];
 
-export const AI_PROVIDERS = ['openrouter'] as const;
-export type AiProvider = (typeof AI_PROVIDERS)[number];
+export {
+  AI_MODEL_TIER_LABELS,
+  AI_PROVIDERS,
+  aiModelMismatch,
+  aiModelOptions,
+  aiProviderDescriptor,
+  aiProviderDescriptors,
+  defaultAiModel,
+  isAiProvider,
+  type AiModelOption,
+  type AiProvider,
+  type AiProviderDescriptor,
+};
 
 export const DEFAULT_TIMEZONE = 'Europe/Paris';
 
@@ -79,13 +104,53 @@ const timeZoneSchema = z
   .max(64)
   .refine(isValidTimeZone, { message: 'Fuseau horaire IANA inconnu' });
 
+/**
+ * Champs de la section IA, **sans défaut** — même précaution que pour les
+ * champs racine plus bas, et pour la même raison : `schema.default(x).optional()`
+ * rend `x` quand la clé est absente. Un `PATCH { ai: { enabled: false } }`
+ * repartait donc avec un objet `ai` complet de valeurs par défaut, et
+ * réinitialisait silencieusement le fournisseur, le modèle et la température de
+ * l'instance. Le défaut n'est appliqué que sur le schéma de *lecture*.
+ */
+const aiFields = {
+  /** Liste dérivée du catalogue : un fournisseur ajouté y apparaît sans rien toucher ici. */
+  provider: z.enum(AI_PROVIDERS),
+  /**
+   * Identifiant de modèle, dans la convention du fournisseur choisi. Le défaut
+   * ne peut pas dépendre du fournisseur dans un schéma d'objet plat : c'est
+   * `resolveAiConfig()` qui retombe sur `defaultAiModel(provider)` quand le
+   * champ est vide, et `aiModelMismatch()` qui signale un identifiant qui
+   * appartient visiblement à un autre fournisseur.
+   */
+  model: z.string().trim().min(1).max(120),
+  /**
+   * URL d'une API compatible OpenAI auto-hébergée. Validée comme une URL —
+   * une valeur bancale ici ferait échouer chaque génération sans rien dire.
+   * Ignorée par les fournisseurs qui ne la déclarent pas (`supportsBaseUrl`).
+   */
+  baseUrl: z.union([z.literal(''), z.string().trim().url().max(300)]),
+  enabled: z.boolean(),
+  temperature: z.number().min(0).max(1),
+  maxTokens: z.number().int().min(256).max(200_000),
+};
+
 export const aiSettingsSchema = z.object({
-  /** Un seul fournisseur pour l'instant ; l'énumération laisse la porte ouverte. */
-  provider: z.enum(AI_PROVIDERS).default('openrouter'),
-  model: z.string().trim().min(1).max(120).default(DEFAULT_AI_MODEL),
-  enabled: z.boolean().default(true),
-  temperature: z.number().min(0).max(1).default(0.2),
-  maxTokens: z.number().int().min(256).max(200_000).default(8_192),
+  provider: aiFields.provider.default('openrouter'),
+  model: aiFields.model.default(DEFAULT_AI_MODEL),
+  baseUrl: aiFields.baseUrl.default(''),
+  enabled: aiFields.enabled.default(true),
+  temperature: aiFields.temperature.default(0.2),
+  maxTokens: aiFields.maxTokens.default(8_192),
+});
+
+/** Patch partiel de la section IA : une clé absente reste absente. */
+export const aiSettingsPatchSchema = z.object({
+  provider: aiFields.provider.optional(),
+  model: aiFields.model.optional(),
+  baseUrl: aiFields.baseUrl.optional(),
+  enabled: aiFields.enabled.optional(),
+  temperature: aiFields.temperature.optional(),
+  maxTokens: aiFields.maxTokens.optional(),
 });
 
 export type AiSettings = z.infer<typeof aiSettingsSchema>;
@@ -93,23 +158,34 @@ export type AiSettings = z.infer<typeof aiSettingsSchema>;
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   provider: 'openrouter',
   model: DEFAULT_AI_MODEL,
+  baseUrl: '',
   enabled: true,
   temperature: 0.2,
   maxTokens: 8_192,
 };
 
-export const securitySettingsSchema = z.object({
+/**
+ * Champs de la section sécurité, **sans défaut** — la forme de référence.
+ *
+ * Même séparation que pour l'IA et pour la racine des paramètres, et pour la
+ * même raison : `schema.partial()` sur des champs porteurs de `.default()`
+ * **remplit quand même** ces défauts pour les clés absentes. Un PATCH ne
+ * parlant que de `scanningEnabled` réinitialisait donc silencieusement les
+ * scanners écartés et le seuil de blocage — une politique de sécurité
+ * détricotée par un geste qui ne la visait pas.
+ */
+const securityFields = {
   /**
    * Interrupteur général. À `false`, plus aucun scan ne sera lancé, sur aucun
    * déploiement, tant que le réglage n'est pas remis à `true`.
    */
-  scanningEnabled: z.boolean().default(true),
+  scanningEnabled: z.boolean(),
   /**
    * Scanners écartés un par un, même quand l'analyse reste active. Permet de
    * couper Trivy sans renoncer à Grype, par exemple parce qu'un seul des deux
    * peut atteindre sa base de vulnérabilités depuis la machine cible.
    */
-  disabledScanners: z.array(scannerKeySchema).max(SCANNER_KEYS.length).default([]),
+  disabledScanners: z.array(scannerKeySchema).max(SCANNER_KEYS.length),
   /**
    * Sévérité à partir de laquelle un finding bloque la mise en ligne.
    *
@@ -117,7 +193,21 @@ export const securitySettingsSchema = z.object({
    * politique de sécurité qui se choisit au coup par coup, déploiement par
    * déploiement, n'est pas une politique.
    */
-  failOn: failOnSchema.default('CRITICAL'),
+  failOn: failOnSchema,
+};
+
+/** Lecture : les défauts comblent ce qu'une base ancienne ne porte pas. */
+export const securitySettingsSchema = z.object({
+  scanningEnabled: securityFields.scanningEnabled.default(true),
+  disabledScanners: securityFields.disabledScanners.default([]),
+  failOn: securityFields.failOn.default('CRITICAL'),
+});
+
+/** Patch partiel : une clé absente reste absente. */
+export const securitySettingsPatchSchema = z.object({
+  scanningEnabled: securityFields.scanningEnabled.optional(),
+  disabledScanners: securityFields.disabledScanners.optional(),
+  failOn: securityFields.failOn.optional(),
 });
 
 export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
@@ -668,8 +758,8 @@ export const appSettingsPatchSchema = z.object({
   locale: appSettingsFields.locale.optional(),
   dateStyle: appSettingsFields.dateStyle.optional(),
   timeStyle: appSettingsFields.timeStyle.optional(),
-  ai: aiSettingsSchema.partial().optional(),
-  security: securitySettingsSchema.partial().optional(),
+  ai: aiSettingsPatchSchema.optional(),
+  security: securitySettingsPatchSchema.optional(),
 });
 
 export type AppSettingsPatch = z.infer<typeof appSettingsPatchSchema>;
@@ -705,25 +795,48 @@ export function parseAppSettings(raw: unknown): AppSettings {
  * `ai` est le seul objet imbriqué : il se fusionne, il ne s'écrase pas — un
  * PATCH qui ne porte que `ai.enabled` ne doit pas réinitialiser le modèle.
  */
+/** Un objet simple, par opposition à un tableau ou à `null`. */
+function isSection(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export function mergeAppSettings(current: AppSettings, patch: AppSettingsPatch): AppSettings {
-  const { ai, ...rest } = patch;
+  /**
+   * Fusion **sur un niveau**, et pas davantage.
+   *
+   * Un niveau parce que les sections (`ai`, `security`) contiennent des
+   * scalaires et des tableaux : `disabledScanners: ['syft']` doit *remplacer*
+   * la liste courante, pas s'y ajouter. Fusionner plus profond rendrait
+   * impossible de retirer un scanner de la liste.
+   *
+   * Mais au moins un niveau, sinon un PATCH ne parlant que de
+   * `security.scanningEnabled` remplacerait toute la section, et le schéma de
+   * lecture comblerait les clés manquantes par leurs défauts — réinitialisant
+   * en silence les scanners écartés et le seuil de blocage. Ce défaut a
+   * réellement existé : la fusion profonde n'était câblée que pour `ai`, et
+   * `security` retombait dans le cas général sans que rien ne le signale.
+   * Traiter les sections par leur forme plutôt que par leur nom évite qu'une
+   * section ajoutée demain hérite du même piège.
+   */
+  const merged: Record<string, unknown> = { ...current };
 
-  // Ceinture et bretelles : une clé explicitement à `undefined` ne doit pas
-  // écraser la valeur courante — l'écrasement retomberait sur le défaut du
-  // schéma, ce qui reviendrait à réinitialiser un champ qu'on n'a pas touché.
-  const defined: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(rest)) {
-    if (value !== undefined) defined[key] = value;
+  for (const [key, value] of Object.entries(patch)) {
+    // Une clé explicitement à `undefined` ne doit pas écraser la valeur
+    // courante : l'écrasement retomberait sur le défaut du schéma.
+    if (value === undefined) continue;
+
+    const existing = merged[key];
+    if (isSection(value) && isSection(existing)) {
+      const section: Record<string, unknown> = { ...existing };
+      for (const [field, fieldValue] of Object.entries(value)) {
+        if (fieldValue !== undefined) section[field] = fieldValue;
+      }
+      merged[key] = section;
+      continue;
+    }
+
+    merged[key] = value;
   }
 
-  const aiDefined: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(ai ?? {})) {
-    if (value !== undefined) aiDefined[key] = value;
-  }
-
-  return appSettingsSchema.parse({
-    ...current,
-    ...defined,
-    ai: { ...current.ai, ...aiDefined },
-  });
+  return appSettingsSchema.parse(merged);
 }

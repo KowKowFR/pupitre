@@ -7,6 +7,8 @@
  * `/scanners`.
  */
 export * from './assets.js';
+export * from './catalog.js';
+export * from './providers.js';
 export * from './prompt.js';
 export * from './model.js';
 export * from './generate.js';

@@ -3,6 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { FAIL_ON_LABELS, SCANNER_KEYS, failOnSchema, scannerLabel, type FailOn, type ScannerKey } from '@tp/core';
+import {
+  AI_MODEL_TIER_LABELS,
+  aiModelMismatch,
+  aiModelOptions,
+  aiProviderDescriptor,
+  aiProviderDescriptors,
+  defaultAiModel,
+  type AiProvider,
+} from '@tp/core';
 import type { AppSettings, DateStyleName, SupportedLocale } from '@tp/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -61,7 +70,9 @@ export function SettingsEditor({
   const [timeStyle, setTimeStyle] = useState<DateStyleName>(settings.timeStyle);
 
   const [aiEnabled, setAiEnabled] = useState(settings.ai.enabled);
+  const [aiProvider, setAiProvider] = useState<AiProvider>(settings.ai.provider);
   const [aiModel, setAiModel] = useState(settings.ai.model);
+  const [aiBaseUrl, setAiBaseUrl] = useState(settings.ai.baseUrl);
   const [temperature, setTemperature] = useState(String(settings.ai.temperature));
   const [maxTokens, setMaxTokens] = useState(String(settings.ai.maxTokens));
 
@@ -82,6 +93,25 @@ export function SettingsEditor({
 
   const preview = formatDateTime(PREVIEW_INSTANT, { timezone, locale, dateStyle, timeStyle });
 
+  const aiDescriptor = aiProviderDescriptor(aiProvider);
+  // Prévenir, pas interdire : un modèle sorti la semaine dernière ou une URL de
+  // base personnalisée peuvent parfaitement démentir cette heuristique.
+  const aiWarning = aiModelMismatch(aiProvider, aiModel, { baseUrl: aiBaseUrl });
+  const suggestedModels = aiModelOptions(aiProvider);
+
+  /**
+   * Changer de fournisseur emmène le modèle par défaut du nouveau fournisseur —
+   * mais seulement si le champ portait encore le défaut du précédent. Un
+   * identifiant choisi à la main n'est jamais écrasé : on le laisse, et
+   * l'avertissement ci-dessus dit s'il est incohérent.
+   */
+  function switchProvider(next: AiProvider) {
+    if (aiModel.trim() === defaultAiModel(aiProvider) || aiModel.trim() === '') {
+      setAiModel(defaultAiModel(next));
+    }
+    setAiProvider(next);
+  }
+
   async function save() {
     setPending(true);
     setError(null);
@@ -96,7 +126,12 @@ export function SettingsEditor({
       timeStyle,
       ai: {
         enabled: aiEnabled,
+        provider: aiProvider,
         model: aiModel,
+        // L'URL de base n'a de sens que pour les fournisseurs qui la déclarent.
+        // L'envoyer quand même laisserait en base un réglage sans effet, que le
+        // prochain lecteur croirait appliqué.
+        baseUrl: aiDescriptor.supportsBaseUrl ? aiBaseUrl.trim() : '',
         temperature: Number(temperature),
         maxTokens: Number(maxTokens),
       },
@@ -139,7 +174,9 @@ export function SettingsEditor({
     setDisabledScanners(settings.security.disabledScanners);
     setFailOn(settings.security.failOn);
     setAiEnabled(settings.ai.enabled);
+    setAiProvider(settings.ai.provider);
     setAiModel(settings.ai.model);
+    setAiBaseUrl(settings.ai.baseUrl);
     setTemperature(String(settings.ai.temperature));
     setMaxTokens(String(settings.ai.maxTokens));
     setApiKeyInput('');
@@ -309,17 +346,62 @@ export function SettingsEditor({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="aiProvider">Fournisseur</Label>
-              <Input id="aiProvider" value={settings.ai.provider} readOnly disabled />
+              <Select
+                id="aiProvider"
+                value={aiProvider}
+                disabled={!canManage}
+                onChange={(event) => switchProvider(event.target.value as AiProvider)}
+              >
+                {aiProviderDescriptors().map((descriptor) => (
+                  <option key={descriptor.key} value={descriptor.key}>
+                    {descriptor.label}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-ink-faint">
+                Chaque fournisseur lit sa propre variable d&apos;environnement de repli
+                {aiDescriptor.envApiKeyVar ? (
+                  <>
+                    {' '}
+                    (<code className="font-mono">{aiDescriptor.envApiKeyVar}</code>)
+                  </>
+                ) : null}
+                . Une clé enregistrée ici la remplace.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="aiModel">Modèle</Label>
-              <Input
+              <Select
                 id="aiModel"
+                value={suggestedModels.some((option) => option.id === aiModel) ? aiModel : ''}
+                disabled={!canManage}
+                onChange={(event) => {
+                  // La chaîne vide est l'entrée « autre » : on ne l'écrit pas
+                  // dans le réglage, on rend la main au champ libre.
+                  if (event.target.value !== '') setAiModel(event.target.value);
+                }}
+              >
+                {suggestedModels.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.id} — {AI_MODEL_TIER_LABELS[option.tier]} · {option.price} $/M
+                  </option>
+                ))}
+                <option value="">Autre — saisir un identifiant</option>
+              </Select>
+              <Input
+                id="aiModelCustom"
+                aria-label="Identifiant du modèle"
                 value={aiModel}
                 maxLength={120}
                 disabled={!canManage}
                 onChange={(event) => setAiModel(event.target.value)}
               />
+              <p className="text-ink-faint text-xs">
+                {aiDescriptor.modelHint}. Prix indicatifs en dollars par million de jetons, entrée
+                puis sortie, relevés le 11/09/2026 — ils vieillissent, et la liste n&apos;est
+                qu&apos;une suggestion : tout identifiant reconnu par le fournisseur convient, y
+                compris un modèle sorti après cette liste.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="temperature">Température (0 à 1)</Label>
@@ -349,6 +431,28 @@ export function SettingsEditor({
             </div>
           </div>
 
+          {aiWarning ? <Alert variant="destructive">{aiWarning}</Alert> : null}
+
+          {aiDescriptor.supportsBaseUrl ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="aiBaseUrl">URL de base (facultatif)</Label>
+              <Input
+                id="aiBaseUrl"
+                value={aiBaseUrl}
+                maxLength={300}
+                placeholder="https://llm.interne.example/v1"
+                disabled={!canManage}
+                onChange={(event) => setAiBaseUrl(event.target.value)}
+              />
+              <p className="text-xs text-ink-faint">
+                Pour une API compatible OpenAI auto-hébergée. Laissée vide, c&apos;est
+                l&apos;API publique du fournisseur qui est appelée. L&apos;URL est validée à
+                l&apos;enregistrement : une valeur bancale ferait échouer chaque génération
+                sans rien dire.
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <Label htmlFor="apiKey">Clé d&apos;API</Label>
             <Input
@@ -368,7 +472,12 @@ export function SettingsEditor({
               Chiffrée en AES-256-GCM sous <code className="font-mono">MASTER_KEY</code>, comme les
               credentials SSH. Elle n&apos;est jamais renvoyée par l&apos;API ni écrite dans le
               journal d&apos;audit. Sans clé ici, le panel retombe sur{' '}
-              <code className="font-mono">OPENROUTER_API_KEY</code>.
+              {aiDescriptor.envApiKeyVar ? (
+                <code className="font-mono">{aiDescriptor.envApiKeyVar}</code>
+              ) : (
+                'aucune variable d’environnement'
+              )}
+              , la variable propre à {aiDescriptor.label}.
             </p>
             {aiApiKeyConfigured && canManage ? (
               <label className="flex items-center gap-2 pt-1 text-xs text-ink-muted">

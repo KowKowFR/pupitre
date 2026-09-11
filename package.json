@@ -19,7 +19,8 @@
     "db:seed": "pnpm --filter @tp/db seed",
     "test:driver": "tsx --env-file-if-exists=.env scripts/test-driver.ts",
     "test:parity": "tsx --env-file-if-exists=.env scripts/test-parity.ts",
-    "test:schedule": "tsx scripts/test-schedule.ts"
+    "test:schedule": "tsx scripts/test-schedule.ts",
+    "test:ai": "pnpm build:packages && tsx scripts/test-ai.ts"
   },
   "devDependencies": {
     "@tp/core": "workspace:*",

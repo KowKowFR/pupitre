@@ -1,4 +1,5 @@
 import { NoObjectGeneratedError, generateObject, type LanguageModel } from 'ai';
+import type { ProviderCallOptions } from './providers.js';
 import { z } from 'zod';
 import {
   appSpecShapeSchema,
@@ -28,6 +29,8 @@ export const MIN_PROMPT_LENGTH = 8;
 
 /** Au-delà, on considère que le modèle ne répondra pas. */
 export const DEFAULT_TIMEOUT_MS = 60_000;
+
+export const DEFAULT_TEMPERATURE = 0.2;
 
 export const generationHintsSchema = z.object({
   runtime: z.enum(['docker', 'k3s']).optional(),
@@ -89,6 +92,11 @@ export type GenerateAppSpecFailure = {
 export type GenerateAppSpecResult = GenerateAppSpecSuccess | GenerateAppSpecFailure;
 
 export type GenerateAppSpecOptions = {
+  /**
+   * Le client de modèle, **injecté** : ni le fournisseur ni la clé n'entrent
+   * ici. C'est ce qui rend toute la chaîne vérifiable hors ligne, avec un
+   * `MockLanguageModelV3` qui rend les réponses qu'on veut éprouver.
+   */
   model: LanguageModel;
   /** Nom lisible du modèle, pour l'audit. Le `LanguageModel` ne le porte pas toujours. */
   modelName: string;
@@ -96,7 +104,33 @@ export type GenerateAppSpecOptions = {
   timeoutMs?: number;
   /** Injectable pour les tests : `AbortSignal.timeout` par défaut. */
   signal?: AbortSignal;
+  /** Réglage d'instance. Basse par défaut : on veut une spec, pas de la prose. */
+  temperature?: number;
+  /**
+   * Plafond de sortie. Une AppSpec multi-services fait facilement 2 000 jetons ;
+   * trop bas, la réponse est tronquée et le JSON illisible — cas diagnostiqué
+   * explicitement plus bas, parce qu'il ressemble à tort à un modèle défaillant.
+   */
+  maxOutputTokens?: number;
+  /**
+   * Options propres au fournisseur, opaques ici. Elles viennent de sa fabrique
+   * (`createModel()`) et sont transmises telles quelles : c'est ce qui permet à
+   * ce module d'ignorer complètement qui répond — un `if (provider === …)` ici
+   * serait exactement la fuite que l'architecture cherche à empêcher.
+   */
+  providerOptions?: ProviderCallOptions;
 };
+
+/**
+ * Le JSON Schema tel qu'il part réellement chez le fournisseur.
+ *
+ * Publié pour être inspecté hors ligne : c'est dans cette forme que se trouve
+ * le `oneOf` que le mode strict d'OpenAI refuse. Sans un moyen de le regarder
+ * sans clé, la régression ne se voit qu'au premier utilisateur qui en a une.
+ */
+export function appSpecJsonSchema(): Record<string, unknown> {
+  return z.toJSONSchema(appSpecShapeSchema, { io: 'input' }) as Record<string, unknown>;
+}
 
 /** Reproches de Zod aplatis en lignes « chemin : message ». */
 export function formatIssues(error: z.ZodError): string[] {
@@ -197,7 +231,15 @@ export async function generateAppSpec(
           "Spécification neutre d'une application, indépendante du runtime de déploiement",
         system,
         messages: turns,
-        temperature: 0.2,
+        temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+        ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
+        // Opaques : elles viennent de la fabrique du fournisseur. C'est là que
+        // vit la connaissance de ce que chacun sait avaler — le mode strict des
+        // sorties structurées, notamment, qu'OpenAI refuse d'appliquer au
+        // `oneOf` que Zod produit pour `sourceSchema`. Écrire ce réglage ici
+        // reviendrait à nommer un fournisseur dans un module qui ne doit pas
+        // savoir qui répond.
+        ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
         abortSignal: signal,
       });
       object = result.object;
@@ -239,7 +281,12 @@ export async function generateAppSpec(
       return {
         ok: false,
         reason: zodError ? 'invalid_spec' : noObject ? 'no_object' : 'provider',
-        message: messageOf(error),
+        message: truncated(error)
+          ? "La réponse du modèle a été coupée avant la fin : le plafond de jetons " +
+            "de sortie est trop bas pour cette application. Augmentez « Jetons " +
+            'maximum » dans Paramètres → Intelligence artificielle, ou décrivez ' +
+            'une application plus petite.'
+          : messageOf(error),
         issues: failed.issues,
         model: options.modelName,
         attempts,
@@ -301,6 +348,43 @@ export async function generateAppSpec(
 
   // Inatteignable : la boucle rend la main dans tous les cas.
   throw new Error('generateAppSpec : boucle de génération sortie sans verdict');
+}
+
+/**
+ * Réponse coupée au plafond de jetons.
+ *
+ * Elle arrive ici sous la même forme qu'un modèle qui bafouille — du JSON
+ * inachevé, donc pas d'objet — alors que la cause et le remède n'ont rien à
+ * voir. Sans ce test, l'opérateur lit « le modèle n'a pas produit d'objet » et
+ * change de modèle, là où il suffisait de relever une limite.
+ */
+function truncated(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5 && current; depth += 1) {
+    const candidate = current as { finishReason?: unknown; text?: unknown; cause?: unknown };
+    if (candidate.finishReason === 'length') return true;
+
+    // Le SDK ne remonte pas toujours `finishReason` : il laisse en revanche le
+    // texte brut. Un JSON qui *commence* bien et s'arrête au milieu n'est pas un
+    // modèle qui bafouille, c'est une réponse coupée.
+    if (typeof candidate.text === 'string') {
+      const raw = candidate.text.trim();
+      if (raw.startsWith('{')) {
+        try {
+          JSON.parse(raw);
+        } catch (parseError) {
+          if (
+            parseError instanceof SyntaxError &&
+            /end of (json|data|input)|unterminated/i.test(parseError.message)
+          ) {
+            return true;
+          }
+        }
+      }
+    }
+    current = candidate.cause;
+  }
+  return false;
 }
 
 function messageOf(error: unknown): string {

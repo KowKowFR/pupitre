@@ -1,7 +1,9 @@
 import {
   DEFAULT_TIMEOUT_MS,
   MissingApiKeyError,
+  aiProviderDescriptor,
   createModel,
+  redactApiKey,
   generateAppSpec,
   generateAppSpecInputSchema,
   resolveAiConfig,
@@ -35,6 +37,13 @@ export const maxDuration = 90;
  * justifie la queue — reprise, journal d'étapes, exécution distante — est ici
  * sans objet. Le garde-fou est ailleurs : un timeout, une limite de débit et
  * une taille de prompt bornée.
+ *
+ * C'est le même arbitrage que `GET /api/targets/[id]/metrics`, tranché pour les
+ * mêmes raisons : un relevé borné, sans effet de bord, dont le résultat meurt
+ * avec la réponse, n'a rien à faire dans une queue. Passer par BullMQ coûterait
+ * ici un job, une table d'état et un canal de suivi pour rendre au client
+ * exactement ce qu'un appel de soixante secondes lui rend déjà — et rendrait
+ * *plus* difficile le seul cas qui compte, l'abandon par l'opérateur.
  */
 
 export const POST = apiRoute(async (request) => {
@@ -49,31 +58,59 @@ export const POST = apiRoute(async (request) => {
   // Les paramètres d'instance priment sur l'environnement : c'est le réglage
   // qu'un opérateur vient de poser depuis l'écran Paramètres. L'environnement
   // reste le filet pour un panel provisionné sans que personne l'ouvre.
-  const env = getEnv();
+  // `getEnv()` valide la configuration du panel ; les clés des fournisseurs d'IA
+  // ne sont pas dans son schéma, et c'est délibéré : quelle variable lire est
+  // une propriété du fournisseur, décrite dans son descripteur. Ajouter un
+  // quatrième fournisseur ne doit pas obliger à toucher `env.ts`.
+  getEnv();
   const { settings } = await getAppSettings();
   const ai = resolveAiConfig({
     settings: settings.ai,
     settingsApiKey: await getAiApiKey(),
-    envApiKey: env.OPENROUTER_API_KEY,
-    envModel: env.OPENROUTER_MODEL,
+    env: process.env,
   });
 
+  const providerLabel = aiProviderDescriptor(ai.provider).label;
+
   if (!ai.enabled) {
+    const descriptor = aiProviderDescriptor(ai.provider);
     throw new NotImplementedError(
       settings.ai.enabled
-        ? "La génération par IA est désactivée : aucune clé d'API n'est configurée sur ce panel."
+        ? `La génération par IA est désactivée : aucune clé d'API ${providerLabel} ` +
+            "n'est configurée sur ce panel. Renseignez-la dans Paramètres → " +
+            `Intelligence artificielle${
+              descriptor.envApiKeyVar ? `, ou via ${descriptor.envApiKeyVar}` : ''
+            }.`
         : 'La génération par IA est désactivée dans les paramètres de cette instance.',
     );
   }
 
   const modelName = ai.model;
 
+  // Un modèle qui n'a pas la forme d'un identifiant du fournisseur ne produit
+  // pas une erreur de configuration mais un 404 du fournisseur, une minute plus
+  // tard. On le dit ici, avant l'appel, et on le rappelle si l'appel échoue.
+  if (ai.modelWarning) {
+    logger.warn(
+      { provider: ai.provider, model: ai.model },
+      'modèle IA incohérent avec le fournisseur configuré',
+    );
+  }
+
   // Par utilisateur : la route coûte de l'argent, et la session est obligatoire.
   await enforceRateLimit(APPSPEC_GENERATION_RULE, auth.userId);
 
-  let model;
+  // Le modèle vient avec les options que son fournisseur exige — le mode strict
+  // des sorties structurées, notamment, qu'OpenAI refuse d'appliquer à un
+  // schéma portant un `oneOf`. La route ne les interprète pas : elle les relaie.
+  let configured;
   try {
-    model = createModel({ apiKey: ai.apiKey, model: ai.model });
+    configured = createModel({
+      provider: ai.provider,
+      apiKey: ai.apiKey,
+      model: ai.model,
+      baseUrl: ai.baseUrl,
+    });
   } catch (error) {
     if (error instanceof MissingApiKeyError) {
       throw new NotImplementedError(error.message);
@@ -82,11 +119,19 @@ export const POST = apiRoute(async (request) => {
   }
 
   const result = await generateAppSpec({
-    model,
+    model: configured.model,
+    providerOptions: configured.callOptions,
     modelName,
     input,
     timeoutMs: DEFAULT_TIMEOUT_MS,
+    temperature: settings.ai.temperature,
+    maxOutputTokens: settings.ai.maxTokens,
   });
+
+  // Le message d'un fournisseur n'est pas un texte de confiance : OpenAI y
+  // recopie la clé refusée, partiellement masquée — donc partiellement en
+  // clair. Il est nettoyé ici, une fois, avant l'audit ET avant la réponse.
+  const failureMessage = result.ok ? '' : redactApiKey(result.message, ai.apiKey);
 
   // Une seule entrée d'audit, quel que soit le verdict : c'est la même action.
   // Le prompt y figure — c'est le point du jalon — mais jamais la clé.
@@ -98,6 +143,9 @@ export const POST = apiRoute(async (request) => {
     after: {
       prompt: input.prompt,
       hints: input.hints ?? null,
+      // Le fournisseur est une information d'exploitation, pas un secret ; la
+      // clé, elle, n'entre jamais ici — ni sous son nom, ni sous sa longueur.
+      provider: ai.provider,
       model: result.model,
       durationMs: result.durationMs,
       attempts: result.attempts.map((attempt) => ({
@@ -108,14 +156,20 @@ export const POST = apiRoute(async (request) => {
       tokens: result.usage,
       ...(result.ok
         ? { slug: result.appSpec.name, services: result.appSpec.services.map((s) => s.name) }
-        : { reason: result.reason, error: result.message, issues: result.issues }),
+        : { reason: result.reason, error: failureMessage, issues: result.issues }),
     },
     ip: auth.ip,
   });
 
   if (!result.ok) {
     logger.warn(
-      { reason: result.reason, model: result.model, issues: result.issues },
+      {
+        reason: result.reason,
+        provider: ai.provider,
+        model: result.model,
+        message: failureMessage,
+        issues: result.issues,
+      },
       "génération d'AppSpec en échec",
     );
     // 422 : le modèle a répondu, sa réponse n'est pas une AppSpec valide.
@@ -123,9 +177,15 @@ export const POST = apiRoute(async (request) => {
     throw new HttpError(
       result.reason === 'provider' ? 502 : 422,
       `generation_${result.reason}`,
-      result.message,
+      // Une panne du fournisseur alors que le modèle ne lui ressemble pas : la
+      // cause est probablement là, et le message doit le dire plutôt que de
+      // laisser lire un 404 brut.
+      result.reason === 'provider' && ai.modelWarning
+        ? `${failureMessage} — ${ai.modelWarning}`
+        : failureMessage,
       {
         issues: result.issues,
+        provider: ai.provider,
         model: result.model,
         attempts: result.attempts.length,
       },
@@ -139,7 +199,10 @@ export const POST = apiRoute(async (request) => {
 
   return NextResponse.json({
     appSpec: result.appSpec,
+    provider: ai.provider,
+    providerLabel,
     model: result.model,
+    modelWarning: ai.modelWarning,
     prompt: input.prompt,
     slugTaken: existing !== null,
     attempts: result.attempts.map((attempt) => ({

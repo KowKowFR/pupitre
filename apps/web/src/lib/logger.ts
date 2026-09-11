@@ -24,7 +24,12 @@ const REDACTED = [
   'cookie',
   'MASTER_KEY',
   'BETTER_AUTH_SECRET',
+  // Une variable par fournisseur d'IA : la liste suit le catalogue de
+  // `@tp/core/ai`. Un fournisseur ajouté sans sa variable ici ferait fuir sa clé
+  // dans un log de configuration.
   'OPENROUTER_API_KEY',
+  'OPENAI_API_KEY',
+  'ANTHROPIC_API_KEY',
   // Clé du fournisseur d'IA, sous les noms qu'elle peut porter selon la couche
   // traversée : corps de PATCH, colonne Drizzle, colonne SQL, argument de
   // `createModel()`.

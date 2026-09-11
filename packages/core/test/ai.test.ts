@@ -10,6 +10,7 @@ import {
   readCoreAsset,
   MissingApiKeyError,
   createModel,
+  defaultAiModel,
   generateAppSpec,
   generateAppSpecInputSchema,
   generateAppSpecPrompt,
@@ -145,10 +146,15 @@ describe('modèle', () => {
     assert.throws(() => createModel({ apiKey: '   ' }), MissingApiKeyError);
   });
 
-  it('retient OPENROUTER_MODEL quand il est fourni, le défaut sinon', () => {
+  it('retient le modèle fourni, le défaut du fournisseur sinon', () => {
     assert.equal(resolveModelName({ apiKey: 'k' }), DEFAULT_OPENROUTER_MODEL);
     assert.equal(resolveModelName({ apiKey: 'k', model: '' }), DEFAULT_OPENROUTER_MODEL);
     assert.equal(resolveModelName({ apiKey: 'k', model: 'openai/gpt-5' }), 'openai/gpt-5');
+    assert.equal(
+      resolveModelName({ provider: 'anthropic', apiKey: 'k' }),
+      defaultAiModel('anthropic'),
+    );
+    assert.equal(resolveModelName({ provider: 'openai', apiKey: 'k' }), defaultAiModel('openai'));
   });
 });
 
@@ -296,5 +302,94 @@ describe('generateAppSpec', () => {
     assert.ok(!result.ok);
     // Ni exécution, ni interprétation : le texte n'est pas un objet, point.
     assert.equal(result.reason, 'no_object');
+  });
+
+  /**
+   * Un modèle bavard encadre son JSON de prose ou d'un bloc de code. Le SDK ne
+   * sait pas le parser : on ne bricole pas d'extraction à la main, on relance —
+   * et la relance, elle, réussit. Ce qui compte est qu'il n'y ait ni crash ni
+   * réparation devinée.
+   */
+  it('traite une réponse qui enrobe le JSON de texte : relance, puis succès', async () => {
+    const bavard = ['Bien sûr ! Voici votre AppSpec :', '```json', VALID, '```'].join('\n');
+    const { model, calls } = mockModel([bavard, VALID]);
+    const result = await generateAppSpec({
+      model,
+      modelName: 'mock/appspec',
+      input: { prompt: 'une page nginx qui répond sur /' },
+    });
+
+    assert.ok(result.ok, `attendu un succès, obtenu : ${JSON.stringify(result)}`);
+    assert.equal(calls.length, 2);
+    assert.equal(result.attempts[0]?.ok, false);
+  });
+
+  it('ne réussit pas en devinant : du texte deux fois de suite reste un échec', async () => {
+    const bavard = `Voici :\n\`\`\`json\n${VALID}\n\`\`\``;
+    const { model, calls } = mockModel([bavard, bavard]);
+    const result = await generateAppSpec({
+      model,
+      modelName: 'mock/appspec',
+      input: { prompt: 'une page nginx qui répond sur /' },
+    });
+
+    assert.equal(result.ok, false);
+    assert.ok(!result.ok);
+    assert.equal(result.reason, 'no_object');
+    assert.equal(calls.length, 2, 'toujours deux appels au maximum');
+  });
+
+  /**
+   * Réponse coupée au plafond de jetons : mêmes symptômes qu'un modèle
+   * défaillant, remède tout autre. Le message doit orienter vers le réglage.
+   */
+  it('diagnostique une réponse tronquée plutôt que d’accuser le modèle', async () => {
+    const truncatedModel = new MockLanguageModelV3({
+      modelId: 'mock/appspec',
+      doGenerate: async () => ({
+        content: [{ type: 'text' as const, text: '{"name": "demo-api", "version": "1.0' }],
+        finishReason: 'length' as const,
+        usage: { inputTokens: { total: 1200 }, outputTokens: { total: 256 } },
+        warnings: [],
+      }),
+    });
+
+    const result = await generateAppSpec({
+      model: truncatedModel,
+      modelName: 'mock/appspec',
+      input: { prompt: 'une application très détaillée' },
+      maxOutputTokens: 256,
+    });
+
+    assert.equal(result.ok, false);
+    assert.ok(!result.ok);
+    assert.match(result.message, /coupée|jetons/i);
+  });
+
+  it('transmet la température et le plafond de jetons des paramètres', async () => {
+    const { model, calls } = mockModel([VALID]);
+    await generateAppSpec({
+      model,
+      modelName: 'mock/appspec',
+      input: { prompt: 'une page nginx qui répond sur /' },
+      temperature: 0.7,
+      maxOutputTokens: 4096,
+    });
+
+    assert.equal(calls[0]?.temperature, 0.7);
+    assert.equal(calls[0]?.maxOutputTokens, 4096);
+  });
+
+  it('le modèle est injecté : la génération ne connaît ni fournisseur ni clé', async () => {
+    // Rien dans les options ne nomme un fournisseur. C'est ce qui rend tous les
+    // cas ci-dessus exécutables sans réseau et sans clé.
+    const { model } = mockModel([VALID]);
+    const result = await generateAppSpec({
+      model,
+      modelName: 'peu-importe',
+      input: { prompt: 'une page nginx qui répond sur /' },
+    });
+    assert.ok(result.ok);
+    assert.equal(result.model, 'peu-importe');
   });
 });

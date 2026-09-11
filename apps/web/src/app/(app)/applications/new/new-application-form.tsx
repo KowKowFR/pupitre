@@ -12,10 +12,15 @@ import { cn } from '@/lib/utils';
 /**
  * Création d'une application, par deux chemins qui aboutissent au même endroit.
  *
- * L'onglet « Depuis une description » ne fait qu'*alimenter* l'éditeur JSON :
- * la génération ne crée rien, ne déploie rien. C'est le même bouton
- * « Enregistrer » qui valide dans les deux cas, et la même route
+ * L'onglet « Depuis une description » ne fait qu'*alimenter* la revue et
+ * l'éditeur JSON : la génération ne crée rien, ne déploie rien. C'est le même
+ * bouton « Enregistrer » qui valide dans les deux cas, et la même route
  * `POST /api/applications`. L'IA propose ; l'opérateur dispose.
+ *
+ * Le parcours complet — décrire, générer, **revoir**, créer, déployer — tient
+ * sur cet écran, mais chaque étape reste un appel distinct à une route
+ * existante. Rien n'enchaîne la génération au déploiement sans que la spec ait
+ * été affichée : c'est précisément ce que la règle 4 protège.
  */
 
 const EXAMPLE = `{
@@ -41,12 +46,27 @@ type ApiError = {
 
 type GenerationOrigin = { prompt: string; model: string; appSpec: unknown };
 
+type DeployTarget = {
+  id: string;
+  name: string;
+  host: string;
+  runtimes: Array<'docker' | 'k3s'>;
+};
+
 type Tab = 'prompt' | 'json';
 
 type Props = {
-  /** `false` quand aucune OPENROUTER_API_KEY n'est configurée sur ce panel. */
+  /** `false` quand aucune clé n'est configurée, ou que l'IA est coupée. */
   aiEnabled: boolean;
+  /** Libellé du fournisseur retenu — « OpenRouter », « OpenAI », « Anthropic ». */
+  provider: string;
   model: string;
+  /** Non nul quand le modèle ne ressemble pas à un identifiant du fournisseur. */
+  modelWarning: string | null;
+  /** Variable d'environnement de repli du fournisseur, à citer quand la clé manque. */
+  missingKeyVar: string | null;
+  /** Cibles déployables. Vide si l'utilisateur n'a pas `deployment:create`. */
+  targets: DeployTarget[];
 };
 
 async function readError(response: Response): Promise<{ message: string; issues: string[] }> {
@@ -65,7 +85,256 @@ async function readError(response: Response): Promise<{ message: string; issues:
   return { message, issues };
 }
 
-export function NewApplicationForm({ aiEnabled, model }: Props) {
+// ─── Lecture de la spec pour la revue ────────────────────────────────────────
+
+/**
+ * Relecture permissive du JSON de l'éditeur, pour l'afficher.
+ *
+ * Volontairement séparée de la validation : ici on *montre* ce qui est écrit, y
+ * compris pendant une retouche à moitié faite. La seule autorité reste
+ * `appSpecSchema`, côté serveur, au moment de l'enregistrement — cette lecture
+ * ne valide rien et ne doit jamais donner l'impression de le faire.
+ */
+type ReviewVolume = { name: string; mountPath: string; size: string | null };
+type ReviewService = {
+  name: string;
+  image: string;
+  port: number | null;
+  exposed: boolean;
+  replicas: number | null;
+  env: Array<[string, string]>;
+  secrets: string[];
+  volumes: ReviewVolume[];
+  health: string | null;
+  dependsOn: string[];
+};
+type ReviewSpec = {
+  name: string;
+  version: string;
+  services: ReviewService[];
+  ingress: { host: string | null; tls: boolean; targetService: string } | null;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function str(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function num(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function arr(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function describeSource(source: unknown): string {
+  if (!isRecord(source)) return '—';
+  if (source.type === 'image') return str(source.ref, '—');
+  if (source.type === 'dockerfile') {
+    return `build ${str(source.context, '.')}/${str(source.dockerfile, 'Dockerfile')}`;
+  }
+  return '—';
+}
+
+function describeHealth(health: unknown): string | null {
+  if (!isRecord(health)) return null;
+  const port = num(health.port);
+  const path = str(health.path, '/');
+  const interval = num(health.intervalSec);
+  const retries = num(health.retries);
+  const probe = port !== null ? `port ${port}` : `GET ${path}`;
+  return `${probe}${interval !== null ? `, toutes les ${interval} s` : ''}${
+    retries !== null ? `, ${retries} essais` : ''
+  }`;
+}
+
+function parseReview(text: string): ReviewSpec | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isRecord(raw)) return null;
+
+  const services = arr(raw.services)
+    .filter(isRecord)
+    .map<ReviewService>((service) => ({
+      name: str(service.name, '(sans nom)'),
+      image: describeSource(service.source),
+      port: num(service.port),
+      exposed: service.exposed === true,
+      replicas: num(service.replicas),
+      env: isRecord(service.env)
+        ? Object.entries(service.env).map(([key, value]) => [key, str(value)])
+        : [],
+      secrets: arr(service.secrets).map((entry) => str(entry)).filter((entry) => entry !== ''),
+      volumes: arr(service.volumes)
+        .filter(isRecord)
+        .map((volume) => ({
+          name: str(volume.name, '(sans nom)'),
+          mountPath: str(volume.mountPath, '—'),
+          size: typeof volume.size === 'string' ? volume.size : null,
+        })),
+      health: describeHealth(service.healthcheck),
+      dependsOn: arr(service.dependsOn).map((entry) => str(entry)).filter((e) => e !== ''),
+    }));
+
+  const ingress = isRecord(raw.ingress)
+    ? {
+        host: typeof raw.ingress.host === 'string' ? raw.ingress.host : null,
+        tls: raw.ingress.tls === true,
+        targetService: str(raw.ingress.targetService, '—'),
+      }
+    : null;
+
+  return {
+    name: str(raw.name, '(sans nom)'),
+    version: str(raw.version, '—'),
+    services,
+    ingress,
+  };
+}
+
+/**
+ * Images publiées par un tiers — tout ce qui n'est pas la bibliothèque
+ * officielle de Docker Hub. Le panel ne peut pas vérifier qu'un tag existe sans
+ * contacter le registre depuis la machine cible, ce qui n'arrive qu'au
+ * déploiement. Un modèle qui invente un `10.0.14` plausible fait donc échouer la
+ * mise en ligne plusieurs minutes plus tard, au `pull`. Le dire à la relecture
+ * coûte une ligne et fait gagner ce détour.
+ */
+function thirdPartyImage(image: string): boolean {
+  if (!image.includes(':') || image.startsWith('build ')) return false;
+  const [repository] = image.split(':');
+  if (!repository) return false;
+  const path = repository.replace(/^docker\.io\//, '');
+  return path.includes('/') && !path.startsWith('library/');
+}
+
+/** Tag flottant : ce qui tourne aujourd'hui ne sera pas ce qui tournera demain. */
+function floatingTag(image: string): boolean {
+  return /:(latest|stable|main|edge)$/.test(image);
+}
+
+function SpecReview({ spec }: { spec: ReviewSpec }) {
+  const secrets = [...new Set(spec.services.flatMap((service) => service.secrets))];
+  const images = spec.services.map((service) => service.image);
+  const thirdParty = images.filter((image) => thirdPartyImage(image));
+  const floating = images.filter((image) => floatingTag(image));
+
+  return (
+    <div className="space-y-3 rounded-md border p-4 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono font-medium">{spec.name}</span>
+        <Badge variant="outline" className="font-mono">
+          {spec.version}
+        </Badge>
+        <span className="text-muted-foreground text-xs">
+          {spec.services.length} service{spec.services.length > 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <ul className="space-y-3">
+        {spec.services.map((service) => (
+          <li key={service.name} className="space-y-1 border-l-2 pl-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono font-medium">{service.name}</span>
+              {service.exposed ? <Badge variant="ok">exposé</Badge> : null}
+              {service.port !== null ? (
+                <span className="text-muted-foreground text-xs">port {service.port}</span>
+              ) : null}
+              {service.replicas !== null && service.replicas > 1 ? (
+                <span className="text-muted-foreground text-xs">×{service.replicas}</span>
+              ) : null}
+            </div>
+            <div className="text-muted-foreground font-mono text-xs">{service.image}</div>
+            {service.health ? (
+              <div className="text-muted-foreground text-xs">santé : {service.health}</div>
+            ) : null}
+            {service.dependsOn.length > 0 ? (
+              <div className="text-muted-foreground text-xs">
+                dépend de : {service.dependsOn.join(', ')}
+              </div>
+            ) : null}
+            {service.env.length > 0 ? (
+              <div className="text-muted-foreground font-mono text-xs">
+                {service.env.map(([key, value]) => `${key}=${value}`).join('  ')}
+              </div>
+            ) : null}
+            {service.secrets.length > 0 ? (
+              <div className="text-muted-foreground font-mono text-xs">
+                secrets : {service.secrets.join(', ')}
+              </div>
+            ) : null}
+            {service.volumes.length > 0 ? (
+              <div className="text-muted-foreground text-xs">
+                volumes :{' '}
+                {service.volumes
+                  .map(
+                    (volume) =>
+                      `${volume.name} → ${volume.mountPath}${volume.size ? ` (${volume.size})` : ''}`,
+                  )
+                  .join(', ')}
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      {spec.ingress ? (
+        <div className="text-muted-foreground text-xs">
+          ingress : {spec.ingress.host ?? 'sans nom de domaine'} → {spec.ingress.targetService}
+          {spec.ingress.tls ? ' (TLS)' : ''}
+        </div>
+      ) : null}
+
+      {thirdParty.length > 0 ? (
+        <Alert className="text-xs">
+          Image{thirdParty.length > 1 ? 's' : ''} publiée
+          {thirdParty.length > 1 ? 's' : ''} par un tiers :{' '}
+          <span className="font-mono">{thirdParty.join(', ')}</span>. Le panel ne vérifie pas
+          qu&apos;un tag existe avant le déploiement — un tag inexistant fait échouer la mise en
+          ligne au téléchargement de l&apos;image. Vérifiez-le sur le registre avant de
+          déployer.
+        </Alert>
+      ) : null}
+
+      {floating.length > 0 ? (
+        <Alert className="text-xs">
+          Tag flottant : <span className="font-mono">{floating.join(', ')}</span>. Un
+          redéploiement ne redonnera pas forcément la même version. Figez-le si le projet
+          publie un tag de version.
+        </Alert>
+      ) : null}
+
+      {secrets.length > 0 ? (
+        <Alert className="text-xs">
+          Cette spec déclare {secrets.length} secret{secrets.length > 1 ? 's' : ''} —{' '}
+          <span className="font-mono">{secrets.join(', ')}</span>. Seuls leurs{' '}
+          <strong>noms</strong> sont enregistrés : le panel ne stocke pas encore leurs valeurs, et
+          les déploiera vides. Les services qui en dépendent (une base de données, par exemple)
+          ne démarreront pas tant que ces valeurs ne seront pas fournies sur la cible.
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
+// ─── Formulaire ──────────────────────────────────────────────────────────────
+
+export function NewApplicationForm({
+  aiEnabled,
+  provider,
+  model,
+  modelWarning,
+  missingKeyVar,
+  targets,
+}: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(aiEnabled ? 'prompt' : 'json');
 
@@ -75,7 +344,7 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
   // dimensionnement, et le prompt système lui interdit d'apparaître dans la spec.
   const [language, setLanguage] = useState('');
   const [database, setDatabase] = useState('');
-  const [runtime, setRuntime] = useState('');
+  const [runtimeHint, setRuntimeHint] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generationInfo, setGenerationInfo] = useState<string | null>(null);
   const [origin, setOrigin] = useState<GenerationOrigin | null>(null);
@@ -84,6 +353,14 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [issues, setIssues] = useState<string[]>([]);
+
+  // Déploiement facultatif, dans la foulée de la création. Vide = on s'arrête à
+  // l'enregistrement.
+  const [targetId, setTargetId] = useState('');
+  const selectedTarget = targets.find((target) => target.id === targetId) ?? null;
+  const [deployRuntime, setDeployRuntime] = useState<'docker' | 'k3s'>('docker');
+
+  const review = parseReview(value);
 
   function reset() {
     setError(null);
@@ -99,7 +376,7 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
     const hints: Record<string, string> = {};
     if (language.trim()) hints.language = language.trim();
     if (database.trim()) hints.database = database.trim();
-    if (runtime) hints.runtime = runtime;
+    if (runtimeHint) hints.runtime = runtimeHint;
 
     try {
       const response = await fetch('/api/applications/generate', {
@@ -120,6 +397,7 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
       const body = (await response.json()) as {
         appSpec: unknown;
         model: string;
+        providerLabel: string;
         slugTaken: boolean;
         usage: { totalTokens: number | null };
         durationMs: number;
@@ -131,7 +409,7 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
 
       const retried = body.attempts.length > 1;
       setGenerationInfo(
-        `${body.model} — ${Math.round(body.durationMs / 100) / 10} s` +
+        `${body.providerLabel} · ${body.model} — ${Math.round(body.durationMs / 100) / 10} s` +
           (body.usage.totalTokens ? `, ${body.usage.totalTokens} tokens` : '') +
           (retried ? ', après une relance sur erreurs de validation' : '') +
           (body.slugTaken ? ' — ⚠ une application porte déjà ce nom' : ''),
@@ -177,6 +455,42 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
       return;
     }
 
+    const application = (await response.json()) as { id: string };
+
+    if (selectedTarget) {
+      // Deuxième appel, route existante. `scanConfig` est volontairement absent :
+      // sans demande explicite, c'est la politique de sécurité de l'instance qui
+      // s'applique — et la choisir ici exigerait `scan:configure`.
+      const deployment = await fetch('/api/deployments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: application.id,
+          targetId: selectedTarget.id,
+          runtime: deployRuntime,
+          proxy: 'traefik',
+          autoRollback: true,
+        }),
+      });
+
+      if (!deployment.ok) {
+        const failure = await readError(deployment);
+        setError(
+          `L'application « ${review?.name ?? ''} » a bien été enregistrée, mais le ` +
+            `déploiement a échoué : ${failure.message}`,
+        );
+        setIssues(failure.issues);
+        setSaving(false);
+        router.refresh();
+        return;
+      }
+
+      const { id } = (await deployment.json()) as { id: string };
+      setSaving(false);
+      router.push(`/deployments/${id}`);
+      return;
+    }
+
     setSaving(false);
     router.push('/applications');
     router.refresh();
@@ -215,11 +529,20 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
         <form onSubmit={onGenerate} className="space-y-3">
           {!aiEnabled ? (
             <Alert>
-              La génération par IA est désactivée : aucune{' '}
-              <code className="font-mono text-xs">OPENROUTER_API_KEY</code> n&apos;est
-              configurée sur ce panel. L&apos;onglet « Depuis un JSON » reste disponible.
+              La génération par IA est désactivée : aucune clé d&apos;API {provider} n&apos;est
+              configurée sur ce panel
+              {missingKeyVar ? (
+                <>
+                  {' '}
+                  (ni dans Paramètres → Intelligence artificielle, ni via{' '}
+                  <code className="font-mono text-xs">{missingKeyVar}</code>)
+                </>
+              ) : null}
+              . L&apos;onglet « Depuis un JSON » reste disponible.
             </Alert>
           ) : null}
+
+          {aiEnabled && modelWarning ? <Alert variant="destructive">{modelWarning}</Alert> : null}
 
           <div className="space-y-1.5">
             <Label htmlFor="prompt">Décrivez l&apos;application</Label>
@@ -230,7 +553,7 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
               value={prompt}
               disabled={!aiEnabled}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Un blog Node avec Postgres et un front nginx"
+              placeholder="Génère une application GLPI avec sa base de données"
               className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] disabled:opacity-50"
             />
             <p className="text-muted-foreground text-xs">
@@ -267,9 +590,9 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
               <Label htmlFor="hint-runtime">Runtime visé (facultatif)</Label>
               <select
                 id="hint-runtime"
-                value={runtime}
+                value={runtimeHint}
                 disabled={!aiEnabled}
-                onChange={(event) => setRuntime(event.target.value)}
+                onChange={(event) => setRuntimeHint(event.target.value)}
                 className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs disabled:opacity-50"
               >
                 <option value="">indifférent</option>
@@ -293,6 +616,7 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
                 className="border-muted-foreground/30 border-t-foreground size-4 animate-spin rounded-full border-2"
               />
             ) : null}
+            <Badge variant="outline">{provider}</Badge>
             <Badge variant="outline" className="font-mono">
               {model}
             </Badge>
@@ -320,6 +644,15 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
       ) : null}
 
       <form onSubmit={onSave} className="space-y-4">
+        {review ? (
+          <div className="space-y-1.5">
+            <Label>
+              Ce qui va tourner{origin ? ' — proposition du modèle, à valider' : ''}
+            </Label>
+            <SpecReview spec={review} />
+          </div>
+        ) : null}
+
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="appSpec">
@@ -358,8 +691,58 @@ export function NewApplicationForm({ aiEnabled, model }: Props) {
           ) : null}
         </div>
 
+        {targets.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="deploy-target">Déployer dans la foulée (facultatif)</Label>
+              <select
+                id="deploy-target"
+                value={targetId}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setTargetId(next);
+                  const target = targets.find((candidate) => candidate.id === next);
+                  const first = target?.runtimes[0];
+                  if (first) setDeployRuntime(first);
+                }}
+                className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs"
+              >
+                <option value="">ne pas déployer maintenant</option>
+                {targets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.name} ({target.host})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedTarget ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="deploy-runtime">Runtime</Label>
+                <select
+                  id="deploy-runtime"
+                  value={deployRuntime}
+                  onChange={(event) =>
+                    setDeployRuntime(event.target.value === 'k3s' ? 'k3s' : 'docker')
+                  }
+                  className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs"
+                >
+                  {selectedTarget.runtimes.map((entry) => (
+                    <option key={entry} value={entry}>
+                      {entry === 'docker' ? 'Docker Compose' : 'K3s'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <Button type="submit" disabled={saving || value.trim().length === 0}>
-          {saving ? 'Validation…' : "Enregistrer l'application"}
+          {saving
+            ? 'Validation…'
+            : selectedTarget
+              ? "Enregistrer et déployer l'application"
+              : "Enregistrer l'application"}
         </Button>
       </form>
     </div>

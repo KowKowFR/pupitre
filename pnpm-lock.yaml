@@ -151,6 +151,12 @@ importers:
 
   packages/core:
     dependencies:
+      '@ai-sdk/anthropic':
+        specifier: 4.0.52
+        version: 4.0.52(zod@4.6.0)
+      '@ai-sdk/openai':
+        specifier: 4.0.65
+        version: 4.0.65(zod@4.6.0)
       '@openrouter/ai-sdk-provider':
         specifier: 3.0.0
         version: 3.0.0(ai@7.0.97(zod@4.6.0))(zod@4.6.0)
@@ -210,8 +216,20 @@ importers:
 
 packages:
 
+  '@ai-sdk/anthropic@4.0.52':
+    resolution: {integrity: sha512-IQt/y++kSUdqa9EbFOJntxLGjZMURTm/MnTUikNBZ5X86K5l96t/BwsRsX/SrH5kx+7yRPrmJ1WBNlmE8quSVg==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   '@ai-sdk/gateway@4.0.78':
     resolution: {integrity: sha512-fcamzmFlcy+c/tIc7QcATLe/kArgSVGQ1QxaddMjhOSX8zypc2hmD5sHB2bp1DSFcSxDD32d6usF9a7xLCTULg==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@4.0.65':
+    resolution: {integrity: sha512-rpk1Tv7TR0H338zTKmSVMxv4yo++HDOxioiuvBySb8cWkx2fS10tWl/5cEwL0diJbcV/+p3+9gpIOre52UoQJA==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -3635,11 +3653,23 @@ packages:
 
 snapshots:
 
+  '@ai-sdk/anthropic@4.0.52(zod@4.6.0)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.13
+      '@ai-sdk/provider-utils': 5.0.39(zod@4.6.0)
+      zod: 4.6.0
+
   '@ai-sdk/gateway@4.0.78(zod@4.6.0)':
     dependencies:
       '@ai-sdk/provider': 4.0.13
       '@ai-sdk/provider-utils': 5.0.39(zod@4.6.0)
       '@vercel/oidc': 3.2.0
+      zod: 4.6.0
+
+  '@ai-sdk/openai@4.0.65(zod@4.6.0)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.13
+      '@ai-sdk/provider-utils': 5.0.39(zod@4.6.0)
       zod: 4.6.0
 
   '@ai-sdk/provider-utils@5.0.39(zod@4.6.0)':

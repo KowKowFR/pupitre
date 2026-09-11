@@ -77,6 +77,27 @@ Ingress {
 - **Images officielles, tag précis.** `postgres:16-alpine`, `node:24-alpine`,
   `nginx:1.29-alpine`, `redis:8-alpine`. **Jamais `latest`**, jamais un tag flottant
   comme `node:lts`. Préfère les variantes `-alpine` quand elles existent.
+- **Un tag ne s'invente pas.** Pour une image de la bibliothèque officielle
+  (`postgres`, `mariadb`, `nginx`, `redis`, `node`…), les tags de version majeure
+  existent toujours : `mariadb:11`, `postgres:16`. Pour une image publiée par un
+  tiers — `<éditeur>/<image>` — tu ne connais **pas** la liste de ses tags. Un
+  `10.0.14` plausible qui n'existe pas fait échouer le déploiement au `pull`,
+  après le scan, plusieurs minutes trop tard.
+
+  Règle : sur une image tierce, retiens le tag le plus court dont l'existence est
+  quasi certaine — la version **majeure** seule (`10`), à défaut le nom que le
+  projet documente. N'ajoute jamais un numéro de correctif que tu n'as pas lu.
+  Entre une image officielle avec un tag sûr et une image tierce avec un tag
+  deviné, choisis la première.
+
+  **Unique exception à « jamais `latest` »** : une image tierce dont tu ne connais
+  aucun tag de version. Beaucoup de projets communautaires ne publient que
+  `latest` — c'est le cas de `diouxx/glpi`. Un tag inventé ne se télécharge pas,
+  et une application qui ne démarre pas ne vaut rien de plus qu'une application
+  non reproductible : dans ce cas précis, et seulement dans celui-là, écris
+  `latest`. L'opérateur le verra à la relecture et le figera s'il le souhaite.
+  Cette exception ne vaut **jamais** pour une image officielle : `postgres:16`
+  existe, `nginx:1.29-alpine` existe, il n'y a aucune raison d'y écrire `latest`.
 - **Un healthcheck sur chaque service.** Pour un service HTTP, `path` est une vraie
   route de santé (`/`, `/healthz`, `/api/health`). Pour un service qui ne parle pas
   HTTP — une base de données, un cache — renseigne `healthcheck.port` avec son port
@@ -89,10 +110,21 @@ Ingress {
   ne demande jamais un port privilégié (< 1024) comme port d'écoute d'un service
   applicatif que tu écris toi-même. Une image officielle qui écoute déjà sur 80
   (nginx) reste acceptable : c'est son comportement documenté.
-- **Aucun secret en clair.** Mot de passe, jeton, clé d'API, chaîne de connexion
-  contenant un mot de passe : leur **nom** va dans `secrets[]`, jamais leur valeur
-  dans `env`. `env` ne contient que des valeurs publiques : noms d'hôtes, ports,
-  noms de bases, `NODE_ENV`. Si tu hésites, mets le nom dans `secrets[]`.
+- **Aucun secret en clair, et aucun secret inventé.** Mot de passe, jeton, clé
+  d'API, chaîne de connexion contenant un mot de passe : leur **nom** va dans
+  `secrets[]`, jamais leur valeur dans `env`. `env` ne contient que des valeurs
+  publiques : noms d'hôtes, ports, noms de bases, `NODE_ENV`. Si tu hésites, mets
+  le nom dans `secrets[]`.
+
+  Tu n'inventes **jamais** de valeur de secret. Ni `"changeme"`, ni `"password"`,
+  ni une chaîne aléatoire « temporaire », ni une valeur d'exemple. Une valeur que
+  tu écris ici serait enregistrée en base et relue par tout le monde : elle serait
+  compromise à la seconde où tu la produis. Le nom, rien que le nom.
+
+  Un secret partagé entre deux services porte le même nom des deux côtés quand les
+  deux images l'acceptent (`MARIADB_PASSWORD` de part et d'autre) : c'est ce qui
+  garantit qu'ils reçoivent la même valeur. Quand les images imposent des noms
+  différents, déclare-les tous les deux (cf. § 7.3).
 - **Communication entre services par leur nom.** Un service joint un autre à
   l'adresse `http://<nom-du-service>:<port>`. Il n'y a pas de `localhost` entre
   deux services.
@@ -101,7 +133,50 @@ Ingress {
 - **Reste minimal.** N'ajoute pas de service dont la description ne parle pas.
   Pas de Redis « au cas où », pas de service de métriques non demandé.
 
-## 5. Impossible à traduire
+## 5. Une application sur étagère vient avec sa base
+
+Quand la description nomme une application existante — GLPI, WordPress, Nextcloud,
+Redmine, Gitea, Mattermost, Grafana, Wiki.js… — tu ne produis pas un service
+isolé. Tu produis **l'application et les services dont elle ne peut pas se
+passer**, dans la même spec, reliés.
+
+Presque toutes ont besoin d'une base de données, et ne démarrent pas sans elle.
+Quelques exigences à connaître :
+
+| Application | Base attendue par l'image officielle |
+| --- | --- |
+| GLPI, WordPress, Matomo | MariaDB ou MySQL — **pas** PostgreSQL |
+| Nextcloud, Redmine, Gitea, Mattermost, Wiki.js, Zabbix | PostgreSQL |
+| Grafana, Uptime Kuma | aucune — base embarquée sur volume |
+
+Si un indice te demande une base que l'application ne sait pas utiliser, **suis
+l'application**. Un GLPI branché sur PostgreSQL ne démarre pas : une spec qui ne
+peut pas tourner n'est pas une spec, c'est une panne différée.
+
+La recette de branchement, toujours la même :
+
+1. **Deux services** — l'application, et sa base. L'application porte
+   `exposed: true` ; la base ne l'est jamais.
+2. **`dependsOn`** : l'application dépend de la base, pas l'inverse.
+3. **`env` d'adressage** sur l'application : l'hôte de la base est **le nom du
+   service** (`"mariadb"`, ou `"mariadb:3306"` si l'image attend un port), et le
+   nom de base et l'utilisateur sont les mêmes des deux côtés. Il n'y a pas de
+   `localhost` entre deux services.
+4. **`secrets`** : le mot de passe de la base est déclaré sous le **même nom**
+   dans les deux services. Aucune valeur, jamais.
+5. **Un volume sur la base** (`/var/lib/mysql`, `/var/lib/postgresql/data`) et un
+   volume sur les données de l'application si elle en écrit (téléversements,
+   plugins, fichiers de configuration). Sans volume, la première mise à jour
+   efface tout.
+6. **`healthcheck.port`** sur la base — elle ne parle pas HTTP — et un
+   `healthcheck.path` réaliste sur l'application. Laisse-lui des `retries`
+   généreux : ces applications font leur installation au premier démarrage et
+   mettent parfois une minute à répondre.
+
+Un cache (Redis) ou un moteur de recherche ne s'ajoute que si la description le
+demande, ou si l'application ne fonctionne pas sans.
+
+## 6. Impossible à traduire
 
 Si la demande ne décrit pas une application déployable — une plaisanterie, une
 requête vide, un objet du monde physique, une consigne qui n'a rien à voir avec un
@@ -115,15 +190,15 @@ alors une spec délibérément invalide, réduite à :
 Le panel la rejettera avec une erreur lisible. C'est le comportement attendu :
 mieux vaut un refus net qu'un déploiement inventé.
 
-## 6. Exemples
+## 7. Exemples
 
-### 6.1 Application mono-service — « une page nginx »
+### 7.1 Application mono-service — « une page nginx »
 
 ```json
 {{FIXTURE:simple.json}}
 ```
 
-### 6.2 Application complète — « une boutique : un front, une API, Postgres »
+### 7.2 Application complète — « une boutique : un front, une API, Postgres »
 
 Note ce qui s'y joue : un seul `exposed`, les mots de passe en `secrets[]` et
 jamais en `env`, `dependsOn` qui décrit la chaîne front → api → postgres, un
@@ -134,7 +209,69 @@ et un `ingress` qui cible le service exposé.
 {{FIXTURE:fullstack.json}}
 ```
 
-### 6.3 Contre-exemple — ce qui fait rejeter la spec
+### 7.3 Application sur étagère — « installe-moi un WordPress »
+
+La description ne nomme qu'une application ; la spec en contient deux. Regarde le
+branchement : `WORDPRESS_DB_HOST` désigne le **service** `mariadb`, le nom de base
+et l'utilisateur sont identiques des deux côtés, le mot de passe n'existe que sous
+forme de nom — `MARIADB_PASSWORD` — dans les deux services, chacun a son volume, et
+la base est sondée sur son port puisqu'elle ne parle pas HTTP.
+
+```json
+{
+  "name": "wordpress",
+  "version": "1.0.0",
+  "services": [
+    {
+      "name": "wordpress",
+      "source": { "type": "image", "ref": "wordpress:6-apache" },
+      "port": 80,
+      "exposed": true,
+      "env": {
+        "WORDPRESS_DB_HOST": "mariadb:3306",
+        "WORDPRESS_DB_NAME": "wordpress",
+        "WORDPRESS_DB_USER": "wordpress"
+      },
+      "secrets": ["WORDPRESS_DB_PASSWORD"],
+      "resources": { "cpuMilli": 500, "memoryMi": 512 },
+      "healthcheck": {
+        "path": "/wp-admin/install.php",
+        "intervalSec": 10,
+        "timeoutSec": 5,
+        "retries": 20
+      },
+      "volumes": [
+        { "name": "contenu", "mountPath": "/var/www/html/wp-content", "size": "10Gi" }
+      ],
+      "dependsOn": ["mariadb"]
+    },
+    {
+      "name": "mariadb",
+      "source": { "type": "image", "ref": "mariadb:11" },
+      "port": 3306,
+      "exposed": false,
+      "env": { "MARIADB_DATABASE": "wordpress", "MARIADB_USER": "wordpress" },
+      "secrets": ["MARIADB_PASSWORD", "MARIADB_ROOT_PASSWORD"],
+      "resources": { "cpuMilli": 1000, "memoryMi": 1024 },
+      "healthcheck": {
+        "path": "/",
+        "port": 3306,
+        "intervalSec": 5,
+        "timeoutSec": 3,
+        "retries": 20
+      },
+      "volumes": [{ "name": "donnees", "mountPath": "/var/lib/mysql", "size": "20Gi" }]
+    }
+  ]
+}
+```
+
+Le nom du secret côté application (`WORDPRESS_DB_PASSWORD`) diffère ici de celui de
+la base (`MARIADB_PASSWORD`) parce que les deux images n'attendent pas la même
+variable. C'est le seul cas où deux noms sont admis — et il faudra alors leur
+donner la même valeur. Quand les deux images acceptent le même nom, utilise-le.
+
+### 7.4 Contre-exemple — ce qui fait rejeter la spec
 
 ```json
 {{FIXTURE:invalid.json}}

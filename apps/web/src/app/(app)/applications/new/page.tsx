@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { resolveAiConfig } from '@tp/core/ai';
-import { getAiApiKey, getAppSettings } from '@tp/db';
+import { aiProviderDescriptor, resolveAiConfig } from '@tp/core/ai';
+import { usableRuntimes } from '@tp/core';
+import { getAiApiKey, getAppSettings, listTargets } from '@tp/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getEnv } from '@/lib/env';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -9,20 +10,33 @@ import { NewApplicationForm } from './new-application-form';
 export const dynamic = 'force-dynamic';
 
 export default async function NewApplicationPage() {
-  await requirePagePermission('/applications/new', 'application:create');
+  const auth = await requirePagePermission('/applications/new', 'application:create');
 
   // La clé ne quitte pas le serveur : on ne transmet au client que le fait
-  // qu'elle existe, et le nom du modèle — qui n'est pas un secret.
-  const env = getEnv();
+  // qu'elle existe, le fournisseur et le nom du modèle — qui ne sont pas des
+  // secrets. `process.env` plutôt que `getEnv()` pour les clés de fournisseurs :
+  // quelle variable lire appartient au descripteur du fournisseur, pas au
+  // schéma d'environnement du panel.
+  getEnv();
   const { settings } = await getAppSettings();
   const ai = resolveAiConfig({
     settings: settings.ai,
     settingsApiKey: await getAiApiKey(),
-    envApiKey: env.OPENROUTER_API_KEY,
-    envModel: env.OPENROUTER_MODEL,
+    env: process.env,
   });
-  const aiEnabled = ai.enabled;
-  const model = ai.model;
+  const descriptor = aiProviderDescriptor(ai.provider);
+
+  // Le parcours va jusqu'au déploiement : on propose les cibles dont le
+  // preflight a montré un runtime, et rien d'autre.
+  const targets = auth.can('deployment:create') ? await listTargets() : [];
+  const deployTargets = targets
+    .filter((target) => usableRuntimes(target.runtimesAvailable).length > 0)
+    .map((target) => ({
+      id: target.id,
+      name: target.name,
+      host: target.host,
+      runtimes: usableRuntimes(target.runtimesAvailable),
+    }));
 
   return (
     <div className="space-y-6">
@@ -45,11 +59,19 @@ export default async function NewApplicationPage() {
           <CardTitle>AppSpec</CardTitle>
           <CardDescription>
             Décrivez l&apos;application et laissez le modèle proposer une spec, ou collez
-            directement un JSON. Dans les deux cas, Zod valide avant enregistrement.
+            directement un JSON. Dans les deux cas, la proposition s&apos;affiche avant
+            enregistrement, et Zod valide avant que quoi que ce soit n&apos;atteigne la base.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <NewApplicationForm aiEnabled={aiEnabled} model={model} />
+          <NewApplicationForm
+            aiEnabled={ai.enabled}
+            provider={descriptor.label}
+            model={ai.model}
+            modelWarning={ai.modelWarning}
+            missingKeyVar={descriptor.envApiKeyVar}
+            targets={deployTargets}
+          />
         </CardContent>
       </Card>
     </div>
