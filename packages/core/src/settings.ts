@@ -1,5 +1,11 @@
 import type { Permission } from './permissions.js';
-import { SCANNER_KEYS, scannerKeySchema, type ScanConfig, type ScannerKey } from './scan.js';
+import {
+  SCANNER_KEYS,
+  failOnSchema,
+  scannerKeySchema,
+  type ScanConfig,
+  type ScannerKey,
+} from './scan.js';
 import { z } from 'zod';
 
 /**
@@ -104,6 +110,14 @@ export const securitySettingsSchema = z.object({
    * peut atteindre sa base de vulnérabilités depuis la machine cible.
    */
   disabledScanners: z.array(scannerKeySchema).max(SCANNER_KEYS.length).default([]),
+  /**
+   * Sévérité à partir de laquelle un finding bloque la mise en ligne.
+   *
+   * Vit ici depuis que l'écran de déploiement ne le demande plus : une
+   * politique de sécurité qui se choisit au coup par coup, déploiement par
+   * déploiement, n'est pas une politique.
+   */
+  failOn: failOnSchema.default('CRITICAL'),
 });
 
 export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
@@ -111,7 +125,33 @@ export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
 export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
   scanningEnabled: true,
   disabledScanners: [],
+  failOn: 'CRITICAL',
 };
+
+/**
+ * La politique de scan de l'instance, telle qu'elle s'applique à un
+ * déploiement qui n'en demande aucune en particulier.
+ *
+ * C'est le pendant de `applySecuritySettings` : celle-ci oppose un veto à une
+ * demande explicite, celle-là fournit la politique quand personne n'en formule.
+ * Avant que les paramètres n'existent, l'absence de configuration valait
+ * « aucun scan » — défendable quand l'écran de déploiement portait le choix,
+ * intenable depuis qu'il ne le porte plus : retirer trois cases à cocher aurait
+ * silencieusement désarmé l'analyse de toutes les mises en ligne.
+ */
+export function scanConfigFromSettings(security: SecuritySettings): ScanConfig {
+  if (!security.scanningEnabled) {
+    return { scanners: [], failOn: 'NONE', disabledBy: 'settings' };
+  }
+
+  const disabled = new Set<ScannerKey>(security.disabledScanners);
+  const scanners = SCANNER_KEYS.filter((scanner) => !disabled.has(scanner));
+  if (scanners.length === 0) {
+    return { scanners: [], failOn: 'NONE', disabledBy: 'settings' };
+  }
+
+  return { scanners: [...scanners], failOn: security.failOn };
+}
 
 /**
  * Applique les réglages de sécurité à une configuration de scan demandée.

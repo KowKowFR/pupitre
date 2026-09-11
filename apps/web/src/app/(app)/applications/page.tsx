@@ -65,7 +65,6 @@ export default async function ApplicationsPage() {
         targets={deployTargets}
         canDeploy={auth.can('deployment:create')}
         canDelete={auth.can('application:delete')}
-        canConfigureScan={auth.can('scan:configure')}
       />
     </div>
   );

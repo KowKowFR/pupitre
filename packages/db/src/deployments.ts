@@ -89,11 +89,15 @@ export const createDeploymentSchema = z.object({
   runtime: z.enum(['docker', 'k3s']),
   proxy: z.enum(['traefik', 'bunkerweb']).default('traefik'),
   /**
-   * Scanners et seuil de blocage. Absent = aucun scan : l'API n'impose pas de
-   * politique à un client qui n'en parle pas. Le formulaire de l'UI, lui,
-   * arrive avec les trois cases cochées et un blocage sur CRITICAL.
+   * Scanners et seuil de blocage.
+   *
+   * **Absent et vide ne sont pas la même chose**, d'où l'`optional()` plutôt
+   * qu'un défaut : absent veut dire « applique la politique de l'instance »,
+   * `{scanners: []}` veut dire « je ne veux aucun scan, en connaissance de
+   * cause ». Confondre les deux ferait qu'un client qui n'en parle pas
+   * désarmerait l'analyse sans le savoir.
    */
-  scanConfig: scanConfigSchema.prefault({}),
+  scanConfig: scanConfigSchema.optional(),
   /**
    * Retour automatique à la version précédente si le healthcheck échoue.
    *

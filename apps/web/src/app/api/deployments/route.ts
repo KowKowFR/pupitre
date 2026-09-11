@@ -2,6 +2,7 @@ import {
   DEPLOYMENT_RUN_JOB,
   applySecuritySettings,
   deploymentJobDataSchema,
+  scanConfigFromSettings,
   parseAppSpec,
   usableRuntimes,
 } from '@tp/core';
@@ -42,8 +43,13 @@ export const POST = apiRoute(async (request) => {
   const input = await readJsonBody(request, createDeploymentSchema);
 
   // Choisir les scanners et le seuil est une décision de sécurité : elle a sa
-  // propre permission. Un déploiement sans scan n'en a pas besoin.
-  const configuresScan = input.scanConfig.scanners.length > 0 || input.scanConfig.failOn !== 'NONE';
+  // propre permission. Ne rien demander n'en réclame aucune — c'est la
+  // politique de l'instance qui s'applique, et elle a déjà été décidée
+  // ailleurs, par quelqu'un qui portait « settings:manage ».
+  const requestedScan = input.scanConfig;
+  const configuresScan =
+    requestedScan !== undefined &&
+    (requestedScan.scanners.length > 0 || requestedScan.failOn !== 'NONE');
   if (configuresScan && !auth.can('scan:configure')) {
     throw new ForbiddenError('scan:configure');
   }
@@ -51,7 +57,14 @@ export const POST = apiRoute(async (request) => {
   // Les réglages d'instance s'appliquent ICI, avant le gel : la configuration
   // enregistrée sur le déploiement doit décrire ce qui va réellement tourner.
   const { settings } = await getAppSettings();
-  const scanConfig = applySecuritySettings(input.scanConfig, settings.security);
+  // Sans demande explicite, l'instance fournit sa politique ; avec une demande,
+  // elle ne peut que la restreindre. Dans les deux cas c'est ici que ça se
+  // joue, avant le gel : la configuration enregistrée sur le déploiement doit
+  // décrire ce qui va réellement tourner.
+  const scanConfig =
+    requestedScan === undefined
+      ? scanConfigFromSettings(settings.security)
+      : applySecuritySettings(requestedScan, settings.security);
 
   const [application, target] = await Promise.all([
     getApplication(input.applicationId),
@@ -112,7 +125,10 @@ export const POST = apiRoute(async (request) => {
       // Ce que l'appelant avait demandé, quand l'instance l'a écarté : sans
       // cela le journal ne garderait aucune trace de l'intention.
       ...(scanConfig.disabledBy
-        ? { scanRequested: input.scanConfig.scanners, scanDisabledBy: scanConfig.disabledBy }
+        ? {
+            scanRequested: requestedScan?.scanners ?? '(politique de l\'instance)',
+            scanDisabledBy: scanConfig.disabledBy,
+          }
         : {}),
       autoRollback: input.autoRollback,
       jobId: job.id,

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { SCANNER_KEYS, scannerLabel, type ScannerKey } from '@tp/core';
+import { FAIL_ON_LABELS, SCANNER_KEYS, failOnSchema, scannerLabel, type FailOn, type ScannerKey } from '@tp/core';
 import type { AppSettings, DateStyleName, SupportedLocale } from '@tp/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +69,7 @@ export function SettingsEditor({
   const [disabledScanners, setDisabledScanners] = useState<ScannerKey[]>(
     settings.security.disabledScanners,
   );
+  const [failOn, setFailOn] = useState<FailOn>(settings.security.failOn);
 
   /** Vide = clé inchangée. Renseigné = clé remplacée. */
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -99,7 +100,7 @@ export function SettingsEditor({
         temperature: Number(temperature),
         maxTokens: Number(maxTokens),
       },
-      security: { scanningEnabled, disabledScanners },
+      security: { scanningEnabled, disabledScanners, failOn },
     };
 
     // Les trois cas de la clé, tenus jusqu'au corps de la requête : la
@@ -136,6 +137,7 @@ export function SettingsEditor({
     setTimeStyle(settings.timeStyle);
     setScanningEnabled(settings.security.scanningEnabled);
     setDisabledScanners(settings.security.disabledScanners);
+    setFailOn(settings.security.failOn);
     setAiEnabled(settings.ai.enabled);
     setAiModel(settings.ai.model);
     setTemperature(String(settings.ai.temperature));
@@ -454,6 +456,28 @@ export function SettingsEditor({
                 );
               })}
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="failOn">Seuil de blocage</Label>
+            <Select
+              id="failOn"
+              className="w-full sm:w-72"
+              value={failOn}
+              disabled={!canManage || !scanningEnabled}
+              onChange={(event) => setFailOn(failOnSchema.parse(event.target.value))}
+            >
+              {failOnSchema.options.map((option) => (
+                <option key={option} value={option}>
+                  {FAIL_ON_LABELS[option]}
+                </option>
+              ))}
+            </Select>
+            <p className="text-ink-faint text-xs">
+              Sévérité à partir de laquelle un finding empêche la mise en ligne. Ce seuil vaut pour
+              toute l&apos;instance : l&apos;écran de déploiement ne le demande plus, une politique
+              de sécurité qui se rediscute à chaque mise en ligne n&apos;en est pas une.
+            </p>
           </div>
 
           <p className="text-xs text-ink-faint">
