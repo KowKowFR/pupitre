@@ -17,7 +17,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableActions,
+  TableActionsHead,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 /** Miroir de `TwoFactorState` (`@tp/db`) — le client ne dépend pas de la base. */
 export type TwoFactorState = 'none' | 'pending' | 'active';
@@ -112,7 +121,7 @@ export function UsersTable({
               <TableHead>Rôle</TableHead>
               <TableHead>État</TableHead>
               <TableHead>Second facteur</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableActionsHead>Actions</TableActionsHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -160,7 +169,7 @@ export function UsersTable({
                   <TableCell>
                     <TwoFactorBadge state={user.twoFactor} />
                   </TableCell>
-                  <TableCell className="space-x-2 text-right">
+                  <TableActions className="space-x-2 whitespace-nowrap">
                     {canResetTwoFactor && user.twoFactor !== 'none' ? (
                       <Button
                         size="sm"
@@ -184,7 +193,7 @@ export function UsersTable({
                     >
                       {user.banned ? 'Réactiver' : 'Désactiver'}
                     </Button>
-                  </TableCell>
+                  </TableActions>
                 </TableRow>
               );
             })}

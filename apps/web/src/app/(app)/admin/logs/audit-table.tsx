@@ -28,7 +28,7 @@ export function AuditTable({ page, format }: { page: AuditLogPage; format: Forma
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Date ({format.timezone})</TableHead>
+              <TableHead>Date</TableHead>
               <TableHead>Acteur</TableHead>
               <TableHead>Action</TableHead>
               <TableHead>Ressource</TableHead>
@@ -70,6 +70,8 @@ export function AuditTable({ page, format }: { page: AuditLogPage; format: Forma
             ))}
           </TableBody>
         </Table>
+
+        <p className="text-ink-faint text-xs">Horodatages en {format.timezone}.</p>
       </CardContent>
 
       <Pagination page={page} />

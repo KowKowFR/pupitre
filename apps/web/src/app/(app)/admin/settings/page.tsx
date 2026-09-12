@@ -2,12 +2,13 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { SCANNER_KEYS, FAIL_ON_LABELS, scannerLabel } from '@tp/core';
-import { getAppSettings, listNotificationChannels } from '@tp/db';
+import { getAiApiKey, getAppSettings, listNotificationChannels } from '@tp/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateTime, formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { SETTINGS_SECTIONS } from './sections';
+import { AiStatusBadge } from './ai-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,9 @@ export default async function SettingsOverviewPage() {
   await requirePagePermission('/admin/settings', 'settings:read');
   const record = await getAppSettings();
   const { settings } = record;
+  // La clé ne descend jamais au client : elle sert ici, côté serveur, à savoir
+  // si la génération est réellement possible — pas seulement autorisée.
+  const aiApiKey = await getAiApiKey();
   const channels = await listNotificationChannels();
   const activeChannels = channels.filter((channel) => channel.enabled);
 
@@ -116,11 +120,7 @@ export default async function SettingsOverviewPage() {
         {activeChannels.length > 0 ? 'branchées' : 'aucun canal'}
       </Badge>
     ),
-    '/admin/settings/ia': (
-      <Badge variant={settings.ai.enabled ? 'ok' : 'secondary'}>
-        {settings.ai.enabled ? 'activée' : 'désactivée'}
-      </Badge>
-    ),
+    '/admin/settings/ia': <AiStatusBadge settings={settings} storedApiKey={aiApiKey} />,
   };
 
   return (

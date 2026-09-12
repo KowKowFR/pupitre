@@ -9,7 +9,16 @@ import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableActions,
+  TableActionsHead,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { DeleteApplicationDialog } from './delete-dialog';
 
 export type ApplicationRow = {
@@ -130,7 +139,7 @@ export function ApplicationsTable({
               <TableHead>Application</TableHead>
               <TableHead>Services</TableHead>
               <TableHead>Exposition</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableActionsHead>Actions</TableActionsHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -165,7 +174,7 @@ export function ApplicationsTable({
                     <span className="text-ink-faint">port alloué</span>
                   )}
                 </TableCell>
-                <TableCell className="space-x-2 text-right">
+                <TableActions className="space-x-2 whitespace-nowrap">
                   {canDeploy && targets.length > 0 ? (
                     <>
                       <Select
@@ -203,7 +212,7 @@ export function ApplicationsTable({
                       Supprimer
                     </Button>
                   ) : null}
-                </TableCell>
+                </TableActions>
               </TableRow>
             ))}
           </TableBody>

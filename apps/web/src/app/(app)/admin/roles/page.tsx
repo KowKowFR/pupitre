@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { requirePagePermission } from '@/lib/page-auth';
 import { CreateRoleForm } from './create-role-form';
 import { RolesEditor, type RoleRow } from './roles-editor';
+import { PageHeader } from '@/components/page-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,15 +32,18 @@ export default async function RolesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Rôles</h1>
-        <p className="text-muted-foreground text-sm">
-          Un utilisateur porte un rôle ; le rôle porte les permissions. Le rôle{' '}
-          <code className="font-mono text-xs">{LOCKED_ROLE}</code> est verrouillé : il détient
-          toujours l&apos;intégralité des permissions, pour qu&apos;on ne puisse pas se retirer les
-          droits nécessaires à se les rendre.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Administration"
+        title="Rôles"
+        description={
+          <>
+            Un utilisateur porte un rôle ; le rôle porte les permissions. Le rôle{' '}
+            <code className="font-mono text-xs">{LOCKED_ROLE}</code> est verrouillé : il détient
+            toujours l&apos;intégralité des permissions, pour qu&apos;on ne puisse pas se retirer
+            les droits nécessaires à se les rendre.
+          </>
+        }
+      />
 
       {canManage ? (
         <Card>

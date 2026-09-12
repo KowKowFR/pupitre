@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { requirePagePermission } from '@/lib/page-auth';
 import { CreateUserForm } from './create-user-form';
 import { UsersTable, type AdminUserRow } from './users-table';
+import { PageHeader } from '@/components/page-header';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,12 +32,11 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Utilisateurs</h1>
-        <p className="text-muted-foreground text-sm">
-          Un utilisateur porte un rôle ; le rôle porte les permissions.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Administration"
+        title="Utilisateurs"
+        description="Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions en cours — il n'est pas supprimé, et son passage reste dans les logs."
+      />
 
       <Card>
         <CardHeader>

@@ -8,7 +8,16 @@ import { EmptyState } from '@/components/empty-state';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableActions,
+  TableActionsHead,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import type { FormatSettings } from '@/lib/format';
 import { RuntimeBadges, StatusBadge, formatPreflightDate } from './runtime-badges';
 import { usePreflight } from './use-preflight';
@@ -77,8 +86,8 @@ export function TargetsTable({ targets, canRunPreflight, canDelete, format }: Pr
               <TableHead>Cible</TableHead>
               <TableHead>Runtimes</TableHead>
               <TableHead>Statut</TableHead>
-              <TableHead>Dernier test ({format.timezone})</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Dernier test</TableHead>
+              <TableActionsHead>Actions</TableActionsHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -113,7 +122,7 @@ export function TargetsTable({ targets, canRunPreflight, canDelete, format }: Pr
                       formatPreflightDate(target.lastPreflightAt, format)
                     )}
                   </TableCell>
-                  <TableCell className="space-x-2 text-right">
+                  <TableActions className="space-x-2 whitespace-nowrap">
                     {canRunPreflight ? (
                       <Button
                         size="sm"
@@ -129,12 +138,22 @@ export function TargetsTable({ targets, canRunPreflight, canDelete, format }: Pr
                         Supprimer
                       </Button>
                     ) : null}
-                  </TableCell>
+                  </TableActions>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
+
+        {/*
+          Le fuseau vit ici et non dans l'en-tête de colonne : « Dernier test
+          (Europe/Paris) » gonflait cette colonne d'une centaine de pixels, ce
+          qui suffisait à repousser la colonne d'actions hors de l'écran sur un
+          portable. L'information est la même, elle ne coûte plus une colonne.
+        */}
+        <p className="text-ink-faint text-xs">
+          Horodatages en {format.timezone}.
+        </p>
       </CardContent>
     </Card>
   );

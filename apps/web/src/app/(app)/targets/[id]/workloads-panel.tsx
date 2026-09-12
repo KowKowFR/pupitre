@@ -8,7 +8,16 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableActions,
+  TableActionsHead,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
 /**
@@ -281,7 +290,7 @@ export function WorkloadsPanel({
                 <TableHead>État</TableHead>
                 <TableHead>Ports</TableHead>
                 <TableHead>Créée le</TableHead>
-                {canManage ? <TableHead className="text-right">Actions</TableHead> : null}
+                {canManage ? <TableActionsHead>Actions</TableActionsHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -334,7 +343,7 @@ export function WorkloadsPanel({
                   </TableCell>
 
                   {canManage ? (
-                    <TableCell className="text-right">
+                    <TableActions>
                       {workload.managed ? (
                         // Dire pourquoi le geste est absent vaut mieux que de
                         // laisser croire à un oubli.
@@ -363,7 +372,7 @@ export function WorkloadsPanel({
                           </Button>
                         </div>
                       )}
-                    </TableCell>
+                    </TableActions>
                   ) : null}
                 </TableRow>
               ))}

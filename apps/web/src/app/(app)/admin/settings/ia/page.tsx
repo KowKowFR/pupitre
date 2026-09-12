@@ -1,7 +1,7 @@
-import { getAppSettings } from '@tp/db';
-import { Badge } from '@/components/ui/badge';
+import { getAiApiKey, getAppSettings } from '@tp/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requirePagePermission } from '@/lib/page-auth';
+import { AiStatusBadge } from '../ai-status';
 import { settingsSection } from '../sections';
 import { AiForm } from './ai-form';
 
@@ -25,9 +25,7 @@ export default async function AiSettingsPage() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           {section.title}
-          <Badge variant={record.settings.ai.enabled ? 'ok' : 'secondary'}>
-            {record.settings.ai.enabled ? 'activée' : 'désactivée'}
-          </Badge>
+          <AiStatusBadge settings={record.settings} storedApiKey={await getAiApiKey()} />
         </CardTitle>
         <CardDescription>
           {section.governs} Le modèle ne produit jamais de shell : il rend du JSON, validé par Zod

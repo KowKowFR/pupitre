@@ -208,7 +208,14 @@ export function DeploymentsTable({
               <TableHead>Application</TableHead>
               <TableHead>Cible</TableHead>
               <TableHead>Runtime</TableHead>
-              <TableHead>Scans</TableHead>
+              {/*
+                Largeur minimale : la cellule contient un verdict, trois noms de
+                scanner et un décompte. En mise en page automatique, c'est la
+                seule colonne qui sait passer à la ligne, donc celle que le
+                navigateur écrase en premier — les cinq pastilles s'empilaient
+                verticalement et chaque ligne du journal faisait 150 px de haut.
+              */}
+              <TableHead className="min-w-56">Scans</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Durée</TableHead>
               <TableHead>Date (UTC)</TableHead>

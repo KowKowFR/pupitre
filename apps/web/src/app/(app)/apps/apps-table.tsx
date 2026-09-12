@@ -7,7 +7,16 @@ import type { DeploymentStatus } from '@tp/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableActions,
+  TableActionsHead,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
 export type HealthStatus = 'unknown' | 'healthy' | 'unhealthy' | 'unreachable';
@@ -144,7 +153,7 @@ export function AppsTable({
             <TableHead>État</TableHead>
             <TableHead>En ligne depuis</TableHead>
             <TableHead>Adresse</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableActionsHead>Actions</TableActionsHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -202,7 +211,7 @@ export function AppsTable({
                 )}
               </TableCell>
 
-              <TableCell className="space-x-2 text-right">
+              <TableActions className="space-x-2 whitespace-nowrap">
                 <Button asChild size="sm" variant="outline">
                   <Link href={`/apps/${app.id}`}>Logs</Link>
                 </Button>
@@ -216,7 +225,7 @@ export function AppsTable({
                     {busy === app.id ? 'Envoi…' : 'Redémarrer'}
                   </Button>
                 ) : null}
-              </TableCell>
+              </TableActions>
             </TableRow>
           ))}
         </TableBody>

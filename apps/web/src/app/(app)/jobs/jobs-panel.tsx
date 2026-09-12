@@ -22,6 +22,8 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import {
   Table,
+  TableActions,
+  TableActionsHead,
   TableBody,
   TableCell,
   TableHead,
@@ -271,7 +273,7 @@ export function JobsPanel({
               <TableHead>Dernier run</TableHead>
               <TableHead>Prochain run</TableHead>
               <TableHead>État</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableActionsHead>Actions</TableActionsHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -332,7 +334,7 @@ export function JobsPanel({
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell>
+                  <TableActions>
                     <div className="flex flex-wrap items-center justify-end gap-1.5">
                     <Button
                       size="sm"
@@ -404,7 +406,7 @@ export function JobsPanel({
                       </>
                     ) : null}
                     </div>
-                  </TableCell>
+                  </TableActions>
                 </TableRow>
 
                 {expanded === job.id ? (

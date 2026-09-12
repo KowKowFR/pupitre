@@ -93,8 +93,19 @@ export function Readout({
  */
 export function ReadoutBar({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 divide-x divide-y divide-line rounded-lg border border-line bg-card shadow-panel sm:grid-cols-4 sm:divide-y-0">
-      {children}
+    /*
+      Requête de conteneur et non de fenêtre : ce qui décide du nombre de
+      colonnes, c'est la largeur disponible pour la barre, pas celle de
+      l'écran. À 1024 px de fenêtre, le rail de navigation en prend 246 et
+      quatre colonnes tronquaient « Applications en marche » en
+      « Applications en m… ». Mesurer la fenêtre aurait fait dépendre le bon
+      seuil de la largeur du rail — un couplage qui casse à la première
+      retouche de la navigation.
+    */
+    <div className="@container">
+      <div className="grid grid-cols-2 divide-x divide-y divide-line rounded-lg border border-line bg-card shadow-panel @3xl:grid-cols-4 @3xl:divide-y-0">
+        {children}
+      </div>
     </div>
   );
 }

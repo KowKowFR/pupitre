@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Compass } from 'lucide-react';
-import type { OnboardingState } from '@tp/core';
+import { onboardingStep, type OnboardingState } from '@tp/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -97,7 +97,13 @@ export function OnboardingRestart({
           </div>
           <div className="flex justify-between gap-3 border-b border-line pb-1.5">
             <dt className="text-ink-muted">Étape en cours</dt>
-            <dd className="font-mono text-ink">{state.currentStep}</dd>
+            {/*
+              `state.currentStep` est une clé interne (`summary`, `identity`…).
+              L'afficher telle quelle laissait un mot anglais en chasse fixe au
+              milieu d'un écran entièrement rédigé — et sans indiquer à quoi il
+              correspond. Le titre de l'étape dit la même chose, en français.
+            */}
+            <dd className="text-ink">{onboardingStep(state.currentStep).title}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-line pb-1.5">
             <dt className="text-ink-muted">Relances</dt>

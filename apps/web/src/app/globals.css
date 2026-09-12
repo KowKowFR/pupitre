@@ -107,6 +107,15 @@
   --foreground: var(--ink);
   --card: var(--surface);
   --card-foreground: var(--ink);
+
+  /*
+   * Survol d'une ligne de tableau. Défini comme un mélange plutôt qu'en
+   * transparence parce qu'une cellule épinglée doit peindre exactement la même
+   * couleur que la ligne qu'elle recouvre : superposer deux fois un
+   * `surface-2/70` donnerait une teinte plus sombre, et la colonne d'actions se
+   * détacherait du reste de sa propre ligne. Le mélange, lui, est idempotent.
+   */
+  --row-hover: color-mix(in oklab, var(--surface-2) 70%, var(--card));
   --popover: var(--surface);
   --popover-foreground: var(--ink);
   --primary: var(--signal);
@@ -255,6 +264,7 @@ html.dark {
   --color-ink-faint: var(--ink-faint);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-row-hover: var(--row-hover);
 
   --color-signal: var(--signal);
   --color-signal-hover: var(--signal-hover);

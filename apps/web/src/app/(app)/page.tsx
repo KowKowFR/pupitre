@@ -77,6 +77,12 @@ export default async function HomePage() {
     (item) => item.status === 'running' || item.status === 'pending',
   ).length;
   const targetsUp = targets.filter((target) => target.status === 'ok').length;
+  // Une cible jamais testée n'est pas une cible en panne : c'est une
+  // installation qu'on n'a pas finie. Les confondre faisait dire deux choses
+  // contraires au même écran — « rien ne demande d'intervention » en tête, et
+  // un relevé orange en bas pour des machines dont on ignore simplement l'état.
+  const targetsUntested = targets.filter((target) => target.status === 'unknown').length;
+  const targetsDown = targets.length - targetsUp - targetsUntested;
   const monitorsUp = monitors.filter((monitor) => monitor.status === 'healthy').length;
   const appsHealthy = running.filter((app) => app.healthStatus === 'healthy').length;
 
@@ -174,8 +180,16 @@ export default async function HomePage() {
           label="Cibles prêtes"
           value={targetsUp}
           unit={`/ ${targets.length}`}
-          tone={targets.length === 0 ? 'idle' : targetsUp === targets.length ? 'ok' : 'warn'}
-          hint={canReadTargets ? 'preflight au vert' : 'accès restreint'}
+          tone={
+            !canReadTargets || targets.length === 0
+              ? 'idle'
+              : targetsDown > 0
+                ? 'warn'
+                : targetsUntested > 0
+                  ? 'idle'
+                  : 'ok'
+          }
+          hint={targetsHint({ canReadTargets, targetsDown, targetsUntested })}
         />
         <Readout
           label="Applications en marche"
@@ -201,6 +215,30 @@ export default async function HomePage() {
       </ReadoutBar>
     </div>
   );
+}
+
+/**
+ * La ligne sous le compteur de cibles — elle doit expliquer l'écart, pas le
+ * commenter. « preflight au vert » ne disait rien quand le compte était
+ * incomplet, ce qui est précisément le moment où on lit cette ligne.
+ */
+function targetsHint({
+  canReadTargets,
+  targetsDown,
+  targetsUntested,
+}: {
+  canReadTargets: boolean;
+  targetsDown: number;
+  targetsUntested: number;
+}): string {
+  if (!canReadTargets) return 'accès restreint';
+
+  const parts: string[] = [];
+  if (targetsDown > 0) parts.push(`${targetsDown} en défaut`);
+  if (targetsUntested > 0) {
+    parts.push(`${targetsUntested} jamais testée${targetsUntested > 1 ? 's' : ''}`);
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'preflight au vert';
 }
 
 /**
