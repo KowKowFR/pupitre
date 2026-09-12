@@ -269,6 +269,20 @@ async function openSide(
     // Le rollback ramène vers la même version : ce script ne déploie qu'une fois.
     previousDeployment: { id: 'parity-previous', version: spec.version, sequence: 0 },
     portAllocator: createPortAllocator(),
+    /**
+     * Valeurs de remplissage pour les secrets déclarés.
+     *
+     * Ce script pilote les drivers en direct : il n'a ni application en base,
+     * ni magasin de secrets. Or le rendu refuse désormais un secret déclaré
+     * sans valeur — à raison, c'est ce qui empêche un `.env` vide de partir
+     * sur une machine. Ici la valeur n'a aucune importance : on compare deux
+     * runtimes, pas la résolution des secrets. Les deux côtés reçoivent la
+     * même, ce qui rend d'ailleurs la comparaison plus franche.
+     */
+    resolveSecrets: (names) =>
+      Promise.resolve(
+        Object.fromEntries(names.map((name) => [name, `valeur-de-parite-${name.toLowerCase()}`])),
+      ),
     additionalFiles,
     ...(process.env.DRIVER_PORT_RANGE
       ? {

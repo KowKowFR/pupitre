@@ -119,6 +119,40 @@ services:
       - dind-data:/var/lib/docker
     restart: unless-stopped
 
+  # ── Cible K3s de test, hors du démarrage normal ──────────────────────────────
+  # Démarrage explicite :
+  #   ./scripts/setup-k3s-target.sh
+  # Pendant de `ssh-target`, qui porte Docker : celle-ci porte un vrai cluster
+  # K3s. Elle existe pour le critère de CLAUDE.md — la même AppSpec déployée sur
+  # les deux runtimes — que le rendu seul ne peut pas prouver.
+  k3s-target:
+    profiles: ["test"]
+    build:
+      context: ./scripts/test-target-k3s
+      args:
+        AUTHORIZED_KEY: ${TEST_TARGET_PUBLIC_KEY:-}
+    # k3s monte des cgroups et pilote netfilter : il lui faut les mêmes
+    # privilèges qu'au daemon Docker de l'autre cible.
+    privileged: true
+    # Espace de noms cgroup privé — sans quoi kubelet échoue au démarrage sur
+    # « cannot enter cgroupv2 /sys/fs/cgroup/kubepods with domain controllers ».
+    # En cgroup v2, un conteneur qui partage la racine de l'hôte ne peut pas y
+    # créer de sous-groupe : les contrôleurs y sont en mode « domaine ». C'est
+    # la même correction que k3d applique.
+    cgroup: private
+    tmpfs:
+      - /run
+      - /var/run
+    ports:
+      - "127.0.0.1:${K3S_TARGET_PORT:-2223}:22"
+      # 80 pour l'Ingress : en K3s le panel n'alloue aucun port, l'exposition
+      # passe par le contrôleur d'ingress. C'est par là qu'on joint une
+      # application déployée.
+      - "127.0.0.1:${K3S_TARGET_HTTP_PORT:-8080}:80"
+    volumes:
+      - k3s-data:/var/lib/rancher/k3s
+    restart: unless-stopped
+
   # ── Serveur SMTP jetable, hors du démarrage normal ───────────────────────────
   # Démarrage explicite :
   #   docker compose --profile test up -d mailpit
@@ -141,6 +175,7 @@ services:
       - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
 
 volumes:
+  k3s-data:
   pgdata:
   redisdata:
   dind-data:
