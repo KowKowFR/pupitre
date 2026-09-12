@@ -48,18 +48,22 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 /**
  * Pourquoi `parity.json` et non `fullstack.json`.
  *
- * `fullstack.json` heurte deux limites qui n'ont rien à voir avec la parité et
- * qui la rendaient invérifiable : ses services `front` et `api` se construisent
- * depuis un Dockerfile — impossible sur un node K3s, qui fait tourner
- * containerd (voir « Limites connues » plus bas) — et `front.replicas: 2`
- * empêche Docker de publier un port, deux conteneurs ne pouvant pas se lier au
+ * `fullstack.json` pose `front.replicas: 2` sur le service exposé, ce qui
+ * empêche Docker de publier un port : deux conteneurs ne peuvent pas se lier au
  * même. Elle reste la fixture de référence du rendu et du prompt ; elle n'est
  * pas celle du déploiement croisé.
  *
  * `parity.json` la remplace sans rien retirer de ce qui se vérifie ici : quatre
  * services reliés par `dependsOn`, deux volumes, deux secrets dont un alias,
- * une réplication à 2 sur un service non exposé, un ingress TLS. Tous partent
- * d'images publiées : c'est la seule concession, et elle est nommée.
+ * une réplication à 2 sur un service non exposé, un ingress TLS.
+ *
+ * Et, depuis que le driver K3s sait construire, **deux de ces services partent
+ * d'un Dockerfile** : `front`, qui est la porte d'entrée — l'URL qui répond est
+ * donc servie par une image que nous avons fabriquée — et `api`, dont le
+ * Dockerfile est dans un sous-répertoire (`docker/Dockerfile`) et qui tourne en
+ * deux répliques. Le port 8080 n'est pas décoratif : les images que nous
+ * bâtissons tournent en uid 1000 sans `CAP_NET_BIND_SERVICE`, et ne peuvent pas
+ * se lier sous 1024.
  */
 const DEFAULT_SPEC = path.join(ROOT, 'packages/core/src/spec/__fixtures__/parity.json');
 
@@ -196,12 +200,10 @@ function buildContexts(spec: AppSpec): RenderedFile[] {
     if (service.source.type !== 'dockerfile') continue;
 
     const context = service.source.context.replace(/^\.\//, '').replace(/\/$/, '');
-    const probePath = service.healthcheck.path;
-    const directory = probePath.slice(0, probePath.lastIndexOf('/'));
 
     files.push({
       path: `${context}/${service.source.dockerfile}`,
-      content: dockerfileFor(service, directory, probePath),
+      content: dockerfileFor(service),
       mode: 0o644,
     });
   }
@@ -209,14 +211,24 @@ function buildContexts(spec: AppSpec): RenderedFile[] {
   return files;
 }
 
-function dockerfileFor(service: Service, directory: string, probePath: string): string {
+function dockerfileFor(service: Service): string {
+  const probePath = service.healthcheck.path;
+  // Un chemin de sonde qui se termine par `/` désigne un répertoire : c'est
+  // `index.html` qui y répond, et tenter d'y écrire un fichier ferait échouer
+  // le build sur « can't create /www/: Is a directory ».
+  const probeFile = probePath.endsWith('/') ? null : `/www${probePath}`;
+  const directory = probeFile ? probeFile.slice(0, probeFile.lastIndexOf('/')) : '/www';
+
   return [
     '# Contexte de build synthétique, produit par scripts/test-parity.ts.',
     `# Service « ${service.name} » — écoute sur ${service.port}, répond sur ${probePath}.`,
     'FROM busybox:1.36',
-    `RUN mkdir -p /www${directory} \\`,
-    `  && printf 'ok\\n' > /www${probePath} \\`,
+    `RUN mkdir -p ${directory} \\`,
+    ...(probeFile ? [`  && printf 'ok\\n' > ${probeFile} \\`] : []),
     `  && printf '<h1>${service.name}</h1>\\n' > /www/index.html`,
+    // uid 1000 : le driver K3s impose cette identité aux images qu'il
+    // construit. Le Dockerfile doit la porter, sinon le kubelet refuse de
+    // démarrer un conteneur dont l'image déclare `root` sous `runAsNonRoot`.
     'USER 1000:1000',
     `EXPOSE ${service.port}`,
     `CMD ["httpd", "-f", "-v", "-p", "${service.port}", "-h", "/www"]`,
@@ -605,50 +617,41 @@ async function destroySide(side: Side): Promise<void> {
 // ─── limites connues ──────────────────────────────────────────────────────────
 
 /**
- * Ce que ce test **n'exerce pas**, constaté sur les cibles plutôt que supposé.
+ * Ce que ce test **n'exerce pas**.
  *
- * La question posée est la même aux deux : « y a-t-il un `docker` ici ? ». Sans
- * lui, un service `source.type: "dockerfile"` ne peut pas être construit — la
- * décision de projet « build sur la machine cible, sans registry » n'a pas
- * d'équivalent sur un node qui fait tourner containerd, et `k3s ctr` sait
- * importer une image, pas la bâtir. On le dit, on l'exclut du décompte, et on
- * ne fait pas semblant de l'avoir vérifié.
+ * Cette section a longtemps porté une exclusion : construire depuis un
+ * Dockerfile, impossible sur un node K3s faute de `docker`. Elle a disparu — le
+ * driver K3s pose désormais un constructeur dans le cluster et importe l'image
+ * dans le containerd du node. La fixture le prouve plutôt que de le contourner.
+ *
+ * Ce qui reste ici ne duplique plus la connaissance des drivers : c'est le
+ * preflight de chacun, affiché à l'étape 4, qui dit s'il sait construire — et
+ * un preflight en échec fait échouer le déploiement, il n'est pas masqué.
+ * `exclude()` reste en place pour la prochaine capacité qu'un runtime n'aura
+ * pas : une limite se nomme, elle ne se supprime pas.
  */
 async function reportLimitations(sides: Side[], spec: AppSpec): Promise<void> {
   const buildable = spec.services.filter((service) => service.source.type === 'dockerfile');
 
-  for (const side of sides) {
-    const docker = await exec(side.session, 'command -v docker >/dev/null 2>&1', {
-      timeout: 30_000,
-    });
-    if (docker.code === 0) {
-      write(
-        `  ${green('OK')} [${side.runtime}] ${side.targetName} sait construire une image ` +
-          `${dim('— `docker` présent sur la machine')}\n`,
-      );
-      continue;
-    }
-
+  if (buildable.length === 0) {
     exclude({
-      runtime: side.runtime,
+      runtime: 'k3s',
       label: 'construire une image depuis un Dockerfile (`source.type: "dockerfile"`)',
       reason:
-        `Aucun \`docker\` sur ${side.targetName} : un node K3s fait tourner containerd, et ` +
-        '`k3s ctr` ne sait qu’importer une image, pas la construire. Ce n’est pas un défaut ' +
-        'du driver — il refuse en nommant les services concernés et les deux issues ' +
-        'possibles (installer Docker, ou ne référencer que des images publiées).',
-      reference:
-        'CLAUDE.md § « Build des images sur la machine cible, pas de registry » — décision de ' +
-        'produit, à rouvrir sciemment. La fixture de parité n’utilise donc que des images publiées.',
+        'La spec fournie ne construit rien : tous ses services référencent des images ' +
+        'publiées. Le chemin de build des deux drivers n’est donc pas exercé par cette ' +
+        'exécution.',
+      reference: `Fixture par défaut : ${path.relative(ROOT, DEFAULT_SPEC)}, qui, elle, construit.`,
     });
+    return;
+  }
 
-    if (buildable.length > 0) {
-      write(
-        `  ${red('!!')} La spec fournie construit ` +
-          `${buildable.map((service) => `« ${service.name} »`).join(', ')} : le déploiement ` +
-          `sur ${side.targetName} va échouer pour la raison ci-dessus.\n`,
-      );
-    }
+  const names = buildable.map((service) => `« ${service.name} »`).join(', ');
+  for (const side of sides) {
+    write(
+      `  ${green('OK')} [${side.runtime}] ${side.targetName} construira ${names} ` +
+        `${dim('— la capacité est vérifiée par le preflight du driver, étape 4')}\n`,
+    );
   }
 }
 

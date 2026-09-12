@@ -4,10 +4,10 @@
   "services": [
     {
       "name": "front",
-      "source": { "type": "image", "ref": "nginx:1.27-alpine" },
-      "port": 80,
+      "source": { "type": "dockerfile", "context": "./front", "dockerfile": "Dockerfile" },
+      "port": 8080,
       "exposed": true,
-      "env": { "API_URL": "http://api:80" },
+      "env": { "API_URL": "http://api:8080" },
       "resources": { "cpuMilli": 250, "memoryMi": 128 },
       "healthcheck": {
         "path": "/",
@@ -19,8 +19,8 @@
     },
     {
       "name": "api",
-      "source": { "type": "image", "ref": "httpd:2.4-alpine" },
-      "port": 80,
+      "source": { "type": "dockerfile", "context": "./api", "dockerfile": "docker/Dockerfile" },
+      "port": 8080,
       "exposed": false,
       "replicas": 2,
       "env": { "CACHE_URL": "redis://cache:6379", "DATABASE_HOST": "db" },

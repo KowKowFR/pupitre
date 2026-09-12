@@ -26,6 +26,15 @@ import type {
   SecretManifest,
   ServiceManifest,
 } from '../src/drivers/k3s/manifest-model.js';
+import {
+  BUILDKIT_IMAGE,
+  buildCommand,
+  builderAdmissionProbeManifest,
+  builderDeploymentManifest,
+  builderNamespaceManifest,
+  importCommand,
+  pushContextCommand,
+} from '../src/drivers/k3s/builder.js';
 import { renderFiles as renderComposeFiles } from '../src/drivers/docker/render.js';
 import { completeSecretValues } from '../src/drivers/secrets.js';
 
@@ -710,4 +719,115 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.match(output, /deployment\.apps\/web/);
     });
   });
+});
+
+/**
+ * Le constructeur d'images.
+ *
+ * Ce qui est vérifié ici n'est pas « BuildKit fonctionne » — cela se prouve sur
+ * un vrai cluster, par `pnpm test:parity` — mais que les quelques décisions dont
+ * dépend le fonctionnement sont bien celles qu'on croit, et qu'un refactor ne
+ * les défera pas en silence.
+ */
+describe('constructeur d’images K3s', () => {
+  const deploymentManifest = parseYaml(builderDeploymentManifest()) as {
+    metadata: { name: string; namespace: string; labels: Record<string, string> };
+    spec: {
+      strategy: { type: string };
+      template: {
+        spec: {
+          containers: Array<{
+            image: string;
+            args: string[];
+            securityContext: { privileged: boolean };
+          }>;
+        };
+      };
+    };
+  };
+  const container = deploymentManifest.spec.template.spec.containers[0];
+  assert.ok(container);
+
+  it('exécute runc dans le pod, pas via le containerd du nœud', () => {
+    // Le worker containerd exigerait `mountPropagation: Bidirectional` et donc
+    // une racine de nœud en montage partagé — ce qu'on ne peut pas supposer.
+    assert.ok(container.args.includes('--oci-worker=true'));
+    assert.ok(container.args.includes('--containerd-worker=false'));
+  });
+
+  it('n’a aucun volume hôte : le nœud ne lui prête ni socket ni chemin', () => {
+    assert.ok(
+      !builderDeploymentManifest().includes('hostPath'),
+      'un hostPath rendrait le constructeur dépendant de la topologie du nœud',
+    );
+  });
+
+  it('reste supprimable depuis l’écran des charges', () => {
+    // Voir `builder.ts` : le label `managed-by` ferait refuser sa suppression
+    // en renvoyant vers un déploiement qui n'existe pas.
+    assert.equal(deploymentManifest.metadata.labels['app.kubernetes.io/managed-by'], undefined);
+  });
+
+  it('se remplace sans se chevaucher : deux buildkitd se disputeraient le verrou', () => {
+    assert.equal(deploymentManifest.spec.strategy.type, 'Recreate');
+  });
+
+  it('épingle la version du constructeur', () => {
+    assert.equal(container.image, BUILDKIT_IMAGE);
+    assert.match(container.image, /:v\d+\.\d+\.\d+$/);
+  });
+
+  it('assume le privilège, que le preflight fait valider par l’admission', () => {
+    assert.equal(container.securityContext.privileged, true);
+  });
+
+  it('importe dans l’espace de noms k8s.io, seul visible du kubelet', () => {
+    assert.match(importCommand(), /k3s ctr -n k8s\.io images import -/);
+  });
+
+  it('n’expose au constructeur que le contexte du service construit', () => {
+    const command = pushContextCommand('/opt/bootstrap/apps/boutique/2.3.1/api');
+    assert.match(command, /^tar -C '\/opt\/bootstrap\/apps\/boutique\/2\.3\.1\/api' -cf - \./);
+    assert.ok(!command.includes('hostPath'));
+  });
+
+  it('porte un Dockerfile en sous-répertoire jusqu’à buildctl', () => {
+    assert.match(buildCommand('app-boutique/api:2.3.1', 'docker/Dockerfile'), /filename='docker\/Dockerfile'/);
+  });
+
+  it('nomme l’image dans le tar OCI : c’est ce nom que containerd reprend', () => {
+    assert.match(
+      buildCommand('app-boutique/api:2.3.1', 'Dockerfile'),
+      /type=oci,name=app-boutique\/api:2\.3\.1,dest=/,
+    );
+  });
+
+  it('soumet à l’admission un Pod, pas un contrôleur', () => {
+    // PodSecurity ne refuse qu'un Pod ; sur un Deployment il se contente d'un
+    // avertissement et laisse le code de sortie à 0. Le contrôle porterait
+    // alors sur rien.
+    const probe = parseYaml(builderAdmissionProbeManifest()) as {
+      kind: string;
+      spec: { containers: Array<{ securityContext: { privileged: boolean } }> };
+    };
+    assert.equal(probe.kind, 'Pod');
+    assert.equal(probe.spec.containers[0]?.securityContext.privileged, true);
+  });
+
+  it('soumet exactement le pod qu’il déploiera, sinon il ne prouve rien', () => {
+    const probe = parseYaml(builderAdmissionProbeManifest()) as { spec: unknown };
+    assert.deepEqual(probe.spec, deploymentManifest.spec.template.spec);
+  });
+
+  it(
+    'produit un manifest que Kubernetes accepte',
+    { skip: !kubectlAvailable },
+    () => {
+      const output = execFileSync('kubectl', ['apply', '--dry-run=client', '-f', '-'], {
+        input: `${builderNamespaceManifest()}\n---\n${builderDeploymentManifest()}`,
+        encoding: 'utf8',
+      });
+      assert.match(output, /deployment\.apps\/buildkitd/);
+    },
+  );
 });

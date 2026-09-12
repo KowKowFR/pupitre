@@ -22,12 +22,27 @@ import {
   MANAGED_BY,
   MANAGED_SELECTOR,
   MANIFEST_DIR,
+  buildableServices,
   builtImageTag,
   entrypointService,
   namespaceFilePath,
   namespaceName,
   renderFiles,
 } from './render.js';
+import {
+  BUILDER_DEPLOYMENT,
+  BUILDER_NAMESPACE,
+  BUILDKIT_IMAGE,
+  applyManifestCommand,
+  buildCommand,
+  builderAdmissionProbeManifest,
+  builderDeploymentManifest,
+  builderNamespaceManifest,
+  discardTarCommand,
+  importCommand,
+  pushContextCommand,
+  rolloutStatusCommand,
+} from './builder.js';
 
 /**
  * Driver K3s.
@@ -41,8 +56,10 @@ import {
  * - `allocatePort()` retourne `null` : en Kubernetes l'exposition passe par
  *   l'Ingress, pas par un port hôte. Le pipeline marque l'étape « skipped » tout
  *   seul, parce que c'est le driver qui a répondu `null`.
- * - le build ne pousse rien vers un registry : l'image est construite sur le
- *   node puis importée dans le containerd de K3s.
+ * - le build ne pousse rien vers un registry : l'image est construite **dans le
+ *   cluster**, par un BuildKit que le driver y pose lui-même, puis importée
+ *   dans le containerd du nœud. Voir `builder.ts` pour le pourquoi de ce
+ *   montage.
  *
  * Accès au cluster : `kubectl` **sur la cible**, via SSH. Le kubeconfig ne
  * quitte jamais la machine — pas de client Kubernetes embarqué dans le panel,
@@ -184,6 +201,8 @@ export class K3sDriver implements DeploymentDriver {
       detail: workdir.detail,
     });
 
+    checks.push(await this.checkBuildCapability(ctx));
+
     return {
       ok: checks.every((check) => check.ok),
       runtimeVersion,
@@ -221,6 +240,87 @@ export class K3sDriver implements DeploymentDriver {
       });
     }
     return checks;
+  }
+
+  /**
+   * Ce cluster acceptera-t-il de construire les images que l'AppSpec réclame ?
+   *
+   * La question est posée **au preflight**, et non à l'étape `build`. Le
+   * calendrier est tout l'intérêt : `build` vient après `upload`, donc après
+   * que les manifests — Secret rendus en clair compris — ont été déposés sur la
+   * cible. Un refus à ce moment-là laisse derrière lui exactement ce qu'on
+   * cherchait à ne pas y mettre. Le preflight, lui, a déjà l'AppSpec sous la
+   * main et n'a encore rien écrit.
+   *
+   * On ne demande pas au cluster s'il est « capable » dans l'absolu : on lui
+   * soumet le constructeur en `--dry-run=server`, et on prend sa réponse. C'est
+   * la seule qui fasse autorité — elle passe par les mêmes RBAC et le même
+   * contrôle d'admission que ce qu'on créera vraiment, PodSecurity compris,
+   * qui est ce qui refuserait le pod privilégié dont BuildKit a besoin.
+   */
+  private async checkBuildCapability(
+    ctx: DriverContext,
+  ): Promise<PreflightResult['checks'][number]> {
+    const label = "Construction d'images";
+    const buildable = buildableServices(ctx.spec);
+    if (buildable.length === 0) {
+      return {
+        key: 'image_build',
+        label,
+        ok: true,
+        detail: 'aucun service ne se construit depuis un Dockerfile',
+      };
+    }
+
+    const names = buildable.map((service) => `« ${service.name} »`).join(', ');
+
+    // Le namespace est créé pour de bon, pas en dry-run : un `--dry-run=server`
+    // sur un Deployment dont le namespace n'existe pas répond « namespaces not
+    // found » — c'est-à-dire rien sur les droits ni sur l'admission. Mesuré sur
+    // la cible de test. Un namespace vide est une trace sans commune mesure
+    // avec les Secret rendus que ce contrôle évite d'écrire sur la machine.
+    const namespace = await exec(
+      ctx.sshSession,
+      this.script([applyManifestCommand(builderNamespaceManifest())]),
+      { timeout: SHORT_TIMEOUT_MS },
+    );
+    if (namespace.code !== 0) {
+      return {
+        key: 'image_build',
+        label,
+        ok: false,
+        detail:
+          `${names} à construire, et le namespace ${BUILDER_NAMESPACE} du constructeur ` +
+          `est refusé : ${firstLine(namespace.stderr) ?? `code ${namespace.code}`}`,
+      };
+    }
+
+    // Le Deployment pour les droits et le schéma, le Pod pour l'admission :
+    // PodSecurity valide des Pods, et se contente d'un avertissement sur un
+    // contrôleur. Les deux, ou le contrôle ne prouve que la moitié.
+    const admission = await exec(
+      ctx.sshSession,
+      // `set -e` : sans lui, le code de sortie serait celui du dernier `apply`
+      // et un refus sur le premier passerait pour un succès.
+      this.script([
+        'set -e',
+        applyManifestCommand(builderDeploymentManifest(), true),
+        applyManifestCommand(builderAdmissionProbeManifest(), true),
+      ]),
+      { timeout: SHORT_TIMEOUT_MS },
+    );
+
+    return {
+      key: 'image_build',
+      label,
+      ok: admission.code === 0,
+      detail:
+        admission.code === 0
+          ? `${names} — constructeur ${BUILDKIT_IMAGE} accepté dans ${BUILDER_NAMESPACE}`
+          : `${names} à construire, et le cluster refuse le constructeur ` +
+            `(${BUILDKIT_IMAGE}, pod privilégié) : ` +
+            `${firstLine(admission.stderr) ?? `code ${admission.code}`}`,
+    };
   }
 
   /**
@@ -376,34 +476,20 @@ export class K3sDriver implements DeploymentDriver {
   // ─── build ──────────────────────────────────────────────────────────────────
 
   /**
-   * Construit sur le node puis importe dans le containerd de K3s.
+   * Construit dans le cluster, puis importe dans le containerd du nœud.
    *
-   * Décision figée du projet : pas de registry. L'image n'a donc jamais à
-   * transiter par le réseau — elle naît et vit sur la machine qui l'exécute.
+   * Décision figée du projet : pas de registry. L'image n'est donc jamais
+   * poussée nulle part — elle naît et vit sur la machine qui l'exécute. Ce que
+   * le nœud n'a pas, c'est un constructeur : `builder.ts` explique lequel on
+   * pose, et pourquoi celui-là.
    *
    * `null` quand aucun service ne se construit : l'étape est alors `skipped`.
    */
   async build(ctx: DriverContext, onLog: LogSink): Promise<string[] | null> {
-    const buildable = ctx.spec.services.filter(
-      (service) => service.source.type === 'dockerfile',
-    );
+    const buildable = buildableServices(ctx.spec);
     if (buildable.length === 0) return null;
 
-    const hasDocker = await exec(ctx.sshSession, 'command -v docker >/dev/null 2>&1', {
-      timeout: SHORT_TIMEOUT_MS,
-    });
-    if (hasDocker.code !== 0) {
-      const names = buildable.map((service) => `« ${service.name} »`).join(', ');
-      throw new DriverError(
-        'Aucun `docker` sur le node : un node K3s fait tourner containerd, et ' +
-          "`k3s ctr` ne sait qu'importer une image, pas la construire. " +
-          `Service(s) concerné(s) : ${names}. ` +
-          'Installez Docker sur la cible, ou fournissez une AppSpec dont ces services ' +
-          'référencent des images déjà publiées (`source.type: "image"`).',
-        this.runtime,
-        'build',
-      );
-    }
+    await this.ensureBuilder(ctx, onLog);
 
     const release = this.releasePath(ctx);
     const tags: string[] = [];
@@ -414,21 +500,31 @@ export class K3sDriver implements DeploymentDriver {
       const tag = builtImageTag(ctx.appSlug, service.name, ctx.spec.version);
       const context = `${release}/${source.context}`;
 
-      onLog(`docker build ${tag} (${service.name})`);
+      onLog(`→ envoi du contexte de « ${service.name} » au constructeur`);
       await this.stream(
         ctx,
-        `cd ${shellQuote(context)} && docker build -f ${shellQuote(source.dockerfile)} -t ${shellQuote(tag)} .`,
+        this.script([pushContextCommand(context)]),
         onLog,
         'build',
         BUILD_TIMEOUT_MS,
       );
 
-      // `k3s ctr` parle au containerd du cluster, qui n'est pas celui de Docker :
-      // sans cet import, le kubelet chercherait l'image sur docker.io.
-      onLog(`k3s ctr images import ${tag}`);
+      onLog(`buildctl build ${tag} (${service.name})`);
       await this.stream(
         ctx,
-        `docker save ${shellQuote(tag)} | k3s ctr images import -`,
+        this.script([buildCommand(tag, source.dockerfile)]),
+        onLog,
+        'build',
+        BUILD_TIMEOUT_MS,
+      );
+
+      // Sans cet import, l'image n'existe que dans un tar à l'intérieur du pod
+      // constructeur : le kubelet irait la chercher sur docker.io et le pod
+      // resterait en ImagePullBackOff.
+      onLog(`k3s ctr -n k8s.io images import ${tag}`);
+      await this.stream(
+        ctx,
+        this.script([importCommand()]),
         onLog,
         'image_import',
         BUILD_TIMEOUT_MS,
@@ -436,10 +532,58 @@ export class K3sDriver implements DeploymentDriver {
         true,
       );
 
+      // Le tar a fait son office ; il pèse le poids de l'image. Son effacement
+      // n'est pas bloquant : l'image est déjà dans containerd à ce point.
+      await this.stream(
+        ctx,
+        this.script([discardTarCommand()]),
+        onLog,
+        'build',
+        SHORT_TIMEOUT_MS,
+        false,
+      );
+
       tags.push(tag);
     }
 
     return tags;
+  }
+
+  /**
+   * Pose le constructeur dans le cluster, ou le retrouve s'il y est déjà.
+   *
+   * Il n'est pas retiré après le build, et c'est délibéré : son cache de
+   * couches vit dans le pod, et le détruire ferait retélécharger chaque image
+   * de base à chaque déploiement. Il ne se rattache à aucune application —
+   * `destroy()` d'une app ne doit donc pas l'emporter — et la commande pour
+   * s'en défaire est journalisée à chaque passage plutôt que cachée dans une
+   * documentation.
+   */
+  private async ensureBuilder(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    onLog(`→ constructeur ${BUILDER_DEPLOYMENT} (${BUILDKIT_IMAGE}) dans ${BUILDER_NAMESPACE}`);
+    await this.stream(
+      ctx,
+      this.script([
+        applyManifestCommand(builderNamespaceManifest()),
+        applyManifestCommand(builderDeploymentManifest()),
+      ]),
+      onLog,
+      'builder',
+      APPLY_TIMEOUT_MS,
+    );
+
+    await this.stream(
+      ctx,
+      this.script([rolloutStatusCommand(ROLLOUT_TIMEOUT)]),
+      onLog,
+      'builder',
+      APPLY_TIMEOUT_MS,
+    );
+
+    onLog(
+      `   il reste en place pour garder son cache — « kubectl delete namespace ` +
+        `${BUILDER_NAMESPACE} » le retire`,
+    );
   }
 
   // ─── deploy ─────────────────────────────────────────────────────────────────
