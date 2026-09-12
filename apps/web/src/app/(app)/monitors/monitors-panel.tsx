@@ -576,10 +576,24 @@ function CreateMonitor({
                   onChange={(event) => setWebhookUrl(event.target.value)}
                 />
                 <p className="text-[0.6875rem] text-ink-faint">
-                  Un POST JSON à la panne **et** au rétablissement, jamais à chaque échec. La
-                  charge porte <code className="font-mono">text</code> et{' '}
+                  Un POST JSON à la panne <strong>et</strong> au rétablissement, jamais à chaque
+                  échec. La charge porte <code className="font-mono">text</code> et{' '}
                   <code className="font-mono">content</code>, ce que lisent Slack et Discord.
                   L&apos;URL est chiffrée en base et n&apos;est jamais réaffichée.
+                </p>
+                {/*
+                  Deux sorties existent désormais pour la même panne. Le dire ici,
+                  au moment de saisir l'URL, est le seul endroit où l'information
+                  arrive à temps : sinon l'opérateur découvre le doublon en le
+                  recevant, et conclut à un bug.
+                */}
+                <p className="text-[0.6875rem] text-ink-faint">
+                  Ce webhook ne concerne <strong>que cette sonde</strong>. Les canaux de
+                  notification de l&apos;instance (e-mail, Telegram, Discord, webhook) reçoivent
+                  déjà « Site en panne » et « Site rétabli » pour <strong>toutes</strong> les
+                  sondes s&apos;ils y sont abonnés — avec regroupement des rafales. Renseigner les
+                  deux fait donc partir deux messages pour une même panne : à réserver au cas où
+                  cette sonde doit alerter ailleurs que les autres.
                 </p>
               </div>
 

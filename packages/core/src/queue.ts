@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { hostMetricsSchema } from './host-metrics.js';
+import { accountMailKindSchema } from './notifications/account-mail.js';
 import { notificationDigestSchema } from './notifications/digest.js';
 import { notificationMessageSchema } from './notifications/message.js';
 import { workloadActionSchema, workloadListSchema, workloadRefSchema } from './workloads.js';
@@ -443,9 +444,23 @@ export type NotificationTestJobResult = z.infer<typeof notificationTestJobResult
  *
  * La fenêtre porte sur le couple (événement, ressource) : deux déploiements
  * différents ont des identifiants différents et ne se masquent pas.
+ *
+ * **Sauf quand la ressource ne change pas d'une occurrence à l'autre.** C'est
+ * le cas des sondes : la ressource est la sonde, la même hier et aujourd'hui.
+ * Deux pannes distinctes du même site à moins de cinq minutes d'intervalle se
+ * confondaient, et la seconde alerte était avalée sans laisser de trace — un
+ * anti-doublon qui perd une alerte est pire que le doublon qu'il évite. Le
+ * catalogue fournit alors un discriminant (l'identifiant d'incident), qui
+ * sépare les occurrences sans rien changer à l'absorption des rejeux : un rejeu
+ * recopie la même charge, donc le même discriminant.
  */
-export function notificationDedupKey(event: string, resourceId: string | null): string {
-  return `${event}|${resourceId ?? 'none'}`;
+export function notificationDedupKey(
+  event: string,
+  resourceId: string | null,
+  discriminator?: string | null,
+): string {
+  const base = `${event}|${resourceId ?? 'none'}`;
+  return discriminator ? `${base}|${discriminator}` : base;
 }
 
 /** Cinq minutes : très au-delà des quelques secondes que durent les rejeux. */
@@ -546,6 +561,80 @@ export type NotificationDigestSweepJobResult = z.infer<
  */
 export const NOTIFICATION_DELIVER_ATTEMPTS = 3;
 export const NOTIFICATION_DELIVER_BACKOFF_MS = 5_000;
+
+/* ---------------------------------------------------------------------------
+   Cycle de vie des comptes — e-mails transactionnels
+   ------------------------------------------------------------------------- */
+
+/**
+ * Invitation ou réinitialisation de mot de passe, par e-mail.
+ *
+ * Sur la file des notifications, et pas dans la route HTTP qui la déclenche,
+ * pour la raison habituelle : le panel n'a **aucun transport SMTP**,
+ * `nodemailer` étant délibérément tenu hors de son graphe comme `ssh2`. Il
+ * enfile, le worker délivre. Un serveur SMTP lent met une trentaine de secondes
+ * à expirer, et personne ne doit attendre cela dans un formulaire.
+ *
+ * Sur la file `notifications` plutôt qu'`ops` : c'est un envoi d'e-mail, il
+ * partage le budget de concurrence des envois d'e-mails, et il ne doit pas
+ * attendre derrière un déploiement.
+ */
+export const ACCOUNT_MAIL_JOB = 'account:mail' as const;
+
+/**
+ * Ce qu'un e-mail de compte transporte — et l'unique endroit où la question
+ * « où vit le jeton ? » se pose.
+ *
+ * Le lien porte un jeton de réinitialisation : quiconque l'ouvre prend la main
+ * sur le compte. Il traverse donc Redis **chiffré** (AES-256-GCM sous
+ * `MASTER_KEY`, le même chiffre que les identifiants SSH des cibles), et pas en
+ * clair. Trois raisons, dans l'ordre :
+ *
+ *   1. Redis est un cache, pas un coffre : il n'est pas chiffré au repos, ses
+ *      sauvegardes non plus, et `MONITOR` y montre le contenu des tâches ;
+ *   2. une tâche terminée reste en base Redis le temps de sa rétention — bien
+ *      plus longtemps que la validité du jeton ;
+ *   3. `logAudit()` et Pino ne verront jamais que du texte chiffré si l'un
+ *      d'eux journalise une charge de tâche par inadvertance.
+ *
+ * Le déchiffrement est fait par le worker, juste avant le rendu. C'est
+ * exactement la règle appliquée aux secrets des canaux : déchiffrés au dernier
+ * moment, par celui qui émet.
+ */
+export const accountMailJobDataSchema = z.object({
+  kind: accountMailKindSchema,
+  /** Compte concerné — pour que la trace de remise désigne quelqu'un. */
+  userId: z.string().min(1).max(200),
+  to: z.string().min(3).max(200),
+  recipientName: z.string().min(1).max(120),
+  /** Lien d'action **chiffré**. Jamais en clair dans une charge de tâche. */
+  encryptedUrl: z.string().min(1).max(4000),
+  expiresAt: z.string().datetime(),
+  actor: z.string().min(1).max(200).nullable().default(null),
+});
+
+export const accountMailJobResultSchema = z.object({
+  kind: accountMailKindSchema,
+  delivered: z.boolean(),
+  /** Nom du canal SMTP emprunté. `null` si aucun n'était disponible. */
+  channel: z.string().nullable(),
+  /** Déjà expurgé de tout secret par `describeFailure()`. */
+  error: z.string().nullable(),
+});
+
+export type AccountMailJobData = z.infer<typeof accountMailJobDataSchema>;
+export type AccountMailJobResult = z.infer<typeof accountMailJobResultSchema>;
+
+/**
+ * Une seule tentative, et pas trois comme pour une remise de notification.
+ *
+ * Le rejeu vaut pour une alerte — un message d'incident jamais parti est une
+ * panne, un doublon est une gêne. Ici c'est l'inverse : la personne est devant
+ * son écran, elle voit tout de suite que rien n'est arrivé, et elle redemande.
+ * Trois tentatives espacées de cinq secondes ne feraient que tenir un jeton
+ * vivant plus longtemps dans une file.
+ */
+export const ACCOUNT_MAIL_ATTEMPTS = 1;
 
 /* ---------------------------------------------------------------------------
    Déploiements figés

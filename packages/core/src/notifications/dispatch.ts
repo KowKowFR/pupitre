@@ -3,7 +3,11 @@ import {
   notificationDedupKey,
   type NotificationDispatchJobData,
 } from '../queue.js';
-import { notifiableEventFor, type NotifiableAuditEntry } from './events.js';
+import {
+  notifiableEventFor,
+  notificationDedupDiscriminator,
+  type NotifiableAuditEntry,
+} from './events.js';
 
 /**
  * Le branchement entre le journal d'audit et la file des notifications.
@@ -73,7 +77,11 @@ export function auditNotificationObserver(
     };
 
     void enqueue(data, {
-      id: notificationDedupKey(event, row.resourceId),
+      id: notificationDedupKey(
+        event,
+        row.resourceId,
+        notificationDedupDiscriminator(event, entry),
+      ),
       ttl: NOTIFICATION_DEDUP_TTL_MS,
     }).catch((error: unknown) => {
       onError(error, event);

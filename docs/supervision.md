@@ -173,14 +173,25 @@ seule fois**, et au rétablissement. Le résultat est consigné sur l'incident
 le balayage**. L'audit (`monitor.down` / `monitor.recovered`) est écrit quoi qu'il
 arrive, même sans webhook configuré.
 
-> **La supervision de sites n'est pas branchée sur la couche de notifications
-> décrite plus bas.** `monitor.*` ne figure pas dans les événements notifiables.
-> Le raccord est nommé dans le code — `notifyMonitorTransition()`, dans
-> `apps/worker/src/monitors/notify.ts` — et tient en un corps de fonction.
+**Deux sorties, et c'est délibéré.** Depuis que `monitor.down` et
+`monitor.recovered` sont au catalogue des événements notifiables, une transition
+part *aussi* vers les canaux d'instance (e-mail, Telegram, Discord, webhook),
+avec regroupement des rafales et résumés nommés. Le raccord ne passe par aucun
+appel depuis la supervision : les sondes écrivaient déjà dans `audit_logs`, et
+l'audit est la source des notifications.
+
+Le webhook par sonde n'a pas été supprimé pour autant. Un canal est abonné à un
+**événement**, donc à toutes les sondes ; ce webhook est attaché à **une** sonde.
+Qui surveille trente sites pour vingt clients veut le salon de chacun dans sa
+propre sonde. Renseigner les deux fait donc partir deux messages pour la même
+panne — deux abonnements, deux gestes ; l'écran des sondes le dit au moment de
+saisir l'URL.
+
+Vérification de bout en bout : `scripts/verify-monitor-notifications.sh`.
 
 ## Notifications
 
-Quatre canaux, cinq événements, derrière un catalogue et une fabrique. Même
+Quatre canaux, sept événements, derrière un catalogue et une fabrique. Même
 patron que `getDriver()`, `getScanner()` et `getAiProviderFactory()` — et le code
 le revendique.
 
@@ -219,7 +230,7 @@ serveur mal configuré.
 C'est **la seule voie e-mail de l'instance** : il n'existe aucun réglage SMTP
 global ailleurs.
 
-### Les cinq événements
+### Les sept événements
 
 Tous dérivés du journal d'activité :
 
@@ -230,6 +241,21 @@ Tous dérivés du journal d'activité :
 | `deployment.rolled_back` | warning | `deployment.rolled_back.automatic` |
 | `security.two_factor_reset` | warning | `user.2fa.reset` |
 | `security.role_changed` | warning | `user.role.changed` |
+| `monitor.down` | critical | `monitor.down` |
+| `monitor.recovered` | info | `monitor.recovered` |
+
+**Un seul `monitor.down`**, pas un par nature de panne. Séparer « répond mal »
+d'« injoignable » donnerait deux clés, donc deux groupes de regroupement, donc
+deux résumés pour une panne d'infrastructure qui produit un mélange de 503 et de
+connexions refusées. La nature est dans le contenu du message et dans la ligne
+de résumé, jamais dans la clé.
+
+**Le rétablissement est en `info`** : il ne demande aucun geste, il ferme une
+alerte déjà reçue. Le peindre en rouge apprendrait à ignorer le rouge.
+
+L'hystérésis n'est pas refaite ici : `nextMonitorState()` n'annonce une
+transition qu'au seuil, donc une sonde qui oscille n'écrit rien dans
+`audit_logs`, donc ne notifie rien.
 
 Le point d'entrée est `logAudit()`, et un observateur y est posé **des deux
 côtés** (panel et worker écrivent tous deux dans `audit_logs`). Corollaire

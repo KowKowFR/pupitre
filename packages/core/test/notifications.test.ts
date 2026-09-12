@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  buildNotificationDigestItem,
   buildNotificationMessage,
   notifiableEventFor,
+  notificationDedupDiscriminator,
   type NotifiableAuditEntry,
 } from '../src/notifications/events.js';
+import { notificationDedupKey } from '../src/queue.js';
 import {
   channelConfigSchema,
   channelSecretFields,
@@ -370,4 +373,158 @@ describe('notifications — les secrets ne fuient pas par les messages d’erreu
       },
     );
   });
+});
+
+/**
+ * La supervision de sites au catalogue.
+ *
+ * Ce qui est vérifié ici n'est pas « le message est joli » mais « la ligne de
+ * résumé nomme l'objet ». Un résumé de douze pannes qui dit « 12 alertes » a
+ * perdu l'information ; celui qui dit « site boutique — injoignable » l'a
+ * gardée. C'est la seule chose que le reste de la couche ne peut pas rattraper.
+ */
+describe('notifications — les sondes de supervision', () => {
+  function monitorEntry(overrides: Partial<NotifiableAuditEntry> = {}): NotifiableAuditEntry {
+    return {
+      action: 'monitor.down',
+      resourceType: 'monitor',
+      resourceId: '22222222-2222-2222-2222-222222222222',
+      actorId: null,
+      before: { status: 'healthy' },
+      after: {
+        status: 'unreachable',
+        name: 'boutique',
+        type: 'http',
+        target: 'https://boutique.example.test/',
+        incidentId: '33333333-3333-3333-3333-333333333333',
+        startedAt: '2026-09-11T09:56:00.000Z',
+        resolvedAt: null,
+        durationSeconds: null,
+        detail: 'connexion refusée',
+        metrics: {},
+        consecutiveFailures: 3,
+      },
+      ...overrides,
+    };
+  }
+
+  it('reconnaît la panne et le rétablissement', () => {
+    assert.equal(notifiableEventFor(monitorEntry()), 'monitor.down');
+    assert.equal(
+      notifiableEventFor(monitorEntry({ action: 'monitor.recovered' })),
+      'monitor.recovered',
+    );
+  });
+
+  it('n’écoute pas les actions voisines de la supervision', () => {
+    // Une sonde créée, modifiée ou supprimée n'est pas un incident. Et une
+    // mesure isolée n'écrit aucune entrée : l'hystérésis est en amont.
+    for (const action of ['monitor.created', 'monitor.updated', 'monitor.deleted']) {
+      assert.equal(notifiableEventFor(monitorEntry({ action })), null, action);
+    }
+  });
+
+  it('la ligne de résumé nomme le site et dit la nature de la panne', () => {
+    const item = buildNotificationDigestItem('monitor.down', monitorEntry(), CTX);
+    assert.equal(item.label, 'site boutique — https://boutique.example.test/');
+    assert.equal(item.detail, 'injoignable — connexion refusée');
+    assert.equal(item.url, 'https://panel.example.test/monitors/22222222-2222-2222-2222-222222222222');
+  });
+
+  it('« répond mal » et « injoignable » ne se disent pas pareil, mais se groupent pareil', () => {
+    const entry503 = monitorEntry({
+      after: { ...(monitorEntry().after as object), status: 'unhealthy', detail: 'HTTP 503' },
+    });
+    assert.equal(notifiableEventFor(entry503), 'monitor.down');
+    assert.equal(
+      buildNotificationDigestItem('monitor.down', entry503, CTX).detail,
+      'répond mal — HTTP 503',
+    );
+  });
+
+  it('le rétablissement dit la durée de la panne, pas un compteur', () => {
+    const recovered = monitorEntry({
+      action: 'monitor.recovered',
+      before: { status: 'unreachable' },
+      after: {
+        ...(monitorEntry().after as object),
+        status: 'healthy',
+        resolvedAt: '2026-09-11T10:00:00.000Z',
+        durationSeconds: 240,
+      },
+    });
+    const item = buildNotificationDigestItem('monitor.recovered', recovered, CTX);
+    assert.equal(item.detail, 'rétabli après 4 min de panne');
+
+    const message = buildNotificationMessage('monitor.recovered', recovered, CTX);
+    assert.equal(message.severity, 'info');
+    assert.ok(message.body.includes('4 min'), message.body);
+  });
+
+  it('une URL démesurée est tronquée, jamais rejetée — sinon l’alerte serait perdue', () => {
+    // `monitorUrlSchema` accepte 2 048 caractères ; `label` en plafonne 200.
+    // Un `parse()` qui lève ici ferait échouer la distribution et personne ne
+    // serait prévenu de la panne.
+    const long = monitorEntry({
+      after: {
+        ...(monitorEntry().after as object),
+        target: `https://example.test/${'x'.repeat(2000)}`,
+      },
+    });
+    const item = buildNotificationDigestItem('monitor.down', long, CTX);
+    assert.equal(item.label.length, 200);
+    assert.ok(item.label.endsWith('…'));
+  });
+
+  it('une charge utile d’audit amputée ne fait pas échouer la composition', () => {
+    const broken = monitorEntry({ before: null, after: { status: 'unreachable' } });
+    const message = buildNotificationMessage('monitor.down', broken, CTX);
+    assert.equal(message.severity, 'critical');
+    assert.ok(message.title.length > 0);
+    const item = buildNotificationDigestItem('monitor.down', broken, CTX);
+    assert.ok(item.label.length > 0);
+  });
+  /*
+   * Le défaut que ce bloc verrouille : l'anti-doublon de la distribution porte
+   * sur (événement, ressource) pendant cinq minutes. Pour un déploiement la
+   * ressource change à chaque fois ; pour une sonde, non — c'est la sonde. Deux
+   * pannes distinctes du même site rapprochées se confondaient donc, et la
+   * seconde alerte disparaissait sans trace. Un anti-doublon qui perd une
+   * alerte est pire que le doublon qu'il évitait.
+   */
+  it('deux pannes distinctes du même site ne se masquent pas', () => {
+    const premiere = monitorEntry();
+    const seconde = monitorEntry({
+      after: {
+        ...(monitorEntry().after as Record<string, unknown>),
+        incidentId: '44444444-4444-4444-4444-444444444444',
+      },
+    });
+
+    const cle = (entry: NotifiableAuditEntry) =>
+      notificationDedupKey(
+        'monitor.down',
+        entry.resourceId,
+        notificationDedupDiscriminator('monitor.down', entry),
+      );
+
+    assert.notEqual(cle(premiere), cle(seconde));
+  });
+
+  it('le même incident rejoué par BullMQ reste absorbé', () => {
+    // Un rejeu recopie la charge utile telle quelle : même incident, même clé.
+    const entry = monitorEntry();
+    const rejeu = monitorEntry();
+    const cle = (e: NotifiableAuditEntry) =>
+      notificationDedupKey('monitor.down', e.resourceId, notificationDedupDiscriminator('monitor.down', e));
+    assert.equal(cle(entry), cle(rejeu));
+  });
+
+  it('un événement sans discriminant garde la clé d’origine', () => {
+    // Les cinq événements de déploiement et de sécurité n'en fournissent pas :
+    // leur ressource suffit, et leur clé ne doit pas changer de forme.
+    assert.equal(notificationDedupKey('deployment.failed', 'abc'), 'deployment.failed|abc');
+    assert.equal(notificationDedupKey('deployment.failed', null), 'deployment.failed|none');
+  });
+
 });
