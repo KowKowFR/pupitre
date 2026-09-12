@@ -1,6 +1,12 @@
 import nodemailer from 'nodemailer';
 import { splitMailboxList, type ChannelConfig } from './catalog.js';
 import {
+  notificationDigestOmitted,
+  renderDigestOmission,
+  renderDigestPlainText,
+  type NotificationDigest,
+} from './digest.js';
+import {
   NOTIFICATION_SEVERITY_LABELS,
   renderPlainText,
   type NotificationMessage,
@@ -76,6 +82,51 @@ function renderHtml(message: NotificationMessage): string {
       : '',
     link,
     `<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">${escapeHtml(message.instance)} · ${escapeHtml(message.occurredAt)}</p>`,
+    '</div></body></html>',
+  ].join('');
+}
+
+/**
+ * Le résumé, en HTML.
+ *
+ * L'e-mail est le seul canal qui peut **tout** lister : on y déroule donc
+ * l'intégralité des lignes retenues, sans troncature de politesse. C'est
+ * précisément sa valeur dans le dispositif — quand Telegram dit « et 42
+ * autres », c'est dans la boîte de réception qu'on va lire lesquelles.
+ *
+ * Une `<ol>` et non une `<table>` : la liste peut faire cent lignes, et une
+ * table de cent lignes à deux colonnes est illisible sur un téléphone.
+ */
+function renderDigestHtml(digest: NotificationDigest): string {
+  const items = digest.items
+    .map(
+      (item) =>
+        `<li style="margin:0 0 6px;font-size:13px;line-height:1.5">` +
+        `<span style="color:#6b7280;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escapeHtml(item.occurredAt.slice(11, 19))}</span> ` +
+        `<strong style="font-weight:600">${escapeHtml(item.label)}</strong>` +
+        `${item.detail ? ` <span style="color:#6b7280">— ${escapeHtml(item.detail)}</span>` : ''}` +
+        `</li>`,
+    )
+    .join('');
+
+  const omission = renderDigestOmission(notificationDigestOmitted(digest));
+
+  const link = digest.url
+    ? `<p style="margin:20px 0 0"><a href="${escapeHtml(digest.url)}" style="color:${ACCENT[digest.severity]};font-size:14px">Ouvrir dans le panel</a></p>`
+    : '';
+
+  return [
+    '<!doctype html><html lang="fr"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">',
+    `<div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;border:1px solid #e5e7eb;border-left:4px solid ${ACCENT[digest.severity]};padding:20px 24px">`,
+    `<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${ACCENT[digest.severity]};font-weight:600">${escapeHtml(NOTIFICATION_SEVERITY_LABELS[digest.severity])} · résumé</div>`,
+    `<h1 style="margin:6px 0 12px;font-size:18px;line-height:1.3">${escapeHtml(digest.title)}</h1>`,
+    `<p style="margin:0;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(digest.body)}</p>`,
+    `<ol style="margin:16px 0 0;padding-left:20px">${items}</ol>`,
+    omission
+      ? `<p style="margin:10px 0 0;font-size:13px;color:#6b7280">${escapeHtml(omission)}</p>`
+      : '',
+    link,
+    `<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">${escapeHtml(digest.instance)} · ${escapeHtml(digest.windowStartedAt)} → ${escapeHtml(digest.windowEndedAt)}</p>`,
     '</div></body></html>',
   ].join('');
 }
@@ -197,6 +248,53 @@ export class SmtpChannel implements NotificationChannel {
         headers: {
           'X-Control-Plane-Event': message.event,
           'X-Control-Plane-Severity': message.severity,
+          'Auto-Submitted': 'auto-generated',
+        },
+      });
+    } catch (error) {
+      throw new NotificationError(
+        describeFailure(error, resolved.secrets),
+        this.kind,
+        'send',
+        error,
+      );
+    } finally {
+      transport.close();
+    }
+  }
+
+  /**
+   * Le résumé emprunte exactement le même chemin que l'alerte unitaire : même
+   * enveloppe, mêmes en-têtes de service, deux parties. Seule la mise en forme
+   * change — une liste au lieu d'un tableau de champs.
+   *
+   * Le sujet annonce le nombre : `[Panel] 12 × Déploiement en échec — résumé`.
+   * C'est ce que lit un opérateur dans la liste de sa boîte, avant même
+   * d'ouvrir, et c'est ce qui doit lui dire que douze incidents l'attendent.
+   */
+  async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
+    const recipients = splitMailboxList(str(resolved.config, 'to'));
+    if (recipients.length === 0) {
+      throw new NotificationError('aucun destinataire configuré', this.kind, 'config');
+    }
+
+    const transport = this.transport(this.options(resolved));
+    try {
+      await transport.send({
+        from: str(resolved.config, 'from'),
+        to: recipients,
+        subject: `[${digest.instance}] ${digest.title}`,
+        // Aucune borne : l'e-mail est le canal qui liste tout. Les canaux
+        // courts renvoient ici implicitement, par leur « et N autres ».
+        text: renderDigestPlainText(digest),
+        html: renderDigestHtml(digest),
+        headers: {
+          'X-Control-Plane-Event': digest.event,
+          'X-Control-Plane-Severity': digest.severity,
+          // En-têtes propres au résumé : un filtre côté client peut ranger les
+          // résumés ailleurs que les alertes, ce qui est un besoin réel.
+          'X-Control-Plane-Digest': 'true',
+          'X-Control-Plane-Digest-Count': String(digest.count),
           'Auto-Submitted': 'auto-generated',
         },
       });

@@ -1,4 +1,8 @@
 import {
+  notificationDigestItemSchema,
+  type NotificationDigestItem,
+} from './digest.js';
+import {
   notificationMessageSchema,
   type NotificationField,
   type NotificationMessage,
@@ -77,6 +81,16 @@ type RenderedEvent = {
   fields: NotificationField[];
   /** Chemin relatif dans le panel, ex. `/deployments/xxx`. `null` s'il n'y en a pas. */
   path: string | null;
+  /**
+   * Ce qu'une **ligne de résumé** nomme, quand cet événement est regroupé avec
+   * d'autres du même type. Obligatoire, et c'est voulu : c'est cette ligne qui
+   * empêche un résumé d'être un compteur muet. Elle nomme l'objet concerné —
+   * « déploiement 4f2a… », « compte alice@… » — jamais la catégorie, qui est
+   * déjà dans le titre du résumé.
+   */
+  summary: string;
+  /** Précision courte de la ligne de résumé : l'étape, le verdict, la transition. */
+  summaryDetail: string | null;
 };
 
 export type NotificationEventDescriptor = {
@@ -88,6 +102,11 @@ export type NotificationEventDescriptor = {
   readonly severity: NotificationSeverity;
   /** Action d'audit qui porte l'événement. */
   readonly auditAction: string;
+  /**
+   * Écran du panel qui montre *l'ensemble* de ces objets. Un résumé porte
+   * plusieurs objets : il ne peut pas pointer la fiche de l'un d'eux.
+   */
+  readonly digestPath: string | null;
   /**
    * Départage deux événements portés par la même action d'audit. Un scan qui
    * bloque et un déploiement qui casse s'écrivent tous deux `deployment.failed` :
@@ -143,6 +162,7 @@ const CATALOG = {
       'n’ouvre pas l’écran des déploiements.',
     severity: 'critical',
     auditAction: 'deployment.failed',
+    digestPath: '/deployments',
     matches: (entry) => text(record(entry.after).failedStep, '') !== 'scan',
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -159,6 +179,10 @@ const CATALOG = {
           actorField(ctx),
         ]),
         path: entry.resourceId ? `/deployments/${entry.resourceId}` : null,
+        summary: `déploiement ${entry.resourceId ?? '?'}`,
+        summaryDetail: optional(after.failedStep)
+          ? `étape « ${text(after.failedStep, '')} »`
+          : optional(after.error),
       };
     },
   },
@@ -172,6 +196,7 @@ const CATALOG = {
       'Sans message, l’opérateur croit à une panne et relance en boucle.',
     severity: 'critical',
     auditAction: 'deployment.failed',
+    digestPath: '/deployments',
     matches: (entry) => text(record(entry.after).failedStep, '') === 'scan',
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -187,6 +212,8 @@ const CATALOG = {
           actorField(ctx),
         ]),
         path: entry.resourceId ? `/deployments/${entry.resourceId}` : null,
+        summary: `déploiement ${entry.resourceId ?? '?'}`,
+        summaryDetail: optional(after.error),
       };
     },
   },
@@ -199,6 +226,7 @@ const CATALOG = {
       'le genre de chose qu’on ne veut pas découvrir trois jours plus tard.',
     severity: 'warning',
     auditAction: 'deployment.rolled_back.automatic',
+    digestPath: '/deployments',
     matches: () => true,
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -218,6 +246,8 @@ const CATALOG = {
           actorField(ctx),
         ]),
         path: entry.resourceId ? `/deployments/${entry.resourceId}` : null,
+        summary: `déploiement ${entry.resourceId ?? '?'}`,
+        summaryDetail: `${text(before.version, '?')} → ${text(after.restoredVersion, '?')}`,
       };
     },
   },
@@ -230,6 +260,7 @@ const CATALOG = {
       'et c’est précisément pour ça qu’il doit être vu par quelqu’un d’autre que celui qui le fait.',
     severity: 'warning',
     auditAction: 'user.2fa.reset',
+    digestPath: '/admin/users',
     matches: () => true,
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -245,6 +276,8 @@ const CATALOG = {
           actorField(ctx),
         ]),
         path: '/admin/users',
+        summary: `compte ${text(after.email, entry.resourceId ?? '?')}`,
+        summaryDetail: after.self === true ? 'par lui-même' : (ctx.actor ?? 'par le système'),
       };
     },
   },
@@ -257,6 +290,7 @@ const CATALOG = {
       'visible immédiatement, pas au prochain audit trimestriel.',
     severity: 'warning',
     auditAction: 'user.role.changed',
+    digestPath: '/admin/users',
     matches: () => true,
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -273,6 +307,8 @@ const CATALOG = {
           actorField(ctx),
         ]),
         path: '/admin/users',
+        summary: `compte ${text(after.email, entry.resourceId ?? '?')}`,
+        summaryDetail: `${optional(before.roles) ?? 'aucun rôle'} → ${text(after.roles, '?')}`,
       };
     },
   },
@@ -341,4 +377,35 @@ export function buildNotificationMessage(
     instance: ctx.instance,
     occurredAt: ctx.occurredAt,
   });
+}
+
+/**
+ * La ligne que cet événement occupera dans un résumé.
+ *
+ * Elle est composée **au moment où l'événement est retenu**, pas au moment du
+ * résumé : l'entrée d'audit est là, l'acteur est résolu, le contexte est frais.
+ * La différer voudrait dire recopier la charge utile d'audit en base pour la
+ * relire une demi-heure plus tard — plus de stockage, pour une ligne qu'on sait
+ * déjà écrire.
+ */
+export function buildNotificationDigestItem(
+  key: NotificationEventKey,
+  entry: NotifiableAuditEntry,
+  ctx: NotificationRenderContext,
+): NotificationDigestItem {
+  const descriptor = CATALOG[key];
+  const rendered = descriptor.render(entry, ctx);
+  const base = ctx.panelUrl?.replace(/\/+$/, '') ?? null;
+
+  return notificationDigestItemSchema.parse({
+    occurredAt: ctx.occurredAt,
+    label: rendered.summary,
+    detail: rendered.summaryDetail,
+    url: base && rendered.path ? `${base}${rendered.path}` : null,
+  });
+}
+
+/** Écran du panel vers lequel pointe un résumé de cet événement. */
+export function notificationDigestPath(key: NotificationEventKey): string | null {
+  return CATALOG[key].digestPath;
 }

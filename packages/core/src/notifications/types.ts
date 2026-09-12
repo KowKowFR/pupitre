@@ -1,4 +1,5 @@
 import type { ChannelConfig, NotificationChannelKind } from './catalog.js';
+import type { NotificationDigest } from './digest.js';
 import type { NotificationMessage } from './message.js';
 
 /**
@@ -42,8 +43,25 @@ export interface NotificationChannel {
    */
   test(resolved: ResolvedChannelConfig): Promise<NotificationTestResult>;
 
-  /** Délivre. Lève une `NotificationError` en cas d'échec. */
+  /** Délivre une alerte unitaire. Lève une `NotificationError` en cas d'échec. */
   send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void>;
+
+  /**
+   * Délivre un **résumé** — plusieurs événements du même type, retenus pendant
+   * une fenêtre de regroupement.
+   *
+   * Méthode distincte et **obligatoire**, pas un drapeau sur `send()` : un
+   * résumé porte une liste, une fenêtre et un total, et chaque protocole les
+   * rend différemment. Un e-mail peut lister cent lignes, un message Telegram
+   * doit tenir à l'écran. Faire entrer tout cela dans un `NotificationMessage`
+   * obligerait chaque canal à deviner qu'un texte cache une liste — c'est la
+   * fuite d'abstraction que cette couche interdit.
+   *
+   * Obligatoire pour que le compilateur refuse un canal qui saurait alerter
+   * mais pas résumer : il enverrait alors cinquante messages là où les autres
+   * en envoient un.
+   */
+  sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void>;
 }
 
 /** Échec imputable à un canal, avec le contexte utile au diagnostic. */
@@ -178,4 +196,33 @@ export function describeFailure(error: unknown, secrets: ChannelConfig = {}): st
   }
 
   return redactSecrets(raw, secrets).slice(0, 400);
+}
+
+// ─── ce qu'un envoi transporte ────────────────────────────────────────────────
+
+/**
+ * La charge d'une distribution : une alerte unitaire, ou un résumé.
+ *
+ * Le discriminant vit ici plutôt que dans le worker : c'est la couche des
+ * canaux qui connaît les deux formes, et c'est elle qui doit rester le seul
+ * endroit où l'on choisit entre `send()` et `sendDigest()`.
+ */
+export type NotificationPayload =
+  | { readonly type: 'event'; readonly message: NotificationMessage }
+  | { readonly type: 'digest'; readonly digest: NotificationDigest };
+
+/** Le **seul** aiguillage entre alerte unitaire et résumé, dans tout le projet. */
+export function deliverNotification(
+  channel: NotificationChannel,
+  resolved: ResolvedChannelConfig,
+  payload: NotificationPayload,
+): Promise<void> {
+  return payload.type === 'digest'
+    ? channel.sendDigest(resolved, payload.digest)
+    : channel.send(resolved, payload.message);
+}
+
+/** L'événement porté par une charge, quel que soit son type — pour les en-têtes et les logs. */
+export function notificationPayloadEvent(payload: NotificationPayload): string {
+  return payload.type === 'digest' ? payload.digest.event : payload.message.event;
 }

@@ -1,4 +1,9 @@
 import type { ChannelConfig } from './catalog.js';
+import {
+  renderDigestItemLine,
+  renderDigestOmission,
+  type NotificationDigest,
+} from './digest.js';
 import { NOTIFICATION_SEVERITY_LABELS, type NotificationMessage } from './message.js';
 import { httpCall, jsonField } from './http.js';
 import {
@@ -22,6 +27,16 @@ import {
  */
 
 const LIMIT = { title: 256, description: 4096, fieldName: 256, fieldValue: 1024, fields: 25 };
+
+/**
+ * Lignes détaillées d'un résumé dans un salon.
+ *
+ * Quinze : un salon Discord se lit sur un écran large et se remonte facilement,
+ * on peut donc y être plus généreux que sur Telegram — mais pas cinquante, sous
+ * peine de noyer le reste du salon sous un seul message. Les lignes tues sont
+ * annoncées, comme ailleurs.
+ */
+const DIGEST_LINES = 15;
 
 /** Couleur de la barre latérale, en entier — c'est la forme qu'attend Discord. */
 const COLOR: Record<NotificationMessage['severity'], number> = {
@@ -112,6 +127,56 @@ export class DiscordChannel implements NotificationChannel {
             footer: {
               text: clamp(
                 `${message.instance} · ${NOTIFICATION_SEVERITY_LABELS[message.severity]}`,
+                LIMIT.fieldValue,
+              ),
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  /**
+   * Le résumé : un seul `embed`, la liste dans la `description` plutôt que dans
+   * des `fields`.
+   *
+   * Les `fields` d'un embed sont faits pour des paires étiquette/valeur courtes ;
+   * quinze d'entre eux empilés produisent un pavé illisible, et l'API en refuse
+   * plus de vingt-cinq. Une liste à puces dans la description se lit comme une
+   * liste — ce qu'elle est.
+   */
+  async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
+    const username = str(resolved.config, 'username');
+    const shown = digest.items.slice(0, DIGEST_LINES);
+    const omission = renderDigestOmission(digest.count - shown.length);
+
+    const description = [
+      digest.body,
+      '',
+      ...shown.map((item) => `• ${renderDigestItemLine(item)}`),
+      ...(omission ? ['', `*${omission}*`] : []),
+    ].join('\n');
+
+    await httpCall({
+      channel: this.kind,
+      fetch: this.fetchImpl,
+      url: this.url(resolved),
+      method: 'POST',
+      timeoutMs: this.timeoutMs,
+      secrets: resolved.secrets,
+      body: {
+        ...(username.length > 0 ? { username } : {}),
+        embeds: [
+          {
+            title: clamp(digest.title, LIMIT.title),
+            description: clamp(description, LIMIT.description),
+            color: COLOR[digest.severity],
+            ...(digest.url ? { url: digest.url } : {}),
+            timestamp: digest.occurredAt,
+            fields: [],
+            footer: {
+              text: clamp(
+                `${digest.instance} · ${NOTIFICATION_SEVERITY_LABELS[digest.severity]} · ${digest.count} alertes regroupées`,
                 LIMIT.fieldValue,
               ),
             },

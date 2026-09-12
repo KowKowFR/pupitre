@@ -3,6 +3,7 @@ export * from './host-metrics.js';
 export * from './monitoring.js';
 export * from './naming.js';
 export * from './notifications/catalog.js';
+export * from './notifications/digest.js';
 export * from './notifications/dispatch.js';
 export * from './notifications/events.js';
 export * from './notifications/message.js';

@@ -10,6 +10,7 @@ export * from './port-allocator.js';
 export * from './scans.js';
 export * from './monitors.js';
 export * from './notifications.js';
+export * from './notification-digests.js';
 export * from './schedules.js';
 export * from './settings.js';
 export * from './two-factor.js';

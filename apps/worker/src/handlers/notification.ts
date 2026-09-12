@@ -1,18 +1,37 @@
 import {
   NOTIFICATIONS_QUEUE,
+  NOTIFICATION_DELIVER_ATTEMPTS,
+  NOTIFICATION_DELIVER_BACKOFF_MS,
+  NOTIFICATION_DELIVER_JOB,
+  NOTIFICATION_DIGEST_SWEEP_EVERY_MS,
+  NOTIFICATION_DIGEST_SWEEP_JOB,
   NOTIFICATION_DISPATCH_JOB,
   auditNotificationObserver,
+  buildNotificationDigest,
+  buildNotificationDigestItem,
   buildNotificationMessage,
   describeFailure,
   isNotificationEventKey,
+  notificationDeliverJobDataSchema,
+  notificationDigestGroupKey,
+  notificationDigestPath,
   notificationDispatchJobDataSchema,
+  notificationEventDescriptor,
+  notificationPayloadEvent,
   notificationTestJobDataSchema,
   testNotificationMessage,
+  type NotificationDeliverJobResult,
+  type NotificationDigestSweepJobResult,
   type NotificationDispatchJobResult,
+  type NotificationPayload,
+  type NotificationRenderContext,
   type NotificationTestJobResult,
 } from '@tp/core';
-import { getNotificationChannel } from '@tp/core/notifications';
+import { deliverNotification, getNotificationChannel } from '@tp/core/notifications';
 import {
+  admitNotification,
+  claimNotificationDigest,
+  dueNotificationDigestGroups,
   getAppSettingsValue,
   logAudit,
   notificationActorLabel,
@@ -20,8 +39,9 @@ import {
   recordNotificationOutcome,
   resolveNotificationChannel,
   setAuditObserver,
+  type NotificationChannelRecord,
 } from '@tp/db';
-import { Queue, type Job } from 'bullmq';
+import { Queue, UnrecoverableError, type Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { createRedisConnection } from '../redis.js';
 
@@ -34,6 +54,17 @@ import { createRedisConnection } from '../redis.js';
  * n'a rien à faire dans le chemin d'une requête HTTP — ni dans celui de
  * `logAudit()`, qui est appelé au beau milieu d'une action utilisateur.
  * L'observateur du journal d'audit se contente donc d'enfiler.
+ *
+ * ── Trois tâches, trois responsabilités ─────────────────────────────────────
+ *   `notification:dispatch`      décide : ce message part-il maintenant, ou
+ *                                est-il retenu pour être résumé ?
+ *   `notification:deliver`       délivre à **un** canal, et se rejoue seule
+ *   `notification:digest_sweep`  ferme les fenêtres échues et compose les résumés
+ *
+ * Le découpage entre décider et délivrer est ce qui rend le rejeu correct :
+ * l'objection de la première version — « rejouer une distribution partiellement
+ * réussie renverrait le message aux canaux qui l'ont déjà reçu » — ne tient
+ * plus dès lors qu'une tâche ne concerne qu'un destinataire.
  *
  * ── L'essai, lui, est attendu ───────────────────────────────────────────────
  * Le bouton « envoyer un message d'essai » veut un verdict, pas un accusé de
@@ -59,10 +90,10 @@ export function getNotificationsQueue(): Queue {
     connection: createRedisConnection(),
     defaultJobOptions: {
       /**
-       * **Une seule tentative.** Rejouer une distribution partiellement
-       * réussie renverrait le message aux canaux qui l'ont déjà reçu — et
-       * c'est précisément ce qu'on cherche à éviter. Chaque canal enregistre
-       * son propre échec ; c'est là que se lit ce qui n'est pas parti.
+       * **Une seule tentative par défaut.** Elle vaut pour la décision
+       * (`dispatch`) et pour le balayage : les rejouer ne réparerait rien et
+       * pourrait dédoubler un résumé. Les tâches de *remise*, elles, demandent
+       * explicitement leurs trois tentatives — voir `enqueueDeliveries()`.
        */
       attempts: 1,
       removeOnComplete: { age: 24 * 3600, count: 500 },
@@ -103,6 +134,37 @@ export function installAuditNotifications(): void {
   );
 }
 
+/**
+ * Installe l'horloge qui ferme les fenêtres de regroupement.
+ *
+ * Aucune ligne en base pour ce scheduler, donc aucune réconciliation : c'est un
+ * détail d'exécution, réinstallé à l'identique à chaque démarrage. Ce qui vit en
+ * base, c'est l'état des fenêtres — et c'est justement ce qui fait qu'un worker
+ * redémarré au milieu d'un orage retrouve ses fenêtres ouvertes au lieu de
+ * relâcher tout d'un coup. Même construction que le balayage des sondes.
+ */
+export async function installNotificationDigestSweep(): Promise<void> {
+  await getNotificationsQueue().upsertJobScheduler(
+    'notification-digest-sweep',
+    { every: NOTIFICATION_DIGEST_SWEEP_EVERY_MS },
+    {
+      name: NOTIFICATION_DIGEST_SWEEP_JOB,
+      data: {},
+      opts: {
+        attempts: 1,
+        // La cadence est de quelques secondes : conserver mille occurrences
+        // n'apprendrait rien et encombrerait Redis.
+        removeOnComplete: { age: 600, count: 50 },
+        removeOnFail: { age: 24 * 3600, count: 50 },
+      },
+    },
+  );
+  logger.info(
+    { everyMs: NOTIFICATION_DIGEST_SWEEP_EVERY_MS },
+    'balayage des fenêtres de regroupement installé',
+  );
+}
+
 // ─── distribution ─────────────────────────────────────────────────────────────
 
 /**
@@ -124,22 +186,77 @@ function panelUrl(): string | null {
   }
 }
 
+/**
+ * Enfile une remise par canal abonné.
+ *
+ * `addBulk` et non une boucle d'`add` : c'est un aller-retour Redis au lieu de
+ * quatre, sur un chemin qui doit rester court — c'est lui qui sépare l'incident
+ * de la première alerte.
+ *
+ * La charge utile voyage **composée**. Recomposer dans la remise ferait qu'un
+ * rejeu trois minutes plus tard produirait un message différent de celui reçu
+ * par les autres canaux ; et cela rendrait chaque tentative dépendante de la
+ * base. Aucun secret n'y transite : le message neutre n'en contient pas, la
+ * configuration du canal est relue au moment d'envoyer.
+ */
+async function enqueueDeliveries(
+  channels: NotificationChannelRecord[],
+  payload: NotificationPayload,
+): Promise<number> {
+  if (channels.length === 0) return 0;
+
+  await getNotificationsQueue().addBulk(
+    channels.map((channel) => ({
+      name: NOTIFICATION_DELIVER_JOB,
+      data: { channelId: channel.id, channelName: channel.name, payload },
+      opts: {
+        attempts: NOTIFICATION_DELIVER_ATTEMPTS,
+        backoff: { type: 'exponential', delay: NOTIFICATION_DELIVER_BACKOFF_MS },
+        removeOnComplete: { age: 24 * 3600, count: 500 },
+        removeOnFail: { age: 7 * 24 * 3600 },
+      },
+    })),
+  );
+
+  return channels.length;
+}
+
+/**
+ * Décide du sort d'un événement notifiable.
+ *
+ * Le chemin « immédiat » est le chemin par défaut et il est **court** : lire les
+ * canaux abonnés, composer, décider, enfiler. Aucune attente, aucun délai
+ * volontaire. Un digest qui retarderait la première alerte aurait échangé un
+ * défaut contre un pire.
+ */
 export async function handleNotificationDispatch(
   job: Job<unknown, NotificationDispatchJobResult>,
 ): Promise<NotificationDispatchJobResult> {
   const data = notificationDispatchJobDataSchema.parse(job.data);
   const log = logger.child({ jobId: job.id, event: data.event });
 
+  const nothing = (mode: 'skipped') => ({
+    event: data.event,
+    targeted: 0,
+    delivered: 0,
+    failed: 0,
+    mode,
+    queued: 0,
+  });
+
   if (!isNotificationEventKey(data.event)) {
     // Un événement retiré du catalogue entre l'enfilement et la consommation.
     log.warn('événement inconnu, distribution abandonnée');
-    return { event: data.event, targeted: 0, delivered: 0, failed: 0 };
+    return nothing('skipped');
   }
 
   const channels = await notificationChannelsForEvent(data.event);
   if (channels.length === 0) {
+    // Personne n'écoute : on ne touche pas non plus à l'état de regroupement.
+    // Ouvrir une fenêtre pour un événement que nul ne reçoit ferait retenir la
+    // première alerte du jour où quelqu'un s'abonnera.
     log.debug('aucun canal abonné');
-    return { event: data.event, targeted: 0, delivered: 0, failed: 0 };
+    return nothing('skipped');
   }
 
   const [settings, actor] = await Promise.all([
@@ -147,44 +264,175 @@ export async function handleNotificationDispatch(
     notificationActorLabel(data.entry.actorId),
   ]);
 
-  const message = buildNotificationMessage(data.event, data.entry, {
+  const ctx: NotificationRenderContext = {
     instance: settings.instanceName,
     panelUrl: panelUrl(),
     actor,
     occurredAt: data.occurredAt,
+  };
+
+  const message = buildNotificationMessage(data.event, data.entry, ctx);
+  const item = buildNotificationDigestItem(data.event, data.entry, ctx);
+
+  const admission = await admitNotification({
+    groupKey: notificationDigestGroupKey(data.event),
+    event: data.event,
+    item,
   });
 
-  /**
-   * Les canaux sont servis **en parallèle**. Un serveur SMTP qui traîne ne doit
-   * pas retarder le salon Discord : ce sont des destinataires différents, qui
-   * n'ont aucune raison de s'attendre.
-   */
-  const outcomes = await Promise.all(
-    channels.map(async (channel) => {
-      const resolved = await resolveNotificationChannel(channel.id);
-      if (!resolved) return { id: channel.id, name: channel.name, ok: false, error: 'canal disparu' };
+  if (admission.mode === 'held') {
+    log.info(
+      {
+        heldCount: admission.heldCount,
+        windowEndsAt: admission.windowEndsAt.toISOString(),
+        label: item.label,
+      },
+      'alerte retenue pour regroupement',
+    );
+    return {
+      event: data.event,
+      targeted: channels.length,
+      delivered: 0,
+      failed: 0,
+      mode: 'held',
+      queued: 0,
+    };
+  }
 
-      try {
-        await getNotificationChannel(channel.kind).send(resolved.resolved, message);
-        return { id: channel.id, name: channel.name, ok: true, error: null };
-      } catch (error) {
-        // `describeFailure` expurge : un message de fournisseur peut contenir
-        // un fragment de jeton, et il finirait sinon en base et dans l'audit.
-        return {
-          id: channel.id,
-          name: channel.name,
-          ok: false,
-          error: describeFailure(error, resolved.resolved.secrets),
-        };
-      }
-    }),
-  );
+  const queued = await enqueueDeliveries(channels, { type: 'event', message });
+  log.info({ targeted: channels.length, queued }, 'alerte enfilée sans délai');
 
-  for (const outcome of outcomes) {
-    await recordNotificationOutcome(outcome.id, { ok: outcome.ok, error: outcome.error });
-    if (outcome.ok) continue;
+  return {
+    event: data.event,
+    targeted: channels.length,
+    delivered: 0,
+    failed: 0,
+    mode: 'immediate',
+    queued,
+  };
+}
 
-    log.error({ channel: outcome.name, error: outcome.error }, 'notification non délivrée');
+/**
+ * Ferme les fenêtres échues et compose les résumés.
+ *
+ * Le balayage est **sans état** : il relit la base, ne suppose rien de ce qui
+ * s'est passé avant, et peut donc être interrompu, redémarré ou exécuté par un
+ * autre worker sans conséquence. La transaction de `claimNotificationDigest()`
+ * garantit qu'un groupe n'est résumé qu'une fois même si deux balayages se
+ * croisent.
+ */
+export async function handleNotificationDigestSweep(
+  job: Job<unknown, NotificationDigestSweepJobResult>,
+): Promise<NotificationDigestSweepJobResult> {
+  const groups = await dueNotificationDigestGroups();
+  if (groups.length === 0) return { examined: 0, digests: 0, queued: 0 };
+
+  const log = logger.child({ jobId: job.id });
+  let digests = 0;
+  let queued = 0;
+
+  for (const groupKey of groups) {
+    const claim = await claimNotificationDigest(groupKey);
+    // `null` : la fenêtre s'est refermée sans rien avoir retenu. Le groupe
+    // redevient silencieux, la prochaine panne isolée repartira sans délai.
+    if (!claim) continue;
+
+    if (!isNotificationEventKey(claim.event)) {
+      log.warn({ groupKey, event: claim.event }, 'résumé abandonné : événement hors catalogue');
+      continue;
+    }
+
+    const channels = await notificationChannelsForEvent(claim.event);
+    if (channels.length === 0) {
+      // Tous les abonnements ont été retirés pendant la fenêtre. On le dit :
+      // des alertes retenues disparaissent ici, et un silence serait trompeur.
+      log.warn(
+        { groupKey, count: claim.count },
+        'résumé sans destinataire : plus aucun canal abonné',
+      );
+      continue;
+    }
+
+    const settings = await getAppSettingsValue();
+    const descriptor = notificationEventDescriptor(claim.event);
+
+    const digest = buildNotificationDigest({
+      event: claim.event,
+      severity: descriptor.severity,
+      eventLabel: descriptor.label,
+      items: claim.items,
+      count: claim.count,
+      windowStartedAt: claim.windowStartedAt.toISOString(),
+      windowEndedAt: claim.windowEndedAt.toISOString(),
+      windowMs: claim.windowMs,
+      nextWindowMs: claim.nextWindowMs,
+      instance: settings.instanceName,
+      panelUrl: panelUrl(),
+      path: notificationDigestPath(claim.event),
+    });
+
+    digests += 1;
+    queued += await enqueueDeliveries(channels, { type: 'digest', digest });
+
+    log.info(
+      { groupKey, count: claim.count, named: claim.items.length, nextWindowMs: claim.nextWindowMs },
+      'résumé composé',
+    );
+  }
+
+  return { examined: groups.length, digests, queued };
+}
+
+/**
+ * Délivre à **un** canal.
+ *
+ * Trois tentatives, un seul destinataire : le rejeu ne peut donc rien renvoyer
+ * à quelqu'un qui avait déjà reçu. La remise est *au moins une fois* — un envoi
+ * réussi dont l'accusé se perd partira deux fois. C'est l'arbitrage assumé : un
+ * message en double est une gêne, un message d'incident jamais parti est une
+ * panne.
+ *
+ * L'issue n'est enregistrée qu'**une fois**, au terme : sur un succès, ou sur la
+ * dernière tentative ratée. Compter chaque tentative gonflerait
+ * `consecutive_failures`, qui répond à « depuis quand ce canal ne marche
+ * plus ? » et non à « combien de paquets ont été perdus ? ».
+ */
+export async function handleNotificationDeliver(
+  job: Job<unknown, NotificationDeliverJobResult>,
+): Promise<NotificationDeliverJobResult> {
+  const data = notificationDeliverJobDataSchema.parse(job.data);
+  const event = notificationPayloadEvent(data.payload);
+  const attempt = (job.attemptsMade ?? 0) + 1;
+  const maxAttempts = job.opts.attempts ?? 1;
+  const log = logger.child({ jobId: job.id, event, channel: data.channelName, attempt });
+
+  const resolved = await resolveNotificationChannel(data.channelId);
+  if (!resolved) {
+    // Canal supprimé entre la décision et la remise. Rien à réparer : rejouer
+    // ne le ferait pas réapparaître.
+    log.warn('canal disparu, remise abandonnée');
+    throw new UnrecoverableError(`canal « ${data.channelName} » introuvable`);
+  }
+
+  try {
+    await deliverNotification(
+      getNotificationChannel(resolved.row.kind),
+      resolved.resolved,
+      data.payload,
+    );
+  } catch (error) {
+    // `describeFailure` expurge : un message de fournisseur peut contenir un
+    // fragment de jeton, et il finirait sinon en base et dans l'audit.
+    const detail = describeFailure(error, resolved.resolved.secrets);
+
+    if (attempt < maxAttempts) {
+      log.warn({ error: detail }, 'remise en échec, nouvelle tentative programmée');
+      throw error;
+    }
+
+    await recordNotificationOutcome(data.channelId, { ok: false, error: detail });
+    log.error({ error: detail }, 'notification non délivrée');
+
     /**
      * L'échec est tracé. `notification.delivery.failed` n'est volontairement
      * **pas** un événement notifiable : tenter de prévenir que l'on n'a pas su
@@ -194,20 +442,23 @@ export async function handleNotificationDispatch(
       actorId: null,
       action: 'notification.delivery.failed',
       resourceType: 'notification_channel',
-      resourceId: outcome.id,
-      after: { event: data.event, channel: outcome.name, error: outcome.error },
+      resourceId: data.channelId,
+      after: {
+        event,
+        channel: data.channelName,
+        error: detail,
+        attempts: attempt,
+        digest: data.payload.type === 'digest',
+      },
     });
+
+    throw new Error(detail);
   }
 
-  const delivered = outcomes.filter((outcome) => outcome.ok).length;
-  log.info({ targeted: channels.length, delivered }, 'distribution terminée');
+  await recordNotificationOutcome(data.channelId, { ok: true });
+  log.info({ digest: data.payload.type === 'digest' }, 'notification délivrée');
 
-  return {
-    event: data.event,
-    targeted: channels.length,
-    delivered,
-    failed: outcomes.length - delivered,
-  };
+  return { channelId: data.channelId, event, delivered: true, attempt, error: null };
 }
 
 // ─── essai manuel ─────────────────────────────────────────────────────────────

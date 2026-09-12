@@ -1,4 +1,5 @@
 import type { ChannelConfig } from './catalog.js';
+import { notificationDigestOmitted, type NotificationDigest } from './digest.js';
 import type { NotificationMessage } from './message.js';
 import { httpCall } from './http.js';
 import {
@@ -43,13 +44,19 @@ export class WebhookChannel implements NotificationChannel {
     return url;
   }
 
-  private headers(resolved: ResolvedChannelConfig, message: NotificationMessage) {
+  private headers(
+    resolved: ResolvedChannelConfig,
+    routing: { event: string; severity: string; digest: boolean },
+  ) {
     const token = str(resolved.secrets, 'token');
     return {
-      // Deux en-têtes de routage, pour qu'un consommateur puisse trier sans
-      // désérialiser le corps — un filtre de passerelle, typiquement.
-      'X-Control-Plane-Event': message.event,
-      'X-Control-Plane-Severity': message.severity,
+      // Trois en-têtes de routage, pour qu'un consommateur puisse trier sans
+      // désérialiser le corps — un filtre de passerelle, typiquement. Le
+      // troisième distingue un résumé d'une alerte : les deux n'ont pas la même
+      // forme, et un consommateur doit pouvoir le savoir avant de parser.
+      'X-Control-Plane-Event': routing.event,
+      'X-Control-Plane-Severity': routing.severity,
+      'X-Control-Plane-Digest': routing.digest ? 'true' : 'false',
       ...(token.length > 0 ? { authorization: `Bearer ${token}` } : {}),
     };
   }
@@ -77,8 +84,42 @@ export class WebhookChannel implements NotificationChannel {
       method: 'POST',
       timeoutMs: this.timeoutMs,
       secrets: resolved.secrets,
-      headers: this.headers(resolved, message),
-      body: { version: PAYLOAD_VERSION, ...message },
+      headers: this.headers(resolved, {
+        event: message.event,
+        severity: message.severity,
+        digest: false,
+      }),
+      body: { version: PAYLOAD_VERSION, type: 'event', ...message },
+    });
+  }
+
+  /**
+   * Le résumé, en JSON, **entier**.
+   *
+   * C'est le seul canal qui ne tronque rien : sa cible est un programme, pas un
+   * écran, et un programme qui reçoit « et 42 autres » ne peut rien en faire. Il
+   * reçoit donc `items` au complet (dans la limite de stockage) et `omitted`,
+   * qui dit combien de lignes n'ont jamais été retenues — la seule perte qui
+   * existe réellement, et elle est nommée.
+   */
+  async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
+    await httpCall({
+      channel: this.kind,
+      fetch: this.fetchImpl,
+      url: this.target(resolved),
+      method: 'POST',
+      timeoutMs: this.timeoutMs,
+      secrets: resolved.secrets,
+      headers: this.headers(resolved, {
+        event: digest.event,
+        severity: digest.severity,
+        digest: true,
+      }),
+      body: {
+        version: PAYLOAD_VERSION,
+        ...digest,
+        omitted: notificationDigestOmitted(digest),
+      },
     });
   }
 }

@@ -1,4 +1,9 @@
 import type { ChannelConfig } from './catalog.js';
+import {
+  digestTimeOfDay,
+  renderDigestOmission,
+  type NotificationDigest,
+} from './digest.js';
 import { type NotificationMessage } from './message.js';
 import { httpCall, jsonField } from './http.js';
 import {
@@ -61,6 +66,57 @@ function renderMarkdown(message: NotificationMessage): string {
   lines.push('', `_${escapeMarkdownV2(`${message.instance} · ${message.occurredAt}`)}_`);
 
   return lines.join('\n');
+}
+
+/**
+ * Combien de lignes un résumé montre ici.
+ *
+ * Six, et le chiffre est un arbitrage de canal, pas une constante globale :
+ * Telegram s'affiche sur un téléphone, dans un fil qui défile. Cinquante lignes
+ * y sont exactement aussi inutilisables que cinquante messages — on aurait
+ * déplacé le bruit, pas réduit. Les lignes tues sont **annoncées** ; l'e-mail,
+ * lui, les liste toutes.
+ */
+const DIGEST_LINES = 6;
+
+/** Borne dure de l'API Bot : 4096 caractères. On s'arrête bien avant. */
+const TEXT_LIMIT = 3500;
+
+function renderDigestMarkdown(digest: NotificationDigest): string {
+  const shown = digest.items.slice(0, DIGEST_LINES);
+  const omitted = digest.count - shown.length;
+
+  const lines = [
+    `${SEVERITY_MARK[digest.severity]} *${escapeMarkdownV2(digest.title)}*`,
+    '',
+    // Le corps complet expliquerait l'arbitrage en cinq phrases : sur un
+    // téléphone, c'est ce qui pousse la liste hors de l'écran. On garde la
+    // seule phrase qui manquerait à la compréhension.
+    escapeMarkdownV2(
+      `${digest.count} alertes entre ${digestTimeOfDay(digest.windowStartedAt)} et ` +
+        `${digestTimeOfDay(digest.windowEndedAt)} (UTC), regroupées.`,
+    ),
+    '',
+  ];
+
+  for (const item of shown) {
+    lines.push(
+      `• \`${escapeMarkdownV2(digestTimeOfDay(item.occurredAt))}\` ${escapeMarkdownV2(item.label)}` +
+        `${item.detail ? ` — ${escapeMarkdownV2(item.detail)}` : ''}`,
+    );
+  }
+
+  const omission = renderDigestOmission(omitted);
+  if (omission) lines.push('', `_${escapeMarkdownV2(omission)}_`);
+
+  if (digest.url) {
+    lines.push('', `[Ouvrir dans le panel](${digest.url.replace(/[()\\]/g, '\\$&')})`);
+  }
+
+  lines.push('', `_${escapeMarkdownV2(`${digest.instance} · ${digest.occurredAt}`)}_`);
+
+  const text = lines.join('\n');
+  return text.length <= TEXT_LIMIT ? text : `${text.slice(0, TEXT_LIMIT - 1)}…`;
 }
 
 const DEFAULT_API = 'https://api.telegram.org';
@@ -131,6 +187,28 @@ export class TelegramChannel implements NotificationChannel {
         parse_mode: 'MarkdownV2',
         // L'aperçu déplierait l'URL du panel en pleine conversation, ce qui
         // noie le message sous une vignette sans intérêt.
+        link_preview_options: { is_disabled: true },
+      },
+    });
+  }
+
+  /**
+   * Le résumé, court par construction : un titre, une phrase, six lignes, et le
+   * nombre de lignes tues. C'est le canal où « rester court » l'emporte sur
+   * « tout dire » — et où l'honnêteté impose donc de dire ce qu'on ne dit pas.
+   */
+  async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
+    await httpCall({
+      channel: this.kind,
+      fetch: this.fetchImpl,
+      url: this.endpoint(resolved, 'sendMessage'),
+      method: 'POST',
+      timeoutMs: this.timeoutMs,
+      secrets: resolved.secrets,
+      body: {
+        chat_id: str(resolved.config, 'chatId'),
+        text: renderDigestMarkdown(digest),
+        parse_mode: 'MarkdownV2',
         link_preview_options: { is_disabled: true },
       },
     });

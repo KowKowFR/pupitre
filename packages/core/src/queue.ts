@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { hostMetricsSchema } from './host-metrics.js';
+import { notificationDigestSchema } from './notifications/digest.js';
+import { notificationMessageSchema } from './notifications/message.js';
 import { workloadActionSchema, workloadListSchema, workloadRefSchema } from './workloads.js';
 
 /**
@@ -389,6 +391,19 @@ export const notificationDispatchJobResultSchema = z.object({
   targeted: z.number().int().nonnegative(),
   delivered: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
+  /**
+   * Ce que le regroupement a décidé (ajout du garde-fou de volume) :
+   *   immediate  la fenêtre était fermée — le message part tout de suite
+   *   held       une fenêtre est ouverte — l'événement est retenu, nommé, en base
+   *   skipped    aucun canal abonné : rien à décider
+   *
+   * `delivered` et `failed` restent à zéro depuis que la remise est une tâche
+   * par canal : c'est `notification:deliver` qui les connaît, un canal à la
+   * fois. Les champs sont conservés — d'anciens résultats en Redis les portent.
+   */
+  mode: z.enum(['immediate', 'held', 'skipped']).default('immediate'),
+  /** Tâches de remise enfilées, une par canal abonné. */
+  queued: z.number().int().nonnegative().default(0),
 });
 
 export type NotificationDispatchJobData = z.infer<typeof notificationDispatchJobDataSchema>;
@@ -435,3 +450,203 @@ export function notificationDedupKey(event: string, resourceId: string | null): 
 
 /** Cinq minutes : très au-delà des quelques secondes que durent les rejeux. */
 export const NOTIFICATION_DEDUP_TTL_MS = 5 * 60_000;
+
+/* ---------------------------------------------------------------------------
+   Notifications — remise par canal et regroupement
+   ------------------------------------------------------------------------- */
+
+/**
+ * Remise à **un** canal.
+ *
+ * Second étage de l'éventail : `notification:dispatch` décide *quoi* envoyer et
+ * *à qui*, `notification:deliver` envoie, un canal à la fois. Le découpage n'est
+ * pas cosmétique — c'est ce qui rend le rejeu correct. Une distribution unique
+ * qui échoue sur le serveur SMTP et réussit sur Discord ne peut pas être rejouée
+ * sans renvoyer le message à Discord ; c'est la raison pour laquelle la couche
+ * livrée hier tenait `attempts: 1`. Une tâche par canal supprime le dilemme :
+ * la tâche qui rate est celle d'un seul destinataire, et elle se rejoue seule.
+ *
+ * L'émetteur, lui, n'a rien changé : c'est toujours le worker qui déplie
+ * l'éventail, jamais l'observateur du journal d'audit dans le chemin d'une
+ * requête HTTP.
+ */
+export const NOTIFICATION_DELIVER_JOB = 'notification:deliver' as const;
+
+/**
+ * Balayage des fenêtres de regroupement échues.
+ *
+ * Une tâche répétable, pas une tâche retardée par fenêtre. Une tâche retardée
+ * serait plus précise mais vivrait dans Redis, alors que l'état de regroupement
+ * vit en base : les deux pourraient diverger, et le jour où Redis est reparti à
+ * vide, les fenêtres ouvertes ne se refermeraient plus jamais. Un balayage qui
+ * relit la base est, lui, sans état — c'est le même raisonnement que le
+ * balayage des sondes de supervision.
+ */
+export const NOTIFICATION_DIGEST_SWEEP_JOB = 'notification:digest_sweep' as const;
+
+/**
+ * Ce qu'une remise transporte : la charge **déjà composée**.
+ *
+ * Recomposer le message dans la tâche de remise obligerait chaque tentative à
+ * relire les paramètres, l'acteur et l'entrée d'audit — et un rejeu trois
+ * minutes plus tard pourrait produire un message *différent* de celui reçu par
+ * les autres canaux. Un message figé à la composition est le seul qui garantisse
+ * que tous les destinataires ont lu la même chose.
+ *
+ * Aucun secret n'y transite : le message neutre n'en contient pas, et la
+ * configuration du canal est relue en base au moment d'envoyer.
+ */
+export const notificationDeliverJobDataSchema = z.object({
+  channelId: z.string().uuid(),
+  /** Recopié pour les journaux : un canal supprimé entre-temps n'a plus de nom. */
+  channelName: z.string().min(1).max(120),
+  payload: z.discriminatedUnion('type', [
+    z.object({ type: z.literal('event'), message: notificationMessageSchema }),
+    z.object({ type: z.literal('digest'), digest: notificationDigestSchema }),
+  ]),
+});
+
+export const notificationDeliverJobResultSchema = z.object({
+  channelId: z.string().uuid(),
+  event: z.string(),
+  delivered: z.boolean(),
+  /** Numéro de la tentative qui a abouti (ou de la dernière). Commence à 1. */
+  attempt: z.number().int().positive(),
+  error: z.string().nullable(),
+});
+
+export type NotificationDeliverJobData = z.infer<typeof notificationDeliverJobDataSchema>;
+export type NotificationDeliverJobResult = z.infer<typeof notificationDeliverJobResultSchema>;
+
+export const notificationDigestSweepJobResultSchema = z.object({
+  /** Groupes dont la fenêtre était échue. */
+  examined: z.number().int().nonnegative(),
+  /** Résumés réellement composés — les fenêtres vides n'en produisent pas. */
+  digests: z.number().int().nonnegative(),
+  /** Tâches de remise enfilées, tous groupes et tous canaux confondus. */
+  queued: z.number().int().nonnegative(),
+});
+
+export type NotificationDigestSweepJobResult = z.infer<
+  typeof notificationDigestSweepJobResultSchema
+>;
+
+/**
+ * Rejeu d'une remise.
+ *
+ * Trois tentatives, espacées exponentiellement à partir de cinq secondes. Le cas
+ * visé est le hoquet : un 502 de Discord, un greylisting SMTP, une coupure
+ * réseau d'une poignée de secondes. Au-delà, ce n'est plus un hoquet et
+ * s'acharner n'apporte rien — l'échec est alors enregistré sur le canal, tracé
+ * dans le journal d'audit, et visible à l'écran.
+ *
+ * La remise est *au moins une fois* : un envoi réussi dont l'accusé se perd
+ * partira deux fois. C'est l'arbitrage assumé — un message en double est une
+ * gêne, un message d'incident jamais parti est une panne.
+ */
+export const NOTIFICATION_DELIVER_ATTEMPTS = 3;
+export const NOTIFICATION_DELIVER_BACKOFF_MS = 5_000;
+
+/* ---------------------------------------------------------------------------
+   Déploiements figés
+   ------------------------------------------------------------------------- */
+
+/**
+ * ## Comment on distingue un fantôme d'un déploiement lent
+ *
+ * Un déploiement légitime peut tenir plusieurs minutes : un `docker pull` d'une
+ * grosse image, un build, un healthcheck qui laisse une application démarrer.
+ * Aucun délai ne sépare honnêtement ce cas d'un déploiement dont plus personne
+ * ne s'occupe — un détecteur trop pressé conclurait à la mort d'un build de
+ * quatre minutes, et rendrait le produit moins fiable que la panne qu'il
+ * prétend réparer.
+ *
+ * Le signal retenu n'est donc pas un délai mais une **preuve d'absence** : la
+ * tâche BullMQ qui portait ce déploiement n'existe plus dans aucun état où elle
+ * pourrait encore s'exécuter. C'est vérifiable, ce n'est pas une supposition, et
+ * c'est exactement ce que BullMQ sait dire.
+ *
+ * Ce sont les états ci-dessous. Ils sont énumérés **en positif** — « ce qui peut
+ * encore tourner » — plutôt qu'en négatif : un état de plus dans une version
+ * future de BullMQ serait alors traité comme « peut encore tourner », donc en
+ * faveur du déploiement. L'erreur possible penche du bon côté.
+ *
+ * `completed` et `failed` en sont volontairement absents, et c'est le cœur du
+ * sujet : une tâche `failed` **existe encore** dans la file — sept jours, par
+ * rétention — sans qu'aucun worker ne la reprenne. C'est précisément l'état où
+ * BullMQ abandonne une tâche dont le worker est mort deux fois de suite
+ * (« job stalled more than allowable limit ») : elle est mise en échec sans que
+ * notre handler ait jamais tourné, donc sans que personne n'écrive le verdict
+ * en base. Le déploiement reste `running` pour toujours.
+ *
+ * Pas d'état « paused » dans cette liste : une file en pause garde ses tâches
+ * dans `wait`, la pause est un drapeau sur la file, pas un état de tâche.
+ */
+export const UNFINISHED_JOB_STATES = [
+  'active',
+  'wait',
+  'waiting-children',
+  'delayed',
+  'prioritized',
+] as const;
+
+export type UnfinishedJobState = (typeof UNFINISHED_JOB_STATES)[number];
+
+/**
+ * Fenêtre de grâce avant qu'un déploiement puisse être déclaré fantôme.
+ *
+ * Ce n'est **pas** un délai de mort : la mort est prouvée par l'absence de
+ * tâche, jamais par l'ancienneté. Elle ne couvre qu'une seule fenêtre, celle de
+ * l'enfilage : `POST /api/deployments` écrit la ligne en base *puis* enfile la
+ * tâche. Entre les deux, un déploiement parfaitement sain n'a effectivement
+ * aucune tâche. Une minute est trois ordres de grandeur au-dessus de ce que
+ * dure cet intervalle.
+ */
+export const STUCK_DEPLOYMENT_GRACE_MS = 60_000;
+
+/**
+ * Ce qu'on lit d'une tâche de la file pour savoir si elle concerne un
+ * déploiement. Volontairement minimal : `@tp/core` ne dépend pas de `bullmq` —
+ * ce module ne décrit que le contrat des files, il n'en ouvre aucune — et
+ * l'appelant, panel ou worker, passe ce qu'il a lu.
+ */
+export type QueuedJobRef = {
+  readonly name: string;
+  readonly data: unknown;
+};
+
+function readString(data: unknown, key: string): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const value = (data as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Cette tâche peut-elle encore faire avancer — ou conclure — ce déploiement ?
+ *
+ * Les quatre noms retenus sont ceux qui écrivent un statut de déploiement :
+ * `deployment:run` le porte de bout en bout, `deployment:rollback` et
+ * `deployment:destroy` le concluent, et `application:delete` détruit en cascade
+ * tous les déploiements de son application — il ne cite pas de `deploymentId`,
+ * d'où la comparaison sur `applicationId`.
+ *
+ * Le doute profite au déploiement : tant qu'une seule de ces tâches est encore
+ * exécutable, on ne déclare rien. Se tromper en attendant coûte une ligne
+ * bloquée quelques minutes de plus ; se tromper en concluant écrit un verdict
+ * faux sur un déploiement qui, lui, avance encore.
+ */
+export function jobMayAdvanceDeployment(
+  job: QueuedJobRef,
+  ref: { deploymentId: string; applicationId: string },
+): boolean {
+  switch (job.name) {
+    case DEPLOYMENT_RUN_JOB:
+    case DEPLOYMENT_ROLLBACK_JOB:
+    case DEPLOYMENT_DESTROY_JOB:
+      return readString(job.data, 'deploymentId') === ref.deploymentId;
+    case APPLICATION_DELETE_JOB:
+      return readString(job.data, 'applicationId') === ref.applicationId;
+    default:
+      return false;
+  }
+}

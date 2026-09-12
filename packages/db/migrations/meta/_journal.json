@@ -92,6 +92,13 @@
       "when": 1789131595313,
       "tag": "0012_bent_may_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789246754214,
+      "tag": "0013_powerful_shotgun",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import type { NotificationChannel, NotificationTransports } from './types.js';
 import { WebhookChannel } from './webhook.js';
 
 export * from './catalog.js';
+export * from './digest.js';
 export * from './dispatch.js';
 export * from './events.js';
 export * from './message.js';
