@@ -160,12 +160,13 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       });
     });
 
-    it('impose un securityContext strict', () => {
+    /**
+     * `simple.json` tire `nginx` d'un registry : c'est précisément l'image que
+     * l'ancien contexte, uniforme, empêchait de démarrer.
+     */
+    it('durcit sans imposer d’identité — l’image est tierce', () => {
       const pod = deploymentOf(manifests, 'api').spec.template.spec;
       assert.deepEqual(pod.securityContext, {
-        runAsNonRoot: true,
-        runAsUser: 1000,
-        runAsGroup: 1000,
         fsGroup: 1000,
         seccompProfile: { type: 'RuntimeDefault' },
       });
@@ -173,6 +174,13 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(container?.securityContext.allowPrivilegeEscalation, false);
       assert.equal(container?.securityContext.privileged, false);
       assert.deepEqual(container?.securityContext.capabilities.drop, ['ALL']);
+      assert.deepEqual(container?.securityContext.capabilities.add, [
+        'CHOWN',
+        'DAC_OVERRIDE',
+        'FOWNER',
+        'SETGID',
+        'SETUID',
+      ]);
     });
 
     it('expose en ClusterIP : aucun port hôte, c’est le rôle de l’Ingress', () => {
@@ -590,6 +598,116 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
         MARIADB_PASSWORD: 'valeur-partagee',
         MARIADB_ROOT_PASSWORD: 'root',
       });
+    });
+  });
+
+  /**
+   * Le durcissement se décide sur ce que l'on connaît de l'image, pas sur une
+   * règle uniforme. Ces cas figent la décision champ par champ : c'est du rendu
+   * pur, donc vérifiable sans cluster — alors que la panne qu'ils préviennent,
+   * elle, ne se voyait qu'au démarrage d'un pod.
+   */
+  describe('securityContext selon le type de source', () => {
+    /** Une AppSpec minimale portant les deux régimes côte à côte. */
+    const spec = parseAppSpec({
+      name: 'mixte',
+      version: '1.0.0',
+      services: [
+        {
+          name: 'web',
+          source: { type: 'dockerfile', context: './web', dockerfile: 'Dockerfile' },
+          port: 3000,
+          exposed: true,
+          dependsOn: ['db'],
+        },
+        {
+          name: 'db',
+          source: { type: 'image', ref: 'postgres:16-alpine' },
+          port: 5432,
+          volumes: [{ name: 'data', mountPath: '/var/lib/postgresql/data' }],
+        },
+      ],
+    });
+    const manifests = renderManifests({ spec, appSlug: spec.name });
+    const own = deploymentOf(manifests, 'web').spec.template.spec;
+    const third = deploymentOf(manifests, 'db').spec.template.spec;
+
+    it('impose l’identité d’exécution à une image que nous construisons', () => {
+      assert.deepEqual(own.securityContext, {
+        runAsNonRoot: true,
+        runAsUser: 1000,
+        runAsGroup: 1000,
+        fsGroup: 1000,
+        seccompProfile: { type: 'RuntimeDefault' },
+      });
+    });
+
+    it('ne l’impose pas à une image tierce : on ignore sous quel compte elle tourne', () => {
+      assert.equal(third.securityContext.runAsNonRoot, undefined);
+      assert.equal(third.securityContext.runAsUser, undefined);
+      assert.equal(third.securityContext.runAsGroup, undefined);
+    });
+
+    it('garde `fsGroup` dans les deux cas : il possède le volume, pas le processus', () => {
+      assert.equal(own.securityContext.fsGroup, 1000);
+      assert.equal(
+        third.securityContext.fsGroup,
+        1000,
+        'le retirer rendrait un PVC neuf (root:root 0755) illisible en non-root',
+      );
+    });
+
+    it('garde `seccompProfile` dans les deux cas : il ne dépend d’aucune identité', () => {
+      assert.deepEqual(own.securityContext.seccompProfile, { type: 'RuntimeDefault' });
+      assert.deepEqual(third.securityContext.seccompProfile, { type: 'RuntimeDefault' });
+    });
+
+    it('interdit privilège et élévation dans les deux cas', () => {
+      for (const pod of [own, third]) {
+        assert.equal(pod.containers[0]?.securityContext.privileged, false);
+        assert.equal(pod.containers[0]?.securityContext.allowPrivilegeEscalation, false);
+      }
+    });
+
+    it('retire toutes les capacités à nos images, et rend le strict nécessaire aux autres', () => {
+      assert.deepEqual(own.containers[0]?.securityContext.capabilities, { drop: ['ALL'] });
+      // Mesuré : sans ces cinq-là, `nginx` échoue sur `chown` et `postgres` sur
+      // `chmod` — leur point d'entrée démarre root puis abandonne ses privilèges.
+      assert.deepEqual(third.containers[0]?.securityContext.capabilities, {
+        drop: ['ALL'],
+        add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'],
+      });
+    });
+
+    it('n’accorde jamais les capacités que Docker donne pourtant par défaut', () => {
+      const granted = third.containers[0]?.securityContext.capabilities.add ?? [];
+      for (const forbidden of ['NET_RAW', 'MKNOD', 'SYS_CHROOT', 'SETPCAP', 'SETFCAP', 'KILL']) {
+        assert.ok(!granted.includes(forbidden), `${forbidden} ne doit pas être accordée`);
+      }
+    });
+
+    it('ne verrouille la racine que sur nos images', () => {
+      assert.equal(own.containers[0]?.securityContext.readOnlyRootFilesystem, true);
+      assert.equal(third.containers[0]?.securityContext.readOnlyRootFilesystem, false);
+    });
+
+    it('ne sérialise aucun champ d’identité vide pour une image tierce', () => {
+      const deployment = manifests.find(
+        (manifest) => manifest.kind === 'Deployment' && manifest.metadata.name === 'db',
+      );
+      assert.ok(deployment);
+      const yaml = serializeManifest(deployment);
+      // `runAsUser: null` serait refusé par l'API : le champ doit être absent.
+      assert.ok(!yaml.includes('runAsUser'), yaml);
+      assert.ok(!yaml.includes('runAsNonRoot'), yaml);
+      assert.ok(!yaml.includes('runAsGroup'), yaml);
+      assert.match(yaml, /fsGroup: 1000/);
+    });
+
+    it('les manifests restent valides pour Kubernetes', { skip: !kubectlAvailable }, () => {
+      const output = validateWithKubectl(spec);
+      assert.match(output, /deployment\.apps\/db/);
+      assert.match(output, /deployment\.apps\/web/);
     });
   });
 });

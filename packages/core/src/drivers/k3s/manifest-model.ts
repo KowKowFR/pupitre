@@ -69,11 +69,16 @@ export type Probe = {
   successThreshold?: number;
 };
 
-/** `securityContext` au niveau du pod. */
+/**
+ * `securityContext` au niveau du pod.
+ *
+ * L'identité d'exécution est **optionnelle** : elle ne peut être imposée qu'à
+ * une image dont on connaît le contenu. Voir `podSecurityContext()`.
+ */
 export type PodSecurityContext = {
-  runAsNonRoot: boolean;
-  runAsUser: number;
-  runAsGroup: number;
+  runAsNonRoot?: boolean;
+  runAsUser?: number;
+  runAsGroup?: number;
   /** Propriétaire des volumes montés : sans lui, un PVC reste illisible en non-root. */
   fsGroup: number;
   seccompProfile: { type: 'RuntimeDefault' };
@@ -84,7 +89,7 @@ export type ContainerSecurityContext = {
   allowPrivilegeEscalation: boolean;
   privileged: boolean;
   readOnlyRootFilesystem: boolean;
-  capabilities: { drop: string[] };
+  capabilities: { drop: string[]; add?: string[] };
 };
 
 export type ResourceRequirements = {

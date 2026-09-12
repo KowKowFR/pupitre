@@ -60,9 +60,12 @@ export const DEFAULT_INGRESS_CLASS = 'traefik';
 export const DEFAULT_VOLUME_SIZE = '1Gi';
 
 /**
- * UID/GID du compte non privilégié imposé à tous les pods. La spec ne le dit
- * pas : c'est une décision de runtime, comme la politique de redémarrage côté
- * Compose.
+ * UID/GID du compte non privilégié. La spec ne le dit pas : c'est une décision
+ * de runtime, comme la politique de redémarrage côté Compose.
+ *
+ * Il sert deux usages qu'il ne faut pas confondre : l'identité du processus,
+ * imposée aux seules images que nous construisons, et le `fsGroup` des volumes,
+ * posé sur tous les pods. Voir `podSecurityContext()`.
  */
 export const RUN_AS_UID = 1000;
 
@@ -156,21 +159,75 @@ function renderProbe(service: Service, http: boolean, initialDelaySeconds: numbe
 }
 
 /**
- * `readOnlyRootFilesystem` quand c'est tenable : sur une image que **nous**
- * construisons, on sait qu'un `/tmp` inscriptible suffit. Sur une image tierce
- * tirée d'un registry (postgres, nginx…), on ignore ce qu'elle écrit à la racine
- * et un montage en lecture seule la casserait au démarrage. Le driver choisit,
- * la spec ne dit rien.
+ * Le durcissement n'est légitime que sur ce qu'on connaît.
+ *
+ * Sur une image que **nous** construisons depuis un Dockerfile, on sait ce
+ * qu'elle écrit, sous quel compte elle tourne, ce dont son point d'entrée a
+ * besoin : on peut donc tout verrouiller. Sur une image tierce tirée d'un
+ * registry (`postgres`, `nginx`, `mariadb`, `wordpress`…), on ne sait rien de
+ * tout cela, et chaque contrainte imposée à l'aveugle devient une panne au
+ * démarrage — sur un runtime seulement, alors que la même AppSpec tourne en
+ * Docker. C'est exactement ce que les trois abstractions du projet existent
+ * pour empêcher.
+ *
+ * `isOwnImage()` est donc la question posée à chaque champ du contexte de
+ * sécurité, pas seulement à la racine en lecture seule.
  */
-function allowsReadOnlyRoot(service: Service): boolean {
+function isOwnImage(service: Service): boolean {
   return service.source.type === 'dockerfile';
 }
 
-function podSecurityContext(): PodSecurityContext {
+/** Racine en lecture seule : tenable seulement sur une image que l'on bâtit. */
+function allowsReadOnlyRoot(service: Service): boolean {
+  return isOwnImage(service);
+}
+
+/**
+ * Capacités rendues aux images tierces.
+ *
+ * Mesuré sur le cluster de test, `drop: ALL` seul suffit à casser les images
+ * officielles les plus banales :
+ *
+ *     nginx    : chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
+ *     postgres : chmod: /var/run/postgresql: Operation not permitted
+ *
+ * Leur point d'entrée démarre root, prépare ses répertoires, puis abandonne
+ * ses privilèges — c'est le schéma standard, et il réclame ces cinq capacités
+ * et pas une de plus. Docker, lui, en accorde quatorze par défaut
+ * (`NET_RAW`, `MKNOD`, `SYS_CHROOT`, `SETPCAP`, `SETFCAP`, `KILL`… incluses) :
+ * même élargi, K3s reste strictement plus fermé que l'autre runtime.
+ *
+ * `NET_BIND_SERVICE` en est volontairement absente : le kubelet positionne
+ * `net.ipv4.ip_unprivileged_port_start=0` dans le bac à sable, et un `nginx`
+ * écoutant sur 80 démarre sans elle — vérifié sur la cible.
+ */
+const THIRD_PARTY_CAPABILITIES = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'];
+
+/**
+ * Identité d'exécution du pod.
+ *
+ * Les quatre champs n'ont pas la même nature, et ne se décident donc pas
+ * ensemble :
+ *
+ * - `runAsNonRoot`, `runAsUser`, `runAsGroup` **choisissent le compte** sous
+ *   lequel le processus démarre. Sur une image tierce, c'est un pari perdu :
+ *   ni son arborescence ni son point d'entrée ne nous appartiennent, et le
+ *   kubelet refuse même de lancer un conteneur dont l'image déclare `root`
+ *   quand `runAsNonRoot` est posé. On ne les impose qu'à nos propres images.
+ * - `fsGroup` ne touche pas à l'identité du processus : il donne au **volume
+ *   monté** le groupe indiqué (et l'ajoute aux groupes secondaires du
+ *   conteneur). C'est précisément ce qui rend un PVC fraîchement provisionné —
+ *   `root:root 0755` — inscriptible par un conteneur tournant sous son propre
+ *   uid. Le retirer serait la seule de ces quatre décisions à casser quelque
+ *   chose : il reste inconditionnel.
+ * - `seccompProfile` ne dépend d'aucune identité, et Docker applique son propre
+ *   profil par défaut : inconditionnel là aussi.
+ */
+function podSecurityContext(service: Service): PodSecurityContext {
   return {
-    runAsNonRoot: true,
-    runAsUser: RUN_AS_UID,
-    runAsGroup: RUN_AS_UID,
+    ...(isOwnImage(service)
+      ? { runAsNonRoot: true, runAsUser: RUN_AS_UID, runAsGroup: RUN_AS_UID }
+      : {}),
     fsGroup: RUN_AS_UID,
     seccompProfile: { type: 'RuntimeDefault' },
   };
@@ -181,7 +238,9 @@ function containerSecurityContext(service: Service): ContainerSecurityContext {
     allowPrivilegeEscalation: false,
     privileged: false,
     readOnlyRootFilesystem: allowsReadOnlyRoot(service),
-    capabilities: { drop: ['ALL'] },
+    capabilities: isOwnImage(service)
+      ? { drop: ['ALL'] }
+      : { drop: ['ALL'], add: [...THIRD_PARTY_CAPABILITIES] },
   };
 }
 
@@ -350,7 +409,7 @@ function renderDeployment(input: RenderInput, service: Service): DeploymentManif
       template: {
         metadata: { labels: standardLabels(appSlug, service.name, spec.version) },
         spec: {
-          securityContext: podSecurityContext(),
+          securityContext: podSecurityContext(service),
           containers: [container],
           ...(volumes.length > 0 ? { volumes } : {}),
         },

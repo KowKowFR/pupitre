@@ -391,9 +391,12 @@ export class K3sDriver implements DeploymentDriver {
       timeout: SHORT_TIMEOUT_MS,
     });
     if (hasDocker.code !== 0) {
+      const names = buildable.map((service) => `« ${service.name} »`).join(', ');
       throw new DriverError(
-        "Aucun `docker` sur le node : impossible de construire l'image sans registry. " +
-          'Installez Docker sur la cible, ou fournissez une AppSpec dont les services ' +
+        'Aucun `docker` sur le node : un node K3s fait tourner containerd, et ' +
+          "`k3s ctr` ne sait qu'importer une image, pas la construire. " +
+          `Service(s) concerné(s) : ${names}. ` +
+          'Installez Docker sur la cible, ou fournissez une AppSpec dont ces services ' +
           'référencent des images déjà publiées (`source.type: "image"`).',
         this.runtime,
         'build',

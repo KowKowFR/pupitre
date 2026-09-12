@@ -7,14 +7,18 @@
  *   pnpm test:parity <cible-docker> <cible-k3s> [--spec fichier.json] [--keep]
  *
  * Déroulé :
- *   1. une application créée depuis `fullstack.json`
- *   2. déployée sur la cible Docker  → l'URL doit répondre 200
- *   3. déployée sur la cible K3s, **même AppSpec, sans une modification**
- *   4. rollback des deux            → les deux URL répondent toujours
- *   5. destroy des deux             → plus rien ne tourne, le port Docker est
+ *   1. une application créée depuis `parity.json`
+ *   2. les deux cibles ouvertes
+ *   3. les limites connues nommées et exclues du décompte
+ *   4. déployée sur la cible Docker puis, **même AppSpec, sans une seule
+ *      modification**, sur la cible K3s → chacune doit répondre 200 par le
+ *      moyen que son driver a annoncé
+ *   5. rollback des deux             → les deux répondent toujours
+ *   6. destroy des deux              → plus rien ne tourne, le port Docker est
  *      libéré, le namespace K3s a disparu
  *
- * Sortie en code 1 dès qu'un seul point échoue.
+ * Sortie en code 1 dès qu'un seul point échoue. Une limite connue n'est pas un
+ * échec : elle est rapportée à part, avec son motif — voir `exclude()`.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -40,7 +44,24 @@ import {
 } from '@tp/db';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_SPEC = path.join(ROOT, 'packages/core/src/spec/__fixtures__/fullstack.json');
+
+/**
+ * Pourquoi `parity.json` et non `fullstack.json`.
+ *
+ * `fullstack.json` heurte deux limites qui n'ont rien à voir avec la parité et
+ * qui la rendaient invérifiable : ses services `front` et `api` se construisent
+ * depuis un Dockerfile — impossible sur un node K3s, qui fait tourner
+ * containerd (voir « Limites connues » plus bas) — et `front.replicas: 2`
+ * empêche Docker de publier un port, deux conteneurs ne pouvant pas se lier au
+ * même. Elle reste la fixture de référence du rendu et du prompt ; elle n'est
+ * pas celle du déploiement croisé.
+ *
+ * `parity.json` la remplace sans rien retirer de ce qui se vérifie ici : quatre
+ * services reliés par `dependsOn`, deux volumes, deux secrets dont un alias,
+ * une réplication à 2 sur un service non exposé, un ingress TLS. Tous partent
+ * d'images publiées : c'est la seule concession, et elle est nommée.
+ */
+const DEFAULT_SPEC = path.join(ROOT, 'packages/core/src/spec/__fixtures__/parity.json');
 
 const ESC = String.fromCharCode(27);
 const paint = (code: string) => (text: string) => `${ESC}[${code}m${text}${ESC}[0m`;
@@ -71,6 +92,31 @@ type Check = {
 };
 
 const checks: Check[] = [];
+
+/**
+ * Une capacité qu'un runtime n'a pas, et que ce test **n'exerce donc pas**.
+ *
+ * Ce n'est ni un échec ni un silence : une limite est nommée, motivée, et
+ * ressortie dans le récapitulatif hors du décompte. Un test qu'on rend vert en
+ * supprimant ce qu'il vérifiait ne vaut rien ; un test qui dit ce qu'il ne
+ * vérifie pas, et pourquoi, reste lisible dans six mois.
+ */
+type Limitation = {
+  runtime: RuntimeKind;
+  label: string;
+  reason: string;
+  /** Où la décision est documentée. */
+  reference: string;
+};
+
+const limitations: Limitation[] = [];
+
+function exclude(limitation: Limitation): void {
+  limitations.push(limitation);
+  write(`  ${yellow('N/A')} [${limitation.runtime}] ${limitation.label}\n`);
+  write(`      ${dim(limitation.reason)}\n`);
+  write(`      ${dim(limitation.reference)}\n`);
+}
 
 function record(check: Check): boolean {
   checks.push(check);
@@ -309,20 +355,28 @@ async function openSide(
 // ─── sonde HTTP ───────────────────────────────────────────────────────────────
 
 /**
- * Sonde l'URL **depuis la cible**, seul endroit d'où elle est joignable à coup
- * sûr : le poste qui lance ce script n'a ni le DNS de l'application, ni de route
- * vers le réseau interne du cluster.
+ * Sonde l'application **depuis la cible**, seul endroit d'où elle est joignable
+ * à coup sûr : le poste qui lance ce script n'a ni le DNS de l'application, ni
+ * de route vers le réseau interne du cluster.
  *
- * La commande n'a rien de spécifique à un runtime : elle se déduit de ce que le
- * driver a répondu — une URL avec un nom de domaine, ou un port publié.
+ * L'ordre — port publié d'abord, URL ensuite — n'est pas arbitraire, et ce
+ * n'est toujours pas un `if (runtime === …)` : c'est la réponse du driver qui
+ * décide. Un port publié est ce que le driver a **réellement** ouvert sur la
+ * machine ; l'URL à nom de domaine, elle, ne répond que si un proxy l'a
+ * enregistrée, et l'enregistrement appartient au `ProxyProvider`, que ce script
+ * n'appelle jamais. Sonder `https://parite.example.com` côté Docker revenait
+ * donc à vérifier un composant que le test n'installe pas — d'où un échec qui
+ * ne disait rien sur la parité. Côté K3s il n'y a rien d'autre à sonder :
+ * `allocatePort()` a répondu `null`, l'Ingress *est* l'exposition.
  */
 async function probeFromTarget(
   side: Side,
   probePath: string,
 ): Promise<{ status: number | null; detail: string }> {
-  const url = side.url ?? (side.publishedPort ? `http://127.0.0.1:${side.publishedPort}` : null);
+  const url =
+    side.publishedPort !== null ? `http://127.0.0.1:${side.publishedPort}` : side.url;
   if (!url) {
-    return { status: null, detail: "le driver n'a annoncé ni URL ni port publié" };
+    return { status: null, detail: "le driver n'a annoncé ni port publié ni URL" };
   }
 
   const parsed = new URL(url);
@@ -336,12 +390,18 @@ async function probeFromTarget(
   const resolve = isName ? `--resolve '${parsed.hostname}:${port}:127.0.0.1' ` : '';
   const command = `curl -s -k -o /dev/null -w '%{http_code}' -m 15 ${resolve}'${target}'`;
 
+  const via =
+    side.publishedPort !== null
+      ? `port publié ${side.publishedPort}`
+      : `URL annoncée ${parsed.origin}`;
+
   const result = await exec(side.session, command, { timeout: 30_000 });
   const status = Number.parseInt(result.stdout.trim().split('\n').pop() ?? '', 10);
+  const ok = !Number.isNaN(status) && status !== 0;
 
   return {
-    status: Number.isNaN(status) || status === 0 ? null : status,
-    detail: command,
+    status: ok ? status : null,
+    detail: ok ? `${via} — ${target}` : `${via} — ${command}`,
   };
 }
 
@@ -447,7 +507,7 @@ async function deploySide(side: Side, probePath: string): Promise<void> {
     runtime,
     label: "l'URL répond 200",
     ok: probe.status !== null && probe.status >= 200 && probe.status < 400,
-    detail: probe.status === null ? probe.detail : `HTTP ${probe.status}`,
+    detail: probe.status === null ? probe.detail : `HTTP ${probe.status} — ${probe.detail}`,
   });
 }
 
@@ -479,7 +539,7 @@ async function rollbackSide(side: Side, probePath: string): Promise<void> {
     runtime,
     label: "l'URL répond toujours",
     ok: probe.status !== null && probe.status >= 200 && probe.status < 400,
-    detail: probe.status === null ? probe.detail : `HTTP ${probe.status}`,
+    detail: probe.status === null ? probe.detail : `HTTP ${probe.status} — ${probe.detail}`,
   });
 }
 
@@ -542,6 +602,56 @@ async function destroySide(side: Side): Promise<void> {
   });
 }
 
+// ─── limites connues ──────────────────────────────────────────────────────────
+
+/**
+ * Ce que ce test **n'exerce pas**, constaté sur les cibles plutôt que supposé.
+ *
+ * La question posée est la même aux deux : « y a-t-il un `docker` ici ? ». Sans
+ * lui, un service `source.type: "dockerfile"` ne peut pas être construit — la
+ * décision de projet « build sur la machine cible, sans registry » n'a pas
+ * d'équivalent sur un node qui fait tourner containerd, et `k3s ctr` sait
+ * importer une image, pas la bâtir. On le dit, on l'exclut du décompte, et on
+ * ne fait pas semblant de l'avoir vérifié.
+ */
+async function reportLimitations(sides: Side[], spec: AppSpec): Promise<void> {
+  const buildable = spec.services.filter((service) => service.source.type === 'dockerfile');
+
+  for (const side of sides) {
+    const docker = await exec(side.session, 'command -v docker >/dev/null 2>&1', {
+      timeout: 30_000,
+    });
+    if (docker.code === 0) {
+      write(
+        `  ${green('OK')} [${side.runtime}] ${side.targetName} sait construire une image ` +
+          `${dim('— `docker` présent sur la machine')}\n`,
+      );
+      continue;
+    }
+
+    exclude({
+      runtime: side.runtime,
+      label: 'construire une image depuis un Dockerfile (`source.type: "dockerfile"`)',
+      reason:
+        `Aucun \`docker\` sur ${side.targetName} : un node K3s fait tourner containerd, et ` +
+        '`k3s ctr` ne sait qu’importer une image, pas la construire. Ce n’est pas un défaut ' +
+        'du driver — il refuse en nommant les services concernés et les deux issues ' +
+        'possibles (installer Docker, ou ne référencer que des images publiées).',
+      reference:
+        'CLAUDE.md § « Build des images sur la machine cible, pas de registry » — décision de ' +
+        'produit, à rouvrir sciemment. La fixture de parité n’utilise donc que des images publiées.',
+    });
+
+    if (buildable.length > 0) {
+      write(
+        `  ${red('!!')} La spec fournie construit ` +
+          `${buildable.map((service) => `« ${service.name} »`).join(', ')} : le déploiement ` +
+          `sur ${side.targetName} va échouer pour la raison ci-dessus.\n`,
+      );
+    }
+  }
+}
+
 // ─── récapitulatif ────────────────────────────────────────────────────────────
 
 function summary(): boolean {
@@ -578,13 +688,29 @@ function summary(): boolean {
   }
 
   const failed = checks.filter((check) => !check.ok);
-  write(`\n  ${checks.length - failed.length}/${checks.length} vérification(s) au vert\n`);
+  write(`\n  ${checks.length - failed.length}/${checks.length} vérification(s) au vert`);
+  write(
+    limitations.length > 0
+      ? `, ${limitations.length} limite(s) connue(s) exclue(s) du décompte\n`
+      : '\n',
+  );
 
   if (failed.length > 0) {
     write(`\n${red(bold('Échecs :'))}\n`);
     for (const check of failed) {
       write(`  ${red('✗')} [${check.runtime}] ${check.phase} — ${check.label}\n`);
       if (check.detail) write(`      ${dim(check.detail)}\n`);
+    }
+  }
+
+  // Nommée, motivée, hors décompte. Une case qui disparaît ne dit rien ; une
+  // ligne « non applicable, et voici pourquoi » se relit.
+  if (limitations.length > 0) {
+    write(`\n${yellow(bold('Limites connues — explicitement hors périmètre :'))}\n`);
+    for (const limitation of limitations) {
+      write(`  ${yellow('N/A')} [${limitation.runtime}] ${limitation.label}\n`);
+      write(`      ${dim(limitation.reason)}\n`);
+      write(`      ${dim(limitation.reference)}\n`);
     }
   }
 
@@ -623,30 +749,33 @@ async function main(): Promise<void> {
       write(`  ${green('OK')} ${runtime} → ${side.targetName} (${side.targetHost})\n`);
     }
 
+    step('3. Ce que ce test n’exerce pas');
+    await reportLimitations(sides, spec);
+
     const probePath = spec.ingress
       ? (spec.services.find((service) => service.name === spec.ingress?.targetService)
           ?.healthcheck.path ?? '/')
       : (spec.services.find((service) => service.exposed)?.healthcheck.path ?? '/');
 
     for (const side of sides) {
-      step(`3. Déploiement sur ${side.targetName} — runtime ${side.runtime}`);
+      step(`4. Déploiement sur ${side.targetName} — runtime ${side.runtime}`);
       await deploySide(side, probePath);
     }
 
     for (const side of sides) {
-      step(`4. Rollback sur ${side.targetName} — runtime ${side.runtime}`);
+      step(`5. Rollback sur ${side.targetName} — runtime ${side.runtime}`);
       await rollbackSide(side, probePath);
     }
 
     if (options.keep) {
-      step('5. Destroy — sauté (--keep)');
+      step('6. Destroy — sauté (--keep)');
       info(
         `Nettoyage : pnpm test:parity ${options.dockerTarget} ${options.k3sTarget}` +
           ' (sans --keep) relancera un cycle complet.',
       );
     } else {
       for (const side of sides) {
-        step(`5. Destroy sur ${side.targetName} — runtime ${side.runtime}`);
+        step(`6. Destroy sur ${side.targetName} — runtime ${side.runtime}`);
         await destroySide(side);
       }
     }

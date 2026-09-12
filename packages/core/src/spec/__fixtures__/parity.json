@@ -1,0 +1,75 @@
+{
+  "name": "parite",
+  "version": "1.0.0",
+  "services": [
+    {
+      "name": "front",
+      "source": { "type": "image", "ref": "nginx:1.27-alpine" },
+      "port": 80,
+      "exposed": true,
+      "env": { "API_URL": "http://api:80" },
+      "resources": { "cpuMilli": 250, "memoryMi": 128 },
+      "healthcheck": {
+        "path": "/",
+        "intervalSec": 5,
+        "timeoutSec": 3,
+        "retries": 10
+      },
+      "dependsOn": ["api"]
+    },
+    {
+      "name": "api",
+      "source": { "type": "image", "ref": "httpd:2.4-alpine" },
+      "port": 80,
+      "exposed": false,
+      "replicas": 2,
+      "env": { "CACHE_URL": "redis://cache:6379", "DATABASE_HOST": "db" },
+      "secrets": ["API_TOKEN", { "name": "DB_PASSWORD", "from": "POSTGRES_PASSWORD" }],
+      "resources": { "cpuMilli": 250, "memoryMi": 128 },
+      "healthcheck": {
+        "path": "/",
+        "intervalSec": 5,
+        "timeoutSec": 3,
+        "retries": 10
+      },
+      "dependsOn": ["cache", "db"]
+    },
+    {
+      "name": "cache",
+      "source": { "type": "image", "ref": "redis:7-alpine" },
+      "port": 6379,
+      "exposed": false,
+      "resources": { "cpuMilli": 250, "memoryMi": 128 },
+      "healthcheck": {
+        "path": "/",
+        "port": 6379,
+        "intervalSec": 5,
+        "timeoutSec": 3,
+        "retries": 10
+      },
+      "volumes": [{ "name": "data", "mountPath": "/data", "size": "1Gi" }]
+    },
+    {
+      "name": "db",
+      "source": { "type": "image", "ref": "postgres:16-alpine" },
+      "port": 5432,
+      "exposed": false,
+      "env": { "POSTGRES_DB": "parite", "POSTGRES_USER": "parite" },
+      "secrets": ["POSTGRES_PASSWORD"],
+      "resources": { "cpuMilli": 1000, "memoryMi": 512 },
+      "healthcheck": {
+        "path": "/",
+        "port": 5432,
+        "intervalSec": 10,
+        "timeoutSec": 5,
+        "retries": 10
+      },
+      "volumes": [{ "name": "data", "mountPath": "/var/lib/postgresql/data", "size": "1Gi" }]
+    }
+  ],
+  "ingress": {
+    "host": "parite.example.com",
+    "tls": true,
+    "targetService": "front"
+  }
+}
