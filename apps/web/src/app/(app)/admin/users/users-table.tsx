@@ -31,6 +31,9 @@ import {
 /** Miroir de `TwoFactorState` (`@pupitre/db`) — le client ne dépend pas de la base. */
 export type TwoFactorState = 'none' | 'pending' | 'active';
 
+/** Miroir d'`AccountState` (route `/api/admin/users`). */
+export type AccountState = 'invited' | 'expired' | 'active';
+
 export type AdminUserRow = {
   id: string;
   name: string;
@@ -39,6 +42,9 @@ export type AdminUserRow = {
   banReason: string | null;
   roles: RoleKey[];
   twoFactor: TwoFactorState;
+  /** Invité (lien vivant), invitation périmée, ou compte actif. */
+  state: AccountState;
+  invitationExpiresAt: string | null;
   createdAt: string;
 };
 
@@ -60,6 +66,8 @@ export function UsersTable({
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [resetting, setResetting] = useState(false);
+  /** Identifiant de l'utilisateur dont l'invitation est en cours de traitement. */
+  const [inviting, setInviting] = useState<string | null>(null);
   /** Utilisateur dont la réinitialisation est en cours de confirmation. */
   const [confirmTarget, setConfirmTarget] = useState<AdminUserRow | null>(null);
 
@@ -76,6 +84,49 @@ export function UsersTable({
       return;
     }
     startTransition(() => router.refresh());
+  }
+
+  /**
+   * Relancer ou annuler une invitation.
+   *
+   * Les deux passent par la même route (`POST` / `DELETE`) et rendent le nombre
+   * de liens tués : c'est ce qui permet de dire « l'ancien lien ne fonctionne
+   * plus » plutôt que de laisser croire qu'on en a juste ajouté un.
+   */
+  async function invitation(user: AdminUserRow, method: 'POST' | 'DELETE') {
+    setError(null);
+    setNotice(null);
+    setInviting(user.id);
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/invitation`, {
+        method,
+        headers: { 'content-type': 'application/json' },
+      });
+      const body = (await response.json().catch(() => ({}))) as ApiErrorBody & {
+        revokedLinks?: number;
+        invitation?: { sent?: boolean; channel?: string | null; error?: string | null };
+      };
+      if (!response.ok) {
+        setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+        return;
+      }
+      if (method === 'DELETE') {
+        setNotice(
+          `Invitation de ${user.email} annulée : ${body.revokedLinks ?? 0} lien(s) ne fonctionnent plus. Le compte reste, sans mot de passe.`,
+        );
+      } else if (body.invitation?.sent) {
+        setNotice(
+          `Nouvelle invitation envoyée à ${user.email} via « ${body.invitation.channel ?? 'SMTP'} ». Les liens précédents sont morts.`,
+        );
+      } else {
+        setError(
+          `L’invitation de ${user.email} n’est pas partie : ${body.invitation?.error ?? 'raison inconnue'}`,
+        );
+      }
+      startTransition(() => router.refresh());
+    } finally {
+      setInviting(null);
+    }
   }
 
   async function resetTwoFactor(user: AdminUserRow) {
@@ -158,18 +209,34 @@ export function UsersTable({
                     </Select>
                   </TableCell>
                   <TableCell>
-                    {user.banned ? (
-                      <Badge variant="destructive" title={user.banReason ?? undefined}>
-                        désactivé
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">actif</Badge>
-                    )}
+                    <AccountStateBadge user={user} />
                   </TableCell>
                   <TableCell>
                     <TwoFactorBadge state={user.twoFactor} />
                   </TableCell>
                   <TableActions className="space-x-2 whitespace-nowrap">
+                    {user.state !== 'active' && !user.banned ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={pending || inviting === user.id}
+                          onClick={() => void invitation(user, 'POST')}
+                        >
+                          {user.state === 'expired' ? 'Inviter à nouveau' : 'Relancer'}
+                        </Button>
+                        {user.state === 'invited' ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={pending || inviting === user.id}
+                            onClick={() => void invitation(user, 'DELETE')}
+                          >
+                            Annuler le lien
+                          </Button>
+                        ) : null}
+                      </>
+                    ) : null}
                     {canResetTwoFactor && user.twoFactor !== 'none' ? (
                       <Button
                         size="sm"
@@ -210,6 +277,46 @@ export function UsersTable({
       />
     </Card>
   );
+}
+
+/**
+ * L'état du compte, en un badge.
+ *
+ * « Désactivé » l'emporte sur tout le reste : c'est le fait qui compte, et un
+ * compte désactivé n'a pas d'invitation en cours qui vaille la peine d'être
+ * lue. Les deux états d'invitation, eux, sont distincts parce qu'ils appellent
+ * deux gestes différents — relancer, ou attendre.
+ */
+function AccountStateBadge({ user }: { user: AdminUserRow }) {
+  if (user.banned) {
+    return (
+      <Badge variant="destructive" title={user.banReason ?? undefined}>
+        désactivé
+      </Badge>
+    );
+  }
+  if (user.state === 'invited') {
+    return (
+      <Badge
+        variant="warn"
+        title={
+          user.invitationExpiresAt
+            ? `Lien valable jusqu’au ${new Date(user.invitationExpiresAt).toLocaleString('fr-FR')}`
+            : undefined
+        }
+      >
+        invité
+      </Badge>
+    );
+  }
+  if (user.state === 'expired') {
+    return (
+      <Badge variant="destructive" title="Aucun mot de passe, et plus aucun lien valable">
+        invitation périmée
+      </Badge>
+    );
+  }
+  return <Badge variant="secondary">actif</Badge>;
 }
 
 function TwoFactorBadge({ state }: { state: TwoFactorState }) {

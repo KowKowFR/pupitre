@@ -1,6 +1,6 @@
 # Vérifier
 
-Vingt-deux scripts `./scripts/verify-*.sh`. Ils ne sont pas des tests unitaires :
+Vingt-six scripts `./scripts/verify-*.sh`. Ils ne sont pas des tests unitaires :
 ils empruntent **exactement les mêmes routes que l'UI**, contre une pile qui
 tourne, avec `curl` + `jq`, et vérifient souvent l'effet réel sur la machine
 cible ou en SQL.
@@ -66,12 +66,16 @@ TARGET_NAME=ma-vm ./scripts/verify-purge.sh
 | `verify-notifications.sh` | le catalogue est une donnée (et **aucun `schema` Zod ne fuit dans le JSON**, ce qui donnerait un formulaire vide sans erreur), les quatre canaux se configurent et s'essaient contre de vrais serveurs, chaque canal rend dans **sa** forme (MarkdownV2 échappé, embed Discord, en-têtes du webhook), un canal injoignable ne casse pas l'action notifiée, et un événement déclenche **un** envoi et un seul |
 | `verify-schedules.sh` | la saisie simple écrit le cron attendu **en base**, la relecture rend le mode simple, une expression exotique bascule en mode expert, le fuseau est réellement appliqué (« 3 h à Paris » tombe à 01:00 ou 02:00 UTC selon la saison, jamais 03:00), changer le fuseau **reprogramme** l'occurrence dans BullMQ, et les tâches antérieures à `0009` n'ont pas bougé |
 | `verify-ai.sh` | les trois fournisseurs sont configurables et le modèle par défaut suit le fournisseur, un `501` qui nomme ce qui manque, et surtout : la clé n'apparaît **nulle part**, y compris après un appel réel à chacun des trois fournisseurs avec une clé bidon — le script cherche aussi le **préfixe**, parce qu'OpenAI répond littéralement `Incorrect API key provided: sk-senti***…***0000` |
+| `verify-monitor-notifications.sh` | une sonde qui oscille ne produit **aucun** message (l'hystérésis est en amont de l'audit, donc un rebond n'écrit rien), une panne confirmée part sur les canaux abonnés en quelques secondes, douze sites tombés produisent **deux** messages et non douze — une alerte immédiate et un résumé qui nomme les onze autres —, et le secret d'une sonde ne fuit ni dans l'API, ni dans le HTML, ni dans l'audit, ni dans les logs |
+| `verify-host-history.sh` | un relevé écrit exactement une ligne, la courbe sur 24 h se reconstruit à la lecture, les trois couches de seuils se résolvent dans le bon ordre, un second seuil global est refusé **par la base** et non par un `if`, un dépassement confirmé écrit **une** entrée d'audit et pas une par relevé, la purge supprime les relevés au-delà de 30 jours sans emporter les dépassements, et le balayage tourne sans que personne le demande |
+| `verify-stuck-deployment.sh` | un déploiement lent n'est **pas** un fantôme — le détecteur n'est pas une minuterie —, une tâche abandonnée par BullMQ est constatée par le worker qui arrête le déploiement à `failed` sans rejeu, le message enregistré nomme le projet Compose, la cible et le port encore réservé, et le déblocage manuel exige `deployment:purge` et non `deployment:destroy` |
+| `verify-invitations.sh` | sans canal SMTP le parcours n'est pas proposé et aucun compte orphelin n'est créé, un compte invité n'a **littéralement aucune** ligne `credential`, le lien vaut une fois et une seule, une réinitialisation coupe les sessions en cours, une adresse inconnue ne se distingue pas d'une adresse connue — ni par le corps, ni par le temps de réponse —, et aucun jeton n'apparaît dans l'audit, les logs, ni les clés BullMQ de Redis |
 
 ## Les autres outils
 
 | Commande | Ce qu'elle fait |
 |---|---|
-| `pnpm test` | 205 tests unitaires de `@pupitre/core` : crypto, AppSpec et ses refinements, alias de secrets, rendu Compose et K8s, normalisation des scans, génération IA sous modèle simulé, machine à états des sondes |
+| `pnpm test` | 263 tests unitaires de `@pupitre/core` : crypto, AppSpec et ses refinements, alias de secrets, rendu Compose et K8s, normalisation des scans, génération IA sous modèle simulé, machine à états des sondes |
 | `pnpm typecheck` | TypeScript strict sur les quatre projets **et** sur `scripts/` |
 | `pnpm tsx scripts/render-both.ts <spec>` | rend une AppSpec vers les deux runtimes sans rien déployer, et **re-parse chaque manifest sérialisé** — un rendu qui ne repasse pas par son propre analyseur n'a rien prouvé |
 | `pnpm test:driver <cible>` | un déploiement de bout en bout, en pilotant le driver en direct |

@@ -31,7 +31,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           </span>
           <span className="flex flex-col leading-none">
             <span className="font-condensed text-base font-semibold tracking-[0.01em] text-ink">
-              Control plane
+              Pupitre
             </span>
             <span className="eyebrow pt-1 text-ink-faint">Plan de contrôle de déploiement</span>
           </span>

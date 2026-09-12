@@ -70,6 +70,14 @@ type Props = {
   dateStyles: DateStyleName[];
   roleKeys: RoleKey[];
   canRunPreflight: boolean;
+  /**
+   * L'instance sait-elle envoyer un e-mail ? Sur une instance neuve — le cas
+   * de figure de cet assistant — la réponse est presque toujours « non », et
+   * l'étape propose alors un mot de passe. Le drapeau est tout de même
+   * transmis : quelqu'un qui a configuré le SMTP avant d'arriver ici doit
+   * pouvoir inviter, comme partout ailleurs.
+   */
+  canInvite: boolean;
 };
 
 type PatchResponse = { state: OnboardingState; steps: OnboardingPresentedStep[] };
@@ -256,6 +264,7 @@ export function OnboardingWizard(props: Props) {
                   <UserStep
                     roleKeys={props.roleKeys}
                     existing={props.environment.users}
+                    canInvite={props.canInvite}
                     onCreated={() => complete('user')}
                   />
                 ) : null}
@@ -601,10 +610,12 @@ function RoleStep({
 function UserStep({
   roleKeys,
   existing,
+  canInvite,
   onCreated,
 }: {
   roleKeys: RoleKey[];
   existing: number | null;
+  canInvite: boolean;
   onCreated: () => void;
 }) {
   return (
@@ -614,7 +625,7 @@ function UserStep({
         une formalité : c&apos;est ce qui rend les logs lisibles.
         {existing !== null ? ` Ce panel compte déjà ${existing} compte${existing > 1 ? 's' : ''}.` : ''}
       </p>
-      <CreateUserForm roles={roleKeys} onCreated={onCreated} />
+      <CreateUserForm roles={roleKeys} canInvite={canInvite} onCreated={onCreated} />
     </div>
   );
 }

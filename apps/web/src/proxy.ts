@@ -11,22 +11,48 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Server Components.
  */
 
-const PUBLIC_PAGES = ['/login', '/signup'];
+/**
+ * Pages accessibles sans session.
+ *
+ * Les trois dernières sont celles du cycle de vie des comptes : par définition,
+ * personne n'y arrive connecté — une invitation s'adresse à quelqu'un qui n'a
+ * pas encore de mot de passe, et une réinitialisation à quelqu'un qui ne peut
+ * plus entrer. Les oublier ici rendrait tout le parcours inatteignable, en
+ * renvoyant sur `/login` la personne qui vient précisément de constater qu'elle
+ * ne peut pas s'y connecter.
+ */
+const PUBLIC_PAGES = [
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+  '/invitation',
+];
+
+/**
+ * Pages qu'une session rend inutiles — et dont on renvoie donc au tableau de
+ * bord. La distinction avec la liste ci-dessus n'est pas cosmétique : un lien
+ * de réinitialisation doit s'ouvrir **même** dans un navigateur déjà connecté à
+ * un autre compte, sinon le clic aboutit au tableau de bord de quelqu'un
+ * d'autre et le lien semble cassé.
+ */
+const GUEST_ONLY_PAGES = ['/login', '/signup'];
+
+function matches(pathname: string, pages: readonly string[]): boolean {
+  return pages.some((page) => pathname === page || pathname.startsWith(`${page}/`));
+}
 
 export default function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasSessionCookie = getSessionCookie(request) !== null;
-  const isPublicPage = PUBLIC_PAGES.some(
-    (page) => pathname === page || pathname.startsWith(`${page}/`),
-  );
 
-  if (!hasSessionCookie && !isPublicPage) {
+  if (!hasSessionCookie && !matches(pathname, PUBLIC_PAGES)) {
     const login = new URL('/login', request.url);
     login.searchParams.set('next', `${pathname}${search}`);
     return NextResponse.redirect(login);
   }
 
-  if (hasSessionCookie && isPublicPage) {
+  if (hasSessionCookie && matches(pathname, GUEST_ONLY_PAGES)) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

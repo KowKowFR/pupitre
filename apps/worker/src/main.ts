@@ -1,4 +1,5 @@
 import {
+  ACCOUNT_MAIL_JOB,
   APPLICATION_DELETE_JOB,
   APP_LOGS_JOB,
   APP_RESTART_JOB,
@@ -24,7 +25,7 @@ import {
   WORKLOAD_UPDATE_JOB,
   assertMasterKey,
 } from '@pupitre/core';
-import { closeDb, pingDb } from '@pupitre/db';
+import { HOST_SWEEP_EVERY_MS, closeDb, pingDb } from '@pupitre/db';
 import { Worker, type Job } from 'bullmq';
 import { env } from './env.js';
 import { handlePing } from './handlers/ping.js';
@@ -36,7 +37,7 @@ import {
 } from './handlers/deployment.js';
 import { handleAppLogs, handleAppRestart } from './handlers/app.js';
 import { handleApplicationDelete } from './handlers/application.js';
-import { handleTargetMetrics } from './handlers/host-metrics.js';
+import { handleTargetMetrics, handleTargetMetricsSweep } from './handlers/host-metrics.js';
 import { handleMonitorSweep } from './handlers/monitor.js';
 import {
   closeNotificationsQueue,
@@ -47,12 +48,17 @@ import {
   installAuditNotifications,
   installNotificationDigestSweep,
 } from './handlers/notification.js';
+import { handleAccountMail } from './handlers/account-mail.js';
 import { handleWorkloadAction, handleWorkloadList } from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
 import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
 import { logger } from './logger.js';
 import { closeOpsQueue, getOpsQueue, getSupervisionQueue } from './queue.js';
 import { reconcileSchedulers } from './schedule/reconcile.js';
+import {
+  HOST_SWEEP_JOB,
+  HOST_SWEEP_SCHEDULER_KEY,
+} from './supervision/sweep.js';
 import { closePublisher, createRedisConnection } from './redis.js';
 
 type JobHandler = (job: Job) => Promise<unknown>;
@@ -104,6 +110,10 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // HTTP. C'est un autre point de vue que `health:periodic`, qui interroge la
   // machine cible par SSH — celle-ci voit le pare-feu, le proxy et le certificat.
   [MONITOR_SWEEP_JOB]: handleMonitorSweep,
+  // Supervision de serveurs : le balayage qui donne une mémoire aux relevés
+  // d'hôte. Même file et même raison que `target:metrics`, dont il est
+  // l'horloge — une lecture SSH courte, qu'un déploiement ne doit pas retarder.
+  [HOST_SWEEP_JOB]: handleTargetMetricsSweep,
 };
 
 /**
@@ -124,6 +134,12 @@ const notificationHandlers: Record<string, JobHandler> = {
   // Ferme les fenêtres de regroupement échues et compose les résumés.
   [NOTIFICATION_DIGEST_SWEEP_JOB]: handleNotificationDigestSweep,
   [NOTIFICATION_TEST_JOB]: handleNotificationTest,
+  // Invitation et réinitialisation de mot de passe. Sur cette file parce que
+  // c'est un envoi d'e-mail : il partage le budget de concurrence des envois
+  // d'e-mails, et il ne doit pas attendre derrière un déploiement. Ce n'est en
+  // revanche **pas** une notification — le destinataire vient de l'action, pas
+  // de la configuration du canal. Voir `handlers/account-mail.ts`.
+  [ACCOUNT_MAIL_JOB]: handleAccountMail,
 };
 
 /**
@@ -153,6 +169,38 @@ async function installMonitorSweep(): Promise<void> {
     },
   );
   logger.info({ everyMs: MONITOR_SWEEP_EVERY_MS }, 'balayage de supervision installé');
+}
+
+/**
+ * Installe l'horloge du balayage des serveurs.
+ *
+ * Même motif que `installMonitorSweep()`, et pour les mêmes raisons : pas de
+ * ligne en base, donc pas de réconciliation — ce scheduler est un détail
+ * d'exécution, réinstallé à l'identique à chaque démarrage. La cadence de
+ * *relevé* (5 min par machine), elle, n'est pas ici : c'est le balayage qui la
+ * fait respecter, en ne réclamant que les machines dont le dernier relevé est
+ * assez vieux. BullMQ n'est que l'horloge.
+ *
+ * Le nom de la tâche contient un deux-points ; la clé du scheduler, non.
+ */
+async function installHostSweep(): Promise<void> {
+  const queue = getSupervisionQueue();
+  await queue.upsertJobScheduler(
+    HOST_SWEEP_SCHEDULER_KEY,
+    { every: HOST_SWEEP_EVERY_MS },
+    {
+      name: HOST_SWEEP_JOB,
+      data: { targetId: null, force: false },
+      opts: {
+        // Un balayage qui rate n'est pas rejoué : le suivant arrive dans une
+        // minute et les machines sont toujours dues.
+        attempts: 1,
+        removeOnComplete: { age: 3600, count: 100 },
+        removeOnFail: { age: 24 * 3600, count: 100 },
+      },
+    },
+  );
+  logger.info({ everyMs: HOST_SWEEP_EVERY_MS }, 'balayage des serveurs installé');
 }
 
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
@@ -207,6 +255,15 @@ async function main(): Promise<void> {
     // Même principe : sans balayage, le panel reste utilisable, il ne sonde
     // simplement plus. C'est une dégradation, pas une panne.
     logger.error({ err: error }, 'installation du balayage de supervision impossible');
+  }
+
+  try {
+    await installHostSweep();
+  } catch (error) {
+    // Sans balayage, l'historique des serveurs cesse de se remplir et les
+    // seuils ne sont plus évalués. Le panel reste utilisable et le relevé à la
+    // demande continue d'écrire : c'est une dégradation, pas une panne.
+    logger.error({ err: error }, 'installation du balayage des serveurs impossible');
   }
 
   try {

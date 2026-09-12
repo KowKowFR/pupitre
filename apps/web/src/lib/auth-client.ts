@@ -9,4 +9,15 @@ export const authClient = createAuthClient({
   plugins: [adminClient(), twoFactorClient()],
 });
 
-export const { signIn, signUp, signOut, useSession, twoFactor } = authClient;
+export const {
+  signIn,
+  signUp,
+  signOut,
+  useSession,
+  twoFactor,
+  // Demande d'un lien de réinitialisation, et consommation de ce lien. Les deux
+  // sont ceux de Better Auth : la génération du jeton, son usage unique, son
+  // échéance et l'anti-énumération de la demande sont à lui, pas à nous.
+  requestPasswordReset,
+  resetPassword,
+} = authClient;

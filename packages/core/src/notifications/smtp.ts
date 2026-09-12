@@ -18,6 +18,7 @@ import {
   type NotificationTestResult,
   type ResolvedChannelConfig,
   type SmtpEnvelope,
+  type SmtpOptions,
   type SmtpTransportFactory,
 } from './types.js';
 
@@ -177,6 +178,49 @@ function str(config: ChannelConfig, key: string): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * Les réglages de connexion, dérivés du champ « Chiffrement ».
+ *
+ * `secure` (SMTPS implicite) et `requireTLS` (STARTTLS obligatoire) ne sont
+ * pas interchangeables : le premier ouvre la session déjà chiffrée, le second
+ * l'élève après le premier échange et **échoue** si le serveur ne le propose
+ * pas. Laisser nodemailer choisir opportunistement reviendrait à accepter en
+ * silence une session en clair sur un serveur mal configuré.
+ *
+ * Fonction exportée plutôt que méthode privée depuis que les e-mails
+ * transactionnels du cycle de vie des comptes (invitation, réinitialisation)
+ * **empruntent le transport** d'un canal SMTP sans emprunter son destinataire.
+ * Les deux chemins doivent dériver les mêmes réglages de la même configuration :
+ * une seconde copie de ces six lignes finirait par diverger, et la divergence
+ * s'appellerait « les invitations partent en clair alors que les alertes sont
+ * chiffrées ».
+ */
+export function smtpOptionsFrom(
+  resolved: ResolvedChannelConfig,
+  timeoutMs: number,
+): SmtpOptions {
+  const { config, secrets } = resolved;
+  const security = str(config, 'security') || 'starttls';
+  const user = str(config, 'user');
+  const pass = str(secrets, 'password');
+  const port = typeof config.port === 'number' ? config.port : Number(config.port ?? 587);
+
+  return {
+    host: str(config, 'host'),
+    port: Number.isFinite(port) ? port : 587,
+    secure: security === 'implicit',
+    requireTls: security === 'starttls',
+    rejectUnauthorized: config.rejectUnauthorized !== false,
+    auth: user.length > 0 ? { user, pass } : null,
+    timeoutMs,
+  };
+}
+
+/** Adresse d'expéditeur déclarée sur le canal. Vide si le canal n'en porte pas. */
+export function smtpSenderFrom(resolved: ResolvedChannelConfig): string {
+  return str(resolved.config, 'from');
+}
+
 export class SmtpChannel implements NotificationChannel {
   readonly kind = 'smtp' as const;
 
@@ -185,31 +229,8 @@ export class SmtpChannel implements NotificationChannel {
     private readonly timeoutMs: number,
   ) {}
 
-  /**
-   * Les réglages de connexion, dérivés du champ « Chiffrement ».
-   *
-   * `secure` (SMTPS implicite) et `requireTLS` (STARTTLS obligatoire) ne sont
-   * pas interchangeables : le premier ouvre la session déjà chiffrée, le second
-   * l'élève après le premier échange et **échoue** si le serveur ne le propose
-   * pas. Laisser nodemailer choisir opportunistement reviendrait à accepter en
-   * silence une session en clair sur un serveur mal configuré.
-   */
-  private options(resolved: ResolvedChannelConfig) {
-    const { config, secrets } = resolved;
-    const security = str(config, 'security') || 'starttls';
-    const user = str(config, 'user');
-    const pass = str(secrets, 'password');
-    const port = typeof config.port === 'number' ? config.port : Number(config.port ?? 587);
-
-    return {
-      host: str(config, 'host'),
-      port: Number.isFinite(port) ? port : 587,
-      secure: security === 'implicit',
-      requireTls: security === 'starttls',
-      rejectUnauthorized: config.rejectUnauthorized !== false,
-      auth: user.length > 0 ? { user, pass } : null,
-      timeoutMs: this.timeoutMs,
-    };
+  private options(resolved: ResolvedChannelConfig): SmtpOptions {
+    return smtpOptionsFrom(resolved, this.timeoutMs);
   }
 
   async test(resolved: ResolvedChannelConfig): Promise<NotificationTestResult> {

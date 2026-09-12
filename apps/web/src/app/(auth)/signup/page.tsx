@@ -5,7 +5,7 @@ import { Alert } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { SignupForm } from './signup-form';
 
-export const metadata: Metadata = { title: 'Inscription — Control plane' };
+export const metadata: Metadata = { title: 'Inscription — Pupitre' };
 export const dynamic = 'force-dynamic';
 
 export default async function SignupPage() {

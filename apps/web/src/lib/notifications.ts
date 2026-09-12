@@ -77,6 +77,17 @@ export function installAuditNotifications(): void {
  */
 const TEST_TIMEOUT_MS = 35_000;
 
+/**
+ * Flux d'événements de la file, partagé.
+ *
+ * Exporté depuis que les e-mails transactionnels de compte attendent eux aussi
+ * un verdict (`@/lib/account-mail`) : deux instances de `QueueEvents` sur la
+ * même file, ce sont deux abonnements Redis pour écouter la même chose.
+ */
+export function notificationsQueueEvents(): QueueEvents {
+  return queueEvents();
+}
+
 function queueEvents(): QueueEvents {
   globalThis.__tpNotificationsQueueEvents ??= new QueueEvents(NOTIFICATIONS_QUEUE, {
     connection: getRedis(),

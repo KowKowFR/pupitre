@@ -5,7 +5,7 @@ import { requirePageSession } from '@/lib/page-auth';
 import { PasswordForm } from './password-form';
 import { TwoFactorPanel } from './two-factor-panel';
 
-export const metadata: Metadata = { title: 'Mon compte — Control plane' };
+export const metadata: Metadata = { title: 'Mon compte — Pupitre' };
 export const dynamic = 'force-dynamic';
 
 /**

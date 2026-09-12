@@ -1,6 +1,7 @@
 import { eq, getDb, getUserGrants, logAudit, sessions, users } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { revokeResetTokens } from '@/lib/auth';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
@@ -50,9 +51,16 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     })
     .where(eq(users.id, id));
 
-  // Un compte désactivé perd ses sessions en cours.
+  // Un compte désactivé perd ses sessions en cours — et ses liens en cours.
+  // Une invitation qui survit à la désactivation, c'est une porte qu'on croit
+  // avoir fermée : elle ne rendrait pas l'accès (la connexion reste refusée),
+  // mais elle laisserait quelqu'un poser un mot de passe sur un compte qu'on
+  // vient de suspendre. Réactiver relance une invitation, ce qui est le geste
+  // explicite qu'on veut voir dans le journal.
+  let revokedLinks = 0;
   if (banned) {
     await db.delete(sessions).where(eq(sessions.userId, id));
+    revokedLinks = await revokeResetTokens(id);
   }
 
   await logAudit({
@@ -61,9 +69,9 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     resourceType: 'user',
     resourceId: id,
     before: { banned: target.banned },
-    after: { banned, reason: reason ?? null, email: target.email },
+    after: { banned, reason: reason ?? null, email: target.email, revokedLinks },
     ip: auth.ip,
   });
 
-  return NextResponse.json({ id, banned });
+  return NextResponse.json({ id, banned, revokedLinks });
 });

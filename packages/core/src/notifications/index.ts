@@ -14,7 +14,7 @@ export * from './types.js';
 export { escapeMarkdownV2, TelegramChannel } from './telegram.js';
 export { DiscordChannel } from './discord.js';
 export { WebhookChannel } from './webhook.js';
-export { SmtpChannel, nodemailerTransport } from './smtp.js';
+export { SmtpChannel, nodemailerTransport, smtpOptionsFrom, smtpSenderFrom } from './smtp.js';
 
 /**
  * Fabrique de canaux de notification.

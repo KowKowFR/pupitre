@@ -1,6 +1,7 @@
 import { eq, getDb, getTwoFactorStates, getUserGrants, logAudit, users } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { revokeResetTokens } from '@/lib/auth';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
@@ -55,6 +56,20 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     );
   }
 
+  /**
+   * Les liens d'invitation et de réinitialisation en cours meurent **avant** le
+   * compte.
+   *
+   * `verifications` ne porte aucune clé étrangère vers `users` — Better Auth y
+   * range un identifiant d'utilisateur dans une colonne de texte —, donc rien
+   * ne les emporterait en cascade. Ils survivraient jusqu'à leur échéance, soit
+   * jusqu'à trois jours, en pointant sur un compte qui n'existe plus. Ce n'est
+   * pas exploitable (le compte visé a disparu), mais un lien qui traîne dans
+   * une boîte mail après la suppression du compte est exactement ce qu'on
+   * cherche à ne pas laisser derrière soi.
+   */
+  const revokedLinks = await revokeResetTokens(id);
+
   // `audit_logs.actor_id` est en ON DELETE SET NULL : les traces survivent.
   await db.delete(users).where(eq(users.id, id));
 
@@ -64,8 +79,9 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     resourceType: 'user',
     resourceId: id,
     before: { email: user.email, name: user.name, roles: grants.roles },
+    after: { revokedLinks },
     ip: auth.ip,
   });
 
-  return NextResponse.json({ id, deleted: true });
+  return NextResponse.json({ id, deleted: true, revokedLinks });
 });

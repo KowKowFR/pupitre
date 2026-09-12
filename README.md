@@ -134,30 +134,24 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Génération d'AppSpec par IA, trois fournisseurs | [`docs/ia.md`](docs/ia.md) |
 | Toutes les pages et toutes les routes d'API, avec leur permission | [`docs/api.md`](docs/api.md) |
 | Tables et migrations | [`docs/base-de-donnees.md`](docs/base-de-donnees.md) |
-| Les 22 scripts de vérification et ce que chacun prouve | [`docs/verification.md`](docs/verification.md) |
+| Les 26 scripts de vérification et ce que chacun prouve | [`docs/verification.md`](docs/verification.md) |
 
 ---
 
-## Limites connues — au 12/09/2026
+## Limites connues — au 13/09/2026
 
 Ce qui suit est l'état du jour, pas une note en bas de page. Un README qui
 prétend à l'intemporalité vieillit mal ; celui-ci est daté et le dit.
 
-### Le critère d'architecture est enfin exercé — et il échoue
+### Le critère d'architecture est exercé, et il passe
 
 `CLAUDE.md` désigne un test comme « le test qui valide l'architecture » :
 déployer **la même AppSpec** sur une cible Docker et une cible K3s, obtenir deux
-URLs qui répondent, puis rollback des deux. Il devait tourner dès le jalon 5.
-Il n'a longtemps pas pu : `scripts/test-parity.ts` existait, sans cluster à viser.
+URLs qui répondent, puis rollback des deux. Il devait tourner dès le jalon 5. Il
+n'a longtemps pas pu : `scripts/test-parity.ts` existait, sans cluster à viser.
 
-Depuis le 12/09/2026 la cible existe (`scripts/test-target-k3s/`, profil compose
-`test`, k3s v1.33.4) et **le test tourne de bout en bout**. Il ne passe pas au
-vert. C'est une bonne nouvelle : il découvre exactement ce qu'un test de parité
-doit découvrir, et ce qu'aucun test de rendu n'aurait pu voir.
-
-Résultat de `pnpm test:parity cible-docker-locale cible-k3s-locale`, rejoué le
-12/09/2026 — `—` veut dire « la phase précédente a échoué, celle-ci n'a pas été
-tentée » :
+La cible existe depuis le 12/09/2026 (`scripts/test-target-k3s/`, profil compose
+`test`, k3s v1.33.4), et le test passe :
 
 ```
   Phase    Vérification                     docker   k3s
@@ -166,104 +160,83 @@ tentée » :
   deploy   allocatePort()                   ✓       ✓
   deploy   render()                         ✓       ✓
   deploy   upload()                         ✓       ✓
-  deploy   build()                          ✓       ✗   ← limite 1
-  deploy   deploy()                         ✓       —
-  deploy   healthcheck()                    ✓       —
-  deploy   l'URL répond 200                 ✗       —   ← limite 3
-  rollback rollback()                       ✓       ✗   ← limite 2
-  rollback santé après rollback             ✓       —
-  rollback l'URL répond toujours            ✗       —   ← limite 3
+  deploy   build()                          ✓       ✓
+  deploy   deploy()                         ✓       ✓
+  deploy   healthcheck()                    ✓       ✓
+  deploy   l'URL répond 200                 ✓       ✓
+  rollback rollback()                       ✓       ✓
+  rollback santé après rollback             ✓       ✓
+  rollback l'URL répond toujours            ✓       ✓
   destroy  destroy()                        ✓       ✓
   destroy  artefacts supprimés de la cible  ✓       ✓
   destroy  aucun port réservé en base       ✓       ✓
   destroy  aucun conteneur Docker restant   ✓       —
   destroy  namespace K3s disparu            —       ✓
 
-  21/25 vérification(s) au vert
+  30/30 vérification(s) au vert
 ```
 
-Trois choses valent d'être notées avant les limites elles-mêmes. Les cinq
-premières phases sont identiques des deux côtés — `preflight`, `allocatePort`
-(qui rend `null` en K3s, comme prévu), `render`, `upload`. **La phase `destroy`
-est intégralement verte sur les deux runtimes** : artefacts nettoyés, port rendu,
-namespace disparu. Et les quatre échecs se rangent sous trois causes, toutes
-connues et nommées ci-dessous — aucune n'est une surprise d'architecture.
+La fixture (`packages/core/src/spec/__fixtures__/parity.json`) n'est pas
+complaisante : quatre services reliés par `dependsOn`, dont **deux construits
+depuis un Dockerfile** — `front`, la porte d'entrée, et `api` en deux répliques
+avec son Dockerfile dans un sous-répertoire — plus `redis` et `postgres` sur
+étagère, deux volumes, deux secrets dont un alias, et un ingress TLS. L'URL qui
+répond des deux côtés est servie par une image que le panel a fabriquée
+lui-même.
 
-### 1. Construire une image depuis un Dockerfile ne marche pas sur K3s
+Trois choses valent d'être notées. Les phases de préparation sont identiques des
+deux côtés — `preflight`, `allocatePort` (qui rend `null` en K3s, comme prévu),
+`render`, `upload`. `destroy` est intégralement verte : artefacts nettoyés, port
+rendu, namespace disparu. Et le port d'écoute des services construits est 8080 et
+non 80, parce que nos images tournent en uid 1000 sans `CAP_NET_BIND_SERVICE` —
+ce n'est pas un contournement du test, c'est la conséquence directe du
+durcissement décrit plus bas.
 
-Un node K3s fait tourner containerd, pas Docker, et le projet a écarté l'usage
-d'un registry. Le driver s'en aperçoit et le dit franchement, à l'étape `build` :
+### Comment une image se construit sans registry
 
-> Aucun `docker` sur le node : impossible de construire l'image sans registry.
-> Installez Docker sur la cible, ou fournissez une AppSpec dont les services
-> référencent des images déjà publiées (`source.type: "image"`).
+Le problème est réel et il a longtemps été une limite : un node K3s fait tourner
+containerd, pas Docker, et le projet a écarté l'usage d'un registry. `k3s ctr`
+sait importer une image, pas la construire.
 
-Le message est juste et actionnable. Ce qui ne l'est pas, c'est **le moment** :
-il tombe après `preflight`, `allocatePort`, `render` et `upload`, donc après que
-les manifests aient déjà été déposés sur la machine. Le preflight K3s a l'AppSpec
-sous la main et pourrait refuser tout de suite ; il ne le fait pas encore.
+La réponse est **BuildKit en pod, worker OCI**, dont la sortie est un tar OCI
+importé par `k3s ctr -n k8s.io images import -`. Le namespace `k8s.io` est le
+point qui casse tout s'il change : c'est là que le kubelet cherche ses images.
+Le tar transite par `kubectl exec`, ne touche jamais le disque du nœud et ne sort
+jamais de la machine.
 
-Une AppSpec dont tous les services sont en `source.type: "image"` n'est pas
-concernée.
+Le worker **containerd** de BuildKit serait plus élégant — l'image atterrirait
+directement au bon endroit, sans tar. Il a été essayé en premier et il échoue :
+ses étapes `RUN` sont exécutées par le shim containerd, qui tourne sur l'hôte, et
+le faire fonctionner exige de propager des montages depuis le pod. Le kubelet
+refuse alors le pod, `path "/var/lib/buildkit" is mounted on "/" but it is not a
+shared mount`. Le worker OCI fait tourner `runc` **dans** le pod : rien à
+propager, aucun hostPath, aucune hypothèse sur la topologie de montage du nœud.
 
-### 2. Le `securityContext` du rendu K3s empêche les images standard de démarrer
+Ce que ça laisse : le constructeur reste en place entre deux builds, parce que
+son cache de couches vit dedans. C'est un pod privilégié qui attend sur le
+cluster, volontairement dépourvu d'étiquette `managed-by` pour rester supprimable
+depuis l'écran des charges, et la commande pour s'en défaire est journalisée à
+chaque build. Rien ne le supprime automatiquement.
 
-`packages/core/src/drivers/k3s/render.ts` impose à chaque pod
-`runAsNonRoot: true`, `runAsUser: 1000`, `runAsGroup: 1000`, `fsGroup: 1000`,
-et à chaque conteneur `capabilities: { drop: ['ALL'] }`.
+Un refus, lui, tombe désormais au **preflight** et non plus à l'étape `build` :
+le contrôle `image_build` soumet le constructeur au cluster en `--dry-run=server`
+et prend sa réponse. Avant, le refus arrivait après `upload`, donc après avoir
+déposé les manifests sur la machine — Secrets rendus compris, en clair, pour un
+déploiement qui n'aurait jamais lieu.
 
-Les entrypoints officiels de `nginx` et de `postgres` démarrent en root pour
-préparer leurs répertoires, puis dégradent leurs privilèges eux-mêmes. En uid
-1000, sans `CHOWN` ni `DAC_OVERRIDE`, ils échouent avant d'avoir servi quoi que
-ce soit. Constaté, pas supposé — `postgres:16-alpine` en `CrashLoopBackOff` sur
-la cible de test :
+### Compose ne sait pas publier un port derrière plusieurs répliques
 
-```
-initdb: error: could not change permissions of directory
-        "/var/lib/postgresql/data": Operation not permitted
-```
+Un service à `replicas: 2` reçoit `publishedPort: null` côté Docker : Compose ne
+sait pas répartir un port publié entre deux conteneurs. Sans `ingress.host`
+servi par un vrai Traefik, un tel service n'est donc pas joignable depuis
+l'extérieur en Docker — alors qu'il l'est en K3s, où un Service ClusterIP fait
+exactement ce travail.
 
-C'est ce qui fait échouer la ligne `rollback()` du tableau ci-dessus : le driver
-réapplique correctement les manifests, puis attend un `rollout status` qui ne
-viendra jamais, et rend au bout de cinq minutes
-`error: timed out waiting for the condition`.
+C'est une capacité manquante du runtime, pas un défaut du driver, et c'est la
+seule asymétrie fonctionnelle qui subsiste entre les deux. La fixture de parité
+la contourne en n'exposant que son service à réplique unique.
 
-Le rendu Docker, lui, n'impose ni `user`, ni `cap_drop`. La même AppSpec démarre
-donc d'un côté et pas de l'autre : c'est une rupture de parité, et c'est la plus
-gênante des deux.
-
-Aucune échappatoire n'existe dans le code publié : ni champ d'AppSpec, ni réglage
-de cible, ni variable d'environnement. Un test verrouille même le comportement
-(`packages/core/test/render-k3s.test.ts`, « impose un securityContext strict »).
-
-**Un chantier travaille dessus au moment où ces lignes sont écrites**, et son
-travail est déjà dans l'arbre de travail — pas encore commité, donc pas encore
-mesuré par le tableau ci-dessus, qui décrit le code publié. La direction prise
-est de **distinguer nos images des images tierces** :
-
-- pour une image que *nous* construisons (`source.type: "dockerfile"`), rien ne
-  change : `runAsNonRoot`, `runAsUser`, `runAsGroup` et `drop: ['ALL']` — c'est
-  notre Dockerfile, il doit s'y conformer ;
-- pour une image tierce, on cesse de **choisir le compte** à sa place et on lui
-  rend les cinq capabilities dont son entrypoint a besoin — `CHOWN`,
-  `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID` — en gardant `fsGroup`,
-  `seccompProfile`, `allowPrivilegeEscalation: false` et `privileged: false`,
-  qui ne dépendent d'aucune identité.
-
-La sonde manuelle qui a servi à établir ça fait bien démarrer `nginx:1.27-alpine`
-et `postgres:16-alpine` sur la cible de test. **Ce qui n'est pas encore prouvé,
-c'est que le test de parité repasse au vert avec** : il faudra le rejouer une
-fois le chantier commité.
-
-### 3. `fullstack.json` ne publie pas de port côté Docker
-
-La fixture porte `front.replicas: 2`, et Compose ne sait pas répartir un port
-publié entre deux répliques. Le driver rend donc `publishedPort: null` — sans
-`ingress.host` servi par un vrai Traefik, l'URL n'est pas joignable depuis le
-poste. Le test de parité le compte comme un échec, et il a raison : c'est une
-capacité manquante, pas un défaut du test.
-
-### 4. `BunkerWebProvider` n'existe pas
+### `BunkerWebProvider` n'existe pas
 
 Prévu en P1, il n'a pas été écrit — et c'est un choix. Le format de configuration
 de BunkerWeb a changé entre ses versions majeures, aucune instance ne tourne sur
@@ -276,7 +249,7 @@ Le `TraefikProvider`, lui, écrit bien la configuration dynamique d'un Traefik m
 **ne déploie pas Traefik**. Sans `ingress.host` dans l'AppSpec, l'étape `proxy`
 est `skipped` et l'exposition se fait par le port alloué.
 
-### 5. Pas de clé d'IA dans ce dépôt
+### Pas de clé d'IA sur cette instance
 
 `OPENROUTER_API_KEY` et ses équivalents OpenAI / Anthropic ne sont pas renseignés.
 La chaîne de génération est couverte de bout en bout par des tests unitaires sous
@@ -286,13 +259,19 @@ un vrai modèle répondre sur cette instance.
 
 ### Détails plus petits, mais réels
 
-- `GET /api/health` rapporte un état `ai` qui ne lit que `OPENROUTER_API_KEY` en
-  variable d'environnement : il ignore les paramètres d'instance et les deux
-  autres fournisseurs. Une instance parfaitement configurée en base y apparaît
-  `ai.enabled: false`.
-- La supervision de sites n'est **pas** branchée sur la couche de notifications :
-  elle poste vers son propre webhook, par sonde. Le raccord est nommé dans le
-  code (`apps/worker/src/monitors/notify.ts`) et tient en un corps de fonction.
+- **Trivy ne verra pas les images construites sur K3s.** Il cherche containerd
+  sur `/run/containerd/containerd.sock`, namespace `default` ; k3s écoute sur
+  `/run/k3s/containerd/containerd.sock`, namespace `k8s.io`. L'étape de scan rend
+  donc `unknown` — non bloquant, mais silencieusement inutile. Deux variables
+  d'environnement dans `packages/core/src/scanners/trivy.ts` suffiraient.
+- **`destroy()` ne retire pas de containerd les images qu'il a fait construire.**
+  Symétrique du driver Docker, mais ça s'accumule sur le nœud.
+- **Le compteur de limitation de débit de l'authentification est en mémoire**,
+  donc par processus. Correct pour un panel mono-conteneur, faux dès qu'on en
+  met deux derrière un répartiteur.
+- **Aucune alerte sur « machine injoignable ».** Les relevés en échec sont
+  enregistrés avec leur raison, mais ne franchissent aucun seuil : une machine
+  éteinte ne déclenche rien.
 
 ---
 

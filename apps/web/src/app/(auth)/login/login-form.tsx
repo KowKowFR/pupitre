@@ -24,7 +24,14 @@ function needsSecondFactor(data: unknown): boolean {
   );
 }
 
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({
+  next,
+  canRecoverPassword,
+}: {
+  next: string;
+  /** L'instance sait-elle envoyer un e-mail ? Sinon le lien de secours est masqué. */
+  canRecoverPassword: boolean;
+}) {
   const router = useRouter();
   const [challenge, setChallenge] = useState(false);
   const [useBackupCode, setUseBackupCode] = useState(false);
@@ -161,6 +168,16 @@ export function LoginForm({ next }: { next: string }) {
           <Button type="submit" className="mt-1 w-full" disabled={pending}>
             {pending ? 'Connexion…' : 'Se connecter'}
           </Button>
+          {canRecoverPassword ? (
+            <p className="text-center text-xs text-ink-muted">
+              <Link
+                href="/forgot-password"
+                className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+              >
+                Mot de passe oublié ?
+              </Link>
+            </p>
+          ) : null}
           <p className="text-center text-xs text-ink-muted">
             Pas de compte ?{' '}
             <Link

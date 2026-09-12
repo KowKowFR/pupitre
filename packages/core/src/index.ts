@@ -2,6 +2,7 @@ export * from './crypto.js';
 export * from './host-metrics.js';
 export * from './monitoring.js';
 export * from './naming.js';
+export * from './notifications/account-mail.js';
 export * from './notifications/catalog.js';
 export * from './notifications/digest.js';
 export * from './notifications/dispatch.js';

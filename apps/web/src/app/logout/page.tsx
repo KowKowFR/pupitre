@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { LogoutRunner } from './logout-runner';
 
-export const metadata: Metadata = { title: 'Déconnexion — Control plane' };
+export const metadata: Metadata = { title: 'Déconnexion — Pupitre' };
 
 export default function LogoutPage() {
   return (

@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/empty-state';
 import { requirePageSession } from '@/lib/page-auth';
+import { canSendAccountMail } from '@/lib/account-mail';
 import { onboardingEnvironment, onboardingGate } from '@/lib/onboarding-gate';
 import { OnboardingWizard } from './onboarding-wizard';
 
@@ -73,6 +74,7 @@ export default async function OnboardingPage() {
         dateStyles={[...DATE_STYLES]}
         roleKeys={roleKeys}
         canRunPreflight={auth.can('target:update')}
+        canInvite={await canSendAccountMail()}
       />
     </div>
   );
