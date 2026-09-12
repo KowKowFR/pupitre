@@ -1,6 +1,7 @@
 import {
   DEPLOYMENT_STEPS,
   scanConfigSchema,
+  workspaceNameFor,
   type AppSpec,
   type DeploymentStatus,
   type DeploymentStepKey,
@@ -1190,4 +1191,259 @@ async function releaseOrphanAllocations(
   }
 
   return released;
+}
+
+// ─── déploiements figés ───────────────────────────────────────────────────────
+
+/**
+ * Un déploiement que la base croit encore en cours.
+ *
+ * Tout ce qu'il faut pour poser le verdict (identifiants pour interroger la
+ * file) **et** pour rédiger le message d'après-coup : ce qui a pu rester sur la
+ * machine ne se retrouve pas ailleurs une fois le déploiement conclu.
+ */
+export type UnfinishedDeployment = {
+  id: string;
+  status: 'pending' | 'running';
+  version: number;
+  runtime: 'docker' | 'k3s';
+  applicationId: string;
+  applicationSlug: string;
+  targetId: string;
+  targetName: string;
+  targetHost: string;
+  publishedPort: number | null;
+  /** Réservation encore inscrite dans `port_allocations`, même sans port publié. */
+  allocatedPort: number | null;
+  createdAt: Date;
+  startedAt: Date | null;
+  /** L'étape en cours au moment de l'arrêt — la seule chose qui dise où ça s'est figé. */
+  currentStep: { key: string; label: string } | null;
+};
+
+/**
+ * Tout ce que la base croit en cours, sans exception ni tri par ancienneté.
+ *
+ * Le filtrage par âge n'est pas fait ici : c'est une règle de décision
+ * (`STUCK_DEPLOYMENT_GRACE_MS`), elle appartient à l'appelant qui pose le
+ * verdict, pas à la lecture.
+ */
+export async function listUnfinishedDeployments(
+  db: Database = getDb(),
+): Promise<UnfinishedDeployment[]> {
+  const rows = await db
+    .select({
+      id: deployments.id,
+      status: deployments.status,
+      version: deployments.version,
+      runtime: deployments.runtime,
+      applicationId: deployments.applicationId,
+      applicationSlug: applications.slug,
+      targetId: deployments.targetId,
+      targetName: targets.name,
+      targetHost: targets.host,
+      publishedPort: deployments.publishedPort,
+      allocatedPort: portAllocations.port,
+      createdAt: deployments.createdAt,
+      startedAt: deployments.startedAt,
+    })
+    .from(deployments)
+    .innerJoin(applications, eq(applications.id, deployments.applicationId))
+    .innerJoin(targets, eq(targets.id, deployments.targetId))
+    .leftJoin(
+      portAllocations,
+      and(
+        eq(portAllocations.targetId, deployments.targetId),
+        eq(portAllocations.applicationId, deployments.applicationId),
+      ),
+    )
+    .where(inArray(deployments.status, ['pending', 'running']))
+    .orderBy(asc(deployments.createdAt));
+
+  if (rows.length === 0) return [];
+
+  const running = await db
+    .select({
+      deploymentId: deploymentSteps.deploymentId,
+      key: deploymentSteps.key,
+      label: deploymentSteps.label,
+    })
+    .from(deploymentSteps)
+    .where(
+      and(
+        inArray(
+          deploymentSteps.deploymentId,
+          rows.map((row) => row.id),
+        ),
+        eq(deploymentSteps.status, 'running'),
+      ),
+    );
+
+  const steps = new Map(running.map((step) => [step.deploymentId, step]));
+
+  return rows.map((row) => {
+    const step = steps.get(row.id);
+    return {
+      ...row,
+      status: row.status as 'pending' | 'running',
+      currentStep: step ? { key: step.key, label: step.label } : null,
+    };
+  });
+}
+
+/** Ce qu'a fait le déblocage — de quoi rédiger l'entrée du journal d'activité. */
+export type AbandonReport = {
+  id: string;
+  applicationSlug: string;
+  targetName: string;
+  /** L'étape sur laquelle le déploiement est arrêté. `null` s'il n'avait rien commencé. */
+  failedStep: string | null;
+  /** Les services ont pu démarrer : la cible porte peut-être encore quelque chose. */
+  mayHaveStartedServices: boolean;
+  /** Le message écrit sur le déploiement, mot pour mot. */
+  error: string;
+};
+
+/**
+ * Compose le message enregistré sur un déploiement abandonné.
+ *
+ * Il est rédigé **ici**, à l'endroit unique où l'abandon est écrit, et pas dans
+ * la route ni dans le worker : les deux chemins de déblocage — le geste manuel
+ * et la reprise automatique quand BullMQ met une tâche en échec sans l'avoir
+ * exécutée — doivent laisser exactement la même trace, sinon le journal raconte
+ * deux histoires pour un même incident.
+ *
+ * Il ne dit pas « interrompu ». Il dit **ce qui s'est passé**, **pourquoi c'est
+ * définitif** et surtout **ce qui reste à vérifier sur la machine** : le panel
+ * ne le sait pas et ne peut pas le savoir sans y aller, c'est donc la seule
+ * information qui vaille d'être conservée.
+ */
+function abandonMessage(
+  row: UnfinishedDeployment,
+  cause: string,
+  observedAt: Date,
+): string {
+  const workspace = workspaceNameFor(row.applicationSlug);
+  const port = row.publishedPort ?? row.allocatedPort;
+  const where = `${row.targetName} (${row.targetHost})`;
+  const grouping = row.runtime === 'k3s' ? 'namespace' : 'projet Compose';
+  const stamp = observedAt.toISOString();
+
+  const opening = row.currentStep
+    ? `Le déploiement s'est arrêté à l'étape « ${row.currentStep.label} ».`
+    : row.status === 'pending'
+      ? "Le déploiement n'avait encore commencé aucune étape."
+      : "Le déploiement s'est arrêté sans qu'aucune étape ne soit en cours.";
+
+  // Trois situations, trois choses différentes à aller vérifier. La distinction
+  // entre les deux dernières est celle du reste du produit — l'étape `deploy`
+  // est la première qui touche réellement la machine.
+  let remains: string;
+  if (row.status === 'pending') {
+    remains =
+      `Aucune étape n'ayant commencé, rien ne devrait avoir été déposé ni démarré ` +
+      `sous « ${workspace} » sur ${where}. Le panel garde néanmoins la trace de ce ` +
+      `déploiement tant qu'il n'est pas détruit ou purgé : c'est sa seule poignée ` +
+      `si quelque chose avait malgré tout été fait.`;
+  } else if (startedServices(row.currentStep?.key ?? null)) {
+    remains =
+      `À vérifier sur ${where}, le panel ne peut pas le savoir d'ici : le ${grouping} ` +
+      `« ${workspace} » peut porter des conteneurs démarrés, les fichiers déposés ` +
+      `peuvent être en place` +
+      (port !== null ? `, et le port ${port} reste réservé à cette application` : '') +
+      `. Détruisez ce déploiement pour que le panel remette la cible à plat, ou ` +
+      `allez constater sur la machine avant de purger.`;
+  } else {
+    remains =
+      `L'arrêt est survenu avant le démarrage des services : rien ne devrait tourner ` +
+      `sous « ${workspace} » sur ${where}. Restent à vérifier les fichiers déposés sur ` +
+      `la cible` +
+      (port !== null ? ` et le port ${port}, encore réservé à cette application` : '') +
+      `. Détruisez ce déploiement pour que le panel les reprenne à son compte.`;
+  }
+
+  return (
+    `${opening} La tâche qui le portait n'existe plus dans aucun état exécutable ` +
+    `de la file « ops » — ${cause}, constaté le ${stamp}. Plus rien ne la reprendra : ` +
+    `le statut « en cours » était devenu faux, il est arrêté à « échoué ». ${remains}`
+  );
+}
+
+/**
+ * Arrête un déploiement figé sur un verdict d'échec.
+ *
+ * **Marquer en échec, jamais reprendre.** Rejouer un pipeline dont on ignore où
+ * il s'est arrêté redéploierait par-dessus quelque chose : la version qui
+ * tourne peut avoir été à moitié remplacée, les conteneurs peuvent être debout,
+ * le port peut être pris. Dire la vérité sur un état incertain et laisser
+ * l'humain lever l'incertitude — par une destruction, ou en allant voir — est
+ * la seule conduite honnête.
+ *
+ * Le `WHERE status IN ('pending','running')` n'est pas décoratif : entre le
+ * verdict et l'écriture, un worker peut très bien avoir conclu le déploiement.
+ * La base tranche, pas nous — un `null` en retour veut dire « il s'est terminé
+ * tout seul entre-temps », et l'appelant doit le dire plutôt que d'écraser.
+ *
+ * L'étape en cours passe en `failed` et non en `skipped` : c'est elle qui dit
+ * où ça s'est arrêté, et l'écran du déploiement la montre.
+ */
+export async function abandonDeployment(
+  id: string,
+  options: { cause: string; observedAt?: Date },
+  db: Database = getDb(),
+): Promise<AbandonReport | null> {
+  const observedAt = options.observedAt ?? new Date();
+
+  // On repasse par la lecture commune plutôt que d'écrire une requête d'appoint :
+  // le message doit être composé à partir des mêmes champs, quelle que soit
+  // l'origine du déblocage. Il n'y a jamais beaucoup de déploiements en cours.
+  const row = (await listUnfinishedDeployments(db)).find((candidate) => candidate.id === id);
+  if (!row) return null;
+
+  const error = abandonMessage(row, options.cause, observedAt);
+  const failedStep = row.currentStep?.key ?? null;
+
+  return db.transaction(async (tx) => {
+    const updated = await tx
+      .update(deployments)
+      .set({
+        status: 'failed',
+        failedStep,
+        error,
+        finishedAt: observedAt,
+        updatedAt: observedAt,
+      })
+      .where(and(eq(deployments.id, id), inArray(deployments.status, ['pending', 'running'])))
+      .returning({ id: deployments.id });
+
+    if (updated.length === 0) return null;
+
+    if (failedStep !== null) {
+      await tx
+        .update(deploymentSteps)
+        .set({ status: 'failed', finishedAt: observedAt, error })
+        .where(
+          and(eq(deploymentSteps.deploymentId, id), eq(deploymentSteps.key, failedStep)),
+        );
+    }
+
+    await tx
+      .update(deploymentSteps)
+      .set({ status: 'skipped', finishedAt: observedAt })
+      .where(
+        and(
+          eq(deploymentSteps.deploymentId, id),
+          inArray(deploymentSteps.status, ['pending', 'running']),
+        ),
+      );
+
+    return {
+      id,
+      applicationSlug: row.applicationSlug,
+      targetName: row.targetName,
+      failedStep,
+      mayHaveStartedServices: startedServices(failedStep),
+      error,
+    };
+  });
 }

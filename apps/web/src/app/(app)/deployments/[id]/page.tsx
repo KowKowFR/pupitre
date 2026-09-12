@@ -80,6 +80,7 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
           finishedAt: deployment.finishedAt?.toISOString() ?? null,
           canRollback: auth.can('deployment:rollback'),
           canDestroy: auth.can('deployment:destroy'),
+          canUnblock: auth.can('deployment:purge'),
           hasPrevious: deployment.previousDeploymentId !== null,
           autoRollback: deployment.autoRollback,
           restoredVersion: restored?.appSpec?.version ?? null,

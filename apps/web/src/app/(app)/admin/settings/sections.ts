@@ -38,7 +38,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     label: 'Régionalisation',
     title: 'Régionalisation',
     governs:
-      "Le fuseau, la langue et la forme de toutes les dates du panel — tableaux, journaux, horodatages d'audit —, serveur et navigateur compris. Le fuseau sert aussi de défaut aux tâches planifiées créées ensuite.",
+      "Le fuseau, la langue et la forme de toutes les dates du panel — tableaux, journaux, horodatages des logs d'activité —, serveur et navigateur compris. Le fuseau sert aussi de défaut aux tâches planifiées créées ensuite.",
     icon: Globe,
   },
   {
@@ -54,7 +54,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     label: 'Notifications',
     title: 'Notifications',
     governs:
-      "Qui est prévenu, comment, et de quoi : e-mail, Telegram, Discord ou webhook. Les alertes partent des mêmes événements que le journal d'audit — un déploiement en échec, un scan qui bloque, un geste de sécurité — mais elles vont chercher quelqu'un au lieu d'attendre qu'on vienne lire.",
+      "Qui est prévenu, comment, et de quoi : e-mail, Telegram, Discord ou webhook. Les alertes partent des mêmes événements que les logs d'activité — un déploiement en échec, un scan qui bloque, un geste de sécurité — mais elles vont chercher quelqu'un au lieu d'attendre qu'on vienne lire.",
     icon: Bell,
   },
   {

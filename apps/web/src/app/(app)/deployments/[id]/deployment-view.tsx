@@ -39,6 +39,8 @@ export type DeploymentView = {
   finishedAt: string | null;
   canRollback: boolean;
   canDestroy: boolean;
+  /** Peut demander l'arrêt d'un déploiement figé — `deployment:purge`. */
+  canUnblock: boolean;
   hasPrevious: boolean;
   autoRollback: boolean;
   /** Version applicative restaurée, quand le statut est `rolled_back`. */
@@ -244,6 +246,7 @@ export function DeploymentDetail({
         total={steps.length}
         onRollback={() => void call(`/api/deployments/${deployment.id}/rollback`, 'rollback')}
         onDestroy={() => void call(`/api/deployments/${deployment.id}`, 'destroy')}
+        onUnblock={() => void call(`/api/deployments/${deployment.id}/unblock`, 'unblock')}
       />
 
       {actionError ? <Alert variant="destructive">{actionError}</Alert> : null}
@@ -535,6 +538,7 @@ function StatusBanner({
   total,
   onRollback,
   onDestroy,
+  onUnblock,
 }: {
   deployment: DeploymentView;
   connection: string;
@@ -544,6 +548,7 @@ function StatusBanner({
   total: number;
   onRollback: () => void;
   onDestroy: () => void;
+  onUnblock: () => void;
 }) {
   const failed = deployment.status === 'failed';
   const rolledBack = deployment.status === 'rolled_back';
@@ -608,6 +613,19 @@ function StatusBanner({
           {deployment.canDestroy && connection !== 'live' && deployment.status !== 'destroyed' ? (
             <Button size="sm" variant="ghost" disabled={action !== null} onClick={onDestroy}>
               {action === 'destroy' ? 'Destruction…' : 'Détruire'}
+            </Button>
+          ) : null}
+          {/*
+            Le bouton est proposé sans condition sur un déploiement en cours :
+            l'écran n'a aucun moyen de savoir si la tâche vit encore, et le
+            découvrir coûterait une lecture de la file à chaque affichage. C'est
+            la route qui tranche, et son refus explique pourquoi — « votre tâche
+            est active depuis quatre minutes ». Un bouton qui pose une question
+            vaut mieux qu'un bouton qui devine.
+          */}
+          {running && deployment.canUnblock ? (
+            <Button size="sm" variant="ghost" disabled={action !== null} onClick={onUnblock}>
+              {action === 'unblock' ? 'Vérification…' : 'Ce déploiement est figé ?'}
             </Button>
           ) : null}
         </div>

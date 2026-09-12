@@ -231,8 +231,8 @@ export function NotificationsManager({
       {initialChannels.length === 0 ? (
         <Alert>
           Aucun canal configuré. Tant qu&apos;il n&apos;y en a pas, un déploiement en échec, un
-          scan bloquant ou une réinitialisation de second facteur ne laissent de trace que dans le
-          journal d&apos;audit — qu&apos;il faut penser à aller lire.
+          scan bloquant ou une réinitialisation de second facteur ne laissent de trace que dans
+          les logs d&apos;activité — qu&apos;il faut penser à aller lire.
         </Alert>
       ) : (
         <ul className="flex flex-col gap-3">

@@ -265,8 +265,8 @@ export function AiForm({
         />
         <p className="text-xs text-ink-faint">
           Chiffrée en AES-256-GCM sous <code className="font-mono">MASTER_KEY</code>, comme les
-          credentials SSH. Elle n&apos;est jamais renvoyée par l&apos;API ni écrite dans le journal
-          d&apos;audit — ce champ part toujours vide, même quand une clé est en place. Sans clé
+          credentials SSH. Elle n&apos;est jamais renvoyée par l&apos;API ni écrite dans les logs
+          d&apos;activité — ce champ part toujours vide, même quand une clé est en place. Sans clé
           ici, le panel retombe sur{' '}
           {descriptor.envApiKeyVar ? (
             <code className="font-mono">{descriptor.envApiKeyVar}</code>

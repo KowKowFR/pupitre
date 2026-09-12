@@ -465,11 +465,11 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
     optional: true,
     cost:
       'Vous resterez seul à pouvoir vous connecter. Chaque geste du panel étant tracé avec son ' +
-      'auteur, un compte partagé rend le journal d’audit inexploitable.',
+      'auteur, un compte partagé rend les logs d’activité inexploitables.',
     detail:
       "Chaque compte porte un rôle, et chaque geste du panel est tracé avec son auteur " +
-      "dans le journal d'audit. Créer un compte par personne plutôt que d'en partager " +
-      "un rend ce journal exploitable. Chacun pourra ensuite protéger son accès par un " +
+      "dans les logs d'activité. Créer un compte par personne plutôt que d'en " +
+      "partager un rend ces logs exploitables. Chacun pourra ensuite protéger son accès par un " +
       "second facteur depuis son espace personnel.",
   },
   {

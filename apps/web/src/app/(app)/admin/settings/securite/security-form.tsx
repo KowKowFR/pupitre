@@ -137,7 +137,7 @@ export function SecurityForm({
       <p className="text-xs text-ink-faint">
         Le réglage s&apos;applique au moment où un déploiement est enfilé, et la configuration
         retenue est gelée avec lui : réactiver l&apos;analyse ne relance pas ce qui est déjà en
-        file. Chaque modification est tracée dans le journal d&apos;audit.
+        file. Chaque modification est tracée dans les logs d&apos;activité.
       </p>
     </SectionForm>
   );
