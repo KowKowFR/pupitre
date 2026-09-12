@@ -6,8 +6,8 @@ import {
   MONITOR_SWEEP_CONCURRENCY,
   isMonitorType,
   type MonitorSweepJobResult,
-} from '@tp/core';
-import { getMonitorProbe } from '@tp/core/probe';
+} from '@pupitre/core';
+import { getMonitorProbe } from '@pupitre/core/probe';
 import {
   applyCheck,
   claimDueMonitors,
@@ -16,7 +16,7 @@ import {
   suspendMonitor,
   suspendOrphanedMonitors,
   type Monitor,
-} from '@tp/db';
+} from '@pupitre/db';
 import { logger } from '../logger.js';
 import { getRedis } from '../redis.js';
 import { notifyMonitorTransition } from './notify.js';

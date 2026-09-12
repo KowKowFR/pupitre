@@ -6,7 +6,7 @@ import {
   isPermission,
   type Permission,
   type RoleKey,
-} from '@tp/core';
+} from '@pupitre/core';
 import { asc, count, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';

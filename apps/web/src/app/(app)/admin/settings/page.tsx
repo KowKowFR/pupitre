@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { SCANNER_KEYS, FAIL_ON_LABELS, scannerLabel } from '@tp/core';
-import { getAiApiKey, getAppSettings, listNotificationChannels } from '@tp/db';
+import { SCANNER_KEYS, FAIL_ON_LABELS, scannerLabel } from '@pupitre/core';
+import { getAiApiKey, getAppSettings, listNotificationChannels } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDateTime, formatSettingsOf } from '@/lib/format';

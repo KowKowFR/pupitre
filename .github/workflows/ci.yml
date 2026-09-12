@@ -316,19 +316,19 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────
       # CETTE ÉTAPE DOIT PRÉCÉDER TOUS LES CONTRÔLES DE TYPES.
       #
-      # @tp/core et @tp/db sont consommés par leur `dist` : leurs package.json
+      # @pupitre/core et @pupitre/db sont consommés par leur `dist` : leurs package.json
       # pointent `exports` vers `./dist/*.js` et `./dist/*.d.ts`, jamais vers
       # `src`. Sur une copie neuve, `dist/` n'existe pas, et `pnpm -r typecheck`
-      # échoue immédiatement sur ~35 « Cannot find module '@tp/core' » dans
-      # @tp/db — des symboles qui existent pourtant dans les sources.
+      # échoue immédiatement sur ~35 « Cannot find module '@pupitre/core' » dans
+      # @pupitre/db — des symboles qui existent pourtant dans les sources.
       #
       # `pnpm -r` respecte l'ordre topologique, mais cela ne suffit pas : le
-      # `typecheck` de @tp/core est en `--noEmit`, il ne produit donc pas le
-      # `dist` dont @tp/db a besoin. Il faut une vraie construction.
+      # `typecheck` de @pupitre/core est en `--noEmit`, il ne produit donc pas le
+      # `dist` dont @pupitre/db a besoin. Il faut une vraie construction.
       #
       # Mesuré sur une copie fraîche, pas supposé.
       # ─────────────────────────────────────────────────────────────────────
-      - name: 'Construire @tp/core et @tp/db (prérequis des typecheck)'
+      - name: 'Construire @pupitre/core et @pupitre/db (prérequis des typecheck)'
         id: build
         run: pnpm build:packages
 
@@ -342,15 +342,15 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm exec tsc --noEmit -p scripts/tsconfig.json
 
-      - name: 'Lint : @tp/web'
+      - name: 'Lint : @pupitre/web'
         id: lint
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: pnpm --filter @tp/web lint
+        run: pnpm --filter @pupitre/web lint
 
-      - name: 'Tests unitaires : @tp/core'
+      - name: 'Tests unitaires : @pupitre/core'
         id: tests_core
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: pnpm --filter @tp/core test
+        run: pnpm --filter @pupitre/core test
 
       - name: 'Tests : périodicité et cron'
         id: tests_schedule
@@ -371,11 +371,11 @@ jobs:
             echo
             echo '| Contrôle | Verdict |'
             echo '| --- | --- |'
-            echo "| Construction @tp/core + @tp/db | ${{ steps.build.outcome }} |"
+            echo "| Construction @pupitre/core + @pupitre/db | ${{ steps.build.outcome }} |"
             echo "| Types (tous les paquets) | ${{ steps.types.outcome }} |"
             echo "| Types (scripts/) | ${{ steps.types_scripts.outcome }} |"
-            echo "| Lint @tp/web | ${{ steps.lint.outcome }} |"
-            echo "| Tests unitaires @tp/core | ${{ steps.tests_core.outcome }} |"
+            echo "| Lint @pupitre/web | ${{ steps.lint.outcome }} |"
+            echo "| Tests unitaires @pupitre/core | ${{ steps.tests_core.outcome }} |"
             echo "| Tests périodicité/cron | ${{ steps.tests_schedule.outcome }} |"
             echo "| Tests catalogue IA | ${{ steps.tests_ai.outcome }} |"
             echo

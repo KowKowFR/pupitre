@@ -1,5 +1,5 @@
-import { DEPLOYMENT_DESTROY_JOB, deploymentJobDataSchema } from '@tp/core';
-import { getDeploymentSummary, listSteps, logAudit } from '@tp/db';
+import { DEPLOYMENT_DESTROY_JOB, deploymentJobDataSchema } from '@pupitre/core';
+import { getDeploymentSummary, listSteps, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';

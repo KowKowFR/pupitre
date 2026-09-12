@@ -9,7 +9,7 @@ import {
   type AppSettings,
   type FailOn,
   type ScannerKey,
-} from '@tp/core';
+} from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';

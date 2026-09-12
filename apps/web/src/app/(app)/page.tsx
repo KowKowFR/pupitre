@@ -8,7 +8,7 @@ import {
   listTargets,
   type DeploymentSummary,
   type PublicTarget,
-} from '@tp/db';
+} from '@pupitre/db';
 import { Led, Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
 import { currentAuth } from '@/lib/page-auth';

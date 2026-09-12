@@ -147,11 +147,11 @@ info "source : $SRC_BYTES octets + 3 fixtures substituées = $PROMPT_BYTES"
 # ─── 2. La chaîne de génération, sous modèle simulé ───────────────────────────
 
 step "2. Chaîne de génération — tests unitaires (modèle simulé)"
-if (cd "$ROOT" && pnpm --filter @tp/core test >"$WORK/test.log" 2>&1); then
+if (cd "$ROOT" && pnpm --filter @pupitre/core test >"$WORK/test.log" 2>&1); then
   pass "$(grep -E '^ℹ pass' "$WORK/test.log" | head -1 | tr -d '\n') — validation Zod, relance unique, rejet propre"
 else
   tail -30 "$WORK/test.log"
-  fail "les tests de @tp/core échouent"
+  fail "les tests de @pupitre/core échouent"
 fi
 
 # ─── 3. Génération réelle ─────────────────────────────────────────────────────

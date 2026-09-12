@@ -1,5 +1,5 @@
-import { PING_JOB, pingJobDataSchema } from '@tp/core';
-import { logAudit } from '@tp/db';
+import { PING_JOB, pingJobDataSchema } from '@pupitre/core';
+import { logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { HttpError } from '@/lib/errors';

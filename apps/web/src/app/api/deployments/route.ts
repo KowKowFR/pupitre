@@ -5,7 +5,7 @@ import {
   scanConfigFromSettings,
   parseAppSpec,
   usableRuntimes,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   createDeploymentSchema,
   createDeploymentWithSteps,
@@ -15,7 +15,7 @@ import {
   getTarget,
   listDeployments,
   logAudit,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { ConflictError, ForbiddenError, HttpError, NotFoundError } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';

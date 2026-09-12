@@ -1,4 +1,4 @@
-import type { ChannelConfig, NotificationEventKey } from '@tp/core';
+import type { ChannelConfig, NotificationEventKey } from '@pupitre/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
@@ -143,7 +143,7 @@ export const notificationDigestGroups = pgTable('notification_digest_groups', {
   /**
    * La clé de regroupement, aujourd'hui l'événement lui-même
    * (`notificationDigestGroupKey()`). Du `text` et non l'énumération des
-   * événements : la granularité de la clé est une décision de `@tp/core`, et
+   * événements : la granularité de la clé est une décision de `@pupitre/core`, et
    * l'affiner un jour ne doit pas coûter une migration.
    */
   groupKey: text('group_key').primaryKey(),

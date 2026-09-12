@@ -1,5 +1,5 @@
-import { aiProviderDescriptor, generateAppSpecPrompt, resolveAiConfig } from '@tp/core/ai';
-import { getAppSettings, pingDb } from '@tp/db';
+import { aiProviderDescriptor, generateAppSpecPrompt, resolveAiConfig } from '@pupitre/core/ai';
+import { getAppSettings, pingDb } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { getRedis } from '@/lib/redis';

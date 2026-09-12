@@ -1,4 +1,4 @@
-import type { CheckMetrics, MonitorType } from '@tp/core';
+import type { CheckMetrics, MonitorType } from '@pupitre/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,

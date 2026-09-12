@@ -1,4 +1,4 @@
-import { SCHEDULED_JOB_TYPES, describeCron, fromCron } from '@tp/core';
+import { SCHEDULED_JOB_TYPES, describeCron, fromCron } from '@pupitre/core';
 import {
   createScheduledJob,
   createScheduledJobSchema,
@@ -7,7 +7,7 @@ import {
   lastRunsByJob,
   listScheduledJobs,
   logAudit,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { ConflictError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';

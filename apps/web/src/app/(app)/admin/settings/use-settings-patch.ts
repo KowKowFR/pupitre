@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { AppSettingsPatch } from '@tp/core';
+import type { AppSettingsPatch } from '@pupitre/core';
 
 /**
  * Plomberie d'enregistrement commune aux sous-sections.

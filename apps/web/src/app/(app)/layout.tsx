@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
-import { onboardingStep } from '@tp/core';
-import { getAppSettings } from '@tp/db';
+import { onboardingStep } from '@pupitre/core';
+import { getAppSettings } from '@pupitre/db';
 import { currentAuth } from '@/lib/page-auth';
 import { AppHeader } from '@/components/app-header';
 import { OnboardingBanner } from '@/components/onboarding-banner';

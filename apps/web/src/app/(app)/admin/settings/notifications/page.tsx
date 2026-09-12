@@ -6,12 +6,12 @@ import {
   notificationDigestWindowMs,
   presentNotificationChannels,
   presentNotificationEvents,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   getNotificationDigestPolicy,
   listNotificationChannels,
   listNotificationDigestStates,
-} from '@tp/db';
+} from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requirePagePermission } from '@/lib/page-auth';
 import { settingsSection } from '../sections';

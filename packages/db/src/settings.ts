@@ -1,4 +1,4 @@
-import type { AppSettings, AppSettingsPatch, OnboardingState } from '@tp/core';
+import type { AppSettings, AppSettingsPatch, OnboardingState } from '@pupitre/core';
 import {
   DEFAULT_APP_SETTINGS,
   appSettingsSchema,
@@ -6,7 +6,7 @@ import {
   decrypt,
   mergeAppSettings,
   parseAppSettings,
-} from '@tp/core';
+} from '@pupitre/core';
 import { eq } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import { appSettings } from './schema/settings.js';
@@ -237,7 +237,7 @@ export async function updateAppSettings(
  * absent.
  *
  * La transformation est passée en fonction plutôt qu'en valeur : la transition
- * vit dans `@tp/core` (`applyOnboardingAction`), et l'appelant ne peut pas
+ * vit dans `@pupitre/core` (`applyOnboardingAction`), et l'appelant ne peut pas
  * écrire un état qu'il aurait fabriqué à côté des règles.
  */
 export async function updateOnboardingState(

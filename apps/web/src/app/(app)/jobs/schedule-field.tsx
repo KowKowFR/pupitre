@@ -11,7 +11,7 @@ import {
   toCron,
   type SimpleSchedule,
   type SimpleScheduleKind,
-} from '@tp/core/schedule';
+} from '@pupitre/core/schedule';
 import { useMemo, useSyncExternalStore } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { CheckboxChip } from '@/components/ui/checkbox';

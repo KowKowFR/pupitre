@@ -7,8 +7,8 @@ import {
   notificationTestJobDataSchema,
   notificationTestJobResultSchema,
   type NotificationTestJobResult,
-} from '@tp/core';
-import { setAuditObserver } from '@tp/db';
+} from '@pupitre/core';
+import { setAuditObserver } from '@pupitre/db';
 import { Queue, QueueEvents } from 'bullmq';
 import { HttpError } from './errors';
 import { logger } from './logger';

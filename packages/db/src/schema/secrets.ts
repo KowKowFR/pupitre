@@ -46,7 +46,7 @@ export const applicationSecrets = pgTable(
     /**
      * AES-256-GCM sous `MASTER_KEY`, format `version:iv:authTag:ciphertext` —
      * même enveloppe que `targets.encrypted_credential`, même helper
-     * (`@tp/core` › `encrypt()` / `decrypt()`), même règle : jamais renvoyé par
+     * (`@pupitre/core` › `encrypt()` / `decrypt()`), même règle : jamais renvoyé par
      * l'API, jamais journalisé.
      */
     encryptedValue: text('encrypted_value').notNull(),

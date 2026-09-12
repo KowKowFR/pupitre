@@ -1,5 +1,5 @@
-import type { AppSettings } from '@tp/core';
-import { DEFAULT_APP_SETTINGS } from '@tp/core';
+import type { AppSettings } from '@pupitre/core';
+import { DEFAULT_APP_SETTINGS } from '@pupitre/core';
 import { sql } from 'drizzle-orm';
 import { check, jsonb, pgTable, smallint, text, timestamp } from 'drizzle-orm/pg-core';
 import { users } from './auth.js';
@@ -13,7 +13,7 @@ import { users } from './auth.js';
  * concurrentes selon l'ordre de lecture.
  *
  * `value` est un JSONB unique plutôt qu'une colonne par réglage : ajouter un
- * paramètre ne coûte alors pas de migration. Le schéma Zod de `@tp/core`
+ * paramètre ne coûte alors pas de migration. Le schéma Zod de `@pupitre/core`
  * (`appSettingsSchema`) reste la seule source de vérité sur sa forme.
  */
 export const appSettings = pgTable(

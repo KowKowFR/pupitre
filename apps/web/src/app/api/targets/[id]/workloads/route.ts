@@ -1,5 +1,5 @@
-import { encodeWorkloadRef } from '@tp/core';
-import { getTarget } from '@tp/db';
+import { encodeWorkloadRef } from '@pupitre/core';
+import { getTarget } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

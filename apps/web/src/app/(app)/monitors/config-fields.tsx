@@ -1,6 +1,6 @@
 'use client';
 
-import type { ConfigField } from '@tp/core';
+import type { ConfigField } from '@pupitre/core';
 import * as React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

@@ -1,4 +1,4 @@
-import { globalFindingQuerySchema, listAllFindings } from '@tp/db';
+import { globalFindingQuerySchema, listAllFindings } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { apiRoute, readSearchParams } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';

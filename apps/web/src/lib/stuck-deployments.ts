@@ -4,16 +4,16 @@ import {
   UNFINISHED_JOB_STATES,
   jobMayAdvanceDeployment,
   type UnfinishedJobState,
-} from '@tp/core';
-import { listUnfinishedDeployments, type UnfinishedDeployment } from '@tp/db';
+} from '@pupitre/core';
+import { listUnfinishedDeployments, type UnfinishedDeployment } from '@pupitre/db';
 import type { Queue } from 'bullmq';
 
 /**
  * Verdict sur un déploiement que la base croit en cours.
  *
- * La règle vit dans `@tp/core` (`UNFINISHED_JOB_STATES`,
+ * La règle vit dans `@pupitre/core` (`UNFINISHED_JOB_STATES`,
  * `jobMayAdvanceDeployment`) ; ce module n'est que la glue qui va la lire dans
- * Redis. `@tp/core` ne dépend pas de `bullmq` — il décrit le contrat des files,
+ * Redis. `@pupitre/core` ne dépend pas de `bullmq` — il décrit le contrat des files,
  * il n'en ouvre aucune — et c'est cette séparation qui permet au worker
  * d'appliquer exactement la même règle sans que la décision soit écrite deux
  * fois.

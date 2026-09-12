@@ -1,5 +1,5 @@
-import { PERMISSIONS, PERMISSION_DESCRIPTIONS, permissionsByResource } from '@tp/core';
-import { createRole, createRoleSchema, getRoleByKey, listRolesWithPermissions, logAudit } from '@tp/db';
+import { PERMISSIONS, PERMISSION_DESCRIPTIONS, permissionsByResource } from '@pupitre/core';
+import { createRole, createRoleSchema, getRoleByKey, listRolesWithPermissions, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { ConflictError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';

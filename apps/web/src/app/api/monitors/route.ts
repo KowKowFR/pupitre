@@ -3,7 +3,7 @@ import {
   MONITOR_FAILURE_THRESHOLD_DEFAULT,
   MONITOR_RECOVERY_THRESHOLD_DEFAULT,
   MONITOR_TYPES_LIST,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   MonitorConfigError,
   createMonitor,
@@ -13,7 +13,7 @@ import {
   listMonitors,
   logAudit,
   monitorTarget,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { HttpError, NotFoundError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';

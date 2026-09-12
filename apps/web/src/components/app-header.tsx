@@ -15,7 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { RoleKey } from '@tp/core';
+import type { RoleKey } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
 import { NavLink } from '@/components/nav-link';
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, Trash2, ArrowUpCircle, Lock } from 'lucide-react';
-import type { ServiceState, Workload } from '@tp/core';
+import type { ServiceState, Workload } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

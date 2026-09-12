@@ -5,8 +5,8 @@ import {
   type DeployLogLine,
   type DeployMessage,
   type DeploymentStepKey,
-} from '@tp/core';
-import { appendStepLog } from '@tp/db';
+} from '@pupitre/core';
+import { appendStepLog } from '@pupitre/db';
 import type { Redis } from 'ioredis';
 import { logger } from '../logger.js';
 

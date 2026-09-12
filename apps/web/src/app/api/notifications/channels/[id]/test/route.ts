@@ -1,4 +1,4 @@
-import { getNotificationChannel, logAudit } from '@tp/db';
+import { getNotificationChannel, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

@@ -68,7 +68,7 @@ env:
   BASE_URL: http://localhost:3000
   # Le nom de projet compose est figé par le champ `name:` du docker-compose.yml.
   # `verify-monitors.sh` attache un récepteur jetable à ce réseau.
-  COMPOSE_NETWORK: bootstrap-tp-v2_default
+  COMPOSE_NETWORK: pupitre_default
 
 jobs:
   e2e:
@@ -92,7 +92,7 @@ jobs:
 
       # Même contrainte d'ordre que dans le socle : `pnpm db:seed`, appelé par
       # verify-roles.sh, tourne depuis `packages/db/dist`.
-      - name: 'Construire @tp/core et @tp/db'
+      - name: 'Construire @pupitre/core et @pupitre/db'
         run: pnpm build:packages
 
       # ─────────────────────────────────────────────────────────────────────

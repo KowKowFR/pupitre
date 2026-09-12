@@ -13,9 +13,9 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decrypt, parseAppSpec, type AppSpec } from '@tp/core';
-import { getDriver, type DriverContext, type DriverDeployment } from '@tp/core/drivers';
-import { connect, disconnect, type SshTarget } from '@tp/core/ssh';
+import { decrypt, parseAppSpec, type AppSpec } from '@pupitre/core';
+import { getDriver, type DriverContext, type DriverDeployment } from '@pupitre/core/drivers';
+import { connect, disconnect, type SshTarget } from '@pupitre/core/ssh';
 import {
   applications,
   closeDb,
@@ -24,7 +24,7 @@ import {
   getDb,
   getTargetSecret,
   listTargets,
-} from '@tp/db';
+} from '@pupitre/db';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_SPEC = path.join(ROOT, 'packages/core/src/spec/__fixtures__/simple.json');

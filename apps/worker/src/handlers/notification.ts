@@ -26,8 +26,8 @@ import {
   type NotificationPayload,
   type NotificationRenderContext,
   type NotificationTestJobResult,
-} from '@tp/core';
-import { deliverNotification, getNotificationChannel } from '@tp/core/notifications';
+} from '@pupitre/core';
+import { deliverNotification, getNotificationChannel } from '@pupitre/core/notifications';
 import {
   admitNotification,
   claimNotificationDigest,
@@ -40,7 +40,7 @@ import {
   resolveNotificationChannel,
   setAuditObserver,
   type NotificationChannelRecord,
-} from '@tp/db';
+} from '@pupitre/db';
 import { Queue, UnrecoverableError, type Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { createRedisConnection } from '../redis.js';

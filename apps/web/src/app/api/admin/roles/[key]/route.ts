@@ -7,7 +7,7 @@ import {
   roleKeySchema,
   updateRole,
   updateRoleSchema,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';

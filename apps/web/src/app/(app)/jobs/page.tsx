@@ -4,13 +4,13 @@ import {
   describeCron,
   fromCron,
   supportedTimeZones,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   getAppSettingsValue,
   lastRunsByJob,
   listScheduledJobRuns,
   listScheduledJobs,
-} from '@tp/db';
+} from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { requirePagePermission } from '@/lib/page-auth';
 import { schedulerStates } from '@/lib/schedules';

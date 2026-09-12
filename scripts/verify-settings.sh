@@ -593,7 +593,7 @@ req PATCH /api/settings '{"security":{"scanningEnabled":true,"disabledScanners":
 req PATCH /api/settings \
   '{"ai":{"enabled":true,"provider":"openrouter","model":"anthropic/claude-sonnet-4.5","baseUrl":"","temperature":0.2,"maxTokens":8192}}' >/dev/null
 code=$(req PATCH /api/settings \
-  '{"instanceName":"Control plane","instanceTagline":"Bootstrap TP v2","timezone":"Europe/Paris","locale":"fr-FR","dateStyle":"short","timeStyle":"medium"}')
+  '{"instanceName":"Pupitre","instanceTagline":"Plan de contrôle de déploiement","timezone":"Europe/Paris","locale":"fr-FR","dateStyle":"short","timeStyle":"medium"}')
 [ "$code" = "200" ] || fail "restauration → HTTP $code : $(cat "$BODY")"
 if [ -s "$KEY_SNAPSHOT" ]; then
   pass "paramètres restaurés ; la clé d'instance sera remise en place en sortant"

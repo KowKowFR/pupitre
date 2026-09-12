@@ -1,5 +1,5 @@
-import { SCHEDULED_JOB_TYPES, type ScheduledJobData } from '@tp/core';
-import { listScheduledJobs, logAudit, type ScheduledJob } from '@tp/db';
+import { SCHEDULED_JOB_TYPES, type ScheduledJobData } from '@pupitre/core';
+import { listScheduledJobs, logAudit, type ScheduledJob } from '@pupitre/db';
 import type { Queue } from 'bullmq';
 import { logger } from '../logger.js';
 

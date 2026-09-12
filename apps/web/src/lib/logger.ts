@@ -1,5 +1,5 @@
 import 'server-only';
-import { setAuditFailureReporter } from '@tp/db';
+import { setAuditFailureReporter } from '@pupitre/db';
 import { pino } from 'pino';
 
 /**
@@ -32,7 +32,7 @@ const REDACTED = [
   'MASTER_KEY',
   'BETTER_AUTH_SECRET',
   // Une variable par fournisseur d'IA : la liste suit le catalogue de
-  // `@tp/core/ai`. Un fournisseur ajouté sans sa variable ici ferait fuir sa clé
+  // `@pupitre/core/ai`. Un fournisseur ajouté sans sa variable ici ferait fuir sa clé
   // dans un log de configuration.
   'OPENROUTER_API_KEY',
   'OPENAI_API_KEY',
@@ -54,7 +54,7 @@ const REDACTED = [
   'twoFactorSecret',
   'backup_codes',
   // Canaux de notification : les champs secrets du catalogue de
-  // `@tp/core/notifications`, sous les noms qu'ils portent selon la couche
+  // `@pupitre/core/notifications`, sous les noms qu'ils portent selon la couche
   // traversée — corps de POST/PATCH, objet résolu passé au canal, colonne
   // Drizzle, colonne SQL. `webhookUrl` est bien un secret : l'URL d'un webhook
   // Discord contient son jeton d'écriture.

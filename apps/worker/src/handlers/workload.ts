@@ -9,10 +9,10 @@ import {
   type WorkloadActionJobResult,
   type WorkloadListJobResult,
   type WorkloadMessage,
-} from '@tp/core';
-import { getDriver, type TargetContext } from '@tp/core/drivers';
-import { connect, disconnect, type SshSession, type SshTarget } from '@tp/core/ssh';
-import { getTargetSecret, logAudit } from '@tp/db';
+} from '@pupitre/core';
+import { getDriver, type TargetContext } from '@pupitre/core/drivers';
+import { connect, disconnect, type SshSession, type SshTarget } from '@pupitre/core/ssh';
+import { getTargetSecret, logAudit } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { env } from '../env.js';
 import { logger } from '../logger.js';

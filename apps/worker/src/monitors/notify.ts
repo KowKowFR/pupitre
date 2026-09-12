@@ -1,5 +1,5 @@
-import { buildMonitorAlert, monitorTypeSchema, type MonitorStatus } from '@tp/core';
-import { postWebhook } from '@tp/core/probe';
+import { buildMonitorAlert, monitorTypeSchema, type MonitorStatus } from '@pupitre/core';
+import { postWebhook } from '@pupitre/core/probe';
 import {
   logAudit,
   markIncidentAlerted,
@@ -7,7 +7,7 @@ import {
   monitorWebhookUrl,
   type Monitor,
   type MonitorIncident,
-} from '@tp/db';
+} from '@pupitre/db';
 import { logger } from '../logger.js';
 import { allowedCidrs } from './policy.js';
 

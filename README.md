@@ -1,4 +1,4 @@
-# Bootstrap TP v2 — control plane
+# Pupitre — control plane
 
 **Ce panel n'héberge rien. Il orchestre.** Il tourne chez vous en `docker compose`,
 et il déploie *vos* applications sur *d'autres* machines, par SSH — en Docker
@@ -88,7 +88,7 @@ packages/core   AppSpec, RBAC, crypto, paramètres, queue — et quatre sous-che
 
 Les sous-chemins existent tous pour la même raison : `ssh2`, `nodemailer` et le
 SDK IA ne doivent pas entrer dans le graphe de dépendances du panel Next. Les
-*types* correspondants restent à la racine de `@tp/core`, parce que l'UI en a
+*types* correspondants restent à la racine de `@pupitre/core`, parce que l'UI en a
 besoin et qu'ils n'exécutent rien.
 
 **Une seule image Docker, deux commandes au runtime : `web` et `worker`.**

@@ -1,4 +1,4 @@
-import { parseCidrList, type Cidr } from '@tp/core';
+import { parseCidrList, type Cidr } from '@pupitre/core';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
 

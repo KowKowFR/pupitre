@@ -8,15 +8,15 @@ import {
   totalFindings,
   type DeploymentStepKey,
   type PortRange,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   getDriver,
   getProxyProvider,
   type DeployResult,
   type DriverContext,
   type RenderedArtifacts,
-} from '@tp/core/drivers';
-import { connect, disconnect, type SshTarget } from '@tp/core/ssh';
+} from '@pupitre/core/drivers';
+import { connect, disconnect, type SshTarget } from '@pupitre/core/ssh';
 import {
   createPortAllocator,
   finishDeployment,
@@ -31,7 +31,7 @@ import {
   skipPendingSteps,
   startStep,
   type DeploymentStep,
-} from '@tp/db';
+} from '@pupitre/db';
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
@@ -601,7 +601,7 @@ export async function runDeploymentPipeline(
  * La condition n'est pas « le déploiement a échoué » mais « aucune version de
  * cette application ne tourne sur cette cible ». Le verdict vient de
  * `hasLiveDeploymentOnTarget()`, c'est-à-dire de l'unique définition de
- * « vivant » portée par `@tp/db` — le worker n'en a pas une à lui.
+ * « vivant » portée par `@pupitre/db` — le worker n'en a pas une à lui.
  *
  * Le déploiement qui vient d'échouer entre dans le calcul au lieu d'en être
  * exclu : s'il a dépassé l'étape `deploy`, ce sont ses propres conteneurs qui

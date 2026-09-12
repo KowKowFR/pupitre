@@ -3,8 +3,8 @@ import {
   DEPLOYMENT_ROLLBACK_JOB,
   DEPLOYMENT_RUN_JOB,
   deployChannel,
-} from '@tp/core';
-import { abandonDeployment, logAudit } from '@tp/db';
+} from '@pupitre/core';
+import { abandonDeployment, logAudit } from '@pupitre/db';
 import { logger } from '../logger.js';
 import { getPublisher } from '../redis.js';
 

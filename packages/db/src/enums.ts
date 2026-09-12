@@ -112,7 +112,7 @@ export const secretOriginEnum = pgEnum('secret_origin', ['generated', 'provided'
  * Un enum Postgres et non un `text` libre, comme tout le reste : la liste des
  * canaux est une donnée du domaine, et une valeur inventée en SQL à la main ne
  * doit pas pouvoir atterrir en base pour n'échouer qu'au moment d'envoyer. Les
- * quatre valeurs suivent `NOTIFICATION_CHANNEL_KINDS` de `@tp/core` — ajouter
+ * quatre valeurs suivent `NOTIFICATION_CHANNEL_KINDS` de `@pupitre/core` — ajouter
  * un canal coûte donc une migration, ce qui est le prix normal d'une valeur
  * d'enum dans ce projet.
  */

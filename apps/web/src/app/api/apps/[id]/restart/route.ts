@@ -1,5 +1,5 @@
-import { APP_RESTART_JOB, deploymentJobDataSchema, isSupervisable } from '@tp/core';
-import { getDeploymentSummary, logAudit } from '@tp/db';
+import { APP_RESTART_JOB, deploymentJobDataSchema, isSupervisable } from '@pupitre/core';
+import { getDeploymentSummary, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';

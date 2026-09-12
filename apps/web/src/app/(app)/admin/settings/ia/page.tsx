@@ -1,4 +1,4 @@
-import { getAiApiKey, getAppSettings } from '@tp/db';
+import { getAiApiKey, getAppSettings } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requirePagePermission } from '@/lib/page-auth';
 import { AiStatusBadge } from '../ai-status';

@@ -5,8 +5,8 @@ import {
   secretNamesOf,
   secretRootName,
   type AppSpec,
-} from '@tp/core';
-import { type PublicApplicationSecret } from '@tp/db';
+} from '@pupitre/core';
+import { type PublicApplicationSecret } from '@pupitre/db';
 
 /**
  * Vue d'un secret telle que l'API a le droit de la rendre.

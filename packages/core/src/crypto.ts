@@ -27,7 +27,18 @@ const AUTH_TAG_LENGTH = 16;
 const KEY_LENGTH = 32; // AES-256
 const MIN_MASTER_KEY_BYTES = 32;
 
-/** Contexte HKDF : fige le domaine d'usage de la clé dérivée. */
+/**
+ * Contexte HKDF : fige le domaine d'usage de la clé dérivée.
+ *
+ * **Cette chaîne ne suit pas le nom du produit et ne doit jamais changer.**
+ * Elle entre dans la dérivation : la modifier produit une autre clé à partir
+ * du même `MASTER_KEY`, et rend illisible d'un coup tout ce qui est déjà
+ * chiffré en base — credentials SSH, secrets d'applications, clé d'IA, secrets
+ * de canaux, webhooks de sondes. Le panel s'appelle Pupitre depuis, et cette
+ * valeur garde l'ancien nom pour cette seule raison. La changer exigerait de
+ * déchiffrer avec l'ancien sel puis de rechiffrer avec le nouveau, en une
+ * migration écrite pour cela.
+ */
 const HKDF_SALT = 'bootstrap-tp-v2/secret-encryption';
 const HKDF_INFO = 'aes-256-gcm/v1';
 

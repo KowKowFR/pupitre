@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
-import type { RuntimesAvailable, TargetHealth } from '@tp/core';
+import type { RuntimesAvailable, TargetHealth } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';

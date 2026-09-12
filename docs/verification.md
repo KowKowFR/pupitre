@@ -71,7 +71,7 @@ TARGET_NAME=ma-vm ./scripts/verify-purge.sh
 
 | Commande | Ce qu'elle fait |
 |---|---|
-| `pnpm test` | 205 tests unitaires de `@tp/core` : crypto, AppSpec et ses refinements, alias de secrets, rendu Compose et K8s, normalisation des scans, génération IA sous modèle simulé, machine à états des sondes |
+| `pnpm test` | 205 tests unitaires de `@pupitre/core` : crypto, AppSpec et ses refinements, alias de secrets, rendu Compose et K8s, normalisation des scans, génération IA sous modèle simulé, machine à états des sondes |
 | `pnpm typecheck` | TypeScript strict sur les quatre projets **et** sur `scripts/` |
 | `pnpm tsx scripts/render-both.ts <spec>` | rend une AppSpec vers les deux runtimes sans rien déployer, et **re-parse chaque manifest sérialisé** — un rendu qui ne repasse pas par son propre analyseur n'a rien prouvé |
 | `pnpm test:driver <cible>` | un déploiement de bout en bout, en pilotant le driver en direct |

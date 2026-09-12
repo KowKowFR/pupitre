@@ -1,4 +1,4 @@
-import { auditQuerySchema, getAppSettings, listAuditLogs } from '@tp/db';
+import { auditQuerySchema, getAppSettings, listAuditLogs } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent } from '@/components/ui/card';
 import { formatSettingsOf } from '@/lib/format';

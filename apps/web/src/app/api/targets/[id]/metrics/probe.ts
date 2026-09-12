@@ -5,7 +5,7 @@ import {
   hostMetricsSchema,
   targetMetricsJobDataSchema,
   type HostMetrics,
-} from '@tp/core';
+} from '@pupitre/core';
 import { QueueEvents } from 'bullmq';
 import { HttpError } from '@/lib/errors';
 import { getRedis } from '@/lib/redis';

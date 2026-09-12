@@ -3,9 +3,9 @@ import {
   type AbandonedWorkload,
   type ApplicationDeleteJobResult,
   type DestroyedDeployment,
-} from '@tp/core';
-import { getDriver } from '@tp/core/drivers';
-import type { ConnectOptions } from '@tp/core/ssh';
+} from '@pupitre/core';
+import { getDriver } from '@pupitre/core/drivers';
+import type { ConnectOptions } from '@pupitre/core/ssh';
 import {
   deleteApplication,
   eraseApplication,
@@ -15,7 +15,7 @@ import {
   purgeDeployments,
   type ApplicationDeletionBlocker,
   type PurgeRefusal,
-} from '@tp/db';
+} from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { env } from '../env.js';
 import { logger } from '../logger.js';

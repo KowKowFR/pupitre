@@ -1,5 +1,5 @@
-import { workloadChannel, workloadMessageSchema } from '@tp/core';
-import { getTarget } from '@tp/db';
+import { workloadChannel, workloadMessageSchema } from '@pupitre/core';
+import { getTarget } from '@pupitre/db';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { getEnv } from '@/lib/env';

@@ -10,10 +10,10 @@ import {
   type ScanVerdict,
   type ScannerKey,
   type SeverityCounts,
-} from '@tp/core';
-import type { DriverContext } from '@tp/core/drivers';
-import { getScanner } from '@tp/core/scanners';
-import { clearScanRuns, createScanRun, finishScanRun } from '@tp/db';
+} from '@pupitre/core';
+import type { DriverContext } from '@pupitre/core/drivers';
+import { getScanner } from '@pupitre/core/scanners';
+import { clearScanRuns, createScanRun, finishScanRun } from '@pupitre/db';
 import { logger } from '../logger.js';
 
 /**

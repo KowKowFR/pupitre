@@ -3,8 +3,8 @@ import {
   SUPPORTED_LOCALES,
   appSettingsPatchSchema,
   supportedTimeZones,
-} from '@tp/core';
-import { getAppSettings, logAudit, updateAppSettings, type AppSettingsRecord } from '@tp/db';
+} from '@pupitre/core';
+import { getAppSettings, logAudit, updateAppSettings, type AppSettingsRecord } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { apiRoute, readJsonBody } from '@/lib/http';
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
  * La clé d'API du fournisseur d'IA n'est **jamais** renvoyée, pas même
  * partiellement masquée : seulement le fait qu'elle soit posée et ses quatre
  * derniers caractères, qui suffisent à reconnaître laquelle est en place sans
- * permettre de s'en servir. Ce que `@tp/db` expose en lecture ne contient
+ * permettre de s'en servir. Ce que `@pupitre/db` expose en lecture ne contient
  * physiquement pas la clé — impossible de la laisser fuir par oubli.
  */
 

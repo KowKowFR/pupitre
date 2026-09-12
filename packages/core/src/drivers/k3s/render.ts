@@ -48,7 +48,24 @@ export const NAMESPACE_PREFIX = WORKSPACE_PREFIX;
 /** Répertoire, dans la release, où atterrissent les manifests. */
 export const MANIFEST_DIR = 'k8s';
 
-export const MANAGED_BY = 'bootstrap-tp';
+export const MANAGED_BY = 'pupitre';
+
+/**
+ * La valeur d'avant le renommage, encore posée sur tout ce qui a été déployé
+ * jusqu'ici. Les sélecteurs du driver acceptent les deux — un `rollout restart`
+ * ou un suivi de logs qui ne verrait que la nouvelle passerait silencieusement
+ * à côté d'une application vivante, ce qui est pire qu'une erreur : c'est un
+ * succès qui n'a rien fait.
+ */
+export const LEGACY_MANAGED_BY = 'bootstrap-tp';
+
+/**
+ * Sélecteur d'étiquette qui reconnaît les deux générations.
+ * `kubectl` accepte la forme ensembliste ; elle évite d'avoir à lancer deux
+ * commandes et à en fusionner les sorties.
+ */
+export const MANAGED_SELECTOR =
+  `app.kubernetes.io/managed-by in (${MANAGED_BY},${LEGACY_MANAGED_BY})`;
 
 /** Classe de stockage par défaut de K3s. */
 export const DEFAULT_STORAGE_CLASS = 'local-path';
@@ -545,7 +562,7 @@ export function serializeManifest(manifest: KubeManifest): string {
     ? `${manifest.metadata.namespace}/${manifest.metadata.name}`
     : manifest.metadata.name;
   const header = [
-    '# Généré par bootstrap-tp-v2 — ne pas éditer à la main.',
+    '# Généré par Pupitre — ne pas éditer à la main.',
     `# ${manifest.kind} ${where}`,
     '',
   ].join('\n');

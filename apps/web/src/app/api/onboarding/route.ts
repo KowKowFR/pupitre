@@ -6,8 +6,8 @@ import {
   onboardingStepsFor,
   presentOnboardingSteps,
   type OnboardingAction,
-} from '@tp/core';
-import { getAppSettings, logAudit, updateOnboardingState } from '@tp/db';
+} from '@pupitre/core';
+import { getAppSettings, logAudit, updateOnboardingState } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { HttpError } from '@/lib/errors';

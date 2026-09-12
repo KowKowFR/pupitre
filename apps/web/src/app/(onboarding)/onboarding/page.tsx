@@ -5,8 +5,8 @@ import {
   presentOnboardingSteps,
   supportedTimeZones,
   type RoleKey,
-} from '@tp/core';
-import { getAppSettings, listRoles } from '@tp/db';
+} from '@pupitre/core';
+import { getAppSettings, listRoles } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/empty-state';

@@ -3,13 +3,13 @@ import {
   notificationChannelKindSchema,
   presentNotificationChannels,
   presentNotificationEvents,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   NotificationChannelNameTakenError,
   createNotificationChannel,
   listNotificationChannels,
-} from '@tp/db';
-import { logAudit } from '@tp/db';
+} from '@pupitre/db';
+import { logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError } from '@/lib/errors';
@@ -28,15 +28,15 @@ export const dynamic = 'force-dynamic';
  *
  * Les secrets — mot de passe SMTP, jeton de bot, URL de webhook Discord — ne
  * sont **jamais** renvoyés, pas même partiellement masqués : la réponse dit
- * seulement *quels champs* sont renseignés. Ce que `@tp/db` expose en lecture
+ * seulement *quels champs* sont renseignés. Ce que `@pupitre/db` expose en lecture
  * ne contient physiquement pas les valeurs, donc aucun oubli de filtrage ici ne
  * peut les laisser fuir.
  */
 
 /**
  * Une configuration de canal est un objet plat de scalaires. Le schéma précis
- * — champs attendus, obligation, format — vit dans le catalogue de `@tp/core`
- * et est appliqué par `@tp/db` : le dupliquer ici donnerait deux vérités.
+ * — champs attendus, obligation, format — vit dans le catalogue de `@pupitre/core`
+ * et est appliqué par `@pupitre/db` : le dupliquer ici donnerait deux vérités.
  */
 const configSchema = z.record(z.string().max(60), z.union([z.string(), z.number(), z.boolean()]));
 const secretsSchema = z.record(z.string().max(60), z.string().max(400));

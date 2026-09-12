@@ -22,7 +22,7 @@ import {
   type MonitorTransition,
   type MonitorType,
   type UptimeWindow,
-} from '@tp/core';
+} from '@pupitre/core';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
@@ -33,7 +33,7 @@ import { monitorChecks, monitorIncidents, monitors } from './schema/monitors.js'
 /**
  * Persistance de la supervision de sites.
  *
- * Tout ce qui décide vit dans `@tp/core` : la machine à états
+ * Tout ce qui décide vit dans `@pupitre/core` : la machine à états
  * (`nextMonitorState`) et la validation par type (le catalogue). Ce module
  * écrit. La seule intelligence qui reste ici est transactionnelle : une mesure,
  * l'avancement de l'état et l'ouverture — ou la fermeture — d'un incident

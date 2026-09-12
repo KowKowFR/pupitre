@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Permission } from '@tp/core';
+import type { Permission } from '@pupitre/core';
 
 /**
  * Erreurs métier traduites en codes HTTP par le wrapper `apiRoute()`.

@@ -1,5 +1,5 @@
 {
-  "name": "@tp/worker",
+  "name": "@pupitre/worker",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@tp/core": "workspace:*",
-    "@tp/db": "workspace:*",
+    "@pupitre/core": "workspace:*",
+    "@pupitre/db": "workspace:*",
     "bullmq": "^6.3.4",
     "ioredis": "^6.0.0",
     "pino": "^10.3.1",

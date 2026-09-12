@@ -4,13 +4,13 @@ import {
   NOTIFICATION_DIGEST_WINDOW_MS_MAX,
   NOTIFICATION_DIGEST_WINDOW_MS_MIN,
   notificationDigestWindowMs,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   getNotificationDigestPolicy,
   listNotificationDigestStates,
   logAudit,
   setNotificationDigestPolicy,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { apiRoute, readJsonBody } from '@/lib/http';

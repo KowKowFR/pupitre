@@ -1,5 +1,5 @@
-import { aiProviderDescriptor, resolveAiConfig } from '@tp/core/ai';
-import type { AppSettings } from '@tp/core';
+import { aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
+import type { AppSettings } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
 
 /**

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { getAppSettings } from '@tp/db';
+import { getAppSettings } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
 import { requirePagePermission } from '@/lib/page-auth';

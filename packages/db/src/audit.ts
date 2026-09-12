@@ -51,7 +51,7 @@ export function setAuditFailureReporter(reporter: AuditFailureReporter): void {
  * changement de rôle. Les réémettre à la main obligerait à toucher le pipeline
  * de déploiement, deux routes d'administration et le worker, puis à recommencer
  * au prochain événement. Ici, la correspondance tient dans une seule table de
- * données (`@tp/core` → `notifiableEventFor`).
+ * données (`@pupitre/core` → `notifiableEventFor`).
  *
  * Trois précautions, parce que ce point d'entrée est fragile :
  *   1. l'observateur est appelé **après** l'écriture, jamais avant : on ne

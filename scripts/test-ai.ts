@@ -33,7 +33,7 @@
  * Sortie en code 1 dès qu'un seul point échoue.
  */
 import assert from 'node:assert/strict';
-import { aiSettingsSchema, appSettingsPatchSchema, safeParseAppSpec } from '@tp/core';
+import { aiSettingsSchema, appSettingsPatchSchema, safeParseAppSpec } from '@pupitre/core';
 import {
   AI_PROVIDERS,
   DEFAULT_TEMPERATURE,
@@ -50,7 +50,7 @@ import {
   isAiProvider,
   resolveAiConfig,
   type AiProvider,
-} from '@tp/core/ai';
+} from '@pupitre/core/ai';
 
 const ESC = String.fromCharCode(27);
 const paint = (code: string) => (text: string) => `${ESC}[${code}m${text}${ESC}[0m`;

@@ -1,6 +1,6 @@
 import 'server-only';
-import { SCHEDULED_JOB_TYPES, type ScheduledJobData } from '@tp/core';
-import type { ScheduledJob } from '@tp/db';
+import { SCHEDULED_JOB_TYPES, type ScheduledJobData } from '@pupitre/core';
+import type { ScheduledJob } from '@pupitre/db';
 import { getOpsQueue } from './queue';
 import { logger } from './logger';
 

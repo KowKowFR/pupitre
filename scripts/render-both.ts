@@ -18,14 +18,14 @@
  */
 import { readFileSync } from 'node:fs';
 import { parse as parseYaml } from 'yaml';
-import { parseAppSpec, exposedService, secretNamesOf } from '@tp/core';
-// `@tp/core/drivers` tire `ssh2` : acceptable pour un script Node, jamais pour
+import { parseAppSpec, exposedService, secretNamesOf } from '@pupitre/core';
+// `@pupitre/core/drivers` tire `ssh2` : acceptable pour un script Node, jamais pour
 // le panel — c'est pourquoi ce sous-chemin existe.
 import {
   renderComposeFile,
   serializeComposeFile,
   k3sRender,
-} from '@tp/core/drivers';
+} from '@pupitre/core/drivers';
 
 function fail(message: string): never {
   process.stderr.write(`✗ ${message}\n`);

@@ -1,4 +1,4 @@
-import { LOCKED_ROLE, type RoleKey } from '@tp/core';
+import { LOCKED_ROLE, type RoleKey } from '@pupitre/core';
 import {
   asc,
   count,
@@ -13,7 +13,7 @@ import {
   userRoles,
   users,
   type TwoFactorState,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuth } from '@/lib/auth';

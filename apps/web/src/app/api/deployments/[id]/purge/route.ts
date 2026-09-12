@@ -1,4 +1,4 @@
-import { getDeploymentSummary, logAudit, purgeDeployments } from '@tp/db';
+import { getDeploymentSummary, logAudit, purgeDeployments } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, NotFoundError } from '@/lib/errors';

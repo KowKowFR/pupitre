@@ -1,4 +1,4 @@
-import { deployLogLineSchema, type DeployLogLine } from '@tp/core';
+import { deployLogLineSchema, type DeployLogLine } from '@pupitre/core';
 import {
   asc,
   deploymentSteps,
@@ -8,7 +8,7 @@ import {
   logAudit,
   sql,
   type DeploymentSummary,
-} from '@tp/db';
+} from '@pupitre/db';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';
 import { apiRoute, readSearchParams } from '@/lib/http';

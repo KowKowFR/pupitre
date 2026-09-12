@@ -35,7 +35,7 @@ import {
   simpleScheduleSchema,
   toCron,
   type SimpleSchedule,
-} from '@tp/core';
+} from '@pupitre/core';
 
 const ESC = String.fromCharCode(27);
 const paint = (code: string) => (text: string) => `${ESC}[${code}m${text}${ESC}[0m`;

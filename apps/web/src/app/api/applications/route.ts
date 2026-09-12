@@ -1,4 +1,4 @@
-import { appSpecSchema } from '@tp/core';
+import { appSpecSchema } from '@pupitre/core';
 import {
   createApplication,
   generationOriginSchema,
@@ -6,7 +6,7 @@ import {
   listApplications,
   logAudit,
   syncApplicationSecrets,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError } from '@/lib/errors';

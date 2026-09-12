@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Compass } from 'lucide-react';
-import { onboardingStep, type OnboardingState } from '@tp/core';
+import { onboardingStep, type OnboardingState } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { AppSettings, DateStyleName, SupportedLocale } from '@tp/core';
+import type { AppSettings, DateStyleName, SupportedLocale } from '@pupitre/core';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { formatDateTime } from '@/lib/format';

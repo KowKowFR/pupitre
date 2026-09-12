@@ -1,5 +1,5 @@
-import { SCANNERS } from '@tp/core';
-import { getScanRun, getScanRunRaw } from '@tp/db';
+import { SCANNERS } from '@pupitre/core';
+import { getScanRun, getScanRunRaw } from '@pupitre/db';
 import { z } from 'zod';
 import { ConflictError, NotFoundError } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';

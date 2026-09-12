@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import type { CheckMetrics, MetricDescriptor } from '@tp/core';
-import { formatDuration } from '@tp/core';
+import type { CheckMetrics, MetricDescriptor } from '@pupitre/core';
+import { formatDuration } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { decrypt, encrypt, storedSecretNames, type AppSpec } from '@tp/core';
+import { decrypt, encrypt, storedSecretNames, type AppSpec } from '@pupitre/core';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';

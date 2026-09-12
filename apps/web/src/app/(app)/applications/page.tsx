@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { listApplications, listTargets } from '@tp/db';
+import { listApplications, listTargets } from '@pupitre/db';
 import { Plus } from 'lucide-react';
 import { AppSpecHelpDialog } from '@/components/appspec-help';
 import { PageHeader } from '@/components/page-header';

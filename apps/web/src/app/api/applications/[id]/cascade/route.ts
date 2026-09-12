@@ -3,14 +3,14 @@ import {
   applicationDeleteJobDataSchema,
   workspaceNameFor,
   type Permission,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   countDeploymentsFor,
   getApplication,
   listApplicationDeletionBlockers,
   listApplicationPortAllocations,
   logAudit,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
@@ -64,7 +64,7 @@ async function requireCascadePermissions(request: Request) {
  * Ce qu'un forçage abandonnerait, **nommé**.
  *
  * Le nom du regroupement vient de la convention partagée (`workspaceNameFor`)
- * et non d'un driver : `@tp/core/drivers` est hors du graphe du panel. Le
+ * et non d'un driver : `@pupitre/core/drivers` est hors du graphe du panel. Le
  * journal d'activité, lui, est écrit par le worker, qui interroge le driver —
  * c'est là qu'est l'autorité.
  */

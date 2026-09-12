@@ -5,8 +5,8 @@ import {
   formatCadence,
   isMonitorType,
   monitorTypeDefinition,
-} from '@tp/core';
-import { getMonitor, listChecks, listIncidents } from '@tp/db';
+} from '@pupitre/core';
+import { getMonitor, listChecks, listIncidents } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';

@@ -128,7 +128,7 @@ export type NotificationTransports = {
  * Formes que prennent les jetons chez les fournisseurs visés, y compris
  * **masquées** par eux.
  *
- * Constaté ailleurs dans ce dépôt (`@tp/core/ai`) : sur une clé refusée, un
+ * Constaté ailleurs dans ce dépôt (`@pupitre/core/ai`) : sur une clé refusée, un
  * fournisseur renvoie « Incorrect API key provided: sk-abcd1234***…***wxyz » —
  * soit une partie de la clé, en clair, dans un message que nous relayons
  * ensuite dans une réponse HTTP et dans le journal d'audit. Le masque du

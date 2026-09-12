@@ -1,4 +1,4 @@
-import type { RuntimesAvailable, TargetHealth } from '@tp/core';
+import type { RuntimesAvailable, TargetHealth } from '@pupitre/core';
 import { Led } from '@/components/instrument';
 import { Badge } from '@/components/ui/badge';
 import { formatDateTime, type DateInput, type FormatSettings } from '@/lib/format';

@@ -126,7 +126,7 @@ cleanup_targets
 ORIGINAL_NAME=$(psql_q "select value->>'instanceName' from app_settings where id = 1;")
 ORIGINAL_TAGLINE=$(psql_q "select value->>'instanceTagline' from app_settings where id = 1;")
 [ -n "$ORIGINAL_NAME" ] || ORIGINAL_NAME='Control plane'
-[ -n "$ORIGINAL_TAGLINE" ] || ORIGINAL_TAGLINE='Bootstrap TP v2'
+[ -n "$ORIGINAL_TAGLINE" ] || ORIGINAL_TAGLINE='Plan de contrôle de déploiement'
 info "identité d'origine : « $ORIGINAL_NAME » / « $ORIGINAL_TAGLINE »"
 
 step "2. État vierge : l'assistant est proposé"

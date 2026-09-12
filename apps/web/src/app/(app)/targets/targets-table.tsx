@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { RuntimesAvailable, TargetHealth } from '@tp/core';
+import type { RuntimesAvailable, TargetHealth } from '@pupitre/core';
 import { EmptyState } from '@/components/empty-state';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

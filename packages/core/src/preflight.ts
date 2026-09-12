@@ -5,7 +5,7 @@ import { z } from 'zod';
  *
  * Ce fichier ne dépend d'aucune brique SSH : le panel l'importe pour afficher
  * un rapport, sans jamais tirer `ssh2` dans son graphe de dépendances.
- * L'exécution vit dans `@tp/core/ssh`.
+ * L'exécution vit dans `@pupitre/core/ssh`.
  */
 
 export const checkStatusSchema = z.enum(['success', 'failed', 'skipped']);
@@ -92,7 +92,7 @@ export const toolsSchema = z.object({
 export const firewallSchema = z.object({
   installed: z.boolean(),
   active: z.boolean(),
-  /** Ports ouverts portant le marqueur du panel (`bootstrap-tp:{slug}`). */
+  /** Ports ouverts portant le marqueur du panel (`pupitre:{slug}`, ou l'ancien). */
   managedRules: z.array(z.string()).default([]),
 });
 

@@ -1,4 +1,4 @@
-import { getApplication, listApplicationVersions } from '@tp/db';
+import { getApplication, listApplicationVersions } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

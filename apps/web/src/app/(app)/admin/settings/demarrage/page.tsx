@@ -1,4 +1,4 @@
-import { getAppSettings } from '@tp/db';
+import { getAppSettings } from '@pupitre/db';
 import { requirePagePermission } from '@/lib/page-auth';
 import { OnboardingRestart } from './onboarding-restart';
 

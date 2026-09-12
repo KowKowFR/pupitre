@@ -1,4 +1,4 @@
-import { auditQuerySchema, listAuditLogs } from '@tp/db';
+import { auditQuerySchema, listAuditLogs } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { apiRoute, readSearchParams } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';

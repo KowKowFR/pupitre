@@ -1,5 +1,5 @@
-import { MONITOR_SWEEP_JOB, monitorSweepJobDataSchema } from '@tp/core';
-import { getMonitor, logAudit, markMonitorDue, monitorTarget } from '@tp/db';
+import { MONITOR_SWEEP_JOB, monitorSweepJobDataSchema } from '@pupitre/core';
+import { getMonitor, logAudit, markMonitorDue, monitorTarget } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { HttpError, NotFoundError } from '@/lib/errors';

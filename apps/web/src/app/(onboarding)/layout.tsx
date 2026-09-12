@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { getAppSettings } from '@tp/db';
+import { getAppSettings } from '@pupitre/db';
 import { currentAuth } from '@/lib/page-auth';
 
 export const dynamic = 'force-dynamic';

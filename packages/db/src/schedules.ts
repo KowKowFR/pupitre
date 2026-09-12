@@ -6,7 +6,7 @@ import {
   simpleScheduleSchema,
   toCron,
   type ScheduledJobType,
-} from '@tp/core';
+} from '@pupitre/core';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';

@@ -1,4 +1,4 @@
-import { getTarget } from '@tp/db';
+import { getTarget } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

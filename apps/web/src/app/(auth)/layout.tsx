@@ -33,7 +33,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             <span className="font-condensed text-base font-semibold tracking-[0.01em] text-ink">
               Control plane
             </span>
-            <span className="eyebrow pt-1 text-ink-faint">Bootstrap TP v2</span>
+            <span className="eyebrow pt-1 text-ink-faint">Plan de contrôle de déploiement</span>
           </span>
         </Link>
 

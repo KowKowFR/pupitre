@@ -1,6 +1,6 @@
 import 'server-only';
-import type { Permission, RoleKey } from '@tp/core';
-import { getUserGrants, logAudit } from '@tp/db';
+import type { Permission, RoleKey } from '@pupitre/core';
+import { getUserGrants, logAudit } from '@pupitre/db';
 import { getSession } from './auth';
 import { AccountDisabledError, ForbiddenError, UnauthenticatedError } from './errors';
 import { clientIp } from './http';

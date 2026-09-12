@@ -29,7 +29,7 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
     method: options.method,
     headers: {
       accept: 'application/json',
-      'user-agent': 'bootstrap-tp-v2/notifications',
+      'user-agent': 'pupitre/notifications',
       ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
       ...options.headers,
     },

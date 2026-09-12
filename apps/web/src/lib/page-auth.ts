@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Permission } from '@tp/core';
+import type { Permission } from '@pupitre/core';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { ForbiddenError, UnauthenticatedError } from './errors';

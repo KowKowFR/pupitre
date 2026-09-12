@@ -5,7 +5,7 @@ import {
   type PortAllocationRequest,
   type PortAllocator,
   type PortRange,
-} from '@tp/core';
+} from '@pupitre/core';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import { deployments, portAllocations } from './schema/deployments.js';

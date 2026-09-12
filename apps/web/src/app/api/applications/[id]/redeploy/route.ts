@@ -4,7 +4,7 @@ import {
   deploymentJobDataSchema,
   parseAppSpec,
   usableRuntimes,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   createDeploymentWithSteps,
   getAppSettings,
@@ -12,7 +12,7 @@ import {
   getDeploymentForRun,
   getTarget,
   logAudit,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, ForbiddenError, HttpError, NotFoundError } from '@/lib/errors';

@@ -1,7 +1,7 @@
 /**
  * Réservation de ports publics sur une cible.
  *
- * L'interface vit ici, à la racine de `@tp/core`, et non dans `drivers/` :
+ * L'interface vit ici, à la racine de `@pupitre/core`, et non dans `drivers/` :
  * son implémentation est en base (`packages/db`), qui n'a aucune raison de
  * tirer `ssh2` dans son graphe de types.
  *

@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import type { RoleKey } from '@tp/core';
+import type { RoleKey } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-/** Miroir de `TwoFactorState` (`@tp/db`) — le client ne dépend pas de la base. */
+/** Miroir de `TwoFactorState` (`@pupitre/db`) — le client ne dépend pas de la base. */
 export type TwoFactorState = 'none' | 'pending' | 'active';
 
 export type AdminUserRow = {

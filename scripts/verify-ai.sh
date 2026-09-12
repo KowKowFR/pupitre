@@ -161,13 +161,13 @@ else
   fail "pnpm test:ai a échoué"
 fi
 
-if (cd "$ROOT" && pnpm --filter @tp/core test > "$WORK/test-core.log" 2>&1); then
+if (cd "$ROOT" && pnpm --filter @pupitre/core test > "$WORK/test-core.log" 2>&1); then
   pass "boucle de génération sous modèle simulé : $(grep -E '^ℹ pass' "$WORK/test-core.log")"
   grep -E "relance UNE fois|s'arrête après la relance|enrobe le JSON|tronquée|panne du fournisseur|jamais de shell" \
     "$WORK/test-core.log" | sed 's/^/    /'
 else
   tail -40 "$WORK/test-core.log"
-  fail "les tests de @tp/core ont échoué"
+  fail "les tests de @pupitre/core ont échoué"
 fi
 
 # ─── 2. Les trois fournisseurs ────────────────────────────────────────────────
@@ -177,7 +177,7 @@ step "2. Les trois fournisseurs sont configurables"
 # Les défauts sont lus dans le catalogue, pas recopiés : un défaut qui change
 # dans le code ne doit pas faire mentir ce script.
 DEFAULTS=$(cd "$ROOT" && npx tsx -e '
-import { AI_PROVIDERS, aiProviderDescriptor } from "@tp/core/ai";
+import { AI_PROVIDERS, aiProviderDescriptor } from "@pupitre/core/ai";
 process.stdout.write(JSON.stringify(Object.fromEntries(
   AI_PROVIDERS.map((p) => [p, aiProviderDescriptor(p)]),
 )));

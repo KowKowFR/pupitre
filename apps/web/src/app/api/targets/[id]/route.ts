@@ -1,4 +1,4 @@
-import { encrypt } from '@tp/core';
+import { encrypt } from '@pupitre/core';
 import {
   countDeploymentsOnTarget,
   deleteTarget,
@@ -7,7 +7,7 @@ import {
   logAudit,
   updateTarget,
   updateTargetSchema,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, NotFoundError } from '@/lib/errors';

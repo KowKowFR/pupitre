@@ -1,4 +1,4 @@
-import { findingQuerySchema, getScanRun, listFindings } from '@tp/db';
+import { findingQuerySchema, getScanRun, listFindings } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

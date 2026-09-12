@@ -9,7 +9,7 @@ import {
   type NotificationChannelKind,
   type NotificationEventKey,
   type ResolvedChannelConfig,
-} from '@tp/core';
+} from '@pupitre/core';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import { users } from './schema/auth.js';
@@ -203,7 +203,7 @@ function encodeSecrets(secrets: ChannelConfig): string | null {
 }
 
 /**
- * La validation traverse le catalogue de `@tp/core` : c'est lui qui sait quels
+ * La validation traverse le catalogue de `@pupitre/core` : c'est lui qui sait quels
  * champs un canal attend, lesquels sont obligatoires et lesquels sont secrets.
  * Un `ZodError` remonte tel quel à l'appelant — 422 côté route.
  */

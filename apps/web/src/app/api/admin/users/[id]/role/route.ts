@@ -1,5 +1,5 @@
-import { LOCKED_ROLE } from '@tp/core';
-import { eq, getDb, getRoleByKey, getUserGrants, logAudit, roleKeySchema, setUserRoles, users } from '@tp/db';
+import { LOCKED_ROLE } from '@pupitre/core';
+import { eq, getDb, getRoleByKey, getUserGrants, logAudit, roleKeySchema, setUserRoles, users } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, NotFoundError } from '@/lib/errors';

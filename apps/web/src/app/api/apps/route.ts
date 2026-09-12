@@ -1,4 +1,4 @@
-import { listSupervisedApps } from '@tp/db';
+import { listSupervisedApps } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';

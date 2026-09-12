@@ -29,7 +29,7 @@ non.** Le bouton « Enregistrer » est le même dans les deux onglets de
 ## Trois fournisseurs
 
 Le catalogue est une donnée pure, sans dépendance : `packages/core/src/ai/catalog.ts`.
-`@tp/db` et le worker peuvent donc connaître la liste des fournisseurs sans tirer
+`@pupitre/db` et le worker peuvent donc connaître la liste des fournisseurs sans tirer
 le SDK IA dans leur graphe.
 
 | Clé | Modèle par défaut | Variables d'env | `baseUrl` |
@@ -74,7 +74,7 @@ jamais à joindre Anthropic.
 génération est coupée même avec une clé valide, et le `501` porte alors un motif
 distinct de « pas de clé ».
 
-Détail d'architecture : `@tp/core` n'importe ni `@tp/db` ni `apps/web`, donc les
+Détail d'architecture : `@pupitre/core` n'importe ni `@pupitre/db` ni `apps/web`, donc les
 deux sources lui sont **passées en argument**. Les appelants passent
 `process.env` brut, et non l'environnement validé du panel — délibérément, pour
 qu'ajouter un quatrième fournisseur ne force pas à toucher `env.ts`.
@@ -133,7 +133,7 @@ changement de fixture, sans que rien ne le signale.
 
 **Charger ce fichier a été le vrai piège.** `tsc` ne copie pas les `.md` vers
 `dist/` : le script `build` de `packages/core` les recopie. Mais surtout, Next
-**inline** `@tp/core` dans ses chunks serveur — `import.meta.url` n'y désigne plus
+**inline** `@pupitre/core` dans ses chunks serveur — `import.meta.url` n'y désigne plus
 le paquet, et le traceur ne voit aucun `import` vers un `.md`. Trois mesures,
 aucune superflue :
 

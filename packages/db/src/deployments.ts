@@ -7,7 +7,7 @@ import {
   type DeploymentStepKey,
   type ScanConfig,
   type StepStatus,
-} from '@tp/core';
+} from '@pupitre/core';
 import { and, asc, count, desc, eq, inArray, lt, max, ne, notInArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';

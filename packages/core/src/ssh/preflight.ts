@@ -13,6 +13,7 @@ import {
   type TargetHealth,
   type Tools,
 } from '../preflight.js';
+import { isManagedUfwRule } from '../drivers/ufw.js';
 import { connect, disconnect, exec } from './client.js';
 import { SshAuthError } from './errors.js';
 import type { SshLogger, SshTarget } from './types.js';
@@ -197,8 +198,8 @@ async function probeTools(session: SshSession): Promise<Tools> {
 /**
  * État du pare-feu et règles posées par le panel.
  *
- * Les règles sont reconnues à leur commentaire `bootstrap-tp:` — le même
- * marqueur que celui posé par le driver. C'est ce qui permet à l'UI de montrer
+ * Les règles sont reconnues à leur commentaire `pupitre:` — le même marqueur
+ * que celui posé par le driver, plus celui d'avant le renommage. C'est ce qui permet à l'UI de montrer
  * ce que le panel a ouvert sans le confondre avec ce que l'administrateur de la
  * machine a ouvert lui-même.
  */
@@ -215,7 +216,7 @@ async function probeFirewall(session: SshSession, installed: boolean): Promise<F
   const managedRules = status.stdout
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.includes('bootstrap-tp:'));
+    .filter((line) => isManagedUfwRule(line));
 
   return { installed: true, active, managedRules };
 }

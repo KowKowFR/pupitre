@@ -13,7 +13,7 @@ import { isAbsolute, resolve } from 'node:path';
  *   2. le paquet compilé, sous Node (worker, image Docker) — `dist/ai/…`,
  *      où `tsc` ne copie pas les `.md` ni les `.json` : c'est le script `build`
  *      de `packages/core` qui les recopie à côté du JavaScript émis
- *   3. le panel Next, où `@tp/core` est **inliné** dans les chunks du serveur.
+ *   3. le panel Next, où `@pupitre/core` est **inliné** dans les chunks du serveur.
  *      `import.meta.url` désigne alors un chunk de `.next/server`, et aucune
  *      résolution relative au module ne peut aboutir. Next recopie en revanche
  *      les fichiers déclarés dans `outputFileTracingIncludes` en préservant leur
@@ -116,7 +116,7 @@ export function readCoreAsset(asset: CoreAssetPath, options: ReadAssetOptions): 
 
   const detail = [...rejected, ...tried.filter((path) => !rejected.some((r) => r.startsWith(path)))];
   throw new Error(
-    `ressource « ${asset} » introuvable ou méconnaissable dans @tp/core ` +
+    `ressource « ${asset} » introuvable ou méconnaissable dans @pupitre/core ` +
       `(attendu : ${options.expectation}). Chemins tentés :\n  ${detail.join('\n  ')}`,
   );
 }

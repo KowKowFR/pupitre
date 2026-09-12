@@ -9,7 +9,7 @@ import {
   type PresentedNotificationChannel,
   type PresentedNotificationEvent,
   type PresentedNotificationField,
-} from '@tp/core';
+} from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

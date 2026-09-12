@@ -1,4 +1,4 @@
-import { setAuditFailureReporter } from '@tp/db';
+import { setAuditFailureReporter } from '@pupitre/db';
 import { pino } from 'pino';
 import { env } from './env.js';
 

@@ -3,9 +3,9 @@ import {
   targetPreflightJobDataSchema,
   usableRuntimes,
   type TargetPreflightJobResult,
-} from '@tp/core';
-import { runPreflight, type SshTarget } from '@tp/core/ssh';
-import { getTargetSecret, logAudit, savePreflightResult } from '@tp/db';
+} from '@pupitre/core';
+import { runPreflight, type SshTarget } from '@pupitre/core/ssh';
+import { getTargetSecret, logAudit, savePreflightResult } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 

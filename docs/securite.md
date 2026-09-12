@@ -25,7 +25,7 @@ suffirait à s'emparer définitivement du compte. Le changement révoque **les
 autres** sessions et garde celle qui vient de le faire. Ni l'ancien mot de passe,
 ni le nouveau, ni leur longueur n'apparaissent au journal.
 
-**Le second facteur est du TOTP**, `issuer: 'Bootstrap TP v2'`, avec des codes de
+**Le second facteur est du TOTP**, `issuer: 'Pupitre'`, avec des codes de
 secours. L'armement se fait en deux temps :
 
 1. `POST /api/account/two-factor/setup` génère le secret, **sans l'activer**, et

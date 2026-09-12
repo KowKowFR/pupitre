@@ -295,11 +295,11 @@ if printf '%s' "$UFW_OUT" | grep -qi 'Status: active'; then
   UFW_MODE=active
   printf '%s' "$UFW_OUT" | grep -q "$PORT_A/tcp" \
     || fail "aucune règle ufw pour le port $PORT_A"
-  printf '%s' "$UFW_OUT" | grep "$PORT_A/tcp" | grep -q 'bootstrap-tp:jalon7-alpha' \
-    || fail "la règle du port $PORT_A ne porte pas le commentaire « bootstrap-tp:jalon7-alpha »"
-  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'bootstrap-tp:jalon7-beta' \
-    || fail "la règle du port $PORT_B ne porte pas le commentaire « bootstrap-tp:jalon7-beta »"
-  pass "deux règles ufw créées, chacune avec son commentaire bootstrap-tp:{slug}"
+  printf '%s' "$UFW_OUT" | grep "$PORT_A/tcp" | grep -q 'pupitre:jalon7-alpha' \
+    || fail "la règle du port $PORT_A ne porte pas le commentaire « pupitre:jalon7-alpha »"
+  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:jalon7-beta' \
+    || fail "la règle du port $PORT_B ne porte pas le commentaire « pupitre:jalon7-beta »"
+  pass "deux règles ufw créées, chacune avec son commentaire pupitre:{slug}"
 elif printf '%s' "$UFW_OUT" | grep -qi 'Status: inactive'; then
   UFW_MODE=inactive
   printf '%s' "$LOG_A" | grep -q 'ufw inactif' \
@@ -342,7 +342,7 @@ if [ "$UFW_MODE" = active ]; then
   UFW_OUT="$(ufw_status)"
   printf '%s' "$UFW_OUT" | grep -q "$PORT_A/tcp" \
     && fail "la règle ufw du port $PORT_A survit au destroy"
-  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'bootstrap-tp:jalon7-beta' \
+  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:jalon7-beta' \
     || fail "le destroy a emporté la règle ufw de jalon7-beta"
   pass "règle ufw de $PORT_A retirée par son commentaire, celle de $PORT_B intacte"
 else

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { getAppSettings } from '@tp/db';
+import { getAppSettings } from '@pupitre/db';
 import { IBM_Plex_Sans, IBM_Plex_Sans_Condensed, JetBrains_Mono } from 'next/font/google';
 import type { ReactNode } from 'react';
 import './globals.css';
@@ -34,7 +34,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const FALLBACK_METADATA: Metadata = {
-  title: 'Control plane — Bootstrap TP v2',
+  title: 'Pupitre — plan de contrôle de déploiement',
   description: 'Panel de déploiement Docker Compose / K3s',
 };
 

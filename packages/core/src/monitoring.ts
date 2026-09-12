@@ -16,7 +16,7 @@
  *
  * Trois fichiers, tous **purs** : ce module est importé par des composants
  * client, il ne doit tirer aucun module natif. Les sondes elles-mêmes — celles
- * qui ouvrent des connexions — vivent sous `@tp/core/probe`.
+ * qui ouvrent des connexions — vivent sous `@pupitre/core/probe`.
  */
 
 export * from './monitors/ssrf.js';

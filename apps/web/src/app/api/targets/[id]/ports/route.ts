@@ -1,4 +1,4 @@
-import { getTarget, getTargetPortReport } from '@tp/db';
+import { getTarget, getTargetPortReport } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

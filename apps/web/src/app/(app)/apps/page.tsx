@@ -1,4 +1,4 @@
-import { listSupervisedApps, listTargets } from '@tp/db';
+import { listSupervisedApps, listTargets } from '@pupitre/db';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { requirePagePermission } from '@/lib/page-auth';

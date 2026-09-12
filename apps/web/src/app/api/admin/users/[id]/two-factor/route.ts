@@ -5,7 +5,7 @@ import {
   logAudit,
   resetUserTwoFactor,
   users,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';

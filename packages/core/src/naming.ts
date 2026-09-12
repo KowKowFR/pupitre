@@ -3,10 +3,10 @@
  * projet Compose côté Docker, namespace côté K3s. Convention CLAUDE.md —
  * `app-{slug}` — et c'est la **même** pour les deux runtimes.
  *
- * ── Pourquoi cette fonction est à la racine de `@tp/core` ─────────────────────
+ * ── Pourquoi cette fonction est à la racine de `@pupitre/core` ─────────────────────
  * L'autorité reste le driver : `DeploymentDriver.workspaceName()` est ce que le
  * worker interroge, et un driver futur pourrait légitimement nommer autrement.
- * Mais le panel Next ne peut pas appeler un driver — `@tp/core/drivers` est
+ * Mais le panel Next ne peut pas appeler un driver — `@pupitre/core/drivers` est
  * délibérément hors de son graphe pour que `ssh2` n'y entre pas —, et l'écran
  * de confirmation doit pourtant **nommer** le projet Compose qu'un forçage
  * abandonnerait. Sans ce point commun, il l'aurait recomposé à la main, et le

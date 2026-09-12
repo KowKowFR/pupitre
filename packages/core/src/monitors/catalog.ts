@@ -36,7 +36,7 @@ import { monitorHostSchema, monitorUrlSchema } from './ssrf.js';
  *    structuré (`metrics`), et le catalogue dit à l'écran comment l'afficher.
  *
  * ── Ajouter un type ─────────────────────────────────────────────────────────
- * Une entrée ici, une implémentation sous `@tp/core/probe`, une ligne dans le
+ * Une entrée ici, une implémentation sous `@pupitre/core/probe`, une ligne dans le
  * registre des sondes. Ni la table, ni le runner, ni les routes, ni l'écran ne
  * changent. `monitors.type` est volontairement du `text` et non un enum
  * Postgres : un enum ajouterait une migration à cette liste, et c'est

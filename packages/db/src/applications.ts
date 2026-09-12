@@ -1,4 +1,4 @@
-import { appSpecSchema, type AppSpec } from '@tp/core';
+import { appSpecSchema, type AppSpec } from '@pupitre/core';
 import { asc, count, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';

@@ -4,8 +4,8 @@ import {
   isTerminal,
   type DeployMessage,
   type DeploymentStatus,
-} from '@tp/core';
-import { getDeploymentSummary, readDeploymentLog } from '@tp/db';
+} from '@pupitre/core';
+import { getDeploymentSummary, readDeploymentLog } from '@pupitre/db';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { getEnv } from '@/lib/env';

@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { aiProviderDescriptor, resolveAiConfig } from '@tp/core/ai';
-import { usableRuntimes } from '@tp/core';
-import { getAiApiKey, getAppSettings, listTargets } from '@tp/db';
+import { aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
+import { usableRuntimes } from '@pupitre/core';
+import { getAiApiKey, getAppSettings, listTargets } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getEnv } from '@/lib/env';
 import { requirePagePermission } from '@/lib/page-auth';

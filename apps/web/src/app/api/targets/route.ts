@@ -1,5 +1,5 @@
-import { encrypt } from '@tp/core';
-import { createTarget, createTargetSchema, findConflictingTarget, listTargets, logAudit } from '@tp/db';
+import { encrypt } from '@pupitre/core';
+import { createTarget, createTargetSchema, findConflictingTarget, listTargets, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { ConflictError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';

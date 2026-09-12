@@ -11,7 +11,7 @@ import {
   type ScannerKey,
   type Severity,
   type SeverityCounts,
-} from '@tp/core';
+} from '@pupitre/core';
 import { EmptyState } from '@/components/empty-state';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,7 @@ import { cn } from '@/lib/utils';
  * Onglet « Sécurité » d'un déploiement.
  *
  * Aucun scanner n'est nommé en dur : les libellés viennent de `SCANNERS`, la
- * table de données de `@tp/core`, et le bouton de téléchargement du SBOM
+ * table de données de `@pupitre/core`, et le bouton de téléchargement du SBOM
  * s'affiche sur la foi de `hasSbom`, calculé côté serveur depuis le `kind`.
  */
 

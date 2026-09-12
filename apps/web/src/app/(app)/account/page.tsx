@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { eq, getDb, users } from '@tp/db';
+import { eq, getDb, users } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { requirePageSession } from '@/lib/page-auth';
 import { PasswordForm } from './password-form';

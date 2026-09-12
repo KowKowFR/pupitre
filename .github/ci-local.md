@@ -13,7 +13,7 @@ Deux workflows, deux natures.
 
 ### L'ordre n'est pas décoratif
 
-`@tp/core` et `@tp/db` sont consommés **par leur `dist`** : le champ `exports` de
+`@pupitre/core` et `@pupitre/db` sont consommés **par leur `dist`** : le champ `exports` de
 leurs `package.json` pointe vers `./dist/*.js` et `./dist/*.d.ts`, jamais vers
 `src`. Sur une copie neuve, `dist/` n'existe pas.
 
@@ -21,12 +21,12 @@ Conséquence, mesurée et non supposée : lancer `pnpm -r typecheck` en premier
 donne **35 erreurs** de la forme
 
 ```
-src/schema/infra.ts(1,66): error TS2307: Cannot find module '@tp/core'
+src/schema/infra.ts(1,66): error TS2307: Cannot find module '@pupitre/core'
 ```
 
 sur des symboles qui existent pourtant dans les sources. `pnpm -r` respecte bien
-l'ordre topologique, mais cela ne suffit pas : le `typecheck` de `@tp/core` est
-en `--noEmit`, il ne produit donc pas le `dist` dont `@tp/db` a besoin. Il faut
+l'ordre topologique, mais cela ne suffit pas : le `typecheck` de `@pupitre/core` est
+en `--noEmit`, il ne produit donc pas le `dist` dont `@pupitre/db` a besoin. Il faut
 une vraie construction.
 
 **`pnpm build:packages` d'abord. Toujours.**
@@ -40,8 +40,8 @@ pnpm install --frozen-lockfile              #  3,5 s
 pnpm build:packages                         #  3,3 s   ← prérequis des deux typecheck
 pnpm -r typecheck                           #  6,6 s
 pnpm exec tsc --noEmit -p scripts/tsconfig.json   #  0,9 s
-pnpm --filter @tp/web lint                  #  5,0 s
-pnpm --filter @tp/core test                 #  1,2 s   (205 tests, 2 ignorés)
+pnpm --filter @pupitre/web lint                  #  5,0 s
+pnpm --filter @pupitre/core test                 #  1,2 s   (205 tests, 2 ignorés)
 pnpm test:schedule                          #  0,5 s
 pnpm test:ai                                #  3,7 s   (hors ligne, aucune clé)
 ```

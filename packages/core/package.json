@@ -1,5 +1,5 @@
 {
-  "name": "@tp/core",
+  "name": "@pupitre/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",

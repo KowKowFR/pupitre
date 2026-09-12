@@ -1,5 +1,5 @@
 import 'server-only';
-import type { PublicTarget } from '@tp/db';
+import type { PublicTarget } from '@pupitre/db';
 
 /**
  * Projection d'une cible pour le journal d'audit.

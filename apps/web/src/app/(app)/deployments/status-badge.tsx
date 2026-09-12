@@ -1,5 +1,5 @@
 import { Check, Minus, X } from 'lucide-react';
-import type { DeploymentStatus, StepStatus } from '@tp/core';
+import type { DeploymentStatus, StepStatus } from '@pupitre/core';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Led } from '@/components/instrument';
 import { cn } from '@/lib/utils';

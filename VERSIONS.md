@@ -168,7 +168,7 @@ verify-jalon8.sh    ✅  points 1, 3 et 4 ; point 2 hors d'atteinte (aucun clust
 ```
 
 `find apps/web/.next/standalone -name ssh2` reste **vide** : le sous-chemin
-`@tp/core/ai` n'importe ni `ssh`, ni les drivers, ni les scanners.
+`@pupitre/core/ai` n'importe ni `ssh`, ni les drivers, ni les scanners.
 
 La chaîne asynchrone a été revérifiée de bout en bout sous BullMQ 6 + ioredis 6 :
 `POST /api/ping` → job consommé → `audit_logs`.

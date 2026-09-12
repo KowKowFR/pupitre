@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getApplication, listApplicationSecrets, listApplicationVersions, listTargets } from '@tp/db';
+import { getApplication, listApplicationSecrets, listApplicationVersions, listTargets } from '@pupitre/db';
 import { z } from 'zod';
 import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';

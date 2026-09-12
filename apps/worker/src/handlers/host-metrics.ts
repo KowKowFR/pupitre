@@ -2,9 +2,9 @@ import {
   decrypt,
   targetMetricsJobDataSchema,
   type TargetMetricsJobResult,
-} from '@tp/core';
-import { collectHostMetrics, type SshTarget } from '@tp/core/ssh';
-import { getTargetSecret } from '@tp/db';
+} from '@pupitre/core';
+import { collectHostMetrics, type SshTarget } from '@pupitre/core/ssh';
+import { getTargetSecret } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { env } from '../env.js';
 import { logger } from '../logger.js';

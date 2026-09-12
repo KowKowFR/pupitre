@@ -1,11 +1,11 @@
-import { NOTIFICATION_EVENT_KEYS } from '@tp/core';
+import { NOTIFICATION_EVENT_KEYS } from '@pupitre/core';
 import {
   NotificationChannelNameTakenError,
   deleteNotificationChannel,
   getNotificationChannel,
   logAudit,
   updateNotificationChannel,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, NotFoundError } from '@/lib/errors';

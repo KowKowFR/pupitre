@@ -1,4 +1,4 @@
-import type { PreflightReport, RuntimesAvailable } from '@tp/core';
+import type { PreflightReport, RuntimesAvailable } from '@pupitre/core';
 import type { TargetLabels } from './schema/infra.js';
 import { count, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';

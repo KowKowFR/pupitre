@@ -1,4 +1,4 @@
-import { SCHEDULED_JOB_TYPES, describeCron, fromCron } from '@tp/core';
+import { SCHEDULED_JOB_TYPES, describeCron, fromCron } from '@pupitre/core';
 import {
   deleteScheduledJob,
   getScheduledJob,
@@ -6,7 +6,7 @@ import {
   logAudit,
   updateScheduledJob,
   updateScheduledJobSchema,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

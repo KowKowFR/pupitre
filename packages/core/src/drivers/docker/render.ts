@@ -117,11 +117,14 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
       restart: 'unless-stopped',
       networks: [network],
       expose: [String(service.port)],
+      // Préfixe `pupitre.` depuis le renommage. Le driver continue de lire les
+      // anciens `tp.*` : un conteneur posé avant garde son empreinte, et le
+      // panel doit continuer de le reconnaître comme sien.
       labels: {
-        'tp.app': appSlug,
-        'tp.service': service.name,
-        'tp.version': spec.version,
-        'tp.managed-by': 'bootstrap-tp-v2',
+        'pupitre.app': appSlug,
+        'pupitre.service': service.name,
+        'pupitre.version': spec.version,
+        'pupitre.managed-by': 'pupitre',
       },
     };
 
@@ -195,7 +198,7 @@ type ComposeDeployDraft = NonNullable<ComposeService['deploy']>;
 /** Sérialise le modèle. `lineWidth: 0` évite les replis de ligne inattendus. */
 export function serializeComposeFile(file: ComposeFile): string {
   const header = [
-    '# Généré par bootstrap-tp-v2 — ne pas éditer à la main.',
+    '# Généré par Pupitre — ne pas éditer à la main.',
     `# Projet : ${file.name}`,
     '',
   ].join('\n');

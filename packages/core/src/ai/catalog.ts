@@ -4,7 +4,7 @@
  * Même découpage que `Scanner` et `DeploymentDriver` : d'un côté une
  * description déclarative (ici), de l'autre une fabrique qui instancie
  * (`./providers.js`). La séparation n'est pas cosmétique — ce module ne dépend
- * de **rien**, ce qui permet à `settings.ts`, donc à `@tp/db` et au worker, de
+ * de **rien**, ce qui permet à `settings.ts`, donc à `@pupitre/db` et au worker, de
  * connaître la liste des fournisseurs sans tirer le SDK IA dans leur graphe.
  *
  * Ajouter un quatrième fournisseur = une entrée ici, une entrée dans la

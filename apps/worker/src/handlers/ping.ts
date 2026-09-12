@@ -1,5 +1,5 @@
-import { pingJobDataSchema, type PingJobResult } from '@tp/core';
-import { logAudit } from '@tp/db';
+import { pingJobDataSchema, type PingJobResult } from '@pupitre/core';
+import { logAudit } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { env } from '../env.js';
 import { logger } from '../logger.js';

@@ -1,5 +1,5 @@
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import type { AppSpec, ScanConfig } from '@tp/core';
+import type { AppSpec, ScanConfig } from '@pupitre/core';
 import {
   boolean,
   index,

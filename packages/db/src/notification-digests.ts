@@ -5,7 +5,7 @@ import {
   notificationDigestWindowMs,
   notificationDigestWindowMsSchema,
   type NotificationDigestItem,
-} from '@tp/core';
+} from '@pupitre/core';
 import { and, asc, eq, isNotNull, lte, sql } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import {
@@ -70,7 +70,7 @@ export async function getNotificationDigestPolicy(
 }
 
 /**
- * Change la fenêtre de base. La valeur est **bornée par Zod**, côté `@tp/core` :
+ * Change la fenêtre de base. La valeur est **bornée par Zod**, côté `@pupitre/core` :
  * on peut raccourcir le regroupement, jamais le supprimer.
  *
  * Les fenêtres déjà ouvertes gardent leur durée jusqu'à leur fermeture — les

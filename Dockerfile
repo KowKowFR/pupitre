@@ -38,8 +38,8 @@ COPY packages ./packages
 COPY apps ./apps
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm build:packages \
- && pnpm --filter @tp/worker build \
- && pnpm --filter @tp/web build
+ && pnpm --filter @pupitre/worker build \
+ && pnpm --filter @pupitre/web build
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION} AS runner

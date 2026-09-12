@@ -1,7 +1,7 @@
-name: bootstrap-tp-v2
+name: pupitre
 
 x-app-image: &app-image
-  image: bootstrap-tp-v2:latest
+  image: pupitre:latest
   build:
     context: .
     dockerfile: Dockerfile
@@ -186,7 +186,11 @@ services:
       - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
 
 volumes:
-  k3s-data:
+  # `pgdata` et `redisdata` portent l'état du plan de contrôle et ont été
+  # recopiés depuis les volumes préfixés `bootstrap-tp-v2_` au moment du
+  # renommage. Les deux autres sont des caches de cibles de test — images
+  # Docker et état k3s — que Compose recrée vides et qui se remplissent seuls.
   pgdata:
   redisdata:
+  k3s-data:
   dind-data:

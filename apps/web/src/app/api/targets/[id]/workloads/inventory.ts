@@ -7,7 +7,7 @@ import {
   workloadListSchema,
   type Workload,
   type WorkloadList,
-} from '@tp/core';
+} from '@pupitre/core';
 import { QueueEvents } from 'bullmq';
 import { HttpError } from '@/lib/errors';
 import { getRedis } from '@/lib/redis';
@@ -19,7 +19,7 @@ import { getSupervisionQueue } from '@/lib/supervision-queue';
  * **Pourquoi une lecture passe quand même par la file.** Le panel Next n'ouvre
  * aucune session SSH, et n'en ouvrira jamais : `ssh2` est délibérément tenu
  * hors de son graphe de dépendances (voir `packages/core/src/index.ts`), et les
- * drivers ne sont importables que sous `@tp/core/drivers`, côté worker. La
+ * drivers ne sont importables que sous `@pupitre/core/drivers`, côté worker. La
  * question « qu'est-ce qui tourne sur cette machine ? » n'a donc pas de réponse
  * locale : elle se pose au worker, comme `target:preflight`.
  *

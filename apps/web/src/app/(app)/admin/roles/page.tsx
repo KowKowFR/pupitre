@@ -1,5 +1,5 @@
-import { LOCKED_ROLE, RESOURCE_LABELS, permissionsByResource } from '@tp/core';
-import { listRolesWithPermissions } from '@tp/db';
+import { LOCKED_ROLE, RESOURCE_LABELS, permissionsByResource } from '@pupitre/core';
+import { listRolesWithPermissions } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requirePagePermission } from '@/lib/page-auth';
 import { CreateRoleForm } from './create-role-form';

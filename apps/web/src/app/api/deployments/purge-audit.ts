@@ -1,5 +1,5 @@
 import 'server-only';
-import type { PurgeReport } from '@tp/db';
+import type { PurgeReport } from '@pupitre/db';
 
 /**
  * Une seule entrée d'audit par appel de purge, jamais une par déploiement :

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getAppSettings, getTarget, getTargetPortReport } from '@tp/db';
+import { getAppSettings, getTarget, getTargetPortReport } from '@pupitre/db';
 import { z } from 'zod';
 import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';

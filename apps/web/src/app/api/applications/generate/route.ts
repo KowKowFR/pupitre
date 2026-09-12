@@ -7,8 +7,8 @@ import {
   generateAppSpec,
   generateAppSpecInputSchema,
   resolveAiConfig,
-} from '@tp/core/ai';
-import { getAiApiKey, getApplicationBySlug, getAppSettings, logAudit } from '@tp/db';
+} from '@pupitre/core/ai';
+import { getAiApiKey, getApplicationBySlug, getAppSettings, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { HttpError, NotImplementedError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';

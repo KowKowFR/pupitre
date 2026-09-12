@@ -8,7 +8,7 @@ import { z } from 'zod';
  * graphe de dépendances. Même partage que `preflight.ts` (types) / `ssh/`
  * (exécution), et que `ports.ts` (interface) / `packages/db` (implémentation).
  *
- * L'exécution vit dans `@tp/core/scanners`.
+ * L'exécution vit dans `@pupitre/core/scanners`.
  */
 
 // ─── échelle de sévérité ──────────────────────────────────────────────────────

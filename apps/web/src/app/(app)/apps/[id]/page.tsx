@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { isSupervisable } from '@tp/core';
-import { getDeploymentSummary, listSupervisedApps } from '@tp/db';
+import { isSupervisable } from '@pupitre/core';
+import { getDeploymentSummary, listSupervisedApps } from '@pupitre/db';
 import { z } from 'zod';
 import { Alert } from '@/components/ui/alert';
 import { PageHeader } from '@/components/page-header';

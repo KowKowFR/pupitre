@@ -311,7 +311,7 @@ const CHECKS: Array<{ key: string; what: React.ReactNode; failure: React.ReactNo
     what: (
       <>
         <Code>ufw status</Code> via sudo, et compte les règles portant le commentaire{' '}
-        <Code>bootstrap-tp:</Code> — celles que le panel a posées, distinctes de celles de
+        <Code>pupitre:</Code> — celles que le panel a posées, distinctes de celles de
         l’administrateur.
       </>
     ),
@@ -678,7 +678,7 @@ export function TargetHelpDialog({ label = 'Qu’est-ce qu’une cible ?', class
               quelque chose d’extérieur au panel : ce que cette machine-là accepte de publier.
               Une application déployée en Docker Compose et exposée y réserve un port, sur lequel
               le driver publie et pose une règle UFW commentée{' '}
-              <Code>bootstrap-tp:{'{slug}'}</Code>.
+              <Code>pupitre:{'{slug}'}</Code>.
             </p>
             <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
               <li>
@@ -954,7 +954,7 @@ ssh -i ~/.ssh/tp-deploy deploy@10.0.0.12 '
 '`;
 
 const KEY_SCRIPT = `# sur VOTRE poste — une paire dédiée, sans passphrase (-N '')
-ssh-keygen -t ed25519 -N '' -C 'bootstrap-tp' -f ~/.ssh/tp-deploy
+ssh-keygen -t ed25519 -N '' -C 'pupitre' -f ~/.ssh/tp-deploy
 
 # la publique part sur la cible
 ssh-copy-id -i ~/.ssh/tp-deploy.pub deploy@10.0.0.12

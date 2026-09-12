@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { SCANNER_KEYS, scannerLabel, type ScannerKey } from '@tp/core';
-import type { AppSettings, DateStyleName, SupportedLocale } from '@tp/core';
+import { SCANNER_KEYS, scannerLabel, type ScannerKey } from '@pupitre/core';
+import type { AppSettings, DateStyleName, SupportedLocale } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

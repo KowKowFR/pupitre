@@ -8,10 +8,10 @@ import {
   stripAnsi,
   type AppLogMessage,
   type AppStatus,
-} from '@tp/core';
-import { getDriver } from '@tp/core/drivers';
-import { disconnect } from '@tp/core/ssh';
-import { getDeploymentSummary, logAudit, recordHealthStatus } from '@tp/db';
+} from '@pupitre/core';
+import { getDriver } from '@pupitre/core/drivers';
+import { disconnect } from '@pupitre/core/ssh';
+import { getDeploymentSummary, logAudit, recordHealthStatus } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
 import { logger } from '../logger.js';

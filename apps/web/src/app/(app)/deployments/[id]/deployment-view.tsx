@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
-import type { DeployLogLine, DeploymentStatus, StepStatus } from '@tp/core';
+import type { DeployLogLine, DeploymentStatus, StepStatus } from '@pupitre/core';
 import { Led } from '@/components/instrument';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';

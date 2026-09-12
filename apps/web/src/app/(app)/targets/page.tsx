@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getAppSettings, listTargets } from '@tp/db';
+import { getAppSettings, listTargets } from '@pupitre/db';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { TargetHelpDialog } from '@/components/target-help';

@@ -7,7 +7,7 @@ import {
   ROLE_DEFINITIONS,
   SEEDED_ROLES,
   splitPermission,
-} from '@tp/core';
+} from '@pupitre/core';
 import { count, eq, inArray, sql } from 'drizzle-orm';
 import { closeDb, getDb, type Database } from './client.js';
 import { permissions, rolePermissions, roles } from './schema/rbac.js';

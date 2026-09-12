@@ -1,5 +1,5 @@
-import { parseScanConfig } from '@tp/core';
-import { getDeploymentSummary, listScanRuns } from '@tp/db';
+import { parseScanConfig } from '@pupitre/core';
+import { getDeploymentSummary, listScanRuns } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { NotFoundError } from '@/lib/errors';

@@ -1,5 +1,5 @@
-import { TARGET_PREFLIGHT_JOB, targetPreflightJobDataSchema } from '@tp/core';
-import { getTarget, logAudit } from '@tp/db';
+import { TARGET_PREFLIGHT_JOB, targetPreflightJobDataSchema } from '@pupitre/core';
+import { getTarget, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { HttpError, NotFoundError } from '@/lib/errors';

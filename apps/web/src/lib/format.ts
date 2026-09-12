@@ -1,4 +1,4 @@
-import type { AppSettings, DateStyleName } from '@tp/core';
+import type { AppSettings, DateStyleName } from '@pupitre/core';
 
 /**
  * Formatage des dates, à partir des paramètres d'instance.

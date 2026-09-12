@@ -1169,9 +1169,27 @@ export function hasBuildableService(spec: AppSpec): boolean {
  * Redéclarés ici plutôt qu'importés : ce sont les *empreintes* que le driver
  * cherche sur la machine, pas les valeurs qu'il écrit.
  */
-const MANAGED_LABEL = 'tp.managed-by';
-const MANAGED_VALUE = 'bootstrap-tp-v2';
-const APP_LABEL = 'tp.app';
+const MANAGED_LABEL = 'pupitre.managed-by';
+const MANAGED_VALUE = 'pupitre';
+
+/**
+ * L'empreinte d'avant le renommage, toujours lue.
+ *
+ * Un conteneur déployé hier porte `tp.managed-by: bootstrap-tp-v2` et tourne
+ * encore. Ne reconnaître que la nouvelle empreinte le ferait passer pour une
+ * charge étrangère : l'écran des charges cesserait de dire « gérée par le
+ * panel », et proposerait de la supprimer à la main. Un renommage ne doit pas
+ * faire perdre au panel la trace de ce qu'il a lui-même posé.
+ *
+ * Ces deux constantes disparaîtront quand plus aucune cible ne portera de
+ * conteneur d'avant le renommage — c'est-à-dire jamais de façon vérifiable, et
+ * c'est pourquoi elles restent.
+ */
+const LEGACY_MANAGED_LABEL = 'tp.managed-by';
+const LEGACY_MANAGED_VALUE = 'bootstrap-tp-v2';
+
+const APP_LABEL = 'pupitre.app';
+const LEGACY_APP_LABEL = 'tp.app';
 const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
 
 type DockerPortBinding = { HostIp?: string; HostPort?: string };
@@ -1305,10 +1323,10 @@ function publishedPorts(raw: DockerInspect): string[] {
 /**
  * Conteneur inspecté → charge neutre.
  *
- * `managed` a deux sources et c'est voulu : le label `tp.managed-by` est
- * l'empreinte que le panel pose lui-même, le préfixe de projet `app-` rattrape
- * les conteneurs posés par une version antérieure du rendu. Un faux négatif ici
- * autoriserait la suppression d'une application vivante.
+ * `managed` a trois sources et c'est voulu : l'empreinte courante que le panel
+ * pose lui-même, celle d'avant le renommage en Pupitre, et le préfixe de projet
+ * `app-` qui rattrape les conteneurs posés par une version antérieure du rendu.
+ * Un faux négatif ici autoriserait la suppression d'une application vivante.
  */
 function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload {
   const id = raw.Id ?? '';
@@ -1329,9 +1347,14 @@ function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload
     createdAt: raw.Created ?? null,
     since: statuses.get(id) ?? (rawState.length > 0 ? rawState : null),
     ports: publishedPorts(raw),
-    managed: labels[MANAGED_LABEL] === MANAGED_VALUE || fromProject,
+    managed:
+      labels[MANAGED_LABEL] === MANAGED_VALUE ||
+      labels[LEGACY_MANAGED_LABEL] === LEGACY_MANAGED_VALUE ||
+      fromProject,
     managedApp:
-      labels[APP_LABEL] ?? (fromProject && project ? project.slice(PROJECT_PREFIX.length) : null),
+      labels[APP_LABEL] ??
+      labels[LEGACY_APP_LABEL] ??
+      (fromProject && project ? project.slice(PROJECT_PREFIX.length) : null),
   };
 }
 

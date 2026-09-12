@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { HostMetrics } from '@tp/core';
+import type { HostMetrics } from '@pupitre/core';
 
 /**
  * Relevé des métriques d'hôte, côté navigateur.

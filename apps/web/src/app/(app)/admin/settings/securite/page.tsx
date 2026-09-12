@@ -1,4 +1,4 @@
-import { getAppSettings } from '@tp/db';
+import { getAppSettings } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requirePagePermission } from '@/lib/page-auth';

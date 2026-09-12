@@ -17,6 +17,16 @@ import { ScannerError, type ScanLogSink } from './types.js';
  */
 
 /** Racine de travail des scanners sur la cible. */
+/**
+ * Où les binaires de scan sont posés sur la machine cible.
+ *
+ * **Ce chemin ne suit pas le renommage, volontairement.** C'est un cache déjà
+ * rempli sur chaque cible : Trivy, Grype et Syft y sont installés, avec leurs
+ * bases de vulnérabilités. Le déplacer ne rendrait service à personne — le
+ * répertoire n'apparaît nulle part dans l'interface — et coûterait un
+ * re-téléchargement complet sur toutes les cibles au premier scan suivant,
+ * plus un répertoire orphelin laissé derrière.
+ */
 export const TOOL_HOME = '"$HOME"/.bootstrap-tp';
 export const TOOL_BIN = `${TOOL_HOME}/bin`;
 

@@ -606,7 +606,7 @@ export const STUCK_DEPLOYMENT_GRACE_MS = 60_000;
 
 /**
  * Ce qu'on lit d'une tâche de la file pour savoir si elle concerne un
- * déploiement. Volontairement minimal : `@tp/core` ne dépend pas de `bullmq` —
+ * déploiement. Volontairement minimal : `@pupitre/core` ne dépend pas de `bullmq` —
  * ce module ne décrit que le contrat des files, il n'en ouvre aucune — et
  * l'appelant, panel ou worker, passe ce qu'il a lu.
  */

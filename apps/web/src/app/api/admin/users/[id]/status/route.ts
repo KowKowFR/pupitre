@@ -1,4 +1,4 @@
-import { eq, getDb, getUserGrants, logAudit, sessions, users } from '@tp/db';
+import { eq, getDb, getUserGrants, logAudit, sessions, users } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, NotFoundError } from '@/lib/errors';

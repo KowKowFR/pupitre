@@ -14,7 +14,7 @@ import type { DriverContext, LogSink } from './types.js';
  * 2. **La règle est identifiée par son commentaire, pas par son numéro.**
  *    `ufw status numbered` renumérote à chaque suppression : une règle effacée
  *    par index efface la voisine dès qu'une autre est partie entre-temps. Le
- *    commentaire `bootstrap-tp:{slug}` est stable, et il dit aussi à
+ *    commentaire `pupitre:{slug}` est stable, et il dit aussi à
  *    l'administrateur de la machine qui a ouvert ce port et pour quoi.
  */
 
@@ -22,7 +22,28 @@ const UFW_TIMEOUT_MS = 30_000;
 
 /** Marqueur posé sur chaque règle créée par le panel. */
 export function ufwComment(appSlug: string): string {
-  return `bootstrap-tp:${appSlug}`;
+  return `${UFW_MARKER}:${appSlug}`;
+}
+
+/**
+ * Le préfixe des règles que le panel s'attribue, et celui d'avant le renommage.
+ *
+ * Ces commentaires sont **écrits dans le pare-feu de la machine cible**, pas
+ * chez nous. Une règle ouverte hier porte `bootstrap-tp:`, et si le panel
+ * cessait de la reconnaître il cesserait aussi de la refermer : le port
+ * resterait ouvert après la destruction de l'application, sans que rien ne le
+ * signale. Un renommage ne doit pas laisser de porte ouverte derrière lui.
+ *
+ * On écrit donc le nouveau et on lit les deux, `UFW_MARKERS` étant la liste que
+ * consultent le nettoyage et le preflight.
+ */
+export const UFW_MARKER = 'pupitre';
+export const LEGACY_UFW_MARKER = 'bootstrap-tp';
+export const UFW_MARKERS = [UFW_MARKER, LEGACY_UFW_MARKER] as const;
+
+/** La ligne de `ufw status` appartient-elle au panel, toutes générations ? */
+export function isManagedUfwRule(line: string): boolean {
+  return UFW_MARKERS.some((marker) => line.includes(`${marker}:`));
 }
 
 /** Échappement POSIX en quotes simples. */
@@ -112,9 +133,15 @@ export async function ufwDelete(
     timeout: UFW_TIMEOUT_MS,
   });
 
+  // La suppression se fait par correspondance de règle (`allow <port>/tcp`),
+  // jamais par commentaire : une règle d'avant le renommage est donc retirée
+  // comme les autres. Le contrôle qui suit, lui, doit accepter les deux
+  // marqueurs — sinon un reliquat portant l'ancien passerait pour une absence,
+  // et le port resterait ouvert sans que rien ne le dise.
+  const markers = UFW_MARKERS.map((marker) => `${marker}:`).join('|');
   const remaining = await exec(
     ctx.sshSession,
-    `ufw status | grep -F ${shellQuote(comment)} | grep -F ${shellQuote(String(port))} || true`,
+    `ufw status | grep -E ${shellQuote(markers)} | grep -F ${shellQuote(String(port))} || true`,
     { sudo: true, timeout: UFW_TIMEOUT_MS },
   );
 

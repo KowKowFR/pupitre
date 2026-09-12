@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['pg', 'ioredis', 'bullmq', 'pino', 'ssh2', 'node-ssh'],
   /**
    * Le prompt système et ses fixtures sont des **fichiers**, pas des chaînes en
-   * dur. Next inline `@tp/core` dans ses chunks serveur : `import.meta.url` n'y
+   * dur. Next inline `@pupitre/core` dans ses chunks serveur : `import.meta.url` n'y
    * désigne plus le paquet, et le traceur ne voit aucun `import` vers un `.md`.
    * On les déclare donc explicitement. Ils sont recopiés dans `standalone` en
    * conservant leur chemin depuis `outputFileTracingRoot`, et le serveur

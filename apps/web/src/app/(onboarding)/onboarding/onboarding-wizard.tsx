@@ -12,7 +12,7 @@ import type {
   OnboardingStepId,
   RoleKey,
   SupportedLocale,
-} from '@tp/core';
+} from '@pupitre/core';
 import { PageHeader } from '@/components/page-header';
 import { TargetHelpDialog } from '@/components/target-help';
 import { Alert } from '@/components/ui/alert';

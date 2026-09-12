@@ -14,9 +14,9 @@ import { notifiableEventFor, type NotifiableAuditEntry } from './events.js';
  * rôle par le panel. Deux copies de cette logique finiraient par diverger, et
  * la divergence se verrait sous la forme d'un incident non notifié.
  *
- * Ce module ne connaît ni BullMQ, ni Redis, ni `@tp/db` : il reçoit une
+ * Ce module ne connaît ni BullMQ, ni Redis, ni `@pupitre/db` : il reçoit une
  * fonction d'enfilement. C'est ce qui lui permet de vivre à la racine de
- * `@tp/core`, donc d'être appelable des deux côtés.
+ * `@pupitre/core`, donc d'être appelable des deux côtés.
  */
 
 /** Une ligne d'`audit_logs`, décrite structurellement. */

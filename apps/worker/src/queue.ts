@@ -1,4 +1,4 @@
-import { OPS_QUEUE, SUPERVISION_QUEUE } from '@tp/core';
+import { OPS_QUEUE, SUPERVISION_QUEUE } from '@pupitre/core';
 import { Queue } from 'bullmq';
 import { createRedisConnection } from './redis.js';
 

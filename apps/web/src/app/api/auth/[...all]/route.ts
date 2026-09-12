@@ -1,4 +1,4 @@
-import { logAudit } from '@tp/db';
+import { logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { getAuth, getSession, isSignupOpen } from '@/lib/auth';
 import { clientIp } from '@/lib/http';

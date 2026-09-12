@@ -3,7 +3,7 @@ import {
   listDeployments,
   listLiveDeploymentIds,
   scanDigestForDeployments,
-} from '@tp/db';
+} from '@pupitre/db';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { requirePagePermission } from '@/lib/page-auth';

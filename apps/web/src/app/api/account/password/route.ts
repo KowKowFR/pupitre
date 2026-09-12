@@ -1,4 +1,4 @@
-import { logAudit } from '@tp/db';
+import { logAudit } from '@pupitre/db';
 import { z } from 'zod';
 import { getAuth } from '@/lib/auth';
 import { HttpError } from '@/lib/errors';

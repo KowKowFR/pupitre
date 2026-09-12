@@ -1,4 +1,4 @@
-# Bootstrap TP v2 — Plan par jalons
+# Pupitre — Plan par jalons
 
 Durée : 10 jours ouvrés. Chaque jalon a un **critère de sortie vérifiable**.
 Règle absolue : on ne passe pas au jalon suivant tant que le critère de sortie n'est pas atteint.

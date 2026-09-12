@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import type { FirewallInfo } from '@tp/core';
-import type { TargetPortReport } from '@tp/db';
+import type { FirewallInfo } from '@pupitre/core';
+import type { TargetPortReport } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';

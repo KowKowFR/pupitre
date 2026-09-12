@@ -14,8 +14,8 @@ import { z } from 'zod';
  * là-bas.
  *
  * Ce module ne dépend que de Zod : il est réexporté depuis la racine de
- * `@tp/core`, donc lisible par le panel Next sans tirer `nodemailer` dans son
- * graphe. Les implémentations, elles, vivent sous `@tp/core/notifications`.
+ * `@pupitre/core`, donc lisible par le panel Next sans tirer `nodemailer` dans son
+ * graphe. Les implémentations, elles, vivent sous `@pupitre/core/notifications`.
  */
 
 export const NOTIFICATION_SEVERITIES = ['info', 'warning', 'critical'] as const;

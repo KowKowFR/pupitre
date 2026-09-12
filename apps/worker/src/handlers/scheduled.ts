@@ -2,7 +2,7 @@ import {
   SCHEDULED_JOB_TYPES,
   scheduledJobDataSchema,
   type ScheduledJobResult,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   finishScheduledJobRun,
   getScheduledJob,
@@ -10,7 +10,7 @@ import {
   pruneScheduledJobRuns,
   startScheduledJobRun,
   touchScheduledJob,
-} from '@tp/db';
+} from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { SCHEDULED_JOB_RUNNERS } from '../schedule/runners.js';

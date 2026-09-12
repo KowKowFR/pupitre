@@ -1,4 +1,4 @@
-import { secretBindings, secretRootName } from '@tp/core';
+import { secretBindings, secretRootName } from '@pupitre/core';
 import {
   declaredSecretsOf,
   deleteApplicationSecret,
@@ -8,7 +8,7 @@ import {
   secretNameSchema,
   secretValueSchema,
   setApplicationSecret,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ConflictError, NotFoundError } from '@/lib/errors';

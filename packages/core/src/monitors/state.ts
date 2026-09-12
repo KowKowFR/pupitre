@@ -85,7 +85,7 @@ export const MONITOR_MAX_RESPONSE_BYTES = 256 * 1024;
 /** Redirections suivies. Chacune est re-contrôlée par la politique SSRF. */
 export const MONITOR_MAX_REDIRECTS = 5;
 
-export const MONITOR_USER_AGENT = 'bootstrap-tp-v2-monitor/1';
+export const MONITOR_USER_AGENT = 'pupitre-monitor/1';
 
 /** Cadence du balayage. Fixe : c'est un détail d'exécution, pas un réglage. */
 export const MONITOR_SWEEP_EVERY_MS = 30_000;

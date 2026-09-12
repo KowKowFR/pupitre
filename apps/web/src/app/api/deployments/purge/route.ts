@@ -1,4 +1,4 @@
-import { PURGE_MAX_ROWS, logAudit, purgeDeployments, purgeFilterSchema } from '@tp/db';
+import { PURGE_MAX_ROWS, logAudit, purgeDeployments, purgeFilterSchema } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { apiRoute, readJsonBody } from '@/lib/http';

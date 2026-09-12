@@ -16,7 +16,7 @@ import { instantiateModel, type ConfiguredModel } from './providers.js';
  * Handler, jamais par un composant client. Elle n'apparaît ni dans un log, ni
  * dans une entrée d'audit, ni dans la réponse HTTP.
  *
- * `@tp/core` n'importe ni `@tp/db` ni `apps/web` : la configuration effective
+ * `@pupitre/core` n'importe ni `@pupitre/db` ni `apps/web` : la configuration effective
  * (paramètres d'instance d'un côté, variables d'environnement de l'autre) est
  * donc **passée en argument** à `resolveAiConfig()`, jamais lue ici. C'est ce
  * qui laisse la fonction utilisable depuis le panel comme depuis le worker.

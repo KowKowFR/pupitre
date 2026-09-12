@@ -6,7 +6,7 @@ import { z } from 'zod';
  * Même découpage que `Scanner`, `DeploymentDriver` et les fournisseurs d'IA :
  * d'un côté une description déclarative (ici), de l'autre une fabrique qui
  * instancie (`./index.js`). La séparation n'est pas cosmétique — ce module ne
- * dépend que de Zod, ce qui permet au panel Next, aux routes et à `@tp/db` de
+ * dépend que de Zod, ce qui permet au panel Next, aux routes et à `@pupitre/db` de
  * connaître les canaux et leurs champs **sans tirer `nodemailer`** dans leur
  * graphe. C'est la règle déjà appliquée à `ssh2` et au SDK d'IA.
  *

@@ -1,5 +1,5 @@
-import { DATE_STYLES, SUPPORTED_LOCALES, supportedTimeZones } from '@tp/core';
-import { getAppSettings } from '@tp/db';
+import { DATE_STYLES, SUPPORTED_LOCALES, supportedTimeZones } from '@pupitre/core';
+import { getAppSettings } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requirePagePermission } from '@/lib/page-auth';
 import { settingsSection } from '../sections';

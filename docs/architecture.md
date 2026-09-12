@@ -178,7 +178,7 @@ openFirewall?(ctx, port): Promise<void>
 closeFirewall?(ctx, port): Promise<void>
 ```
 
-**La règle est identifiée par son commentaire**, `bootstrap-tp:{slug}`, jamais
+**La règle est identifiée par son commentaire**, `pupitre:{slug}`, jamais
 par son numéro : `ufw status numbered` renumérote à chaque suppression, et une
 règle effacée par index efface la voisine dès qu'une autre est partie
 entre-temps. Le commentaire dit aussi à l'administrateur de la machine qui a

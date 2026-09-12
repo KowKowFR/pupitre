@@ -7,8 +7,8 @@ import {
   appLogWatchKey,
   deploymentJobDataSchema,
   isSupervisable,
-} from '@tp/core';
-import { getDeploymentSummary } from '@tp/db';
+} from '@pupitre/core';
+import { getDeploymentSummary } from '@pupitre/db';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { getEnv } from '@/lib/env';

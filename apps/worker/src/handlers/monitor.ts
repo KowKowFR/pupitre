@@ -1,4 +1,4 @@
-import { monitorSweepJobDataSchema, type MonitorSweepJobResult } from '@tp/core';
+import { monitorSweepJobDataSchema, type MonitorSweepJobResult } from '@pupitre/core';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { sweepMonitors } from '../monitors/sweep.js';

@@ -18,7 +18,9 @@ import {
 } from '../types.js';
 import { managedWorkloadRefusal, type Workload, type WorkloadRef } from '../../workloads.js';
 import {
+  LEGACY_MANAGED_BY,
   MANAGED_BY,
+  MANAGED_SELECTOR,
   MANIFEST_DIR,
   builtImageTag,
   entrypointService,
@@ -886,7 +888,7 @@ export class K3sDriver implements DeploymentDriver {
 
     await this.stream(
       ctx,
-      this.kube(ctx, `rollout restart deployment -l app.kubernetes.io/managed-by=${MANAGED_BY}`),
+      this.kube(ctx, `rollout restart deployment -l '${MANAGED_SELECTOR}'`),
       onLog,
       'restart',
       APPLY_TIMEOUT_MS,
@@ -911,7 +913,7 @@ export class K3sDriver implements DeploymentDriver {
       this.kube(
         ctx,
         'logs -f --all-containers=true --prefix --tail 200 --max-log-requests 50 ' +
-          `-l app.kubernetes.io/managed-by=${MANAGED_BY}`,
+          `-l '${MANAGED_SELECTOR}'`,
       ),
       (line) => onLine(line),
       // Un suivi de logs n'a pas de fin naturelle : c'est l'appelant qui coupe
@@ -1404,7 +1406,10 @@ function hostPorts(containers: KubeContainerSpec[] | null | undefined): string[]
 }
 
 function isManaged(meta: KubeMeta | undefined): boolean {
-  return (meta?.labels ?? {})['app.kubernetes.io/managed-by'] === MANAGED_BY;
+  // Les deux générations, pour la même raison que les sélecteurs : une
+  // ressource posée avant le renommage appartient toujours au panel.
+  const managedBy = (meta?.labels ?? {})['app.kubernetes.io/managed-by'];
+  return managedBy === MANAGED_BY || managedBy === LEGACY_MANAGED_BY;
 }
 
 function managedApp(meta: KubeMeta | undefined): string | null {

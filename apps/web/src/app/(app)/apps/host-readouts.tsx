@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { HostMetrics } from '@tp/core';
+import type { HostMetrics } from '@pupitre/core';
 import { Led, type Tone } from '@/components/instrument';
 import { cn } from '@/lib/utils';
 import type { MetricsEntry } from './use-host-metrics';

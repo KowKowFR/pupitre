@@ -1,4 +1,4 @@
-import { MONITOR_CHECK_RETENTION_DAYS, isMonitorType } from '@tp/core';
+import { MONITOR_CHECK_RETENTION_DAYS, isMonitorType } from '@pupitre/core';
 import {
   MonitorConfigError,
   deleteMonitor,
@@ -10,7 +10,7 @@ import {
   monitorTarget,
   updateMonitor,
   updateMonitorSchema,
-} from '@tp/db';
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { HttpError, NotFoundError } from '@/lib/errors';

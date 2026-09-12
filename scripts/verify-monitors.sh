@@ -34,7 +34,7 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.77}"
 
 RECEIVER="monitors-verify-receiver"
-NETWORK="${COMPOSE_NETWORK:-bootstrap-tp-v2_default}"
+NETWORK="${COMPOSE_NETWORK:-pupitre_default}"
 VIEWER_EMAIL="monitor-viewer@example.test"
 VIEWER_ROLE="monitor-verify-viewer"
 

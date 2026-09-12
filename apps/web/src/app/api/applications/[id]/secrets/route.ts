@@ -1,4 +1,4 @@
-import { getApplication, listApplicationSecrets } from '@tp/db';
+import { getApplication, listApplicationSecrets } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildSecretViews } from '@/lib/application-secrets';

@@ -1,6 +1,6 @@
 'use client';
 
-import { cronError, type SimpleSchedule } from '@tp/core/schedule';
+import { cronError, type SimpleSchedule } from '@pupitre/core/schedule';
 import { useRouter } from 'next/navigation';
 import { Fragment, useState, useTransition } from 'react';
 import { Alert } from '@/components/ui/alert';

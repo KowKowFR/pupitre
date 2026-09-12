@@ -31,7 +31,7 @@ import { z } from 'zod';
  * défaut. Une base vierge, un JSON tronqué ou un champ ajouté après coup
  * rendent donc toujours un objet complet et valide.
  *
- * Ce module ne dépend que de Zod : il est importé par `@tp/db`, par le panel
+ * Ce module ne dépend que de Zod : il est importé par `@pupitre/db`, par le panel
  * et par le worker. La clé d'API de l'IA n'y figure volontairement pas — un
  * secret ne voyage pas avec de la configuration ordinaire, il vit dans sa
  * propre colonne chiffrée (cf. `app_settings.ai_api_key_encrypted`).
@@ -43,7 +43,7 @@ import { z } from 'zod';
  * fonction à appeler dès qu'on sait de quel fournisseur on parle.
  *
  * Le catalogue vit sous `ai/catalog.ts` mais ne dépend de rien : la racine de
- * `@tp/core` — donc `@tp/db` et le worker — peut donc connaître la liste des
+ * `@pupitre/core` — donc `@pupitre/db` et le worker — peut donc connaître la liste des
  * fournisseurs et leurs défauts sans tirer le SDK IA dans son graphe.
  */
 export const DEFAULT_AI_MODEL = defaultAiModel('openrouter');
@@ -714,8 +714,8 @@ const appSettingsFields = {
 };
 
 const FIELD_DEFAULTS = {
-  instanceName: 'Control plane',
-  instanceTagline: 'Bootstrap TP v2',
+  instanceName: 'Pupitre',
+  instanceTagline: 'Plan de contrôle de déploiement',
   timezone: DEFAULT_TIMEZONE,
   locale: 'fr-FR',
   dateStyle: 'short',

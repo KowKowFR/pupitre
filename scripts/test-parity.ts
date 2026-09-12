@@ -23,7 +23,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decrypt, parseAppSpec, type AppSpec, type Service } from '@tp/core';
+import { decrypt, parseAppSpec, type AppSpec, type Service } from '@pupitre/core';
 import {
   getDriver,
   type DeploymentDriver,
@@ -31,8 +31,8 @@ import {
   type DriverDeployment,
   type RenderedFile,
   type RuntimeKind,
-} from '@tp/core/drivers';
-import { connect, disconnect, exec, type SshSession, type SshTarget } from '@tp/core/ssh';
+} from '@pupitre/core/drivers';
+import { connect, disconnect, exec, type SshSession, type SshTarget } from '@pupitre/core/ssh';
 import {
   applications,
   closeDb,
@@ -41,7 +41,7 @@ import {
   getDb,
   getTargetSecret,
   listTargets,
-} from '@tp/db';
+} from '@pupitre/db';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 

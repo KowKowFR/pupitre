@@ -1,5 +1,5 @@
 import 'server-only';
-import { ROLE_DEFINITIONS, type RoleKey } from '@tp/core';
+import { ROLE_DEFINITIONS, type RoleKey } from '@pupitre/core';
 import {
   accounts,
   count,
@@ -11,7 +11,7 @@ import {
   twoFactors,
   users,
   verifications,
-} from '@tp/db';
+} from '@pupitre/db';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError } from 'better-auth/api';
@@ -58,7 +58,7 @@ function buildAuth() {
   const env = getEnv();
 
   return betterAuth({
-    appName: 'Bootstrap TP v2',
+    appName: 'Pupitre',
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     basePath: '/api/auth',
@@ -139,7 +139,7 @@ function buildAuth() {
       // défaut (false) : le secret n'est armé qu'après un premier code valide,
       // sinon une application mal réglée enfermerait son propriétaire dehors.
       twoFactor({
-        issuer: 'Bootstrap TP v2',
+        issuer: 'Pupitre',
       }),
     ],
   });

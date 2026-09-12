@@ -10,8 +10,8 @@ import {
   type Cidr,
   type MonitorType,
   type UptimeWindow,
-} from '@tp/core';
-import { SsrfBlockedError, resolveUrlGuarded } from '@tp/core/probe';
+} from '@pupitre/core';
+import { SsrfBlockedError, resolveUrlGuarded } from '@pupitre/core/probe';
 import {
   listChecks,
   listIncidents,
@@ -20,7 +20,7 @@ import {
   type Monitor,
   type MonitorCheck,
   type MonitorIncident,
-} from '@tp/db';
+} from '@pupitre/db';
 import { HttpError } from './errors';
 import { getEnv } from './env';
 

@@ -5,15 +5,15 @@ import {
   failOnSchema,
   type ScanConfig,
   type ScheduledJobType,
-} from '@tp/core';
-import { getDriver } from '@tp/core/drivers';
-import { disconnect } from '@tp/core/ssh';
+} from '@pupitre/core';
+import { getDriver } from '@pupitre/core/drivers';
+import { disconnect } from '@pupitre/core/ssh';
 import {
   listCurrentDeployments,
   listTargets,
   recordHealthStatus,
   type Deployment,
-} from '@tp/db';
+} from '@pupitre/db';
 import { z } from 'zod';
 import { openDeploymentContext } from '../deploy/context.js';
 import { runSecurityScan } from '../deploy/scan.js';

@@ -3,15 +3,15 @@ import {
   intersectPortRanges,
   parseAppSpec,
   type PortRange,
-} from '@tp/core';
-import type { DriverContext, SecretResolver } from '@tp/core/drivers';
+} from '@pupitre/core';
+import type { DriverContext, SecretResolver } from '@pupitre/core/drivers';
 import {
   connect,
   disconnect,
   type ConnectOptions,
   type SshSession,
   type SshTarget,
-} from '@tp/core/ssh';
+} from '@pupitre/core/ssh';
 import {
   createPortAllocator,
   ensureApplicationSecrets,
@@ -19,7 +19,7 @@ import {
   getTargetSecret,
   resolveApplicationSecrets,
   type Deployment,
-} from '@tp/db';
+} from '@pupitre/db';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
 

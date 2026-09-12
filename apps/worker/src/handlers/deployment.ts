@@ -1,7 +1,7 @@
-import { deployChannel, deploymentJobDataSchema, type DeploymentJobResult } from '@tp/core';
-import { getDriver, getProxyProvider } from '@tp/core/drivers';
-import { disconnect, type ConnectOptions } from '@tp/core/ssh';
-import { finishDeployment, logAudit } from '@tp/db';
+import { deployChannel, deploymentJobDataSchema, type DeploymentJobResult } from '@pupitre/core';
+import { getDriver, getProxyProvider } from '@pupitre/core/drivers';
+import { disconnect, type ConnectOptions } from '@pupitre/core/ssh';
+import { finishDeployment, logAudit } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { openDeploymentContext } from '../deploy/context.js';

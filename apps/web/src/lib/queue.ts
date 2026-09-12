@@ -1,5 +1,5 @@
 import 'server-only';
-import { OPS_QUEUE } from '@tp/core';
+import { OPS_QUEUE } from '@pupitre/core';
 import { Queue } from 'bullmq';
 import { getRedis } from './redis';
 

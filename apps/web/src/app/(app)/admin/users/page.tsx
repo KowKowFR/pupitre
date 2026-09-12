@@ -1,5 +1,5 @@
-import type { RoleKey } from '@tp/core';
-import { asc, getDb, getTwoFactorStates, getUserGrants, listRoles, users } from '@tp/db';
+import type { RoleKey } from '@pupitre/core';
+import { asc, getDb, getTwoFactorStates, getUserGrants, listRoles, users } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requirePagePermission } from '@/lib/page-auth';
 import { CreateUserForm } from './create-user-form';

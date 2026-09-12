@@ -1,5 +1,5 @@
-import type { AppSpec, PreflightReport, RuntimesAvailable } from '@tp/core';
-import { EMPTY_RUNTIMES } from '@tp/core';
+import type { AppSpec, PreflightReport, RuntimesAvailable } from '@pupitre/core';
+import { EMPTY_RUNTIMES } from '@pupitre/core';
 import { sql } from 'drizzle-orm';
 import {
   check,

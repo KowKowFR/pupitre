@@ -1,5 +1,5 @@
 import 'server-only';
-import { assertMasterKey } from '@tp/core';
+import { assertMasterKey } from '@pupitre/core';
 import { z } from 'zod';
 
 /** Dans un `.env`, une variable déclarée mais vide vaut « non renseignée ». */
@@ -28,7 +28,7 @@ const envSchema = z.object({
   ALLOW_SIGNUP: booleanish,
   OPENROUTER_API_KEY: optional(z.string().min(1)),
   /**
-   * Modèle OpenRouter. Vide = le défaut de `@tp/core/ai`, choisi pour sa
+   * Modèle OpenRouter. Vide = le défaut de `@pupitre/core/ai`, choisi pour sa
    * fiabilité en sortie structurée.
    */
   OPENROUTER_MODEL: optional(z.string().min(1)),

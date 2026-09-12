@@ -56,7 +56,7 @@ pnpm install
 pnpm dev        # web (3000) + worker, tous deux en watch
 ```
 
-`pnpm dev` construit d'abord `@tp/core` et `@tp/db`, puis lance les quatre
+`pnpm dev` construit d'abord `@pupitre/core` et `@pupitre/db`, puis lance les quatre
 projets en parallèle. Node ≥ 24 et pnpm 10 sont requis (`package.json`).
 
 Attention : si la pile complète tourne déjà, son `panel` occupe le port 3000.
@@ -152,7 +152,7 @@ Toutes ont été exécutées le 12/09/2026 contre ce dépôt.
 | `pnpm build` | packages, worker (tsc) et web (next build) |
 | `pnpm typecheck` | TypeScript strict sur les 4 projets **et** sur `scripts/` |
 | `pnpm lint` | ESLint (Next) |
-| `pnpm test` | tests unitaires de `@tp/core` — 205 tests, 39 suites |
+| `pnpm test` | tests unitaires de `@pupitre/core` — 205 tests, 39 suites |
 | `pnpm test:driver <cible>` | déploiement de bout en bout sur une cible réelle |
 | `pnpm test:parity <docker> <k3s>` | le test de parité — pilote les deux drivers en direct |
 | `pnpm test:schedule` | traduction et calcul des expressions cron |

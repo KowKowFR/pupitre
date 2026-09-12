@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { AuditLogPage } from '@tp/db';
+import type { AuditLogPage } from '@pupitre/db';
 import { EmptyState } from '@/components/empty-state';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';

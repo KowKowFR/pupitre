@@ -1,5 +1,5 @@
-import { MONITOR_CHECK_RETENTION_DAYS, MONITOR_TYPES_LIST } from '@tp/core';
-import { listAdoptableApps, listMonitors } from '@tp/db';
+import { MONITOR_CHECK_RETENTION_DAYS, MONITOR_TYPES_LIST } from '@pupitre/core';
+import { listAdoptableApps, listMonitors } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { buildMonitorViews, monitorTypeOptions } from '@/lib/monitors';
 import { requirePagePermission } from '@/lib/page-auth';

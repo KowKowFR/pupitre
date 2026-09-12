@@ -7,7 +7,7 @@ import {
   type AppSettings,
   type OnboardingState,
   type OnboardingStepDefinition,
-} from '@tp/core';
+} from '@pupitre/core';
 import {
   count,
   getAppSettings,
@@ -18,7 +18,7 @@ import {
   logAudit,
   updateOnboardingState,
   users as usersTable,
-} from '@tp/db';
+} from '@pupitre/db';
 import { logger } from '@/lib/logger';
 import type { AuthContext } from '@/lib/rbac';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { SCHEDULED_JOB_TYPES, SCHEDULED_JOB_TYPES_LIST } from '@tp/core/schedule';
+import { SCHEDULED_JOB_TYPES, SCHEDULED_JOB_TYPES_LIST } from '@pupitre/core/schedule';
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import {

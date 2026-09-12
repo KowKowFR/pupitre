@@ -49,7 +49,7 @@ req() {
 
 step "1. Clé SSH"
 if [ ! -f "$KEY_PATH" ]; then
-  ssh-keygen -q -t ed25519 -N '' -C 'bootstrap-tp-test-target' -f "$KEY_PATH"
+  ssh-keygen -q -t ed25519 -N '' -C 'pupitre-test-target' -f "$KEY_PATH"
   pass "clé générée dans $KEY_PATH (ignorée par git)"
 else
   pass "clé existante réutilisée : $KEY_PATH"

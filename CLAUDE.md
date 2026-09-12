@@ -1,4 +1,4 @@
-# Bootstrap TP v2 — Contexte projet
+# Pupitre — Contexte projet
 
 ## Ce qu'on construit
 

@@ -102,7 +102,7 @@ export class TraefikProvider implements ProxyProvider {
     };
 
     const body =
-      `# Généré par bootstrap-tp-v2 pour ${ctx.appSlug} — ne pas éditer.\n` +
+      `# Généré par Pupitre pour ${ctx.appSlug} — ne pas éditer.\n` +
       stringify(config, { lineWidth: 0 });
 
     await exec(ctx.sshSession, `mkdir -p ${shellQuote(this.dynamicPath(ctx))}`, {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { AppSettings } from '@tp/core';
+import type { AppSettings } from '@pupitre/core';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SectionForm } from '../section-form';

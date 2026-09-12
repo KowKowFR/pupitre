@@ -23,8 +23,8 @@ import {
   WORKLOAD_REMOVE_JOB,
   WORKLOAD_UPDATE_JOB,
   assertMasterKey,
-} from '@tp/core';
-import { closeDb, pingDb } from '@tp/db';
+} from '@pupitre/core';
+import { closeDb, pingDb } from '@pupitre/db';
 import { Worker, type Job } from 'bullmq';
 import { env } from './env.js';
 import { handlePing } from './handlers/ping.js';

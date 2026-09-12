@@ -10,7 +10,7 @@ import {
   defaultAiModel,
   type AiProvider,
   type AppSettings,
-} from '@tp/core';
+} from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
