@@ -1,11 +1,27 @@
-import { listSupervisedApps, listTargets } from '@pupitre/db';
+import {
+  listOpenBreaches,
+  listSupervisedApps,
+  listTargets,
+  resolveThresholds,
+  targetHistories,
+} from '@pupitre/db';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { requirePagePermission } from '@/lib/page-auth';
 import type { SupervisedRow } from './apps-table';
+import type { HostHistoryData, HistoryMetric } from './host-history';
 import { ServersList, type ServerRow } from './servers-list';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Fenêtre rendue avec la page. 24 h en 48 intervalles de 30 minutes : assez fin
+ * pour voir un pic du week-end, assez grossier pour tenir dans une frise de
+ * cent pixels sans transporter 288 valeurs par machine. Les 7 jours sont
+ * demandés à la route, à la demande — personne n'ouvre cet écran pour eux.
+ */
+const HISTORY_HOURS = 24;
+const HISTORY_BUCKETS = 48;
 
 /**
  * Supervision, vue par serveur.
@@ -14,11 +30,18 @@ export const dynamic = 'force-dynamic';
  *
  * - la **base** dit quelles machines sont déclarées et ce qui tourne dessus.
  *   Elle répond toujours, même quand toutes les machines sont éteintes ;
- * - la **machine** dit comment elle se porte. Ce relevé est demandé par le
- *   navigateur, cible par cible, et son échec n'emporte rien d'autre que lui.
+ * - la **machine** dit comment elle se porte *à l'instant*. Ce relevé est
+ *   demandé par le navigateur, cible par cible, et son échec n'emporte rien
+ *   d'autre que lui.
  *
  * C'est ce cloisonnement qui fait qu'un serveur injoignable garde ses
  * applications à l'écran.
+ *
+ * Depuis que les relevés sont conservés, la base a une troisième chose à dire :
+ * **le passé de la machine**. Elle est rendue avec la page, côté serveur, et
+ * pour une raison précise — c'est du SQL, pas du SSH. La courbe des dernières
+ * 24 h s'affiche donc à l'identique que la machine réponde ou non, ce qui est
+ * exactement le moment où on veut la lire.
  */
 export default async function AppsPage() {
   const auth = await requirePagePermission('/apps', 'deployment:read');
@@ -29,6 +52,18 @@ export default async function AppsPage() {
   const [apps, targets] = await Promise.all([
     listSupervisedApps(),
     canReadTargets ? listTargets() : Promise.resolve([]),
+  ]);
+
+  // L'historique ne concerne que les cibles réellement enregistrées : une
+  // machine connue par le seul souvenir d'un déploiement n'a jamais été relevée.
+  const targetIds = targets.map((target) => target.id);
+  const [histories, openBreaches, thresholdsByTarget] = await Promise.all([
+    targetHistories(targetIds, HISTORY_HOURS, HISTORY_BUCKETS),
+    listOpenBreaches(targetIds),
+    // Une résolution par machine : les seuils sont trois couches, et c'est la
+    // base qui les empile (`resolveThresholds`). Recopier l'empilement ici en
+    // aurait fait une seconde vérité.
+    Promise.all(targetIds.map((id) => resolveThresholds(id))),
   ]);
 
   const items: SupervisedRow[] = apps.map((app) => ({
@@ -100,6 +135,44 @@ export default async function AppsPage() {
 
   const rows = [...servers.values()].sort((a, b) => a.name.localeCompare(b.name));
 
+  // Les données d'historique, mises en forme pour le client : des chaînes ISO
+  // plutôt que des `Date`, et rien d'autre que ce que l'écran affiche.
+  const history: Record<string, HostHistoryData> = {};
+  targetIds.forEach((id, index) => {
+    const window = histories.get(id);
+    if (!window) return;
+    const resolved = thresholdsByTarget[index];
+    if (!resolved) return;
+    history[id] = {
+      hours: window.hours,
+      samples: window.samples,
+      reachable: window.reachable,
+      points: window.points,
+      summary: window.summary,
+      thresholds: Object.fromEntries(
+        (Object.keys(resolved) as HistoryMetric[]).map((metric) => [
+          metric,
+          {
+            limitPercent: resolved[metric].limitPercent,
+            enabled: resolved[metric].enabled,
+            origin: resolved[metric].origin,
+          },
+        ]),
+      ) as HostHistoryData['thresholds'],
+      breaches: openBreaches
+        .filter((breach) => breach.targetId === id)
+        .map((breach) => ({
+          id: breach.id,
+          metric: breach.metric,
+          startedAt: breach.startedAt.toISOString(),
+          limitPercent: breach.limitPercent,
+          peakValue: breach.peakValue,
+          lastValue: breach.lastValue,
+          samples: breach.samples,
+        })),
+    };
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -120,8 +193,10 @@ export default async function AppsPage() {
       ) : (
         <ServersList
           servers={rows}
+          history={history}
           canRestart={auth.can('deployment:restart')}
           canReadTargets={canReadTargets}
+          canTune={auth.can('target:update')}
         />
       )}
     </div>

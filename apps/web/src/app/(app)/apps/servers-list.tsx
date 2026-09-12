@@ -10,7 +10,9 @@ import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/
 import { cn } from '@/lib/utils';
 import { RuntimeBadges } from '../targets/runtime-badges';
 import { AppsTable, HealthDot, type HealthStatus, type SupervisedRow } from './apps-table';
+import { HostHistory, type HostHistoryData } from './host-history';
 import { HostReadouts } from './host-readouts';
+import { ThresholdsDialog } from './thresholds-dialog';
 import { useHostMetrics, type MetricsEntry } from './use-host-metrics';
 
 /**
@@ -27,6 +29,11 @@ import { useHostMetrics, type MetricsEntry } from './use-host-metrics';
  * première. Un serveur éteint affiche donc « injoignable » à la place de ses
  * jauges, et garde son dépliant intact — c'est précisément le moment où on a
  * besoin de savoir ce qui était censé y tourner.
+ *
+ * **Et il garde aussi son passé.** L'historique est une troisième source — la
+ * base, encore — rendue avec la page. Une machine qui ne répond plus affiche
+ * donc « injoignable » *au-dessus* de la courbe des dernières 24 h, celle qui
+ * dit peut-être pourquoi elle ne répond plus.
  */
 
 export type ServerRow = {
@@ -79,16 +86,22 @@ function relevanceLabel(entry: MetricsEntry | undefined): string | null {
 function ServerCard({
   server,
   entry,
+  history,
   canProbe,
   canRestart,
   canReadTargets,
+  canTune,
   onRefresh,
 }: {
   server: ServerRow;
   entry: MetricsEntry | undefined;
+  /** Absent quand la machine n'est pas une cible enregistrée : rien à relire. */
+  history: HostHistoryData | undefined;
   canProbe: boolean;
   canRestart: boolean;
   canReadTargets: boolean;
+  /** `target:update` : régler un seuil, c'est décrire la machine. */
+  canTune: boolean;
   onRefresh: () => void;
 }) {
   const hasApps = server.apps.length > 0;
@@ -157,6 +170,13 @@ function ServerCard({
                 {probing ? 'Relevé…' : 'Relever'}
               </Button>
             ) : null}
+            {canTune && history ? (
+              <ThresholdsDialog
+                targetId={server.id}
+                targetName={server.name}
+                thresholds={history.thresholds}
+              />
+            ) : null}
             {server.registered && canReadTargets ? (
               <Button asChild size="sm" variant="outline">
                 <Link href={`/targets/${server.id}`}>Fiche</Link>
@@ -166,8 +186,14 @@ function ServerCard({
         </div>
 
         <div className="border-t border-line bg-ground-deep/40 px-1 py-1">
-          <HostReadouts entry={entry} enabled={canProbe} />
+          <HostReadouts entry={entry} enabled={canProbe} thresholds={history?.thresholds} />
         </div>
+
+        {history ? (
+          <div className="border-t border-line bg-ground-deep/20">
+            <HostHistory targetId={server.id} initial={history} />
+          </div>
+        ) : null}
 
         {hasApps ? (
           <CollapsiblePanel className="border-t border-line px-4 py-3">
@@ -186,13 +212,18 @@ function ServerCard({
 
 export function ServersList({
   servers,
+  history,
   canRestart,
   canReadTargets,
+  canTune,
 }: {
   servers: ServerRow[];
+  /** L'historique, par identifiant de cible. Vient de la base, avec la page. */
+  history: Record<string, HostHistoryData>;
   canRestart: boolean;
   /** Sans `target:read`, aucun relevé n'est demandé : la route le refuserait. */
   canReadTargets: boolean;
+  canTune: boolean;
 }) {
   // Seules les cibles réellement enregistrées peuvent être relevées : une
   // machine connue par le seul souvenir d'un déploiement n'a plus de credential.
@@ -224,9 +255,11 @@ export function ServersList({
           key={server.id}
           server={server}
           entry={entries[server.id]}
+          history={history[server.id]}
           canProbe={canReadTargets && server.registered}
           canRestart={canRestart}
           canReadTargets={canReadTargets}
+          canTune={canTune && server.registered}
           onRefresh={() => void refresh(server.id)}
         />
       ))}

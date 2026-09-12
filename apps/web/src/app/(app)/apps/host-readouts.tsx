@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { HostMetrics } from '@pupitre/core';
 import { Led, type Tone } from '@/components/instrument';
 import { cn } from '@/lib/utils';
+import { toneFor, type HistoryMetric, type ThresholdView } from './host-history';
 import type { MetricsEntry } from './use-host-metrics';
 
 /**
@@ -37,12 +38,17 @@ export function formatUptime(seconds: number | null): string {
   return `${minutes} min`;
 }
 
-/** Seuils communs à la mémoire et au disque. En proportion, jamais en octets. */
-function saturationTone(percent: number): Tone {
-  if (percent >= 90) return 'danger';
-  if (percent >= 75) return 'warn';
-  return 'ok';
-}
+/**
+ * Seuils **par défaut** de l'affichage, quand aucun n'a encore été résolu pour
+ * la machine — le tout premier rendu d'une cible qui n'a jamais été relevée.
+ * Les vraies valeurs viennent de la base ; celles-ci sont les mêmes, en dur,
+ * pour que l'écran ne change pas de couleur entre deux chargements.
+ */
+const FALLBACK_THRESHOLDS: Record<HistoryMetric, ThresholdView> = {
+  disk: { limitPercent: 90, enabled: true, origin: 'default' },
+  memory: { limitPercent: 90, enabled: true, origin: 'default' },
+  load: { limitPercent: 100, enabled: true, origin: 'default' },
+};
 
 /**
  * Jauge de proportion. La longueur porte l'information ; la couleur ne fait que
@@ -121,7 +127,20 @@ function Placeholder({ message, tone }: { message: string; tone: Tone }) {
   );
 }
 
-export function HostReadouts({ entry, enabled }: { entry: MetricsEntry | undefined; enabled: boolean }) {
+export function HostReadouts({
+  entry,
+  enabled,
+  thresholds = FALLBACK_THRESHOLDS,
+}: {
+  entry: MetricsEntry | undefined;
+  enabled: boolean;
+  /**
+   * Les seuils de **cette** machine. C'est eux qui décident du rouge, et ce sont
+   * exactement ceux qui décident de l'alerte : une seule valeur de référence
+   * pour la couleur et pour le journal, au lieu de deux qui pouvaient diverger.
+   */
+  thresholds?: Record<HistoryMetric, ThresholdView>;
+}) {
   if (!enabled) {
     return (
       <Placeholder
@@ -152,14 +171,11 @@ export function HostReadouts({ entry, enabled }: { entry: MetricsEntry | undefin
 
   const { load, memory, disk } = metrics;
 
-  const loadTone: Tone =
-    load === null || load.perCore === null
-      ? 'idle'
-      : load.perCore >= 1
-        ? 'danger'
-        : load.perCore >= 0.7
-          ? 'warn'
-          : 'ok';
+  const loadTone: Tone = toneFor(
+    load?.perCore === null || load?.perCore === undefined ? null : load.perCore * 100,
+    thresholds.load.limitPercent,
+    thresholds.load.enabled,
+  );
 
   return (
     <Strip>
@@ -182,7 +198,11 @@ export function HostReadouts({ entry, enabled }: { entry: MetricsEntry | undefin
 
       <Metric
         label="Mémoire"
-        tone={memory === null ? 'idle' : saturationTone(memory.usedPercent)}
+        tone={toneFor(
+          memory?.usedPercent ?? null,
+          thresholds.memory.limitPercent,
+          thresholds.memory.enabled,
+        )}
         value={memory === null ? 'inconnu' : `${Math.round(memory.usedPercent)} %`}
         unknown={memory === null}
         ratio={memory === null ? null : memory.usedPercent / 100}
@@ -195,7 +215,11 @@ export function HostReadouts({ entry, enabled }: { entry: MetricsEntry | undefin
 
       <Metric
         label="Disque"
-        tone={disk === null ? 'idle' : saturationTone(disk.usePercent)}
+        tone={toneFor(
+          disk?.usePercent ?? null,
+          thresholds.disk.limitPercent,
+          thresholds.disk.enabled,
+        )}
         value={disk === null ? 'inconnu' : `${disk.usePercent} %`}
         unknown={disk === null}
         ratio={disk === null ? null : disk.usePercent / 100}

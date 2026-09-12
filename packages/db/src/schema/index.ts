@@ -7,5 +7,6 @@ export * from './security.js';
 export * from './secrets.js';
 export * from './ops.js';
 export * from './monitors.js';
+export * from './target-metrics.js';
 export * from './notifications.js';
 export * from './settings.js';
