@@ -1,0 +1,232 @@
+name: Bout en bout (stack complète)
+
+# ═════════════════════════════════════════════════════════════════════════════
+# POURQUOI CES SCRIPTS NE SONT PAS DANS `ci.yml`
+#
+# Mesures faites sur un poste de dev (M-series), à multiplier par ~3 sur un
+# runner GitHub à 2 vCPU :
+#
+#   docker build --no-cache de l'image du panel        84 s
+#   docker compose up -d --wait (image déjà là)        13 s  (migrations + seed inclus)
+#   les 9 scripts retenus ci-dessous, enchaînés       281 s
+#                                                     ─────
+#                                                     ~6 min ici, ~12 min sur un runner
+#
+# Face aux ~23 s du socle, mettre cela sur chaque poussée ferait exactement ce
+# que l'on veut éviter : une CI que l'on cesse de regarder. D'où le partage —
+# le socle à chaque poussée, ceci sur demande et une fois par nuit.
+#
+# CE QUI N'EST PAS ICI, ET POURQUOI
+#
+# 12 des 22 `verify-*.sh` exigent une cible SSH docker-in-docker privilégiée
+# (`ssh-target`) et/ou un vrai cluster K3s (`k3s-target`) :
+#
+#   ai, force-delete, jalon3, jalon4, jalon6, jalon7, jalon8,
+#   purge, secrets, server-supervision, supervision, workloads
+#
+# Ces cibles montent des cgroups, pilotent netfilter et font tourner un daemon
+# Docker imbriqué ; `k3s-target` a même besoin d'un `cgroup: private` pour que
+# kubelet démarre. Elles n'ont jamais été éprouvées sur un runner GitHub, et
+# elles y déploient réellement des applications — plusieurs minutes chacune.
+# Les ajouter ici sans les avoir vues passer produirait un job rouge toutes les
+# nuits, c'est-à-dire un job muet au bout d'une semaine.
+#
+# `verify-export.sh` en est absent pour une autre raison : il exige un
+# déploiement portant déjà des journaux en base, ce qu'une instance neuve n'a
+# pas. Il dépend donc, indirectement, de la même cible SSH.
+#
+# AUCUN SECRET GITHUB N'EST NÉCESSAIRE. MASTER_KEY, BETTER_AUTH_SECRET et le mot
+# de passe Postgres sont tirés au sort par le workflow, servent le temps du job,
+# et disparaissent avec lui. La génération d'AppSpec par IA n'est pas exercée
+# ici : elle demanderait une vraie clé de fournisseur. Son catalogue et sa
+# configuration le sont hors ligne par `pnpm test:ai`, dans le socle.
+# ═════════════════════════════════════════════════════════════════════════════
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: >-
+          Sous-ensemble à exécuter (fragments de noms séparés par des espaces,
+          ex. « roles schedules »). Vide = tous.
+        required: false
+        default: ''
+  schedule:
+    # 03:00 UTC, les nuits qui précèdent un jour ouvré. Le dépôt est privé, donc
+    # les minutes sont facturées : inutile de payer un week-end sans poussée.
+    - cron: '0 3 * * 1-5'
+
+concurrency:
+  group: e2e
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  BASE_URL: http://localhost:3000
+  # Le nom de projet compose est figé par le champ `name:` du docker-compose.yml.
+  # `verify-monitors.sh` attache un récepteur jetable à ce réseau.
+  COMPOSE_NETWORK: bootstrap-tp-v2_default
+
+jobs:
+  e2e:
+    name: Scripts de bout en bout
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Dépendances
+        run: pnpm install --frozen-lockfile
+
+      # Même contrainte d'ordre que dans le socle : `pnpm db:seed`, appelé par
+      # verify-roles.sh, tourne depuis `packages/db/dist`.
+      - name: 'Construire @tp/core et @tp/db'
+        run: pnpm build:packages
+
+      # ─────────────────────────────────────────────────────────────────────
+      # Secrets jetables. Rien de ce qui suit n'existe avant ce job ni après.
+      # ─────────────────────────────────────────────────────────────────────
+      - name: '.env jetable'
+        run: |
+          set -euo pipefail
+          motdepasse=$(openssl rand -hex 16)
+          echo "::add-mask::${motdepasse}"
+          cat > .env <<EOF
+          POSTGRES_USER=tp
+          POSTGRES_PASSWORD=${motdepasse}
+          POSTGRES_DB=tp
+          DATABASE_URL=postgres://tp:${motdepasse}@localhost:5433/tp
+          REDIS_URL=redis://localhost:6380
+          MASTER_KEY=$(openssl rand -hex 32)
+          BETTER_AUTH_SECRET=$(openssl rand -base64 48)
+          BETTER_AUTH_URL=${BASE_URL}
+          ALLOW_SIGNUP=true
+          LOG_LEVEL=info
+          WEB_PORT=3000
+          POSTGRES_PORT=5433
+          REDIS_PORT=6380
+          WORKER_CONCURRENCY=4
+          DRIVER_ROOT_PATH=/opt/bootstrap
+          DRIVER_PORT_RANGE=30000-30009
+          MONITOR_ALLOWED_CIDRS=
+          MAILPIT_SMTP_PORT=1025
+          MAILPIT_HTTP_PORT=8025
+          EOF
+          echo ".env écrit ($(wc -l < .env) lignes), aucune valeur journalisée."
+
+      - name: Construire l'image du panel
+        run: docker compose build
+
+      # Le panel applique migrations puis seed à son démarrage
+      # (docker-entrypoint.sh) : `--wait` attend son healthcheck, donc attend
+      # que la base soit à jour. Mailpit sert de vrai serveur SMTP à
+      # verify-notifications.sh.
+      - name: Lever la stack
+        id: stack
+        run: |
+          set -euo pipefail
+          docker compose --profile test up -d --wait --wait-timeout 300 \
+            postgres redis panel worker mailpit
+          docker compose ps
+
+      # ─────────────────────────────────────────────────────────────────────
+      # Un script = une étape. La ligne rouge nomme le script fautif, et les
+      # suivants tournent quand même (`!cancelled()`) : un seul passage donne
+      # l'ampleur réelle des dégâts.
+      # ─────────────────────────────────────────────────────────────────────
+      - name: 'verify-jalon2.sh — socle du panel'
+        id: s_jalon2
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'jalon2')) }}
+        run: ./scripts/verify-jalon2.sh
+
+      - name: 'verify-onboarding.sh — premier administrateur'
+        id: s_onboarding
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'onboarding')) }}
+        run: ./scripts/verify-onboarding.sh
+
+      - name: 'verify-roles.sh — RBAC et audit'
+        id: s_roles
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'roles')) }}
+        run: ./scripts/verify-roles.sh
+
+      - name: 'verify-account.sh — compte et 2FA'
+        id: s_account
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'account')) }}
+        run: ./scripts/verify-account.sh
+
+      - name: 'verify-2fa-reset.sh — réinitialisation du second facteur'
+        id: s_2fa
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, '2fa')) }}
+        run: ./scripts/verify-2fa-reset.sh
+
+      - name: 'verify-settings.sh — paramètres d''instance'
+        id: s_settings
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'settings')) }}
+        run: ./scripts/verify-settings.sh
+
+      - name: 'verify-schedules.sh — tâches planifiées'
+        id: s_schedules
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'schedules')) }}
+        run: ./scripts/verify-schedules.sh
+
+      - name: 'verify-notifications.sh — canaux (SMTP réel via Mailpit)'
+        id: s_notifications
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'notifications')) }}
+        run: ./scripts/verify-notifications.sh
+
+      # Le plus long des neuf (~2 min 24 mesurées) : il attend de vrais cycles
+      # de sonde. Placé en dernier pour que les huit autres aient déjà rendu
+      # leur verdict quand il commence.
+      - name: 'verify-monitors.sh — supervision de sites'
+        id: s_monitors
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'monitors')) }}
+        run: ./scripts/verify-monitors.sh
+
+      # ─────────────────────────────────────────────────────────────────────
+      - name: Journaux de la stack (en cas d'échec)
+        if: ${{ failure() }}
+        run: |
+          for service in panel worker postgres redis; do
+            echo "::group::logs $service"
+            docker compose logs --tail 200 "$service" 2>&1 || true
+            echo '::endgroup::'
+          done
+
+      - name: Récapitulatif
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '### Scripts de bout en bout'
+            echo
+            echo '| Script | Verdict |'
+            echo '| --- | --- |'
+            echo "| verify-jalon2.sh | ${{ steps.s_jalon2.outcome }} |"
+            echo "| verify-onboarding.sh | ${{ steps.s_onboarding.outcome }} |"
+            echo "| verify-roles.sh | ${{ steps.s_roles.outcome }} |"
+            echo "| verify-account.sh | ${{ steps.s_account.outcome }} |"
+            echo "| verify-2fa-reset.sh | ${{ steps.s_2fa.outcome }} |"
+            echo "| verify-settings.sh | ${{ steps.s_settings.outcome }} |"
+            echo "| verify-schedules.sh | ${{ steps.s_schedules.outcome }} |"
+            echo "| verify-notifications.sh | ${{ steps.s_notifications.outcome }} |"
+            echo "| verify-monitors.sh | ${{ steps.s_monitors.outcome }} |"
+            echo
+            echo '13 autres verify-*.sh restent hors CI : voir l en-tete de .github/workflows/e2e.yml'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Démonter la stack
+        if: ${{ always() }}
+        run: |
+          docker compose --profile test down -v --remove-orphans || true
+          rm -f .env
