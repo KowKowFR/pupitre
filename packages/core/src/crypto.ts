@@ -84,11 +84,60 @@ function activeKey(): Buffer {
 }
 
 /**
+ * La clé est-elle valide mais notoirement devinable ?
+ *
+ * `deriveKey()` ne vérifie qu'une **longueur**, et soixante-quatre zéros font
+ * trente-deux octets tout comme une vraie clé. Le `.env.example` livre
+ * précisément cette valeur, et une instance montée en recopiant l'exemple
+ * chiffre donc ses identifiants SSH sous une clé publiée. Elle démarre, elle
+ * déchiffre, tous les tests passent — le défaut est invisible par construction,
+ * et c'est bien pour cela qu'il faut le dire à voix haute.
+ *
+ * On ne refuse pas de démarrer : la base contient déjà des valeurs chiffrées
+ * sous cette clé, et une instance qui ne démarre plus est une instance dont on
+ * ne peut plus sortir les identifiants pour les rechiffrer. On avertit, et la
+ * rotation reste une décision de l'exploitant.
+ *
+ * Le critère est la **forme**, pas une liste d'exemples à tenir à jour : une
+ * clé tirée au sort n'a jamais un seul caractère distinct, ni un motif court
+ * répété. Aucune vraie clé ne tombe dans ce filet.
+ */
+export function masterKeyWeakness(masterKey: string | undefined): string | null {
+  if (masterKey === undefined || masterKey === '') return null;
+
+  const distinct = new Set(masterKey).size;
+  if (distinct <= 2) {
+    return `MASTER_KEY ne contient que ${distinct} caractère(s) distinct(s)`;
+  }
+
+  // Un motif de 15 caractères ou moins, répété jusqu'au bout : c'est la forme
+  // des exemples, jamais celle d'un tirage.
+  //
+  // La répétition n'a pas à tomber juste : la phrase de passe du `.env.example`
+  // fait 39 caractères pour un motif de 10, sa dernière occurrence est tronquée.
+  // Exiger une division exacte laissait donc passer la valeur même de l'exemple,
+  // ce que le premier jet a fait.
+  for (let size = 1; size <= 15 && size * 2 <= masterKey.length; size += 1) {
+    const unit = masterKey.slice(0, size);
+    const tiled = unit.repeat(Math.ceil(masterKey.length / size)).slice(0, masterKey.length);
+    if (tiled === masterKey) {
+      return `MASTER_KEY répète le motif « ${unit} »`;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Vérifie `MASTER_KEY` au démarrage et met la clé dérivée en cache.
  * À appeler une fois au boot, avant de servir la moindre requête.
+ *
+ * Rend la raison pour laquelle la clé est faible, ou `null`. L'appelant décide
+ * quoi en faire — ici on ne sait pas encore avec quel journal on écrit.
  */
-export function assertMasterKey(): void {
+export function assertMasterKey(): string | null {
   activeKey();
+  return masterKeyWeakness(process.env.MASTER_KEY);
 }
 
 /** Réinitialise la clé mémorisée. Réservé aux tests. */

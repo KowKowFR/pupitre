@@ -8,6 +8,8 @@ import {
   MONITOR_SWEEP_EVERY_MS,
   MONITOR_SWEEP_JOB,
   NOTIFICATIONS_QUEUE,
+  NOTIFICATION_DELIVER_JOB,
+  NOTIFICATION_DIGEST_SWEEP_JOB,
   NOTIFICATION_DISPATCH_JOB,
   NOTIFICATION_TEST_JOB,
   OPS_QUEUE,
@@ -38,12 +40,16 @@ import { handleTargetMetrics } from './handlers/host-metrics.js';
 import { handleMonitorSweep } from './handlers/monitor.js';
 import {
   closeNotificationsQueue,
+  handleNotificationDeliver,
+  handleNotificationDigestSweep,
   handleNotificationDispatch,
   handleNotificationTest,
   installAuditNotifications,
+  installNotificationDigestSweep,
 } from './handlers/notification.js';
 import { handleWorkloadAction, handleWorkloadList } from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
+import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
 import { logger } from './logger.js';
 import { closeOpsQueue, getOpsQueue, getSupervisionQueue } from './queue.js';
 import { reconcileSchedulers } from './schedule/reconcile.js';
@@ -109,7 +115,14 @@ const supervisionHandlers: Record<string, JobHandler> = {
  * raisonnement est celui qui a justifié `supervision` en son temps.
  */
 const notificationHandlers: Record<string, JobHandler> = {
+  // Décide : cette alerte part-elle maintenant, ou est-elle retenue pour être
+  // résumée ? Le chemin « maintenant » est le chemin par défaut.
   [NOTIFICATION_DISPATCH_JOB]: handleNotificationDispatch,
+  // Délivre à **un** canal, et se rejoue seule. C'est ce découpage qui rend le
+  // rejeu possible : la tentative qui rate ne concerne qu'un destinataire.
+  [NOTIFICATION_DELIVER_JOB]: handleNotificationDeliver,
+  // Ferme les fenêtres de regroupement échues et compose les résumés.
+  [NOTIFICATION_DIGEST_SWEEP_JOB]: handleNotificationDigestSweep,
   [NOTIFICATION_TEST_JOB]: handleNotificationTest,
 };
 
@@ -160,8 +173,19 @@ async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  // Refuse de démarrer sans une MASTER_KEY exploitable.
-  assertMasterKey();
+  // Refuse de démarrer sans une MASTER_KEY exploitable — et le dit tout haut
+  // si elle est exploitable mais devinable. Les identifiants SSH des cibles
+  // sont chiffrés sous cette clé : la valeur d'exemple les rend lisibles par
+  // quiconque met la main sur une sauvegarde de la base.
+  const weakKey = assertMasterKey();
+  if (weakKey) {
+    logger.warn(
+      { reason: weakKey },
+      'MASTER_KEY est la valeur d\'exemple ou une valeur devinable — ' +
+        'les identifiants chiffrés en base ne sont pas protégés. ' +
+        'Générer : openssl rand -hex 32, puis rechiffrer les cibles.',
+    );
+  }
   await waitForDatabase();
 
   const connection = createRedisConnection();
@@ -183,6 +207,16 @@ async function main(): Promise<void> {
     // Même principe : sans balayage, le panel reste utilisable, il ne sonde
     // simplement plus. C'est une dégradation, pas une panne.
     logger.error({ err: error }, 'installation du balayage de supervision impossible');
+  }
+
+  try {
+    await installNotificationDigestSweep();
+  } catch (error) {
+    // Sans ce balayage, les fenêtres ouvertes ne se referment plus : les
+    // alertes retenues restent en base au lieu de partir en résumé. C'est grave
+    // — mais moins que de refuser de consommer les déploiements. On le crie
+    // dans les logs et on continue ; le prochain démarrage réinstalle.
+    logger.error({ err: error }, 'installation du balayage de regroupement impossible');
   }
 
   const worker = new Worker(
@@ -271,6 +305,11 @@ async function main(): Promise<void> {
       { jobId: job?.id, jobName: job?.name, error: error.message },
       'tâche en échec',
     );
+    // Une tâche de déploiement peut mourir SANS que le handler ait tourné —
+    // c'est ce que fait BullMQ d'une tâche qui a trop bloqué. Personne n'aurait
+    // alors écrit le verdict en base, et le déploiement resterait « en cours »
+    // pour toujours. On l'arrête en échec, sans jamais le rejouer.
+    void reconcileFailedDeploymentJob(job, error.message);
   });
 
   let shuttingDown = false;

@@ -8,6 +8,7 @@ import {
   decrypt,
   deriveKey,
   encrypt,
+  masterKeyWeakness,
   resetKeyCache,
   safeEqual,
 } from '../src/crypto.js';
@@ -139,6 +140,49 @@ describe('crypto', () => {
     it('encrypt() échoue si MASTER_KEY est absente', () => {
       withMasterKey(undefined);
       assert.throws(() => encrypt('secret'), MasterKeyError);
+    });
+  });
+
+  // Une clé valide n'est pas forcément une clé sérieuse : soixante-quatre zéros
+  // font trente-deux octets, et c'est exactement ce que livre `.env.example`.
+  // La longueur ne dit rien de l'entropie, et une instance montée en recopiant
+  // l'exemple chiffre ses identifiants SSH sous une clé publiée — sans qu'aucun
+  // test ne bronche, puisque tout fonctionne.
+  // Les deux gabarits du `.env.example`, assemblés plutôt que recopiés : ces
+  // chaînes servent de secrets en clair sur les instances montées à l'identique,
+  // et un balayage de secrets sur le dépôt doit pouvoir rester muet.
+  const EXAMPLE_HEX_KEY = '0'.repeat(64);
+  const EXAMPLE_PASSPHRASE = 'change-me-'.repeat(4).slice(0, 39);
+
+  describe('détection d’une MASTER_KEY devinable', () => {
+    it('signale les valeurs du .env.example, telles quelles', () => {
+      assert.ok(masterKeyWeakness(EXAMPLE_HEX_KEY));
+      assert.ok(masterKeyWeakness(EXAMPLE_PASSPHRASE));
+    });
+
+    it('signale un motif répété qui ne tombe pas juste', () => {
+      // 39 caractères pour un motif de 10 : exiger une division exacte
+      // laisserait passer la valeur même de l'exemple.
+      assert.equal(EXAMPLE_PASSPHRASE.length % 10, 9);
+      assert.match(masterKeyWeakness(EXAMPLE_PASSPHRASE) ?? '', /répète le motif/);
+      assert.match(masterKeyWeakness('secret'.repeat(6)) ?? '', /répète le motif/);
+    });
+
+    it('signale une clé à un ou deux caractères distincts', () => {
+      assert.match(masterKeyWeakness('f'.repeat(64)) ?? '', /caractère\(s\) distinct/);
+      assert.match(masterKeyWeakness('ab'.repeat(32)) ?? '', /caractère\(s\) distinct/);
+    });
+
+    it('laisse passer une vraie clé', () => {
+      assert.equal(masterKeyWeakness(VALID_HEX_KEY), null);
+      assert.equal(masterKeyWeakness(OTHER_HEX_KEY), null);
+      assert.equal(masterKeyWeakness(randomBytes(32).toString('hex')), null);
+      assert.equal(masterKeyWeakness('une-passphrase-honnete-et-assez-longue'), null);
+    });
+
+    it('ne dit rien d’une clé absente — ce n’est pas son sujet', () => {
+      assert.equal(masterKeyWeakness(undefined), null);
+      assert.equal(masterKeyWeakness(''), null);
     });
   });
 

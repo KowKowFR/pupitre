@@ -1,6 +1,6 @@
 import type { PreflightReport, RuntimesAvailable } from '@tp/core';
 import type { TargetLabels } from './schema/infra.js';
-import { and, count, eq, inArray, ne } from 'drizzle-orm';
+import { count, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { deployments } from './schema/deployments.js';
@@ -196,21 +196,40 @@ export async function deleteTarget(id: string, db: Database = getDb()): Promise<
 /** Statuts qui interdisent la suppression d'une cible. */
 const LIVE_DEPLOYMENT_STATUSES = ['pending', 'running', 'success'] as const;
 
-/** Déploiements encore vivants sur la cible. */
-export async function countLiveDeployments(
+/**
+ * Ce qui empêche de supprimer une cible, en deux nombres.
+ *
+ * `deployments.target_id` est en `ON DELETE restrict` : **toute** ligne de
+ * déploiement bloque la suppression, y compris un `failed` d'il y a trois
+ * semaines ou un `destroyed` dont plus rien ne tourne. Ne compter que les
+ * déploiements vivants laissait donc passer la garde applicative, et c'est la
+ * contrainte qui refusait ensuite — l'appelant recevait une erreur de base de
+ * données en 500 là où il attendait un refus motivé.
+ *
+ * Les deux nombres sont rendus séparément parce qu'ils appellent deux gestes
+ * différents : détruire ce qui tourne, ou purger ce qui n'est plus qu'une
+ * trace. Les additionner rendrait le message inutilisable.
+ */
+export async function countDeploymentsOnTarget(
   targetId: string,
   db: Database = getDb(),
-): Promise<number> {
-  const [row] = await db
-    .select({ value: count() })
+): Promise<{ live: number; history: number }> {
+  const rows = await db
+    .select({ status: deployments.status, value: count() })
     .from(deployments)
-    .where(
-      and(
-        eq(deployments.targetId, targetId),
-        inArray(deployments.status, [...LIVE_DEPLOYMENT_STATUSES]),
-      ),
-    );
-  return row?.value ?? 0;
+    .where(eq(deployments.targetId, targetId))
+    .groupBy(deployments.status);
+
+  let live = 0;
+  let history = 0;
+  for (const row of rows) {
+    if ((LIVE_DEPLOYMENT_STATUSES as readonly string[]).includes(row.status)) {
+      live += row.value;
+    } else {
+      history += row.value;
+    }
+  }
+  return { live, history };
 }
 
 /** Un nom ou un triplet (host, port, user) déjà pris renvoie `true`. */

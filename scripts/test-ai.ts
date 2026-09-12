@@ -480,16 +480,41 @@ step('9. Le prompt système guide vers une application multi-services');
 
   // Le point qui compte : un exemple faux dans le prompt apprend au modèle à
   // produire du faux. Chaque bloc JSON est donc confronté au vrai schéma.
+  //
+  // Tous les blocs ne sont pas des specs entières : certains sont des
+  // **extraits** — deux services montrés côte à côte pour illustrer l'alias de
+  // secret, sans le bruit des sources et des sondes. Les confondre avec des
+  // specs faisait échouer ce contrôle sur un bloc parfaitement légitime, et la
+  // seule manière de le faire taire aurait été de gonfler l'extrait jusqu'à
+  // noyer ce qu'il montre.
+  //
+  // La distinction se lit dans la forme, pas dans une annotation qu'on
+  // oublierait de poser : une spec est un objet qui porte `name` et `services`.
+  // Un extrait n'est dispensé que de la validation métier, jamais de la
+  // syntaxe — du JSON illisible dans un prompt apprend au modèle à en écrire.
   const blocks = [...prompt.matchAll(/```json\n([\s\S]*?)\n```/g)].map((match) => match[1] ?? '');
   info(`${blocks.length} blocs JSON dans le prompt`);
 
-  const verdicts = blocks.map((block) => {
+  const parsed = blocks.map((block, index) => {
     try {
-      return safeParseAppSpec(JSON.parse(block)).success;
+      return { index, value: JSON.parse(block) as unknown, readable: true };
     } catch {
-      return false;
+      return { index, value: undefined, readable: false };
     }
   });
+
+  check('tous les blocs JSON du prompt sont analysables', () => {
+    const broken = parsed.filter((block) => !block.readable).map((block) => `#${block.index + 1}`);
+    assert.equal(broken.length, 0, `bloc(s) illisible(s) : ${broken.join(', ')}`);
+  });
+
+  const isSpec = (value: unknown): boolean =>
+    typeof value === 'object' && value !== null && 'name' in value && 'services' in value;
+
+  const specs = parsed.filter((block) => block.readable && isSpec(block.value));
+  info(`${specs.length} spec(s) entière(s), ${parsed.length - specs.length} extrait(s)`);
+
+  const verdicts = specs.map((block) => safeParseAppSpec(block.value).success);
 
   const valid = verdicts.filter(Boolean).length;
   const invalid = verdicts.length - valid;
@@ -505,9 +530,9 @@ step('9. Le prompt système guide vers une application multi-services');
       invalid,
       2,
       `${invalid} bloc(s) invalide(s) : ` +
-        verdicts
-          .map((verdictOk, index) => (verdictOk ? null : `#${index + 1}`))
-          .filter((entry) => entry !== null)
+        specs
+          .filter((_, position) => !verdicts[position])
+          .map((block) => `#${block.index + 1}`)
           .join(', '),
     );
   });

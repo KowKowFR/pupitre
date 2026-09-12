@@ -1,6 +1,6 @@
 import { encrypt } from '@tp/core';
 import {
-  countLiveDeployments,
+  countDeploymentsOnTarget,
   deleteTarget,
   findConflictingTarget,
   getTarget,
@@ -95,10 +95,21 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const target = await getTarget(id);
   if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
 
-  const live = await countLiveDeployments(id);
+  // Deux refus, parce qu'il y a deux gestes à faire — et parce que la clé
+  // étrangère est en `ON DELETE restrict` : un `failed` oublié bloque autant
+  // qu'un déploiement qui tourne. Ne vérifier que le premier cas laissait la
+  // contrainte trancher, et l'appelant recevait un 500 muet.
+  const { live, history } = await countDeploymentsOnTarget(id);
   if (live > 0) {
     throw new ConflictError(
       `Cette cible porte ${live} déploiement(s) actif(s). Détruisez-les avant de la supprimer.`,
+    );
+  }
+  if (history > 0) {
+    throw new ConflictError(
+      `Cette cible ne porte plus rien en marche, mais garde ${history} déploiement(s) ` +
+        `dans l'historique, et l'historique ne se supprime pas tout seul. ` +
+        `Purgez-les depuis l'écran Déploiements, puis reprenez.`,
     );
   }
 

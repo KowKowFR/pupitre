@@ -60,7 +60,16 @@ export function getEnv(): Env {
     throw new Error(`Configuration invalide : ${details}`);
   }
   // Refuse de servir avec une MASTER_KEY inutilisable.
-  assertMasterKey();
+  const weakKey = assertMasterKey();
+  if (weakKey) {
+    // `getEnv()` est mise en cache : cet avertissement ne sort donc qu'une fois
+    // par processus, au premier appel — pas à chaque requête.
+    console.warn(
+      `[panel] ${weakKey} — MASTER_KEY est la valeur d'exemple ou une valeur ` +
+        'devinable. Les identifiants SSH chiffrés en base ne sont pas protégés. ' +
+        'Générer : openssl rand -hex 32, puis rechiffrer les cibles.',
+    );
+  }
   cached = parsed.data;
   return cached;
 }

@@ -35,7 +35,39 @@ WORK="$(mktemp -d)"
 JAR="$WORK/admin.jar"
 VIEWER_JAR="$WORK/viewer.jar"
 BODY="$WORK/body.json"
-trap 'rm -rf "$WORK"' EXIT
+KEY_SNAPSHOT="$WORK/ai-key.b64"
+
+# La clé d'API de l'instance, mise de côté puis rendue.
+#
+# L'étape 2 fait `delete from app_settings` — il le faut, c'est ainsi qu'on
+# prouve qu'une table vide rend des défauts complets. Mais cette table porte
+# `ai_api_key_encrypted`, et **une clé chiffrée effacée est perdue** : ni
+# l'audit ni les logs n'en gardent trace, c'est la garantie même du chiffrement.
+# Le script rendait ensuite les réglages à leurs défauts et annonçait « clé
+# effacée » comme s'il s'agissait d'un état voulu. Sur une instance en service,
+# lancer une vérification n'a pas à coûter une clé que l'opérateur devra
+# retrouver chez son fournisseur.
+#
+# On passe par base64 plutôt que par une interpolation directe : la valeur
+# chiffrée contient des « : » et de la base64, et une seule apostrophe mal
+# placée dans une commande SQL construite à la main suffirait à tout casser.
+snapshot_ai_key() {
+  psql_q "select coalesce(encode(convert_to(ai_api_key_encrypted, 'UTF8'), 'base64'), '')
+          from app_settings where id = 1;" 2>/dev/null | tr -d ' \n\r' > "$KEY_SNAPSHOT" || true
+}
+
+restore_ai_key() {
+  local encoded
+  encoded=$(cat "$KEY_SNAPSHOT" 2>/dev/null || true)
+  [ -n "$encoded" ] || return 0
+  psql_q "update app_settings
+          set ai_api_key_encrypted = convert_from(decode('$encoded', 'base64'), 'UTF8')
+          where id = 1;" >/dev/null 2>&1 || true
+}
+
+# Sur EXIT, donc y compris après un `fail` en cours de route : une vérification
+# qui s'interrompt à l'étape 7 ne doit pas laisser l'instance amputée.
+trap 'restore_ai_key; rm -rf "$WORK"' EXIT
 
 command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
 
@@ -64,6 +96,7 @@ SETTINGS_PAGES="/admin/settings
 /admin/settings/identite
 /admin/settings/regionalisation
 /admin/settings/securite
+/admin/settings/notifications
 /admin/settings/ia
 /admin/settings/demarrage"
 
@@ -130,6 +163,7 @@ pass "connecté en tant que $ADMIN_EMAIL"
 step "2. Lecture des paramètres — les défauts sont complets"
 # Table remise à zéro : on veut prouver qu'une base vierge rend bien un objet
 # complet, pas un `null` ni un objet à trous.
+snapshot_ai_key
 psql_q "delete from app_settings;" >/dev/null
 code=$(req GET /api/settings)
 [ "$code" = "200" ] || fail "GET /api/settings → HTTP $code : $(cat "$BODY")"
@@ -265,8 +299,12 @@ pass "seuls aiApiKeyConfigured=true et aiApiKeyLast4=\"4242\" sont exposés"
 # Cette assertion ne visait qu'/admin/settings. Depuis le découpage, cette
 # adresse est un sommaire : elle ne rend aucun champ de clé, et le grep y
 # passerait quoi qu'il arrive — une assertion qui réussit en regardant au
-# mauvais endroit ment, elle ne protège rien. On balaie donc les six pages, et
-# on prouve séparément que celle qui porte réellement le champ a bien été lue.
+# mauvais endroit ment, elle ne protège rien. On balaie donc le sommaire et ses
+# six sections, et on prouve séparément que celle qui porte réellement le champ
+# a bien été lue.
+#
+# `notifications` a longtemps manqué à cette liste. C'était la pire des six à
+# oublier : c'est la seule autre à porter des secrets chiffrés.
 for path in $SETTINGS_PAGES; do
   page "$path" "$WORK/page.html"
   grep -qF "$SECRET_KEY" "$WORK/page.html" && fail "la clé est dans le HTML de $path"
@@ -458,13 +496,13 @@ pass "un scanner hors vocabulaire est refusé"
 
 step "11. Chaque sous-section est atteignable et rend ses champs"
 # /admin/settings n'est pas une redirection : c'est le sommaire, et il mène aux
-# cinq sections. `page` exige un 200 direct, ce qui le prouve.
+# six sections. `page` exige un 200 direct, ce qui le prouve.
 page /admin/settings "$WORK/overview.html"
-for target in identite regionalisation securite ia demarrage; do
+for target in identite regionalisation securite notifications ia demarrage; do
   grep -q "/admin/settings/$target" "$WORK/overview.html" \
     || fail "le sommaire ne mène pas à /admin/settings/$target"
 done
-pass "/admin/settings répond 200 et mène aux cinq sections"
+pass "/admin/settings répond 200 et mène aux six sections"
 
 # Une section « atteignable » qui ne rendrait pas ses champs serait une page
 # morte de plus : on nomme donc, pour chacune, les identifiants qu'elle doit
@@ -483,6 +521,7 @@ check_page /admin/settings/identite 'id="instanceName"' 'id="instanceTagline"'
 check_page /admin/settings/regionalisation \
   'id="timezone"' 'id="locale"' 'id="dateStyle"' 'id="timeStyle"' 'Europe/Paris'
 check_page /admin/settings/securite 'id="failOn"' 'Scanners' 'trivy'
+check_page /admin/settings/notifications 'Ajouter un canal' 'Notifications'
 check_page /admin/settings/ia 'id="aiProvider"' 'id="aiModel"' 'id="apiKey"' 'type="submit"'
 check_page /admin/settings/demarrage 'Relancer l' 'Assistant de d'
 
@@ -505,7 +544,7 @@ jq -e '.settings.instanceTagline == "témoin de cloisonnement"
        and .settings.ai.temperature == 0.65 and .settings.ai.maxTokens == 1024
        and .aiApiKeyConfigured == true' "$BODY" >/dev/null \
   || fail "la personnalisation préalable n'a pas pris : $(jq -c .settings "$BODY")"
-pass "les cinq sections portent des valeurs distinctes de leurs défauts"
+pass "les sections portent des valeurs distinctes de leurs défauts"
 
 # $1 nom de la section enregistrée, $2 corps du PATCH (ses seuls champs),
 # $3 expression jq prouvant que la section visée a bien changé — et que ce
@@ -556,7 +595,11 @@ req PATCH /api/settings \
 code=$(req PATCH /api/settings \
   '{"instanceName":"Control plane","instanceTagline":"Bootstrap TP v2","timezone":"Europe/Paris","locale":"fr-FR","dateStyle":"short","timeStyle":"medium"}')
 [ "$code" = "200" ] || fail "restauration → HTTP $code : $(cat "$BODY")"
-pass "paramètres restaurés, clé effacée"
+if [ -s "$KEY_SNAPSHOT" ]; then
+  pass "paramètres restaurés ; la clé d'instance sera remise en place en sortant"
+else
+  pass "paramètres restaurés, clé de test effacée (aucune clé d'instance au départ)"
+fi
 req DELETE "/api/admin/users/$viewer_id" >/dev/null
 pass "utilisateur viewer supprimé"
 # L'assistant a été abandonné à l'étape 2 pour rendre les pages consultables.

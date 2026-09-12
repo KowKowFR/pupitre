@@ -118,11 +118,17 @@ Ingress {
 - **Des `resources` réalistes.** Un front statique n'a pas besoin de 4 Go. Repères :
   proxy ou front statique `{ cpuMilli: 250, memoryMi: 256 }` ; API applicative
   `{ cpuMilli: 500, memoryMi: 512 }` ; base de données `{ cpuMilli: 1000, memoryMi: 1024 }`.
-- **Compatible `runAsNonRoot`.** Le runtime peut exécuter les conteneurs sans
-  privilèges. N'utilise aucune image qui exige root, ne monte rien sous `/root`,
-  ne demande jamais un port privilégié (< 1024) comme port d'écoute d'un service
-  applicatif que tu écris toi-même. Une image officielle qui écoute déjà sur 80
-  (nginx) reste acceptable : c'est son comportement documenté.
+- **Les images officielles sont libres, les Dockerfiles que tu écris ne le sont
+  pas.** Le durcissement du runtime ne s'applique pas de la même façon aux deux.
+  Une image publiée (`source.type: "image"`) tourne sous le compte que son
+  auteur a prévu, root compris : `postgres`, `mariadb`, `nginx`, `wordpress`,
+  `glpi/glpi` démarrent root, préparent leurs répertoires puis abandonnent
+  leurs privilèges — c'est le schéma standard et il est pris en charge. Ne
+  contourne donc **jamais** une image officielle pour cette raison. En revanche,
+  un service que tu décris par un `Dockerfile` (`source.type: "dockerfile"`)
+  s'exécute sans privilèges et sur une racine en lecture seule : il ne doit rien
+  écrire hors de ses `volumes`, rien monter sous `/root`, et ne jamais écouter
+  sur un port privilégié (< 1024).
 - **Aucun secret en clair, et aucun secret inventé.** Mot de passe, jeton, clé
   d'API, chaîne de connexion contenant un mot de passe : leur **nom** va dans
   `secrets[]`, jamais leur valeur dans `env`. `env` ne contient que des valeurs
@@ -169,16 +175,18 @@ La forme `{ "name": ..., "from": ... }` dit qu'un nom **reprend la valeur d'un
 autre**. Il n'y a alors qu'un secret, qu'une valeur, lue sous deux noms :
 
 ```json
-{
-  "name": "web",
-  "env": { "WORDPRESS_DB_HOST": "mariadb:3306", "WORDPRESS_DB_USER": "wordpress" },
-  "secrets": [{ "name": "WORDPRESS_DB_PASSWORD", "from": "MARIADB_PASSWORD" }]
-},
-{
-  "name": "mariadb",
-  "env": { "MARIADB_USER": "wordpress", "MARIADB_DATABASE": "wordpress" },
-  "secrets": ["MARIADB_PASSWORD", "MARIADB_ROOT_PASSWORD"]
-}
+[
+  {
+    "name": "web",
+    "env": { "WORDPRESS_DB_HOST": "mariadb:3306", "WORDPRESS_DB_USER": "wordpress" },
+    "secrets": [{ "name": "WORDPRESS_DB_PASSWORD", "from": "MARIADB_PASSWORD" }]
+  },
+  {
+    "name": "mariadb",
+    "env": { "MARIADB_USER": "wordpress", "MARIADB_DATABASE": "wordpress" },
+    "secrets": ["MARIADB_PASSWORD", "MARIADB_ROOT_PASSWORD"]
+  }
+]
 ```
 
 Qui porte la valeur et qui la reprend : **la base porte, l'application reprend**.

@@ -120,8 +120,19 @@ services:
     restart: unless-stopped
 
   # ── Cible K3s de test, hors du démarrage normal ──────────────────────────────
-  # Démarrage explicite :
-  #   ./scripts/setup-k3s-target.sh
+  # Démarrage explicite — il n'y a pas d'équivalent de `setup-test-target.sh`
+  # pour cette cible, la procédure est manuelle et tient en deux commandes :
+  #
+  #   TEST_TARGET_PUBLIC_KEY="$(cat .test-target-key.pub)" \
+  #     docker compose --profile test up -d --build k3s-target
+  #   docker compose logs -f k3s-target   # jusqu'à « démarrage de sshd »
+  #
+  # La clé est celle que `setup-test-target.sh` a produite : les deux cibles de
+  # test partagent la même paire. Il reste ensuite à enregistrer les cibles à la
+  # main — `docs/demarrage.md` donne les deux lignes à saisir et explique
+  # pourquoi il en faut deux (`k3s-target:22` pour le worker, `127.0.0.1:2223`
+  # pour le poste).
+  #
   # Pendant de `ssh-target`, qui porte Docker : celle-ci porte un vrai cluster
   # K3s. Elle existe pour le critère de CLAUDE.md — la même AppSpec déployée sur
   # les deux runtimes — que le rendu seul ne peut pas prouver.
