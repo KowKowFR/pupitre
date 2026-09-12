@@ -46,6 +46,168 @@ export function buildImageTag(appSlug: string, service: string, version: string)
 }
 
 /**
+ * UID/GID du compte non privilégié. La spec ne le dit pas : c'est une décision
+ * de runtime, comme la politique de redémarrage.
+ *
+ * Le rendu K3s pose la même valeur, mais elle y sert **deux** usages : imposer
+ * l'identité du processus, et donner son groupe au volume monté (`fsGroup`).
+ * Compose n'a pas de second usage à offrir — voir `pinsRunAsUser()`.
+ */
+export const RUN_AS_UID = 1000;
+
+/**
+ * Pendant de `allowPrivilegeEscalation: false`.
+ *
+ * Ce n'est **pas** une redondance avec `cap_drop`. Mesuré sur la cible, un
+ * conteneur Docker sans option démarre avec `NoNewPrivs: 0` — un binaire setuid
+ * présent dans l'image peut donc encore regagner ce qu'on vient de retirer.
+ * L'option pose le bit à 1 :
+ *
+ *     docker run --rm nginx:1.27-alpine grep NoNewPrivs /proc/1/status
+ *     NoNewPrivs:  0
+ *     docker run --rm --security-opt no-new-privileges:true … → NoNewPrivs: 1
+ *
+ * Vérifiée sans dégât sur `nginx`, `postgres`, `redis`, `httpd`, `mariadb`,
+ * `wordpress` et `adminer` : leurs points d'entrée abandonnent leurs privilèges
+ * avec `gosu`/`su-exec`, qui appellent `setuid()` en tant que root et ne sont
+ * pas des binaires setuid — le drapeau ne les gêne pas. Une image qui passerait
+ * par `su` ou `sudo`, eux setuid, serait la seule à en souffrir.
+ */
+const NO_NEW_PRIVILEGES = 'no-new-privileges:true';
+
+/**
+ * Capacités rendues à un conteneur qui garde l'identité choisie par son image.
+ *
+ * Même liste que le rendu K3s, et pour la même raison — vérifiée ici aussi,
+ * `cap_drop: ALL` seul casse les images officielles les plus banales :
+ *
+ *     nginx    : chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
+ *     postgres : chmod: /var/run/postgresql: Operation not permitted
+ *                error: failed switching to 'postgres': operation not permitted
+ *
+ * Le schéma est toujours le même : démarrer root, préparer ses répertoires,
+ * puis abandonner ses privilèges. Il réclame ces cinq capacités et pas une de
+ * plus — `CapEff` tombe de `a80425fb` (les quatorze de Docker) à `cb`.
+ *
+ * `NET_BIND_SERVICE` en est volontairement absente, comme côté K3s : Docker
+ * pose `net.ipv4.ip_unprivileged_port_start=0` dans le conteneur, et un `nginx`
+ * écoutant sur 80 démarre sans elle — vérifié sur la cible.
+ */
+const RETAINED_CAPABILITIES = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'];
+
+/**
+ * Scratch imposé par la racine en lecture seule.
+ *
+ * `exec` est explicite et ce n'est pas un oubli de durcissement : le tmpfs de
+ * Docker est `noexec` par défaut, alors que l'`emptyDir` que le rendu K3s monte
+ * au même endroit ne l'est pas. Laisser le défaut ferait qu'une application qui
+ * exécute quelque chose depuis `/tmp` tournerait en K3s et échouerait en
+ * Docker : ce serait exactement la divergence de comportement entre runtimes
+ * que le projet interdit. Le durcissement marginal ne vaut pas ce prix.
+ *
+ * `mode=1777` reprend le défaut de Docker, écrit pour qu'il cesse d'être un
+ * défaut implicite.
+ */
+const TMP_SCRATCH = `/tmp:exec,mode=1777`;
+
+/**
+ * Le durcissement n'est légitime que sur ce qu'on connaît.
+ *
+ * Sur une image que **nous** construisons depuis un Dockerfile, on sait ce
+ * qu'elle écrit et sous quel compte elle tourne. Sur une image tierce tirée
+ * d'un registry, on ne sait rien de tout cela, et chaque contrainte imposée à
+ * l'aveugle devient une panne au démarrage.
+ */
+function isOwnImage(service: Service): boolean {
+  return service.source.type === 'dockerfile';
+}
+
+/**
+ * Imposons-nous l'identité du processus, ou laissons-nous l'image choisir ?
+ *
+ * C'est **la** question que Compose pose différemment de Kubernetes, et la
+ * seule divergence assumée entre les deux rendus.
+ *
+ * Côté K3s, `fsGroup` fait qu'un volume fraîchement provisionné devient
+ * inscriptible par un conteneur tournant sous son propre uid : le kubelet
+ * chown le point de montage. **Compose n'a aucun équivalent.** Mesuré sur la
+ * cible, un volume nommé neuf est `root:root 0755` et le reste :
+ *
+ *     docker run -u 1000:1000 -v neuf:/data nginx:1.27-alpine touch /data/x
+ *     touch: /data/x: Permission denied
+ *
+ * `group_add: 0` n'y change rien — le répertoire est en `0755`, le groupe n'a
+ * pas le bit d'écriture. Le seul chemin qui marche est que l'image ait
+ * elle-même préparé le point de montage : Docker recopie alors la propriété de
+ * ce répertoire dans le volume neuf. Or le Dockerfile vient de l'utilisateur,
+ * on ne peut pas en faire une hypothèse.
+ *
+ * D'où la règle : on n'impose l'uid qu'aux images que l'on bâtit **et** qui ne
+ * déclarent aucun volume. Ailleurs, l'image garde son identité — et reçoit donc
+ * les cinq capacités, qui sont précisément ce dont son point d'entrée a besoin
+ * pour faire à la main ce que `fsGroup` ferait pour lui.
+ *
+ * Imposer l'uid partout produirait un conteneur qui démarre puis échoue à la
+ * première écriture : une régression, pas un durcissement.
+ */
+function pinsRunAsUser(service: Service): boolean {
+  return isOwnImage(service) && service.volumes.length === 0;
+}
+
+/**
+ * Racine en lecture seule : tenable seulement sur une image que l'on bâtit.
+ * Vérifié sur la cible, `--read-only` sur une image tierce échoue tout de
+ * suite — `nginx` : `mkdir() "/var/cache/nginx/client_temp" failed (30:
+ * Read-only file system)`. Le critère est donc `isOwnImage()`, exactement comme
+ * côté K3s, et non `pinsRunAsUser()` : un volume monté reste inscriptible quoi
+ * qu'il arrive à la racine.
+ */
+function allowsReadOnlyRoot(service: Service): boolean {
+  return isOwnImage(service);
+}
+
+/**
+ * Pose le contexte de sécurité sur un service.
+ *
+ * Ce qui **n'est pas** écrit ici l'est tout autant par décision :
+ *
+ * - **Profil seccomp.** Aucun à déclarer. Docker en applique déjà un
+ *   (`docker info` → `name=seccomp,profile=builtin`), et il est actif sans
+ *   qu'on demande rien : `grep Seccomp /proc/1/status` rend `2` (mode filtre)
+ *   dans un conteneur lancé sans option. C'est le `RuntimeDefault` du rendu
+ *   K3s, sous un autre nom. Compose ne sait de toute façon dire que
+ *   `seccomp:unconfined` ou un chemin de profil JSON : la seule déclaration
+ *   possible affaiblirait ce qui est déjà en place.
+ * - **`privileged: false`.** C'est le défaut de Docker. L'écrire n'ajouterait
+ *   rien qu'un champ de plus à relire.
+ * - **`fsGroup`.** Sans équivalent — voir `pinsRunAsUser()`.
+ */
+function applySecurityContext(composeService: ComposeService, service: Service): void {
+  composeService.security_opt = [NO_NEW_PRIVILEGES];
+
+  // On part de zéro dans tous les cas, puis on rend ce qui a été mesuré comme
+  // nécessaire. Une image dont on fixe l'uid n'a besoin de rien : elle ne
+  // démarre jamais root, donc elle n'a rien à préparer avant de se dégrader.
+  composeService.cap_drop = ['ALL'];
+  if (!pinsRunAsUser(service)) {
+    composeService.cap_add = [...RETAINED_CAPABILITIES];
+  }
+
+  if (pinsRunAsUser(service)) {
+    composeService.user = `${RUN_AS_UID}:${RUN_AS_UID}`;
+  }
+
+  if (allowsReadOnlyRoot(service)) {
+    composeService.read_only = true;
+    // Sans `/tmp` inscriptible, presque aucun runtime applicatif ne démarre.
+    // Sauf si la spec y monte déjà un volume — même réserve que le rendu K3s.
+    if (!service.volumes.some((volume) => volume.mountPath === '/tmp')) {
+      composeService.tmpfs = [TMP_SCRATCH];
+    }
+  }
+}
+
+/**
  * Sonde exécutée *dans* le conteneur.
  *
  * Qui est sondé en HTTP et qui l'est en TCP n'est pas décidé ici : c'est
@@ -164,6 +326,10 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
     }
 
     composeService.healthcheck = renderHealthcheck(spec, service);
+
+    // Après les volumes : la présence d'un volume décide de l'identité imposée,
+    // et un volume monté sur `/tmp` rend le tmpfs de scratch inutile.
+    applySecurityContext(composeService, service);
 
     const deploy: ComposeDeployDraft = {};
     if (service.replicas > 1) deploy.replicas = service.replicas;

@@ -273,3 +273,143 @@ describe('render() — AppSpec vers Compose', () => {
     });
   });
 });
+
+/**
+ * Contexte de sécurité.
+ *
+ * Chaque cas fige une décision mesurée sur la cible de test, pas une intention :
+ * ce qui est durci l'est parce qu'on a vu l'image démarrer avec, et ce qui ne
+ * l'est pas l'est parce qu'on a vu l'image mourir sans.
+ */
+describe('contexte de sécurité', () => {
+  const fullstack = fixture('fullstack');
+  const file = renderComposeFile({
+    spec: fullstack,
+    appSlug: fullstack.name,
+    publishedPort: null,
+  });
+
+  // `front`   : image à nous, aucun volume  → identité imposée
+  // `api`     : image à nous, un volume     → identité laissée à l'image
+  // `postgres`: image tierce                → rien d'imposé du tout
+  const own = file.services.front;
+  const ownWithVolume = file.services.api;
+  const thirdParty = file.services.postgres;
+
+  it('interdit l’élévation de privilèges partout — Docker ne le fait pas seul', () => {
+    // Sans l'option, `NoNewPrivs` vaut 0 dans un conteneur Docker : c'est le
+    // seul de ces champs qui ne soit pas déjà couvert par un défaut du runtime.
+    for (const service of [own, ownWithVolume, thirdParty]) {
+      assert.deepEqual(service?.security_opt, ['no-new-privileges:true']);
+    }
+  });
+
+  it('part de zéro sur les capacités, sur tous les services', () => {
+    for (const service of [own, ownWithVolume, thirdParty]) {
+      assert.deepEqual(service?.cap_drop, ['ALL']);
+    }
+  });
+
+  it('ne rend aucune capacité à une image dont on fixe l’uid', () => {
+    // Elle ne démarre jamais root : elle n'a rien à préparer avant de se
+    // dégrader, donc rien à réclamer.
+    assert.equal(own?.cap_add, undefined);
+  });
+
+  it('rend cinq capacités à toute image qui garde son identité', () => {
+    // Mesuré : `cap_drop: ALL` seul tue `nginx` sur chown(/var/cache/nginx) et
+    // `postgres` sur chmod(/var/run/postgresql). Cinq, et pas une de plus —
+    // `NET_BIND_SERVICE` notamment, inutile puisque Docker pose
+    // `net.ipv4.ip_unprivileged_port_start=0` dans le conteneur.
+    for (const service of [ownWithVolume, thirdParty]) {
+      assert.deepEqual(service?.cap_add, ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID']);
+    }
+  });
+
+  it('impose l’uid non privilégié à nos images sans volume', () => {
+    assert.equal(own?.user, '1000:1000');
+  });
+
+  it('ne l’impose pas à nos images qui déclarent un volume — Compose n’a pas de fsGroup', () => {
+    // Un volume nommé neuf est `root:root 0755` et le reste : un conteneur en
+    // uid 1000 démarrerait puis échouerait à la première écriture. Le point
+    // d'entrée de l'image fait ce que `fsGroup` ferait côté K3s — avec les cinq
+    // capacités qu'on vient de lui rendre.
+    assert.equal(ownWithVolume?.user, undefined);
+  });
+
+  it('n’impose jamais d’uid à une image tierce', () => {
+    assert.equal(thirdParty?.user, undefined);
+  });
+
+  it('met la racine en lecture seule sur nos images seulement', () => {
+    // Y compris celle qui porte un volume : le volume reste inscriptible.
+    assert.equal(own?.read_only, true);
+    assert.equal(ownWithVolume?.read_only, true);
+    // Mesuré : `nginx` en lecture seule meurt sur
+    // `mkdir() "/var/cache/nginx/client_temp" failed (30: Read-only file system)`.
+    assert.equal(thirdParty?.read_only, undefined);
+  });
+
+  it('ouvre un /tmp inscriptible et exécutable là où la racine est verrouillée', () => {
+    // `exec` est explicite : le tmpfs de Docker est `noexec` par défaut, pas
+    // l'`emptyDir` que le rendu K3s monte au même endroit. Sans lui, la même
+    // AppSpec se comporterait différemment sur les deux runtimes.
+    assert.deepEqual(own?.tmpfs, ['/tmp:exec,mode=1777']);
+    assert.deepEqual(ownWithVolume?.tmpfs, ['/tmp:exec,mode=1777']);
+    assert.equal(thirdParty?.tmpfs, undefined, 'pas de racine verrouillée, pas de scratch');
+  });
+
+  it('ne déclare aucun profil seccomp : celui de Docker est déjà appliqué', () => {
+    // `docker info` → `name=seccomp,profile=builtin`, et `/proc/1/status` rend
+    // `Seccomp: 2` sans qu'on demande rien. C'est le `RuntimeDefault` du rendu
+    // K3s sous un autre nom ; la seule chose que Compose saurait déclarer ici
+    // (`seccomp:unconfined`) l'affaiblirait.
+    for (const service of [own, ownWithVolume, thirdParty]) {
+      for (const option of service?.security_opt ?? []) {
+        assert.doesNotMatch(option, /seccomp/);
+      }
+    }
+  });
+
+  it('ne monte pas de scratch quand la spec occupe déjà /tmp', () => {
+    const spec = parseAppSpec({
+      name: 'scratch-occupe',
+      version: '1.0.0',
+      services: [
+        {
+          name: 'app',
+          source: { type: 'dockerfile', context: './app', dockerfile: 'Dockerfile' },
+          port: 8080,
+          exposed: true,
+          volumes: [{ name: 'travail', mountPath: '/tmp' }],
+        },
+      ],
+    });
+    const rendered = renderComposeFile({ spec, appSlug: spec.name, publishedPort: null });
+    assert.equal(rendered.services.app?.read_only, true);
+    assert.equal(rendered.services.app?.tmpfs, undefined);
+    // Un volume est déclaré : l'uid reste celui de l'image.
+    assert.equal(rendered.services.app?.user, undefined);
+  });
+
+  it('produit un compose.yml que Docker accepte', { skip: !dockerAvailable }, () => {
+    const output = validateWithDockerCompose('securite', fullstack, null);
+    const parsed = parseYaml(output) as {
+      services: Record<string, Record<string, unknown>>;
+    };
+    // C'est `docker compose config` qui parle ici : les champs survivent à la
+    // normalisation du schéma, `tmpfs` avec ses options comprise.
+    assert.equal(parsed.services.front?.user, '1000:1000');
+    assert.equal(parsed.services.front?.read_only, true);
+    assert.deepEqual(parsed.services.front?.tmpfs, ['/tmp:exec,mode=1777']);
+    assert.deepEqual(parsed.services.postgres?.cap_add, [
+      'CHOWN',
+      'DAC_OVERRIDE',
+      'FOWNER',
+      'SETGID',
+      'SETUID',
+    ]);
+    assert.deepEqual(parsed.services.postgres?.security_opt, ['no-new-privileges:true']);
+  });
+});
