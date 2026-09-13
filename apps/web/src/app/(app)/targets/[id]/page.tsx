@@ -4,6 +4,7 @@ import { getAppSettings, getTarget, getTargetPortReport } from '@pupitre/db';
 import { z } from 'zod';
 import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
+import { TargetLabelChip, sortedLabelEntries } from '@/components/target-label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -34,6 +35,7 @@ export default async function TargetDetailPage({
     getAppSettings(),
   ]);
   const format = formatSettingsOf(settings);
+  const labels = sortedLabelEntries(target.labels);
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,6 +56,38 @@ export default async function TargetDetailPage({
           </span>
         }
       />
+
+      {/*
+        La fiche a la place que la liste n'a pas : description en entier, et
+        toutes les étiquettes, juste sous le nom. C'est la première chose à lire
+        quand on arrive sur une machine dont on ne se souvient plus.
+
+        Chaque étiquette renvoie vers la liste filtrée sur elle : « qui d'autre
+        porte env=prod ? » est la question qui suit immédiatement.
+      */}
+      {target.description || labels.length > 0 ? (
+        <div className="-mt-2 flex flex-col gap-2.5">
+          {target.description ? (
+            <p className="max-w-3xl text-sm leading-relaxed text-ink-muted">
+              {target.description}
+            </p>
+          ) : null}
+          {labels.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {labels.map(([key, value]) => (
+                <Link
+                  key={`${key}=${value}`}
+                  href={`/targets?label=${encodeURIComponent(`${key}=${value}`)}`}
+                  className="rounded-sm focus-visible:outline-2"
+                  title={`Voir les cibles portant ${key}=${value}`}
+                >
+                  <TargetLabelChip labelKey={key} value={value} />
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -100,13 +134,6 @@ export default async function TargetDetailPage({
           </Field>
           <Field label="Plage de ports">
             {target.portRangeStart}–{target.portRangeEnd}
-          </Field>
-          <Field label="Étiquettes">
-            {Object.keys(target.labels).length === 0
-              ? 'aucune'
-              : Object.entries(target.labels)
-                  .map(([key, value]) => `${key}=${value}`)
-                  .join(', ')}
           </Field>
         </CardContent>
       </Card>

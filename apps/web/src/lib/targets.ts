@@ -11,6 +11,7 @@ import type { PublicTarget } from '@pupitre/db';
 export function auditableTarget(target: PublicTarget): Record<string, unknown> {
   return {
     name: target.name,
+    description: target.description,
     host: target.host,
     port: target.port,
     sshUser: target.sshUser,

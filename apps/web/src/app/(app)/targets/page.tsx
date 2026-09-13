@@ -10,9 +10,32 @@ import { TargetsTable } from './targets-table';
 
 export const dynamic = 'force-dynamic';
 
-export default async function TargetsPage() {
+/**
+ * Les filtres sont lus ici, côté serveur, et non par `useSearchParams` dans la
+ * table : le premier rendu doit déjà être filtré. Une fiche de cible pointe
+ * vers `/targets?label=env%3Dprod` ; sans cette lecture, ce lien afficherait
+ * tout le parc l'espace d'une frame avant de le réduire.
+ */
+function readFilters(params: Record<string, string | string[] | undefined>) {
+  const raw = params.label;
+  return {
+    query: typeof params.q === 'string' ? params.q : '',
+    labels: (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((pair) => pair.includes('=')),
+  };
+}
+
+export default async function TargetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const auth = await requirePagePermission('/targets', 'target:read');
-  const [targets, { settings }] = await Promise.all([listTargets(), getAppSettings()]);
+  const [targets, { settings }, params] = await Promise.all([
+    listTargets(),
+    getAppSettings(),
+    searchParams,
+  ]);
+  const filters = readFilters(params);
 
   return (
     <div className="flex flex-col gap-6">
@@ -47,6 +70,8 @@ export default async function TargetsPage() {
         canRunPreflight={auth.can('target:update')}
         canDelete={auth.can('target:delete')}
         format={formatSettingsOf(settings)}
+        initialQuery={filters.query}
+        initialLabels={filters.labels}
       />
     </div>
   );

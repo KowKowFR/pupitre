@@ -18,6 +18,7 @@ import { targets } from './schema/infra.js';
 const publicColumns = {
   id: targets.id,
   name: targets.name,
+  description: targets.description,
   host: targets.host,
   port: targets.port,
   sshUser: targets.sshUser,
@@ -38,6 +39,8 @@ const publicColumns = {
 export type PublicTarget = {
   id: string;
   name: string;
+  /** `null` quand rien n'a été saisi — jamais `''`. Voir le schéma. */
+  description: string | null;
   host: string;
   port: number;
   sshUser: string;
@@ -58,49 +61,107 @@ export type PublicTarget = {
 /** Un port publiable : au-dessus des ports réservés, sous la limite TCP. */
 const portNumberSchema = z.number().int().min(1024).max(65_535);
 
-export const labelsSchema = z.record(
-  z.string().min(1).max(60),
-  z.string().min(1).max(200),
-);
+/**
+ * Longueur maximale d'une description de cible. Exportée parce que le
+ * formulaire doit afficher le même compteur que celui qui refusera la saisie —
+ * et parce que la contrainte `targets_description_length_check` porte le même
+ * nombre. Trois endroits, une seule constante.
+ */
+export const TARGET_DESCRIPTION_MAX = 280;
 
-const targetFieldsSchema = z.object({
+/**
+ * Nombre maximal d'étiquettes sur une cible.
+ *
+ * Ce n'est pas une limite technique mais une limite de lisibilité : au-delà
+ * d'une douzaine, une ligne de tableau devient un mur de pastilles et
+ * l'étiquette cesse de servir à repérer quoi que ce soit.
+ */
+export const TARGET_LABELS_MAX = 12;
+
+export const labelsSchema = z
+  .record(z.string().min(1).max(60), z.string().min(1).max(200))
+  .refine((labels) => Object.keys(labels).length <= TARGET_LABELS_MAX, {
+    message: `Pas plus de ${TARGET_LABELS_MAX} étiquettes par cible`,
+  });
+
+/**
+ * Une description absente doit valoir `null`, pas `''`.
+ *
+ * Le formulaire renvoie toujours la valeur du `<textarea>`, donc `''` quand
+ * l'utilisateur efface le texte : sans cette normalisation, effacer une
+ * description la remplacerait par une chaîne vide, que chaque écran devrait
+ * ensuite penser à traiter comme une absence. On tranche ici, une fois.
+ */
+const descriptionSchema = z
+  .string()
+  .max(TARGET_DESCRIPTION_MAX)
+  .nullable()
+  .transform((value) => {
+    const trimmed = value?.trim() ?? '';
+    return trimmed.length === 0 ? null : trimmed;
+  });
+
+/**
+ * Les champs d'une cible, **sans valeur par défaut**.
+ *
+ * La séparation n'est pas cosmétique. `z.object({…}).partial()` rend chaque
+ * champ facultatif mais **ne retire pas les `.default()`** : le schéma de
+ * modification, bâti ainsi, renvoyait pour un corps `{"name":"x"}` un objet
+ * contenant aussi `port: 22`, `labels: {}` et la plage de ports par défaut.
+ * `updateTarget()` n'ignorant que les clés `undefined`, un PATCH partiel
+ * écrasait donc silencieusement les étiquettes et la plage de ports de la
+ * cible. Le formulaire du panel renvoyant toujours tous les champs, personne ne
+ * l'avait vu ; un appel direct à l'API, lui, en faisait les frais.
+ *
+ * Les défauts n'appartiennent qu'à la création : c'est le seul moment où
+ * « absent » veut dire « prends la valeur usuelle ». En modification, absent
+ * veut dire « n'y touche pas », et rien d'autre.
+ */
+const targetFieldShapes = {
   name: z.string().min(2).max(80),
+  description: descriptionSchema,
   host: z.string().min(1).max(255),
-  port: z.number().int().min(1).max(65535).default(22),
+  port: z.number().int().min(1).max(65535),
   sshUser: z.string().min(1).max(64),
   authMethod: z.enum(['key', 'password']),
   /** Clé privée ou mot de passe. Chiffré avant insertion, jamais relu par l'API. */
   credential: z.string().min(1).max(32_768),
-  sudoMethod: z.enum(['nopasswd', 'password']).default('nopasswd'),
-  labels: labelsSchema.default({}),
-  /**
-   * Plage de ports publiables. Défaut : la plage `nodePort` de Kubernetes,
-   * inoccupée sur une machine standard. Les ports réservés (< 1024) sont
-   * exclus : y publier une application exigerait root pour rien.
-   */
-  portRangeStart: portNumberSchema.default(30_000),
-  portRangeEnd: portNumberSchema.default(32_767),
-});
+  sudoMethod: z.enum(['nopasswd', 'password']),
+  labels: labelsSchema,
+  portRangeStart: portNumberSchema,
+  portRangeEnd: portNumberSchema,
+};
 
-export const createTargetSchema = targetFieldsSchema.refine(
-  (input) => input.portRangeStart <= input.portRangeEnd,
-  {
+export const createTargetSchema = z
+  .object({
+    ...targetFieldShapes,
+    description: targetFieldShapes.description.default(null),
+    port: targetFieldShapes.port.default(22),
+    sudoMethod: targetFieldShapes.sudoMethod.default('nopasswd'),
+    labels: targetFieldShapes.labels.default({}),
+    /**
+     * Plage de ports publiables. Défaut : la plage `nodePort` de Kubernetes,
+     * inoccupée sur une machine standard. Les ports réservés (< 1024) sont
+     * exclus : y publier une application exigerait root pour rien.
+     */
+    portRangeStart: targetFieldShapes.portRangeStart.default(30_000),
+    portRangeEnd: targetFieldShapes.portRangeEnd.default(32_767),
+  })
+  .refine((input) => input.portRangeStart <= input.portRangeEnd, {
     message: 'La borne basse de la plage de ports doit précéder la borne haute',
     path: ['portRangeStart'],
-  },
-);
+  });
 
 /**
  * Le patch est partiel : impossible de valider `start <= end` sans relire ce
  * qui est déjà en base. Le contrôle est fait par l'appelant, qui a les deux
  * valeurs — et par la contrainte `targets_port_range_check`, qui a le dernier
  * mot quoi qu'il arrive.
+ *
+ * Un `credential` absent laisse celui déjà en base : le formulaire d'édition
+ * n'a jamais besoin de le renvoyer.
  */
-export const updateTargetSchema = targetFieldsSchema
-  .partial()
-  // Un `credential` absent laisse celui déjà en base : le formulaire d'édition
-  // n'a jamais besoin de le renvoyer.
-  .extend({ credential: z.string().min(1).max(32_768).optional() });
+export const updateTargetSchema = z.object(targetFieldShapes).partial();
 
 export type CreateTargetInput = z.infer<typeof createTargetSchema>;
 export type UpdateTargetInput = z.infer<typeof updateTargetSchema>;
@@ -140,6 +201,7 @@ export async function createTarget(
     .insert(targets)
     .values({
       name: input.name,
+      description: input.description,
       host: input.host,
       port: input.port,
       sshUser: input.sshUser,
@@ -164,6 +226,7 @@ export async function updateTarget(
   const values: Record<string, unknown> = { updatedAt: new Date() };
   for (const key of [
     'name',
+    'description',
     'host',
     'port',
     'sshUser',
