@@ -80,7 +80,8 @@ code=$(req GET /api/admin/roles)
 [ "$code" = "200" ] || fail "GET /api/admin/roles → HTTP $code"
 cp "$BODY" "$WORK/roles.json"
 jq -e '.items | length >= 3' "$BODY" >/dev/null || fail "moins de trois rôles"
-# Le nombre de permissions bouge à chaque jalon : on le lit plutôt que de le figer.
+# Le nombre de permissions bouge à chaque fonctionnalité : on le lit plutôt que
+# de le figer.
 PERM_TOTAL=$(jq -r '.vocabulary.permissions | length' "$BODY")
 [ "$PERM_TOTAL" -ge 20 ] || fail "vocabulaire suspect : $PERM_TOTAL permission(s)"
 jq -e '[.items[] | select(.key == "admin")] | .[0].locked == true' "$BODY" >/dev/null \

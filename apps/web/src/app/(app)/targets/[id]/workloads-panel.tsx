@@ -187,7 +187,12 @@ export function WorkloadsPanel({
                 }
               : current,
           );
-          if (failed) setError(payload.detail ?? "L'opération a échoué");
+          if (failed)
+            setError(
+              payload.detail ??
+                "La machine a refusé l'opération sans dire pourquoi. Le journal ci-dessus porte " +
+                  'la sortie brute du worker ; « Rafraîchir » redonne l’état réel de la machine.',
+            );
           closeStream();
           setBusy(null);
           void reload();

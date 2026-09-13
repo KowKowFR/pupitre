@@ -171,11 +171,11 @@ export function JobsPanel({
 
       <Alert variant="info" className="flex flex-wrap items-center justify-between gap-3">
         <span>
-          Ces tâches se répètent d&apos;elles-mêmes pour surveiller ce qui est déjà déployé —
-          scanner à nouveau les images, sonder la santé, purger les anciennes versions. Elles
-          constatent et alertent&nbsp;; aucune ne redéploie, ne rollback ni ne bloque. Chaque
-          tâche porte son propre fuseau&nbsp;; une nouvelle part de{' '}
-          <strong>{defaultTimeZone}</strong>, celui des paramètres d&apos;instance.
+          Chaque tâche porte son propre fuseau, et c&apos;est lui qui décide de l&apos;heure à
+          laquelle elle part&nbsp;: une tâche neuve hérite de <strong>{defaultTimeZone}</strong>,
+          le fuseau des paramètres d&apos;instance, puis vit sa vie. « Lancer » enfile une
+          occurrence immédiate sans déplacer la prochaine, et fonctionne même sur une tâche
+          désactivée — de quoi l&apos;essayer avant de l&apos;activer.
         </span>
         <JobsHelpDialog defaultTimeZone={defaultTimeZone} className="shrink-0" />
       </Alert>

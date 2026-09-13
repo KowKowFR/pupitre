@@ -47,11 +47,16 @@ pilote, il demande ce que le driver sait faire.
 La règle se vérifie en une commande :
 
 ```bash
-grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' | grep -v /drivers/
+grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' \
+  | grep -v /drivers/ | grep -v /dist/
 ```
 
-Aucun résultat. Le seul endroit du dépôt qui a le droit de savoir sur quel
-runtime il tourne, c'est un driver.
+**Un seul résultat**, et il vaut d'être nommé plutôt que balayé :
+`packages/db/src/deployments.ts:1329` choisit le mot « namespace » ou « projet
+Compose » dans le message d'un déploiement abandonné. Aucun chemin d'exécution
+n'en dépend — c'est du vocabulaire, pas une branche — mais la règle serait plus
+propre si ce mot venait du driver. À cette ligne près, le seul endroit du dépôt
+qui a le droit de savoir sur quel runtime il tourne, c'est un driver.
 
 ## AppSpec — la spec neutre
 

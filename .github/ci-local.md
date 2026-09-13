@@ -131,26 +131,26 @@ GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/travail BRANCHE_DEFAUT=main AVANT='
 
 ## `e2e.yml` — les scripts de bout en bout
 
-Neuf des vingt-deux `verify-*.sh` y tournent : ceux qui se contentent de
+Neuf des vingt-six `verify-*.sh` y tournent : ceux qui se contentent de
 `postgres`, `redis`, `panel`, `worker` et `mailpit`. Le workflow tire lui-même
 `MASTER_KEY`, `BETTER_AUTH_SECRET` et le mot de passe Postgres au sort — **aucun
 secret GitHub n'est nécessaire**.
 
-Les treize autres exigent une cible SSH docker-in-docker privilégiée ou un vrai
-cluster K3s. Le raisonnement complet, chiffres à l'appui, est en tête de
-`.github/workflows/e2e.yml`.
+Les dix-sept autres exigent une cible SSH docker-in-docker privilégiée, un vrai
+cluster K3s, ou n'ont pas encore été éprouvés sur un runner. Le raisonnement
+complet, chiffres à l'appui, est en tête de `.github/workflows/e2e.yml`.
 
 Sur son poste, ces neuf scripts se lancent contre la stack habituelle :
 
 ```bash
 docker compose up -d --wait
 docker compose --profile test up -d mailpit
-for s in jalon2 onboarding roles account 2fa-reset settings schedules notifications monitors; do
+for s in rbac-audit onboarding roles account 2fa-reset settings schedules notifications monitors; do
   ./scripts/verify-$s.sh || echo "ÉCHEC : verify-$s.sh"
 done
 ```
 
-Durées mesurées : `roles` 2 s, `jalon2` 1 s, `settings` 4 s, `schedules` 5 s,
+Durées mesurées : `roles` 2 s, `rbac-audit` 1 s, `settings` 4 s, `schedules` 5 s,
 `notifications` 17 s, `onboarding` 23 s, `2fa-reset` 37 s, `account` 48 s,
 `monitors` 2 min 24 (il attend de vrais cycles de sonde) — **281 s** en tout.
 

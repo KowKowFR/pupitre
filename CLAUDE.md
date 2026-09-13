@@ -1,4 +1,9 @@
-# Pupitre — Contexte projet
+# Pupitre — contrat d'architecture
+
+Ce document fait autorité sur la forme du code. Il se lit en cinq minutes et il
+est le premier à consulter avant de contribuer — les règles ci-dessous ne sont
+pas des conseils, une revue les fait respecter. Le « pourquoi » développé, avec
+les conséquences pratiques, est dans [`docs/architecture.md`](docs/architecture.md).
 
 ## Ce qu'on construit
 
@@ -10,7 +15,7 @@ Le panel n'est pas l'app déployée. Le panel orchestre. Ne jamais confondre les
 
 ## Stack
 
-- Next.js 15 App Router + shadcn/ui + Tailwind
+- Next.js 16 App Router + shadcn/ui + Tailwind
 - Worker Node séparé (`apps/worker`), même monorepo pnpm
 - PostgreSQL 16 + Drizzle (migrations SQL versionnées)
 - Redis + BullMQ (queue ET scheduler via repeatable jobs)
@@ -84,20 +89,20 @@ Conséquence : la même app se redéploie sur l'autre runtime en changeant un ch
 - **Pas d'Ansible**
 - **Pas de cron Linux** — BullMQ repeatable jobs
 - Traefik par défaut sur les deux runtimes ; BunkerWeb est P1
-- Les scripts bash du v1 sont **conservés**, rendus par template et exécutés en SSH
 
 ## Commandes
 
 ```bash
-pnpm dev              # web + worker en watch
-pnpm db:generate      # génère une migration Drizzle
-pnpm db:migrate       # applique les migrations
-pnpm test:e2e         # scénario Docker + K3s
-docker compose up -d  # stack complète
+pnpm dev                          # web + worker en watch
+pnpm db:generate                  # génère une migration Drizzle
+pnpm db:migrate                   # applique les migrations
+pnpm test                         # tests unitaires de @pupitre/core
+pnpm test:parity <docker> <k3s>   # la même AppSpec sur les deux runtimes
+docker compose up -d              # stack complète
 ```
 
 ## Le test qui valide l'architecture
 
 Déployer **la même AppSpec** sur une cible Docker et une cible K3s, obtenir deux URLs
-qui répondent, puis rollback des deux. À faire tourner dès le jalon 5.
+qui répondent, puis rollback des deux. C'est `pnpm test:parity`, et il doit rester vert.
 Si du code spécifique au runtime a fui hors des drivers, corriger immédiatement.

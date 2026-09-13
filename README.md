@@ -1,12 +1,77 @@
-# Pupitre — control plane
+# Pupitre
 
-**Ce panel n'héberge rien. Il orchestre.** Il tourne chez vous en `docker compose`,
-et il déploie *vos* applications sur *d'autres* machines, par SSH — en Docker
-Compose ou en K3s, au choix, à partir de la même description. Les applications
-déployées ne vivent jamais dans le panel : elles vivent sur les machines cibles,
-et continueraient de tourner si le panel s'arrêtait.
+**Un plan de contrôle auto-hébergé qui déploie vos applications sur vos machines,
+par SSH, en Docker Compose *ou* en K3s — à partir de la même description.**
 
-C'est la confusion la plus fréquente, alors autant la lever tout de suite :
+Vous écrivez une `AppSpec` : un JSON qui décrit *ce que* l'application est, et qui
+ne connaît ni Docker ni Kubernetes. C'est le driver, au moment du déploiement, qui
+la traduit en `compose.yml` ou en manifests Kubernetes. Changer de runtime, c'est
+changer de machine cible — pas réécrire l'application.
+
+Le reste — RBAC, journal d'activité, scans de vulnérabilités bloquants, rollback
+automatique, supervision, notifications — existe parce qu'un outil qui détient vos
+clés SSH n'a pas le droit d'être approximatif.
+
+## En dix secondes
+
+```json
+{
+  "name": "blog",
+  "version": "1.4.2",
+  "services": [
+    {
+      "name": "web",
+      "source": { "type": "image", "ref": "ghcr.io/exemple/blog:1.4.2" },
+      "port": 8080,
+      "exposed": true,
+      "env": { "DATABASE_HOST": "db", "DATABASE_NAME": "blog" },
+      "secrets": ["DATABASE_PASSWORD"],
+      "healthcheck": { "path": "/healthz", "retries": 5 },
+      "resources": { "cpuMilli": 500, "memoryMi": 512 },
+      "dependsOn": ["db"]
+    },
+    {
+      "name": "db",
+      "source": { "type": "image", "ref": "postgres:16-alpine" },
+      "port": 5432,
+      "exposed": false,
+      "env": { "POSTGRES_DB": "blog", "POSTGRES_USER": "blog" },
+      "secrets": [{ "name": "POSTGRES_PASSWORD", "from": "DATABASE_PASSWORD" }],
+      "volumes": [
+        { "name": "data", "mountPath": "/var/lib/postgresql/data", "size": "10Gi" }
+      ]
+    }
+  ],
+  "ingress": { "host": "blog.example.com", "tls": true, "targetService": "web" }
+}
+```
+
+Aucun champ de ce fichier n'appartient à un runtime. Pas de `restart_policy`, pas
+de `image_pull_policy`, pas de `namespace` : ce que la spec ne sait pas dire, le
+driver le décide. Vous pouvez le vérifier sans déployer quoi que ce soit, ni même
+posséder une machine :
+
+```bash
+pnpm tsx scripts/render-both.ts ma-spec.json
+```
+
+Sur cette spec-là, la sortie est un projet Compose `app-blog` de deux services, et
+un namespace `app-blog` de onze manifests — `Namespace`, deux `ConfigMap`, deux
+`Secret`, un `PersistentVolumeClaim`, deux `Deployment`, deux `Service`, un
+`Ingress`.
+
+Un détail qui n'en est pas un : `POSTGRES_PASSWORD` **est** `DATABASE_PASSWORD`.
+Une application et sa base attendent souvent le même mot de passe sous deux noms ;
+`from` dit « ce nom-ci désigne la valeur de ce nom-là ». Il n'y a qu'un secret,
+qu'une ligne en base, qu'une valeur — et elle est chiffrée.
+
+---
+
+## Ce panel n'héberge rien. Il orchestre.
+
+C'est la confusion la plus fréquente, alors autant la lever tout de suite : les
+applications déployées ne vivent jamais dans le panel. Elles vivent sur les
+machines cibles, et continueraient de tourner si le panel s'arrêtait.
 
 |  | Le panel | Les machines cibles |
 |---|---|---|
@@ -15,11 +80,32 @@ C'est la confusion la plus fréquente, alors autant la lever tout de suite :
 | Ce qu'il faut y installer | rien d'autre que Docker | rien — le panel installe ce dont il a besoin par SSH |
 | Si on l'éteint | on ne peut plus déployer ni superviser | les applications continuent de répondre |
 
-Ce qu'il sait faire : déclarer des machines, décrire une application sous forme
-d'`AppSpec` neutre (à la main ou par IA), la déployer avec un pipeline en dix
-étapes et des logs en direct, l'analyser avec Trivy / Grype / Syft, revenir en
-arrière tout seul si la sonde de santé échoue, superviser des sites et des
-serveurs, notifier, et tracer chaque geste dans un journal d'activité.
+Le chemin d'un déploiement, du clic à l'URL :
+
+```mermaid
+flowchart LR
+  subgraph panel["Le panel — 4 conteneurs, chez vous"]
+    direction TB
+    web["Next.js<br/>UI + Route Handlers REST"]
+    redis[("Redis<br/>file BullMQ + pub/sub")]
+    worker["Worker<br/>node-ssh"]
+    pg[("PostgreSQL<br/>AppSpec, RBAC,<br/>audit, ports alloués")]
+    web -- "202, sans jamais attendre" --> redis
+    redis --> worker
+    worker -. "logs sur deploy:ID" .-> redis
+    redis -. "relayés en SSE" .-> web
+    web --- pg
+    worker --- pg
+  end
+
+  dk["<b>Cible Docker</b><br/>projet compose app-blog<br/>port alloué + règle ufw"]
+  k3["<b>Cible K3s</b><br/>namespace app-blog<br/>exposition par l'Ingress"]
+
+  worker == "SSH · le pipeline en 10 étapes" ==> dk
+  worker == "SSH · la même AppSpec, l'autre driver" ==> k3
+```
+
+Une route HTTP enfile et répond `202`. Elle n'attend jamais une session SSH.
 
 ---
 
@@ -68,6 +154,47 @@ commandes — est dans **[`docs/demarrage.md`](docs/demarrage.md)**.
 
 ---
 
+## Pourquoi celui-ci, plutôt qu'un autre
+
+Pupitre appartient à la même famille que Coolify, Dokploy ou CapRover : un panel
+que vous hébergez, qui déploie sur des machines que vous possédez. Il n'essaie pas
+de les remplacer, et sur plusieurs points il leur est franchement inférieur. Voici
+la comparaison telle qu'elle est.
+
+**Ce qu'il fait et qu'on ne trouve pas dans cette famille**
+
+| | |
+|---|---|
+| **Deux runtimes, une seule description** | La même AppSpec se déploie sur Docker Compose et sur K3s. Les panels de cette famille sont Docker — Compose ou Swarm ; Kubernetes est hors de leur périmètre. Ici, `pnpm test:parity` déploie la *même* spec des deux côtés, obtient deux URLs qui répondent, rollback et détruit — et il rend **30/30 au vert** (tableau plus bas). |
+| **Le scan bloque, avant le déploiement** | Trivy, Grype et Syft tournent sur la machine cible dans le pipeline. Une politique `failOn: CRITICAL \| HIGH \| NONE`, stockée en donnée, arrête le déploiement à l'étape `scan`. Un SBOM est téléchargeable. |
+| **RBAC granulaire et journal d'activité** | Trente permissions `ressource:action`, des rôles qui sont des **données** modifiables et non des constantes, et un journal d'activité écrit par un point d'entrée unique — refus de permission compris, avec l'IP réelle derrière le reverse proxy. |
+| **Supervision et notifications intégrées** | Sondes HTTP et TLS avec hystérésis, métriques d'hôte avec seuils à trois niveaux, quatre canaux de notification. Pas d'outil séparé à brancher. |
+| **Une AppSpec que l'IA remplit** | Une description en français produit un JSON validé par Zod — jamais du shell. Éditable avant déploiement. |
+
+**Ce sur quoi il est en retrait, et de loin**
+
+- **Il ne déploie pas depuis un dépôt Git.** Pas de webhook, pas de « push to
+  deploy », pas de branche de préproduction. C'est la fonction centrale des
+  autres, et elle n'existe pas ici — voir la limite sur le contexte de build
+  ci-dessous.
+- **Aucun catalogue d'applications prêtes à l'emploi.** Là où Coolify propose des
+  centaines de services en un clic, ici vous écrivez l'AppSpec.
+- **Il n'installe pas le reverse proxy et ne gère pas les certificats.**
+  `TraefikProvider` écrit la configuration dynamique d'un Traefik qui doit déjà
+  tourner sur la cible.
+- **Aucune sauvegarde de base de données.** Ni planifiée, ni vers un stockage
+  objet.
+- **Pas de gestion d'équipes ni de multi-tenance.** Un RBAC sur une instance,
+  pas des espaces cloisonnés.
+- **Aucune version publiée, aucune communauté.** Pas de tag, pas de release, pas
+  d'image distribuée : une branche `main`. Les autres ont des milliers
+  d'utilisateurs qui trouvent les bugs avant vous.
+
+*Les capacités attribuées ci-dessus aux autres projets sont décrites à grands
+traits, de bonne foi ; ils bougent vite, vérifiez chez eux.*
+
+---
+
 ## Comment c'est construit
 
 Les décisions sont dans **[`CLAUDE.md`](CLAUDE.md)**, qui est le document
@@ -104,8 +231,18 @@ vous cherchez « où le driver écrit en base », la réponse est : nulle part.
 quel runtime il pilote, il demande ce que le driver sait faire : une étape est
 `skipped` parce que la méthode a rendu `null` (`allocatePort()` en K3s), ou parce
 qu'elle n'existe pas (`openFirewall?` non déclarée par `K3sDriver`). Vérifiable :
-`grep -rn "runtime === '" apps packages --include='*.ts' | grep -v /drivers/`
-ne rend rien.
+
+```bash
+grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' \
+  | grep -v /drivers/ | grep -v /dist/
+```
+
+Une seule ligne sort aujourd'hui, et elle mérite d'être nommée plutôt que
+balayée : `packages/db/src/deployments.ts:1329` choisit le mot « namespace » ou
+« projet Compose » dans un message destiné à un humain. Ce n'est pas une
+divergence de comportement — aucun appel, aucun chemin d'exécution n'en dépend —
+mais c'est bien du vocabulaire de runtime hors d'un driver, et la règle serait
+plus propre si ce mot venait du driver lui-même.
 
 **L'anti-collision de ports est une contrainte de base, pas un `if`.** On insère
 dans `port_allocations (target_id, port)`, et une violation `23505` renvoie le
@@ -135,20 +272,23 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Toutes les pages et toutes les routes d'API, avec leur permission | [`docs/api.md`](docs/api.md) |
 | Tables et migrations | [`docs/base-de-donnees.md`](docs/base-de-donnees.md) |
 | Les 26 scripts de vérification et ce que chacun prouve | [`docs/verification.md`](docs/verification.md) |
+| Le choix de chaque dépendance, et les deux montées refusées | [`docs/dependances.md`](docs/dependances.md) |
+| Ce qui manque, et ce qu'il faudrait pour le lever | [`docs/feuille-de-route.md`](docs/feuille-de-route.md) |
 
 ---
 
-## Limites connues — au 13/09/2026
+## Limites connues
 
-Ce qui suit est l'état du jour, pas une note en bas de page. Un README qui
-prétend à l'intemporalité vieillit mal ; celui-ci est daté et le dit.
+*État au 13/09/2026.* Ce qui suit n'est pas une note en bas de page : c'est un
+tiers de ce fichier, et volontairement. Un README qui prétend à l'intemporalité
+vieillit mal ; celui-ci est daté et le dit.
 
 ### Le critère d'architecture est exercé, et il passe
 
 `CLAUDE.md` désigne un test comme « le test qui valide l'architecture » :
 déployer **la même AppSpec** sur une cible Docker et une cible K3s, obtenir deux
-URLs qui répondent, puis rollback des deux. Il devait tourner dès le jalon 5. Il
-n'a longtemps pas pu : `scripts/test-parity.ts` existait, sans cluster à viser.
+URLs qui répondent, puis rollback des deux. Il n'a longtemps pas pu tourner :
+`scripts/test-parity.ts` existait, sans cluster à viser.
 
 La cible existe depuis le 12/09/2026 (`scripts/test-target-k3s/`, profil compose
 `test`, k3s v1.33.4), et le test passe :
@@ -181,8 +321,7 @@ complaisante : quatre services reliés par `dependsOn`, dont **deux construits
 depuis un Dockerfile** — `front`, la porte d'entrée, et `api` en deux répliques
 avec son Dockerfile dans un sous-répertoire — plus `redis` et `postgres` sur
 étagère, deux volumes, deux secrets dont un alias, et un ingress TLS. L'URL qui
-répond des deux côtés est servie par une image que le panel a fabriquée
-lui-même.
+répond des deux côtés est servie par une image fabriquée sur la machine cible.
 
 Trois choses valent d'être notées. Les phases de préparation sont identiques des
 deux côtés — `preflight`, `allocatePort` (qui rend `null` en K3s, comme prévu),
@@ -191,6 +330,40 @@ rendu, namespace disparu. Et le port d'écoute des services construits est 8080 
 non 80, parce que nos images tournent en uid 1000 sans `CAP_NET_BIND_SERVICE` —
 ce n'est pas un contournement du test, c'est la conséquence directe du
 durcissement décrit plus bas.
+
+### Le panel ne sait pas fournir un contexte de build
+
+C'est la limite la plus importante de cette liste, et elle est nouvellement
+documentée.
+
+Les deux drivers savent construire une image depuis un Dockerfile. Le contexte de
+build leur arrive par `DriverContext.additionalFiles`. Or **rien dans `apps/web`
+ni dans `apps/worker` ne remplit ce champ** :
+
+```bash
+grep -rn "additionalFiles" apps packages scripts --include='*.ts' --include='*.tsx' | grep -v dist
+```
+
+Seul `scripts/test-parity.ts` en fabrique un — et c'est pour cela que le tableau
+ci-dessus est vert : il pilote les drivers en direct, sans passer par le panel.
+
+**Conséquence : par l'interface et par l'API, seules les applications en
+`source.type: "image"` se déploient.** Un service `dockerfile` échoue à l'étape
+`build`, avec le message « Le contexte de build doit être fourni via
+`additionalFiles` ». C'est aussi pourquoi il n'y a pas de déploiement depuis un
+dépôt Git : il n'y a aucune voie d'entrée pour du code source.
+
+### Compose ne sait pas publier un port derrière plusieurs répliques
+
+Un service à `replicas: 2` reçoit `publishedPort: null` côté Docker : Compose ne
+sait pas répartir un port publié entre deux conteneurs. Sans `ingress.host`
+servi par un vrai Traefik, un tel service n'est donc pas joignable depuis
+l'extérieur en Docker — alors qu'il l'est en K3s, où un Service ClusterIP fait
+exactement ce travail.
+
+C'est une capacité manquante du runtime, pas un défaut du driver, et c'est la
+seule asymétrie fonctionnelle qui subsiste entre les deux. La fixture de parité
+la contourne en n'exposant que son service à réplique unique.
 
 ### Comment une image se construit sans registry
 
@@ -224,18 +397,6 @@ et prend sa réponse. Avant, le refus arrivait après `upload`, donc après avoi
 déposé les manifests sur la machine — Secrets rendus compris, en clair, pour un
 déploiement qui n'aurait jamais lieu.
 
-### Compose ne sait pas publier un port derrière plusieurs répliques
-
-Un service à `replicas: 2` reçoit `publishedPort: null` côté Docker : Compose ne
-sait pas répartir un port publié entre deux conteneurs. Sans `ingress.host`
-servi par un vrai Traefik, un tel service n'est donc pas joignable depuis
-l'extérieur en Docker — alors qu'il l'est en K3s, où un Service ClusterIP fait
-exactement ce travail.
-
-C'est une capacité manquante du runtime, pas un défaut du driver, et c'est la
-seule asymétrie fonctionnelle qui subsiste entre les deux. La fixture de parité
-la contourne en n'exposant que son service à réplique unique.
-
 ### `BunkerWebProvider` n'existe pas
 
 Prévu en P1, il n'a pas été écrit — et c'est un choix. Le format de configuration
@@ -268,15 +429,49 @@ un vrai modèle répondre sur cette instance.
   Symétrique du driver Docker, mais ça s'accumule sur le nœud.
 - **Le compteur de limitation de débit de l'authentification est en mémoire**,
   donc par processus. Correct pour un panel mono-conteneur, faux dès qu'on en
-  met deux derrière un répartiteur.
+  met deux derrière un répartiteur. Celui du panel, lui, vit déjà dans Redis.
+- **`MASTER_KEY` ne se fait pas tourner.** Le format
+  `version:iv:authTag:ciphertext` existe pour le permettre un jour ; le code de
+  rotation n'est pas écrit.
 - **Aucune alerte sur « machine injoignable ».** Les relevés en échec sont
   enregistrés avec leur raison, mais ne franchissent aucun seuil : une machine
   éteinte ne déclenche rien.
 
+Ce qu'il faudrait pour lever chacun de ces points est dans
+[`docs/feuille-de-route.md`](docs/feuille-de-route.md).
+
 ---
 
-## Versions
+## Contribuer
 
-Les dépendances ont été auditées le 2026-09-09 — voir [`VERSIONS.md`](VERSIONS.md).
-Le découpage par jalons et ce qu'on coupe en cas de retard sont dans
-[`PLAN.md`](PLAN.md).
+Le français est la langue du projet. Un système FR/EN pour l'interface est prévu ;
+il n'existe pas encore.
+
+- **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — à lire avant la première pull
+  request : les trois abstractions, la règle d'immuabilité des migrations, ce que
+  la revue regarde.
+- **[`CLAUDE.md`](CLAUDE.md)** — le contrat d'architecture. Cinq minutes, et il
+  fait autorité.
+- **[`SECURITY.md`](SECURITY.md)** — signaler une faille. Pas par une issue.
+- **[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)** — *Contributor Covenant* v2.1.
+
+## Licence
+
+**GNU AGPL v3 ou ultérieure** — voir [`LICENSE`](LICENSE).
+Copyright © 2026 les contributeurs de Pupitre.
+
+Pupitre est un logiciel qu'on utilise par le réseau : c'est un panel, on s'y
+connecte, on ne le distribue jamais. Sous une licence permissive, quelqu'un
+pourrait le proposer en service hébergé sans jamais rien rendre. L'article 13 de
+l'AGPL est précisément ce qui l'empêche : si vous modifiez Pupitre et que vous en
+donnez l'accès à des utilisateurs par un réseau, ils ont droit à vos sources.
+
+Ce que cela n'impose pas : les applications que vous déployez **avec** Pupitre ne
+sont pas des œuvres dérivées de Pupitre. Vous restez libre de déployer ce que vous
+voulez, sous la licence que vous voulez.
+
+Ce que cela coûte, dit franchement : l'AGPL ferme la porte à l'intégration dans un
+produit propriétaire, et beaucoup d'entreprises l'interdisent par politique
+interne. C'est un choix assumé — protéger le retour des contributions a paru plus
+important que l'adoption la plus large possible pour un outil qui détient les clés
+SSH de ses utilisateurs.

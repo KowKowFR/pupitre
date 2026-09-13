@@ -33,6 +33,7 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
           </Link>
         }
         title={`Modifier « ${target.name} »`}
+        description="Ces réglages valent pour les prochaines connexions. Rien de ce qui tourne déjà sur cette machine n'est redéployé, et les ports déjà réservés le restent même si vous rétrécissez la plage. Après un changement d'hôte, de compte ou de clé, relancez un preflight : le relevé précédent reste affiché tel quel jusque-là."
       />
 
       <Card className="max-w-3xl">

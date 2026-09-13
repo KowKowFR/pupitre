@@ -187,7 +187,7 @@ export default async function AppsPage() {
           hint={
             canReadTargets
               ? 'Déclarez une machine cible, puis déployez-y une application : les deux apparaîtront ici.'
-              : "Aucune application en marche n'est visible avec vos permissions."
+              : "Cet écran part du parc de machines, et le lire demande la permission target:read. Un administrateur peut l'ajouter à votre rôle depuis Administration → Rôles."
           }
         />
       ) : (

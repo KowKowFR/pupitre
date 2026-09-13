@@ -27,10 +27,13 @@ function needsSecondFactor(data: unknown): boolean {
 export function LoginForm({
   next,
   canRecoverPassword,
+  signupOpen,
 }: {
   next: string;
   /** L'instance sait-elle envoyer un e-mail ? Sinon le lien de secours est masqué. */
   canRecoverPassword: boolean;
+  /** L'inscription est-elle ouverte ? Sinon le lien mènerait à un refus. */
+  signupOpen: boolean;
 }) {
   const router = useRouter();
   const [challenge, setChallenge] = useState(false);
@@ -179,13 +182,23 @@ export function LoginForm({
             </p>
           ) : null}
           <p className="text-center text-xs text-ink-muted">
-            Pas de compte ?{' '}
-            <Link
-              href="/signup"
-              className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-            >
-              Créer le premier administrateur
-            </Link>
+            {signupOpen ? (
+              <>
+                Pas de compte ?{' '}
+                <Link
+                  href="/signup"
+                  className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+                >
+                  En créer un
+                </Link>
+                . Le premier compte de l&apos;instance reçoit le rôle administrateur.
+              </>
+            ) : (
+              <>
+                L&apos;inscription est fermée sur cette instance : les comptes sont créés par un
+                administrateur, depuis « Utilisateurs ».
+              </>
+            )}
           </p>
         </form>
       </CardContent>

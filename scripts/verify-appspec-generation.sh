@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 #
-# Critère de sortie du jalon 8 — IA et automatisation.
+# Génération d'AppSpec par IA, et automatisation par tâches planifiées.
 #
 #   1. « Un blog Node avec Postgres et un front nginx » → AppSpec valide générée,
 #      éditable, puis déployée avec succès sur Docker
 #   2. La MÊME AppSpec générée doit se déployer aussi sur K3s.
-#      ⚠ NON ATTEINT, et le script ne prétend pas le contraire : aucun cluster
-#      K3s n'est enregistré, `test-parity.ts` n'a jamais tourné de bout en bout.
-#      Ce qui EST vérifié : la spec générée traverse le rendu K3s sans qu'un seul
-#      champ ait à changer (scripts/render-both.ts).
+#      ⚠ HORS PORTÉE DE CE SCRIPT, et il ne prétend pas le contraire : il ne
+#      dispose que d'une cible Docker. Ce qui EST vérifié ici : la spec générée
+#      traverse le rendu K3s sans qu'un seul champ ait à changer
+#      (scripts/render-both.ts). Le déploiement réel sur les deux runtimes est
+#      la charge de `pnpm test:parity`, qui exige deux cibles.
 #   3. Un prompt absurde → échec propre avec erreur lisible, pas de crash
 #   4. Un job `scan:periodic` toutes les 5 minutes tourne, crée des `scan_run`,
 #      et survit à un redémarrage du worker
@@ -21,8 +22,8 @@
 # de repli — celle qu'un modèle devrait produire pour la même demande.
 #
 # Usage :
-#   ./scripts/verify-jalon8.sh
-#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-jalon8.sh
+#   ./scripts/verify-appspec-generation.sh
+#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-appspec-generation.sh
 #
 # Relançable : les tâches planifiées et l'application de test sont recréées à
 # chaque passage.
@@ -198,11 +199,11 @@ else
   info "$(jq -rc '.error.message' "$BODY")"
 
   # AppSpec de repli : ce qu'un modèle doit produire pour cette demande. Elle
-  # sert à jouer la suite du critère (édition, déploiement, rendu K3s) sans
+  # sert à jouer la suite du parcours (édition, déploiement, rendu K3s) sans
   # prétendre une seconde qu'elle a été générée.
   cat > "$WORK/generated.json" <<'SPEC_EOF'
 {
-  "name": "jalon8-blog",
+  "name": "genere-blog",
   "version": "1.0.0",
   "services": [
     {
@@ -247,11 +248,11 @@ fi
 
 step "4. L'AppSpec est éditable, puis validée explicitement"
 
-# L'édition est le geste du jalon : l'IA propose, l'opérateur dispose. On
+# L'édition est le geste central : l'IA propose, l'opérateur dispose. On
 # renomme l'application et on la réduit à ce que la cible de test sait servir —
 # exactement ce qu'un opérateur ferait dans l'éditeur JSON.
 jq '{
-  name: "jalon8-genere",
+  name: "genere-appspec",
   version: .version,
   services: [ .services[] | select(.exposed == true) | {
     name, source, port, exposed,
@@ -264,7 +265,7 @@ jq '{
 jq '.services[0].source = {type:"image", ref:"docker.io/library/nginx:1.29-alpine"}
     | .services[0].port = 80' "$WORK/edited.json" > "$WORK/edited2.json"
 mv "$WORK/edited2.json" "$WORK/edited.json"
-pass "AppSpec éditée — renommée « jalon8-genere », service exposé conservé"
+pass "AppSpec éditée — renommée « genere-appspec », service exposé conservé"
 
 # Une spec cassée doit être refusée : la validation est bien du côté du panel.
 jq '.services += [.services[0] | .name = "doublon"]' "$WORK/edited.json" > "$WORK/broken.json"
@@ -281,18 +282,18 @@ jq -n --slurpfile s "$WORK/edited.json" --arg p "$PROMPT_TEXT" --arg m "$AI_MODE
 
 # Relançable : une application ne se supprime pas tant qu'elle porte des
 # déploiements, fût-ce détruits. On remplace donc son AppSpec, comme le fait
-# verify-jalon7.sh.
+# verify-ports-rollback.sh.
 req GET /api/applications >/dev/null
-APP_ID=$(jq -r '.items[] | select(.slug == "jalon8-genere") | .id' "$BODY" | head -1)
+APP_ID=$(jq -r '.items[] | select(.slug == "genere-appspec") | .id' "$BODY" | head -1)
 if [ -n "$APP_ID" ]; then
   code=$(req PATCH "/api/applications/$APP_ID" "@$WORK/create.json")
   [ "$code" = "200" ] || fail "PATCH /api/applications/$APP_ID → HTTP $code : $(cat "$BODY")"
-  pass "application « jalon8-genere » remplacée — $APP_ID"
+  pass "application « genere-appspec » remplacée — $APP_ID"
 else
   code=$(req POST /api/applications "@$WORK/create.json")
   [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
   APP_ID=$(jq -r .id "$BODY")
-  pass "application « jalon8-genere » enregistrée — $APP_ID"
+  pass "application « genere-appspec » enregistrée — $APP_ID"
 fi
 
 # Le prompt ET la spec d'origine sont conservés à côté de la spec validée : sans
@@ -348,8 +349,8 @@ else
   fail "le rendu double de l'AppSpec complète a échoué"
 fi
 
-warn "CRITÈRE 2 NON ATTEINT : aucun cluster K3s n'est enregistré. Le déploiement"
-warn "réel sur K3s (scripts/test-parity.ts) n'a jamais été joué — seul le rendu l'est."
+warn "POINT 2 HORS PORTÉE ICI : ce script ne dispose que d'une cible Docker."
+warn "Le déploiement réel sur les deux runtimes se joue par \`pnpm test:parity\`."
 
 # ─── 7. Prompt absurde ────────────────────────────────────────────────────────
 
@@ -407,17 +408,17 @@ step "9. Tâche scan:periodic — installée, exécutée, survivante"
 req GET /api/jobs >/dev/null
 [ "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE_URL/api/jobs")" = "200" ] \
   || fail "GET /api/jobs inaccessible"
-for existing in $(jq -r '.items[] | select(.key == "jalon8:scan") | .id' "$BODY"); do
+for existing in $(jq -r '.items[] | select(.key == "generation:scan") | .id' "$BODY"); do
   req DELETE "/api/jobs/$existing" >/dev/null
 done
 
 # `syft` suffit et va vite : le critère porte sur l'ordonnancement, pas sur la
 # profondeur du scan. Le seuil ne bloque rien — c'est le point.
 code=$(req POST /api/jobs "$(jq -n --arg c "$SCAN_CRON" \
-  '{key:"jalon8:scan", type:"scan", cron:$c, payload:{scanners:["syft"], failOn:"NONE"}}')")
+  '{key:"generation:scan", type:"scan", cron:$c, payload:{scanners:["syft"], failOn:"NONE"}}')")
 [ "$code" = "201" ] || fail "POST /api/jobs → HTTP $code : $(cat "$BODY")"
 JOB_ID=$(jq -r .id "$BODY")
-pass "tâche « jalon8:scan » créée — $(jq -r .cronDescription "$BODY")"
+pass "tâche « generation:scan » créée — $(jq -r .cronDescription "$BODY")"
 
 req GET /api/jobs >/dev/null
 jq -e --arg id "$JOB_ID" '.items[] | select(.id == $id) | .installed == true and .nextRunAt != null' "$BODY" >/dev/null \
@@ -426,7 +427,7 @@ NEXT=$(jq -r --arg id "$JOB_ID" '.items[] | select(.id == $id) | .nextRunAt' "$B
 pass "installée dans BullMQ — prochaine occurrence $NEXT"
 
 # Une expression cron invalide est refusée avant d'atteindre Redis.
-code=$(req POST /api/jobs '{"key":"jalon8:invalide","type":"scan","cron":"99 * * * *"}')
+code=$(req POST /api/jobs '{"key":"generation:invalide","type":"scan","cron":"99 * * * *"}')
 [ "$code" = "422" ] || fail "un cron invalide devrait être refusé en 422 (HTTP $code)"
 pass "expression cron invalide refusée en 422"
 
@@ -483,7 +484,7 @@ pass "worker redémarré — réconciliation base ↔ BullMQ effectuée"
 req GET /api/jobs >/dev/null
 jq -e --arg id "$JOB_ID" '.items[] | select(.id == $id) | .installed == true and .enabled == true' "$BODY" >/dev/null \
   || fail "la tâche n'a pas survécu au redémarrage du worker"
-pass "« jalon8:scan » toujours installée après redémarrage"
+pass "« generation:scan » toujours installée après redémarrage"
 
 step "11. Une occurrence AUTOMATIQUE, ordonnancée par BullMQ"
 info "cadence « $SCAN_CRON » — attente jusqu'à $((SCAN_WAIT_SEC / 60)) minutes"
@@ -522,10 +523,10 @@ for _ in $(seq 1 90); do
 done
 pass "tâche supprimée, déploiement détruit"
 
-printf '\n\033[32m✓ Jalon 8 — points 1, 3 et 4 du critère de sortie vérifiés.\033[0m\n'
+printf '\n\033[32m✓ Génération AppSpec et tâches planifiées : points 1, 3 et 4 vérifiés.\033[0m\n'
 if [ "$AI_ENABLED" != "true" ]; then
   printf '\033[33m  ! points 1 et 3 joués sans fournisseur : chaîne couverte par les tests\n'
   printf '    unitaires (modèle simulé), déploiement joué sur une AppSpec de repli.\033[0m\n'
 fi
-printf '\033[33m  ! point 2 NON ATTEINT : aucun cluster K3s. Seul le rendu est vérifié.\033[0m\n'
+printf '\033[33m  ! point 2 hors portée ici : seul le rendu K3s est vérifié — voir pnpm test:parity.\033[0m\n'
 printf '\n'

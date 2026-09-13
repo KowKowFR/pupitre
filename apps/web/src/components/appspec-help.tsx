@@ -241,7 +241,7 @@ const MAPPING: Array<{ field: React.ReactNode; docker: React.ReactNode; k3s: Rea
     field: <Code>version</Code>,
     docker: (
       <>
-        tag de l’image construite, label <Code>tp.version</Code>
+        tag de l’image construite, label <Code>pupitre.version</Code>
       </>
     ),
     k3s: (

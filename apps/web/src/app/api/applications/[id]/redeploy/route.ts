@@ -61,7 +61,8 @@ export const POST = apiRoute<Context>(async (request, context) => {
   if (!source.deployment.appSpec) {
     throw new ConflictError(
       `Le déploiement #${source.deployment.version} n'a pas d'AppSpec figée : ` +
-        "il précède le jalon 4 et ne peut pas être rejoué.",
+        'il a été enregistré avant que le panel ne conserve la spec de chaque run, et il ' +
+        "n'y a donc rien à rejouer. Déployez la version courante de l'application à la place.",
     );
   }
 

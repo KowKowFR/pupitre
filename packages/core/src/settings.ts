@@ -436,9 +436,7 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
       "Une cible est une machine Linux joignable en SSH, avec Docker ou K3s installé. " +
       "Le panel y construit vos images et y lance vos conteneurs ; il n'y a aucun " +
       "registre d'images intermédiaire. La clé SSH que vous collez est chiffrée en " +
-      "AES-256-GCM avant d'atteindre la base, et n'en ressort jamais en clair. Dès la " +
-      "cible enregistrée, un contrôle automatique vérifie l'accès, le sudo, le démon " +
-      "Docker et la plage de ports.",
+      "AES-256-GCM avant d'atteindre la base, et n'en ressort jamais en clair.",
   },
   {
     id: 'role',

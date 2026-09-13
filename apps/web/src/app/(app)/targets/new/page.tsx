@@ -37,7 +37,10 @@ export default async function NewTargetPage() {
         <CardHeader>
           <CardTitle>Connexion</CardTitle>
           <CardDescription>
-            Lancez un preflight après création pour découvrir les runtimes disponibles.
+            Rien n&apos;est touché sur la machine à l&apos;enregistrement. C&apos;est le
+            preflight — le contrôle de connexion, de sudo, de runtime et de pare-feu — qui
+            l&apos;ouvre pour la première fois. Il se lance depuis « Tester la connexion », et
+            détermine ce qui sera déployable ici.
           </CardDescription>
         </CardHeader>
         <CardContent>

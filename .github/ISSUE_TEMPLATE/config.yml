@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Faille de sécurité
+    url: https://github.com/KowKowFR/pupitre/security/advisories/new
+    about: >-
+      N'ouvrez jamais d'issue publique pour une faille. Utilisez le signalement
+      privé — voir SECURITY.md.
+  - name: Question ou idée à discuter
+    url: https://github.com/KowKowFR/pupitre/discussions
+    about: >-
+      Pour une question d'usage ou une idée pas encore assez précise pour
+      devenir une issue.
+  - name: Limites déjà connues
+    url: https://github.com/KowKowFR/pupitre/blob/main/README.md#limites-connues
+    about: >-
+      Le README liste ce qui ne marche pas, avec les mesures. Vérifiez-y avant
+      d'ouvrir un rapport.

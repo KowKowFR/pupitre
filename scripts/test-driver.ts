@@ -1,14 +1,14 @@
 /**
  * Déploie une AppSpec de bout en bout sur une cible Docker réelle.
  *
- * C'est le critère de sortie de la première moitié du jalon 4 : pas de
+ * C'est le chemin le plus court entre une AppSpec et une URL qui répond : pas de
  * pipeline, pas d'UI, juste le driver appelé directement.
  *
  *   pnpm test:driver <cible> [--spec chemin.json] [--keep]
  *   pnpm test:driver <cible> --rollback <version>
  *   pnpm test:driver <cible> --destroy
  *
- * `<cible>` est le nom ou l'UUID d'une cible enregistrée au jalon 3.
+ * `<cible>` est le nom ou l'UUID d'une cible enregistrée dans le panel.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

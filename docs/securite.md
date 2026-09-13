@@ -321,9 +321,11 @@ sur l'image locale. Pas de registry, pas de rapatriement d'image, pas de client
 embarqué dans le panel. `ensureInstalled()` détecte le binaire par son
 `--version` et ne le télécharge que s'il est absent ou périmé ; l'architecture
 vient de `uname -m`. Binaires et caches vivent dans `~/.bootstrap-tp` sur la
-cible. Dix minutes de délai maximum par scanner. **Le premier scan sur une cible
-neuve télécharge les bases de vulnérabilités : comptez quelques minutes, une
-seule fois.**
+cible — ce nom est un héritage de la première version du projet, et il est
+figé dans `packages/core/src/scanners/install.ts` : le changer laisserait des
+caches orphelins sur toutes les cibles existantes. Dix minutes de délai maximum
+par scanner. **Le premier scan sur une cible neuve télécharge les bases de
+vulnérabilités : comptez quelques minutes, une seule fois.**
 
 ### La normalisation est le point clé
 
@@ -340,7 +342,7 @@ classe, et rien en aval ne sait plus qui a parlé :
 | correctif | `FixedVersion` | `fix.versions[0]` | `fixedVersion` |
 | avis | `PrimaryURL` | `dataSource` | `primaryUrl` |
 
-`verify-jalon6.sh` compare les deux sorties **CVE par CVE, paquet par paquet,
+`verify-scanners.sh` compare les deux sorties **CVE par CVE, paquet par paquet,
 sévérité par sévérité** sur une image réelle. C'est le vrai test de la
 normalisation : deux scanners qui décrivent la même vulnérabilité doivent
 produire le même `Finding`.

@@ -84,12 +84,6 @@ export function IdentityStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
-        Le nom s&apos;affiche en haut à gauche et dans le titre de l&apos;onglet. Le fuseau, lui,
-        n&apos;est pas cosmétique : toutes les dates du panel sont rendues avec, serveur et
-        navigateur compris, pour que les deux affichent la même chose.
-      </p>
-
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">

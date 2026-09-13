@@ -171,7 +171,7 @@ export function SecurityPanel({
         hint={
           config && config.scanners.length === 0
             ? 'Aucun scanner n’a été sélectionné pour ce déploiement : l’étape a été sautée.'
-            : 'Aucun scan enregistré pour ce déploiement.'
+            : 'Aucun scan n’est attaché à ce déploiement. Le pipeline, dans l’onglet voisin, dit si l’étape d’analyse a été sautée ou si le run s’est arrêté avant de l’atteindre.'
         }
       />
     );

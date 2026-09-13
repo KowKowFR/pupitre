@@ -138,9 +138,10 @@ Le test de parité se lance ensuite depuis le poste :
 pnpm test:parity cible-docker-locale cible-k3s-locale
 ```
 
-Il ne passe pas au vert aujourd'hui — voir les limites connues du
-[README](../README.md#limites-connues--au-12092026). C'est attendu, et c'est
-précisément ce qu'on lui demande de révéler.
+Il rend **30/30 au vert** au dernier passage ; le tableau détaillé et son
+analyse sont dans les limites connues du
+[README](../README.md#limites-connues). Un point rouge y serait une information,
+pas un échec du script : c'est ce qu'on lui demande de révéler.
 
 ## Catalogue des commandes
 

@@ -50,8 +50,8 @@ export const SCHEDULED_JOB_TYPES: Record<ScheduledJobType, ScheduledJobDefinitio
     defaultKey: 'scan:periodic',
     label: 'Scan périodique',
     description:
-      "Relance les scanners configurés sur les applications déployées et rattache " +
-      'un `scan_run` au déploiement courant.',
+      'Relance les scanners configurés sur les applications déployées et rattache le ' +
+      'rapport obtenu au déploiement courant.',
     defaultCron: '0 4 * * *',
     neverDoes: 'Ne redéploie rien, ne bloque rien : une CRITICAL alerte, elle ne coupe pas.',
   },

@@ -15,3 +15,6 @@ coverage/
 # Clé SSH jetable de la cible de test (scripts/setup-test-target.sh)
 .test-target-key
 .test-target-key.pub
+
+# Arbres de travail isolés des agents — jamais versionnés.
+.claude/worktrees/

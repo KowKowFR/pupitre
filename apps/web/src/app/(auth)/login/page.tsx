@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { canSendAccountMail } from '@/lib/account-mail';
+import { isSignupOpen } from '@/lib/auth';
 import { LoginForm } from './login-form';
 
 export const metadata: Metadata = { title: 'Connexion — Pupitre' };
@@ -21,5 +22,13 @@ export default async function LoginPage({
    * exister, et conclut que le panel est en panne au lieu d'aller chercher un
    * administrateur.
    */
-  return <LoginForm next={target} canRecoverPassword={await canSendAccountMail()} />;
+  // Même règle pour l'inscription : un lien qui mène à « Inscription fermée »
+  // n'apprend rien qu'on ne puisse dire ici, en une phrase.
+  return (
+    <LoginForm
+      next={target}
+      canRecoverPassword={await canSendAccountMail()}
+      signupOpen={await isSignupOpen()}
+    />
+  );
 }

@@ -103,7 +103,7 @@ export default async function TargetDetailPage({
           </Field>
           <Field label="Étiquettes">
             {Object.keys(target.labels).length === 0
-              ? '—'
+              ? 'aucune'
               : Object.entries(target.labels)
                   .map(([key, value]) => `${key}=${value}`)
                   .join(', ')}

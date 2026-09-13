@@ -23,8 +23,8 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 KEY_PATH="${KEY_PATH:-.test-target-key}"
 # Active UFW sur la cible. Hors tension par défaut : un pare-feu activé sur une
 # machine qu'on pilote en SSH est un risque réel, et l'image de test n'en a pas
-# besoin pour les jalons 3 à 6. Mettre à 1 pour exercer le chemin « ufw actif »
-# du jalon 7 — le port 22 est autorisé avant l'activation.
+# besoin par défaut. Mettre à 1 pour exercer le chemin « ufw actif » de
+# `verify-ports-rollback.sh` — le port 22 est autorisé avant l'activation.
 TEST_TARGET_UFW="${TEST_TARGET_UFW:-0}"
 
 WORK="$(mktemp -d)"
@@ -146,7 +146,7 @@ register() {
   # ce que la valeur par défaut suppose.
 
   # Une cible existante n'est pas forcément supprimable : celle qui porte un
-  # déploiement vivant est protégée par la règle du jalon 3. On la met donc à
+  # déploiement vivant est protégée par la garde sur les cibles. On la met donc à
   # jour sur place.
   #
   # La recherche accepte le nom **ou** l'endpoint : les deux sont uniques, et

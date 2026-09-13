@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Critère de sortie du jalon 2.
+# RBAC et journal d'activité : un refus est refusé, et il laisse une trace.
 #
 #   1. Créer un utilisateur viewer
 #   2. Se connecter en tant que viewer
@@ -8,8 +8,8 @@
 #   4. La tentative refusée apparaît dans audit_logs avec l'acteur et l'IP
 #
 # Usage :
-#   ./scripts/verify-jalon2.sh
-#   BASE_URL=http://localhost:3100 ./scripts/verify-jalon2.sh
+#   ./scripts/verify-rbac-audit.sh
+#   BASE_URL=http://localhost:3100 ./scripts/verify-rbac-audit.sh
 #
 set -euo pipefail
 
@@ -143,9 +143,9 @@ code=$(req GET /api/audit-logs "$VIEWER_JAR")
 pass "viewer a audit:read → GET /api/audit-logs 200"
 
 # Ce qui compte ici, c'est que l'administrateur FRANCHISSE la garde de
-# permission, pas ce qu'il obtient ensuite. Au jalon 2 la route était un
-# bouchon et répondait 501 ; depuis le jalon 4 elle est réelle et répond 404
-# sur des identifiants inexistants. Les deux prouvent la même chose.
+# permission, pas ce qu'il obtient ensuite. La route a d'abord été un bouchon
+# qui répondait 501 ; depuis que le pipeline existe, elle est réelle et répond
+# 404 sur des identifiants inexistants. Les deux prouvent la même chose.
 code=$(req POST /api/deployments "$ADMIN_JAR" \
   '{"applicationId":"00000000-0000-4000-8000-000000000000","targetId":"00000000-0000-4000-8000-000000000001","runtime":"docker"}')
 case "$code" in
@@ -161,4 +161,4 @@ jq -e --arg id "$VIEWER_ID" '[.items[] | select(.action == "auth.logout" and .ac
   || fail "la déconnexion n'apparaît pas dans audit_logs"
 pass "déconnexion tracée dans audit_logs"
 
-printf '\n\033[32m✓ Critère de sortie du jalon 2 vérifié.\033[0m\n\n'
+printf '\n\033[32m✓ RBAC et journal des refus vérifiés.\033[0m\n\n'

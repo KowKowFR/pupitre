@@ -94,7 +94,7 @@ spec_ok() {
 }
 
 # AppSpec dont la sonde du PIPELINE échoue alors que le conteneur se porte bien.
-# Même recette que verify-jalon7.sh : le service écoute sur 80, le driver publie
+# Même recette que verify-ports-rollback.sh : le service écoute sur 80, le driver publie
 # 8080, et personne n'écoute derrière. L'étape en défaut est donc `healthcheck`,
 # après que `deploy` a remplacé les conteneurs — le cas exact qui faisait
 # disparaître l'application de cet écran.

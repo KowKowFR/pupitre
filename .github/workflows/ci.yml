@@ -4,7 +4,7 @@ name: CI
 # ni cible SSH. Mesuré à ~23 s de calcul sur un poste de dev (M-series), soit de
 # l'ordre de deux minutes sur un runner GitHub, installation comprise.
 #
-# Les 22 `scripts/verify-*.sh` ne sont pas ici : ils demandent la stack complète,
+# Les 26 `scripts/verify-*.sh` ne sont pas ici : ils demandent la stack complète,
 # et pour la moitié d'entre eux une cible docker-in-docker privilégiée. Ils sont
 # dans `e2e.yml`, sur déclenchement manuel et une fois par nuit. Le détail du
 # raisonnement est dans `.github/ci-local.md`.

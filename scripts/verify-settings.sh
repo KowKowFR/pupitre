@@ -177,7 +177,10 @@ for field in provider model enabled temperature maxTokens; do
   jq -e --arg f "$field" '.settings.ai[$f] != null' "$BODY" >/dev/null \
     || fail "champ « ai.$field » absent des paramètres par défaut"
 done
-jq -e '.settings.instanceName == "Control plane"' "$BODY" >/dev/null \
+# Le défaut vient de `DEFAULT_APP_SETTINGS` dans `packages/core/src/settings.ts`,
+# jamais du défaut de colonne : c'est `mergeAppSettings()` qui comble une table
+# vide. Si les deux divergent un jour, c'est ici qu'on le verra.
+jq -e '.settings.instanceName == "Pupitre"' "$BODY" >/dev/null \
   || fail "nom par défaut inattendu : $(jq -c .settings.instanceName "$BODY")"
 jq -e '.settings.timezone == "Europe/Paris"' "$BODY" >/dev/null \
   || fail "fuseau par défaut inattendu"
@@ -202,7 +205,7 @@ pass "assistant de démarrage soldé — les écrans du panel répondent de nouv
 
 step "3. Modifier le nom, et le retrouver dans le HTML"
 NEW_NAME="Panel de vérification"
-code=$(req PATCH /api/settings "{\"instanceName\":\"$NEW_NAME\",\"instanceTagline\":\"jalon paramètres\"}")
+code=$(req PATCH /api/settings "{\"instanceName\":\"$NEW_NAME\",\"instanceTagline\":\"accroche de test\"}")
 [ "$code" = "200" ] || fail "PATCH → HTTP $code : $(cat "$BODY")"
 jq -e --arg n "$NEW_NAME" '.settings.instanceName == $n' "$BODY" >/dev/null \
   || fail "le nom n'a pas été retenu : $(jq -c .settings.instanceName "$BODY")"
@@ -252,7 +255,7 @@ pass "Asia/Tokyo accepté"
 # qui réinitialisait en silence tous les champs non cités.
 jq -e --arg n "$NEW_NAME" '.settings.instanceName == $n' "$BODY" >/dev/null \
   || fail "patch partiel : le nom a été réinitialisé → $(jq -c .settings.instanceName "$BODY")"
-jq -e '.settings.instanceTagline == "jalon paramètres"' "$BODY" >/dev/null \
+jq -e '.settings.instanceTagline == "accroche de test"' "$BODY" >/dev/null \
   || fail "patch partiel : le sous-titre a été réinitialisé → $(jq -c .settings.instanceTagline "$BODY")"
 pass "patch partiel : les champs non cités sont intacts"
 

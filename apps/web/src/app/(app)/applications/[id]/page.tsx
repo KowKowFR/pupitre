@@ -103,8 +103,9 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           Historique des versions
         </h2>
         <p className="text-[0.8125rem] text-ink-muted">
-          {rows.length} déploiement{rows.length > 1 ? 's' : ''}, du plus récent au plus ancien.
-          Chaque version garde son AppSpec figée : c&apos;est ce qui la rend rejouable.
+          {rows.length === 0
+            ? 'Chaque déploiement fige son AppSpec au moment où il part : c’est ce qui permet de rejouer une version telle qu’elle était, sur la même cible ou sur une autre.'
+            : `${rows.length} déploiement${rows.length > 1 ? 's' : ''}, du plus récent au plus ancien. Chaque version garde son AppSpec figée : c’est ce qui la rend rejouable.`}
         </p>
       </div>
 

@@ -114,7 +114,7 @@ export default async function JobsPage() {
       <PageHeader
         eyebrow="Ordonnancement"
         title="Tâches planifiées"
-        description={`Ordonnancées par BullMQ — pas par un cron Linux — chacune dans le fuseau qu'elle porte. Les nouvelles tâches partent de ${defaultTimeZone}, celui des paramètres d'instance. Aucune de ces tâches ne redéploie, ne rollback ni ne bloque quoi que ce soit : elles constatent et alertent.`}
+        description="Ce que le panel refait tout seul sur ce qui est déjà déployé : ré-analyser les images, sonder la santé des applications, rafraîchir le preflight des cibles, purger les vieilles versions. Ordonnancées par BullMQ — pas par un cron Linux — et donc visibles, rejouables et traçables ici. Aucune ne redéploie, ne rollback ni ne bloque quoi que ce soit : elles constatent et alertent."
       />
 
       <JobsPanel

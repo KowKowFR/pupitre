@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Critère de sortie du jalon 3.
+# Machines cibles : preflight réel, credential chiffré, jamais rendu par l'API.
 #
 #   1. Ajouter une cible avec une clé SSH
 #   2. Lancer le preflight, voir « Docker ✓ / K3s ✗ » sans recharger la page
@@ -12,8 +12,8 @@
 # `docker info` interroge un daemon réel. `kubectl` est absent, d'où « K3s ✗ ».
 #
 # Usage :
-#   ./scripts/verify-jalon3.sh
-#   BASE_URL=http://localhost:3100 ./scripts/verify-jalon3.sh
+#   ./scripts/verify-targets-preflight.sh
+#   BASE_URL=http://localhost:3100 ./scripts/verify-targets-preflight.sh
 #
 set -euo pipefail
 
@@ -21,8 +21,8 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 # Cible dédiée : `setup-test-target.sh` en enregistre d'autres, qui portent les
-# déploiements du jalon 4. Une cible qui porte un déploiement vivant ne peut pas
-# être supprimée — c'est la règle du jalon 3 elle-même.
+# déploiements des autres scripts. Une cible qui porte un déploiement vivant ne
+# peut pas être supprimée — c'est l'une des règles vérifiées ici.
 TARGET_NAME="${TARGET_NAME:-cible-preflight}"
 # Clé déjà provisionnée par `setup-test-target.sh`, le cas échéant.
 SHARED_KEY="${SHARED_KEY:-.test-target-key}"
@@ -64,7 +64,7 @@ if [ -f "$SHARED_KEY" ] && docker compose ps ssh-target 2>/dev/null | grep -q ss
   chmod 600 "$WORK/id_ed25519"
   pass "clé et conteneur existants réutilisés"
 else
-  ssh-keygen -q -t ed25519 -N '' -C 'verify-jalon3' -f "$WORK/id_ed25519"
+  ssh-keygen -q -t ed25519 -N '' -C 'verify-targets-preflight' -f "$WORK/id_ed25519"
   pass "paire de clés ed25519 jetable générée"
   TEST_TARGET_PUBLIC_KEY="$(cat "$WORK/id_ed25519.pub")" \
     docker compose --profile test up -d --build ssh-target >/dev/null 2>&1 \
@@ -270,11 +270,11 @@ if docker compose logs worker 2>/dev/null | grep -qF 'BEGIN OPENSSH PRIVATE KEY'
 fi
 pass "aucune clé privée dans les logs du worker"
 
-step "11. Les permissions du jalon 2 s'appliquent aux cibles"
+step "11. Les permissions RBAC s'appliquent aussi aux cibles"
 code=$(req GET /api/targets "")
 [ "$code" = "401" ] || fail "sans session, attendu 401, reçu $code"
 pass "sans session → 401"
 
-printf '\n\033[32m✓ Critère de sortie du jalon 3 vérifié.\033[0m\n'
+printf '\n\033[32m✓ Cibles et preflight vérifiés.\033[0m\n'
 printf '\033[2m  Cible conservée pour inspection dans l'"'"'UI : %s/targets/%s\033[0m\n' "$BASE_URL" "$TARGET_ID"
 printf '\033[2m  Nettoyage : docker compose --profile test down ssh-target\033[0m\n\n'

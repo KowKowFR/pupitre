@@ -68,7 +68,10 @@ export function ApplicationsTable({
   async function deploy(application: ApplicationRow) {
     const targetId = selection[application.id] ?? targets[0]?.id;
     if (!targetId) {
-      setError('Aucune cible déployable. Lancez un preflight depuis /targets.');
+      setError(
+        "Aucune cible Docker prête. Cet écran déploie en Docker Compose ; lancez un preflight " +
+          'depuis /targets pour savoir ce que chaque machine sait faire.',
+      );
       return;
     }
 
@@ -129,6 +132,12 @@ export function ApplicationsTable({
               {autoRollback
                 ? 'Un healthcheck raté ramène la version précédente, si elle existe.'
                 : 'Un healthcheck raté laisse le déploiement en échec, en l’état.'}
+            </span>
+            <span className="w-full text-xs text-ink-faint">
+              Le bouton « Déployer » de cette page part en Docker Compose, derrière Traefik, et
+              ne propose que les cibles où le preflight a vu Docker. Le runtime ne se choisit
+              qu’à la création, sur « Nouvelle application » — l’AppSpec, elle, est la même dans
+              les deux cas.
             </span>
           </div>
         ) : null}
@@ -220,8 +229,10 @@ export function ApplicationsTable({
 
         {canDeploy && targets.length === 0 ? (
           <p className="text-xs text-warn">
-            Aucune cible avec un runtime exploitable. Lancez un preflight depuis{' '}
-            <code className="font-mono">/targets</code>.
+            Aucune cible Docker prête. Cet écran déploie en Docker Compose&nbsp;; pour une
+            machine K3s, passez par « Nouvelle application », qui laisse choisir le runtime. Un
+            preflight depuis <code className="font-mono">/targets</code> dit ce que chaque
+            machine sait faire.
           </p>
         ) : null}
 

@@ -63,7 +63,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
       <PageHeader
         eyebrow={<Link href="/apps" className="underline-offset-4 hover:underline">← Supervision</Link>}
         title={deployment.applicationSlug}
-        description={`v${deployment.version} sur ${deployment.targetName} · ${deployment.runtime}`}
+        description={`v${deployment.version} sur ${deployment.targetName} · ${deployment.runtime} — l'état et les logs ci-dessous sont relus en direct sur la machine, ils ne viennent pas de la base du panel.`}
       />
       {/* La version affichée n'est pas forcément la dernière qu'on a voulu poser. */}
       {supervised?.lastFailedUpdate ? (

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Critère de sortie du jalon 7 — cycle de vie.
+# Cycle de vie : allocation de ports, ufw, et rollback automatique.
 #
 #   1. Deux apps sur la MÊME cible Docker → deux ports distincts, deux règles ufw
 #      (ou, si ufw est inactif, l'avertissement attendu et rien de cassé)
@@ -8,15 +8,15 @@
 #   3. Une v1 saine, puis une v2 dont le healthcheck échoue → rollback
 #      automatique → l'URL répond toujours la v1, statut `rolled_back`,
 #      diagnostic visible dans les logs
-#   4. `pnpm typecheck` couvre scripts/test-parity.ts (il ne peut pas être joué :
-#      aucun cluster K3s n'est enregistré)
+#   4. `pnpm typecheck` couvre scripts/test-parity.ts — la parité Docker / K3s
+#      elle-même se joue par `pnpm test:parity`, qui exige deux cibles
 #
 # Le script emprunte exactement les mêmes routes que l'UI. Prérequis : une cible
 # Docker déployable — `./scripts/setup-test-target.sh` en provisionne une.
 #
 # Usage :
-#   ./scripts/verify-jalon7.sh
-#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-jalon7.sh
+#   ./scripts/verify-ports-rollback.sh
+#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-ports-rollback.sh
 #
 # Relançable : les applications de test sont détruites puis recréées à chaque
 # passage.
@@ -242,23 +242,23 @@ info "$(jq -c '{range, capacity, used, free}' "$BODY")"
 
 step "3. Deux applications sur la même cible → deux ports distincts"
 
-APP_A=$(upsert_app 'jalon7-alpha' "$(spec_json jalon7-alpha 1.0.0 docker.io/library/nginx:1.29-alpine /)")
-APP_B=$(upsert_app 'jalon7-beta'  "$(spec_json jalon7-beta  1.0.0 docker.io/library/nginx:1.29-alpine /)")
-pass "applications jalon7-alpha et jalon7-beta prêtes"
+APP_A=$(upsert_app 'cycle-alpha' "$(spec_json cycle-alpha 1.0.0 docker.io/library/nginx:1.29-alpine /)")
+APP_B=$(upsert_app 'cycle-beta'  "$(spec_json cycle-beta  1.0.0 docker.io/library/nginx:1.29-alpine /)")
+pass "applications cycle-alpha et cycle-beta prêtes"
 
 read -r DEPLOY_A STATUS_A <<< "$(deploy_and_wait "$APP_A" "$TARGET_ID")"
 [ "$STATUS_A" = "success" ] \
-  || fail "jalon7-alpha : statut « $STATUS_A » — $(deployment_log "$DEPLOY_A" | tail -c 500)"
+  || fail "cycle-alpha : statut « $STATUS_A » — $(deployment_log "$DEPLOY_A" | tail -c 500)"
 req GET "/api/deployments/$DEPLOY_A" >/dev/null
 PORT_A=$(jq -r '.publishedPort // empty' "$BODY")
-pass "jalon7-alpha déployée — port $PORT_A"
+pass "cycle-alpha déployée — port $PORT_A"
 
 read -r DEPLOY_B STATUS_B <<< "$(deploy_and_wait "$APP_B" "$TARGET_ID")"
 [ "$STATUS_B" = "success" ] \
-  || fail "jalon7-beta : statut « $STATUS_B » — $(deployment_log "$DEPLOY_B" | tail -c 500)"
+  || fail "cycle-beta : statut « $STATUS_B » — $(deployment_log "$DEPLOY_B" | tail -c 500)"
 req GET "/api/deployments/$DEPLOY_B" >/dev/null
 PORT_B=$(jq -r '.publishedPort // empty' "$BODY")
-pass "jalon7-beta déployée — port $PORT_B"
+pass "cycle-beta déployée — port $PORT_B"
 
 [ -n "$PORT_A" ] && [ -n "$PORT_B" ] || fail "un déploiement n'a publié aucun port"
 [ "$PORT_A" != "$PORT_B" ] || fail "les deux applications ont reçu le même port ($PORT_A)"
@@ -280,7 +280,7 @@ req GET "/api/targets/$TARGET_ID/ports" >/dev/null
 jq -e --argjson a "$PORT_A" --argjson b "$PORT_B" \
   '([.allocations[].port] | index($a)) != null and ([.allocations[].port] | index($b)) != null' \
   "$BODY" >/dev/null || fail "GET /ports ne montre pas les deux réservations"
-jq -e '[.allocations[] | select(.applicationSlug == "jalon7-alpha")] | length == 1' "$BODY" >/dev/null \
+jq -e '[.allocations[] | select(.applicationSlug == "cycle-alpha")] | length == 1' "$BODY" >/dev/null \
   || fail "GET /ports n'attribue pas le port à la bonne application"
 pass "GET /ports attribue chaque port à son application"
 info "$(jq -rc '[.allocations[] | "\(.applicationSlug)→\(.port)"] | join("  ")' "$BODY")"
@@ -295,10 +295,10 @@ if printf '%s' "$UFW_OUT" | grep -qi 'Status: active'; then
   UFW_MODE=active
   printf '%s' "$UFW_OUT" | grep -q "$PORT_A/tcp" \
     || fail "aucune règle ufw pour le port $PORT_A"
-  printf '%s' "$UFW_OUT" | grep "$PORT_A/tcp" | grep -q 'pupitre:jalon7-alpha' \
-    || fail "la règle du port $PORT_A ne porte pas le commentaire « pupitre:jalon7-alpha »"
-  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:jalon7-beta' \
-    || fail "la règle du port $PORT_B ne porte pas le commentaire « pupitre:jalon7-beta »"
+  printf '%s' "$UFW_OUT" | grep "$PORT_A/tcp" | grep -q 'pupitre:cycle-alpha' \
+    || fail "la règle du port $PORT_A ne porte pas le commentaire « pupitre:cycle-alpha »"
+  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:cycle-beta' \
+    || fail "la règle du port $PORT_B ne porte pas le commentaire « pupitre:cycle-beta »"
   pass "deux règles ufw créées, chacune avec son commentaire pupitre:{slug}"
 elif printf '%s' "$UFW_OUT" | grep -qi 'Status: inactive'; then
   UFW_MODE=inactive
@@ -319,7 +319,7 @@ fi
 
 step "5. Destroy de la première → port libéré, la seconde intacte"
 destroy_and_wait "$DEPLOY_A"
-pass "jalon7-alpha détruite"
+pass "cycle-alpha détruite"
 
 req GET "/api/targets/$TARGET_ID/ports" >/dev/null
 jq -e --argjson a "$PORT_A" '([.allocations[].port] | index($a)) == null' "$BODY" >/dev/null \
@@ -327,23 +327,23 @@ jq -e --argjson a "$PORT_A" '([.allocations[].port] | index($a)) == null' "$BODY
 pass "port $PORT_A libéré — il est de nouveau allouable"
 
 jq -e --argjson b "$PORT_B" '([.allocations[].port] | index($b)) != null' "$BODY" >/dev/null \
-  || fail "le destroy de jalon7-alpha a emporté la réservation de jalon7-beta"
-pass "la réservation de jalon7-beta est intacte"
+  || fail "le destroy de cycle-alpha a emporté la réservation de cycle-beta"
+pass "la réservation de cycle-beta est intacte"
 
 http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "http://127.0.0.1:$PORT_B" || echo 000)
-[ "$http" = "200" ] || fail "jalon7-beta ne répond plus après le destroy du voisin (HTTP $http)"
-pass "jalon7-beta répond toujours — HTTP 200 sur $PORT_B"
+[ "$http" = "200" ] || fail "cycle-beta ne répond plus après le destroy du voisin (HTTP $http)"
+pass "cycle-beta répond toujours — HTTP 200 sur $PORT_B"
 
 http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$PORT_A" || echo 000)
-[ "$http" != "200" ] || fail "jalon7-alpha répond encore sur $PORT_A après destruction"
+[ "$http" != "200" ] || fail "cycle-alpha répond encore sur $PORT_A après destruction"
 pass "plus rien n'écoute sur $PORT_A"
 
 if [ "$UFW_MODE" = active ]; then
   UFW_OUT="$(ufw_status)"
   printf '%s' "$UFW_OUT" | grep -q "$PORT_A/tcp" \
     && fail "la règle ufw du port $PORT_A survit au destroy"
-  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:jalon7-beta' \
-    || fail "le destroy a emporté la règle ufw de jalon7-beta"
+  printf '%s' "$UFW_OUT" | grep "$PORT_B/tcp" | grep -q 'pupitre:cycle-beta' \
+    || fail "le destroy a emporté la règle ufw de cycle-beta"
   pass "règle ufw de $PORT_A retirée par son commentaire, celle de $PORT_B intacte"
 else
   LOG_A="$(deployment_log "$DEPLOY_A")"
@@ -356,8 +356,8 @@ fi
 
 step "6. v1 saine, v2 au healthcheck cassé → rollback automatique"
 
-APP_C=$(upsert_app 'jalon7-rollback' \
-  "$(spec_json jalon7-rollback 1.0.0 docker.io/library/nginx:1.29-alpine /)")
+APP_C=$(upsert_app 'cycle-rollback' \
+  "$(spec_json cycle-rollback 1.0.0 docker.io/library/nginx:1.29-alpine /)")
 read -r DEPLOY_V1 STATUS_V1 <<< "$(deploy_and_wait "$APP_C" "$TARGET_ID")"
 [ "$STATUS_V1" = "success" ] \
   || fail "la v1 devait réussir, statut « $STATUS_V1 » — $(deployment_log "$DEPLOY_V1" | tail -c 500)"
@@ -372,8 +372,8 @@ pass "v1 (nginx) déployée et saine — port $PORT_C"
 # conteneur démarre et se déclare sain, mais l'application est injoignable par
 # le chemin que le panel expose. C'est l'étape `healthcheck` qui le découvre —
 # exactement le cas que le rollback automatique doit rattraper.
-upsert_app 'jalon7-rollback' \
-  "$(spec_json_broken jalon7-rollback 2.0.0 docker.io/library/httpd:2.4-alpine)" >/dev/null
+upsert_app 'cycle-rollback' \
+  "$(spec_json_broken cycle-rollback 2.0.0 docker.io/library/httpd:2.4-alpine)" >/dev/null
 read -r DEPLOY_V2 STATUS_V2 <<< "$(deploy_and_wait "$APP_C" "$TARGET_ID" true)"
 
 [ "$STATUS_V2" = "rolled_back" ] \
@@ -465,7 +465,7 @@ pass "le redéploiement de la v1 a réussi"
 # pointe `current` si elle n'en fait pas partie — ce qui est le cas après un
 # rollback. D'où six au pire, et jamais davantage.
 RELEASES=$(docker compose exec -T "$TARGET_CONTAINER" \
-  sh -lc 'ls -1d /opt/bootstrap/apps/jalon7-rollback/*/ 2>/dev/null | grep -v /current/ | wc -l' \
+  sh -lc 'ls -1d /opt/bootstrap/apps/cycle-rollback/*/ 2>/dev/null | grep -v /current/ | wc -l' \
   2>/dev/null | tr -d ' \r' || echo '')
 if [ -n "$RELEASES" ] && [ "$RELEASES" -gt 0 ] 2>/dev/null; then
   [ "$RELEASES" -le 6 ] || fail "$RELEASES répertoires de version sur la cible, la rétention en garde 5 (+ current)"
@@ -483,7 +483,7 @@ else
   tail -20 "$WORK/typecheck.log"
   fail "pnpm typecheck échoue"
 fi
-warn "test-parity.ts n'est PAS exécuté : aucune cible K3s n'est enregistrée (voir README)"
+warn "test-parity.ts n'est PAS exécuté ici : il exige deux cibles — voir \`pnpm test:parity\`"
 
 # ─── ménage ───────────────────────────────────────────────────────────────────
 
@@ -492,7 +492,7 @@ destroy_and_wait "$REDEPLOY_ID"
 destroy_and_wait "$DEPLOY_B"
 pass "déploiements de test détruits"
 
-printf '\n\033[32m✓ Critère de sortie du jalon 7 vérifié.\033[0m\n'
+printf '\n\033[32m✓ Ports, ufw et rollback vérifiés.\033[0m\n'
 printf '\033[2m  ufw : %s · ports %s et %s alloués puis rendus · rollback %s → %s\033[0m\n' \
   "$UFW_MODE" "$PORT_A" "$PORT_B" "2.0.0" "1.0.0"
 printf '\n'

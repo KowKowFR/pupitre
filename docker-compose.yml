@@ -87,7 +87,7 @@ services:
       # laisserait créer des sondes que le worker refuserait en silence.
       MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
     volumes:
-      # Clés SSH de l'hôte, en lecture seule — exploitées à partir du jalon 3.
+      # Clés SSH de l'hôte, en lecture seule — utilisées pour joindre les cibles.
       - ${SSH_KEYS_PATH:-${HOME}/.ssh}:/home/nodejs/.ssh:ro
     depends_on:
       postgres:
@@ -101,7 +101,7 @@ services:
   # ── Cible SSH de test, hors du démarrage normal ──────────────────────────────
   # Démarrage explicite :
   #   docker compose --profile test up -d --build ssh-target
-  # Utilisée par ./scripts/verify-jalon3.sh, jamais par `docker compose up`.
+  # Utilisée par ./scripts/verify-targets-preflight.sh, jamais par `docker compose up`.
   ssh-target:
     profiles: ["test"]
     build:

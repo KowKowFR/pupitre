@@ -845,9 +845,9 @@ const TUTORIAL: Array<{ title: string; body: React.ReactNode }> = [
     title: 'La clé, sans passphrase, déposée sur la machine',
     body: (
       <>
-        <Code>ssh-keygen -t ed25519 -N &apos;&apos; -f ~/.ssh/tp-deploy</Code> puis{' '}
-        <Code>ssh-copy-id -i ~/.ssh/tp-deploy.pub deploy@10.0.0.12</Code>. Testez avec{' '}
-        <Code>ssh -i ~/.ssh/tp-deploy deploy@10.0.0.12 true</Code> avant d’aller plus loin.
+        <Code>ssh-keygen -t ed25519 -N &apos;&apos; -f ~/.ssh/pupitre-deploy</Code> puis{' '}
+        <Code>ssh-copy-id -i ~/.ssh/pupitre-deploy.pub deploy@10.0.0.12</Code>. Testez avec{' '}
+        <Code>ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 true</Code> avant d’aller plus loin.
       </>
     ),
   },
@@ -947,26 +947,26 @@ sudo ufw --force enable
 
 # 5 — se reconnecter, puis vérifier ce que le preflight vérifiera
 exit
-ssh -i ~/.ssh/tp-deploy deploy@10.0.0.12 '
+ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 '
   sudo -n true && echo "sudo   : nopasswd ok"
   docker info --format "{{.ServerVersion}}"
   docker compose version --short
 '`;
 
 const KEY_SCRIPT = `# sur VOTRE poste — une paire dédiée, sans passphrase (-N '')
-ssh-keygen -t ed25519 -N '' -C 'pupitre' -f ~/.ssh/tp-deploy
+ssh-keygen -t ed25519 -N '' -C 'pupitre' -f ~/.ssh/pupitre-deploy
 
 # la publique part sur la cible
-ssh-copy-id -i ~/.ssh/tp-deploy.pub deploy@10.0.0.12
+ssh-copy-id -i ~/.ssh/pupitre-deploy.pub deploy@10.0.0.12
 
 # … ou à la main, avec les permissions exactes qu'exige sshd
 #   mkdir -p ~/.ssh && chmod 700 ~/.ssh
-#   cat >> ~/.ssh/authorized_keys        # coller tp-deploy.pub
+#   cat >> ~/.ssh/authorized_keys        # coller pupitre-deploy.pub
 #   chmod 600 ~/.ssh/authorized_keys
 #   chown -R deploy:deploy ~/.ssh
 
 # vérifier AVANT de remplir le formulaire
-ssh -i ~/.ssh/tp-deploy deploy@10.0.0.12 true && echo 'clé acceptée'
+ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 true && echo 'clé acceptée'
 
 # c'est le contenu de CE fichier-ci que l'on colle dans le formulaire
-cat ~/.ssh/tp-deploy`;
+cat ~/.ssh/pupitre-deploy`;

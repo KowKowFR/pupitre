@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Critère de sortie du jalon 6.
+# Scanners de sécurité : la politique de blocage décide, pas le scanner choisi.
 #
 #   1. Trivy coché, failOn=CRITICAL   → le déploiement est bloqué à l'étape « scan »
 #   2. Trivy DÉCOCHÉ, Grype coché     → même verdict de blocage
@@ -15,8 +15,8 @@
 # une cible Docker déployable — `./scripts/setup-test-target.sh` en provisionne une.
 #
 # Usage :
-#   ./scripts/verify-jalon6.sh
-#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-jalon6.sh
+#   ./scripts/verify-scanners.sh
+#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-scanners.sh
 #
 set -euo pipefail
 
@@ -310,7 +310,7 @@ jq -e --arg id "$D1" \
 pass "audit : les CVE qui ont bloqué sont nommées"
 info "$(jq -rc --arg id "$D1" '[.items[] | select(.action == "deployment.scan.blocked" and .resourceId == $id)][0].after | {scanners, failOn, blockingTotal}' "$BODY")"
 
-printf '\n\033[32m✓ Critère de sortie du jalon 6 vérifié.\033[0m\n'
+printf '\n\033[32m✓ Scanners et politique de blocage vérifiés.\033[0m\n'
 printf '\033[2m  Bloqué par Trivy : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D1"
 printf '\033[2m  Bloqué par Grype : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D2"
 printf '\033[2m  Passé (NONE)     : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D3"

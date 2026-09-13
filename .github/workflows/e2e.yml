@@ -18,11 +18,12 @@ name: Bout en bout (stack complète)
 #
 # CE QUI N'EST PAS ICI, ET POURQUOI
 #
-# 12 des 22 `verify-*.sh` exigent une cible SSH docker-in-docker privilégiée
+# 12 des 26 `verify-*.sh` exigent une cible SSH docker-in-docker privilégiée
 # (`ssh-target`) et/ou un vrai cluster K3s (`k3s-target`) :
 #
-#   ai, force-delete, jalon3, jalon4, jalon6, jalon7, jalon8,
-#   purge, secrets, server-supervision, supervision, workloads
+#   ai, appspec-generation, deploy-logs, force-delete, ports-rollback, purge,
+#   scanners, secrets, server-supervision, supervision, targets-preflight,
+#   workloads
 #
 # Ces cibles montent des cgroups, pilotent netfilter et font tourner un daemon
 # Docker imbriqué ; `k3s-target` a même besoin d'un `cgroup: private` pour que
@@ -34,6 +35,11 @@ name: Bout en bout (stack complète)
 # `verify-export.sh` en est absent pour une autre raison : il exige un
 # déploiement portant déjà des journaux en base, ce qu'une instance neuve n'a
 # pas. Il dépend donc, indirectement, de la même cible SSH.
+#
+# Quatre scripts plus récents — `host-history`, `invitations`,
+# `monitor-notifications`, `stuck-deployment` — ne sont pas encore classés ici :
+# ils n'ont pas été éprouvés sur un runner. Les ajouter demande de les avoir vus
+# passer d'abord, pas de les déclarer verts par optimisme.
 #
 # AUCUN SECRET GITHUB N'EST NÉCESSAIRE. MASTER_KEY, BETTER_AUTH_SECRET et le mot
 # de passe Postgres sont tirés au sort par le workflow, servent le temps du job,
@@ -146,17 +152,17 @@ jobs:
       # suivants tournent quand même (`!cancelled()`) : un seul passage donne
       # l'ampleur réelle des dégâts.
       # ─────────────────────────────────────────────────────────────────────
-      - name: 'verify-jalon2.sh — socle du panel'
-        id: s_jalon2
-        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'jalon2')) }}
-        run: ./scripts/verify-jalon2.sh
+      - name: 'verify-rbac-audit.sh — RBAC et journal des refus'
+        id: s_rbac_audit
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'rbac-audit')) }}
+        run: ./scripts/verify-rbac-audit.sh
 
       - name: 'verify-onboarding.sh — premier administrateur'
         id: s_onboarding
         if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'onboarding')) }}
         run: ./scripts/verify-onboarding.sh
 
-      - name: 'verify-roles.sh — RBAC et audit'
+      - name: 'verify-roles.sh — les rôles sont des données'
         id: s_roles
         if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'roles')) }}
         run: ./scripts/verify-roles.sh
@@ -212,7 +218,7 @@ jobs:
             echo
             echo '| Script | Verdict |'
             echo '| --- | --- |'
-            echo "| verify-jalon2.sh | ${{ steps.s_jalon2.outcome }} |"
+            echo "| verify-rbac-audit.sh | ${{ steps.s_rbac_audit.outcome }} |"
             echo "| verify-onboarding.sh | ${{ steps.s_onboarding.outcome }} |"
             echo "| verify-roles.sh | ${{ steps.s_roles.outcome }} |"
             echo "| verify-account.sh | ${{ steps.s_account.outcome }} |"
@@ -222,7 +228,7 @@ jobs:
             echo "| verify-notifications.sh | ${{ steps.s_notifications.outcome }} |"
             echo "| verify-monitors.sh | ${{ steps.s_monitors.outcome }} |"
             echo
-            echo '13 autres verify-*.sh restent hors CI : voir l en-tete de .github/workflows/e2e.yml'
+            echo '17 autres verify-*.sh restent hors CI : voir l en-tete de .github/workflows/e2e.yml'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Démonter la stack

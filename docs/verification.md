@@ -29,8 +29,8 @@ TARGET_NAME=ma-vm ./scripts/verify-purge.sh
 
 | Script | Ce qu'il établit |
 |---|---|
-| `verify-jalon2.sh` | un viewer se prend un `403` sur `POST /api/deployments`, et le refus apparaît dans les logs d'activité avec l'acteur **et l'IP derrière le reverse proxy** |
-| `verify-jalon3.sh` | une cible est ajoutée avec une clé SSH, le preflight rapporte « Docker ✓ / K3s ✗ » sans recharger la page, le credential est illisible en base, et l'API ne le renvoie jamais — vérifié à toute profondeur du JSON |
+| `verify-rbac-audit.sh` | un viewer se prend un `403` sur `POST /api/deployments`, et le refus apparaît dans les logs d'activité avec l'acteur **et l'IP derrière le reverse proxy** |
+| `verify-targets-preflight.sh` | une cible est ajoutée avec une clé SSH, le preflight rapporte « Docker ✓ / K3s ✗ » sans recharger la page, le credential est illisible en base, et l'API ne le renvoie jamais — vérifié à toute profondeur du JSON |
 | `verify-roles.sh` | les rôles sont des données : on en crée un, on modifie ses permissions, `admin` refuse d'être touché, un rôle porté refuse d'être supprimé, et **le seed ne réécrit pas une personnalisation** au redémarrage |
 | `verify-account.sh` | mot de passe (l'ancien exigé, l'ancien meurt, les *autres* sessions tombent), TOTP en deux temps avec de vrais codes RFC 6238, un code de secours qui ne sert qu'une fois, et le secret absent de la base comme des logs |
 | `verify-2fa-reset.sh` | la porte de sortie de qui a perdu son téléphone : `403` sans `user:reset-2fa`, la ligne **et** le drapeau effacés dans le même geste, sessions fermées, anciens codes de secours morts, un admin qui se réinitialise garde sa session, et rien de secret dans l'audit |
@@ -41,10 +41,10 @@ TARGET_NAME=ma-vm ./scripts/verify-purge.sh
 
 | Script | Ce qu'il établit |
 |---|---|
-| `verify-jalon4.sh` | une application créée depuis `simple.json` se déploie, les étapes s'enchaînent, les logs défilent en direct, l'URL répond — et **se rebrancher en cours de déploiement retrouve les logs déjà passés** |
-| `verify-jalon6.sh` | quatre déploiements de la même image volontairement vulnérable, en ne changeant que la politique de scan : blocage par Trivy, blocage par Grype seul, passage en `failOn: NONE`, SBOM téléchargeable. Le point clé est la comparaison **CVE par CVE** entre les deux scanners |
-| `verify-jalon7.sh` | deux applications sur la même cible → deux ports distincts et deux règles UFW nommées par commentaire ; un destroy libère l'un sans toucher l'autre ; une v2 au healthcheck cassé → **rollback automatique**, statut `rolled_back` distinct de `failed`, diagnostic capturé, et l'URL sert de nouveau la v1 |
-| `verify-jalon8.sh` | le prompt système est bien chargé depuis l'image (taille comprise, pas seulement un `ok`), la chaîne de génération sous modèle simulé, le rendu vers les deux runtimes, et une tâche `scan:periodic` qui tourne, survit à un redémarrage du worker, puis se désactive |
+| `verify-deploy-logs.sh` | une application créée depuis `simple.json` se déploie, les étapes s'enchaînent, les logs défilent en direct, l'URL répond — et **se rebrancher en cours de déploiement retrouve les logs déjà passés** |
+| `verify-scanners.sh` | quatre déploiements de la même image volontairement vulnérable, en ne changeant que la politique de scan : blocage par Trivy, blocage par Grype seul, passage en `failOn: NONE`, SBOM téléchargeable. Le point clé est la comparaison **CVE par CVE** entre les deux scanners |
+| `verify-ports-rollback.sh` | deux applications sur la même cible → deux ports distincts et deux règles UFW nommées par commentaire ; un destroy libère l'un sans toucher l'autre ; une v2 au healthcheck cassé → **rollback automatique**, statut `rolled_back` distinct de `failed`, diagnostic capturé, et l'URL sert de nouveau la v1 |
+| `verify-appspec-generation.sh` | le prompt système est bien chargé depuis l'image (taille comprise, pas seulement un `ok`), la chaîne de génération sous modèle simulé, le rendu vers les deux runtimes, et une tâche `scan:periodic` qui tourne, survit à un redémarrage du worker, puis se désactive |
 | `verify-secrets.sh` | le magasin de secrets, en 23 étapes : valeur générée non vide **acceptée par le moteur de base**, `.env` en 0600, empreinte identique après redéploiement, une seule ligne en base, invisible partout, rendu qui échoue **en nommant** le secret manquant tout en acceptant une valeur vide. Puis les alias : référence inconnue et cycle refusés à la validation, une ligne pour deux noms, **WordPress qui s'authentifie réellement sur MariaDB**, et la même carte de secrets côté Compose et côté Kubernetes |
 | `verify-export.sh` | l'export des logs d'un déploiement en texte et en JSONL, avec les bons en-têtes, **autant de lignes qu'en base** (ce qui prouve que la pagination ne tronque pas), 404/422 sur identifiant fautif, et l'export tracé |
 
@@ -99,8 +99,8 @@ Il enchaîne, pour chaque côté : `preflight` → `allocatePort` → `render` �
 puis `rollback` + resonde, puis `destroy` + contrôle des résidus. Il sort en
 code 1 si **une seule** vérification échoue.
 
-Il en échoue quatre aujourd'hui, sur 25. Le tableau et l'analyse sont dans le
-[README](../README.md#limites-connues--au-12092026) : c'est le document qui porte
+Il rend **30/30 au vert** au dernier passage. Le tableau et son analyse sont
+dans le [README](../README.md#limites-connues) : c'est le document qui porte
 l'état daté du projet.
 
 Prérequis : les deux cibles doivent être enregistrées et joignables **depuis le
@@ -113,7 +113,13 @@ seconde, qui n'a pas de script.
 - **Aucun vrai modèle d'IA n'a répondu sur cette instance.** Voir
   [`ia.md`](ia.md#sans-clé).
 - **`BunkerWebProvider` n'existe pas**, donc rien ne le teste.
-- Les en-têtes de `verify-jalon7.sh` et `verify-jalon8.sh` affirment encore
-  qu'aucun cluster K3s n'est enregistré. C'était vrai à leur écriture ; ça ne
-  l'est plus depuis le 12/09/2026. Le point 9 de `verify-jalon7.sh` se contente
-  toujours de `pnpm typecheck` sur `test-parity.ts` au lieu de le jouer.
+- **Le déploiement d'un service construit depuis un Dockerfile, par le panel.**
+  Les deux drivers savent le faire, et `pnpm test:parity` le prouve — mais en
+  pilotant les drivers en direct, avec un contexte de build qu'il fabrique
+  lui-même. Ni `apps/web` ni `apps/worker` ne remplissent
+  `DriverContext.additionalFiles` : par le panel, seules les applications en
+  `source.type: "image"` se déploient. Voir
+  [`feuille-de-route.md`](feuille-de-route.md).
+- Le point 9 de `verify-ports-rollback.sh` se contente d'un `pnpm typecheck` sur
+  `test-parity.ts` au lieu de le jouer : il n'a qu'une cible Docker sous la main.
+  La parité elle-même se joue par `pnpm test:parity`, séparément.

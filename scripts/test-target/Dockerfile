@@ -1,4 +1,4 @@
-# Cible SSH de test pour les jalons 3 et 4.
+# Cible SSH de test : preflight et déploiements Docker.
 #
 # La machine porte son PROPRE daemon Docker (docker-in-docker) : les conteneurs
 # déployés s'exécutent réellement dessus, et les ports publiés le sont sur ses

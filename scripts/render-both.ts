@@ -4,12 +4,11 @@
  *   pnpm tsx scripts/render-both.ts spec.json
  *   cat spec.json | pnpm tsx scripts/render-both.ts -
  *
- * À quoi ça sert : le critère de sortie n° 2 du jalon 8 demande que la MÊME
- * AppSpec générée se déploie aussi sur K3s. Ce n'est **pas** vérifiable
- * aujourd'hui — aucun cluster K3s n'est enregistré, et `test-parity.ts` n'a
- * jamais tourné de bout en bout. Ce script ne prétend pas le remplacer : il
- * vérifie ce qui *est* vérifiable sans cluster, à savoir que la spec produite
- * par le modèle traverse les deux rendus sans qu'aucun champ n'ait à changer.
+ * À quoi ça sert : la promesse centrale du projet est que la MÊME AppSpec se
+ * déploie sur Docker comme sur K3s. Le déploiement réel des deux côtés est la
+ * charge de `pnpm test:parity`, qui exige deux cibles joignables. Ce script ne
+ * prétend pas le remplacer : il vérifie, sans aucune machine, que la spec
+ * traverse les deux rendus sans qu'aucun champ n'ait à changer.
  *
  * C'est le point de l'AppSpec neutre : si un jour un rendu réclame une
  * information que l'autre ignore, ce script échoue ici, avant le déploiement.

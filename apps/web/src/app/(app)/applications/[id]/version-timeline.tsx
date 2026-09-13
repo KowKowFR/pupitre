@@ -95,7 +95,8 @@ export function VersionTimeline({
     return (
       <Card>
         <CardContent className="text-muted-foreground py-10 text-center text-sm">
-          Cette application n&apos;a jamais été déployée.
+          Cette application n&apos;a jamais été déployée. Le bouton « Déployer » de la liste des
+          applications en produit la première version ; elle apparaîtra ici.
         </CardContent>
       </Card>
     );

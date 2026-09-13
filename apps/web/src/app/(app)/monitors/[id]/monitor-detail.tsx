@@ -181,9 +181,9 @@ export function MonitorDetail({
         <CardHeader>
           <CardTitle>Chronologie des incidents</CardTitle>
           <CardDescription>
-            Un incident naît à la **transition** — quand le seuil d&apos;échecs consécutifs est
-            atteint — et se referme au rétablissement. Un rebond isolé n&apos;en crée aucun. Les
-            incidents ne sont jamais purgés, contrairement aux mesures.
+            Un incident naît à la <strong>transition</strong> — quand le seuil d&apos;échecs
+            consécutifs est atteint — et se referme au rétablissement. Un rebond isolé n&apos;en
+            crée aucun. Les incidents ne sont jamais purgés, contrairement aux mesures.
           </CardDescription>
         </CardHeader>
         <CardContent>

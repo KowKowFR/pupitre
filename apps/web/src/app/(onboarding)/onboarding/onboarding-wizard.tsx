@@ -185,7 +185,7 @@ export function OnboardingWizard(props: Props) {
       <PageHeader
         eyebrow="Prise en main"
         title="Assistant de démarrage"
-        description="Six écrans pour rendre ce panel utilisable : le nommer, lui donner une machine, décider qui y accède. Chaque étape appelle exactement la même API que l'écran correspondant — rien de ce que vous faites ici n'est un raccourci."
+        description="Ce qu'il faut poser une fois pour que ce panel serve à quelque chose : le nommer, lui donner une machine, décider qui y accède. Le parcours n'affiche que les étapes que vos permissions autorisent, et chacune appelle exactement la même API que l'écran correspondant — rien de ce que vous faites ici n'est un raccourci, ni ne sera à refaire."
         actions={
           <>
             <span className="font-mono text-xs text-ink-faint tabular-nums">
@@ -645,7 +645,7 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
   return (
     <div className="flex flex-col gap-4">
       <div className="overflow-x-auto rounded-md border border-line">
-        <table className="w-full min-w-[28rem] border-collapse text-left text-[0.8125rem]">
+        <table className="w-full min-w-0 border-collapse text-left text-[0.8125rem]">
           <tbody>
             {actionable.map((step) => {
               const link = links[step.id];

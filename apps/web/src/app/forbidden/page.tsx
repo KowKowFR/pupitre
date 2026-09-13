@@ -25,7 +25,10 @@ export default async function ForbiddenPage({
             </Alert>
           ) : null}
           <p className="text-[0.8125rem] text-ink-muted">
-            La tentative a été enregistrée dans les logs.
+            Les permissions se portent par le rôle, jamais par le compte : un administrateur
+            l&apos;ajoute au vôtre depuis Administration → Rôles, et elle prend effet à votre
+            prochaine navigation. La tentative est enregistrée dans les logs d&apos;activité, au
+            même titre qu&apos;une action aboutie.
           </p>
           <Link
             href="/"

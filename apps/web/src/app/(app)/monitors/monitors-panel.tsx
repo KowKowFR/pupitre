@@ -172,7 +172,7 @@ export function MonitorsPanel({
           hint={
             canManage
               ? "Une sonde part du worker vers l'adresse publique de ce qu'elle surveille. C'est un point de vue différent du healthcheck : elle voit le pare-feu, le proxy et le certificat."
-              : "Aucune sonde n'a encore été déclarée sur cette instance."
+              : "Aucune sonde n'a encore été déclarée sur cette instance. En déclarer une demande la permission monitor:manage — un administrateur peut l'ajouter à votre rôle depuis Administration → Rôles."
           }
           action={
             canManage ? (

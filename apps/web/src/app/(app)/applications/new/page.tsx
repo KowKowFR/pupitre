@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
 import { usableRuntimes } from '@pupitre/core';
 import { getAiApiKey, getAppSettings, listTargets } from '@pupitre/db';
+import { ChevronLeft } from 'lucide-react';
+import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getEnv } from '@/lib/env';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -40,19 +42,19 @@ export default async function NewApplicationPage() {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <Link
-          href="/applications"
-          className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
-        >
-          ← Applications
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Nouvelle application</h1>
-        <p className="text-muted-foreground text-sm">
-          Une application est une <code className="font-mono text-xs">AppSpec</code> — une
-          description neutre, qui ne connaît ni Docker ni Kubernetes.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow={
+          <Link
+            href="/applications"
+            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+          >
+            <ChevronLeft className="size-3" />
+            Applications
+          </Link>
+        }
+        title="Nouvelle application"
+        description="Cet écran produit une AppSpec et l'enregistre au catalogue — il ne touche à aucune machine tant que vous ne choisissez pas une cible plus bas. Le runtime n'entre pas dans la spec : c'est ici, au moment de déployer, qu'on tranche entre Docker Compose et K3s."
+      />
 
       <Card>
         <CardHeader>

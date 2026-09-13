@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Critère de sortie du jalon 4.
+# Déploiement de bout en bout et logs en direct, par les routes de l'UI.
 #
 #   1. Créer une application depuis simple.json
 #   2. La déployer sur une cible Docker
@@ -12,8 +12,8 @@
 # une cible Docker déployable — `./scripts/setup-test-target.sh` en provisionne une.
 #
 # Usage :
-#   ./scripts/verify-jalon4.sh
-#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-jalon4.sh
+#   ./scripts/verify-deploy-logs.sh
+#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-deploy-logs.sh
 #
 set -euo pipefail
 
@@ -128,7 +128,7 @@ ELAPSED=$(( $(date +%s) - BEFORE ))
 
 DEPLOY_ID=$(jq -r .id "$BODY")
 STEP_COUNT=$(jq -r '.steps | length' "$BODY")
-# Le pipeline a gagné l'étape « scan » au jalon 6 : la liste fait foi, pas un
+# Le pipeline a gagné l'étape « scan » après coup : la liste fait foi, pas un
 # nombre écrit en dur ici.
 EXPECTED_STEPS=$(grep -c "^  { key: '" packages/core/src/pipeline.ts)
 [ "$STEP_COUNT" = "$EXPECTED_STEPS" ] \
@@ -233,6 +233,6 @@ for action in deployment.created deployment.succeeded; do
   pass "audit : $action"
 done
 
-printf '\n\033[32m✓ Critère de sortie du jalon 4 vérifié.\033[0m\n'
+printf '\n\033[32m✓ Déploiement et logs en direct vérifiés.\033[0m\n'
 printf '\033[2m  Suivi : %s/deployments/%s\033[0m\n' "$BASE_URL" "$DEPLOY_ID"
 printf '\n'
