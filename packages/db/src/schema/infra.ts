@@ -17,7 +17,15 @@ import { users } from './auth.js';
 
 export type RuntimeKey = 'docker' | 'k3s';
 
-/** Étiquettes libres posées par l'opérateur, ex. `env=prod`, `zone=eu-west`. */
+/**
+ * Étiquettes libres posées par l'opérateur, ex. `env=prod`, `zone=eu-west`.
+ *
+ * Le modèle reste des paires clé/valeur, comme Kubernetes, et **ne porte pas de
+ * couleur**. La couleur d'une étiquette est dérivée de son texte au rendu
+ * (hachage → teinte), ce qui la rend stable partout sans rien stocker et,
+ * surtout, empêche quiconque de peindre une étiquette en rouge ou en vert —
+ * ces teintes-là disent l'état d'une machine dans ce panel, pas son étiquette.
+ */
 export type TargetLabels = Record<string, string>;
 
 /** Machine distante sur laquelle le control plane déploie. */
@@ -26,6 +34,14 @@ export const targets = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull().unique(),
+    /**
+     * À quoi sert cette machine, en une ou deux phrases.
+     *
+     * `NULL` et non `''` quand elle est absente : une chaîne vide se mettrait à
+     * occuper une ligne dans chaque tableau, et « pas de description » n'est pas
+     * « une description vide ». Le schéma Zod normalise donc `''` en `null`.
+     */
+    description: text('description'),
     host: text('host').notNull(),
     port: integer('port').notNull().default(22),
     sshUser: text('ssh_user').notNull(),
@@ -65,6 +81,12 @@ export const targets = pgTable(
     // C'est la base qui refuse, pas une validation qu'on pourrait contourner
     // en écrivant directement en SQL.
     check('targets_port_range_check', sql`${t.portRangeStart} <= ${t.portRangeEnd}`),
+    // La borne de longueur est en base, comme la plage de ports : la validation
+    // Zod protège le formulaire, la contrainte protège la donnée. 280 caractères
+    // tiennent en trois lignes sur une fiche et se coupent proprement à une ligne
+    // dans un tableau dense ; au-delà on écrit une procédure, pas une étiquette
+    // d'inventaire, et le panel n'a nulle part où la rendre correctement.
+    check('targets_description_length_check', sql`char_length(${t.description}) <= 280`),
   ],
 );
 

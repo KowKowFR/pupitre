@@ -94,6 +94,30 @@
   --sev-low: oklch(0.756 0.028 250);
   --sev-low-ink: oklch(0.24 0.02 250);
 
+  /*
+   * Teintes d'étiquette — décoratives, jamais sémantiques.
+   *
+   * Le panel dit déjà l'état d'une machine en vert / ambre / rouge, et dit
+   * « cliquable » en cyan. Une étiquette libre qui piocherait dans ces teintes
+   * mentirait : une pastille rouge posée à côté d'un voyant vert se lit comme
+   * une contradiction, pas comme « client=acme ». Cette rampe est donc
+   * volontairement confinée à l'arc bleu-violet → magenta (250°–338°), à
+   * distance de `--danger` (26°), `--warn` (72°), `--ok` (158°) et `--signal`
+   * (212–218°) : aucune étiquette ne *peut* emprunter une teinte d'état.
+   *
+   * Un seul jeton par teinte. Le fond et le liseré de la pastille en sont
+   * dérivés par `color-mix` avec `--surface` et `--line` (voir `.tag-chip`),
+   * donc ils suivent le thème sans qu'on ait à définir trois jetons par teinte.
+   * Le dernier est un ardoise sans couleur : il faut une case pour « étiqueté,
+   * mais rien à signaler ».
+   */
+  --tag-1: oklch(0.548 0.142 250);
+  --tag-2: oklch(0.548 0.152 272);
+  --tag-3: oklch(0.548 0.158 294);
+  --tag-4: oklch(0.548 0.156 316);
+  --tag-5: oklch(0.548 0.148 338);
+  --tag-6: oklch(0.520 0.026 258);
+
   /* Profondeur : nette et courte. Un panneau posé, pas une carte flottante. */
   --shadow-panel: 0 1px 2px oklch(0.238 0.018 258 / 0.05), 0 0 0 1px oklch(0.238 0.018 258 / 0.04);
   --shadow-raised:
@@ -176,6 +200,14 @@
     --sev-low: oklch(0.482 0.022 250);
     --sev-low-ink: oklch(0.95 0.005 250);
 
+    /* Mêmes teintes, remontées en clarté : un point sombre disparaît sur ardoise. */
+    --tag-1: oklch(0.746 0.116 250);
+    --tag-2: oklch(0.746 0.124 272);
+    --tag-3: oklch(0.746 0.128 294);
+    --tag-4: oklch(0.746 0.126 316);
+    --tag-5: oklch(0.746 0.120 338);
+    --tag-6: oklch(0.700 0.022 258);
+
     --terminal: oklch(0.158 0.013 258);
     --terminal-fg: oklch(0.882 0.010 250);
     --terminal-dim: oklch(0.578 0.018 254);
@@ -223,6 +255,14 @@ html.dark {
   --sev-medium-ink: oklch(0.22 0.05 84);
   --sev-low: oklch(0.482 0.022 250);
   --sev-low-ink: oklch(0.95 0.005 250);
+
+  /* Mêmes teintes, remontées en clarté : un point sombre disparaît sur ardoise. */
+  --tag-1: oklch(0.746 0.116 250);
+  --tag-2: oklch(0.746 0.124 272);
+  --tag-3: oklch(0.746 0.128 294);
+  --tag-4: oklch(0.746 0.126 316);
+  --tag-5: oklch(0.746 0.120 338);
+  --tag-6: oklch(0.700 0.022 258);
 
   --terminal: oklch(0.158 0.013 258);
   --terminal-fg: oklch(0.882 0.010 250);
@@ -290,6 +330,13 @@ html.dark {
   --color-sev-medium-ink: var(--sev-medium-ink);
   --color-sev-low: var(--sev-low);
   --color-sev-low-ink: var(--sev-low-ink);
+
+  --color-tag-1: var(--tag-1);
+  --color-tag-2: var(--tag-2);
+  --color-tag-3: var(--tag-3);
+  --color-tag-4: var(--tag-4);
+  --color-tag-5: var(--tag-5);
+  --color-tag-6: var(--tag-6);
 
   --color-terminal: var(--terminal);
   --color-terminal-fg: var(--terminal-fg);
@@ -409,6 +456,48 @@ html.dark {
     background-repeat: no-repeat;
     background-position: right 0.65rem center;
     background-size: 0.75rem;
+  }
+
+  /*
+   * Pastille d'étiquette.
+   *
+   * Deux règles de forme, et elles portent tout l'arbitrage : le texte reste en
+   * `--ink` — l'encre neutre du thème — et la couleur ne teinte que le fond, le
+   * liseré et un point de 5 px. Les pastilles d'*état* du panel font l'inverse :
+   * texte coloré (`text-ok`, `text-danger`). Une étiquette et un état ne se
+   * confondent donc pas, même à teinte égale, et le texte reste lisible dans les
+   * deux thèmes sans qu'on ait à calculer un contraste par teinte.
+   *
+   * `--tag` est posé en style inline par le composant ; tout le reste en
+   * découle, y compris en sombre, puisque `--surface` et `--line` changent avec
+   * le thème.
+   */
+  .tag-chip {
+    /*
+     * 22 % : mesuré à l'écran, pas choisi sur le papier. À 14 % les six teintes
+     * de la rampe devenaient un même lavande pâle dans une ligne de tableau —
+     * l'étiquette restait lisible mais ne se *repérait* plus, ce qui est tout
+     * ce qu'on lui demande. À 22 % elles se distinguent sans que le fond entre
+     * en concurrence avec les pastilles d'état voisines.
+     */
+    background-color: color-mix(in oklab, var(--tag) 22%, var(--surface));
+    border-color: color-mix(in oklab, var(--tag) 46%, var(--line));
+    color: var(--ink);
+  }
+
+  .tag-chip-dot {
+    background-color: var(--tag);
+  }
+
+  /* Étiquette servant de filtre : cliquable, donc réactive au survol. */
+  button.tag-chip:hover {
+    background-color: color-mix(in oklab, var(--tag) 34%, var(--surface));
+  }
+
+  /* Filtre actif : le fond se charge, le liseré prend franchement la teinte. */
+  .tag-chip[aria-pressed="true"] {
+    background-color: color-mix(in oklab, var(--tag) 42%, var(--surface));
+    border-color: var(--tag);
   }
 
   /* Filet de séparation entre deux zones d'un même panneau. */

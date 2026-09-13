@@ -2,15 +2,26 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { TargetLabelList } from '@/components/target-label';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+
+/**
+ * Miroir de `TARGET_DESCRIPTION_MAX` (`@pupitre/db`) — un composant client ne
+ * dépend pas de la base. La borne réelle est la contrainte
+ * `targets_description_length_check` ; celle-ci ne fait qu'éviter à
+ * l'utilisateur de découvrir le refus après coup.
+ */
+const DESCRIPTION_MAX = 280;
 
 export type TargetFormValues = {
   id?: string;
   name: string;
+  description: string | null;
   host: string;
   port: number;
   sshUser: string;
@@ -23,6 +34,7 @@ export type TargetFormValues = {
 
 const EMPTY: TargetFormValues = {
   name: '',
+  description: null,
   host: '',
   port: 22,
   sshUser: 'root',
@@ -77,6 +89,11 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
   const isEdit = Boolean(values.id);
 
   const [authMethod, setAuthMethod] = useState(values.authMethod);
+  // Deux champs tenus en état : l'un pour son compteur, l'autre pour montrer
+  // les pastilles telles qu'elles apparaîtront. Une étiquette colorée ne se
+  // choisit pas à l'aveugle dans un champ de texte.
+  const [description, setDescription] = useState(values.description ?? '');
+  const [labelsText, setLabelsText] = useState(labelsToText(values.labels));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -90,6 +107,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
 
     const payload: Record<string, unknown> = {
       name: String(form.get('name') ?? '').trim(),
+      description: String(form.get('description') ?? ''),
       host: String(form.get('host') ?? '').trim(),
       port: Number(form.get('port') ?? 22),
       sshUser: String(form.get('sshUser') ?? '').trim(),
@@ -174,6 +192,38 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         </div>
       </div>
 
+      {/*
+        Sous l'identité de la machine et avant ses secrets : la description
+        répond à « qu'est-ce que c'est ? », pas à « comment s'y connecter ? ».
+      */}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="description">Description</Label>
+        <textarea
+          id="description"
+          name="description"
+          rows={2}
+          maxLength={DESCRIPTION_MAX}
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Hyperviseur du client Acme. Redémarrages hors 9h–19h uniquement."
+          className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
+        />
+        <p className="flex justify-between gap-4 text-xs text-ink-muted">
+          <span>
+            À quoi sert cette machine, et ce qu&apos;il faut savoir avant d&apos;y toucher.
+            Facultatif.
+          </span>
+          <span
+            className={cn(
+              'shrink-0 font-mono tabular-nums',
+              description.length > DESCRIPTION_MAX - 40 ? 'text-warn' : 'text-ink-faint',
+            )}
+          >
+            {description.length}/{DESCRIPTION_MAX}
+          </span>
+        </p>
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="credential">
           {authMethod === 'key' ? 'Clé privée SSH' : 'Mot de passe'}
@@ -234,11 +284,17 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           id="labels"
           name="labels"
           rows={3}
-          defaultValue={labelsToText(values.labels)}
+          value={labelsText}
+          onChange={(event) => setLabelsText(event.target.value)}
           placeholder={'env=prod\nzone=eu-west'}
           className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-xs text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
         />
-        <p className="text-xs text-ink-muted">Une paire <code>clé=valeur</code> par ligne.</p>
+        <TargetLabelList labels={textToLabels(labelsText)} className="pt-0.5" />
+        <p className="text-xs text-ink-muted">
+          Une paire <code>clé=valeur</code> par ligne. La couleur est dérivée du texte : la
+          même étiquette a partout la même teinte, et aucune ne peut prendre le vert, l&apos;ambre
+          ou le rouge — ces couleurs-là disent l&apos;état d&apos;une machine, pas son rôle.
+        </p>
       </div>
 
       <div className="flex gap-2">

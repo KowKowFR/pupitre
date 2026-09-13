@@ -50,6 +50,7 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
             initial={{
               id: target.id,
               name: target.name,
+              description: target.description,
               host: target.host,
               port: target.port,
               sshUser: target.sshUser,
