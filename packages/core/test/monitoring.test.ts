@@ -228,17 +228,29 @@ test('la cible se décrit sans connaître le type', () => {
   assert.equal(describeMonitorTarget('http', { url: 'pas une url' }), '(configuration illisible)');
 });
 
-test('le mot-clé est une option de la sonde HTTP, pas un type à part', () => {
-  const withKeyword = safeParseMonitorConfig('http', {
+test('le mot-clé existe aux deux étages, et les deux étages restent distincts', () => {
+  // Le raccourci : une option de la sonde HTTP, sous-chaîne exacte, pour qui
+  // veut juste vérifier un jeton stable sans créer un second type.
+  const shortcut = safeParseMonitorConfig('http', {
     url: 'https://exemple.fr/',
     keyword: 'Bienvenue',
   });
-  assert.equal(withKeyword.ok, true);
-  assert.equal(
-    MONITOR_TYPES_LIST.filter((type) => type.includes('keyword')).length,
-    0,
-    'aucun type « keyword » ne doit exister',
-  );
+  assert.equal(shortcut.ok, true);
+
+  // Le type : présence *et* absence, comparaison tolérante, borne de lecture
+  // réglable. Ce que le champ de la sonde HTTP ne saura jamais faire sans
+  // devenir un catalogue caché dans une option.
+  const full = safeParseMonitorConfig('keyword', {
+    url: 'https://exemple.fr/',
+    mustContain: 'Se connecter',
+    mustNotContain: 'Erreur 500',
+  });
+  assert.equal(full.ok, true);
+
+  // L'option HTTP ne doit pas disparaître : des sondes la portent en base, et
+  // Zod dépouille les clés inconnues sans rien dire — la retirer ferait
+  // *silencieusement* repasser ces sondes au vert.
+  assert.ok('keyword' in (MONITOR_TYPES.http.defaults as Record<string, unknown>));
 });
 
 // ─── politique SSRF ───────────────────────────────────────────────────────────
