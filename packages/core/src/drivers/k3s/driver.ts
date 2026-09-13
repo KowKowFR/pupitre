@@ -75,6 +75,13 @@ const DIAGNOSTIC_LINES = 200;
 /** Nombre de pods décrits en détail : au-delà, le diagnostic devient illisible. */
 const DIAGNOSTIC_PODS = 5;
 const DIAGNOSTIC_TIMEOUT_MS = 60_000;
+/**
+ * Attente de la disparition des pods après un passage à zéro réplique.
+ * Deux minutes au total : de quoi laisser un `terminationGracePeriodSeconds`
+ * par défaut (30 s) s'écouler plusieurs fois sans immobiliser un slot de worker.
+ */
+const DRAIN_ATTEMPTS = 60;
+const DRAIN_INTERVAL_SECONDS = 2;
 
 /**
  * K3s écrit son kubeconfig dans `/etc/rancher/k3s/k3s.yaml` et ne l'installe pas
@@ -1049,6 +1056,103 @@ export class K3sDriver implements DeploymentDriver {
     }
 
     onLog('pods recréés');
+  }
+
+  /**
+   * Arrêt : `kubectl scale --replicas=0` sur les Deployments de l'application.
+   *
+   * Le pendant de `docker compose stop`, et le seul candidat sérieux. Les
+   * autres façons d'« arrêter » en Kubernetes suppriment quelque chose :
+   * `delete deployment` perd l'objet et son historique de révisions — donc
+   * `rollback()` —, `delete namespace` c'est `destroy()`. Mettre le nombre de
+   * répliques à zéro ne touche ni les manifests, ni les PVC, ni le Service, ni
+   * l'Ingress : le contrôleur retire les pods, et c'est tout.
+   *
+   * Le sélecteur est le même que celui de `restart()` et de `logs()` : c'est la
+   * signature du panel sur le cluster, et elle reconnaît les deux générations
+   * d'étiquettes.
+   *
+   * L'attente est explicite. `rollout status` sur un Deployment à zéro réplique
+   * rend la main immédiatement — il constate qu'il n'y a rien à déployer, pas
+   * que les pods sont partis. Or un `stop()` qui rend la main pendant que les
+   * pods terminent laisserait l'appelant sonder un état intermédiaire et
+   * conclure de travers. On boucle donc sur le décompte des pods, ce que
+   * `kubectl wait --for=delete` ne sait pas faire proprement quand la liste est
+   * déjà vide (il sort en erreur sur « no matching resources found »).
+   */
+  async stop(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    const namespace = this.namespace(ctx);
+    onLog(`kubectl scale --replicas=0 -n ${namespace}`);
+
+    await this.stream(
+      ctx,
+      this.kube(ctx, `scale deployment -l '${MANAGED_SELECTOR}' --replicas=0`),
+      onLog,
+      'stop',
+      APPLY_TIMEOUT_MS,
+    );
+
+    await this.stream(
+      ctx,
+      this.script([
+        `for attempt in $(seq 1 ${DRAIN_ATTEMPTS}); do`,
+        `  remaining=$(kubectl -n ${namespace} get pods -l '${MANAGED_SELECTOR}' ` +
+          `--no-headers 2>/dev/null | wc -l | tr -d ' ')`,
+        '  if [ "$remaining" = "0" ]; then echo "pods retirés"; exit 0; fi',
+        '  echo "  $remaining pod(s) en cours de terminaison"',
+        `  sleep ${DRAIN_INTERVAL_SECONDS}`,
+        'done',
+        'echo "des pods terminent encore après le délai imparti" >&2',
+        'exit 1',
+      ]),
+      onLog,
+      'stop',
+      APPLY_TIMEOUT_MS,
+    );
+
+    onLog('répliques à zéro — PVC, Service et Ingress conservés');
+  }
+
+  /**
+   * Démarrage : on remet à chaque Deployment le nombre de répliques que
+   * l'AppSpec lui donne, service par service.
+   *
+   * Pas un `kubectl apply` des manifests, bien qu'il rétablirait aussi les
+   * répliques : appliquer, c'est réécrire l'intégralité des objets, donc
+   * effacer sans le dire ce qu'un opérateur aurait ajusté sur le cluster depuis
+   * le déploiement. Démarrer n'est pas redéployer. `scale` ne touche qu'au
+   * champ qu'on a mis à zéro.
+   *
+   * Service par service et non par sélecteur, parce que le nombre de répliques
+   * est propre à chaque service : un sélecteur ne saurait en remettre qu'un
+   * seul et le même pour tous. L'ordre topologique est celui de `deploy()` —
+   * une base démarre avant ce qui l'interroge.
+   */
+  async start(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    const services = topologicalOrder(ctx.spec);
+    onLog(`kubectl scale -n ${this.namespace(ctx)} — ${services.length} service(s)`);
+
+    for (const service of services) {
+      await this.stream(
+        ctx,
+        this.kube(ctx, `scale deployment/${service.name} --replicas=${service.replicas}`),
+        onLog,
+        'start',
+        APPLY_TIMEOUT_MS,
+      );
+    }
+
+    for (const service of services) {
+      await this.stream(
+        ctx,
+        this.kube(ctx, `rollout status deployment/${service.name} --timeout=${ROLLOUT_TIMEOUT}`),
+        onLog,
+        'start',
+        APPLY_TIMEOUT_MS,
+      );
+    }
+
+    onLog('pods prêts');
   }
 
   async logs(ctx: DriverContext, onLine: LogSink): Promise<void> {

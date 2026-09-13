@@ -13,8 +13,18 @@ import {
   type AppStatus,
 } from '@pupitre/core';
 import { getDriver } from '@pupitre/core/drivers';
+import type {
+  DeploymentDriver,
+  DriverContext,
+  LogSink,
+} from '@pupitre/core/drivers';
 import { disconnect } from '@pupitre/core/ssh';
-import { getDeploymentSummary, logAudit, recordHealthStatus } from '@pupitre/db';
+import {
+  getDeploymentSummary,
+  logAudit,
+  recordHealthStatus,
+  setDeploymentStopped,
+} from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
 import { logger } from '../logger.js';
@@ -302,4 +312,150 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
   } finally {
     await disconnect(session);
   }
+}
+
+/**
+ * Arrêt et remise en marche d'une application déployée.
+ *
+ * Les deux gestes partagent tout sauf trois choses : la méthode du driver à
+ * appeler, ce qu'on écrit dans `stopped_at`, et le mot du journal d'activité.
+ * D'où une seule implémentation paramétrée — dupliquer aurait garanti qu'un
+ * jour l'une des deux oublie de republier l'état ou de fermer sa session SSH.
+ *
+ * Ce n'est **pas** un branchement sur le runtime : `stop()` et `start()` sont du
+ * contrat, et c'est le driver rendu par la fabrique qui sait ce qu'ils veulent
+ * dire sur sa machine. Le worker ne sait pas s'il parle à Compose ou à
+ * Kubernetes, et il n'a pas à le savoir.
+ */
+type LifecycleAction = {
+  /** Nom de l'action dans le flux applicatif et dans le journal d'activité. */
+  key: 'stop' | 'start';
+  /** Employé tel quel dans les messages : « l'arrêt a échoué ». */
+  noun: string;
+  apply: (driver: DeploymentDriver, ctx: DriverContext, onLog: LogSink) => Promise<void>;
+  auditAction: string;
+};
+
+const STOP: LifecycleAction = {
+  key: 'stop',
+  noun: 'arrêt',
+  apply: (driver, ctx, onLog) => driver.stop(ctx, onLog),
+  auditAction: 'app.stopped',
+};
+
+const START: LifecycleAction = {
+  key: 'start',
+  noun: 'démarrage',
+  apply: (driver, ctx, onLog) => driver.start(ctx, onLog),
+  auditAction: 'app.started',
+};
+
+async function runLifecycle(
+  job: Job<unknown>,
+  action: LifecycleAction,
+): Promise<{ stopped: boolean; healthy: boolean | null }> {
+  const data = deploymentJobDataSchema.parse(job.data);
+  const log = logger.child({ jobId: job.id, deploymentId: data.deploymentId });
+
+  const summary = await getDeploymentSummary(data.deploymentId);
+  if (!summary) throw new Error(`Déploiement « ${data.deploymentId} » introuvable`);
+  if (!isSupervisable(summary.status)) {
+    throw new Error(`Un déploiement « ${summary.status} » n'admet pas d'${action.noun}`);
+  }
+
+  const channel = appLogChannel(data.deploymentId);
+  const publisher = getPublisher();
+  const emit = (message: AppLogMessage) => {
+    publisher.publish(channel, JSON.stringify(message)).catch(() => {
+      // Le geste ne doit pas échouer parce que personne ne regarde.
+    });
+  };
+
+  const { session, ctx, deployment } = await openDeploymentContext(data.deploymentId);
+  const driver = getDriver(deployment.runtime);
+
+  try {
+    emit({
+      kind: 'lifecycle',
+      payload: { ts: new Date().toISOString(), action: action.key, detail: 'démarré' },
+    });
+
+    await action.apply(driver, ctx, (line) => {
+      emit({ kind: 'log', payload: { ts: new Date().toISOString(), service: null, line } });
+    });
+
+    // La base n'est écrite qu'**après** le geste. Un arrêt qui échoue à
+    // mi-chemin laisse la ligne inchangée : mieux vaut une base qui croit
+    // l'application en marche alors qu'elle ne l'est qu'à moitié — l'écran, lui,
+    // montre l'état réel de la machine — qu'une base qui la déclare arrêtée
+    // alors qu'elle sert encore du trafic.
+    await setDeploymentStopped(data.deploymentId, action.key === 'stop' ? new Date() : null);
+
+    /**
+     * On ne resonde la santé qu'au démarrage. Après un arrêt, le healthcheck
+     * échouerait par construction : il écrirait `unreachable`, c'est-à-dire une
+     * panne, là où il n'y a qu'une décision. `setDeploymentStopped()` a déjà
+     * remis la santé à `unknown`, qui est la seule chose vraie.
+     */
+    let healthy: boolean | null = null;
+    if (action.key === 'start') {
+      const health = await driver.healthcheck(ctx);
+      healthy = health.healthy;
+      await recordHealthStatus(
+        data.deploymentId,
+        health.healthy
+          ? 'healthy'
+          : health.outcome === 'unreachable'
+            ? 'unreachable'
+            : 'unhealthy',
+      );
+    }
+
+    emit({ kind: 'status', payload: await driver.status(ctx) });
+    emit({
+      kind: 'lifecycle',
+      payload: {
+        ts: new Date().toISOString(),
+        action: action.key,
+        detail:
+          healthy === null
+            ? 'terminé'
+            : healthy
+              ? 'terminé, service sain'
+              : 'terminé, service en défaut',
+      },
+    });
+
+    await logAudit({
+      actorId: data.actorId,
+      action: action.auditAction,
+      resourceType: 'deployment',
+      resourceId: data.deploymentId,
+      after: {
+        applicationSlug: summary.applicationSlug,
+        targetName: summary.targetName,
+        runtime: deployment.runtime,
+        ...(healthy === null ? {} : { healthy }),
+      },
+      ip: data.ip,
+    });
+
+    log.info({ action: action.key, healthy }, `application : ${action.noun} effectué`);
+    return { stopped: action.key === 'stop', healthy };
+  } finally {
+    await disconnect(session);
+  }
+}
+
+/** Arrêt volontaire : les processus s'arrêtent, rien n'est démonté. */
+export async function handleAppStop(job: Job<unknown>): Promise<{ stopped: boolean }> {
+  const outcome = await runLifecycle(job, STOP);
+  return { stopped: outcome.stopped };
+}
+
+/** Remise en marche d'une application arrêtée, suivie d'une sonde de santé. */
+export async function handleAppStart(
+  job: Job<unknown>,
+): Promise<{ stopped: boolean; healthy: boolean | null }> {
+  return runLifecycle(job, START);
 }

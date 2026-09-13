@@ -1,7 +1,7 @@
 import { deployChannel, deploymentJobDataSchema, type DeploymentJobResult } from '@pupitre/core';
 import { getDriver, getProxyProvider } from '@pupitre/core/drivers';
 import { disconnect, type ConnectOptions } from '@pupitre/core/ssh';
-import { finishDeployment, logAudit } from '@pupitre/db';
+import { finishDeployment, logAudit, setDeploymentStopped } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { openDeploymentContext } from '../deploy/context.js';
@@ -134,6 +134,16 @@ export async function handleDeploymentRollback(
       error: null,
       failedStep: null,
     });
+
+    /**
+     * Un rollback remet des services en marche : il relance la release
+     * précédente en Compose, il remonte les répliques en Kubernetes. Si
+     * l'application était marquée arrêtée, la marque ne correspond donc plus à
+     * rien, et la laisser ferait taire la sonde périodique sur une application
+     * qui, elle, sert du trafic. On réconcilie plutôt que de refuser le geste :
+     * l'écran prévient que revenir en arrière redémarre l'application.
+     */
+    await setDeploymentStopped(data.deploymentId, null);
     stream.event({
       type: 'deployment',
       key: data.deploymentId,

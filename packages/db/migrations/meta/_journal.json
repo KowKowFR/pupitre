@@ -120,6 +120,13 @@
       "when": 1789260920280,
       "tag": "0016_target_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789286117327,
+      "tag": "0018_app_stopped_at",
+      "breakpoints": true
     }
   ]
 }

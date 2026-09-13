@@ -49,6 +49,22 @@ export const APPLICATION_DELETE_JOB = 'application:delete' as const;
 export const APP_LOGS_JOB = 'app:logs' as const;
 /** Redémarrage d'une application en marche. */
 export const APP_RESTART_JOB = 'app:restart' as const;
+/**
+ * Arrêt et remise en marche d'une application déployée.
+ *
+ * Sur la file de supervision, avec le redémarrage : ce sont les mêmes gestes
+ * d'exploitation sur une application déjà en place, ils ne rejouent aucun
+ * pipeline et ne se disputent pas les slots des déploiements.
+ *
+ * Deux noms de tâche plutôt qu'un seul avec un champ `action` : un worker d'une
+ * version antérieure qui reçoit un nom inconnu échoue franchement, alors qu'il
+ * aurait ignoré un champ en trop — zod retire les clés qu'il ne connaît pas —
+ * et **redémarré** une application qu'on lui demandait d'arrêter. Le nom de la
+ * tâche est la seule partie du message qu'un consommateur ne peut pas
+ * réinterpréter de travers.
+ */
+export const APP_STOP_JOB = 'app:stop' as const;
+export const APP_START_JOB = 'app:start' as const;
 
 /**
  * Inventaire des charges d'une cible. Sur la file de supervision, comme le
@@ -387,6 +403,8 @@ export type OpsJobMap = {
   [APPLICATION_DELETE_JOB]: ApplicationDeleteJobData;
   [APP_LOGS_JOB]: DeploymentJobData;
   [APP_RESTART_JOB]: DeploymentJobData;
+  [APP_STOP_JOB]: DeploymentJobData;
+  [APP_START_JOB]: DeploymentJobData;
   [WORKLOAD_REMOVE_JOB]: WorkloadActionJobData;
   [WORKLOAD_UPDATE_JOB]: WorkloadActionJobData;
 };

@@ -53,7 +53,18 @@ export const appLogMessageSchema = z.discriminatedUnion('kind', [
     kind: z.literal('lifecycle'),
     payload: z.object({
       ts: z.string(),
-      action: z.enum(['restart', 'stream.started', 'stream.stopped', 'stream.error']),
+      // `stop` et `start` s'ajoutent à `restart` : ce sont les mêmes gestes
+      // d'exploitation, ils se racontent dans le même flux et devant le même
+      // spectateur. Un consommateur qui ne les connaît pas les ignore — la
+      // console filtre déjà sur l'action qu'elle sait afficher.
+      action: z.enum([
+        'restart',
+        'stop',
+        'start',
+        'stream.started',
+        'stream.stopped',
+        'stream.error',
+      ]),
       detail: z.string().nullable().default(null),
     }),
   }),
