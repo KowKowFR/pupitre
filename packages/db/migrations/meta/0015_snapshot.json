@@ -1,6 +1,6 @@
 {
-  "id": "1a98a4ba-5430-4a23-a070-e6950d08fc4b",
-  "prevId": "9f3a35cd-f9b7-4393-b5ec-5e9ce18e19a3",
+  "id": "9f3a35cd-f9b7-4393-b5ec-5e9ce18e19a3",
+  "prevId": "cd57394b-4da7-45ea-808e-0aba1baa709b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -905,12 +905,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "host": {
           "name": "host",
           "type": "text",
@@ -1059,10 +1053,6 @@
         "targets_port_range_check": {
           "name": "targets_port_range_check",
           "value": "\"targets\".\"port_range_start\" <= \"targets\".\"port_range_end\""
-        },
-        "targets_description_length_check": {
-          "name": "targets_description_length_check",
-          "value": "char_length(\"targets\".\"description\") <= 280"
         }
       },
       "isRLSEnabled": false
@@ -2329,6 +2319,230 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.monitor_captures": {
+      "name": "monitor_captures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "monitor_id": {
+          "name": "monitor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "incident_id": {
+          "name": "incident_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "taken_at": {
+          "name": "taken_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "final_url": {
+          "name": "final_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "http_status": {
+          "name": "http_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "page_title": {
+          "name": "page_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "width": {
+          "name": "width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "height": {
+          "name": "height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "format": {
+          "name": "format",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'jpeg'"
+        },
+        "bytes": {
+          "name": "bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "truncated": {
+          "name": "truncated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "elapsed_ms": {
+          "name": "elapsed_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image": {
+          "name": "image",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purged_at": {
+          "name": "purged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "monitor_captures_live_reference_idx": {
+          "name": "monitor_captures_live_reference_idx",
+          "columns": [
+            {
+              "expression": "monitor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"monitor_captures\".\"kind\" = 'reference' and \"monitor_captures\".\"incident_id\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "monitor_captures_incident_idx": {
+          "name": "monitor_captures_incident_idx",
+          "columns": [
+            {
+              "expression": "incident_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "monitor_captures_monitor_taken_idx": {
+          "name": "monitor_captures_monitor_taken_idx",
+          "columns": [
+            {
+              "expression": "monitor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "taken_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "monitor_captures_taken_at_idx": {
+          "name": "monitor_captures_taken_at_idx",
+          "columns": [
+            {
+              "expression": "taken_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"monitor_captures\".\"image\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "monitor_captures_monitor_id_monitors_id_fk": {
+          "name": "monitor_captures_monitor_id_monitors_id_fk",
+          "tableFrom": "monitor_captures",
+          "tableTo": "monitors",
+          "columnsFrom": [
+            "monitor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "monitor_captures_incident_id_monitor_incidents_id_fk": {
+          "name": "monitor_captures_incident_id_monitor_incidents_id_fk",
+          "tableFrom": "monitor_captures",
+          "tableTo": "monitor_incidents",
+          "columnsFrom": [
+            "incident_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "monitor_captures_kind_check": {
+          "name": "monitor_captures_kind_check",
+          "value": "\"monitor_captures\".\"kind\" in ('reference', 'incident_open', 'incident_resolved')"
+        },
+        "monitor_captures_incident_check": {
+          "name": "monitor_captures_incident_check",
+          "value": "(\"monitor_captures\".\"kind\" = 'reference') or (\"monitor_captures\".\"incident_id\" is not null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.monitor_checks": {
@@ -3679,7 +3893,7 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'{\"instanceName\":\"Pupitre\",\"instanceTagline\":\"Plan de contr\u00f4le de d\u00e9ploiement\",\"timezone\":\"Europe/Paris\",\"locale\":\"fr-FR\",\"dateStyle\":\"short\",\"timeStyle\":\"medium\",\"ai\":{\"provider\":\"openrouter\",\"model\":\"anthropic/claude-sonnet-4.5\",\"baseUrl\":\"\",\"enabled\":true,\"temperature\":0.2,\"maxTokens\":8192},\"security\":{\"scanningEnabled\":true,\"disabledScanners\":[],\"failOn\":\"NONE\"},\"onboarding\":{\"status\":\"pending\",\"currentStep\":\"welcome\",\"completed\":[],\"skipped\":[],\"offeredAt\":null,\"finishedAt\":null,\"dismissedAt\":null,\"runs\":0}}'::jsonb"
+          "default": "'{\"instanceName\":\"Pupitre\",\"instanceTagline\":\"Plan de contrôle de déploiement\",\"timezone\":\"Europe/Paris\",\"locale\":\"fr-FR\",\"dateStyle\":\"short\",\"timeStyle\":\"medium\",\"ai\":{\"provider\":\"openrouter\",\"model\":\"anthropic/claude-sonnet-4.5\",\"baseUrl\":\"\",\"enabled\":true,\"temperature\":0.2,\"maxTokens\":8192},\"security\":{\"scanningEnabled\":true,\"disabledScanners\":[],\"failOn\":\"NONE\"},\"onboarding\":{\"status\":\"pending\",\"currentStep\":\"welcome\",\"completed\":[],\"skipped\":[],\"offeredAt\":null,\"finishedAt\":null,\"dismissedAt\":null,\"runs\":0}}'::jsonb"
         },
         "ai_api_key_encrypted": {
           "name": "ai_api_key_encrypted",
@@ -3724,230 +3938,6 @@
         "app_settings_singleton_check": {
           "name": "app_settings_singleton_check",
           "value": "\"app_settings\".\"id\" = 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.monitor_captures": {
-      "name": "monitor_captures",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "monitor_id": {
-          "name": "monitor_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "incident_id": {
-          "name": "incident_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "taken_at": {
-          "name": "taken_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "final_url": {
-          "name": "final_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "http_status": {
-          "name": "http_status",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "page_title": {
-          "name": "page_title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "width": {
-          "name": "width",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "height": {
-          "name": "height",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "format": {
-          "name": "format",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'jpeg'"
-        },
-        "bytes": {
-          "name": "bytes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "truncated": {
-          "name": "truncated",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "elapsed_ms": {
-          "name": "elapsed_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "image": {
-          "name": "image",
-          "type": "bytea",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "purged_at": {
-          "name": "purged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "monitor_captures_live_reference_idx": {
-          "name": "monitor_captures_live_reference_idx",
-          "columns": [
-            {
-              "expression": "monitor_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"monitor_captures\".\"kind\" = 'reference' and \"monitor_captures\".\"incident_id\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "monitor_captures_incident_idx": {
-          "name": "monitor_captures_incident_idx",
-          "columns": [
-            {
-              "expression": "incident_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "monitor_captures_monitor_taken_idx": {
-          "name": "monitor_captures_monitor_taken_idx",
-          "columns": [
-            {
-              "expression": "monitor_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "taken_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "monitor_captures_taken_at_idx": {
-          "name": "monitor_captures_taken_at_idx",
-          "columns": [
-            {
-              "expression": "taken_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"monitor_captures\".\"image\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "monitor_captures_monitor_id_monitors_id_fk": {
-          "name": "monitor_captures_monitor_id_monitors_id_fk",
-          "tableFrom": "monitor_captures",
-          "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "monitor_captures_incident_id_monitor_incidents_id_fk": {
-          "name": "monitor_captures_incident_id_monitor_incidents_id_fk",
-          "tableFrom": "monitor_captures",
-          "tableTo": "monitor_incidents",
-          "columnsFrom": [
-            "incident_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "monitor_captures_kind_check": {
-          "name": "monitor_captures_kind_check",
-          "value": "\"monitor_captures\".\"kind\" in ('reference', 'incident_open', 'incident_resolved')"
-        },
-        "monitor_captures_incident_check": {
-          "name": "monitor_captures_incident_check",
-          "value": "(\"monitor_captures\".\"kind\" = 'reference') or (\"monitor_captures\".\"incident_id\" is not null)"
         }
       },
       "isRLSEnabled": false

@@ -15,6 +15,7 @@ import {
   parseCidrList,
   type Cidr,
   monitorOutcomeSchema,
+  monitorTargetLink,
   monitorTypeDefinition,
   monitorTypeSchema,
   monitorUrlSchema,
@@ -31,7 +32,12 @@ import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { applications } from './schema/infra.js';
 import { deployments } from './schema/deployments.js';
-import { monitorChecks, monitorIncidents, monitors } from './schema/monitors.js';
+import {
+  monitorCaptures,
+  monitorChecks,
+  monitorIncidents,
+  monitors,
+} from './schema/monitors.js';
 
 /**
  * Persistance de la supervision de sites.
@@ -258,6 +264,36 @@ export async function updateMonitor(
     values.consecutiveFailures = 0;
     values.consecutiveSuccesses = 0;
     values.nextCheckAt = new Date();
+  }
+
+  /**
+   * Et si c'est la **page** qui a changé, la référence visuelle ne vaut plus
+   * rien : elle montrerait un autre site que celui qu'on supervise désormais,
+   * et la prochaine comparaison avant/après serait un mensonge parfaitement
+   * crédible — deux images côte à côte, dont l'une n'a rien à voir.
+   *
+   * « La page a-t-elle changé » se demande au **catalogue** (`linkFor`), pas à
+   * un `if (type === 'http')` : relever le code attendu ou le délai
+   * d'expiration ne change pas ce qu'on photographie, changer l'URL si.
+   *
+   * Les références déjà **épinglées** à un incident ne bougent pas : elles
+   * documentent ce qui était supervisé à ce moment-là, et récrire le passé
+   * serait pire que de le garder.
+   */
+  if (values.config !== undefined) {
+    const pageBefore = monitorTargetLink(type, current.config);
+    const pageAfter = monitorTargetLink(type, values.config);
+    if (pageBefore !== pageAfter) {
+      await db
+        .delete(monitorCaptures)
+        .where(
+          and(
+            eq(monitorCaptures.monitorId, id),
+            eq(monitorCaptures.kind, 'reference'),
+            isNull(monitorCaptures.incidentId),
+          ),
+        );
+    }
   }
 
   const [row] = await db.update(monitors).set(values).where(eq(monitors.id, id)).returning();

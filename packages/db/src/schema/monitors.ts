@@ -1,8 +1,9 @@
-import type { CheckMetrics, MonitorType } from '@pupitre/core';
+import type { CaptureKind, CheckMetrics, MonitorType } from '@pupitre/core';
 import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
+  customType,
   index,
   integer,
   jsonb,
@@ -204,5 +205,131 @@ export const monitorIncidents = pgTable(
       .on(t.monitorId)
       .where(sql`${t.resolvedAt} is null`),
     index('monitor_incidents_monitor_started_idx').on(t.monitorId, t.startedAt.desc()),
+  ],
+);
+
+/**
+ * `bytea` — Drizzle ne le fournit pas en natif ; le pilote `pg` rend déjà un
+ * `Buffer` et en accepte un, il n'y a donc rien à transformer.
+ */
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
+
+/**
+ * **Ce que la sonde a vu.**
+ *
+ * Une image de la page, prise au moment où un incident s'ouvre ou se referme,
+ * plus une image de référence prise pendant que tout allait bien. Le
+ * raisonnement — pourquoi trois moments et pas un, pourquoi du JPEG, pourquoi
+ * une borne dure de taille — vit dans `packages/core/src/monitors/capture.ts`,
+ * avec le reste du vocabulaire. Ici : où les octets habitent, et comment la
+ * table reste bornée.
+ *
+ * ── Pourquoi les octets sont dans Postgres et non dans un volume ────────────
+ * Un volume serait plus léger pour la base. Il ajouterait en revanche une
+ * **seconde chose à sauvegarder**, et ce projet n'a aujourd'hui *aucune*
+ * histoire de sauvegarde : ajouter un second support à ne pas oublier quand on
+ * n'en sauvegarde déjà pas un, c'est choisir de perdre les images. En base, la
+ * capture suit l'incident partout où il va — le `pg_dump` que quelqu'un finira
+ * par écrire, la copie de la base vers un poste de test, la suppression en
+ * cascade d'une sonde. Et il n'y a pas de volume à monter dans deux conteneurs
+ * (le worker écrit, le panel sert), donc pas de chemin partagé à tenir d'accord.
+ *
+ * Le coût est réel, et il est **borné par construction** :
+ *   — une seule référence vivante par sonde (l'index unique partiel ci-dessous) ;
+ *   — au plus deux images par incident ;
+ *   — les octets purgés à 90 jours, la ligne conservée.
+ * Cinquante sondes et cent incidents dans l'année, ce sont quelques dizaines de
+ * mégaoctets — à comparer au vidage d'une base qui porte déjà tout l'historique
+ * des déploiements.
+ *
+ * ⚠ `image` ne doit **jamais** partir dans un `select *` : les écrans listent
+ * des dizaines de captures et n'ont besoin que des métadonnées. Les lectures
+ * passent par `packages/db/src/captures.ts`, qui nomme ses colonnes et ne charge
+ * les octets que pour la route qui sert l'image.
+ */
+export const monitorCaptures = pgTable(
+  'monitor_captures',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    monitorId: uuid('monitor_id')
+      .notNull()
+      .references(() => monitors.id, { onDelete: 'cascade' }),
+    /**
+     * `null` = référence **vivante**, celle qui servira de « avant » au prochain
+     * incident. Renseigné = image rattachée à cet incident, conservée avec lui.
+     * C'est ce qui « épingle » la référence à l'instant où la panne commence :
+     * la comparaison avant/après reste vraie même quand une référence plus
+     * fraîche est prise ensuite.
+     */
+    incidentId: uuid('incident_id').references(() => monitorIncidents.id, {
+      onDelete: 'cascade',
+    }),
+    /** `reference` | `incident_open` | `incident_resolved`. */
+    kind: text('kind').$type<CaptureKind>().notNull(),
+    takenAt: timestamp('taken_at', { withTimezone: true }).notNull().defaultNow(),
+
+    /** L'URL demandée, et celle réellement rendue après redirections. */
+    url: text('url').notNull(),
+    finalUrl: text('final_url'),
+    /** Code de la réponse principale, quand le navigateur l'a vu passer. */
+    httpStatus: integer('http_status'),
+    pageTitle: text('page_title'),
+
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    format: text('format').notNull().default('jpeg'),
+    /** Taille en octets. Conservée après la purge : elle documente ce qui a été. */
+    bytes: integer('bytes').notNull(),
+    /** La page était plus haute que la borne de rendu. Dit, jamais caché. */
+    truncated: boolean('truncated').notNull().default(false),
+    /** Durée de la capture. Une page qui met 20 s à rendre est une information. */
+    elapsedMs: integer('elapsed_ms'),
+
+    /**
+     * Les octets. `null` après la purge de rétention — la ligne, elle, reste :
+     * une chronologie qui dit ce qu'elle a perdu vaut mieux qu'une chronologie
+     * amputée en silence.
+     */
+    image: bytea('image'),
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
+  },
+  (t) => [
+    /**
+     * **Une seule référence vivante par sonde.** Une contrainte, pas un `if` —
+     * même discipline que l'anti-collision de ports et que l'incident ouvert
+     * unique. C'est elle qui borne la table : sans elle, une référence toutes
+     * les six heures ferait cent vingt images par sonde et par mois.
+     *
+     * Épingler la référence à un incident (`incident_id` renseigné) la fait
+     * sortir de l'index, ce qui libère la place pour la suivante. La rotation
+     * est donc un effet de la contrainte, pas une tâche de ménage.
+     */
+    uniqueIndex('monitor_captures_live_reference_idx')
+      .on(t.monitorId)
+      .where(sql`${t.kind} = 'reference' and ${t.incidentId} is null`),
+    // Ce que l'écran de détail demande : les images d'un incident.
+    index('monitor_captures_incident_idx').on(t.incidentId),
+    index('monitor_captures_monitor_taken_idx').on(t.monitorId, t.takenAt.desc()),
+    // La purge balaie toutes sondes confondues : il lui faut le temps seul, et
+    // seulement les lignes qui portent encore des octets.
+    index('monitor_captures_taken_at_idx')
+      .on(t.takenAt)
+      .where(sql`${t.image} is not null`),
+    check(
+      'monitor_captures_kind_check',
+      sql`${t.kind} in ('reference', 'incident_open', 'incident_resolved')`,
+    ),
+    /**
+     * Une image d'incident sans incident n'a pas de sens. Le couple est
+     * contraint ici plutôt que dans le code qui insère.
+     */
+    check(
+      'monitor_captures_incident_check',
+      sql`(${t.kind} = 'reference') or (${t.incidentId} is not null)`,
+    ),
   ],
 );

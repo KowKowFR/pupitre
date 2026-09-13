@@ -1,10 +1,14 @@
 import {
+  MONITOR_CAPTURE_JOB,
+  MONITOR_CAPTURE_REFERENCE_SWEEP_EVERY_SECONDS,
+  MONITOR_CAPTURE_RETENTION_DAYS,
   MONITOR_CHECK_RETENTION_DAYS,
   MONITOR_PRUNE_BATCH,
   MONITOR_SWEEP_BATCH,
   MONITOR_SWEEP_BUDGET_MS,
   MONITOR_SWEEP_CONCURRENCY,
   isMonitorType,
+  monitorCaptureJobDataSchema,
   type MonitorSweepJobResult,
 } from '@pupitre/core';
 import { getMonitorProbe } from '@pupitre/core/probe';
@@ -12,13 +16,17 @@ import {
   applyCheck,
   claimDueMonitors,
   getMonitor,
+  pruneCaptureImages,
   pruneMonitorChecks,
   suspendMonitor,
   suspendOrphanedMonitors,
   type Monitor,
+  type MonitorIncident,
 } from '@pupitre/db';
 import { logger } from '../logger.js';
+import { getSupervisionQueue } from '../queue.js';
 import { getRedis } from '../redis.js';
+import { captureEnabled } from './capture.js';
 import { notifyMonitorTransition } from './notify.js';
 import { allowedCidrs } from './policy.js';
 
@@ -48,6 +56,7 @@ import { allowedCidrs } from './policy.js';
 
 const SWEEP_LOCK_KEY = 'monitor:sweep:lock';
 const PRUNE_MARK_KEY = 'monitor:prune:last';
+const CAPTURE_REFERENCE_MARK_KEY = 'monitor:capture:references:last';
 
 /** La purge ne tourne qu'une fois par heure : elle balaie toutes sondes confondues. */
 const PRUNE_EVERY_SECONDS = 3600;
@@ -114,6 +123,64 @@ async function runOne(monitor: Monitor, counters: SweepCounters): Promise<void> 
     applied.incident,
   );
   if (sent) counters.alerts += 1;
+
+  // **Après** l'alerte, jamais avant : la capture est un supplément, l'alerte
+  // est l'essentiel. Et enfilée, pas exécutée — voir `requestIncidentCapture()`.
+  requestIncidentCapture(applied.monitor.id, applied.incident, applied.transition);
+}
+
+/**
+ * Demande la capture de la page pour un incident qui vient de basculer.
+ *
+ * `void` et non `await` : le balayage a fini son travail, l'incident est écrit,
+ * l'alerte est partie. Attendre l'accusé de réception de Redis pour une image
+ * reviendrait à faire dépendre le chemin critique du confort. Un échec d'enfilage
+ * est journalisé et rien de plus — une capture manquante n'est pas un incident.
+ */
+function requestIncidentCapture(
+  monitorId: string,
+  incident: MonitorIncident,
+  transition: 'down' | 'up',
+): void {
+  if (!captureEnabled()) return;
+  const data = monitorCaptureJobDataSchema.parse({
+    scope: 'incident',
+    monitorId,
+    incidentId: incident.id,
+    kind: transition === 'down' ? 'incident_open' : 'incident_resolved',
+  });
+  void getSupervisionQueue()
+    .add(MONITOR_CAPTURE_JOB, data, { attempts: 1 })
+    .catch((error: unknown) => {
+      logger.warn({ err: error, monitorId, incidentId: incident.id }, 'capture non enfilée');
+    });
+}
+
+/**
+ * Enfile le rafraîchissement des références, au plus une fois toutes les cinq
+ * minutes.
+ *
+ * Le marqueur est dans Redis, comme celui de la purge : c'est une cadence, pas
+ * une donnée du domaine, et le perdre ne coûte qu'un passage de trop. La tâche
+ * elle-même choisit *quelles* sondes en ont besoin — cinq au plus — parce que
+ * cette question est une requête SQL, pas une décision du balayage.
+ */
+async function requestReferenceRefresh(): Promise<void> {
+  if (!captureEnabled()) return;
+  const redis = getRedis();
+  const claimed = await redis.set(
+    CAPTURE_REFERENCE_MARK_KEY,
+    String(Date.now()),
+    'EX',
+    MONITOR_CAPTURE_REFERENCE_SWEEP_EVERY_SECONDS,
+    'NX',
+  );
+  if (claimed !== 'OK') return;
+  await getSupervisionQueue().add(
+    MONITOR_CAPTURE_JOB,
+    monitorCaptureJobDataSchema.parse({ scope: 'references' }),
+    { attempts: 1 },
+  );
 }
 
 /** Exécute `tasks` par paquets de `concurrency`, en respectant une échéance. */
@@ -171,6 +238,26 @@ async function pruneIfDue(): Promise<number> {
       'mesures de supervision purgées',
     );
   }
+
+  /**
+   * Même créneau horaire pour les octets des captures — mais on **reprend les
+   * octets sans supprimer la ligne** : les incidents ne sont jamais purgés, et
+   * une chronologie qui dit « image purgée le … » vaut mieux qu'une chronologie
+   * amputée en silence. Compté à part de `pruned`, qui compte des mesures.
+   */
+  let images = 0;
+  for (let pass = 0; pass < 10; pass += 1) {
+    const purged = await pruneCaptureImages(MONITOR_CAPTURE_RETENTION_DAYS);
+    images += purged;
+    if (purged === 0) break;
+  }
+  if (images > 0) {
+    logger.info(
+      { purged: images, retentionDays: MONITOR_CAPTURE_RETENTION_DAYS },
+      'octets de captures repris par la rétention',
+    );
+  }
+
   return total;
 }
 
@@ -251,6 +338,14 @@ export async function sweepMonitors(options: SweepOptions = {}): Promise<Monitor
     });
 
     const pruned = single === null ? await pruneIfDue() : 0;
+
+    if (single === null) {
+      // Les références « avant » : enfilées, jamais prises ici. Un échec
+      // d'enfilage ne doit pas faire échouer un balayage qui a fait son travail.
+      await requestReferenceRefresh().catch((error: unknown) => {
+        logger.warn({ err: error }, 'rafraîchissement des références non enfilé');
+      });
+    }
 
     return { claimed: due.length, ...counters, suspended, pruned, budgetExhausted: exhausted };
   } finally {
