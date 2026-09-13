@@ -46,9 +46,33 @@ import { z } from 'zod';
  *
  * 6. **Taille de réponse** bornée, délai borné.
  *
+ * 7. **Les requêtes vers un tiers que l'opérateur n'a pas choisi n'héritent pas
+ *    de la liste d'autorisation.** La sonde d'expiration de domaine ne joint pas
+ *    la cible : elle joint le serveur RDAP d'un registre, désigné par la liste
+ *    d'amorçage de l'IANA. Personne dans ce panel n'a décidé de cette adresse.
+ *
+ *    Or `MONITOR_ALLOWED_CIDRS` répond à une question précise — « quelles plages
+ *    internes ce panel a-t-il le droit d'atteindre *pour superviser le parc de
+ *    l'opérateur* » — et pas à « quelles plages un tiers a le droit de nous faire
+ *    joindre ». Faire hériter la requête RDAP de cette ouverture reviendrait à
+ *    accepter qu'une entrée d'amorçage erronée, ou un DNS empoisonné, fasse
+ *    entrer une requête sortante dans le 10.0.0.0/8 de l'opérateur — et il
+ *    l'aurait autorisée sans jamais l'avoir voulu.
+ *
+ *    Ces appels passent donc `PUBLIC_ONLY` (`probe/fetch.ts`) : adresses
+ *    publiques seulement, quelle que soit la configuration. Un registre est sur
+ *    l'internet public par définition ; s'il résout vers une adresse privée,
+ *    c'est une anomalie à refuser, pas une exception à accommoder. La règle vaut
+ *    aussi pour la liste d'amorçage elle-même, dont l'URL est en dur et jamais
+ *    dérivée d'une saisie, et s'accompagne d'une exigence d'`https` : une
+ *    réponse RDAP altérée en transit dirait n'importe quoi sur une date
+ *    d'expiration.
+ *
  * Cette politique vaut pour **tous** les types de sonde, présents et à venir —
- * HTTP, TLS, TCP, DNS. Elle vit ici, à part du catalogue, pour qu'aucune
- * implémentation n'ait à la réécrire ni la possibilité de l'oublier.
+ * HTTP, mot-clé, TLS, TCP, DNS, RDAP. Elle vit ici, à part du catalogue, pour
+ * qu'aucune implémentation n'ait à la réécrire ni la possibilité de l'oublier ;
+ * et la boucle de requête qui l'applique n'existe qu'en un exemplaire, dans
+ * `probe/fetch.ts`, pour la même raison — une seconde copie diverge toujours.
  *
  * ── Ce que la garde protège exactement : la socket, pas la cible ────────────
  *

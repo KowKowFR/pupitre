@@ -47,6 +47,7 @@
     "dev": "pnpm run copy-assets && tsc -p tsconfig.json --watch --preserveWatchOutput",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/*.test.ts",
+    "harness:probes": "tsx test/harness-probes.ts",
     "copy-assets": "mkdir -p dist/ai/prompts dist/spec/__fixtures__ && cp src/ai/prompts/*.md dist/ai/prompts/ && cp src/spec/__fixtures__/*.json dist/spec/__fixtures__/"
   },
   "dependencies": {
