@@ -88,6 +88,47 @@ export const WATCH_REFRESH_MS = 8_000;
 export const WATCH_POLL_MS = 5_000;
 
 /**
+ * Dernier état connu de l'application, retenu **hors du flux**.
+ *
+ * Un `publish` Redis ne se rejoue pas : qui s'abonne après coup n'a rien. Or le
+ * flux est partagé — un seul job pour tous les spectateurs d'un déploiement —
+ * donc le deuxième onglet, le rechargement de page et la reconnexion après
+ * coupure rejoignent tous un flux **déjà ouvert**, dont l'instantané d'état est
+ * passé depuis longtemps. C'est exactement ce qui faisait dire à l'écran
+ * « aucun conteneur rapporté par la cible » pendant que les logs d'un conteneur
+ * défilaient : l'état n'avait jamais été reçu, pas relevé vide.
+ *
+ * D'où cette clé : le worker y dépose chaque relevé, la route SSE la relit à la
+ * connexion et la sert au nouveau venu avant même la première ligne de log. Le
+ * relevé porte son `checkedAt` — l'écran dit donc son âge, il ne le fait pas
+ * passer pour frais.
+ */
+export function appStatusKey(deploymentId: string): string {
+  return `app-logs:status:${deploymentId}`;
+}
+
+/**
+ * Durée de vie du dernier état connu. Large devant la cadence de relevé : la
+ * clé doit survivre à un flux qui se rouvre (le temps qu'un onglet se
+ * reconnecte), pas à une nuit entière. Au-delà, mieux vaut ne rien montrer que
+ * de montrer un inventaire d'hier.
+ */
+export const STATUS_TTL_SECONDS = 300;
+
+/**
+ * Cadence de re-relevé de l'état pendant qu'un flux est ouvert.
+ *
+ * L'instantané d'ouverture ne suffit pas : un flux vit jusqu'à trente minutes,
+ * pendant lesquelles un conteneur peut sortir, redémarrer en boucle ou devenir
+ * malsain sans que la carte d'état bouge d'un pixel. Vingt secondes, parce que
+ * le relevé emprunte la session SSH **déjà ouverte** pour les logs — pas de
+ * connexion à établir, un `compose ps` de quelques centaines de millisecondes.
+ * C'est le seul coût récurrent qu'on impose à la machine cible, et il n'existe
+ * que tant que quelqu'un regarde l'écran.
+ */
+export const STATUS_REFRESH_MS = 20_000;
+
+/**
  * Durée maximale d'un flux, quoi qu'il arrive. Un slot de worker ne doit pas
  * rester pris indéfiniment parce qu'un onglet est resté ouvert tout un week-end.
  * Le panel redemande un flux à la reconnexion : la coupure est invisible.

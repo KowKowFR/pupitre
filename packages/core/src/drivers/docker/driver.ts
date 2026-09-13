@@ -1152,7 +1152,11 @@ function parseComposePs(output: string): ServiceStatus[] {
       health: toHealth(typeof row.Health === 'string' && row.Health ? row.Health : status),
       since: status.length > 0 ? status : null,
       image: typeof row.Image === 'string' ? row.Image : null,
-      ports,
+      // Dédoublonnés : Compose déclare une publication par famille d'adresses,
+      // si bien qu'un unique `30004:80` sort deux fois — une pour 0.0.0.0, une
+      // pour ::. L'écran affichait « 30004→80, 30004→80 », ce qui se lit comme
+      // deux publications alors qu'il n'y en a qu'une.
+      ports: [...new Set(ports)],
     };
   });
 }

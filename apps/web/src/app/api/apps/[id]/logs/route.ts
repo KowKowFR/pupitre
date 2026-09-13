@@ -5,6 +5,8 @@ import {
   appLogChannel,
   appLogMessageSchema,
   appLogWatchKey,
+  appStatusKey,
+  appStatusSchema,
   deploymentJobDataSchema,
   isSupervisable,
 } from '@pupitre/core';
@@ -118,6 +120,33 @@ export const GET = apiRoute<Context>(async (request, context) => {
       // Déclarer la présence AVANT d'enfiler le job : celui-ci refuse de
       // s'ouvrir s'il ne trouve personne à servir.
       await control.set(watchKey, '1', 'EX', WATCH_TTL_SECONDS);
+
+      /**
+       * Le dernier état connu, servi avant même de réclamer un flux.
+       *
+       * Le flux est **partagé** : un seul job par déploiement, quel que soit le
+       * nombre de spectateurs. Celui qui arrive en second — deuxième onglet,
+       * rechargement de page, reconnexion après coupure — rejoint donc un flux
+       * dont l'instantané d'état est passé depuis longtemps, et Redis ne rejoue
+       * pas un `publish`. Sans ce rejeu, l'écran affichait des logs bien vivants
+       * à côté d'un « aucun conteneur rapporté par la cible » : il se
+       * contredisait parce que la route ne lui avait jamais rien donné.
+       *
+       * Lu **avant** l'enfilage du job, pour ne pas risquer de recouvrir d'un
+       * état retenu le relevé frais que ce job publie aussitôt. Le relevé porte
+       * son `checkedAt` : c'est l'écran qui en dit l'âge. Aucun SSH ici — une
+       * route HTTP ne va pas sur la machine.
+       */
+      try {
+        const retained = await control.get(appStatusKey(id));
+        if (retained) {
+          const parsed = appStatusSchema.safeParse(JSON.parse(retained) as unknown);
+          if (parsed.success) send('status', parsed.data);
+        }
+      } catch (error) {
+        // Un état retenu illisible ne vaut pas de refuser le flux.
+        logger.warn({ err: error, deploymentId: id }, 'dernier état applicatif illisible');
+      }
 
       presence = setInterval(() => {
         control.set(watchKey, '1', 'EX', WATCH_TTL_SECONDS).catch((error: unknown) => {

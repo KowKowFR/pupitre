@@ -1,8 +1,11 @@
 import {
+  STATUS_REFRESH_MS,
+  STATUS_TTL_SECONDS,
   STREAM_MAX_MS,
   WATCH_POLL_MS,
   appLogChannel,
   appLogWatchKey,
+  appStatusKey,
   deploymentJobDataSchema,
   isSupervisable,
   stripAnsi,
@@ -103,6 +106,31 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
   let stop = false;
   let watcher: NodeJS.Timeout | null = null;
   let ceiling: NodeJS.Timeout | null = null;
+  let refresher: NodeJS.Timeout | null = null;
+
+  /**
+   * Publie un relevé **et le retient**.
+   *
+   * Publier ne suffit pas : Redis ne rejoue pas un `publish`, et le flux est
+   * partagé entre tous les spectateurs d'un déploiement. Le deuxième onglet
+   * arrive donc après la diffusion et n'aurait jamais d'état — c'est ce qui
+   * faisait afficher « aucun conteneur rapporté » à côté de logs bien vivants.
+   * La clé retenue est ce que la route SSE sert au nouveau venu.
+   */
+  const publishStatus = async (status: AppStatus): Promise<void> => {
+    emit({ kind: 'status', payload: status });
+    try {
+      await redis.set(
+        appStatusKey(data.deploymentId),
+        JSON.stringify(status),
+        'EX',
+        STATUS_TTL_SECONDS,
+      );
+    } catch (error) {
+      // Le flux ne s'arrête pas parce que le cache d'état a raté.
+      log.warn({ err: error }, "mémorisation du dernier état impossible");
+    }
+  };
 
   try {
     emit({
@@ -113,7 +141,7 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
     // Un instantané d'état avant les logs : le spectateur voit tout de suite ce
     // qui tourne, sans attendre qu'une ligne soit produite.
     const status: AppStatus = await driver.status(ctx);
-    emit({ kind: 'status', payload: status });
+    await publishStatus(status);
 
     /**
      * Couper la session SSH est ce qui met fin à `logs -f` : la commande
@@ -140,6 +168,34 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
 
     ceiling = setTimeout(() => halt('durée maximale atteinte'), STREAM_MAX_MS);
 
+    /**
+     * Re-relevé périodique, sur la session SSH déjà ouverte.
+     *
+     * Sans lui, la carte d'état est figée sur l'instantané d'ouverture pendant
+     * toute la vie du flux — jusqu'à trente minutes. Un conteneur qui sort ou
+     * qui redémarre en boucle se lirait dans les logs sans jamais apparaître
+     * dans l'inventaire, ce qui est précisément la contradiction qu'on corrige.
+     *
+     * Un relevé à la fois : `pending` évite d'empiler des `compose ps` si la
+     * machine met plus de vingt secondes à répondre.
+     */
+    let pending = false;
+    refresher = setInterval(() => {
+      if (stop || pending) return;
+      pending = true;
+      driver
+        .status(ctx)
+        .then((fresh) => publishStatus(fresh))
+        .catch((error: unknown) => {
+          // La session est peut-être en train d'être coupée : ce n'est pas une
+          // raison d'interrompre le flux de logs, qui lui vit encore.
+          if (!stop) log.warn({ err: error }, "relevé d'état impossible");
+        })
+        .finally(() => {
+          pending = false;
+        });
+    }, STATUS_REFRESH_MS);
+
     await driver.logs(ctx, (raw) => {
       if (stop) return;
       const cleaned = stripAnsi(raw).replace(/\r$/, '');
@@ -157,6 +213,7 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
   } finally {
     if (watcher) clearInterval(watcher);
     if (ceiling) clearTimeout(ceiling);
+    if (refresher) clearInterval(refresher);
 
     emit({
       kind: 'lifecycle',
