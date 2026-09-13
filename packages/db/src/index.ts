@@ -11,6 +11,7 @@ export * from './scans.js';
 export * from './monitors.js';
 export * from './captures.js';
 export * from './target-metrics.js';
+export * from './dashboard.js';
 export * from './notifications.js';
 export * from './notification-digests.js';
 export * from './schedules.js';
