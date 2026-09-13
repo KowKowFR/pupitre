@@ -71,6 +71,13 @@ async function forEachCurrentDeployment<T>(
   payload: Record<string, unknown>,
   onLog: (line: string) => void,
   action: (deployment: Deployment, opened: Awaited<ReturnType<typeof openDeploymentContext>>) => Promise<T>,
+  /**
+   * Écarte un déploiement **avant** d'ouvrir sa session SSH, en disant
+   * pourquoi. Le filtre est ici et non dans l'action parce que la session est
+   * justement ce qu'on veut éviter de payer : une tâche qui tourne toutes les
+   * cinq minutes n'a pas à se connecter à une machine pour rien.
+   */
+  skipWhen?: (deployment: Deployment) => string | null,
 ): Promise<{ results: T[]; skipped: number; failures: Array<{ deploymentId: string; error: string }> }> {
   const deployments = (await listCurrentDeployments()).filter((deployment) =>
     inScope(deployment, payload),
@@ -83,6 +90,13 @@ async function forEachCurrentDeployment<T>(
   for (const deployment of deployments) {
     if (!deployment.appSpec) {
       skipped += 1;
+      continue;
+    }
+
+    const reason = skipWhen?.(deployment) ?? null;
+    if (reason !== null) {
+      skipped += 1;
+      onLog(`${deployment.id.slice(0, 8)} — ${reason}`);
       continue;
     }
 
@@ -186,26 +200,45 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
 
 const runHealthPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
   const byOutcome: Record<string, number> = { healthy: 0, unhealthy: 0, unreachable: 0 };
+  let stopped = 0;
 
-  const outcome = await forEachCurrentDeployment(payload, onLog, async (deployment, opened) => {
-    const driver = getDriver(deployment.runtime);
-    const health = await driver.healthcheck(opened.ctx);
+  const outcome = await forEachCurrentDeployment(
+    payload,
+    onLog,
+    async (deployment, opened) => {
+      const driver = getDriver(deployment.runtime);
+      const health = await driver.healthcheck(opened.ctx);
 
-    await recordHealthStatus(deployment.id, health.outcome);
-    byOutcome[health.outcome] = (byOutcome[health.outcome] ?? 0) + 1;
+      await recordHealthStatus(deployment.id, health.outcome);
+      byOutcome[health.outcome] = (byOutcome[health.outcome] ?? 0) + 1;
 
-    onLog(
-      `${deployment.id.slice(0, 8)} — ${health.outcome}` +
-        (health.detail ? ` (${health.detail})` : ''),
-    );
+      onLog(
+        `${deployment.id.slice(0, 8)} — ${health.outcome}` +
+          (health.detail ? ` (${health.detail})` : ''),
+      );
 
-    // Aucun rollback. Le statut informe l'opérateur ; c'est lui qui décide.
-    return { deploymentId: deployment.id, outcome: health.outcome, attempts: health.attempts };
-  });
+      // Aucun rollback. Le statut informe l'opérateur ; c'est lui qui décide.
+      return { deploymentId: deployment.id, outcome: health.outcome, attempts: health.attempts };
+    },
+    /**
+     * Une application volontairement arrêtée n'est pas une application en
+     * panne. La sonder rapporterait `unreachable` à chaque passage, peindrait
+     * le tableau de bord en rouge et — le jour où une alerte s'y branchera —
+     * réveillerait quelqu'un pour une décision qu'il a prise lui-même. Son
+     * arrêt a déjà remis sa santé à `unknown` : c'est la seule chose vraie, et
+     * on n'y touche pas.
+     */
+    (deployment) => {
+      if (deployment.stoppedAt === null) return null;
+      stopped += 1;
+      return 'arrêtée volontairement, non sondée';
+    },
+  );
 
   return {
     probed: outcome.results.length,
     ...byOutcome,
+    stopped,
     failures: outcome.failures,
   };
 };

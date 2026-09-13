@@ -58,7 +58,12 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'deployment:read': 'Consulter les déploiements et leurs logs',
   'deployment:create': 'Lancer un déploiement',
   'deployment:rollback': 'Revenir à la version précédente',
-  'deployment:restart': 'Redémarrer une application en marche',
+  // Couvre les trois gestes qui interrompent le service sans toucher à la
+  // version : redémarrer, arrêter, relancer. Une permission `deployment:stop`
+  // séparée aurait produit un rôle capable de redémarrer mais pas d'arrêter,
+  // alors qu'un redémarrage *est* un arrêt suivi d'un démarrage — même portée,
+  // même conséquence pour les visiteurs, rien de détruit dans les deux cas.
+  'deployment:restart': 'Redémarrer, arrêter et relancer une application déployée',
   'deployment:destroy': 'Détruire un déploiement',
   // Détruire retire l'application de la machine ; purger efface la trace en base.
   // Deux gestes différents, deux permissions.

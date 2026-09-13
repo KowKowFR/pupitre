@@ -3,6 +3,8 @@ import {
   APPLICATION_DELETE_JOB,
   APP_LOGS_JOB,
   APP_RESTART_JOB,
+  APP_START_JOB,
+  APP_STOP_JOB,
   DEPLOYMENT_DESTROY_JOB,
   DEPLOYMENT_ROLLBACK_JOB,
   DEPLOYMENT_RUN_JOB,
@@ -36,7 +38,12 @@ import {
   handleDeploymentRollback,
   handleDeploymentRun,
 } from './handlers/deployment.js';
-import { handleAppLogs, handleAppRestart } from './handlers/app.js';
+import {
+  handleAppLogs,
+  handleAppRestart,
+  handleAppStart,
+  handleAppStop,
+} from './handlers/app.js';
 import { handleApplicationDelete } from './handlers/application.js';
 import { handleTargetMetrics, handleTargetMetricsSweep } from './handlers/host-metrics.js';
 import { handleMonitorCapture, handleMonitorSweep } from './handlers/monitor.js';
@@ -102,6 +109,10 @@ const handlers: Record<string, JobHandler> = {
 const supervisionHandlers: Record<string, JobHandler> = {
   [APP_LOGS_JOB]: handleAppLogs,
   [APP_RESTART_JOB]: handleAppRestart,
+  // Arrêt et remise en marche : même famille que le redémarrage — une écriture
+  // courte sur une application déjà en place, qui ne rejoue aucun pipeline.
+  [APP_STOP_JOB]: handleAppStop,
+  [APP_START_JOB]: handleAppStart,
   // L'inventaire est une lecture : sur la file de supervision, il ne retarde
   // aucun déploiement et aucun déploiement ne le retarde.
   [WORKLOAD_LIST_JOB]: handleWorkloadList,

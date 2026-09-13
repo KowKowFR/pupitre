@@ -75,6 +75,28 @@ export const deployments = pgTable(
      */
     healthStatus: healthStatusEnum('health_status').notNull().default('unknown'),
     lastHealthAt: timestamp('last_health_at', { withTimezone: true }),
+    /**
+     * Depuis quand cette application est **volontairement** arrêtée. `null` :
+     * elle est censée tourner.
+     *
+     * ── Pourquoi une colonne, et pas une valeur `stopped` dans le statut ────
+     * Parce que `status` raconte **l'issue d'un déploiement** — a-t-il abouti,
+     * échoué, été replié, détruit — et qu'un arrêt n'est pas une issue : le
+     * déploiement a réussi, et il a toujours réussi une heure après qu'on a
+     * coupé les conteneurs. Écraser `success` par `stopped` perdrait cette
+     * information, et le jour du redémarrage il faudrait deviner vers quoi
+     * revenir.
+     *
+     * La conséquence pratique confirme la théorie : `status` gouverne
+     * `isSupervisable()`, donc l'accès aux logs et au redémarrage. Une valeur
+     * de plus rendrait muette la console d'une application arrêtée — c'est-à-
+     * dire au moment précis où l'on veut lire les dernières lignes pour savoir
+     * pourquoi on l'a arrêtée.
+     *
+     * Un horodatage plutôt qu'un booléen : « arrêtée depuis mardi » est ce que
+     * l'écran a besoin de dire, et un booléen ne l'aurait jamais su.
+     */
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }),
     triggeredBy: text('triggered_by').references(() => users.id, { onDelete: 'set null' }),
     error: text('error'),
     startedAt: timestamp('started_at', { withTimezone: true }),

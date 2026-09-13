@@ -265,6 +265,49 @@ export interface DeploymentDriver {
    */
   restart(ctx: DriverContext, onLog: LogSink): Promise<void>;
 
+  /**
+   * Arrête l'application sans rien démonter.
+   *
+   * ── Le contrat, identique sur les deux runtimes ─────────────────────────────
+   * Ce qui s'arrête : les processus, et eux seuls.
+   * Ce qui reste : les volumes et leurs données, la réservation de port en
+   * base, le répertoire de release sur la cible, l'entrée de proxy ou
+   * l'Ingress, et l'enregistrement du déploiement. `start()` doit pouvoir
+   * remettre en marche **exactement** ce que `deploy()` avait posé — sans
+   * nouveau rendu, sans reconstruction, sans changement de version.
+   *
+   * Idempotent : arrêter une application déjà arrêtée réussit sans rien faire.
+   * C'est ce qui rend le geste rejouable après une coupure de session, et ce
+   * qui évite d'avoir à interroger l'état avant d'agir.
+   *
+   * ── Une divergence observable, et elle est assumée ──────────────────────────
+   * Ce que voit un visiteur pendant l'arrêt n'est pas le même des deux côtés :
+   * en Compose le port hôte se libère avec le conteneur — la connexion est
+   * refusée ; en Kubernetes le Service et l'Ingress survivent aux pods — le
+   * contrôleur d'ingress répond 503. Aucune des deux ne peut être imitée par
+   * l'autre sans détruire ce que le contrat promet de garder (l'entrée de proxy
+   * d'un côté, la réservation de port de l'autre). On la documente ici plutôt
+   * que de la maquiller.
+   *
+   * Obligatoire, et non optionnelle comme `openFirewall()` : les deux runtimes
+   * ont une traduction honnête du geste. Une méthode optionnelle dit « ce
+   * runtime n'a pas cette capacité » — ce n'est pas le cas ici, et le laisser
+   * croire obligerait l'appelant à prévoir un cas qui n'existe pas.
+   */
+  stop(ctx: DriverContext, onLog: LogSink): Promise<void>;
+
+  /**
+   * Remet en marche ce que `stop()` a arrêté, dans l'état où `deploy()` l'avait
+   * laissé — mêmes images, mêmes volumes, même port, même nombre de répliques
+   * que l'AppSpec en demande.
+   *
+   * Idempotent lui aussi : démarrer une application déjà en marche réussit.
+   * Rend la main quand les services sont **prêts**, pas quand l'ordre est
+   * passé : c'est ce qui permet à l'appelant d'enchaîner sur une sonde de santé
+   * qui veut dire quelque chose.
+   */
+  start(ctx: DriverContext, onLog: LogSink): Promise<void>;
+
   // ─── charges de la cible ───────────────────────────────────────────────────
   //
   // Ces trois-là ne parlent pas d'un déploiement mais de la **machine** : elles

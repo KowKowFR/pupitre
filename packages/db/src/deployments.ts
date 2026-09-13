@@ -47,6 +47,8 @@ export type DeploymentSummary = {
   previousDeploymentId: string | null;
   scanConfig: ScanConfig | null;
   autoRollback: boolean;
+  /** Non nul : l'application a été volontairement arrêtée à cette date. */
+  stoppedAt: Date | null;
 };
 
 const summaryColumns = {
@@ -71,6 +73,7 @@ const summaryColumns = {
   previousDeploymentId: deployments.previousDeploymentId,
   scanConfig: deployments.scanConfig,
   autoRollback: deployments.autoRollback,
+  stoppedAt: deployments.stoppedAt,
 } as const;
 
 function summaryQuery(db: Database) {
@@ -673,6 +676,33 @@ export async function listCurrentDeployments(
   return live
     .map((row) => row.inService)
     .filter((row): row is Deployment => row !== null);
+}
+
+/**
+ * Marque une application comme volontairement arrêtée, ou la démarque.
+ *
+ * Le `status` du déploiement n'est **pas** touché : il raconte l'issue de la
+ * mise en ligne, pas ce que les conteneurs font en ce moment. Voir le
+ * commentaire de la colonne `stopped_at` dans `schema/deployments.ts`.
+ *
+ * La santé retombe à `unknown` en même temps que l'arrêt : laisser `healthy`
+ * sur une application dont plus rien ne tourne serait un mensonge affiché sur
+ * le tableau de bord, et la sonde périodique ne repassera pas la corriger —
+ * elle saute justement les applications arrêtées.
+ */
+export async function setDeploymentStopped(
+  id: string,
+  stoppedAt: Date | null,
+  db: Database = getDb(),
+): Promise<void> {
+  await db
+    .update(deployments)
+    .set({
+      stoppedAt,
+      updatedAt: new Date(),
+      ...(stoppedAt ? { healthStatus: 'unknown' as const, lastHealthAt: stoppedAt } : {}),
+    })
+    .where(eq(deployments.id, id));
 }
 
 /** Statut de santé constaté par la sonde périodique. N'entraîne aucune action. */

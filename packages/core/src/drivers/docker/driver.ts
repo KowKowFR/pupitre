@@ -44,6 +44,13 @@ const DIAGNOSTIC_TIMEOUT_MS = 60_000;
 /** Tirer une image peut prendre plusieurs minutes sur un lien lent. */
 const PULL_TIMEOUT_MS = 10 * 60_000;
 const REMOVE_TIMEOUT_MS = 2 * 60_000;
+/**
+ * Délai laissé à un conteneur pour se fermer proprement avant le SIGKILL.
+ * Le défaut de Compose est de 10 s, trop court pour une base de données qui
+ * vide ses tampons : un arrêt volontaire ne doit pas corrompre ce que le
+ * contrat promet de conserver.
+ */
+const STOP_GRACE_SECONDS = 30;
 /** Sépare deux sorties dans une même invocation shell. */
 const SENTINEL = '---tp-workloads---';
 
@@ -754,6 +761,83 @@ export class DockerComposeDriver implements DeploymentDriver {
     onLog('docker compose restart');
     await this.stream(ctx, this.compose(ctx, 'restart'), onLog, 'restart', UP_TIMEOUT_MS);
     onLog('services redémarrés');
+  }
+
+  /**
+   * `docker compose stop` : les conteneurs restent créés, à l'état `exited`.
+   *
+   * Ni `down` (qui supprime les conteneurs et le réseau) ni `pause` (qui laisse
+   * les processus en mémoire et garde le port lié, donc réservé pour rien) :
+   * `stop` est le seul des trois à rendre les ressources d'exécution en gardant
+   * intacts les volumes, le réseau et la configuration.
+   *
+   * Le port hôte se libère avec le conteneur — mesuré : `docker compose ps`
+   * n'affiche plus aucune liaison après l'arrêt. La réservation en base, elle,
+   * reste : elle est ce qui garantit que personne ne prendra ce port pendant
+   * que l'application est arrêtée, et que `start()` la retrouvera.
+   *
+   * Idempotent : sur un projet déjà arrêté, Compose sort en 0 sans rien faire.
+   */
+  async stop(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    onLog(`docker compose stop --timeout ${STOP_GRACE_SECONDS}`);
+    await this.stream(
+      ctx,
+      this.compose(ctx, `stop --timeout ${STOP_GRACE_SECONDS}`),
+      onLog,
+      'stop',
+      UP_TIMEOUT_MS,
+    );
+    onLog('conteneurs arrêtés — volumes, réseau et réservation de port conservés');
+  }
+
+  /**
+   * `docker compose start`, avec un filet.
+   *
+   * Mesuré sur la cible de test : quand plus aucun conteneur du projet
+   * n'existe — un `docker system prune` est passé par là, ou quelqu'un a fait
+   * le ménage à la main —, `start` échoue en code 1 sur « no container found
+   * for project ». Il n'y a alors rien à redémarrer, mais il y a tout ce qu'il
+   * faut pour le recréer : le `compose.yml` de la version en service est
+   * toujours sur la cible.
+   *
+   * D'où le repli sur `up -d`, sans `pull` et sans `build` : on remonte
+   * exactement le fichier déjà déposé, avec les volumes nommés qui, eux,
+   * n'avaient pas disparu. C'est le seul moyen de tenir la promesse du
+   * contrat — « remettre en marche ce que `deploy()` avait posé » — dans un cas
+   * où l'ordre littéral ne le peut plus.
+   */
+  async start(ctx: DriverContext, onLog: LogSink): Promise<void> {
+    onLog('docker compose start');
+    const started = await exec(ctx.sshSession, this.compose(ctx, 'start'), {
+      timeout: UP_TIMEOUT_MS,
+    });
+
+    if (started.code !== 0) {
+      onLog(`  ${firstLine(started.stderr) ?? `code ${started.code}`}`);
+      onLog('→ aucun conteneur à relancer : remontage depuis le compose.yml déposé');
+      await this.stream(
+        ctx,
+        this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300'),
+        onLog,
+        'start',
+        UP_TIMEOUT_MS,
+      );
+      onLog('services recréés et démarrés');
+      return;
+    }
+
+    // `start` rend la main dès que le conteneur est lancé, pas quand il est
+    // sain. `up -d --wait` sur un projet déjà démarré ne recrée rien et attend
+    // les sondes : c'est la façon la moins chère d'honorer « rend la main quand
+    // les services sont prêts ».
+    await this.stream(
+      ctx,
+      this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300'),
+      onLog,
+      'start',
+      UP_TIMEOUT_MS,
+    );
+    onLog('services démarrés');
   }
 
   // ─── charges de la cible ────────────────────────────────────────────────────

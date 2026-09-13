@@ -28,6 +28,19 @@ export const POST = apiRoute<Context>(async (request, context) => {
       `Un déploiement « ${deployment.status} » ne se redémarre pas.`,
     );
   }
+  /**
+   * Redémarrer une application arrêtée serait ambigu : `docker compose restart`
+   * relancerait bel et bien les conteneurs — la base la croirait toujours
+   * arrêtée et la sonde périodique continuerait de l'ignorer —, tandis qu'un
+   * `rollout restart` sur zéro réplique ne ferait rien du tout. Un même bouton
+   * pour deux effets opposés selon le runtime est exactement ce que
+   * l'architecture refuse. Le geste existe, il s'appelle « Démarrer ».
+   */
+  if (deployment.stoppedAt !== null) {
+    throw new ConflictError(
+      'Cette application est arrêtée : démarrez-la plutôt que de la redémarrer.',
+    );
+  }
 
   const job = await getSupervisionQueue().add(
     APP_RESTART_JOB,
