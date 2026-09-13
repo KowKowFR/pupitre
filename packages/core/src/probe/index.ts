@@ -1,5 +1,7 @@
 import type { MonitorType } from '../monitors/catalog.js';
+import { dnsProbe } from './dns.js';
 import { httpProbe } from './http.js';
+import { tcpProbe } from './tcp.js';
 import { tlsProbe } from './tls.js';
 import type { MonitorProbe } from './types.js';
 
@@ -14,6 +16,8 @@ import type { MonitorProbe } from './types.js';
 const PROBES: Record<MonitorType, MonitorProbe> = {
   http: httpProbe,
   tls: tlsProbe,
+  tcp: tcpProbe,
+  dns: dnsProbe,
 };
 
 export function getMonitorProbe(type: MonitorType): MonitorProbe {
@@ -25,3 +29,5 @@ export * from './net.js';
 export * from './webhook.js';
 export { httpProbe } from './http.js';
 export { tlsProbe } from './tls.js';
+export { tcpProbe } from './tcp.js';
+export { dnsProbe } from './dns.js';

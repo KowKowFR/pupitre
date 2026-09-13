@@ -47,8 +47,47 @@ import { z } from 'zod';
  * 6. **Taille de réponse** bornée, délai borné.
  *
  * Cette politique vaut pour **tous** les types de sonde, présents et à venir —
- * HTTP, TLS, et demain DNS ou RDAP. Elle vit ici, à part du catalogue, pour
- * qu'aucune implémentation n'ait à la réécrire ni la possibilité de l'oublier.
+ * HTTP, TLS, TCP, DNS. Elle vit ici, à part du catalogue, pour qu'aucune
+ * implémentation n'ait à la réécrire ni la possibilité de l'oublier.
+ *
+ * ── Ce que la garde protège exactement : la socket, pas la cible ────────────
+ *
+ * Deux types récents obligent à énoncer la règle plus précisément que « on
+ * contrôle la cible ».
+ *
+ * **TCP** est le cas dangereux, et il faut le dire franchement : une sonde qui
+ * prend un hôte et un port *est* la primitive d'un scanner de réseau interne.
+ * Elle rend, en clair, « ce port accepte / refuse / ne répond pas », c'est-à-dire
+ * exactement ce que rend `nmap`. Elle est plus dangereuse que la sonde HTTP, qui
+ * au moins parle un protocole et achoppe sur les services qui ne le parlent pas.
+ * Elle passe donc par **le même** `resolveGuarded()`, sans exception et sans
+ * chemin de contournement : rien dans `tcp.ts` n'ouvre une socket vers autre
+ * chose que l'adresse littérale que la garde a validée.
+ *
+ * **DNS** est le cas subtil : la sonde ne se connecte **pas** à ce qu'elle
+ * surveille. Elle pose une question *à propos* d'un nom, à un résolveur. Les
+ * adresses qu'elle obtient en réponse sont des **données** — on les compare,
+ * on ne les joint jamais. Les contrôler n'aurait aucun sens : superviser
+ * « le A de db.interne vaut bien 10.0.0.5 » est légitime et ne joint rien.
+ *
+ * D'où la formulation retenue, qui couvre les quatre types sans cas particulier :
+ *
+ *     la garde s'applique à **tout endpoint vers lequel le worker ouvre une
+ *     socket**, et à rien d'autre.
+ *
+ * Pour DNS, cet endpoint est le **résolveur** — et c'est bien lui qui est
+ * contrôlé. Avec une exception explicite : le résolveur *du système*, celui de
+ * `/etc/resolv.conf`, n'est pas une saisie d'utilisateur mais un fait de
+ * déploiement — dans un conteneur c'est souvent `127.0.0.11`, que la garde
+ * refuserait à tort. Un résolveur **déclaré dans la sonde**, lui, est bien une
+ * saisie d'utilisateur : il est contrôlé comme n'importe quelle cible.
+ *
+ * Reste un risque résiduel, assumé et nommé : interroger `<données>.attaquant.fr`
+ * fait émettre une requête au résolveur vers un serveur choisi par celui qui a
+ * créé la sonde — un canal d'exfiltration lent. Il n'apporte rien à qui porte
+ * déjà `monitor:manage`, qui peut faire émettre une requête HTTP vers n'importe
+ * quel hôte public ; et le refuser demanderait une liste d'autorisation de noms,
+ * qui n'existe pas.
  *
  * ── Ce qui reste ouvert, et qui est assumé ───────────────────────────────────
  * Une plage autorisée l'est pour toutes les sondes : il n'y a pas de
@@ -304,6 +343,32 @@ export function checkAddress(value: string, allowlist: readonly Cidr[]): Address
   };
 }
 
+/**
+ * Ce qu'aucune liste ne débloquera jamais, jugé **sans résolution ni
+ * environnement**.
+ *
+ * Utile parce que le refus le plus important — le service de métadonnées — doit
+ * pouvoir tomber au plus tôt : dans le schéma Zod, à la création de la sonde,
+ * là où on ne peut ni lire `MONITOR_ALLOWED_CIDRS` (le catalogue est importé par
+ * des composants client) ni faire une requête DNS (une validation ne fait pas
+ * de réseau). Une adresse littérale n'a pas besoin de l'un ni de l'autre : elle
+ * se juge sur pièce.
+ *
+ * Rend `{ allowed: true }` pour un nom : un nom ne se juge qu'une fois résolu,
+ * et c'est `resolveGuarded()` qui s'en charge.
+ */
+export function checkNeverAllowable(value: string): { allowed: boolean; reason?: string } {
+  const category = classifyAddress(value);
+  if (category === null) return { allowed: true };
+  if (!NEVER_ALLOWED.has(category)) return { allowed: true };
+  return {
+    allowed: false,
+    reason:
+      `${value} est une adresse ${CATEGORY_LABEL[category]} — ` +
+      "elle ne peut être autorisée par aucune liste, c'est une règle du panel",
+  };
+}
+
 /** Contrôle d'un nom d'hôte, avant toute résolution. */
 export function checkHostname(hostname: string): { allowed: boolean; reason?: string } {
   const host = hostname.trim().toLowerCase().replace(/\.$/, '');
@@ -313,7 +378,13 @@ export function checkHostname(hostname: string): { allowed: boolean; reason?: st
   if (host === 'localhost' || host.endsWith('.localhost')) {
     return { allowed: false, reason: '« localhost » ne se supervise pas depuis le worker' };
   }
-  return { allowed: true };
+  // Une cible écrite en adresse littérale se juge tout de suite, sans attendre
+  // la résolution : `169.254.169.254` n'a aucune raison d'être acceptée à la
+  // création pour n'être refusée qu'au premier balayage, une heure plus tard.
+  // Seules les catégories qu'aucune liste ne débloque tombent ici ; le
+  // bouclage et le privé dépendent de `MONITOR_ALLOWED_CIDRS`, qui n'est pas
+  // lisible d'ici.
+  return checkNeverAllowable(host);
 }
 
 /** Schéma, identifiants, nom d'hôte. La résolution DNS vient après, dans la sonde. */

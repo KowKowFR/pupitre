@@ -6,11 +6,14 @@ import {
   MONITOR_RECOVERY_THRESHOLD_DEFAULT,
   MONITOR_THRESHOLD_MAX,
   MONITOR_THRESHOLD_MIN,
+  checkMonitorTargetLiterals,
   decrypt,
   describeMonitorTarget,
   encrypt,
   formatCadence,
   isMonitorType,
+  parseCidrList,
+  type Cidr,
   monitorOutcomeSchema,
   monitorTypeDefinition,
   monitorTypeSchema,
@@ -59,6 +62,21 @@ export class MonitorConfigError extends Error {
 }
 
 // ─── validation ───────────────────────────────────────────────────────────────
+
+/**
+ * Les plages internes que ce déploiement s'autorise à superviser.
+ *
+ * Lue ici et pas reçue en paramètre : `resolveConfig()` est appelée par le
+ * panel comme par tout appelant de la couche de persistance, et la liste est un
+ * fait de déploiement, pas un choix d'appelant. Mise en cache parce qu'elle ne
+ * change pas sans redémarrage — elle vient de l'environnement, comme
+ * `MASTER_KEY`.
+ */
+let cachedCidrs: readonly Cidr[] | null = null;
+function allowedCidrs(): readonly Cidr[] {
+  cachedCidrs ??= parseCidrList(process.env.MONITOR_ALLOWED_CIDRS);
+  return cachedCidrs;
+}
 
 const intervalSchema = z
   .number()
@@ -128,6 +146,18 @@ export function resolveConfig(
       `configuration de sonde « ${definition.label} » invalide — ${path} : ${first?.message ?? 'valeur refusée'}`,
       `config.${path}`,
     );
+  }
+
+  // Garde SSRF, deuxième couche : le schéma refuse ce qu'aucune liste ne
+  // débloque (le lien-local, donc les services de métadonnées), mais il est
+  // pur — il ne peut pas lire `MONITOR_ALLOWED_CIDRS`, puisqu'il est aussi
+  // évalué dans le navigateur. C'est ici, côté serveur, que le bouclage et les
+  // plages privées non listées se refusent, **à la création**, plutôt qu'au
+  // premier balayage. `checkMonitorTargetLiterals` ne connaît aucun type : il
+  // lit les champs marqués `kind: 'host' | 'url'` dans le catalogue.
+  const target = checkMonitorTargetLiterals(type, parsed.data, allowedCidrs());
+  if (!target.allowed) {
+    throw new MonitorConfigError(target.reason, `config.${target.field}`);
   }
 
   const interval = intervalSeconds ?? definition.defaultIntervalSeconds;

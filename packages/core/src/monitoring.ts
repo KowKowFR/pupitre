@@ -10,9 +10,10 @@
  * un DNS qui ne résout plus, une latence qui dérive.
  *
  * ── L'organisation ──────────────────────────────────────────────────────────
- *   monitors/ssrf.ts     la politique SSRF, commune à tous les types
- *   monitors/catalog.ts  le catalogue déclaratif des types de sonde
- *   monitors/state.ts    verdict, machine à états, disponibilité, alerte
+ *   monitors/ssrf.ts        la politique SSRF, commune à tous les types
+ *   monitors/catalog.ts     le catalogue déclaratif des types de sonde
+ *   monitors/state.ts       verdict, machine à états, disponibilité, alerte
+ *   monitors/dns-records.ts le vocabulaire DNS et la comparaison de deux réponses
  *
  * Trois fichiers, tous **purs** : ce module est importé par des composants
  * client, il ne doit tirer aucun module natif. Les sondes elles-mêmes — celles
@@ -20,5 +21,6 @@
  */
 
 export * from './monitors/ssrf.js';
+export * from './monitors/dns-records.js';
 export * from './monitors/catalog.js';
 export * from './monitors/state.js';
