@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useT } from '@/i18n/client';
+import { auth as messages } from '@/i18n/messages/auth';
+import { common } from '@/i18n/messages/common';
 import { resetPassword } from '@/lib/auth-client';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { Alert } from '@/components/ui/alert';
@@ -49,6 +52,8 @@ export function ChoosePasswordForm({
   linkError: string | null;
   copy: ChoosePasswordCopy;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -69,18 +74,18 @@ export function ChoosePasswordForm({
     const confirmation = String(form.get('confirmation') ?? '');
 
     if (password.length < PASSWORD_MIN_LENGTH) {
-      setError(`Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caractères.`);
+      setError(t('password.tooShort', { count: PASSWORD_MIN_LENGTH }));
       return;
     }
     // Vérifiée ici et pas côté serveur : c'est une garde contre la faute de
     // frappe, pas une règle de sécurité. Le serveur n'a aucune raison de
     // recevoir deux fois la même chaîne.
     if (password !== confirmation) {
-      setError('Les deux mots de passe ne sont pas identiques.');
+      setError(t('choose.mismatch'));
       return;
     }
     if (!token) {
-      setError('Ce lien ne porte aucun jeton.');
+      setError(t('choose.noToken'));
       return;
     }
 
@@ -94,11 +99,7 @@ export function ChoosePasswordForm({
         setConsumed(true);
         return;
       }
-      setError(
-        result.error.status === 429
-          ? 'Trop de tentatives. Attendez une minute avant de réessayer.'
-          : 'Le mot de passe a été refusé. Réessayez, ou demandez un nouveau lien.',
-      );
+      setError(result.error.status === 429 ? t('choose.throttled') : t('choose.rejected'));
       return;
     }
 
@@ -120,7 +121,7 @@ export function ChoosePasswordForm({
               router.refresh();
             }}
           >
-            Se connecter
+            {t('login.submit')}
           </Button>
         </CardContent>
       </Card>
@@ -137,19 +138,16 @@ export function ChoosePasswordForm({
           <CardDescription>{copy.deadBody}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert variant="info">
-            Un lien ne fonctionne qu&apos;une seule fois, et il expire. Celui-ci a été utilisé, ou
-            son délai est passé.
-          </Alert>
+          <Alert variant="info">{t('choose.dead.notice')}</Alert>
           <div className="flex flex-col gap-2 text-sm">
             <Link
               href="/forgot-password"
               className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
             >
-              Demander un nouveau lien
+              {t('choose.newLink')}
             </Link>
             <Link href="/login" className="text-ink-muted underline-offset-4 hover:underline">
-              Retour à la connexion
+              {t('link.backToLogin')}
             </Link>
           </div>
         </CardContent>
@@ -167,7 +165,7 @@ export function ChoosePasswordForm({
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {error ? <Alert variant="destructive">{error}</Alert> : null}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Mot de passe</Label>
+            <Label htmlFor="password">{t('field.password')}</Label>
             <Input
               id="password"
               name="password"
@@ -177,10 +175,12 @@ export function ChoosePasswordForm({
               required
               autoFocus
             />
-            <p className="text-xs text-ink-faint">{PASSWORD_MIN_LENGTH} caractères minimum.</p>
+            <p className="text-xs text-ink-faint">
+              {t('password.min', { count: PASSWORD_MIN_LENGTH })}
+            </p>
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="confirmation">Confirmation</Label>
+            <Label htmlFor="confirmation">{t('field.confirmation')}</Label>
             <Input
               id="confirmation"
               name="confirmation"
@@ -191,7 +191,7 @@ export function ChoosePasswordForm({
             />
           </div>
           <Button type="submit" className="mt-1 w-full" disabled={pending}>
-            {pending ? 'Enregistrement…' : copy.submit}
+            {pending ? tc('saving') : copy.submit}
           </Button>
         </form>
       </CardContent>

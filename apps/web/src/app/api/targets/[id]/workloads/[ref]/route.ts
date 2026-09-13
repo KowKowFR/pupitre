@@ -1,14 +1,15 @@
 import {
   WORKLOAD_REMOVE_JOB,
   decodeWorkloadRef,
-  managedWorkloadRefusal,
   workloadActionJobDataSchema,
   workloadChannel,
+  workloadCopy,
 } from '@pupitre/core';
 import { getTarget, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
@@ -40,11 +41,11 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id, ref } = paramsSchema.parse(await context.params);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const decoded = decodeWorkloadRef(ref);
   if (!decoded) {
-    throw new HttpError(422, 'invalid_workload_ref', `Référence de charge illisible : « ${ref} »`);
+    throw new HttpError(422, 'invalid_workload_ref', msg(messages, 'error.badWorkloadRef', { ref }));
   }
 
   // L'inventaire fait autorité, pas ce que le client affirme : c'est la machine
@@ -52,7 +53,9 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const list = await fetchWorkloads(id, auth.userId, auth.ip);
   const workload = findWorkload(list, ref);
   if (!workload) {
-    throw new NotFoundError(`Aucune charge « ${ref} » sur « ${target.name} »`);
+    throw new NotFoundError(
+      msg(messages, 'error.workloadNotFound', { ref, name: target.name }),
+    );
   }
 
   if (workload.managed) {
@@ -71,7 +74,18 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
       },
       ip: auth.ip,
     });
-    throw new ConflictError(managedWorkloadRefusal(workload));
+    // Le refus est écrit une fois, dans `@pupitre/core`, parce que le driver le
+    // relève de son côté. On désigne sa clé plutôt que d'appeler la fonction :
+    // `apiRoute()` rend la phrase dans la langue de l'instance, et
+    // `error.message` reste en français pour les logs.
+    throw new ConflictError(
+      workload.managedApp
+        ? msg(workloadCopy, 'managed.refusal.app', {
+            name: workload.name,
+            app: workload.managedApp,
+          })
+        : msg(workloadCopy, 'managed.refusal', { name: workload.name }),
+    );
   }
 
   const data = workloadActionJobDataSchema.parse({
@@ -88,7 +102,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   // aucun sens.
   const job = await getOpsQueue().add(WORKLOAD_REMOVE_JOB, data, { attempts: 1 });
   if (!job.id) {
-    throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+    throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.jobNoId'));
   }
 
   await logAudit({

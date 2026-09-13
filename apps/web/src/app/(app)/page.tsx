@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import { deploymentStepLabel, type Translate } from '@pupitre/core';
 import {
   activityPulse,
   deploymentPulse,
   deploymentQuerySchema,
   foldFleet,
+  getAppSettings,
   HOST_METRIC_CATALOG,
   listApplications,
   listDeployments,
@@ -38,6 +40,9 @@ import {
 } from '@/components/chart';
 import { Led, Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
+import { currentLanguage, getT } from '@/i18n/server';
+import { dashboard } from '@/i18n/messages/dashboard';
+import { formatNumber, formatSettingsOf, type FormatSettings } from '@/lib/format';
 import { currentAuth } from '@/lib/page-auth';
 import { AttentionPanel, Panel, PanelEmpty, type AttentionItem } from './attention';
 import { DeploymentStatusBadge } from './deployments/status-badge';
@@ -100,12 +105,29 @@ const HEALTH_TONE: Record<string, Tone> = {
   unknown: 'idle',
 };
 
-const HEALTH_LABEL: Record<string, string> = {
-  healthy: 'en marche',
-  unhealthy: 'répond mal',
-  unreachable: 'injoignable',
-  unknown: 'état inconnu',
+/**
+ * Les statuts sont associés à une **clé** de dictionnaire, pas à une phrase.
+ * Un statut que le catalogue ne connaît pas continue de s'afficher brut, comme
+ * avant : afficher `rolled_back` est moins trompeur qu'une traduction inventée.
+ */
+type MessageKey = keyof typeof dashboard.fr;
+type T = Translate<typeof dashboard.fr>;
+
+const HEALTH_KEY: Record<string, MessageKey | undefined> = {
+  healthy: 'health.healthy',
+  unhealthy: 'health.unhealthy',
+  unreachable: 'health.unreachable',
+  unknown: 'health.unknown',
 };
+
+function labelOf(
+  catalog: Record<string, MessageKey | undefined>,
+  status: string,
+  t: T,
+): string {
+  const key = catalog[status];
+  return key === undefined ? status : t(key);
+}
 
 const DEPLOYMENT_TONE: Record<string, Tone> = {
   success: 'ok',
@@ -117,13 +139,13 @@ const DEPLOYMENT_TONE: Record<string, Tone> = {
 };
 
 /** « il y a 3 min ». Rend `null` plutôt qu'un tiret : l'appelant décide. */
-function since(date: Date | null): string | null {
+function since(date: Date | null, t: T): string | null {
   if (!date) return null;
   const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
-  if (seconds < 60) return `il y a ${seconds} s`;
-  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`;
-  if (seconds < 86_400) return `il y a ${Math.floor(seconds / 3600)} h`;
-  return `il y a ${Math.floor(seconds / 86_400)} j`;
+  if (seconds < 60) return t('since.seconds', { count: seconds });
+  if (seconds < 3600) return t('since.minutes', { count: Math.floor(seconds / 60) });
+  if (seconds < 86_400) return t('since.hours', { count: Math.floor(seconds / 3600) });
+  return t('since.days', { count: Math.floor(seconds / 86_400) });
 }
 
 /** Médiane d'une série éparse. `null` sous trois valeurs — deux n'en ont pas. */
@@ -135,6 +157,7 @@ function median(values: readonly (number | null)[]): number | null {
 
 export default async function HomePage() {
   const auth = await currentAuth('/');
+  const t = await getT(dashboard);
 
   const canReadTargets = auth?.can('target:read') ?? false;
   const canReadDeployments = auth?.can('deployment:read') ?? false;
@@ -148,6 +171,12 @@ export default async function HomePage() {
   // Les cibles d'abord : leurs identifiants conditionnent l'historique du parc.
   // Une lecture indexée sur cinq lignes, puis tout le reste en parallèle.
   const targets = canReadTargets ? await listTargets() : ([] as PublicTarget[]);
+
+  // Le formatage descend par props jusqu'aux figures : la locale d'instance
+  // décide de « 00:33 » comme de « 12 345 », et elle décide la même chose
+  // partout sur l'écran.
+  const { settings } = await getAppSettings();
+  const format = formatSettingsOf(settings);
 
   const [deployments, applications, running, monitors, pulse, activity, chronicle, posture, histories] =
     await Promise.all([
@@ -186,14 +215,14 @@ export default async function HomePage() {
   const monitorsUp = monitors.filter((monitor) => monitor.status === 'healthy').length;
   const appsHealthy = running.filter((app) => app.healthStatus === 'healthy').length;
 
-  const attention = collectAttention({ targets, running, monitors, recent, chronicle, posture });
+  const attention = collectAttention({ targets, running, monitors, recent, chronicle, posture, t });
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Poste d'exploitation"
-        title="Tableau de bord"
-        description="Ce qui demande une intervention, ce qui s'est passé depuis hier, puis l'état du parc."
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
       />
 
       <AttentionPanel items={attention} />
@@ -209,6 +238,7 @@ export default async function HomePage() {
         canReadTargets={canReadTargets}
         canReadDeployments={canReadDeployments}
         canReadAudit={canReadAudit}
+        format={format}
       />
 
       {canReadTargets ? <FleetPanel targets={targets} histories={histories} /> : null}
@@ -221,16 +251,16 @@ export default async function HomePage() {
       */}
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
         <Panel
-          title="En marche"
+          title={t('running.title')}
           href={canReadDeployments ? '/apps' : undefined}
-          linkLabel="Supervision"
-          hint={canReadDeployments ? undefined : 'accès restreint'}
+          linkLabel={t('link.servers')}
+          hint={canReadDeployments ? undefined : t('restricted')}
         >
           {running.length === 0 ? (
             <PanelEmpty>
-              Aucune application en marche. Déployez-en une depuis{' '}
+              {t('running.empty')}{' '}
               <Link href="/applications" className="text-signal underline underline-offset-4">
-                Applications
+                {t('link.applications')}
               </Link>
               .
             </PanelEmpty>
@@ -250,7 +280,7 @@ export default async function HomePage() {
                     <span className="text-ink-faint">@{app.targetName}</span>
                   </Link>
                   <span className="text-ink-muted shrink-0">
-                    {HEALTH_LABEL[app.healthStatus] ?? app.healthStatus}
+                    {labelOf(HEALTH_KEY, app.healthStatus, t)}
                   </span>
                 </li>
               ))}
@@ -272,7 +302,7 @@ export default async function HomePage() {
       */}
       <ReadoutBar>
         <Readout
-          label="Cibles prêtes"
+          label={t('readout.targets')}
           value={targetsUp}
           unit={`/ ${targets.length}`}
           tone={
@@ -284,28 +314,28 @@ export default async function HomePage() {
                   ? 'idle'
                   : 'ok'
           }
-          hint={targetsHint({ canReadTargets, targetsDown, targetsUntested })}
+          hint={targetsHint({ canReadTargets, targetsDown, targetsUntested }, t)}
         />
         <Readout
-          label="Applications en marche"
+          label={t('readout.apps')}
           value={appsHealthy}
           unit={`/ ${running.length}`}
           tone={running.length === 0 ? 'idle' : appsHealthy === running.length ? 'ok' : 'warn'}
-          hint={`${applications.length} déclarée${applications.length > 1 ? 's' : ''}`}
+          hint={t('readout.apps.declared', { count: applications.length })}
         />
         <Readout
-          label="Sondes au vert"
+          label={t('readout.monitors')}
           value={monitorsUp}
           unit={`/ ${monitors.length}`}
           tone={monitors.length === 0 ? 'idle' : monitorsUp === monitors.length ? 'ok' : 'warn'}
-          hint={canReadMonitors ? 'supervision de sites' : 'accès restreint'}
+          hint={canReadMonitors ? t('readout.monitors.hint') : t('restricted')}
         />
         <Readout
-          label="En vol"
+          label={t('readout.inFlight')}
           value={inFlight}
           tone={inFlight > 0 ? 'signal' : 'idle'}
           pulse={inFlight > 0}
-          hint={inFlight > 0 ? 'déploiement en cours' : 'aucun déploiement en cours'}
+          hint={inFlight > 0 ? t('readout.inFlight.on') : t('readout.inFlight.off')}
         />
       </ReadoutBar>
     </div>
@@ -325,7 +355,7 @@ export default async function HomePage() {
  *
  * Une piste dont on n'a pas la permission n'est pas grisée : elle n'existe pas.
  */
-function PulseBand({
+async function PulseBand({
   window,
   pulse,
   fleet,
@@ -336,6 +366,7 @@ function PulseBand({
   canReadTargets,
   canReadDeployments,
   canReadAudit,
+  format,
 }: {
   window: ReturnType<typeof pulseWindow>;
   pulse: MonitorPulse | null;
@@ -347,14 +378,14 @@ function PulseBand({
   canReadTargets: boolean;
   canReadDeployments: boolean;
   canReadAudit: boolean;
+  format: FormatSettings;
 }) {
+  const t = await getT(dashboard);
   const lanes = [canReadMonitors, canReadTargets, canReadDeployments].filter(Boolean).length;
   if (lanes === 0) {
     return (
-      <Panel title="Les dernières 24 heures" hint="accès restreint">
-        <PanelEmpty>
-          Aucune des séries de cet écran n&apos;est accessible avec vos permissions.
-        </PanelEmpty>
+      <Panel title={t('band.title')} hint={t('restricted')}>
+        <PanelEmpty>{t('band.locked')}</PanelEmpty>
       </Panel>
     );
   }
@@ -370,11 +401,9 @@ function PulseBand({
     <section className="border-line bg-card shadow-panel min-w-0 rounded-lg border">
       <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
         <h2 className="text-ink font-condensed text-[0.9375rem] font-semibold">
-          Les dernières 24 heures
+          {t('band.title')}
         </h2>
-        <span className="text-ink-faint text-xs">
-          un intervalle par heure — chaque figure porte son nombre de mesures
-        </span>
+        <span className="text-ink-faint text-xs">{t('band.aside')}</span>
       </div>
 
       {/*
@@ -391,13 +420,15 @@ function PulseBand({
       <div className="@container">
         <div className="divide-line border-line grid grid-cols-2 divide-x divide-y border-b @3xl:grid-cols-4 @3xl:divide-y-0">
           <Readout
-            label="Disponibilité"
+            label={t('band.availability')}
             value={
               monitorSamples === 0
                 ? '—'
                 : monitorSamples < RATE_FLOOR
                   ? monitorHealthy
-                  : `${((monitorHealthy / monitorSamples) * 100).toFixed(1).replace('.', ',')}`
+                  : ((monitorHealthy / monitorSamples) * 100)
+                      .toFixed(1)
+                      .replace('.', t('band.decimal'))
             }
             unit={
               monitorSamples === 0
@@ -425,27 +456,23 @@ function PulseBand({
             }
             hint={
               !canReadMonitors
-                ? 'accès restreint'
+                ? t('restricted')
                 : monitorSamples === 0
-                  ? 'aucune mesure de sonde'
+                  ? t('band.availability.none')
                   : monitorSamples < RATE_FLOOR
-                    ? `mesures saines — trop peu pour un taux`
-                    : `sur ${monitorSamples} mesures`
+                    ? t('band.availability.thin')
+                    : t('band.availability.over', { count: monitorSamples })
             }
           />
           <Readout
-            label="Latence médiane"
+            label={t('band.latency')}
             value={latencyMedian === null ? '—' : latencyMedian}
             unit={latencyMedian === null ? undefined : 'ms'}
             tone={latencyMedian === null ? 'idle' : 'signal'}
-            hint={
-              latencyMedian === null
-                ? 'moins de 3 intervalles mesurés'
-                : 'médiane des moyennes horaires'
-            }
+            hint={latencyMedian === null ? t('band.latency.none') : t('band.latency.over')}
           />
           <Readout
-            label="Charge maximale"
+            label={t('band.load')}
             value={fleet === null || fleet.coverage.samples === 0 ? '—' : Math.round(fleetPeak)}
             unit={fleet === null || fleet.coverage.samples === 0 ? undefined : '%'}
             /* Même règle que la disponibilité : un dépassement constaté se dit
@@ -462,22 +489,25 @@ function PulseBand({
             }
             hint={
               !canReadTargets
-                ? 'accès restreint'
+                ? t('restricted')
                 : fleet === null || fleet.coverage.samples === 0
-                  ? 'aucun relevé machine'
-                  : `pire machine du parc · ${fleet.coverage.covered}/${fleet.coverage.buckets} h couvertes`
+                  ? t('band.load.none')
+                  : t('band.load.over', {
+                      covered: fleet.coverage.covered,
+                      buckets: fleet.coverage.buckets,
+                    })
             }
           />
           <Readout
-            label="Refus d'accès"
+            label={t('band.denied')}
             value={activity === null ? '—' : activity.denied}
             tone={activity === null ? 'idle' : activity.denied > 0 ? 'warn' : 'ok'}
             hint={
               !canReadAudit
-                ? 'accès restreint'
+                ? t('restricted')
                 : activity === null
                   ? ''
-                  : `sur ${activity.total.toLocaleString('fr-FR')} actions journalisées`
+                  : t('band.denied.over', { count: formatNumber(activity.total, format) })
             }
           />
         </div>
@@ -486,41 +516,50 @@ function PulseBand({
       <div className="flex flex-col gap-4 px-5 py-4">
         {canReadMonitors && pulse ? (
           <Lane
-            title="Disponibilité des sondes"
+            title={t('lane.monitor.title')}
             aside={
               pulse.monitorsSeen > 0
-                ? `en % de mesures saines · ${pulse.monitorsSeen} sonde${pulse.monitorsSeen > 1 ? 's' : ''} active${pulse.monitorsSeen > 1 ? 's' : ''}`
-                : 'en % de mesures saines'
+                ? t('lane.monitor.aside.active', { count: pulse.monitorsSeen })
+                : t('lane.monitor.aside')
             }
             href="/monitors"
           >
-            <MonitorLane pulse={pulse} />
+            <MonitorLane pulse={pulse} format={format} />
           </Lane>
         ) : null}
 
         {canReadMonitors && pulse ? (
-          <Lane title="Latence des sondes" aside="en millisecondes, moyenne par heure" href="/monitors">
-            <LatencyLane pulse={pulse} />
+          <Lane
+            title={t('lane.latency.title')}
+            aside={t('lane.latency.aside')}
+            href="/monitors"
+          >
+            <LatencyLane pulse={pulse} format={format} />
           </Lane>
         ) : null}
 
         {canReadTargets && fleet ? (
           <Lane
-            title="Charge du parc"
-            aside={`en %, pire machine — plafond ${HOST_METRIC_CATALOG.load.defaultLimitPercent} %`}
+            title={t('lane.fleet.title')}
+            aside={t('lane.fleet.aside', {
+              limit: HOST_METRIC_CATALOG.load.defaultLimitPercent,
+            })}
             href="/apps"
           >
-            <FleetLane fleet={fleet} />
+            <FleetLane fleet={fleet} format={format} />
           </Lane>
         ) : null}
 
         {canReadDeployments && chronicle ? (
           <Lane
-            title="Déploiements"
+            title={t('lane.chronicle.title')}
             aside={
               chronicle.events.length === 0
-                ? `aucun sur ${CHRONICLE_DAYS} jours`
-                : `${chronicle.events.length} sur ${CHRONICLE_DAYS} jours, dont ceux d'aujourd'hui`
+                ? t('lane.chronicle.aside.none', { days: CHRONICLE_DAYS })
+                : t('lane.chronicle.aside.some', {
+                    count: chronicle.events.length,
+                    days: CHRONICLE_DAYS,
+                  })
             }
             href="/deployments"
           >
@@ -528,7 +567,7 @@ function PulseBand({
           </Lane>
         ) : null}
 
-        <TimeAxis from={window.from} to={window.to} />
+        <TimeAxis from={window.from} to={window.to} format={format} />
       </div>
     </section>
   );
@@ -562,7 +601,14 @@ function Lane({
   );
 }
 
-function MonitorLane({ pulse }: { pulse: MonitorPulse }) {
+async function MonitorLane({
+  pulse,
+  format,
+}: {
+  pulse: MonitorPulse;
+  format: FormatSettings;
+}) {
+  const t = await getT(dashboard);
   const buckets = pulse.points.map((point) => ({
     at: point.at,
     samples: point.samples,
@@ -575,14 +621,14 @@ function MonitorLane({ pulse }: { pulse: MonitorPulse }) {
       <NotEnoughHistory
         covered={0}
         buckets={pulse.coverage.buckets}
-        nothing="Aucune mesure de sonde"
+        nothing={t('lane.monitor.nothing')}
         since={pulse.coverage.firstAt}
+        format={format}
       >
         <p className="text-ink-faint text-xs">
-          Les sondes tournent par tâche planifiée. Vérifiez qu&apos;au moins une sonde est active
-          sur{' '}
+          {t('lane.monitor.help')}{' '}
           <Link href="/monitors" className="text-signal underline underline-offset-4">
-            Sondes
+            {t('link.monitors')}
           </Link>
           .
         </p>
@@ -592,13 +638,19 @@ function MonitorLane({ pulse }: { pulse: MonitorPulse }) {
 
   return (
     <>
-      <RatioBars id="monitor-lane" buckets={buckets} label="Disponibilité des sondes" unit="sain" />
+      <RatioBars
+        id="monitor-lane"
+        buckets={buckets}
+        label={t('lane.monitor.title')}
+        unit={t('lane.monitor.unit')}
+        format={format}
+      />
       <CoverageNote
         covered={density.covered}
         buckets={pulse.coverage.buckets}
         thin={density.thin}
         samples={density.samples}
-        what="mesure"
+        what="sample"
         className="mt-0.5"
       />
       {/*
@@ -609,11 +661,11 @@ function MonitorLane({ pulse }: { pulse: MonitorPulse }) {
       <ChartLegend
         className="mt-1"
         items={[
-          { color: 'var(--ok)', label: 'tout sain' },
-          { color: 'var(--warn)', label: 'partiellement sain' },
-          { color: 'var(--danger)', label: 'rien de sain' },
-          { color: 'var(--ok)', label: 'moins de 3 mesures', hatched: true },
-          { color: 'var(--ink-faint)', label: 'aucune mesure' },
+          { color: 'var(--ok)', label: t('legend.allHealthy') },
+          { color: 'var(--warn)', label: t('legend.partlyHealthy') },
+          { color: 'var(--danger)', label: t('legend.noneHealthy') },
+          { color: 'var(--ok)', label: t('legend.thin'), hatched: true },
+          { color: 'var(--ink-faint)', label: t('legend.noSample') },
         ]}
       />
     </>
@@ -630,7 +682,14 @@ function MonitorLane({ pulse }: { pulse: MonitorPulse }) {
  * supérieur plutôt que collé au maximum observé — une échelle qui se recadre à
  * chaque rendu ne se compare pas d'un jour sur l'autre.
  */
-function LatencyLane({ pulse }: { pulse: MonitorPulse }) {
+async function LatencyLane({
+  pulse,
+  format,
+}: {
+  pulse: MonitorPulse;
+  format: FormatSettings;
+}) {
+  const t = await getT(dashboard);
   const buckets = pulse.points.map((point) => ({
     at: point.at,
     // Sans latence relevée, le seau est vide : une sonde injoignable n'a pas
@@ -645,8 +704,9 @@ function LatencyLane({ pulse }: { pulse: MonitorPulse }) {
       <NotEnoughHistory
         covered={0}
         buckets={pulse.coverage.buckets}
-        nothing="Aucun temps de réponse"
+        nothing={t('lane.latency.nothing')}
         since={pulse.coverage.firstAt}
+        format={format}
       />
     );
   }
@@ -656,20 +716,27 @@ function LatencyLane({ pulse }: { pulse: MonitorPulse }) {
 
   return (
     <>
-      <SeriesLine buckets={buckets} label="Latence des sondes" max={ceiling} unit=" ms" />
+      <SeriesLine
+        buckets={buckets}
+        label={t('lane.latency.title')}
+        max={ceiling}
+        unit=" ms"
+        format={format}
+      />
       <CoverageNote
         covered={density.covered}
         buckets={pulse.coverage.buckets}
         thin={density.thin}
         samples={density.samples}
-        what="mesure"
+        what="sample"
         className="mt-0.5"
       />
     </>
   );
 }
 
-function FleetLane({ fleet }: { fleet: FleetPulse }) {
+async function FleetLane({ fleet, format }: { fleet: FleetPulse; format: FormatSettings }) {
+  const t = await getT(dashboard);
   const buckets = fleet.points.map((point) => ({
     at: point.at,
     samples: point.samples,
@@ -686,13 +753,11 @@ function FleetLane({ fleet }: { fleet: FleetPulse }) {
       <NotEnoughHistory
         covered={0}
         buckets={fleet.coverage.buckets}
-        nothing="Aucun relevé machine"
+        nothing={t('lane.fleet.nothing')}
         since={fleet.coverage.firstAt}
+        format={format}
       >
-        <p className="text-ink-faint text-xs">
-          Le balayage des machines écrit un relevé toutes les cinq minutes. S&apos;il n&apos;y en a
-          aucun, la tâche planifiée ne tourne pas.
-        </p>
+        <p className="text-ink-faint text-xs">{t('lane.fleet.help')}</p>
       </NotEnoughHistory>
     );
   }
@@ -701,23 +766,21 @@ function FleetLane({ fleet }: { fleet: FleetPulse }) {
     <>
       <SeriesLine
         buckets={buckets}
-        label="Charge maximale du parc"
+        label={t('lane.fleet.series')}
         max={ceiling}
         unit="%"
+        format={format}
       />
       <CoverageNote
         covered={density.covered}
         buckets={fleet.coverage.buckets}
         thin={density.thin}
         samples={density.samples}
-        what="relevé"
+        what="readout"
         className="mt-0.5"
       />
       {density.verdict === 'sparse' ? (
-        <p className="text-warn mt-0.5 text-[0.6875rem]">
-          Trop peu d&apos;heures couvertes pour parler de tendance — la collecte vient de
-          commencer.
-        </p>
+        <p className="text-warn mt-0.5 text-[0.6875rem]">{t('lane.fleet.sparse')}</p>
       ) : null}
     </>
   );
@@ -731,7 +794,7 @@ function FleetLane({ fleet }: { fleet: FleetPulse }) {
  * piste, mais ne sont pas dessinés hors de l'axe. Un point tassé contre le bord
  * gauche pour dire « quelque part avant » serait une position inventée.
  */
-function ChronicleLane({
+async function ChronicleLane({
   chronicle,
   posture,
   window,
@@ -740,6 +803,7 @@ function ChronicleLane({
   posture: ScanPosture | null;
   window: ReturnType<typeof pulseWindow>;
 }) {
+  const t = await getT(dashboard);
   const start = Date.parse(window.from);
   const inWindow = chronicle.events.filter((event) => Date.parse(event.at) >= start);
   const older = chronicle.events.length - inWindow.length;
@@ -749,19 +813,24 @@ function ChronicleLane({
     at: event.at,
     tone: DEPLOYMENT_TONE[event.status] ?? 'idle',
     title:
-      `${event.applicationSlug} v${event.version} sur ${event.targetName} — ${STATUS_WORD[event.status] ?? event.status}` +
+      t('chronicle.event', {
+        app: event.applicationSlug,
+        version: event.version,
+        target: event.targetName,
+        status: labelOf(STATUS_KEY, event.status, t),
+      }) +
       (event.durationSeconds === null ? '' : ` · ${event.durationSeconds} s`) +
-      (event.failedStep ? ` · étape « ${event.failedStep} »` : ''),
+      (event.failedStep ? t('chronicle.event.step', { step: event.failedStep }) : ''),
   }));
 
   if (events.length === 0) {
     return (
       <div className="border-line bg-surface-2/40 rounded-md border border-dashed px-4 py-3">
-        <p className="text-ink text-[0.8125rem]">Aucun déploiement dans les 24 dernières heures.</p>
+        <p className="text-ink text-[0.8125rem]">{t('chronicle.empty')}</p>
         <p className="text-ink-faint text-xs">
           {older === 0
-            ? `Aucun non plus sur les ${CHRONICLE_DAYS} derniers jours.`
-            : `${older} plus ancien${older > 1 ? 's' : ''} sur ${CHRONICLE_DAYS} jours — voir l'historique.`}
+            ? t('chronicle.empty.none', { days: CHRONICLE_DAYS })
+            : t('chronicle.empty.older', { count: older, days: CHRONICLE_DAYS })}
         </p>
       </div>
     );
@@ -769,26 +838,31 @@ function ChronicleLane({
 
   return (
     <>
-      <EventRail events={events} from={window.from} to={window.to} label="Déploiements" />
+      <EventRail
+        events={events}
+        from={window.from}
+        to={window.to}
+        label={t('lane.chronicle.title')}
+      />
       <p className="text-ink-faint mt-0.5 text-[0.6875rem]">
-        {events.length} dans la fenêtre
-        {older > 0 ? ` · ${older} plus ancien${older > 1 ? 's' : ''} hors axe` : ''}
+        {t('chronicle.inWindow', { count: events.length })}
+        {older > 0 ? t('chronicle.offAxis', { count: older }) : ''}
         {chronicle.medianDurationSeconds === null
-          ? ' · durée médiane indisponible sous 3 pipelines'
-          : ` · durée médiane ${chronicle.medianDurationSeconds} s`}
-        {posture && posture.runs > 0 ? ` · ${posture.runs} analyses de sécurité` : ''}
+          ? t('chronicle.median.none')
+          : t('chronicle.median.value', { seconds: chronicle.medianDurationSeconds })}
+        {posture && posture.runs > 0 ? t('chronicle.scans', { count: posture.runs }) : ''}
       </p>
     </>
   );
 }
 
-const STATUS_WORD: Record<string, string> = {
-  success: 'réussi',
-  failed: 'échoué',
-  rolled_back: 'replié',
-  destroyed: 'retiré',
-  running: 'en cours',
-  pending: 'en attente',
+const STATUS_KEY: Record<string, MessageKey | undefined> = {
+  success: 'status.success',
+  failed: 'status.failed',
+  rolled_back: 'status.rolled_back',
+  destroyed: 'status.destroyed',
+  running: 'status.running',
+  pending: 'status.pending',
 };
 
 // ─── le parc ──────────────────────────────────────────────────────────────────
@@ -801,20 +875,22 @@ const STATUS_WORD: Record<string, string> = {
  * Une machine sans relevé le dit en toutes lettres au lieu d'afficher une
  * courbe plate à zéro, qui se lirait « machine au repos ».
  */
-function FleetPanel({
+async function FleetPanel({
   targets,
   histories,
 }: {
   targets: readonly PublicTarget[];
   histories: Map<string, TargetHistory>;
 }) {
+  const t = await getT(dashboard);
+
   if (targets.length === 0) {
     return (
-      <Panel title="Machines" href="/targets" linkLabel="Cibles">
+      <Panel title={t('fleet.title')} href="/targets" linkLabel={t('link.targets')}>
         <PanelEmpty>
-          Aucune machine cible déclarée. Ajoutez-en une depuis{' '}
+          {t('fleet.empty')}{' '}
           <Link href="/targets" className="text-signal underline underline-offset-4">
-            Cibles
+            {t('link.targets')}
           </Link>
           .
         </PanelEmpty>
@@ -827,7 +903,7 @@ function FleetPanel({
   const disk = HOST_METRIC_CATALOG.disk.defaultLimitPercent;
 
   return (
-    <Panel title="Machines" href="/apps" linkLabel="Supervision">
+    <Panel title={t('fleet.title')} href="/apps" linkLabel={t('link.servers')}>
       <div className="@container">
         <ul className="divide-line grid divide-y @3xl:grid-cols-2 @3xl:[&>li:nth-child(2n)]:border-l">
           {targets.map((target) => {
@@ -868,14 +944,14 @@ function FleetPanel({
                     />
                     <span className="hidden shrink-0 items-center gap-2.5 @xl:flex">
                       <MiniGauge
-                        label="mém"
+                        label={t('fleet.gauge.memory')}
                         value={summary?.memory.last ?? null}
                         tone={
                           (summary?.memory.last ?? 0) >= memory ? 'var(--warn)' : 'var(--signal)'
                         }
                       />
                       <MiniGauge
-                        label="dsk"
+                        label={t('fleet.gauge.disk')}
                         value={summary?.disk.last ?? null}
                         tone={(summary?.disk.last ?? 0) >= disk ? 'var(--warn)' : 'var(--signal)'}
                       />
@@ -883,7 +959,7 @@ function FleetPanel({
                   </>
                 ) : (
                   <span className="text-ink-faint shrink-0 text-[0.6875rem]">
-                    aucun relevé sur 24 h
+                    {t('fleet.noReadout')}
                   </span>
                 )}
               </li>
@@ -905,7 +981,7 @@ function FleetPanel({
  * fois plus de temps que les autres », jamais « il a pris 74 secondes » — ce
  * chiffre est écrit à côté.
  */
-function DeploymentsPanel({
+async function DeploymentsPanel({
   recent,
   chronicle,
   canReadDeployments,
@@ -914,6 +990,13 @@ function DeploymentsPanel({
   chronicle: DeploymentPulse | null;
   canReadDeployments: boolean;
 }) {
+  const t = await getT(dashboard);
+  /**
+   * Le nom d'une étape se rend ici, à partir de sa clé — jamais depuis le
+   * libellé que la base a figé le jour du déploiement. Ce libellé ne sert plus
+   * que de dernier recours, pour une étape retirée du pipeline depuis.
+   */
+  const language = await currentLanguage();
   const durations = new Map(
     (chronicle?.events ?? []).map((event) => [event.id, event.durationSeconds]),
   );
@@ -921,13 +1004,13 @@ function DeploymentsPanel({
 
   return (
     <Panel
-      title="Derniers déploiements"
+      title={t('deployments.title')}
       href={canReadDeployments ? '/deployments' : undefined}
-      linkLabel="Historique"
-      hint={canReadDeployments ? undefined : 'accès restreint'}
+      linkLabel={t('link.history')}
+      hint={canReadDeployments ? undefined : t('restricted')}
     >
       {recent.length === 0 ? (
-        <PanelEmpty>Aucun déploiement pour l&apos;instant.</PanelEmpty>
+        <PanelEmpty>{t('deployments.empty')}</PanelEmpty>
       ) : (
         /*
           Requête de conteneur, et pas `sm:` : ce qui manque de place ici, c'est
@@ -986,7 +1069,7 @@ function DeploymentsPanel({
 
                     <DeploymentStatusBadge status={item.status} />
                     <span className="text-ink-faint shrink-0 text-xs whitespace-nowrap tabular-nums @md:w-20 @md:text-right">
-                      {since(item.finishedAt ?? item.createdAt) ?? ''}
+                      {since(item.finishedAt ?? item.createdAt, t) ?? ''}
                     </span>
                   </span>
                 </li>
@@ -997,12 +1080,20 @@ function DeploymentsPanel({
           {chronicle && chronicle.weaknesses.length > 0 ? (
             <div className="border-line border-t px-5 py-2.5">
               <p className="text-ink-faint text-[0.6875rem]">
-                Sur {CHRONICLE_DAYS} jours, l&apos;étape qui casse est{' '}
+                {t('deployments.weakness', { days: CHRONICLE_DAYS })}{' '}
                 {chronicle.weaknesses.map((weakness, index) => (
                   <span key={weakness.key}>
                     {index > 0 ? ', ' : ''}
-                    <span className="text-ink-muted">« {weakness.label} »</span> ({weakness.failed}{' '}
-                    échec{weakness.failed > 1 ? 's' : ''} sur {weakness.decided})
+                    <span className="text-ink-muted">
+                      {t('deployments.weakness.name', {
+                        name: deploymentStepLabel(weakness.key, language, weakness.label),
+                      })}
+                    </span>{' '}
+                    {t('deployments.weakness.count', {
+                      count: weakness.failed,
+                      failed: weakness.failed,
+                      decided: weakness.decided,
+                    })}
                   </span>
                 ))}
                 .
@@ -1020,23 +1111,26 @@ function DeploymentsPanel({
  * commenter. « preflight au vert » ne disait rien quand le compte était
  * incomplet, ce qui est précisément le moment où on lit cette ligne.
  */
-function targetsHint({
-  canReadTargets,
-  targetsDown,
-  targetsUntested,
-}: {
-  canReadTargets: boolean;
-  targetsDown: number;
-  targetsUntested: number;
-}): string {
-  if (!canReadTargets) return 'accès restreint';
+function targetsHint(
+  {
+    canReadTargets,
+    targetsDown,
+    targetsUntested,
+  }: {
+    canReadTargets: boolean;
+    targetsDown: number;
+    targetsUntested: number;
+  },
+  t: T,
+): string {
+  if (!canReadTargets) return t('restricted');
 
   const parts: string[] = [];
-  if (targetsDown > 0) parts.push(`${targetsDown} en défaut`);
+  if (targetsDown > 0) parts.push(t('readout.targets.faulty', { count: targetsDown }));
   if (targetsUntested > 0) {
-    parts.push(`${targetsUntested} jamais testée${targetsUntested > 1 ? 's' : ''}`);
+    parts.push(t('readout.targets.untested', { count: targetsUntested }));
   }
-  return parts.length > 0 ? parts.join(' · ') : 'preflight au vert';
+  return parts.length > 0 ? parts.join(' · ') : t('readout.targets.ok');
 }
 
 /**
@@ -1054,6 +1148,7 @@ function collectAttention({
   recent,
   chronicle,
   posture,
+  t,
 }: {
   targets: readonly PublicTarget[];
   running: Awaited<ReturnType<typeof listSupervisedApps>>;
@@ -1061,6 +1156,7 @@ function collectAttention({
   recent: readonly DeploymentSummary[];
   chronicle: DeploymentPulse | null;
   posture: ScanPosture | null;
+  t: T;
 }): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -1072,11 +1168,11 @@ function collectAttention({
       subject: target.name,
       detail:
         target.status === 'unreachable'
-          ? `Machine injoignable — ${target.host}. Les applications qu'elle porte ne peuvent plus être ni supervisées, ni mises à jour.`
-          : `Preflight dégradé sur ${target.host}. Un déploiement peut échouer sans que la cause soit visible.`,
+          ? t('attention.target.unreachable', { host: target.host })
+          : t('attention.target.degraded', { host: target.host }),
       severity: target.status === 'unreachable' ? 'danger' : 'warn',
       href: `/targets/${target.id}`,
-      action: 'Diagnostiquer',
+      action: t('attention.action.diagnose'),
     });
   }
 
@@ -1088,11 +1184,11 @@ function collectAttention({
         subject: `${app.applicationSlug}@${app.targetName}`,
         detail:
           app.healthStatus === 'unreachable'
-            ? "L'application ne répond plus à sa sonde de santé."
-            : 'La sonde de santé répond, mais pas comme attendu.',
+            ? t('attention.app.unreachable')
+            : t('attention.app.unhealthy'),
         severity: app.healthStatus === 'unreachable' ? 'danger' : 'warn',
         href: `/apps/${app.id}`,
-        action: 'Voir les logs',
+        action: t('attention.action.logs'),
       });
       continue;
     }
@@ -1101,14 +1197,16 @@ function collectAttention({
       items.push({
         subject: `${app.applicationSlug}@${app.targetName}`,
         detail:
-          `La mise à jour en v${app.lastFailedUpdate.version} a échoué à l'étape ` +
-          `« ${app.lastFailedUpdate.failedStep ?? 'inconnue'} ». ` +
+          t('attention.app.failed', {
+            version: app.lastFailedUpdate.version,
+            step: app.lastFailedUpdate.failedStep ?? t('attention.app.failed.unknownStep'),
+          }) +
           (app.lastFailedUpdate.mayHaveReplacedServices
-            ? 'Elle avait commencé à remplacer les conteneurs : vérifiez ce qui tourne.'
-            : 'La version précédente tourne toujours.'),
+            ? t('attention.app.failed.replaced')
+            : t('attention.app.failed.kept')),
         severity: 'warn',
         href: `/deployments/${app.lastFailedUpdate.deploymentId}`,
-        action: 'Voir la trace',
+        action: t('attention.action.trace'),
       });
     }
   }
@@ -1120,11 +1218,11 @@ function collectAttention({
       subject: monitor.name,
       detail:
         monitor.status === 'unreachable'
-          ? 'La sonde ne joint plus sa cible depuis le panel.'
-          : 'La sonde joint sa cible, mais la réponse ne correspond pas à ce qui est attendu.',
+          ? t('attention.monitor.unreachable')
+          : t('attention.monitor.unhealthy'),
       severity: monitor.status === 'unreachable' ? 'danger' : 'warn',
       href: `/monitors/${monitor.id}`,
-      action: 'Voir la sonde',
+      action: t('attention.action.monitor'),
     });
   }
 
@@ -1135,10 +1233,15 @@ function collectAttention({
     if (item.status !== 'failed' || covered.has(item.id)) continue;
     items.push({
       subject: `${item.applicationSlug} v${item.version}`,
-      detail: `Déploiement échoué sur ${item.targetName}${item.failedStep ? ` à l'étape « ${item.failedStep} »` : ''}.`,
+      detail: t('attention.deployment.failed', {
+        target: item.targetName,
+        step: item.failedStep
+          ? t('attention.deployment.atStep', { step: item.failedStep })
+          : '',
+      }),
       severity: 'danger',
       href: `/deployments/${item.id}`,
-      action: 'Voir la trace',
+      action: t('attention.action.trace'),
     });
   }
 
@@ -1156,13 +1259,15 @@ function collectAttention({
       if (Date.parse(event.at) < recentEnough) continue;
       items.push({
         subject: `${event.applicationSlug} v${event.version}`,
-        detail:
-          `Déploiement replié sur ${event.targetName}` +
-          (event.failedStep ? ` — l'étape « ${event.failedStep} » a refusé la version` : '') +
-          '. La version précédente a été remise en place automatiquement.',
+        detail: t('attention.deployment.rolledBack', {
+          target: event.targetName,
+          step: event.failedStep
+            ? t('attention.deployment.refused', { step: event.failedStep })
+            : '',
+        }),
         severity: 'warn',
         href: `/deployments/${event.id}`,
-        action: 'Voir la trace',
+        action: t('attention.action.trace'),
       });
     }
   }
@@ -1175,15 +1280,14 @@ function collectAttention({
   */
   if (posture && posture.passedWithSevere > 0 && posture.bySeverity.critical > 0) {
     items.push({
-      subject: 'Analyses de sécurité',
+      subject: t('attention.scans.subject'),
       detail:
-        `${posture.passedWithSevere} analyse${posture.passedWithSevere > 1 ? 's ont' : ' a'} conclu ` +
-        `« conforme » tout en rapportant ${posture.bySeverity.critical} faille${posture.bySeverity.critical > 1 ? 's' : ''} ` +
-        `critique${posture.bySeverity.critical > 1 ? 's' : ''} et ${posture.bySeverity.high} de gravité haute. ` +
-        `Le seuil de blocage est sur « aucun » : le verdict ne bloque rien.`,
+        `${t('attention.scans.lead', { count: posture.passedWithSevere })} ` +
+        `${t('attention.scans.critical', { count: posture.bySeverity.critical })} ` +
+        t('attention.scans.tail', { high: posture.bySeverity.high }),
       severity: 'warn',
       href: '/admin/settings',
-      action: 'Régler le seuil',
+      action: t('attention.action.threshold'),
     });
   }
 

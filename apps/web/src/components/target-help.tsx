@@ -13,6 +13,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { targetHelp } from '@/i18n/messages/target-help';
 import { cn } from '@/lib/utils';
 
 /**
@@ -25,6 +28,11 @@ import { cn } from '@/lib/utils';
  * décrit est celui de `packages/core/src/ssh/preflight.ts` — dans son ordre
  * d'exécution réel. Les messages d'erreur sont recopiés depuis
  * `packages/core/src/ssh/{client,errors}.ts` et les `DriverError` des drivers.
+ *
+ * Le texte, lui, vit dans `i18n/messages/target-help.ts` : cent cinquante
+ * phrases dont aucune ne s'affiche tant que la modale n'est pas ouverte. Ce
+ * fichier n'en garde que la structure — les tableaux, l'ordre des sections —
+ * et les deux blocs shell, qui sont du code à copier, pas de la prose.
  */
 
 type Props = {
@@ -49,6 +57,38 @@ function Code({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Le balisage en ligne des messages, rendu.
+ *
+ * Une entrée de dictionnaire est une chaîne : elle ne peut pas porter de JSX.
+ * Quatre marques suffisent pourtant à tout ce que cette aide met en forme —
+ * `` `code` ``, `**gras**`, `__gras de tête__`, `*italique*` — et les rendre
+ * ici évite de découper chaque phrase en cinq clés que le traducteur devrait
+ * réassembler dans l'ordre de sa langue.
+ *
+ * Récursif, parce qu'un gras de tête contient parfois du code
+ * (« L'anti-collision n'est pas un `if`. »). Le contenu d'un `` `…` `` ne l'est
+ * pas : c'est du code, on ne le relit pas.
+ */
+const INLINE = /(`[^`]+`|__[^_]+__|\*\*[^*]+\*\*|\*[^*]+\*)/;
+
+function rich(text: string): React.ReactNode {
+  return text.split(INLINE).map((part, index) => {
+    if (!part) return null;
+    if (part.startsWith('`')) return <Code key={index}>{part.slice(1, -1)}</Code>;
+    if (part.startsWith('__')) {
+      return (
+        <strong key={index} className="text-foreground font-medium">
+          {rich(part.slice(2, -2))}
+        </strong>
+      );
+    }
+    if (part.startsWith('**')) return <strong key={index}>{rich(part.slice(2, -2))}</strong>;
+    if (part.startsWith('*')) return <em key={index}>{rich(part.slice(1, -1))}</em>;
+    return part;
+  });
+}
+
 /** Un tableau large ne doit jamais élargir la modale : il défile chez lui. */
 function ScrollableTable({ children }: { children: React.ReactNode }) {
   return (
@@ -67,474 +107,56 @@ function Shell({ children }: { children: string }) {
 }
 
 /** Ce que fait chaque côté. C'est la confusion la plus fréquente. */
-const ROLES: Array<{ topic: string; panel: React.ReactNode; target: React.ReactNode }> = [
-  {
-    topic: 'Rôle',
-    panel: <>Orchestre. Il décide, trace, chiffre, ordonnance.</>,
-    target: <>Héberge. Elle exécute les conteneurs et sert le trafic.</>,
-  },
-  {
-    topic: 'Où tourne le code de vos applications',
-    panel: <>Nulle part. Le panel n’exécute aucune application déployée.</>,
-    target: (
-      <>
-        Ici, et seulement ici. Les images sont même <strong>construites sur la cible</strong>{' '}
-        — il n’y a pas de registry entre les deux.
-      </>
-    ),
-  },
-  {
-    topic: 'Ce qui circule entre les deux',
-    panel: <>Une session SSH ouverte par le worker, à la demande.</>,
-    target: (
-      <>
-        Des fichiers déposés sous <Code>/opt/bootstrap/apps/{'{slug}'}/{'{version}'}</Code> et des
-        commandes <Code>docker compose</Code> ou <Code>kubectl</Code>.
-      </>
-    ),
-  },
-  {
-    topic: 'Qui doit être joignable de qui',
-    panel: <>Le panel n’a besoin d’aucun port ouvert vers la cible autre que SSH.</>,
-    target: (
-      <>
-        Le <strong>worker</strong> doit joindre <Code>host:port</Code>. Votre navigateur, lui,
-        ne parle jamais à la cible.
-      </>
-    ),
-  },
-  {
-    topic: 'Si le panel tombe',
-    panel: <>Plus de déploiement, plus de supervision.</>,
-    target: <>Les applications déjà déployées continuent de tourner. Elles ne dépendent pas de lui.</>,
-  },
-];
+const ROLES = ['role', 'code', 'wire', 'reach', 'down'] as const;
 
-const FIELDS: Array<{ name: string; role: React.ReactNode; wrong: React.ReactNode }> = [
-  {
-    name: 'Nom',
-    role: (
-      <>
-        Étiquette humaine, 2 à 80 caractères. <strong>Unique en base.</strong> C’est ce nom qui
-        apparaît dans les logs de déploiement et les avertissements du pare-feu.
-      </>
-    ),
-    wrong: (
-      <>
-        Nom déjà pris → <Code>409</Code> «&nbsp;Une cible se nomme déjà «&nbsp;…&nbsp;»&nbsp;».
-      </>
-    ),
-  },
-  {
-    name: 'Hôte',
-    role: (
-      <>
-        IP ou nom DNS, passé tel quel à la connexion SSH. Il est résolu{' '}
-        <strong>depuis le conteneur worker</strong>, pas depuis votre poste.
-      </>
-    ),
-    wrong: (
-      <>
-        Un nom qui ne résout que sur votre machine, ou un <Code>127.0.0.1</Code> qui désigne le
-        worker lui-même : «&nbsp;Connexion SSH impossible vers … après 3 tentatives&nbsp;».
-      </>
-    ),
-  },
-  {
-    name: 'Port',
-    role: (
-      <>
-        Port de <Code>sshd</Code>, 22 par défaut. Le triplet (hôte, port, utilisateur) est
-        unique en base — deux lignes ne peuvent pas décrire la même machine.
-      </>
-    ),
-    wrong: (
-      <>
-        Triplet déjà pris → <Code>409</Code> «&nbsp;Une cible pointe déjà vers
-        user@host:port&nbsp;».
-      </>
-    ),
-  },
-  {
-    name: 'Utilisateur SSH',
-    role: (
-      <>
-        Le compte qui exécutera <em>tout</em> : les <Code>docker build</Code>, les{' '}
-        <Code>docker compose up</Code>, les <Code>kubectl apply</Code>, les scanners. Le
-        formulaire propose <Code>root</Code> ; un compte dédié membre du groupe{' '}
-        <Code>docker</Code> est préférable.
-      </>
-    ),
-    wrong: (
-      <>
-        Un compte qui ne peut pas parler au démon Docker fait échouer le contrôle{' '}
-        <Code>docker</Code> du preflight avec «&nbsp;daemon injoignable&nbsp;», pas la
-        connexion.
-      </>
-    ),
-  },
-  {
-    name: 'Authentification',
-    role: (
-      <>
-        <Code>key</Code> : vous collez une <strong>clé privée</strong>. <Code>password</Code> :
-        vous collez un mot de passe. Un seul credential est stocké par cible.
-      </>
-    ),
-    wrong: (
-      <>
-        Coller la clé <em>publique</em> au lieu de la privée →
-        «&nbsp;Authentification SSH refusée&nbsp;». Une clé protégée par passphrase échoue aussi
-        (voir plus bas).
-      </>
-    ),
-  },
-  {
-    name: 'Élévation sudo',
-    role: (
-      <>
-        <Code>nopasswd</Code> enrobe la commande en <Code>sudo -n -- sh -c …</Code> ;{' '}
-        <Code>password</Code> en <Code>sudo -S -p &apos;&apos; -- sh -c …</Code>, le mot de passe
-        étant poussé par <strong>stdin</strong> — jamais sur la ligne de commande, donc jamais
-        dans <Code>ps</Code>.
-      </>
-    ),
-    wrong: (
-      <>
-        <strong>Le piège</strong> : <Code>password</Code> avec une authentification par{' '}
-        <Code>key</Code> lève une <Code>SshConfigError</Code> — il n’y a aucun mot de passe à
-        donner à sudo. Les deux vont ensemble.
-      </>
-    ),
-  },
-  {
-    name: 'Clé privée / Mot de passe',
-    role: (
-      <>
-        Chiffré en <strong>AES-256-GCM</strong> avant insertion. 32 768 caractères au plus. En
-        édition, laisser le champ vide conserve le credential déjà en base.
-      </>
-    ),
-    wrong: (
-      <>
-        Le champ est obligatoire à la création. Il n’est jamais relu : le récupérer plus tard
-        est impossible, il faut le remplacer.
-      </>
-    ),
-  },
-  {
-    name: 'Plage de ports publiables',
-    role: (
-      <>
-        Bornes comprises, entre 1024 et 65535, début ≤ fin. Défaut 30000-32767, la plage{' '}
-        <Code>nodePort</Code> de Kubernetes — inoccupée sur une machine standard.
-      </>
-    ),
-    wrong: (
-      <>
-        Une plage inversée est refusée deux fois : par Zod, puis par la contrainte{' '}
-        <Code>targets_port_range_check</Code> en base. Une plage trop étroite épuise les ports
-        (section suivante).
-      </>
-    ),
-  },
-  {
-    name: 'Étiquettes',
-    role: (
-      <>
-        Une paire <Code>clé=valeur</Code> par ligne, libre : <Code>env=prod</Code>,{' '}
-        <Code>zone=eu-west</Code>. Purement descriptif.
-      </>
-    ),
-    wrong: <>Une ligne sans <Code>=</Code> est ignorée en silence, pas rejetée.</>,
-  },
-];
+const FIELDS = [
+  'name',
+  'host',
+  'port',
+  'user',
+  'auth',
+  'sudo',
+  'credential',
+  'portRange',
+  'labels',
+] as const;
 
 /** Dans l'ordre où `runPreflight()` les exécute. 15 s de délai par contrôle. */
-const CHECKS: Array<{ key: string; what: React.ReactNode; failure: React.ReactNode }> = [
-  {
-    key: 'ssh',
-    what: (
-      <>
-        Ouvre la session et mesure la latence. Trois tentatives, backoff 500&nbsp;ms / 1&nbsp;s /
-        2&nbsp;s sur échec réseau — <strong>aucune</strong> sur échec d’authentification.
-      </>
-    ),
-    failure: (
-      <>
-        <strong>Seul échec fatal.</strong> La cible passe en <Code>unreachable</Code> et aucun
-        autre contrôle n’est tenté : sans session, ils n’ont pas de sens.
-      </>
-    ),
-  },
-  {
-    key: 'os',
-    what: (
-      <>
-        <Code>uname -a</Code> et <Code>/etc/os-release</Code>.
-      </>
-    ),
-    failure: <>Informatif. N’empêche rien.</>,
-  },
-  {
-    key: 'sudo',
-    what: (
-      <>
-        <Code>sudo -n true</Code> puis <Code>command -v sudo</Code>. Le détail vaut réponse :
-        «&nbsp;sudo sans mot de passe&nbsp;», «&nbsp;sudo présent, mot de passe requis&nbsp;» ou
-        «&nbsp;sudo absent&nbsp;».
-      </>
-    ),
-    failure: (
-      <>
-        Sans sudo, le pare-feu n’est pas lisible et <Code>/opt/bootstrap</Code> ne pourra pas
-        être créé si <Code>/opt</Code> appartient à root.
-      </>
-    ),
-  },
-  {
-    key: 'tools',
-    what: (
-      <>
-        Un seul aller-retour : <Code>command -v</Code> sur <Code>ufw</Code>, <Code>curl</Code>,{' '}
-        <Code>git</Code>, <Code>docker</Code>, <Code>kubectl</Code>.
-      </>
-    ),
-    failure: (
-      <>
-        Aucun outil n’est obligatoire. L’absence conditionne simplement les contrôles suivants.
-      </>
-    ),
-  },
-  {
-    key: 'firewall',
-    what: (
-      <>
-        <Code>ufw status</Code> via sudo, et compte les règles portant le commentaire{' '}
-        <Code>pupitre:</Code> — celles que le panel a posées, distinctes de celles de
-        l’administrateur.
-      </>
-    ),
-    failure: (
-      <>
-        «&nbsp;ufw absent&nbsp;» ou «&nbsp;installé mais inactif&nbsp;» n’est pas bloquant. Le
-        panel <strong>n’active jamais</strong> un pare-feu lui-même.
-      </>
-    ),
-  },
-  {
-    key: 'docker',
-    what: (
-      <>
-        <Code>docker info --format &apos;{'{{.ServerVersion}}'}&apos;</Code> et{' '}
-        <Code>docker compose version --short</Code>.
-      </>
-    ),
-    failure: (
-      <>
-        «&nbsp;binaire absent&nbsp;» : rien n’est installé. «&nbsp;daemon injoignable&nbsp;» :
-        le binaire est là mais le compte ne parle pas au socket, ou <Code>dockerd</Code> est
-        arrêté. C’est presque toujours le groupe <Code>docker</Code>.
-      </>
-    ),
-  },
-  {
-    key: 'k3s',
-    what: (
-      <>
-        <Code>kubectl get nodes -o json</Code> : nombre de nodes, nodes prêts, version du
-        kubelet.
-      </>
-    ),
-    failure: (
-      <>
-        «&nbsp;kubectl présent mais aucun cluster joignable&nbsp;» : le plus souvent{' '}
-        <Code>/etc/rancher/k3s/k3s.yaml</Code> n’est pas <em>lisible</em> par le compte de
-        déploiement (voir les pannes fréquentes).
-      </>
-    ),
-  },
-  {
-    key: 'disk',
-    what: (
-      <>
-        <Code>df -Pk /</Code> — le format POSIX, stable, contrairement à <Code>df -h</Code>.
-      </>
-    ),
-    failure: (
-      <>
-        Informatif ici. Au déploiement, le driver exige <strong>1 Gio</strong> disponible.
-      </>
-    ),
-  },
-  {
-    key: 'memory',
-    what: (
-      <>
-        <Code>free -m</Code>, ligne <Code>Mem:</Code>.
-      </>
-    ),
-    failure: <>Informatif.</>,
-  },
-];
+const CHECKS = ['ssh', 'os', 'sudo', 'tools', 'firewall', 'docker', 'k3s', 'disk', 'memory'] as const;
 
-const FAILURES: Array<{ symptom: React.ReactNode; cause: React.ReactNode }> = [
-  {
-    symptom: (
-      <>
-        <Code>Permission denied (publickey)</Code>, ou du panel :
-        «&nbsp;Authentification SSH refusée (clé ou mot de passe invalide, ou passphrase
-        manquante)&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        Quatre causes, par ordre de fréquence. (1) La <strong>clé publique</strong> a été collée
-        au lieu de la privée. (2) La clé privée est <strong>protégée par une passphrase</strong>{' '}
-        : le panel ne stocke qu’un secret par cible et ne peut pas la fournir — regénérez une
-        clé dédiée sans passphrase. (3) Les permissions : <Code>700</Code> sur{' '}
-        <Code>~/.ssh</Code>, <Code>600</Code> sur <Code>authorized_keys</Code>, le tout possédé
-        par le compte. (4) Le compte est <strong>verrouillé</strong> (<Code>!</Code> dans{' '}
-        <Code>/etc/shadow</Code>) : <Code>sshd</Code> le refuse même par clé.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        «&nbsp;Connexion SSH impossible vers <em>host</em>:<em>port</em> après 3
-        tentatives&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        Réseau, DNS ou TCP — l’authentification n’a même pas été tentée. Le nom est résolu par
-        le <strong>conteneur worker</strong> : un hostname de votre <Code>/etc/hosts</Code>, ou
-        un <Code>localhost</Code> qui désigne votre poste, n’existent pas pour lui.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        Preflight vert, mais le détail sudo dit «&nbsp;sudo présent, mot de passe requis&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        <Code>sudo -n true</Code> a renvoyé un code non nul. Le compte n’a pas de règle{' '}
-        <Code>NOPASSWD</Code>. Tant que <Code>/opt/bootstrap</Code> est écrivable, les
-        déploiements passent quand même ; l’ouverture de port UFW, elle, échouera.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        <Code>SshConfigError</Code> : «&nbsp;sudo_method «&nbsp;password&nbsp;» exige une
-        authentification par mot de passe&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        La cible est déclarée en authentification par clé <em>et</em> en sudo par mot de passe.
-        Il n’y a alors aucun mot de passe à pousser dans <Code>sudo -S</Code>. Passez la cible
-        en <Code>nopasswd</Code>, ou authentifiez-vous par mot de passe.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        Contrôle <Code>docker</Code> : «&nbsp;daemon injoignable :
-        permission denied … /var/run/docker.sock&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        Le compte n’est pas dans le groupe <Code>docker</Code>, ou l’a rejoint dans une session
-        déjà ouverte — l’appartenance à un groupe n’est lue qu’à l’ouverture de session.
-        Déconnectez-vous, reconnectez-vous, relancez le preflight.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        Contrôle <Code>k3s</Code> : «&nbsp;kubectl présent mais aucun cluster joignable&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        Le driver n’utilise <strong>pas</strong> sudo pour <Code>kubectl</Code> : il exporte{' '}
-        <Code>KUBECONFIG=/etc/rancher/k3s/k3s.yaml</Code> uniquement si ce fichier est{' '}
-        <em>lisible</em> par le compte. K3s l’écrit en <Code>0600 root</Code> par défaut.
-        Installez K3s avec <Code>--write-kubeconfig-mode 644</Code>, ou déposez une copie dans{' '}
-        <Code>~/.kube/config</Code>.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        «&nbsp;Aucun port libre entre <em>min</em> et <em>max</em> sur «&nbsp;…&nbsp;» :
-        N&nbsp;port(s) réservés en base se sont révélés occupés&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        La base a accordé des ports, mais la cible les avait déjà en écoute — un service
-        installé à la main, que la base ne peut pas connaître. Le driver relâche la réservation
-        et rejoue, jusqu’à épuisement. Élargissez la plage de la cible, ou libérez les ports.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        «&nbsp;Racine de déploiement inutilisable&nbsp;» /
-        «&nbsp;<Code>/opt/bootstrap</Code> n’est pas écrivable et sudo a échoué&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        <Code>/opt</Code> appartient à root sur une machine standard. Le premier déploiement a
-        besoin d’une élévation pour créer l’arborescence et la donner au compte ; les suivants
-        n’en ont plus besoin. Sans <Code>NOPASSWD</Code>, créez le répertoire à la main.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        Log de déploiement : «&nbsp;⚠ ufw inactif sur <em>cible</em> — aucune règle posée pour le
-        port N&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        Ce n’est pas une erreur. UFW étant inactif, il ne filtre rien et le port est joignable
-        de toute façon. Le panel n’active jamais un pare-feu : couper la session SSH qui pilote
-        la machine est un risque réel.
-      </>
-    ),
-  },
-  {
-    symptom: (
-      <>
-        Suppression refusée : «&nbsp;Cette cible porte N déploiement(s) actif(s)&nbsp;»
-      </>
-    ),
-    cause: (
-      <>
-        Supprimer la ligne laisserait des conteneurs orphelins sur une machine que le panel ne
-        saurait plus joindre. Détruisez les déploiements d’abord.
-      </>
-    ),
-  },
-];
+const FAILURES = [
+  'publickey',
+  'connect',
+  'sudoPassword',
+  'sudoConfig',
+  'dockerSock',
+  'kubeconfig',
+  'noPort',
+  'deployRoot',
+  'ufwInactive',
+  'deleteRefused',
+] as const;
 
-export function TargetHelpDialog({ label = 'Qu’est-ce qu’une cible ?', className }: Props) {
+const TUTORIAL = [
+  'machine',
+  'account',
+  'key',
+  'runtime',
+  'sudo',
+  'firewall',
+  'declare',
+  'preflight',
+  'app',
+  'deploy',
+] as const;
+
+/** Les puces de la section « plage de ports », dans l'ordre de lecture. */
+const PORT_NOTES = ['collision', 'blind', 'firewall', 'workerRange', 'narrow'] as const;
+
+export function TargetHelpDialog({ label, className }: Props) {
+  const t = useT(targetHelp);
+  const tc = useT(common);
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -545,262 +167,167 @@ export function TargetHelpDialog({ label = 'Qu’est-ce qu’une cible ?', class
             className,
           )}
         >
-          {label}
+          {label ?? t('trigger.label')}
         </button>
       </DialogTrigger>
 
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Qu&apos;est-ce qu&apos;une cible&nbsp;?</DialogTitle>
-          <DialogDescription>
-            Une machine Linux jointe en SSH, sur laquelle le panel déploie. Le panel orchestre —
-            la cible héberge.
-          </DialogDescription>
+          <DialogTitle>{t('dialog.title')}</DialogTitle>
+          <DialogDescription>{t('dialog.description')}</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-6 text-sm">
-          <Section title="Le panel n’est pas l’application déployée">
-            <p className="text-muted-foreground">
-              Déclarer une cible, c’est donner au panel de quoi ouvrir une session SSH sur une
-              machine qui vous appartient. Rien n’est installé sur elle à ce moment-là : la
-              création n’écrit qu’une ligne en base. La machine n’est touchée qu’au premier
-              preflight, et vraiment utilisée qu’au premier déploiement.
-            </p>
+          <Section title={t('roles.title')}>
+            <p className="text-muted-foreground">{t('roles.intro')}</p>
             <ScrollableTable>
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium" />
-                  <th className="px-3 py-2 font-medium">Le panel</th>
-                  <th className="px-3 py-2 font-medium">La cible</th>
+                  <th className="px-3 py-2 font-medium">{t('roles.column.panel')}</th>
+                  <th className="px-3 py-2 font-medium">{t('roles.column.target')}</th>
                 </tr>
               </thead>
               <tbody>
                 {ROLES.map((row) => (
-                  <tr key={row.topic} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 font-medium">{row.topic}</td>
-                    <td className="text-muted-foreground px-3 py-2">{row.panel}</td>
-                    <td className="text-muted-foreground px-3 py-2">{row.target}</td>
+                  <tr key={row} className="border-t align-top">
+                    <td className="text-foreground px-3 py-2 font-medium">
+                      {t(`role.${row}.topic`)}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {rich(t(`role.${row}.panel`))}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {rich(t(`role.${row}.target`))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </ScrollableTable>
             <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">
-                <strong className="text-foreground font-medium">
-                  Le formulaire ne demande pas de runtime.
-                </strong>{' '}
-                Vous ne déclarez pas «&nbsp;cette machine est une cible Docker&nbsp;» : c’est le
-                preflight qui découvre ce qui est installé, et le renseigne dans les badges
-                «&nbsp;Docker ✓ / K3s ✗&nbsp;». Le runtime est une décision du{' '}
-                <em>déploiement</em>, pas de la déclaration — c’est ce qui permet de redéployer la
-                même application sur l’autre moteur sans rien retoucher ici. En l’état, l’écran de
-                déploiement ne propose que les cibles dont le preflight a vu Docker.
-              </p>
+              <p className="text-muted-foreground text-xs">{rich(t('roles.callout'))}</p>
             </div>
           </Section>
 
-          <Section title="Ce qu’il faut préparer sur la machine">
-            <p className="text-muted-foreground">
-              Quatre choses, et rien d’autre : un compte, sa clé, un moteur de conteneurs
-              joignable par ce compte, et de quoi élever les privilèges quand c’est nécessaire.
-              Les commandes ci-dessous sont l’équivalent Debian/Ubuntu de ce que fait la cible de
-              test du dépôt (<Code>scripts/test-target/</Code>, en Alpine).
-            </p>
+          <Section title={t('prepare.title')}>
+            <p className="text-muted-foreground">{rich(t('prepare.intro'))}</p>
             <Shell>{PREPARE_SCRIPT}</Shell>
-            <p className="text-muted-foreground text-xs">
-              <strong className="text-foreground font-medium">Deux pièges dans ce bloc.</strong>{' '}
-              L’appartenance au groupe <Code>docker</Code> n’est lue qu’à l’ouverture d’une
-              session : tant que vous n’êtes pas ressorti, <Code>docker info</Code> continue de
-              répondre «&nbsp;permission denied&nbsp;». Et l’ordre d’UFW n’est pas négociable —
-              autoriser le port 22 <em>avant</em> d’activer, sinon la politique{' '}
-              <Code>deny incoming</Code> coupe la session qui pilote la machine, et il n’y a plus
-              personne pour la rouvrir.
-            </p>
+            <p className="text-muted-foreground text-xs">{rich(t('prepare.traps'))}</p>
           </Section>
 
-          <Section title="La clé SSH">
-            <p className="text-muted-foreground">
-              Générez une paire <strong>dédiée au panel</strong>, sans passphrase. Ce n’est pas du
-              laxisme : le panel stocke un seul secret par cible et n’a nulle part où mettre une
-              passphrase, donc une clé protégée échoue à la connexion. Une clé dédiée se révoque
-              en retirant une ligne d’<Code>authorized_keys</Code>, sans toucher à la vôtre.
-            </p>
+          <Section title={t('key.title')}>
+            <p className="text-muted-foreground">{rich(t('key.intro'))}</p>
             <Shell>{KEY_SCRIPT}</Shell>
-            <p className="text-muted-foreground">
-              Dans le formulaire, on colle <strong>la clé privée</strong> — le fichier{' '}
-              <em>sans</em> <Code>.pub</Code>, en-têtes{' '}
-              <Code>-----BEGIN OPENSSH PRIVATE KEY-----</Code> compris. La publique reste sur la
-              machine cible.
-            </p>
+            <p className="text-muted-foreground">{rich(t('key.paste'))}</p>
             <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">
-                Elle est chiffrée en <strong className="text-foreground font-medium">
-                  AES-256-GCM
-                </strong>{' '}
-                avant insertion, sous une clé dérivée de <Code>MASTER_KEY</Code> par HKDF-SHA256.
-                La valeur en base a la forme <Code>v1:iv:authTag:ciphertext</Code>. Les lectures
-                de l’API passent par une projection de colonnes où{' '}
-                <Code>encrypted_credential</Code> n’existe pas : la réponse HTTP ne peut pas la
-                contenir, même par oubli de filtrage. Le seul point de déchiffrement du projet est
-                le handler <Code>target:preflight</Code> du worker, au moment d’ouvrir la session.
-                Conséquence à assumer : <strong>le credential ne se relit jamais</strong>. Pour en
-                changer, on le remplace.
-              </p>
+              <p className="text-muted-foreground text-xs">{rich(t('key.crypto'))}</p>
             </div>
           </Section>
 
-          <Section title="Chaque champ du formulaire">
+          <Section title={t('fields.title')}>
             <ScrollableTable>
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Champ</th>
-                  <th className="px-3 py-2 font-medium">Ce que le panel en fait</th>
-                  <th className="px-3 py-2 font-medium">Si c’est faux</th>
+                  <th className="px-3 py-2 font-medium">{t('fields.column.field')}</th>
+                  <th className="px-3 py-2 font-medium">{t('fields.column.role')}</th>
+                  <th className="px-3 py-2 font-medium">{t('fields.column.wrong')}</th>
                 </tr>
               </thead>
               <tbody>
                 {FIELDS.map((field) => (
-                  <tr key={field.name} className="border-t align-top">
+                  <tr key={field} className="border-t align-top">
                     <td className="text-foreground px-3 py-2 font-medium whitespace-nowrap">
-                      {field.name}
+                      {t(`field.${field}.name`)}
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">{field.role}</td>
-                    <td className="text-muted-foreground px-3 py-2">{field.wrong}</td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {rich(t(`field.${field}.role`))}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {rich(t(`field.${field}.wrong`))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </ScrollableTable>
           </Section>
 
-          <Section title="La plage de ports, à part">
-            <p className="text-muted-foreground">
-              Elle mérite sa section parce qu’elle est le seul champ du formulaire qui décrit
-              quelque chose d’extérieur au panel : ce que cette machine-là accepte de publier.
-              Une application déployée en Docker Compose et exposée y réserve un port, sur lequel
-              le driver publie et pose une règle UFW commentée{' '}
-              <Code>pupitre:{'{slug}'}</Code>.
-            </p>
+          <Section title={t('ports.title')}>
+            <p className="text-muted-foreground">{rich(t('ports.intro'))}</p>
             <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
-              <li>
-                <strong className="text-foreground font-medium">
-                  L’anti-collision n’est pas un <Code>if</Code>.
-                </strong>{' '}
-                C’est la contrainte unique <Code>port_allocations (target_id, port)</Code>.
-                L’allocation ne fait jamais «&nbsp;SELECT puis INSERT&nbsp;» : elle insère, et une
-                violation renvoie le perdant au tirage suivant. Deux workers simultanés ne peuvent
-                pas obtenir le même port.
-              </li>
-              <li>
-                <strong className="text-foreground font-medium">
-                  La base ne connaît pas la machine.
-                </strong>{' '}
-                Un service installé à la main qui écoute déjà sur le port tiré est invisible pour
-                elle. Le driver le constate après coup (<Code>ss -tlnH</Code>, ou{' '}
-                <Code>netstat -tln</Code> sur les images sans <Code>iproute2</Code>), abandonne la
-                réservation et rejoue en excluant ce port.
-              </li>
-              <li>
-                <strong className="text-foreground font-medium">
-                  Le pare-feu est une seconde barrière, pas la même.
-                </strong>{' '}
-                Le panel ouvre le port sur UFW s’il est actif et si sudo le permet. Un pare-feu
-                <em>hors</em> de la machine — groupe de sécurité d’un hébergeur, box — est hors de
-                sa portée : c’est à vous d’y ouvrir la plage.
-              </li>
-              <li>
-                <strong className="text-foreground font-medium">
-                  Le worker a sa propre plage.
-                </strong>{' '}
-                <Code>DRIVER_PORT_RANGE</Code> décrit ce que l’environnement du worker peut
-                atteindre. Les deux sont vraies : c’est <strong>l’intersection</strong> qui est
-                retenue. Si elles ne se recouvrent pas, la plage de la cible l’emporte et le log
-                du déploiement le dit.
-              </li>
-              <li>
-                Une plage étroite se remplit vite : la cible de test du dépôt tient sur dix ports
-                (30000-30009), soit dix applications exposées. Le panneau d’une cible affiche la
-                jauge et la table application → port.
-              </li>
+              {PORT_NOTES.map((note) => (
+                <li key={note}>{rich(t(`ports.${note}`))}</li>
+              ))}
             </ul>
           </Section>
 
-          <Section title="Le preflight, contrôle par contrôle">
-            <p className="text-muted-foreground">
-              Le preflight est une tâche BullMQ, pas un appel HTTP : le bouton
-              «&nbsp;Tester la connexion&nbsp;» l’enfile et suit la tâche. Règle de conception —{' '}
-              <strong className="text-foreground font-medium">
-                chaque contrôle est indépendant
-              </strong>
-              . Un <Code>kubectl</Code> absent marque K3s indisponible, il ne fait pas échouer le
-              preflight. Chaque contrôle dispose de 15 secondes.
-            </p>
+          <Section title={t('checks.title')}>
+            <p className="text-muted-foreground">{rich(t('checks.intro'))}</p>
             <ScrollableTable>
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Contrôle</th>
-                  <th className="px-3 py-2 font-medium">Ce qu’il lance</th>
-                  <th className="px-3 py-2 font-medium">Ce que son échec veut dire</th>
+                  <th className="px-3 py-2 font-medium">{t('checks.column.check')}</th>
+                  <th className="px-3 py-2 font-medium">{t('checks.column.what')}</th>
+                  <th className="px-3 py-2 font-medium">{t('checks.column.failure')}</th>
                 </tr>
               </thead>
               <tbody>
                 {CHECKS.map((check, index) => (
-                  <tr key={check.key} className="border-t align-top">
+                  <tr key={check} className="border-t align-top">
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className="text-muted-foreground mr-1.5 text-[0.7rem] tabular-nums">
                         {index + 1}.
                       </span>
-                      <code className="text-foreground font-mono text-[0.75rem]">{check.key}</code>
+                      <code className="text-foreground font-mono text-[0.75rem]">{check}</code>
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">{check.what}</td>
-                    <td className="text-muted-foreground px-3 py-2">{check.failure}</td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {rich(t(`check.${check}.what`))}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {rich(t(`check.${check}.failure`))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </ScrollableTable>
-            <p className="text-muted-foreground text-xs">
-              Le statut qui en sort tient en trois valeurs.{' '}
-              <Code>ok</Code>&nbsp;: au moins un runtime exploitable — Docker disponible, ou K3s
-              avec un node prêt — et aucun contrôle en échec. <Code>degraded</Code>&nbsp;: la
-              machine répond, mais rien n’y est déployable, ou un contrôle a échoué.{' '}
-              <Code>unreachable</Code>&nbsp;: la session SSH n’a pas pu s’ouvrir. Le rapport
-              complet est conservé et relisible sur la page de la cible.
-            </p>
+            <p className="text-muted-foreground text-xs">{rich(t('checks.status'))}</p>
           </Section>
 
-          <Section title="De la machine nue à la première application">
+          <Section title={t('tutorial.title')}>
             <ol className="space-y-2.5">
               {TUTORIAL.map((step, index) => (
-                <li key={step.title} className="flex gap-3">
+                <li key={step} className="flex gap-3">
                   <span className="bg-muted text-muted-foreground mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                     {index + 1}
                   </span>
                   <div className="min-w-0 space-y-1">
-                    <div className="text-foreground font-medium">{step.title}</div>
-                    <div className="text-muted-foreground text-xs">{step.body}</div>
+                    <div className="text-foreground font-medium">{t(`step.${step}.title`)}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {rich(t(`step.${step}.body`))}
+                    </div>
                   </div>
                 </li>
               ))}
             </ol>
-            <p className="text-muted-foreground text-xs">
-              Sans machine sous la main, <Code>./scripts/setup-test-target.sh</Code> monte un
-              conteneur docker-in-docker qui porte son propre démon Docker, y installe une clé
-              jetable et enregistre la cible — les étapes 1 à 7 en une commande.
-            </p>
+            <p className="text-muted-foreground text-xs">{rich(t('tutorial.shortcut'))}</p>
           </Section>
 
-          <Section title="Les pannes fréquentes">
+          <Section title={t('failures.title')}>
             <ScrollableTable>
               <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Ce que vous lisez</th>
-                  <th className="px-3 py-2 font-medium">Ce que c’est</th>
+                  <th className="px-3 py-2 font-medium">{t('failures.column.symptom')}</th>
+                  <th className="px-3 py-2 font-medium">{t('failures.column.cause')}</th>
                 </tr>
               </thead>
               <tbody>
-                {FAILURES.map((failure, index) => (
-                  <tr key={index} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 md:w-2/5">{failure.symptom}</td>
-                    <td className="text-muted-foreground px-3 py-2">{failure.cause}</td>
+                {FAILURES.map((failure) => (
+                  <tr key={failure} className="border-t align-top">
+                    <td className="text-foreground px-3 py-2 md:w-2/5">
+                      {rich(t(`failure.${failure}.symptom`))}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2">
+                      {rich(t(`failure.${failure}.cause`))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -811,7 +338,7 @@ export function TargetHelpDialog({ label = 'Qu’est-ce qu’une cible ?', class
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline" type="button">
-              Fermer
+              {tc('close')}
             </Button>
           </DialogClose>
         </DialogFooter>
@@ -820,110 +347,15 @@ export function TargetHelpDialog({ label = 'Qu’est-ce qu’une cible ?', class
   );
 }
 
-const TUTORIAL: Array<{ title: string; body: React.ReactNode }> = [
-  {
-    title: 'Une machine Linux joignable en SSH depuis le worker',
-    body: (
-      <>
-        VM, VPS, serveur physique. Vérifiez depuis le conteneur qui déploie, pas depuis votre
-        poste&nbsp;: <Code>docker compose exec worker sh -lc &apos;nc -z 10.0.0.12 22&apos;</Code>
-        . C’est lui qui ouvrira la session.
-      </>
-    ),
-  },
-  {
-    title: 'Un compte de déploiement dédié',
-    body: (
-      <>
-        Pas <Code>root</Code> si vous pouvez l’éviter&nbsp;:{' '}
-        <Code>sudo adduser --disabled-password --gecos &apos;&apos; deploy</Code>. Il portera
-        toutes les commandes du panel.
-      </>
-    ),
-  },
-  {
-    title: 'La clé, sans passphrase, déposée sur la machine',
-    body: (
-      <>
-        <Code>ssh-keygen -t ed25519 -N &apos;&apos; -f ~/.ssh/pupitre-deploy</Code> puis{' '}
-        <Code>ssh-copy-id -i ~/.ssh/pupitre-deploy.pub deploy@10.0.0.12</Code>. Testez avec{' '}
-        <Code>ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 true</Code> avant d’aller plus loin.
-      </>
-    ),
-  },
-  {
-    title: 'Docker, ou K3s, ou les deux',
-    body: (
-      <>
-        Le panel n’installe rien. Pour Docker, ajoutez le compte au groupe <Code>docker</Code> —
-        sans quoi tout le reste échouera sur «&nbsp;daemon injoignable&nbsp;». Pour K3s,
-        installez-le avec un kubeconfig lisible (<Code>--write-kubeconfig-mode 644</Code>).
-      </>
-    ),
-  },
-  {
-    title: 'sudo sans mot de passe',
-    body: (
-      <>
-        Nécessaire pour créer <Code>/opt/bootstrap</Code> au premier déploiement et pour poser
-        les règles UFW. Vérifiez exactement ce que vérifie le preflight&nbsp;:{' '}
-        <Code>sudo -n true</Code>.
-      </>
-    ),
-  },
-  {
-    title: 'Le pare-feu, si vous en avez un',
-    body: (
-      <>
-        Ouvrez 22, puis la plage que vous déclarerez au panel. Si le filtrage est en amont
-        (groupe de sécurité, box), c’est là qu’il faut ouvrir&nbsp;: UFW n’y peut rien.
-      </>
-    ),
-  },
-  {
-    title: 'Déclarer la cible dans le panel',
-    body: (
-      <>
-        Le formulaire de cette page. Nom, hôte, port, compte, clé privée collée, sudo{' '}
-        <Code>nopasswd</Code>, et une plage de ports qui corresponde à ce que vous venez
-        d’ouvrir.
-      </>
-    ),
-  },
-  {
-    title: 'Lancer le preflight',
-    body: (
-      <>
-        Bouton «&nbsp;Tester la connexion&nbsp;», depuis la liste ou la page de la cible. Vous
-        attendez des badges «&nbsp;Docker ✓&nbsp;» ou «&nbsp;K3s ✓&nbsp;» et un statut{' '}
-        <Code>ok</Code>. Un statut <Code>degraded</Code> avec deux runtimes absents signifie que
-        la machine répond mais que rien n’y est déployable.
-      </>
-    ),
-  },
-  {
-    title: 'Créer une application',
-    body: (
-      <>
-        <em>Applications → Nouvelle application</em>, depuis une description ou un JSON. Une
-        AppSpec ne connaît ni Docker ni Kubernetes&nbsp;; la modale{' '}
-        «&nbsp;Qu’est-ce qu’une AppSpec&nbsp;?&nbsp;» de cette page-là détaille les champs.
-      </>
-    ),
-  },
-  {
-    title: 'Déployer, et regarder les étapes',
-    body: (
-      <>
-        Choisissez la cible — seules celles dont le preflight a vu Docker sont proposées — et la
-        politique de scan. Le déploiement est une tâche&nbsp;: la page de suivi montre les étapes
-        à gauche et les logs en direct à droite. Une cible qui porte un déploiement vivant n’est
-        plus supprimable, c’est voulu.
-      </>
-    ),
-  },
-];
+/*
+ * Les deux blocs suivants sont du shell, pas de la prose : ils se copient tels
+ * quels dans un terminal. Ni les commandes ni leurs commentaires ne se
+ * traduisent — un `# 1 — a dedicated account` dans un panel anglais donnerait
+ * un script qui ne correspond plus à celui du dépôt.
+ */
 
+// i18n-ignore — du shell à copier-coller, commentaires compris : c'est un
+// fichier, pas une phrase. Voir le commentaire ci-dessus.
 const PREPARE_SCRIPT = `# 1 — un compte dédié pour le panel
 sudo adduser --disabled-password --gecos '' deploy
 
@@ -953,6 +385,7 @@ ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 '
   docker compose version --short
 '`;
 
+// i18n-ignore — même raison que `PREPARE_SCRIPT` : du shell, pas de la prose.
 const KEY_SCRIPT = `# sur VOTRE poste — une paire dédiée, sans passphrase (-N '')
 ssh-keygen -t ed25519 -N '' -C 'pupitre' -f ~/.ssh/pupitre-deploy
 

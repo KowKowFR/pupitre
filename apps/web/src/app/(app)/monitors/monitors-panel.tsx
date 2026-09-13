@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
-import { formatCadence, type MonitorType } from '@pupitre/core';
+import { formatCadence, parseMonitorPause, type MonitorType, type Translate } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { EmptyState } from '@/components/empty-state';
+import { useLanguage, useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { servers } from '@/i18n/messages/servers';
 import { HealthDot, formatSince } from '@/app/(app)/apps/apps-table';
+import type { FormatSettings } from '@/lib/format';
 import { cleanConfig, ConfigFields, defaultsOf, type ConfigValues } from './config-fields';
 import { LatencySparkline, OutcomeLegend, OutcomeStrip } from './monitor-charts';
 
@@ -80,11 +85,6 @@ export type AdoptableApp = {
 
 type ApiError = { error?: { message?: string } };
 
-async function errorOf(response: Response): Promise<string> {
-  const body = (await response.json().catch(() => ({}))) as ApiError;
-  return body.error?.message ?? `Échec (HTTP ${response.status})`;
-}
-
 /** Les cadences proposées. Filtrées par le minimum que le type déclare. */
 const INTERVAL_CHOICES = [30, 60, 300, 900, 3_600, 6 * 3_600, 12 * 3_600, 86_400];
 
@@ -94,17 +94,28 @@ export function MonitorsPanel({
   adoptable,
   canManage,
   retentionDays,
+  format,
 }: {
   monitors: MonitorRow[];
   types: TypeOption[];
   adoptable: AdoptableApp[];
   canManage: boolean;
   retentionDays: number;
+  /** Locale et fuseau de l'instance, pour les figures. Par props, jamais par
+   *  contexte : la frise est rendue sur le serveur avant de l'être ici. */
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
+
+  async function errorOf(response: Response): Promise<string> {
+    const body = (await response.json().catch(() => ({}))) as ApiError;
+    return body.error?.message ?? tc('http.failure', { status: response.status });
+  }
 
   async function call(path: string, init: RequestInit, key: string): Promise<boolean> {
     setBusy(key);
@@ -137,12 +148,7 @@ export function MonitorsPanel({
   }
 
   async function remove(monitor: MonitorRow): Promise<void> {
-    if (
-      !window.confirm(
-        `Supprimer la sonde « ${monitor.name} » ?\n\n` +
-          "Son historique de mesures et sa chronologie d'incidents partent avec elle.",
-      )
-    ) {
+    if (!window.confirm(t('confirm.delete', { name: monitor.name }))) {
       return;
     }
     await call(`/api/monitors/${monitor.id}`, { method: 'DELETE' }, monitor.id);
@@ -168,15 +174,11 @@ export function MonitorsPanel({
 
       {monitors.length === 0 ? (
         <EmptyState
-          title="Aucune sonde"
-          hint={
-            canManage
-              ? "Une sonde part du worker vers l'adresse publique de ce qu'elle surveille. C'est un point de vue différent du healthcheck : elle voit le pare-feu, le proxy et le certificat."
-              : "Aucune sonde n'a encore été déclarée sur cette instance. En déclarer une demande la permission monitor:manage — un administrateur peut l'ajouter à votre rôle depuis Administration → Rôles."
-          }
+          title={t('empty.title')}
+          hint={canManage ? t('empty.hint.canManage') : t('empty.hint.readOnly')}
           action={
             canManage ? (
-              <Button onClick={() => setCreating(true)}>Déclarer une sonde</Button>
+              <Button onClick={() => setCreating(true)}>{t('action.declare')}</Button>
             ) : null
           }
         />
@@ -187,6 +189,7 @@ export function MonitorsPanel({
               key={monitor.id}
               monitor={monitor}
               canManage={canManage}
+              format={format}
               busy={busy === monitor.id}
               onToggle={() => void toggle(monitor)}
               onProbe={() => void probeNow(monitor)}
@@ -194,8 +197,7 @@ export function MonitorsPanel({
             />
           ))}
           <p className="text-[0.6875rem] text-ink-faint">
-            Les mesures sont conservées {retentionDays} jours, puis purgées. Les incidents, eux, ne
-            sont jamais purgés — ce sont eux qui racontent l&apos;histoire.
+            {t('retention.note', { count: retentionDays })}
           </p>
         </div>
       )}
@@ -203,9 +205,27 @@ export function MonitorsPanel({
   );
 }
 
+type Messages = Translate<(typeof messages)['fr']>;
+
+/**
+ * Le motif d'une suspension, rendu à la lecture.
+ *
+ * `paused_reason` porte une **clé** quand le balayage l'a écrite, et du texte
+ * libre sinon — une ligne d'avant ce changement, ou un motif qu'un humain aura
+ * saisi un jour. On traduit ce qu'on reconnaît, on affiche le reste tel quel :
+ * c'est ce qui laisse les lignes déjà en base intactes.
+ */
+function pausedReasonLabel(raw: string, t: Messages): string {
+  const pause = parseMonitorPause(raw);
+  if (pause.reason === 'orphaned') return t('card.paused.orphaned');
+  if (pause.reason === 'unknownType') return t('card.paused.unknownType', { type: pause.type });
+  return pause.text;
+}
+
 function MonitorCard({
   monitor,
   canManage,
+  format,
   busy,
   onToggle,
   onProbe,
@@ -213,11 +233,19 @@ function MonitorCard({
 }: {
   monitor: MonitorRow;
   canManage: boolean;
+  format: FormatSettings;
   busy: boolean;
   onToggle: () => void;
   onProbe: () => void;
   onRemove: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+  // `formatSince` appartient à l'écran des applications et parle son
+  // vocabulaire : on lui passe son `t`, sinon il retombe sur le français.
+  const tSince = useT(servers);
+  const language = useLanguage();
+
   // Un échec en cours mais pas encore confirmé : l'écran le dit franchement
   // plutôt que d'afficher « sain » ou « en panne », qui seraient tous deux faux.
   const pending =
@@ -232,8 +260,10 @@ function MonitorCard({
               {monitor.name}
             </Link>
             <Badge variant="secondary">{monitor.typeLabel}</Badge>
-            {monitor.hasWebhook ? <Badge variant="outline">alerte</Badge> : null}
-            {monitor.applicationId ? <Badge variant="outline">application</Badge> : null}
+            {monitor.hasWebhook ? <Badge variant="outline">{t('card.badge.alert')}</Badge> : null}
+            {monitor.applicationId ? (
+              <Badge variant="outline">{t('card.badge.application')}</Badge>
+            ) : null}
           </CardTitle>
           <CardDescription className="font-mono text-xs break-all">
             {monitor.targetLink ? (
@@ -255,18 +285,18 @@ function MonitorCard({
           {canManage ? (
             <>
               <Button size="sm" variant="outline" disabled={busy} onClick={onProbe}>
-                {busy ? 'Envoi…' : 'Sonder'}
+                {busy ? t('card.action.probing') : t('card.action.probe')}
               </Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={onToggle}>
-                {monitor.enabled ? 'Suspendre' : 'Reprendre'}
+                {monitor.enabled ? t('card.action.pause') : t('card.action.resume')}
               </Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={onRemove}>
-                Supprimer
+                {tc('delete')}
               </Button>
             </>
           ) : null}
           <Button asChild size="sm" variant="outline">
-            <Link href={`/monitors/${monitor.id}`}>Détail</Link>
+            <Link href={`/monitors/${monitor.id}`}>{t('card.action.detail')}</Link>
           </Button>
         </div>
       </CardHeader>
@@ -274,31 +304,34 @@ function MonitorCard({
       <CardContent className="space-y-3">
         {monitor.pausedReason ? (
           <Alert variant="warn">
-            Sonde suspendue — {monitor.pausedReason}. Elle se reprend avec « Reprendre ».
+            {t('card.paused', { reason: pausedReasonLabel(monitor.pausedReason, t) })}
           </Alert>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto]">
           <div className="space-y-1">
-            <HealthDot health={monitor.status} />
+            <HealthDot health={monitor.status} label={t(`health.${monitor.status}`)} />
             {monitor.neverRan ? (
-              <p className="text-[0.6875rem] text-ink-faint">
-                Jamais exécutée — première mesure au prochain balayage.
-              </p>
+              <p className="text-[0.6875rem] text-ink-faint">{t('card.neverRan')}</p>
             ) : (
               <p className="text-[0.6875rem] text-ink-faint">
-                Mesurée il y a {formatSince(monitor.lastCheckedAt)} ·{' '}
-                {formatCadence(monitor.intervalSeconds)}
+                {t('card.measured', {
+                  since: formatSince(monitor.lastCheckedAt, tSince),
+                  cadence: formatCadence(monitor.intervalSeconds, language),
+                })}
               </p>
             )}
             {pending ? (
               <Badge variant="warn" className="mt-1">
-                {monitor.consecutiveFailures} échec sur {monitor.failureThreshold} — non confirmé
+                {t('card.pending', {
+                  count: monitor.consecutiveFailures,
+                  threshold: monitor.failureThreshold,
+                })}
               </Badge>
             ) : null}
             {!monitor.enabled && !monitor.pausedReason ? (
               <Badge variant="secondary" className="mt-1">
-                suspendue
+                {t('card.badge.paused')}
               </Badge>
             ) : null}
           </div>
@@ -306,22 +339,22 @@ function MonitorCard({
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
               <span className="text-ink">
-                <span className="eyebrow text-ink-faint">24 h </span>
+                <span className="eyebrow text-ink-faint">{t('card.window.day')} </span>
                 {monitor.uptime24h.label}
               </span>
               <span className="text-ink-muted">
-                <span className="eyebrow text-ink-faint">7 j </span>
+                <span className="eyebrow text-ink-faint">{t('card.window.week')} </span>
                 {monitor.uptime7d.label}
               </span>
             </div>
-            <OutcomeStrip points={monitor.recent} height={18} />
+            <OutcomeStrip points={monitor.recent} format={format} height={18} />
             {monitor.recent.length > 0 ? <OutcomeLegend /> : null}
           </div>
 
           <div className="flex flex-col items-end justify-center gap-1">
             <LatencySparkline points={monitor.recent} />
             <span className="font-mono text-[0.6875rem] text-ink-muted">
-              {monitor.lastLatencyMs === null ? '—' : `${monitor.lastLatencyMs} ms`}
+              {monitor.lastLatencyMs === null ? tc('none') : `${monitor.lastLatencyMs} ms`}
             </span>
           </div>
         </div>
@@ -334,9 +367,9 @@ function MonitorCard({
 
         {monitor.openIncidentSince ? (
           <Alert variant="destructive">
-            Incident ouvert depuis {formatSince(monitor.openIncidentSince)}.{' '}
+            {t('card.incidentOpen', { since: formatSince(monitor.openIncidentSince, tSince) })}{' '}
             <Link href={`/monitors/${monitor.id}`} className="underline underline-offset-4">
-              Voir la chronologie
+              {t('card.incidentTimeline')}
             </Link>
           </Alert>
         ) : null}
@@ -362,6 +395,9 @@ function CreateMonitor({
   onCreated: () => void;
   onError: (message: string | null) => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const language = useLanguage();
   const first = types[0];
   const [type, setType] = React.useState<MonitorType>(first?.type ?? 'http');
   const [name, setName] = React.useState('');
@@ -418,7 +454,8 @@ function CreateMonitor({
 
     setSubmitting(false);
     if (!response.ok) {
-      onError(await errorOf(response));
+      const body = (await response.json().catch(() => ({}))) as ApiError;
+      onError(body.error?.message ?? tc('http.failure', { status: response.status }));
       return;
     }
 
@@ -438,12 +475,8 @@ function CreateMonitor({
       {adoptable.length > 0 ? (
         <Card className="gap-3">
           <CardHeader>
-            <CardTitle>Applications déployées, pas encore supervisées</CardTitle>
-            <CardDescription>
-              Le panel connaît déjà leur adresse. Il ne crée pas la sonde tout seul — une sonde
-              émet du trafic sortant à la minute, ce n&apos;est pas un effet de bord qu&apos;un
-              déploiement doit produire sans qu&apos;on l&apos;ait demandé. Un clic suffit.
-            </CardDescription>
+            <CardTitle>{t('adopt.title')}</CardTitle>
+            <CardDescription>{t('adopt.description')}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
             {adoptable.map((app) => (
@@ -453,7 +486,7 @@ function CreateMonitor({
                 variant="outline"
                 onClick={() => adopt(app)}
               >
-                Superviser {app.slug}
+                {t('adopt.action', { slug: app.slug })}
               </Button>
             ))}
           </CardContent>
@@ -461,11 +494,11 @@ function CreateMonitor({
       ) : null}
 
       {!open ? (
-        <Button onClick={() => onOpenChange(true)}>Déclarer une sonde</Button>
+        <Button onClick={() => onOpenChange(true)}>{t('action.declare')}</Button>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Nouvelle sonde</CardTitle>
+            <CardTitle>{t('create.title')}</CardTitle>
             {definition ? (
               <CardDescription>
                 {definition.description} {definition.neverDoes}
@@ -476,18 +509,18 @@ function CreateMonitor({
             <form className="space-y-4" onSubmit={(event) => void submit(event)}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="monitor-name">Nom</Label>
+                  <Label htmlFor="monitor-name">{t('create.name.label')}</Label>
                   <Input
                     id="monitor-name"
                     value={name}
                     required
                     maxLength={120}
-                    placeholder="Site vitrine"
+                    placeholder={t('create.name.placeholder')}
                     onChange={(event) => setName(event.target.value)}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="monitor-type">Type de surveillance</Label>
+                  <Label htmlFor="monitor-type">{t('create.type.label')}</Label>
                   <Select
                     id="monitor-type"
                     value={type}
@@ -515,7 +548,7 @@ function CreateMonitor({
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="monitor-interval">Cadence</Label>
+                  <Label htmlFor="monitor-interval">{t('create.interval.label')}</Label>
                   <Select
                     id="monitor-interval"
                     value={String(intervalSeconds)}
@@ -523,20 +556,21 @@ function CreateMonitor({
                   >
                     {intervals.map((seconds) => (
                       <option key={seconds} value={seconds}>
-                        {formatCadence(seconds)}
+                        {formatCadence(seconds, language)}
                       </option>
                     ))}
                   </Select>
                   {definition ? (
                     <p className="text-[0.6875rem] text-ink-faint">
-                      Pas plus souvent que{' '}
-                      {formatCadence(definition.minIntervalSeconds)} pour ce type.
+                      {t('create.interval.floor', {
+                        cadence: formatCadence(definition.minIntervalSeconds, language),
+                      })}
                     </p>
                   ) : null}
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="monitor-failure">Seuil de panne</Label>
+                  <Label htmlFor="monitor-failure">{t('create.failure.label')}</Label>
                   <Input
                     id="monitor-failure"
                     type="number"
@@ -545,13 +579,11 @@ function CreateMonitor({
                     value={failureThreshold}
                     onChange={(event) => setFailureThreshold(Number(event.target.value))}
                   />
-                  <p className="text-[0.6875rem] text-ink-faint">
-                    Échecs consécutifs avant l&apos;incident. Un rebond isolé n&apos;alerte pas.
-                  </p>
+                  <p className="text-[0.6875rem] text-ink-faint">{t('create.failure.hint')}</p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="monitor-recovery">Seuil de rétablissement</Label>
+                  <Label htmlFor="monitor-recovery">{t('create.recovery.label')}</Label>
                   <Input
                     id="monitor-recovery"
                     type="number"
@@ -560,26 +592,27 @@ function CreateMonitor({
                     value={recoveryThreshold}
                     onChange={(event) => setRecoveryThreshold(Number(event.target.value))}
                   />
-                  <p className="text-[0.6875rem] text-ink-faint">
-                    Succès consécutifs avant de refermer l&apos;incident.
-                  </p>
+                  <p className="text-[0.6875rem] text-ink-faint">{t('create.recovery.hint')}</p>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="monitor-webhook">Webhook d&apos;alerte — facultatif</Label>
+                <Label htmlFor="monitor-webhook">{t('create.webhook.label')}</Label>
                 <Input
                   id="monitor-webhook"
                   type="url"
                   value={webhookUrl}
-                  placeholder="https://hooks.slack.com/services/…"
+                  placeholder={t('create.webhook.placeholder')}
                   onChange={(event) => setWebhookUrl(event.target.value)}
                 />
                 <p className="text-[0.6875rem] text-ink-faint">
-                  Un POST JSON à la panne <strong>et</strong> au rétablissement, jamais à chaque
-                  échec. La charge porte <code className="font-mono">text</code> et{' '}
-                  <code className="font-mono">content</code>, ce que lisent Slack et Discord.
-                  L&apos;URL est chiffrée en base et n&apos;est jamais réaffichée.
+                  {t('create.webhook.payload.a')}
+                  <strong>{t('create.webhook.payload.and')}</strong>
+                  {t('create.webhook.payload.b')}
+                  <code className="font-mono">text</code>
+                  {t('create.webhook.payload.c')}{' '}
+                  <code className="font-mono">content</code>
+                  {t('create.webhook.payload.d')}
                 </p>
                 {/*
                   Deux sorties existent désormais pour la même panne. Le dire ici,
@@ -588,21 +621,20 @@ function CreateMonitor({
                   recevant, et conclut à un bug.
                 */}
                 <p className="text-[0.6875rem] text-ink-faint">
-                  Ce webhook ne concerne <strong>que cette sonde</strong>. Les canaux de
-                  notification de l&apos;instance (e-mail, Telegram, Discord, webhook) reçoivent
-                  déjà « Site en panne » et « Site rétabli » pour <strong>toutes</strong> les
-                  sondes s&apos;ils y sont abonnés — avec regroupement des rafales. Renseigner les
-                  deux fait donc partir deux messages pour une même panne : à réserver au cas où
-                  cette sonde doit alerter ailleurs que les autres.
+                  {t('create.webhook.scope.a')}
+                  <strong>{t('create.webhook.scope.only')}</strong>
+                  {t('create.webhook.scope.b')}
+                  <strong>{t('create.webhook.scope.all')}</strong>
+                  {t('create.webhook.scope.c')}
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Création…' : 'Créer la sonde'}
+                  {submitting ? tc('creating') : t('create.submit')}
                 </Button>
                 <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                  Annuler
+                  {tc('cancel')}
                 </Button>
               </div>
             </form>

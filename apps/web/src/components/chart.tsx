@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import { getT } from '@/i18n/server';
+import { chrome } from '@/i18n/messages/chrome';
+import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
@@ -92,12 +95,21 @@ export function densityOf(buckets: readonly Bucket[]): {
   return { verdict, covered, thin, samples };
 }
 
-function clock(iso: string): string {
-  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+/**
+ * L'heure d'un seau, et la date-heure du plus ancien.
+ *
+ * Les composantes sont celles que la figure impose — une graduation d'axe n'a
+ * la place que pour `14:32` —, mais la locale vient des paramètres d'instance
+ * et descend par props comme le reste du formatage. Écrire `13/09 00:33` sur
+ * un panel anglais était le dernier endroit où la langue de l'instance ne
+ * décidait de rien.
+ */
+function clock(iso: string, format: FormatSettings): string {
+  return formatDateTimeWith(iso, format, { hour: '2-digit', minute: '2-digit' });
 }
 
-function dayClock(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
+function dayClock(iso: string, format: FormatSettings): string {
+  return formatDateTimeWith(iso, format, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -215,19 +227,23 @@ export type RatioBucket = Bucket & {
  * verte quand tout le seau est sain, ambre dès qu'une mesure manque à l'appel,
  * rouge quand rien n'a répondu. Un seau sans mesure n'est pas peint du tout.
  */
-export function RatioBars({
+export async function RatioBars({
   id,
   buckets,
   height = 74,
   label,
-  unit = 'sain',
+  unit,
+  format,
 }: {
   id: string;
   buckets: readonly RatioBucket[];
   height?: number;
   label: string;
-  unit?: string;
+  /** Ce que compte le numérateur, déjà traduit : « sain », « conforme »… */
+  unit: string;
+  format: FormatSettings;
 }) {
+  const t = await getT(chrome);
   const count = buckets.length;
   const padTop = 8;
   const padBottom = 6;
@@ -244,7 +260,12 @@ export function RatioBars({
         style={{ height }}
         preserveAspectRatio="none"
         role="img"
-        aria-label={`${label} — ${density.covered} intervalles mesurés sur ${count}, ${density.samples} mesures au total`}
+        aria-label={t('chart.bars.summary', {
+          label,
+          covered: density.covered,
+          total: count,
+          samples: density.samples,
+        })}
       >
         <ThinHatch id={`${id}-thin`} color="var(--ok)" />
         <Grid ticks={PERCENT_TICKS} padTop={padTop} usable={usable} />
@@ -265,7 +286,7 @@ export function RatioBars({
                 fill="var(--ink-faint)"
                 opacity={0.35}
               >
-                <title>{`${clock(bucket.at)} — aucune mesure`}</title>
+                <title>{t('chart.bars.empty', { clock: clock(bucket.at, format) })}</title>
               </rect>
             );
           }
@@ -286,8 +307,12 @@ export function RatioBars({
               opacity={thin && ratio !== 1 ? 0.5 : 1}
             >
               <title>
-                {`${clock(bucket.at)} — ${bucket.hits}/${bucket.samples} ${unit}` +
-                  (thin ? ' · trop peu de mesures pour conclure' : '')}
+                {t('chart.bars.ratio', {
+                  clock: clock(bucket.at, format),
+                  hits: bucket.hits,
+                  samples: bucket.samples,
+                  unit,
+                }) + (thin ? t('chart.bars.thin') : '')}
               </title>
             </rect>
           );
@@ -310,13 +335,14 @@ export type SeriesBucket = Bucket & { value: number | null };
  * le plus facilement : la ligne paraît continue, donc la surveillance paraît
  * continue.
  */
-export function SeriesLine({
+export async function SeriesLine({
   buckets,
   height = 96,
   label,
   max,
   unit = '',
   tone = 'var(--signal)',
+  format,
 }: {
   buckets: readonly SeriesBucket[];
   height?: number;
@@ -325,7 +351,9 @@ export function SeriesLine({
   max: number;
   unit?: string;
   tone?: string;
+  format: FormatSettings;
 }) {
+  const t = await getT(chrome);
   const count = buckets.length;
   const padTop = 8;
   const padBottom = 6;
@@ -364,7 +392,11 @@ export function SeriesLine({
         style={{ height }}
         preserveAspectRatio="none"
         role="img"
-        aria-label={`${label} — ${density.covered} intervalles mesurés sur ${count}`}
+        aria-label={t('chart.series.summary', {
+          label,
+          covered: density.covered,
+          total: count,
+        })}
       >
         <Grid ticks={ticks} padTop={padTop} usable={usable} />
 
@@ -381,7 +413,7 @@ export function SeriesLine({
               fill="var(--ink-faint)"
               opacity={0.09}
             >
-              <title>{`${clock(bucket.at)} — aucun relevé`}</title>
+              <title>{t('chart.series.void', { clock: clock(bucket.at, format) })}</title>
             </rect>
           ) : null,
         )}
@@ -426,9 +458,12 @@ export function SeriesLine({
               fill="transparent"
             >
               <title>
-                {`${clock(bucket.at)} — ${Math.round(bucket.value)}${unit} · ${bucket.samples} relevé${
-                  bucket.samples > 1 ? 's' : ''
-                }`}
+                {t('chart.series.point', {
+                  clock: clock(bucket.at, format),
+                  value: Math.round(bucket.value),
+                  unit,
+                  count: bucket.samples,
+                })}
               </title>
             </rect>
           ),
@@ -486,7 +521,7 @@ const CLUSTER_RATIO = 0.012;
  * En HTML et non en SVG : la pastille porte un chiffre, et un chiffre dans une
  * figure étirée en largeur serait déformé.
  */
-export function EventRail({
+export async function EventRail({
   events,
   from,
   to,
@@ -499,6 +534,7 @@ export function EventRail({
   height?: number;
   label: string;
 }) {
+  const t = await getT(chrome);
   const start = Date.parse(from);
   const end = Date.parse(to);
   const span = Math.max(1, end - start);
@@ -525,7 +561,7 @@ export function EventRail({
         className="relative min-w-0 flex-1"
         style={{ height }}
         role="img"
-        aria-label={`${label} — ${events.length} événement${events.length > 1 ? 's' : ''}`}
+        aria-label={t('chart.rail.summary', { label, count: events.length })}
       >
         <span aria-hidden className="bg-line absolute inset-x-0 top-1/2 h-px" />
         {clusters.map((cluster) => {
@@ -554,7 +590,9 @@ export function EventRail({
                   .slice(0, 6)
                   .map((member) => member.title)
                   .join('\n') +
-                (cluster.members.length > 6 ? `\n… et ${cluster.members.length - 6} de plus` : '')
+                (cluster.members.length > 6
+                  ? `\n${t('chart.rail.more', { count: cluster.members.length - 6 })}`
+                  : '')
               }
             >
               {many ? (
@@ -578,7 +616,18 @@ export function EventRail({
  * Il reprend exactement la gouttière des pistes, donc ses graduations tombent
  * sur les mêmes abscisses que les barres et les courbes au-dessus.
  */
-export function TimeAxis({ from, to, ticks = 5 }: { from: string; to: string; ticks?: number }) {
+export async function TimeAxis({
+  from,
+  to,
+  ticks = 5,
+  format,
+}: {
+  from: string;
+  to: string;
+  ticks?: number;
+  format: FormatSettings;
+}) {
+  const t = await getT(chrome);
   const start = Date.parse(from);
   const end = Date.parse(to);
   const marks = Array.from({ length: ticks }, (_, i) => {
@@ -604,7 +653,7 @@ export function TimeAxis({ from, to, ticks = 5 }: { from: string; to: string; ti
                     : 'translateX(-50%)',
             }}
           >
-            {index === marks.length - 1 ? 'maintenant' : clock(mark.at)}
+            {index === marks.length - 1 ? t('chart.axis.now') : clock(mark.at, format)}
           </span>
         ))}
       </div>
@@ -622,40 +671,36 @@ export function TimeAxis({ from, to, ticks = 5 }: { from: string; to: string; ti
  * collecte ; « 4 intervalles mesurés sur 24 » dit que la collecte marche et
  * qu'elle vient de commencer.
  */
-export function NotEnoughHistory({
+export async function NotEnoughHistory({
   covered,
   buckets,
   nothing,
   since,
+  format,
   children,
 }: {
   covered: number;
   buckets: number;
   /**
-   * La phrase de manque, article compris : « Aucune mesure de sonde »,
-   * « Aucun relevé machine ». C'est l'appelant qui l'écrit en entier parce que
-   * le français accorde l'article au genre du nom, et qu'un « Aucun » collé
-   * devant un nom féminin par un gabarit se voit tout de suite.
+   * La phrase de manque, article compris et déjà traduite : « Aucune mesure de
+   * sonde », « Aucun relevé machine ». C'est l'appelant qui l'écrit en entier
+   * parce que le français accorde l'article au genre du nom, et qu'un « Aucun »
+   * collé devant un nom féminin par un gabarit se voit tout de suite.
    */
   nothing: string;
   since?: string | null;
+  format: FormatSettings;
   children?: ReactNode;
 }) {
+  const t = await getT(chrome);
   return (
     <div className="border-line bg-surface-2/40 flex flex-col gap-1 rounded-md border border-dashed px-4 py-3">
-      <p className="text-ink text-[0.8125rem]">
-        Pas encore assez d&apos;historique pour une tendance.
-      </p>
+      <p className="text-ink text-[0.8125rem]">{t('chart.history.title')}</p>
       <p className="text-ink-faint text-xs">
-        {covered === 0 ? (
-          <>{nothing} sur la fenêtre.</>
-        ) : (
-          <>
-            {covered} intervalle{covered > 1 ? 's' : ''} mesuré{covered > 1 ? 's' : ''} sur{' '}
-            {buckets}
-            {since ? <> — le plus ancien remonte à {dayClock(since)}.</> : '.'}
-          </>
-        )}
+        {covered === 0
+          ? t('chart.history.nothing', { nothing })
+          : t('chart.history.covered', { count: covered, buckets }) +
+            (since ? t('chart.history.oldest', { when: dayClock(since, format) }) : '.')}
       </p>
       {children}
     </div>
@@ -668,7 +713,7 @@ export function NotEnoughHistory({
  * Elle est obligatoire dès qu'un seau est maigre ou manquant : la figure seule
  * ne peut pas dire « j'ai regardé une fois pendant cette heure-là ».
  */
-export function CoverageNote({
+export async function CoverageNote({
   covered,
   buckets,
   thin,
@@ -680,19 +725,28 @@ export function CoverageNote({
   buckets: number;
   thin: number;
   samples: number;
-  /** Au singulier : « mesure », « relevé ». Le pluriel est ajouté ici. */
-  what: string;
+  /**
+   * Ce qui a été compté. Un mot-clé, pas une chaîne : une sonde prend des
+   * *mesures*, un balayage écrit des *relevés*, et les deux ne s'accordent pas
+   * pareil. L'appelant nomme la nature du compte, le dictionnaire accorde.
+   */
+  what: 'sample' | 'readout';
   className?: string;
 }) {
+  const t = await getT(chrome);
   const parts: string[] = [
-    `${samples} ${what}${samples > 1 ? 's' : ''} sur ${covered}/${buckets} intervalles`,
+    t(what === 'sample' ? 'chart.coverage.sample' : 'chart.coverage.readout', {
+      count: samples,
+      covered,
+      buckets,
+    }),
   ];
   if (thin > 0) {
     // Formulation neutre : toutes les figures ne hachurent pas — une courbe ne
     // peut pas. Ce qui compte est le fait, pas la façon dont il est dessiné.
-    parts.push(`${thin} sous ${THIN_SAMPLES} mesures`);
+    parts.push(t('chart.coverage.thin', { count: thin, min: THIN_SAMPLES }));
   }
-  if (covered < buckets) parts.push(`${buckets - covered} sans relevé`);
+  if (covered < buckets) parts.push(t('chart.coverage.missing', { count: buckets - covered }));
   return <p className={cn('text-ink-faint text-[0.6875rem]', className)}>{parts.join(' · ')}</p>;
 }
 
@@ -736,7 +790,7 @@ export function ChartLegend({
  * `null` n'est pas 0 : sans mesure, la jauge reste vide avec un tiret, elle ne
  * dessine pas une barre à zéro qui se lirait « disque vide ».
  */
-export function MiniGauge({
+export async function MiniGauge({
   value,
   label,
   tone = 'var(--signal)',
@@ -745,11 +799,13 @@ export function MiniGauge({
   label: string;
   tone?: string;
 }) {
+  const t = await getT(chrome);
+  const measure =
+    value === null
+      ? t('chart.gauge.unmeasured')
+      : t('chart.gauge.percent', { value: Math.round(value) });
   return (
-    <span
-      className="flex min-w-0 items-center gap-1.5"
-      title={`${label} — ${value === null ? 'non mesuré' : `${Math.round(value)} %`}`}
-    >
+    <span className="flex min-w-0 items-center gap-1.5" title={`${label} — ${measure}`}>
       <span className="eyebrow text-ink-faint shrink-0">{label}</span>
       <span className="bg-surface-3 relative h-1.5 w-9 shrink-0 overflow-hidden rounded-full">
         {value === null ? null : (

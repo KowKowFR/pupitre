@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
 import { eq, getDb, users } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
+import { account as messages } from '@/i18n/messages/account';
+import { getT } from '@/i18n/server';
 import { requirePageSession } from '@/lib/page-auth';
 import { PasswordForm } from './password-form';
 import { TwoFactorPanel } from './two-factor-panel';
 
-export const metadata: Metadata = { title: 'Mon compte — Pupitre' };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT(messages))('meta.title') };
+}
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -15,6 +20,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function AccountPage() {
   const auth = await requirePageSession('/account');
+  const t = await getT(messages);
 
   const [row] = await getDb()
     .select({ twoFactorEnabled: users.twoFactorEnabled })
@@ -24,15 +30,9 @@ export default async function AccountPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Compte"
-        title="Sécurité"
-        description={
-          <>
-            Ce qui protège l&apos;accès au panel : le mot de passe, et un second facteur qui
-            survit à sa fuite. Les deux se gèrent ici, pour soi seul — un administrateur
-            n&apos;a pas le pouvoir d&apos;activer un second facteur à votre place.
-          </>
-        }
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
         actions={<span className="font-mono text-xs text-ink-faint">{auth.email}</span>}
       />
 

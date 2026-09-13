@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import type { AppSettings, DateStyleName, SupportedLocale } from '@pupitre/core';
+import { LOCALE_LABELS, type AppSettings, type DateStyleName, type SupportedLocale } from '@pupitre/core';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n/client';
+import { settings as messages } from '@/i18n/messages/settings';
 import { formatDateTime } from '@/lib/format';
 import { SectionForm } from '../section-form';
 import { useSettingsPatch } from '../use-settings-patch';
@@ -19,12 +21,20 @@ import { useSettingsPatch } from '../use-settings-patch';
  */
 const PREVIEW_INSTANT = new Date('2026-01-15T14:32:07Z');
 
-const DATE_STYLE_LABEL: Record<DateStyleName, string> = {
-  short: 'court',
-  medium: 'moyen',
-  long: 'long',
-};
-
+/**
+ * C'est ici, et nulle part ailleurs, que la langue du panel se choisit.
+ *
+ * Pas de section « Langue » à côté de « Régionalisation » : ce serait deux
+ * écrans pour une seule question. La locale décidait déjà du nom des mois et
+ * de l'ordre jour/mois ; elle décide maintenant aussi des mots. Un seul
+ * réglage, donc un seul état possible — jamais un panel anglais qui daterait
+ * ses lignes en français.
+ *
+ * La liste proposée n'est plus `SUPPORTED_LOCALES` mais `TRANSLATED_LOCALES` :
+ * on n'offre que les langues que le panel parle réellement. Une instance qui
+ * porte encore `de-DE` en base garde sa valeur — elle apparaît alors dans la
+ * liste, une fois, pour qu'on puisse en sortir.
+ */
 export function RegionalForm({
   settings,
   timezones,
@@ -38,11 +48,18 @@ export function RegionalForm({
   dateStyles: DateStyleName[];
   canManage: boolean;
 }) {
+  const t = useT(messages);
   const patch = useSettingsPatch();
   const [timezone, setTimezone] = useState(settings.timezone);
   const [locale, setLocale] = useState<SupportedLocale>(settings.locale);
   const [dateStyle, setDateStyle] = useState<DateStyleName>(settings.dateStyle);
   const [timeStyle, setTimeStyle] = useState<DateStyleName>(settings.timeStyle);
+
+  const styleLabel: Record<DateStyleName, string> = {
+    short: t('regional.style.short'),
+    medium: t('regional.style.medium'),
+    long: t('regional.style.long'),
+  };
 
   // Aperçu dérivé de l'état courant, recalculé à chaque rendu : pas d'effet, pas
   // d'état miroir à resynchroniser.
@@ -65,7 +82,7 @@ export function RegionalForm({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="timezone">Fuseau horaire</Label>
+          <Label htmlFor="timezone">{t('regional.timezone.label')}</Label>
           <Select
             id="timezone"
             value={timezone}
@@ -78,15 +95,10 @@ export function RegionalForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-faint">
-            Toujours explicite, jamais celui du navigateur : c&apos;est ce qui garantit que le
-            serveur et le poste affichent la même heure pour le même événement. C&apos;est aussi le
-            fuseau proposé par défaut à la création d&apos;une tâche planifiée — les tâches déjà
-            installées gardent le leur.
-          </p>
+          <p className="text-xs text-ink-faint">{t('regional.timezone.help')}</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="locale">Locale</Label>
+          <Label htmlFor="locale">{t('regional.locale.label')}</Label>
           <Select
             id="locale"
             value={locale}
@@ -95,17 +107,14 @@ export function RegionalForm({
           >
             {locales.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {LOCALE_LABELS[item]}
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-faint">
-            Décide de l&apos;ordre des composants et du nom des mois. Elle ne traduit pas le
-            panel : son texte reste en français.
-          </p>
+          <p className="text-xs text-ink-faint">{t('regional.locale.help')}</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="dateStyle">Style de date</Label>
+          <Label htmlFor="dateStyle">{t('regional.dateStyle.label')}</Label>
           <Select
             id="dateStyle"
             value={dateStyle}
@@ -114,13 +123,13 @@ export function RegionalForm({
           >
             {dateStyles.map((style) => (
               <option key={style} value={style}>
-                {DATE_STYLE_LABEL[style]}
+                {styleLabel[style]}
               </option>
             ))}
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="timeStyle">Style d&apos;heure</Label>
+          <Label htmlFor="timeStyle">{t('regional.timeStyle.label')}</Label>
           <Select
             id="timeStyle"
             value={timeStyle}
@@ -129,7 +138,7 @@ export function RegionalForm({
           >
             {dateStyles.map((style) => (
               <option key={style} value={style}>
-                {DATE_STYLE_LABEL[style]}
+                {styleLabel[style]}
               </option>
             ))}
           </Select>
@@ -137,12 +146,9 @@ export function RegionalForm({
       </div>
 
       <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-        <div className="eyebrow text-ink-faint">Aperçu</div>
+        <div className="eyebrow text-ink-faint">{t('regional.preview.title')}</div>
         <div className="mt-1 font-mono text-sm text-ink tabular-nums">{preview}</div>
-        <div className="mt-1 text-xs text-ink-faint">
-          Instant de référence : 2026-01-15 14:32:07 UTC. L&apos;aperçu suit les champs
-          ci-dessus avant même d&apos;enregistrer.
-        </div>
+        <div className="mt-1 text-xs text-ink-faint">{t('regional.preview.help')}</div>
       </div>
     </SectionForm>
   );

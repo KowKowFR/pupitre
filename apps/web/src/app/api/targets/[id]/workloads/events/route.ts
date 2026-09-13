@@ -3,7 +3,8 @@ import { getTarget } from '@pupitre/db';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { getEnv } from '@/lib/env';
-import { NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { requirePermission } from '@/lib/rbac';
@@ -29,7 +30,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const channel = workloadChannel(id);
   const encoder = new TextEncoder();

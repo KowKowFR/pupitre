@@ -9,7 +9,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError } from '@/lib/errors';
+import { applications as messages } from '@/i18n/messages/applications';
+import { ConflictError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -43,7 +44,7 @@ export const POST = apiRoute(async (request) => {
 
   const existing = await getApplicationBySlug(input.appSpec.name);
   if (existing) {
-    throw new ConflictError(`Une application « ${input.appSpec.name} » existe déjà`);
+    throw new ConflictError(msg(messages, 'error.slugTaken', { name: input.appSpec.name }));
   }
 
   const application = await createApplication({

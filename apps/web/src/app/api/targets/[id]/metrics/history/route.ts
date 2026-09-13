@@ -8,7 +8,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readSearchParams } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -53,7 +54,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const query = readSearchParams(request, querySchema);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const [histories, thresholds, breaches] = await Promise.all([
     targetHistories([id], query.hours, query.buckets),

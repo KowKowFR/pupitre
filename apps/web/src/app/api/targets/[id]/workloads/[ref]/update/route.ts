@@ -7,7 +7,8 @@ import {
 import { getTarget, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
@@ -34,17 +35,19 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id, ref } = paramsSchema.parse(await context.params);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const decoded = decodeWorkloadRef(ref);
   if (!decoded) {
-    throw new HttpError(422, 'invalid_workload_ref', `Référence de charge illisible : « ${ref} »`);
+    throw new HttpError(422, 'invalid_workload_ref', msg(messages, 'error.badWorkloadRef', { ref }));
   }
 
   const list = await fetchWorkloads(id, auth.userId, auth.ip);
   const workload = findWorkload(list, ref);
   if (!workload) {
-    throw new NotFoundError(`Aucune charge « ${ref} » sur « ${target.name} »`);
+    throw new NotFoundError(
+      msg(messages, 'error.workloadNotFound', { ref, name: target.name }),
+    );
   }
 
   if (workload.managed) {
@@ -63,11 +66,16 @@ export const POST = apiRoute<Context>(async (request, context) => {
       },
       ip: auth.ip,
     });
+    // Deux clés plutôt qu'un fragment interpolé : `msg()` ne rend la phrase
+    // qu'au moment de sérialiser, quand la langue est connue — un morceau de
+    // français collé ici n'aurait jamais été traduit.
     throw new ConflictError(
-      `« ${workload.name} » est déployée par le panel` +
-        `${workload.managedApp ? ` (application « ${workload.managedApp} »)` : ''} : ` +
-        'sa mise à jour est un redéploiement. Lancez-en un depuis la fiche de ' +
-        "l'application, qui rejouera aussi les scans et l'historique.",
+      workload.managedApp
+        ? msg(messages, 'error.workloadManagedUpdateApp', {
+            name: workload.name,
+            app: workload.managedApp,
+          })
+        : msg(messages, 'error.workloadManagedUpdate', { name: workload.name }),
     );
   }
 
@@ -82,7 +90,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
 
   const job = await getOpsQueue().add(WORKLOAD_UPDATE_JOB, data, { attempts: 1 });
   if (!job.id) {
-    throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+    throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.jobNoId'));
   }
 
   await logAudit({

@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/i18n/client';
+import { account as messages } from '@/i18n/messages/account';
+import { common } from '@/i18n/messages/common';
 import { readApiError } from './api-error';
 
 /**
@@ -33,6 +36,8 @@ function readSecret(totpURI: string): string {
 }
 
 export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
 
   const [setup, setSetup] = useState<Setup | null>(null);
@@ -55,7 +60,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
     });
 
     if (!response.ok) {
-      setError(await readApiError(response));
+      setError(await readApiError(response, t('error.http', { status: response.status })));
       setPending(false);
       return;
     }
@@ -82,14 +87,14 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
     });
 
     if (!response.ok) {
-      setError(await readApiError(response));
+      setError(await readApiError(response, t('error.http', { status: response.status })));
       setPending(false);
       return;
     }
 
     setSetup(null);
     setCode('');
-    setNotice('Second facteur activé. Il sera demandé à chaque connexion.');
+    setNotice(t('twoFactor.enabled'));
     setPending(false);
     router.refresh();
   }
@@ -107,13 +112,13 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
     });
 
     if (!response.ok) {
-      setError(await readApiError(response));
+      setError(await readApiError(response, t('error.http', { status: response.status })));
       setPending(false);
       return;
     }
 
     setPassword('');
-    setNotice('Second facteur désactivé. La connexion ne demande plus que le mot de passe.');
+    setNotice(t('twoFactor.disabled'));
     setPending(false);
     router.refresh();
   }
@@ -122,14 +127,14 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          Double authentification (TOTP)
-          {enabled ? <Badge variant="ok">active</Badge> : <Badge variant="secondary">inactive</Badge>}
+          {t('twoFactor.title')}
+          {enabled ? (
+            <Badge variant="ok">{t('twoFactor.badge.on')}</Badge>
+          ) : (
+            <Badge variant="secondary">{t('twoFactor.badge.off')}</Badge>
+          )}
         </CardTitle>
-        <CardDescription>
-          Un code à six chiffres, renouvelé toutes les trente secondes par une application
-          d&apos;authentification. Le QR code est dessiné dans cette page : le secret ne part
-          chez personne.
-        </CardDescription>
+        <CardDescription>{t('twoFactor.description')}</CardDescription>
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
@@ -138,12 +143,9 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
 
         {enabled ? (
           <form onSubmit={disable} className="flex flex-col gap-4">
-            <p className="text-[0.8125rem] text-ink-muted">
-              Chaque connexion réclame un code. Pour retirer ce facteur, confirmez avec votre
-              mot de passe.
-            </p>
+            <p className="text-[0.8125rem] text-ink-muted">{t('twoFactor.armed.body')}</p>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="disable-password">Mot de passe</Label>
+              <Label htmlFor="disable-password">{t('twoFactor.field.password')}</Label>
               <Input
                 id="disable-password"
                 type="password"
@@ -154,7 +156,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
               />
             </div>
             <Button type="submit" variant="destructive" disabled={pending} className="self-start">
-              {pending ? 'Désactivation…' : 'Désactiver'}
+              {pending ? t('twoFactor.disabling') : tc('disable')}
             </Button>
           </form>
         ) : setup ? (
@@ -172,7 +174,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
         ) : (
           <form onSubmit={startSetup} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="setup-password">Mot de passe</Label>
+              <Label htmlFor="setup-password">{t('twoFactor.field.password')}</Label>
               <Input
                 id="setup-password"
                 type="password"
@@ -183,7 +185,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
               />
             </div>
             <Button type="submit" disabled={pending} className="self-start">
-              {pending ? 'Génération…' : 'Activer le second facteur'}
+              {pending ? t('twoFactor.generating') : t('twoFactor.enable')}
             </Button>
           </form>
         )}
@@ -207,6 +209,9 @@ function SetupSteps({
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
@@ -214,12 +219,9 @@ function SetupSteps({
           <QRCodeSVG value={setup.totpURI} size={148} level="M" marginSize={0} />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
-          <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
-            Scannez ce code, ou saisissez la clé à la main si votre application ne peut pas
-            lire de QR.
-          </p>
+          <p className="text-[0.8125rem] leading-relaxed text-ink-muted">{t('setup.scan')}</p>
           <div className="flex flex-col gap-1">
-            <Label>Clé de configuration</Label>
+            <Label>{t('setup.key')}</Label>
             <code className="rounded-sm border border-line bg-surface-2 px-2 py-1.5 font-mono text-xs break-all text-ink">
               {groupSecret(setup.secret)}
             </code>
@@ -228,10 +230,7 @@ function SetupSteps({
       </div>
 
       <Alert variant="warn">
-        <strong className="font-medium">Codes de secours — affichés une seule fois.</strong> Ils
-        ne seront plus jamais montrés. Notez-les hors de cette machine : ce sont les seules
-        clés qui rouvriront le compte si vous perdez votre téléphone. Chacun ne sert
-        qu&apos;une fois.
+        <strong className="font-medium">{t('setup.backup.title')}</strong> {t('setup.backup.body')}
       </Alert>
 
       <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -247,7 +246,7 @@ function SetupSteps({
 
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="totp-code">Code affiché par l&apos;application</Label>
+          <Label htmlFor="totp-code">{t('setup.code.label')}</Label>
           <Input
             id="totp-code"
             inputMode="numeric"
@@ -261,16 +260,14 @@ function SetupSteps({
             value={code}
             onChange={(event) => onCodeChange(event.target.value.replace(/\D/g, ''))}
           />
-          <p className="text-xs text-ink-faint">
-            Le second facteur n&apos;est armé qu&apos;après ce premier code valide.
-          </p>
+          <p className="text-xs text-ink-faint">{t('setup.code.hint')}</p>
         </div>
         <div className="flex gap-2">
           <Button type="submit" disabled={pending}>
-            {pending ? 'Vérification…' : 'Vérifier et activer'}
+            {pending ? tc('checking') : t('setup.submit')}
           </Button>
           <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
-            Annuler
+            {tc('cancel')}
           </Button>
         </div>
       </form>

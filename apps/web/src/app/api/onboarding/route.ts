@@ -10,7 +10,9 @@ import {
 import { getAppSettings, logAudit, updateOnboardingState } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { HttpError } from '@/lib/errors';
+import { getT } from '@/i18n/server';
+import { onboarding } from '@/i18n/messages/onboarding';
+import { HttpError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requireSession, type AuthContext } from '@/lib/rbac';
 import { onboardingEnvironment } from '@/lib/onboarding-gate';
@@ -47,11 +49,7 @@ const patchSchema = z.discriminatedUnion('action', [
 /** 403 explicite : l'assistant ne concerne pas cette personne. */
 function assertApplies(auth: AuthContext): void {
   if (onboardingApplies(auth.can)) return;
-  throw new HttpError(
-    403,
-    'onboarding_not_applicable',
-    "Aucune étape de l'assistant de démarrage ne relève de vos permissions",
-  );
+  throw new HttpError(403, 'onboarding_not_applicable', msg(onboarding, 'error.notApplicable'));
 }
 
 export const GET = apiRoute(async (request) => {
@@ -79,11 +77,7 @@ export const PATCH = apiRoute(async (request) => {
 
   if (input.action === 'restart') {
     if (!auth.can('settings:manage')) {
-      throw new HttpError(
-        403,
-        'forbidden',
-        "Relancer l'assistant modifie l'instance : permission « settings:manage » requise",
-      );
+      throw new HttpError(403, 'forbidden', msg(onboarding, 'error.restartForbidden'));
     }
   } else {
     assertApplies(auth);
@@ -95,17 +89,20 @@ export const PATCH = apiRoute(async (request) => {
       throw new HttpError(
         403,
         'onboarding_step_forbidden',
-        `L'étape « ${input.step} » ne relève pas de vos permissions`,
+        msg(onboarding, 'error.stepForbidden', { step: input.step }),
       );
     }
     // Passer n'a de sens que pour une étape qui se passe. Refuser ici plutôt
     // que d'accepter un « skipped » sur « bienvenue », que le récapitulatif
     // présenterait ensuite comme un renoncement.
     if (input.action === 'skip' && !onboardingStep(input.step).optional) {
+      // Le titre de l'étape n'est plus dans le catalogue : il se rend ici, dans
+      // la langue de l'instance, puis voyage comme une simple variable.
+      const t = await getT(onboarding);
       throw new HttpError(
         409,
         'step_not_optional',
-        `L'étape « ${onboardingStep(input.step).title} » n'est pas facultative`,
+        msg(onboarding, 'error.stepNotOptional', { title: t(`step.${input.step}.title`) }),
       );
     }
   }

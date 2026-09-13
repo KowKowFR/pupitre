@@ -12,6 +12,7 @@ import {
 import { logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { currentLanguage } from '@/i18n/server';
 import { ConflictError } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
@@ -50,18 +51,25 @@ const createSchema = z.object({
   events: z.array(z.enum(NOTIFICATION_EVENT_KEYS)).max(NOTIFICATION_EVENT_KEYS.length).default([]),
 });
 
-/** Vocabulaire nécessaire à l'écran — aucune liste figée côté client. */
-function vocabulary() {
+/**
+ * Vocabulaire nécessaire à l'écran — aucune liste figée côté client.
+ *
+ * La langue traverse la route : ces libellés sont ceux des champs du
+ * formulaire de canal, pas des codes. Sans elle, le catalogue retombait sur sa
+ * langue source et posait « Serveur SMTP » au milieu d'un écran anglais.
+ */
+async function vocabulary() {
+  const language = await currentLanguage();
   return {
-    channels: presentNotificationChannels(),
-    events: presentNotificationEvents(),
+    channels: presentNotificationChannels(language),
+    events: presentNotificationEvents(language),
   };
 }
 
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'settings:read');
   const items = await listNotificationChannels();
-  return NextResponse.json({ items, vocabulary: vocabulary() });
+  return NextResponse.json({ items, vocabulary: await vocabulary() });
 });
 
 export const POST = apiRoute(async (request) => {
@@ -102,6 +110,7 @@ export const POST = apiRoute(async (request) => {
       enabled: channel.enabled,
       config: channel.config,
       events: channel.events,
+      // i18n-ignore — charge utile d'audit, figée à l'écriture (cf. `api/settings`).
       secrets: channel.configuredSecrets.map((field) => `${field} (défini)`),
     },
     ip: auth.ip,

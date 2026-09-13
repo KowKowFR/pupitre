@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import {
   AI_MODEL_TIER_LABELS,
+  aiModelHint,
   aiModelMismatch,
   aiModelOptions,
   aiProviderDescriptor,
   aiProviderDescriptors,
   defaultAiModel,
+  translator,
   type AiProvider,
   type AppSettings,
 } from '@pupitre/core';
@@ -15,6 +17,9 @@ import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useLanguage, useT } from '@/i18n/client';
+import { settings as messages } from '@/i18n/messages/settings';
+import { formatNumber, formatSettingsOf } from '@/lib/format';
 import { SectionForm } from '../section-form';
 import { useSettingsPatch, type SettingsPatchBody } from '../use-settings-patch';
 
@@ -43,7 +48,24 @@ export function AiForm({
   aiApiKeyLast4: string | null;
   canManage: boolean;
 }) {
+  const t = useT(messages);
+  const language = useLanguage();
   const patch = useSettingsPatch();
+
+  // Le cran d'un modèle est un catalogue de `@pupitre/core`, rendu comme les
+  // descriptions de permissions : le dictionnaire vit à côté de la donnée,
+  // l'écran ne fait que lui donner la langue de l'instance.
+  const tierLabel = translator(AI_MODEL_TIER_LABELS, language);
+
+  // Le prix est deux nombres : « 0,10 / 0,40 » ici, « 0.10 / 0.40 » sur une
+  // instance anglaise. Deux décimales toujours, sinon la colonne se déchausse.
+  const format = formatSettingsOf(settings);
+  const price = (amounts: readonly [number, number]) =>
+    amounts
+      .map((amount) =>
+        formatNumber(amount, format, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      )
+      .join(' / ');
 
   const [enabled, setEnabled] = useState(settings.ai.enabled);
   const [provider, setProvider] = useState<AiProvider>(settings.ai.provider);
@@ -60,7 +82,7 @@ export function AiForm({
   const descriptor = aiProviderDescriptor(provider);
   // Prévenir, pas interdire : un modèle sorti la semaine dernière ou une URL de
   // base personnalisée peuvent parfaitement démentir cette heuristique.
-  const warning = aiModelMismatch(provider, model, { baseUrl });
+  const warning = aiModelMismatch(provider, model, { baseUrl, language });
   const suggestedModels = aiModelOptions(provider);
 
   /**
@@ -125,17 +147,14 @@ export function AiForm({
           onChange={(event) => setEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">Autoriser la génération par IA</span>
-          <span className="block text-xs text-ink-faint">
-            Interrupteur explicite : décocher coupe la génération même si une clé est
-            enregistrée.
-          </span>
+          <span className="block text-ink">{t('ai.enabled.label')}</span>
+          <span className="block text-xs text-ink-faint">{t('ai.enabled.help')}</span>
         </span>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="aiProvider">Fournisseur</Label>
+          <Label htmlFor="aiProvider">{t('ai.provider.label')}</Label>
           <Select
             id="aiProvider"
             value={provider}
@@ -149,18 +168,18 @@ export function AiForm({
             ))}
           </Select>
           <p className="text-xs text-ink-faint">
-            Chaque fournisseur lit sa propre variable d&apos;environnement de repli
+            {t('ai.provider.help.before')}
             {descriptor.envApiKeyVar ? (
               <>
                 {' '}
                 (<code className="font-mono">{descriptor.envApiKeyVar}</code>)
               </>
             ) : null}
-            . Une clé enregistrée ici la remplace.
+            {t('ai.provider.help.after')}
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="aiModel">Modèle</Label>
+          <Label htmlFor="aiModel">{t('ai.model.label')}</Label>
           <Select
             id="aiModel"
             value={suggestedModels.some((option) => option.id === model) ? model : ''}
@@ -173,28 +192,25 @@ export function AiForm({
           >
             {suggestedModels.map((option) => (
               <option key={option.id} value={option.id}>
-                {option.id} — {AI_MODEL_TIER_LABELS[option.tier]} · {option.price} $/M
+                {option.id} — {tierLabel(option.tier)} · {price(option.price)} $/M
               </option>
             ))}
-            <option value="">Autre — saisir un identifiant</option>
+            <option value="">{t('ai.model.other')}</option>
           </Select>
           <Input
             id="aiModelCustom"
-            aria-label="Identifiant du modèle"
+            aria-label={t('ai.model.aria')}
             value={model}
             maxLength={120}
             disabled={!canManage}
             onChange={(event) => setModel(event.target.value)}
           />
           <p className="text-xs text-ink-faint">
-            {descriptor.modelHint}. Prix indicatifs en dollars par million de jetons, entrée puis
-            sortie, relevés le 11/09/2026 — ils vieillissent, et la liste n&apos;est qu&apos;une
-            suggestion : tout identifiant reconnu par le fournisseur convient, y compris un modèle
-            sorti après cette liste.
+            {t('ai.model.help', { hint: aiModelHint(provider, language) })}
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="temperature">Température (0 à 1)</Label>
+          <Label htmlFor="temperature">{t('ai.temperature.label')}</Label>
           <Input
             id="temperature"
             type="number"
@@ -205,12 +221,10 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setTemperature(event.target.value)}
           />
-          <p className="text-xs text-ink-faint">
-            Basse, la génération est reproductible — ce qu&apos;on veut d&apos;une AppSpec.
-          </p>
+          <p className="text-xs text-ink-faint">{t('ai.temperature.help')}</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="maxTokens">Jetons maximum</Label>
+          <Label htmlFor="maxTokens">{t('ai.maxTokens.label')}</Label>
           <Input
             id="maxTokens"
             type="number"
@@ -221,9 +235,7 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setMaxTokens(event.target.value)}
           />
-          <p className="text-xs text-ink-faint">
-            Plafond d&apos;une réponse. Trop bas, le JSON est tronqué et la validation échoue.
-          </p>
+          <p className="text-xs text-ink-faint">{t('ai.maxTokens.help')}</p>
         </div>
       </div>
 
@@ -231,25 +243,21 @@ export function AiForm({
 
       {descriptor.supportsBaseUrl ? (
         <div className="space-y-1.5">
-          <Label htmlFor="aiBaseUrl">URL de base (facultatif)</Label>
+          <Label htmlFor="aiBaseUrl">{t('ai.baseUrl.label')}</Label>
           <Input
             id="aiBaseUrl"
             value={baseUrl}
             maxLength={300}
-            placeholder="https://llm.interne.example/v1"
+            placeholder={t('ai.baseUrl.placeholder')}
             disabled={!canManage}
             onChange={(event) => setBaseUrl(event.target.value)}
           />
-          <p className="text-xs text-ink-faint">
-            Pour une API compatible OpenAI auto-hébergée. Laissée vide, c&apos;est l&apos;API
-            publique du fournisseur qui est appelée. L&apos;URL est validée à l&apos;enregistrement :
-            une valeur bancale ferait échouer chaque génération sans rien dire.
-          </p>
+          <p className="text-xs text-ink-faint">{t('ai.baseUrl.help')}</p>
         </div>
       ) : null}
 
       <div className="space-y-1.5 border-t border-line pt-4">
-        <Label htmlFor="apiKey">Clé d&apos;API</Label>
+        <Label htmlFor="apiKey">{t('ai.apiKey.label')}</Label>
         <Input
           id="apiKey"
           type="password"
@@ -258,22 +266,22 @@ export function AiForm({
           disabled={!canManage || clearApiKey}
           placeholder={
             aiApiKeyConfigured
-              ? `Clé enregistrée${aiApiKeyLast4 ? ` — …${aiApiKeyLast4}` : ''}, laisser vide pour la conserver`
-              : 'Aucune clé enregistrée'
+              ? aiApiKeyLast4
+                ? t('ai.apiKey.placeholder.setWithTail', { last4: aiApiKeyLast4 })
+                : t('ai.apiKey.placeholder.set')
+              : t('ai.apiKey.placeholder.none')
           }
           onChange={(event) => setApiKeyInput(event.target.value)}
         />
         <p className="text-xs text-ink-faint">
-          Chiffrée en AES-256-GCM sous <code className="font-mono">MASTER_KEY</code>, comme les
-          credentials SSH. Elle n&apos;est jamais renvoyée par l&apos;API ni écrite dans les logs
-          d&apos;activité — ce champ part toujours vide, même quand une clé est en place. Sans clé
-          ici, le panel retombe sur{' '}
+          {t('ai.apiKey.help.before')} <code className="font-mono">MASTER_KEY</code>
+          {t('ai.apiKey.help.middle')}{' '}
           {descriptor.envApiKeyVar ? (
             <code className="font-mono">{descriptor.envApiKeyVar}</code>
           ) : (
-            'aucune variable d’environnement'
+            t('ai.apiKey.help.noEnvVar')
           )}
-          , la variable propre à {descriptor.label}.
+          {t('ai.apiKey.help.after', { provider: descriptor.label })}
         </p>
         {aiApiKeyConfigured && canManage ? (
           <label className="flex items-center gap-2 pt-1 text-xs text-ink-muted">
@@ -282,7 +290,7 @@ export function AiForm({
               checked={clearApiKey}
               onChange={(event) => setClearApiKey(event.target.checked)}
             />
-            Effacer la clé enregistrée
+            {t('ai.apiKey.clear')}
           </label>
         ) : null}
       </div>

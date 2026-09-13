@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/i18n/client';
+import { admin } from '@/i18n/messages/admin';
+import { common } from '@/i18n/messages/common';
 import { cn } from '@/lib/utils';
 
 export type RoleRow = {
@@ -69,6 +72,8 @@ function RoleCard({
   onToggle: () => void;
 }) {
   const router = useRouter();
+  const t = useT(admin);
+  const c = useT(common);
   const total = useMemo(
     () => groups.reduce((sum, group) => sum + group.permissions.length, 0),
     [groups],
@@ -128,22 +133,18 @@ function RoleCard({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? c('http.failure', { status: response.status }));
       setPending(false);
       return;
     }
 
-    setNotice('Rôle enregistré.');
+    setNotice(t('roles.saved'));
     setPending(false);
     router.refresh();
   }
 
   async function remove() {
-    if (
-      !window.confirm(
-        `Supprimer le rôle « ${role.key} » ? Cette action est définitive.`,
-      )
-    ) {
+    if (!window.confirm(t('roles.confirmDelete', { key: role.key }))) {
       return;
     }
 
@@ -153,7 +154,7 @@ function RoleCard({
     const response = await fetch(`/api/admin/roles/${role.key}`, { method: 'DELETE' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? c('http.failure', { status: response.status }));
       setPending(false);
       return;
     }
@@ -179,25 +180,24 @@ function RoleCard({
             <code className="text-muted-foreground font-mono text-xs font-normal">
               {role.key}
             </code>
-            {role.locked ? <Badge variant="outline">verrouillé</Badge> : null}
+            {role.locked ? <Badge variant="outline">{t('roles.locked')}</Badge> : null}
           </CardTitle>
           <CardDescription>
-            {role.description ?? 'Sans description.'}
+            {role.description ?? t('roles.noDescription')}
             {' · '}
-            {role.permissions.length} / {total} permission
-            {role.permissions.length > 1 ? 's' : ''}
+            {t('roles.permissionCount', { count: role.permissions.length, total })}
             {' · '}
-            {role.userCount} utilisateur{role.userCount > 1 ? 's' : ''}
+            {t('roles.userCount', { count: role.userCount })}
           </CardDescription>
         </div>
 
         <div className="flex shrink-0 gap-2">
           <Button size="sm" variant="outline" onClick={onToggle}>
-            {open ? 'Replier' : role.locked ? 'Voir' : 'Modifier'}
+            {open ? t('roles.action.collapse') : role.locked ? t('roles.action.view') : c('edit')}
           </Button>
           {editable ? (
             <Button size="sm" variant="ghost" disabled={pending} onClick={() => void remove()}>
-              Supprimer
+              {c('delete')}
             </Button>
           ) : null}
         </div>
@@ -208,17 +208,12 @@ function RoleCard({
           {error ? <Alert variant="destructive">{error}</Alert> : null}
           {notice ? <Alert variant="success">{notice}</Alert> : null}
 
-          {role.locked ? (
-            <Alert>
-              Ce rôle est verrouillé. Il détient toujours l&apos;intégralité des permissions, y
-              compris celles ajoutées plus tard, et ne peut être ni renommé ni supprimé.
-            </Alert>
-          ) : null}
+          {role.locked ? <Alert>{t('roles.locked.notice')}</Alert> : null}
 
           {editable ? (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor={`label-${role.key}`}>Nom affiché</Label>
+                <Label htmlFor={`label-${role.key}`}>{t('roles.field.label')}</Label>
                 <Input
                   id={`label-${role.key}`}
                   value={label}
@@ -227,12 +222,12 @@ function RoleCard({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor={`desc-${role.key}`}>Description</Label>
+                <Label htmlFor={`desc-${role.key}`}>{t('roles.form.description')}</Label>
                 <Input
                   id={`desc-${role.key}`}
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
-                  placeholder="À quoi sert ce rôle ?"
+                  placeholder={t('roles.field.descriptionPlaceholder')}
                 />
               </div>
             </div>
@@ -253,7 +248,7 @@ function RoleCard({
                         onClick={() => toggleGroup(group, !all)}
                         className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
                       >
-                        {all ? 'tout décocher' : 'tout cocher'}
+                        {all ? t('roles.group.uncheckAll') : t('roles.group.checkAll')}
                       </button>
                     ) : (
                       <span className="text-muted-foreground font-mono text-xs">
@@ -296,13 +291,13 @@ function RoleCard({
           {editable ? (
             <div className="flex flex-wrap items-center gap-2 border-t pt-4">
               <Button size="sm" disabled={pending || !dirty} onClick={() => void save()}>
-                {pending ? 'Enregistrement…' : 'Enregistrer'}
+                {pending ? c('saving') : c('save')}
               </Button>
               <Button size="sm" variant="ghost" disabled={pending || !dirty} onClick={reset}>
-                Annuler
+                {c('cancel')}
               </Button>
               <span className="text-muted-foreground ml-auto font-mono text-xs">
-                {selected.size} / {total} sélectionnée{selected.size > 1 ? 's' : ''}
+                {t('roles.selectedCount', { count: selected.size, total })}
               </span>
             </div>
           ) : null}

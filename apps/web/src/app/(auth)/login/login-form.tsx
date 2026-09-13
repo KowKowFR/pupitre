@@ -3,6 +3,9 @@
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useT } from '@/i18n/client';
+import { auth as messages } from '@/i18n/messages/auth';
+import { common } from '@/i18n/messages/common';
 import { signIn, twoFactor } from '@/lib/auth-client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -35,6 +38,8 @@ export function LoginForm({
   /** L'inscription est-elle ouverte ? Sinon le lien mènerait à un refus. */
   signupOpen: boolean;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [challenge, setChallenge] = useState(false);
   const [useBackupCode, setUseBackupCode] = useState(false);
@@ -55,7 +60,7 @@ export function LoginForm({
 
     if (result.error) {
       // Message volontairement générique : ne pas révéler si le compte existe.
-      setError('Identifiants invalides.');
+      setError(t('login.rejected'));
       setPending(false);
       return;
     }
@@ -80,11 +85,7 @@ export function LoginForm({
       : await twoFactor.verifyTotp({ code });
 
     if (result.error) {
-      setError(
-        useBackupCode
-          ? 'Code de secours invalide ou déjà utilisé.'
-          : "Code invalide. Vérifiez l'horloge de votre téléphone, puis réessayez.",
-      );
+      setError(useBackupCode ? t('twoFactor.error.backup') : t('twoFactor.error.totp'));
       setCode('');
       setPending(false);
       return;
@@ -98,18 +99,20 @@ export function LoginForm({
     return (
       <Card className="shadow-raised">
         <CardHeader>
-          <CardTitle className="text-lg">Second facteur</CardTitle>
+          <CardTitle className="text-lg">{t('twoFactor.title')}</CardTitle>
           <CardDescription>
             {useBackupCode
-              ? 'Saisissez un code de secours. Chacun ne fonctionne qu’une seule fois.'
-              : "Saisissez le code à six chiffres affiché par votre application d'authentification."}
+              ? t('twoFactor.description.backup')
+              : t('twoFactor.description.totp')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onVerify} className="flex flex-col gap-4">
             {error ? <Alert variant="destructive">{error}</Alert> : null}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="code">{useBackupCode ? 'Code de secours' : 'Code'}</Label>
+              <Label htmlFor="code">
+                {useBackupCode ? t('twoFactor.field.backupCode') : t('twoFactor.field.code')}
+              </Label>
               <Input
                 id="code"
                 name="code"
@@ -124,7 +127,7 @@ export function LoginForm({
               />
             </div>
             <Button type="submit" className="mt-1 w-full" disabled={pending}>
-              {pending ? 'Vérification…' : 'Valider'}
+              {pending ? tc('checking') : t('twoFactor.submit')}
             </Button>
             <button
               type="button"
@@ -135,9 +138,7 @@ export function LoginForm({
                 setError(null);
               }}
             >
-              {useBackupCode
-                ? 'Utiliser le code de mon application'
-                : 'Utiliser un code de secours'}
+              {useBackupCode ? t('twoFactor.useApp') : t('twoFactor.useBackup')}
             </button>
           </form>
         </CardContent>
@@ -148,18 +149,18 @@ export function LoginForm({
   return (
     <Card className="shadow-raised">
       <CardHeader>
-        <CardTitle className="text-lg">Connexion</CardTitle>
-        <CardDescription>Accès réservé aux opérateurs déclarés.</CardDescription>
+        <CardTitle className="text-lg">{t('login.title')}</CardTitle>
+        <CardDescription>{t('login.description')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {error ? <Alert variant="destructive">{error}</Alert> : null}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Adresse e-mail</Label>
+            <Label htmlFor="email">{t('field.email')}</Label>
             <Input id="email" name="email" type="email" autoComplete="email" required autoFocus />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Mot de passe</Label>
+            <Label htmlFor="password">{t('field.password')}</Label>
             <Input
               id="password"
               name="password"
@@ -169,7 +170,7 @@ export function LoginForm({
             />
           </div>
           <Button type="submit" className="mt-1 w-full" disabled={pending}>
-            {pending ? 'Connexion…' : 'Se connecter'}
+            {pending ? t('login.pending') : t('login.submit')}
           </Button>
           {canRecoverPassword ? (
             <p className="text-center text-xs text-ink-muted">
@@ -177,27 +178,24 @@ export function LoginForm({
                 href="/forgot-password"
                 className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
               >
-                Mot de passe oublié ?
+                {t('login.forgot')}
               </Link>
             </p>
           ) : null}
           <p className="text-center text-xs text-ink-muted">
             {signupOpen ? (
               <>
-                Pas de compte ?{' '}
+                {t('login.signup.prompt')}{' '}
                 <Link
                   href="/signup"
                   className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
                 >
-                  En créer un
+                  {t('login.signup.link')}
                 </Link>
-                . Le premier compte de l&apos;instance reçoit le rôle administrateur.
+                {t('login.signup.note')}
               </>
             ) : (
-              <>
-                L&apos;inscription est fermée sur cette instance : les comptes sont créés par un
-                administrateur, depuis « Utilisateurs ».
-              </>
+              <>{t('login.signup.closed')}</>
             )}
           </p>
         </form>

@@ -6,6 +6,9 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/i18n/client';
+import { admin } from '@/i18n/messages/admin';
+import { common } from '@/i18n/messages/common';
 
 type ApiError = { error?: { message?: string } };
 
@@ -35,6 +38,8 @@ export function CreateRoleForm({
   onCreated?: (role: CreatedRole) => void;
 }) {
   const router = useRouter();
+  const t = useT(admin);
+  const c = useT(common);
   const [label, setLabel] = useState('');
   const [key, setKey] = useState('');
   const [keyTouched, setKeyTouched] = useState(false);
@@ -65,7 +70,7 @@ export function CreateRoleForm({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? c('http.failure', { status: response.status }));
       setPending(false);
       return;
     }
@@ -90,19 +95,19 @@ export function CreateRoleForm({
       ) : null}
 
       <div className="space-y-1.5">
-        <Label htmlFor="role-label">Nom</Label>
+        <Label htmlFor="role-label">{t('roles.form.name')}</Label>
         <Input
           id="role-label"
           value={label}
           onChange={(event) => setLabel(event.target.value)}
-          placeholder="Support niveau 1"
+          placeholder={t('roles.form.namePlaceholder')}
           required
           minLength={2}
         />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="role-key">Clé</Label>
+        <Label htmlFor="role-key">{t('roles.form.key')}</Label>
         <Input
           id="role-key"
           value={effectiveKey}
@@ -110,23 +115,23 @@ export function CreateRoleForm({
             setKeyTouched(true);
             setKey(event.target.value);
           }}
-          placeholder="support-niveau-1"
+          placeholder={t('roles.form.keyPlaceholder')}
           pattern="[a-z0-9]+(-[a-z0-9]+)*"
           required
           aria-invalid={taken || undefined}
         />
         <p className="text-muted-foreground text-xs">
-          {taken ? 'Cette clé est déjà prise.' : 'Définitive. Minuscules et tirets.'}
+          {taken ? t('roles.form.keyTaken') : t('roles.form.keyHint')}
         </p>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="role-description">Description</Label>
+        <Label htmlFor="role-description">{t('roles.form.description')}</Label>
         <Input
           id="role-description"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="Lecture seule et relance des scans"
+          placeholder={t('roles.form.descriptionPlaceholder')}
         />
       </div>
 
@@ -136,7 +141,7 @@ export function CreateRoleForm({
           className="w-full"
           disabled={pending || taken || effectiveKey.length < 2 || label.trim().length < 2}
         >
-          {pending ? 'Création…' : 'Créer le rôle'}
+          {pending ? c('creating') : t('roles.form.submit')}
         </Button>
       </div>
     </form>

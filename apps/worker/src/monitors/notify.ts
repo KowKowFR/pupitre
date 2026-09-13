@@ -1,6 +1,12 @@
-import { buildMonitorAlert, monitorTypeSchema, type MonitorStatus } from '@pupitre/core';
+import {
+  buildMonitorAlert,
+  languageOf,
+  monitorTypeSchema,
+  type MonitorStatus,
+} from '@pupitre/core';
 import { postWebhook } from '@pupitre/core/probe';
 import {
+  getAppSettingsValue,
   logAudit,
   markIncidentAlerted,
   monitorTarget,
@@ -84,24 +90,37 @@ export async function notifyMonitorTransition(
 
   const target = monitorTarget(monitor);
 
-  const alert = buildMonitorAlert({
-    event,
-    monitor: {
-      id: monitor.id,
-      name: monitor.name,
-      type: monitorTypeSchema.parse(monitor.type),
-      target,
+  /**
+   * La langue de l'alerte est celle de **l'instance**, comme pour les canaux de
+   * notification (`handlers/notification.ts`) : personne n'est devant un écran
+   * quand un site tombe, et le salon Slack qui reçoit la phrase est celui de
+   * l'exploitant. Une transition est rare — quelques-unes par jour au pire —,
+   * donc cette lecture ne pèse sur aucun chemin chaud.
+   */
+  const settings = await getAppSettingsValue();
+  const language = languageOf(settings.locale);
+
+  const alert = buildMonitorAlert(
+    {
+      event,
+      monitor: {
+        id: monitor.id,
+        name: monitor.name,
+        type: monitorTypeSchema.parse(monitor.type),
+        target,
+      },
+      incident: {
+        id: incident.id,
+        startedAt: incident.startedAt,
+        resolvedAt: incident.resolvedAt,
+      },
+      status: to,
+      detail: monitor.lastDetail,
+      metrics: monitor.lastMetrics ?? {},
+      consecutiveFailures: incident.failureCount,
     },
-    incident: {
-      id: incident.id,
-      startedAt: incident.startedAt,
-      resolvedAt: incident.resolvedAt,
-    },
-    status: to,
-    detail: monitor.lastDetail,
-    metrics: monitor.lastMetrics ?? {},
-    consecutiveFailures: incident.failureCount,
-  });
+    language,
+  );
 
   /**
    * Le changement d'état est tracé **quoi qu'il arrive** — même sans webhook

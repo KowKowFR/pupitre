@@ -1,4 +1,5 @@
 import { isValidTimeZone } from './settings.js';
+import { translator, type Translate, type Translated, type UiLanguage } from './i18n.js';
 import { z } from 'zod';
 
 /**
@@ -41,51 +42,160 @@ export type ScheduledJobDefinition = {
 };
 
 /**
+ * Les mots de l'ordonnancement — et rien que les mots.
+ *
+ * Le nom BullMQ, la clé par défaut et l'expression cron n'entrent pas ici :
+ * ce sont des identifiants et des données, pas de la prose. Ce qui s'affiche,
+ * en revanche, y est en entier, de sorte que la table ci-dessous n'a plus une
+ * seule phrase écrite en dur.
+ */
+const fr = {
+  'job.scan.label': 'Scan périodique',
+  'job.scan.description':
+    'Relance les scanners configurés sur les applications déployées et rattache le ' +
+    'rapport obtenu au déploiement courant.',
+  'job.scan.neverDoes': 'Ne redéploie rien, ne bloque rien : une CRITICAL alerte, elle ne coupe pas.',
+
+  'job.healthcheck.label': 'Healthcheck périodique',
+  'job.healthcheck.description': 'Sonde les déploiements actifs et met à jour leur statut de santé.',
+  'job.healthcheck.neverDoes': 'Ne déclenche aucun rollback : le statut informe, il ne décide pas.',
+
+  'job.cleanup.label': 'Purge des versions',
+  'job.cleanup.description':
+    'Supprime sur les cibles les répertoires de version au-delà des 5 derniers.',
+  'job.cleanup.neverDoes': 'Ne touche jamais à la version courante, ni à aucune ressource applicative.',
+
+  'job.preflight.label': 'Rafraîchissement des cibles',
+  'job.preflight.description': "Relance le preflight de toutes les cibles et rafraîchit leur état.",
+  'job.preflight.neverDoes': 'Ne modifie aucune cible : elle ne fait que constater.',
+
+  // ── Champs d'une expression cron, nommés pour un humain ─────────────────
+  // La *clé* d'un champ reste anglaise et sert à la logique (alias de mois,
+  // alias de jour) ; seul ce libellé-ci s'affiche.
+  'cron.field.second': 'seconde',
+  'cron.field.minute': 'minute',
+  'cron.field.hour': 'heure',
+  'cron.field.dayOfMonth': 'jour du mois',
+  'cron.field.month': 'mois',
+  'cron.field.weekday': 'jour de la semaine',
+
+  'cron.error.fieldCount': 'une expression cron compte 5 ou 6 champs, celle-ci en a {count}',
+  'cron.error.missing': 'champ « {field} » manquant',
+  'cron.error.emptyItem': 'champ « {field} » : élément vide',
+  'cron.error.badItem': 'champ « {field} » : pas « {item} » mal formé',
+  'cron.error.badStep': 'champ « {field} » : pas « /{step} » invalide',
+  'cron.error.badRange': 'champ « {field} » : plage « {range} » mal formée',
+  'cron.error.outOfBounds': 'champ « {field} » : « {token} » hors de {min}-{max}',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'job.scan.label': 'Periodic scan',
+  'job.scan.description':
+    'Runs the scanners configured on deployed applications again and attaches the report to the current deployment.',
+  'job.scan.neverDoes': 'Redeploys nothing, blocks nothing: a CRITICAL alerts, it does not cut.',
+
+  'job.healthcheck.label': 'Periodic healthcheck',
+  'job.healthcheck.description': 'Probes live deployments and updates their health status.',
+  'job.healthcheck.neverDoes': 'Triggers no rollback: the status informs, it does not decide.',
+
+  'job.cleanup.label': 'Version purge',
+  'job.cleanup.description': 'Deletes version directories on the targets beyond the 5 most recent.',
+  'job.cleanup.neverDoes': 'Never touches the current version, nor any application resource.',
+
+  'job.preflight.label': 'Target refresh',
+  'job.preflight.description': 'Runs preflight on every target again and refreshes their state.',
+  'job.preflight.neverDoes': 'Changes no target: it only observes.',
+
+  'cron.field.second': 'second',
+  'cron.field.minute': 'minute',
+  'cron.field.hour': 'hour',
+  'cron.field.dayOfMonth': 'day of month',
+  'cron.field.month': 'month',
+  'cron.field.weekday': 'day of week',
+
+  'cron.error.fieldCount': 'a cron expression has 5 or 6 fields, this one has {count}',
+  'cron.error.missing': 'field “{field}” missing',
+  'cron.error.emptyItem': 'field “{field}”: empty item',
+  'cron.error.badItem': 'field “{field}”: malformed step “{item}”',
+  'cron.error.badStep': 'field “{field}”: invalid step “/{step}”',
+  'cron.error.badRange': 'field “{field}”: malformed range “{range}”',
+  'cron.error.outOfBounds': 'field “{field}”: “{token}” outside {min}-{max}',
+};
+
+export const scheduleCopy = { fr, en };
+
+type ScheduleTranslate = Translate<typeof fr>;
+
+/**
  * Une seule table. Ajouter une tâche planifiée = ajouter une entrée ici et un
  * handler dans le worker ; aucune autre ligne du projet ne change.
  */
-export const SCHEDULED_JOB_TYPES: Record<ScheduledJobType, ScheduledJobDefinition> = {
-  scan: {
-    jobName: 'scan:periodic',
-    defaultKey: 'scan:periodic',
-    label: 'Scan périodique',
-    description:
-      'Relance les scanners configurés sur les applications déployées et rattache le ' +
-      'rapport obtenu au déploiement courant.',
-    defaultCron: '0 4 * * *',
-    neverDoes: 'Ne redéploie rien, ne bloque rien : une CRITICAL alerte, elle ne coupe pas.',
-  },
-  healthcheck: {
-    jobName: 'health:periodic',
-    defaultKey: 'health:periodic',
-    label: 'Healthcheck périodique',
-    description:
-      'Sonde les déploiements actifs et met à jour leur statut de santé.',
-    defaultCron: '*/5 * * * *',
-    neverDoes: 'Ne déclenche aucun rollback : le statut informe, il ne décide pas.',
-  },
-  cleanup: {
-    jobName: 'cleanup:versions',
-    defaultKey: 'cleanup:versions',
-    label: 'Purge des versions',
-    description:
-      'Supprime sur les cibles les répertoires de version au-delà des 5 derniers.',
-    defaultCron: '30 3 * * *',
-    neverDoes: 'Ne touche jamais à la version courante, ni à aucune ressource applicative.',
-  },
-  preflight: {
-    // Nom volontairement distinct de la tâche `target:preflight` du jalon 3,
-    // qui prend UNE cible et ouvre une session SSH. Celle-ci balaye toutes les
-    // cibles et enfile un `target:preflight` par cible : elle réutilise le
-    // handler existant au lieu d'en dupliquer la logique.
-    jobName: 'target:preflight:all',
-    defaultKey: 'target:preflight',
-    label: 'Rafraîchissement des cibles',
-    description: "Relance le preflight de toutes les cibles et rafraîchit leur état.",
-    defaultCron: '0 * * * *',
-    neverDoes: 'Ne modifie aucune cible : elle ne fait que constater.',
-  },
-};
+function buildScheduledJobTypes(
+  t: ScheduleTranslate,
+): Record<ScheduledJobType, ScheduledJobDefinition> {
+  return {
+    scan: {
+      jobName: 'scan:periodic',
+      defaultKey: 'scan:periodic',
+      label: t('job.scan.label'),
+      description: t('job.scan.description'),
+      defaultCron: '0 4 * * *',
+      neverDoes: t('job.scan.neverDoes'),
+    },
+    healthcheck: {
+      jobName: 'health:periodic',
+      defaultKey: 'health:periodic',
+      label: t('job.healthcheck.label'),
+      description: t('job.healthcheck.description'),
+      defaultCron: '*/5 * * * *',
+      neverDoes: t('job.healthcheck.neverDoes'),
+    },
+    cleanup: {
+      jobName: 'cleanup:versions',
+      defaultKey: 'cleanup:versions',
+      label: t('job.cleanup.label'),
+      description: t('job.cleanup.description'),
+      defaultCron: '30 3 * * *',
+      neverDoes: t('job.cleanup.neverDoes'),
+    },
+    preflight: {
+      // Nom volontairement distinct de la tâche `target:preflight` du jalon 3,
+      // qui prend UNE cible et ouvre une session SSH. Celle-ci balaye toutes les
+      // cibles et enfile un `target:preflight` par cible : elle réutilise le
+      // handler existant au lieu d'en dupliquer la logique.
+      jobName: 'target:preflight:all',
+      defaultKey: 'target:preflight',
+      label: t('job.preflight.label'),
+      description: t('job.preflight.description'),
+      defaultCron: '0 * * * *',
+      neverDoes: t('job.preflight.neverDoes'),
+    },
+  };
+}
+
+const TABLES = new Map<UiLanguage, Record<ScheduledJobType, ScheduledJobDefinition>>();
+
+/**
+ * La table dans une langue. Mémoïsée : une table par langue effectivement
+ * demandée, construite une fois, jamais à chaque rendu.
+ */
+export function scheduledJobTypes(
+  language: UiLanguage = 'fr',
+): Record<ScheduledJobType, ScheduledJobDefinition> {
+  const cached = TABLES.get(language);
+  if (cached) return cached;
+  const built = buildScheduledJobTypes(translator(scheduleCopy, language));
+  TABLES.set(language, built);
+  return built;
+}
+
+/**
+ * La table en français. Conservée pour les appelants qui n'ont pas de langue à
+ * offrir — le worker, la base — et qui n'y lisent de toute façon que `jobName`
+ * et `defaultKey`.
+ */
+export const SCHEDULED_JOB_TYPES: Record<ScheduledJobType, ScheduledJobDefinition> =
+  scheduledJobTypes('fr');
 
 export const SCHEDULED_JOB_NAMES: readonly string[] = SCHEDULED_JOB_TYPES_LIST.map(
   (type) => SCHEDULED_JOB_TYPES[type].jobName,
@@ -124,58 +234,63 @@ export type ScheduledJobResult = z.infer<typeof scheduledJobResultSchema>;
  * dépendre d'un détail d'implémentation d'une autre bibliothèque. Le panel doit
  * pouvoir refuser une expression invalide **avant** de l'écrire en base.
  */
-const CRON_FIELD_BOUNDS: ReadonlyArray<{ name: string; min: number; max: number }> = [
-  { name: 'minute', min: 0, max: 59 },
-  { name: 'heure', min: 0, max: 23 },
-  { name: 'jour du mois', min: 1, max: 31 },
-  { name: 'mois', min: 1, max: 12 },
-  { name: 'jour de la semaine', min: 0, max: 7 },
+type CronBound = {
+  /** Clé de logique et de libellé. Jamais affichée nue. */
+  key: 'second' | 'minute' | 'hour' | 'dayOfMonth' | 'month' | 'weekday';
+  min: number;
+  max: number;
+};
+
+const CRON_FIELD_BOUNDS: readonly CronBound[] = [
+  { key: 'minute', min: 0, max: 59 },
+  { key: 'hour', min: 0, max: 23 },
+  { key: 'dayOfMonth', min: 1, max: 31 },
+  { key: 'month', min: 1, max: 12 },
+  { key: 'weekday', min: 0, max: 7 },
 ];
 
-const SECONDS_BOUND = { name: 'seconde', min: 0, max: 59 };
+const SECONDS_BOUND: CronBound = { key: 'second', min: 0, max: 59 };
 
 const MONTH_ALIASES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const DAY_ALIASES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-function aliasesFor(fieldName: string): string[] {
-  if (fieldName === 'mois') return MONTH_ALIASES;
-  if (fieldName === 'jour de la semaine') return DAY_ALIASES;
+function aliasesFor(key: CronBound['key']): string[] {
+  if (key === 'month') return MONTH_ALIASES;
+  if (key === 'weekday') return DAY_ALIASES;
   return [];
 }
 
-function validateField(
-  raw: string,
-  bound: { name: string; min: number; max: number },
-): string | null {
-  const aliases = aliasesFor(bound.name);
+function validateField(raw: string, bound: CronBound, t: ScheduleTranslate): string | null {
+  const aliases = aliasesFor(bound.key);
+  const field = t(`cron.field.${bound.key}`);
 
   const readValue = (token: string): number | null => {
     const lower = token.toLowerCase();
     const aliasIndex = aliases.indexOf(lower);
-    if (aliasIndex >= 0) return bound.name === 'mois' ? aliasIndex + 1 : aliasIndex;
+    if (aliasIndex >= 0) return bound.key === 'month' ? aliasIndex + 1 : aliasIndex;
     if (!/^\d+$/.test(token)) return null;
     const value = Number(token);
     return value >= bound.min && value <= bound.max ? value : null;
   };
 
   for (const part of raw.split(',')) {
-    if (part.length === 0) return `champ « ${bound.name} » : élément vide`;
+    if (part.length === 0) return t('cron.error.emptyItem', { field });
 
     const [range, step, ...extra] = part.split('/');
     if (extra.length > 0 || range === undefined) {
-      return `champ « ${bound.name} » : pas « ${part} » mal formé`;
+      return t('cron.error.badItem', { field, item: part });
     }
     if (step !== undefined && (!/^\d+$/.test(step) || Number(step) === 0)) {
-      return `champ « ${bound.name} » : pas « /${step} » invalide`;
+      return t('cron.error.badStep', { field, step });
     }
 
     if (range === '*') continue;
 
     const bounds = range.split('-');
-    if (bounds.length > 2) return `champ « ${bound.name} » : plage « ${range} » mal formée`;
+    if (bounds.length > 2) return t('cron.error.badRange', { field, range });
     for (const token of bounds) {
       if (readValue(token) === null) {
-        return `champ « ${bound.name} » : « ${token} » hors de ${bound.min}-${bound.max}`;
+        return t('cron.error.outOfBounds', { field, token, min: bound.min, max: bound.max });
       }
     }
   }
@@ -183,11 +298,18 @@ function validateField(
   return null;
 }
 
-/** `null` si l'expression est valide, sinon le motif du refus. */
-export function cronError(expression: string): string | null {
+/**
+ * `null` si l'expression est valide, sinon le motif du refus.
+ *
+ * Le motif s'affiche sous le champ de saisie : il se rend donc dans la langue
+ * qu'on lui donne. Le défaut reste le français, pour `cronSchema` — un message
+ * Zod voyage dans `details`, que le panel n'affiche pas.
+ */
+export function cronError(expression: string, language: UiLanguage = 'fr'): string | null {
+  const t = translator(scheduleCopy, language);
   const fields = expression.trim().split(/\s+/);
   if (fields.length !== 5 && fields.length !== 6) {
-    return `une expression cron compte 5 ou 6 champs, celle-ci en a ${fields.length}`;
+    return t('cron.error.fieldCount', { count: fields.length });
   }
 
   const bounds =
@@ -195,8 +317,10 @@ export function cronError(expression: string): string | null {
 
   for (const [index, bound] of bounds.entries()) {
     const field = fields[index];
-    if (field === undefined) return `champ « ${bound.name} » manquant`;
-    const error = validateField(field, bound);
+    if (field === undefined) {
+      return t('cron.error.missing', { field: t(`cron.field.${bound.key}`) });
+    }
+    const error = validateField(field, bound, t);
     if (error) return error;
   }
   return null;

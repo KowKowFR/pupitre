@@ -15,7 +15,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, ForbiddenError, HttpError, NotFoundError } from '@/lib/errors';
+import { applications as messages } from '@/i18n/messages/applications';
+import { ConflictError, ForbiddenError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { getOpsQueue } from '@/lib/queue';
@@ -49,31 +50,40 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const input = await readJsonBody(request, bodySchema);
 
   const application = await getApplication(id);
-  if (!application) throw new NotFoundError(`Application « ${id} » introuvable`);
+  if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const source = await getDeploymentForRun(input.versionId);
-  if (!source) throw new NotFoundError(`Version « ${input.versionId} » introuvable`);
+  if (!source) {
+    throw new NotFoundError(msg(messages, 'error.versionNotFound', { id: input.versionId }));
+  }
   if (source.deployment.applicationId !== id) {
-    throw new ConflictError(
-      "Cette version appartient à une autre application : impossible de la rejouer ici.",
-    );
+    throw new ConflictError(msg(messages, 'error.versionOtherApplication'));
   }
   if (!source.deployment.appSpec) {
     throw new ConflictError(
-      `Le déploiement #${source.deployment.version} n'a pas d'AppSpec figée : ` +
-        'il a été enregistré avant que le panel ne conserve la spec de chaque run, et il ' +
-        "n'y a donc rien à rejouer. Déployez la version courante de l'application à la place.",
+      msg(messages, 'error.versionNoSpec', { version: source.deployment.version }),
     );
   }
 
   const target = await getTarget(input.targetId);
-  if (!target) throw new NotFoundError(`Cible « ${input.targetId} » introuvable`);
+  if (!target) {
+    throw new NotFoundError(msg(messages, 'error.targetNotFound', { id: input.targetId }));
+  }
 
   const available = usableRuntimes(target.runtimesAvailable);
   if (!available.includes(source.deployment.runtime)) {
     throw new ConflictError(
-      `Le runtime « ${source.deployment.runtime} » de cette version n'est pas disponible ` +
-        `sur « ${target.name} ». Runtimes exploitables : ${available.join(', ') || 'aucun'}.`,
+      msg(
+        messages,
+        available.length === 0
+          ? 'error.versionRuntimeUnavailable.none'
+          : 'error.versionRuntimeUnavailable',
+        {
+          runtime: source.deployment.runtime,
+          target: target.name,
+          available: available.join(', '),
+        },
+      ),
     );
   }
 
@@ -113,7 +123,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
     }),
     { attempts: 1 },
   );
-  if (!job.id) throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+  if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.enqueueFailed'));
 
   await logAudit({
     actorId: auth.userId,

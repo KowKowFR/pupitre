@@ -12,6 +12,7 @@ import {
   type SimpleSchedule,
   type SimpleScheduleKind,
 } from '@pupitre/core/schedule';
+import type { Translate } from '@pupitre/core';
 import { useMemo, useSyncExternalStore } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { CheckboxChip } from '@/components/ui/checkbox';
@@ -19,6 +20,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioOption } from '@/components/ui/radio';
 import { Select } from '@/components/ui/select';
+import { useLanguage, useT } from '@/i18n/client';
+import { jobs as messages } from '@/i18n/messages/jobs';
+import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 
 /**
  * Saisie d'une cadence : périodicité simplifiée ou expression cron.
@@ -84,24 +88,16 @@ export function draftFromCron(cron: string, timeZone: string): ScheduleDraft {
 
 // ─── vocabulaire d'écran ──────────────────────────────────────────────────────
 
-const KIND_LABELS: Record<SimpleScheduleKind, string> = {
-  interval: 'Toutes les quelques minutes',
-  hourly: 'Toutes les heures',
-  daily: 'Tous les jours',
-  weekly: 'Certains jours de la semaine',
-  monthly: 'Une fois par mois',
-};
+type Messages = Translate<(typeof messages)['fr']>;
 
-/** Lundi en tête : c'est l'ordre attendu ici, pas celui de cron. */
-const WEEKDAYS: ReadonlyArray<{ value: number; short: string; long: string }> = [
-  { value: 1, short: 'L', long: 'lundi' },
-  { value: 2, short: 'M', long: 'mardi' },
-  { value: 3, short: 'M', long: 'mercredi' },
-  { value: 4, short: 'J', long: 'jeudi' },
-  { value: 5, short: 'V', long: 'vendredi' },
-  { value: 6, short: 'S', long: 'samedi' },
-  { value: 0, short: 'D', long: 'dimanche' },
-];
+/**
+ * Lundi en tête : c'est l'ordre attendu ici, pas celui de cron. L'ordre est une
+ * propriété de l'écran, pas de la langue — il ne bouge pas d'une locale à
+ * l'autre, seules les initiales changent.
+ */
+const WEEKDAY_VALUES = [1, 2, 3, 4, 5, 6, 0] as const;
+
+type WeekdayValue = (typeof WEEKDAY_VALUES)[number];
 
 const pad2 = (value: number): string => String(value).padStart(2, '0');
 
@@ -159,17 +155,29 @@ function useNow(): number | null {
 
 // ─── aperçu ───────────────────────────────────────────────────────────────────
 
-function formatIn(date: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    timeZone,
-  }).format(date);
+/**
+ * Une occurrence à venir, dans un fuseau **explicite** — celui de la tâche, ou
+ * celui du lecteur — et dans la locale de l'instance. Le fuseau est le sujet de
+ * cet aperçu, il est donc toujours dit ; la locale, elle, était court-circuitée
+ * et servait `en-GB` à une instance `en-US`.
+ */
+function formatIn(date: Date, timeZone: string, format: FormatSettings): string {
+  return formatDateTimeWith(date, format, { dateStyle: 'short', timeStyle: 'short', timeZone });
 }
 
-function SchedulePreview({ cron, timeZone }: { cron: string; timeZone: string }) {
+function SchedulePreview({
+  cron,
+  timeZone,
+  format,
+}: {
+  cron: string;
+  timeZone: string;
+  format: FormatSettings;
+}) {
+  const t = useT(messages);
+  const language = useLanguage();
   const now = useNow();
-  const error = cron.length === 0 ? 'cadence vide' : cronError(cron);
+  const error = cron.length === 0 ? t('preview.emptyCron') : cronError(cron, language);
 
   const runs = useMemo(
     () => (error || now === null ? [] : nextRuns(cron, { from: new Date(now), count: 3, timeZone })),
@@ -179,8 +187,7 @@ function SchedulePreview({ cron, timeZone }: { cron: string; timeZone: string })
   if (error) {
     return (
       <Alert variant="destructive" className="mt-1">
-        Expression refusée : {error}. Rien ne sera planifié tant qu&apos;elle n&apos;est pas
-        valide.
+        {t('preview.refused', { error })}
       </Alert>
     );
   }
@@ -192,28 +199,27 @@ function SchedulePreview({ cron, timeZone }: { cron: string; timeZone: string })
 
   return (
     <div className="mt-1 rounded-md border border-line bg-surface-2 px-3 py-2 text-xs">
-      <p className="text-ink">{describeCron(cron, { timeZone })}</p>
+      <p className="text-ink">{describeCron(cron, { locale: language, timeZone })}</p>
       <p className="mt-1 font-mono text-[0.6875rem] text-ink-faint">{cron}</p>
 
       <dl className="mt-2 space-y-0.5">
         {now === null ? (
-          <div className="text-ink-faint">Prochaines exécutions : calcul en cours…</div>
+          <div className="text-ink-faint">{t('preview.computing')}</div>
         ) : runs.length === 0 ? (
-          <div className="text-ink-faint">
-            Aucune exécution dans les 366 prochains jours — vérifiez l&apos;expression.
-          </div>
+          <div className="text-ink-faint">{t('preview.noRun')}</div>
         ) : (
           runs.map((run, index) => (
             <div key={run.toISOString()} className="flex flex-wrap gap-x-2 text-ink-muted">
               <dt className="text-ink-faint">
-                {index === 0 ? 'Prochaine' : `Puis (${index + 1})`}
+                {index === 0 ? t('preview.next') : t('preview.then', { rank: index + 1 })}
               </dt>
               <dd className="font-mono tabular-nums">
-                {formatIn(run, timeZone)} <span className="text-ink-faint">{timeZone}</span>
+                {formatIn(run, timeZone, format)}{' '}
+                <span className="text-ink-faint">{timeZone}</span>
                 {differentZone && viewerZone ? (
                   <span className="text-ink-faint">
                     {' · '}
-                    {formatIn(run, viewerZone)} chez vous
+                    {t('row.yourClock', { clock: formatIn(run, viewerZone, format) })}
                   </span>
                 ) : null}
               </dd>
@@ -232,12 +238,15 @@ export function ScheduleField({
   value,
   onChange,
   timeZones,
+  format,
   disabled = false,
 }: {
   /** Préfixe d'identifiant : le champ apparaît deux fois sur la même page. */
   idPrefix: string;
   value: ScheduleDraft;
   onChange: (next: ScheduleDraft) => void;
+  /** Locale et fuseau de l'instance, pour l'aperçu des prochaines occurrences. */
+  format: FormatSettings;
   /**
    * Fuseaux proposés, énumérés **côté serveur** : c'est l'ICU du process qui
    * validera la saisie, proposer ceux du navigateur mènerait à des choix
@@ -246,6 +255,8 @@ export function ScheduleField({
   timeZones: readonly string[];
   disabled?: boolean;
 }) {
+  const t = useT(messages);
+  const language = useLanguage();
   const cron = draftCron(value);
   const timeZone = value.timeZone;
   const expertHasSimpleForm = fromCron(value.cron.trim()) !== null;
@@ -272,11 +283,11 @@ export function ScheduleField({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label htmlFor={`${idPrefix}-kind`}>Cadence</Label>
-        <RadioGroup aria-label="Mode de saisie de la cadence">
+        <Label htmlFor={`${idPrefix}-kind`}>{t('field.label')}</Label>
+        <RadioGroup aria-label={t('field.mode.aria')}>
           <RadioOption
             name={`${idPrefix}-mode`}
-            label="Simple"
+            label={t('field.mode.simple')}
             value="simple"
             checked={value.mode === 'simple'}
             disabled={disabled}
@@ -284,7 +295,7 @@ export function ScheduleField({
           />
           <RadioOption
             name={`${idPrefix}-mode`}
-            label="Expert"
+            label={t('field.mode.expert')}
             value="expert"
             checked={value.mode === 'expert'}
             disabled={disabled}
@@ -295,7 +306,7 @@ export function ScheduleField({
 
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor={`${idPrefix}-tz`} className="text-xs font-normal text-ink-muted">
-          Fuseau
+          {t('field.timeZone.label')}
         </Label>
         <Select
           id={`${idPrefix}-tz`}
@@ -307,7 +318,7 @@ export function ScheduleField({
           {/* Le fuseau enregistré peut avoir disparu de l'ICU courant : on le
               garde en tête de liste plutôt que de le remplacer en silence. */}
           {timeZones.includes(timeZone) ? null : (
-            <option value={timeZone}>{timeZone} (inconnu de ce serveur)</option>
+            <option value={timeZone}>{t('field.timeZone.unknown', { zone: timeZone })}</option>
           )}
           {timeZones.map((zone) => (
             <option key={zone} value={zone}>
@@ -316,10 +327,7 @@ export function ScheduleField({
           ))}
         </Select>
         {dependsOnTimeZone(value) ? null : (
-          <span className="text-xs text-ink-faint">
-            Cette cadence est un intervalle : elle ne dépend d&apos;aucun fuseau. Le réglage
-            est conservé pour le jour où elle devient une heure fixe.
-          </span>
+          <span className="text-xs text-ink-faint">{t('field.timeZone.irrelevant')}</span>
         )}
       </div>
 
@@ -336,14 +344,14 @@ export function ScheduleField({
           >
             {SIMPLE_SCHEDULE_KINDS.map((kind) => (
               <option key={kind} value={kind}>
-                {KIND_LABELS[kind]}
+                {t(`field.kind.${kind}`)}
               </option>
             ))}
           </Select>
 
           {simple.kind === 'interval' ? (
             <Select
-              aria-label="Intervalle en minutes"
+              aria-label={t('field.interval.aria')}
               className="w-auto"
               value={String(simple.everyMinutes)}
               disabled={disabled}
@@ -356,7 +364,7 @@ export function ScheduleField({
             >
               {SIMPLE_INTERVAL_MINUTES.map((minutes) => (
                 <option key={minutes} value={minutes}>
-                  toutes les {minutes} min
+                  {t('field.interval.option', { minutes })}
                 </option>
               ))}
             </Select>
@@ -364,7 +372,7 @@ export function ScheduleField({
 
           {simple.kind === 'hourly' ? (
             <label className="flex items-center gap-2 text-xs text-ink-muted">
-              à la minute
+              {t('field.hourly.atMinute')}
               <Input
                 type="number"
                 min={0}
@@ -381,7 +389,7 @@ export function ScheduleField({
 
           {simple.kind === 'monthly' ? (
             <label className="flex items-center gap-2 text-xs text-ink-muted">
-              le
+              {t('field.monthly.onDay')}
               <Input
                 type="number"
                 min={1}
@@ -397,22 +405,22 @@ export function ScheduleField({
           ) : null}
 
           {simple.kind === 'weekly' ? (
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Jours de la semaine">
-              {WEEKDAYS.map((day) => (
+            <div className="flex flex-wrap gap-1" role="group" aria-label={t('field.weekdays.aria')}>
+              {WEEKDAY_VALUES.map((day) => (
                 <CheckboxChip
-                  key={day.value}
-                  label={day.short}
-                  aria-label={day.long}
-                  title={day.long}
-                  checked={simple.weekdays.includes(day.value)}
+                  key={day}
+                  label={weekdayShort(day, t)}
+                  aria-label={weekdayLong(day, t)}
+                  title={weekdayLong(day, t)}
+                  checked={simple.weekdays.includes(day)}
                   // Un dernier jour décoché donnerait une semaine sans occurrence.
                   disabled={
-                    disabled || (simple.weekdays.length === 1 && simple.weekdays[0] === day.value)
+                    disabled || (simple.weekdays.length === 1 && simple.weekdays[0] === day)
                   }
                   onChange={(event) => {
                     const weekdays = event.target.checked
-                      ? [...simple.weekdays, day.value].sort((a, b) => a - b)
-                      : simple.weekdays.filter((value) => value !== day.value);
+                      ? [...simple.weekdays, day].sort((a, b) => a - b)
+                      : simple.weekdays.filter((value) => value !== day);
                     if (weekdays.length > 0) setSimple({ ...simple, weekdays });
                   }}
                 />
@@ -422,7 +430,7 @@ export function ScheduleField({
 
           {simple.kind !== 'interval' && simple.kind !== 'hourly' ? (
             <label className="flex items-center gap-2 text-xs text-ink-muted">
-              à
+              {t('field.time.at')}
               <Input
                 type="time"
                 className="w-32 tabular-nums"
@@ -441,7 +449,7 @@ export function ScheduleField({
       ) : (
         <Input
           id={`${idPrefix}-cron`}
-          aria-label="Expression cron"
+          aria-label={t('field.cron.aria')}
           className="font-mono text-xs md:text-xs"
           placeholder="0 3 * * 1"
           value={value.cron}
@@ -450,22 +458,15 @@ export function ScheduleField({
         />
       )}
 
-      {value.mode === 'expert' && !expertHasSimpleForm && cronError(value.cron.trim()) === null ? (
-        <p className="text-xs text-ink-faint">
-          Cette expression n&apos;a pas d&apos;équivalent en mode simple — plages, pas d&apos;heure
-          ou listes de minutes n&apos;y sont pas représentables. Repasser en mode simple la
-          remplacerait.
-        </p>
+      {value.mode === 'expert' && !expertHasSimpleForm && cronError(value.cron.trim(), language) === null ? (
+        <p className="text-xs text-ink-faint">{t('field.expertNoSimple')}</p>
       ) : null}
 
       {simple.kind === 'monthly' && value.mode === 'simple' && simple.day > 28 ? (
-        <p className="text-xs text-warn">
-          Le {simple.day} n&apos;existe pas tous les mois : ceux qui sont plus courts sont
-          simplement sautés.
-        </p>
+        <p className="text-xs text-warn">{t('field.shortMonths', { day: simple.day })}</p>
       ) : null}
 
-      <SchedulePreview cron={cron} timeZone={timeZone} />
+      <SchedulePreview cron={cron} timeZone={timeZone} format={format} />
     </div>
   );
 }
@@ -478,6 +479,16 @@ function dependsOnTimeZone(draft: ScheduleDraft): boolean {
   const simple = fromCron(draftCron(draft));
   if (!simple) return true;
   return simple.kind !== 'interval' && simple.kind !== 'hourly';
+}
+
+/** L'initiale d'un jour, telle que la case à cocher l'affiche. */
+function weekdayShort(day: WeekdayValue, t: Messages): string {
+  return t(`weekday.${day}.short`);
+}
+
+/** Son nom entier, pour le lecteur d'écran et l'infobulle. */
+function weekdayLong(day: WeekdayValue, t: Messages): string {
+  return t(`weekday.${day}.long`);
 }
 
 function clamp(raw: string | number, min: number, max: number): number {

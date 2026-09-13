@@ -2,7 +2,8 @@ import { DEPLOYMENT_DESTROY_JOB, deploymentJobDataSchema } from '@pupitre/core';
 import { getDeploymentSummary, listSteps, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
@@ -18,7 +19,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   return NextResponse.json({ ...deployment, steps: await listSteps(id) });
 });
@@ -28,13 +29,13 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   if (deployment.status === 'running' || deployment.status === 'pending') {
-    throw new ConflictError('Ce déploiement est en cours. Attendez qu’il se termine.');
+    throw new ConflictError(msg(messages, 'error.running'));
   }
   if (deployment.status === 'destroyed') {
-    throw new ConflictError('Ce déploiement est déjà détruit.');
+    throw new ConflictError(msg(messages, 'error.alreadyDestroyed'));
   }
 
   const job = await getOpsQueue().add(
@@ -42,7 +43,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     deploymentJobDataSchema.parse({ deploymentId: id, actorId: auth.userId, ip: auth.ip }),
     { attempts: 1 },
   );
-  if (!job.id) throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+  if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.enqueueFailed'));
 
   await logAudit({
     actorId: auth.userId,

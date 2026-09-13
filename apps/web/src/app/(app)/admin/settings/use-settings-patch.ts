@@ -3,6 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { AppSettingsPatch } from '@pupitre/core';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { settings } from '@/i18n/messages/settings';
 
 /**
  * Plomberie d'enregistrement commune aux sous-sections.
@@ -34,6 +37,8 @@ export type SettingsPatch = {
 
 export function useSettingsPatch(): SettingsPatch {
   const router = useRouter();
+  const t = useT(common);
+  const ts = useT(settings);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -51,12 +56,12 @@ export function useSettingsPatch(): SettingsPatch {
 
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as ApiError;
-      setError(payload.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(payload.error?.message ?? t('http.failure', { status: response.status }));
       setPending(false);
       return false;
     }
 
-    setNotice('Section enregistrée.');
+    setNotice(ts('form.saved'));
     setPending(false);
     // Les paramètres irriguent le rail, le titre du document et toutes les
     // dates : c'est la page entière qu'il faut réémettre, pas ce formulaire.

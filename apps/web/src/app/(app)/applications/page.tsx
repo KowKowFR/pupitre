@@ -4,6 +4,8 @@ import { Plus } from 'lucide-react';
 import { AppSpecHelpDialog } from '@/components/appspec-help';
 import { PageHeader } from '@/components/page-header';
 import { buttonVariants } from '@/components/ui/button';
+import { getT } from '@/i18n/server';
+import { applications as messages } from '@/i18n/messages/applications';
 import { requirePagePermission } from '@/lib/page-auth';
 import { ApplicationsTable, type ApplicationRow } from './applications-table';
 
@@ -11,6 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function ApplicationsPage() {
   const auth = await requirePagePermission('/applications', 'application:read');
+  const t = await getT(messages);
   const [applications, targets] = await Promise.all([listApplications(), listTargets()]);
 
   const items: ApplicationRow[] = applications.map((application) => ({
@@ -37,20 +40,20 @@ export default async function ApplicationsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Catalogue"
-        title="Applications"
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
         description={
           <>
-            Une application est une <code className="font-mono text-xs">AppSpec</code> — une
-            description neutre, qui ne connaît ni Docker ni Kubernetes. C&apos;est le driver qui la
-            traduit au moment du déploiement.
+            {t('page.description.before')}
+            <code className="font-mono text-xs">AppSpec</code>
+            {t('page.description.after')}
           </>
         }
         actions={
           auth.can('application:create') ? (
             <Link href="/applications/new" className={buttonVariants({ size: 'sm' })}>
               <Plus />
-              Nouvelle application
+              {t('action.new')}
             </Link>
           ) : null
         }

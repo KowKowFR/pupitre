@@ -1,7 +1,8 @@
 import { encrypt } from '@pupitre/core';
 import { createTarget, createTargetSchema, findConflictingTarget, listTargets, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
-import { ConflictError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { ConflictError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { auditableTarget } from '@/lib/targets';
@@ -21,11 +22,15 @@ export const POST = apiRoute(async (request) => {
 
   const conflict = await findConflictingTarget(input);
   if (conflict === 'name') {
-    throw new ConflictError(`Une cible se nomme déjà « ${input.name} »`);
+    throw new ConflictError(msg(messages, 'error.nameTaken', { name: input.name }));
   }
   if (conflict === 'endpoint') {
     throw new ConflictError(
-      `Une cible pointe déjà vers ${input.sshUser}@${input.host}:${input.port}`,
+      msg(messages, 'error.endpointTaken', {
+        user: input.sshUser,
+        host: input.host,
+        port: input.port,
+      }),
     );
   }
 

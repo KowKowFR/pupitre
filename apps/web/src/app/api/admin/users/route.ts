@@ -1,4 +1,4 @@
-import { LOCKED_ROLE, type RoleKey } from '@pupitre/core';
+import { LOCKED_ROLE, translator, type RoleKey } from '@pupitre/core';
 import {
   asc,
   count,
@@ -19,7 +19,9 @@ import { z } from 'zod';
 import { captureAccountMail, mailChannelName } from '@/lib/account-mail';
 import { accountStateOf, accountStates, type AccountState } from '@/lib/account-state';
 import { INVITATION_PATH, getAuth } from '@/lib/auth';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { currentLanguage } from '@/i18n/server';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { requirePermission } from '@/lib/rbac';
@@ -115,11 +117,11 @@ export const POST = apiRoute(async (request) => {
     .from(users)
     .where(eq(users.email, input.email));
   if ((existing?.value ?? 0) > 0) {
-    throw new ConflictError(`Un compte existe déjà pour ${input.email}`);
+    throw new ConflictError(msg(admin, 'error.user.emailTaken', { email: input.email }));
   }
 
   if (!(await getRoleByKey(input.role, db))) {
-    throw new NotFoundError(`Rôle « ${input.role} » introuvable`);
+    throw new NotFoundError(msg(admin, 'error.role.notFound', { key: input.role }));
   }
 
   // La capacité est vérifiée **avant** de créer quoi que ce soit : un compte
@@ -130,8 +132,7 @@ export const POST = apiRoute(async (request) => {
     throw new HttpError(
       409,
       'mail_channel_missing',
-      'Aucun canal e-mail (SMTP) actif : l’invitation ne pourrait pas partir. ' +
-        'Configurez-en un dans Paramètres → Notifications, ou créez le compte avec un mot de passe.',
+      msg(admin, 'error.mail.missing.create'),
     );
   }
 
@@ -219,6 +220,10 @@ export async function inviteExistingUser(options: {
   headers: Headers;
   resend: boolean;
 }): Promise<{ sent: boolean; channel: string | null; error: string | null }> {
+  // Les deux verdicts ci-dessous sont rendus tels quels dans le bandeau de
+  // `/admin/users` : ils suivent donc la langue de l'instance, comme le reste.
+  const t = translator(admin, await currentLanguage());
+
   let sent = false;
   let channel: string | null = null;
   let error: string | null = null;
@@ -240,9 +245,9 @@ export async function inviteExistingUser(options: {
     );
     sent = verdict?.delivered === true;
     channel = verdict?.channel ?? null;
-    error = verdict?.error ?? (verdict ? null : 'aucun e-mail déclenché');
+    error = verdict?.error ?? (verdict ? null : t('mail.notTriggered'));
   } catch (caught) {
-    error = caught instanceof HttpError ? caught.message : 'envoi impossible';
+    error = caught instanceof HttpError ? caught.message : t('mail.sendFailed');
   }
 
   await logAudit({

@@ -95,6 +95,16 @@ export type TargetLabelChipProps = {
    */
   onToggle?: () => void;
   active?: boolean;
+  /**
+   * Libellé de survol du bouton bascule, fourni par l'appelant.
+   *
+   * Ce module est rendu des deux côtés de la frontière : la fiche d'une cible
+   * l'appelle depuis un composant serveur, la table depuis un composant
+   * client. Il ne peut donc appeler ni `getT` ni `useT`. Or seul l'appelant
+   * qui passe `onToggle` a un titre à afficher — et celui-là est toujours un
+   * composant client, qui a son `t`.
+   */
+  titleOf?: (active: boolean) => string;
 };
 
 export function TargetLabelChip({
@@ -103,6 +113,7 @@ export function TargetLabelChip({
   className,
   onToggle,
   active,
+  titleOf,
 }: TargetLabelChipProps) {
   // Une seule variable pilote fond, liseré et point : voir `.tag-chip`.
   const style = { '--tag': tagToneOf(labelKey, value) } as React.CSSProperties;
@@ -122,7 +133,7 @@ export function TargetLabelChip({
       aria-pressed={active}
       // `aria-pressed` porte l'état pour les lecteurs d'écran ; la coche le
       // porte pour l'œil. La couleur ne le porte jamais seule.
-      title={active ? `Retirer le filtre ${labelKey}=${value}` : `Filtrer sur ${labelKey}=${value}`}
+      title={titleOf?.(active ?? false)}
       className={cn(CHIP_BASE, 'cursor-pointer transition-colors', className)}
       style={style}
     >
@@ -146,6 +157,8 @@ export type TargetLabelListProps = {
   onToggle?: (pair: string) => void;
   /** Paires actuellement filtrées, sous forme `clé=valeur`. */
   activePairs?: ReadonlySet<string>;
+  /** Libellé de survol d'une pastille bascule. Voir `TargetLabelChipProps`. */
+  titleOf?: (pair: string, active: boolean) => string;
 };
 
 /**
@@ -166,6 +179,7 @@ export function TargetLabelList({
   className,
   onToggle,
   activePairs,
+  titleOf,
 }: TargetLabelListProps) {
   const entries = sortedLabelEntries(labels);
   if (entries.length === 0) return null;
@@ -184,6 +198,7 @@ export function TargetLabelList({
             value={value}
             onToggle={onToggle ? () => onToggle(pair) : undefined}
             active={activePairs?.has(pair)}
+            titleOf={titleOf ? (active) => titleOf(pair, active) : undefined}
           />
         );
       })}

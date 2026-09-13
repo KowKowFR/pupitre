@@ -51,11 +51,9 @@ export const CAPTURE_KINDS = ['reference', 'incident_open', 'incident_resolved']
 export const captureKindSchema = z.enum(CAPTURE_KINDS);
 export type CaptureKind = z.infer<typeof captureKindSchema>;
 
-export const CAPTURE_KIND_LABEL: Record<CaptureKind, string> = {
-  reference: 'avant — référence',
-  incident_open: "pendant — à l'ouverture",
-  incident_resolved: 'après — au rétablissement',
-};
+// Le libellé long de chaque moment vivait ici et n'avait plus de lecteur :
+// l'écran des captures écrit le sien, aux clés `capture.kind.*` de son propre
+// dictionnaire, donc dans la langue de l'instance.
 
 export const CAPTURE_KIND_SHORT: Record<CaptureKind, string> = {
   reference: 'avant',

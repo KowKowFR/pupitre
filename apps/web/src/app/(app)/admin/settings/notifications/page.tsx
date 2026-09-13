@@ -8,11 +8,16 @@ import {
   presentNotificationEvents,
 } from '@pupitre/core';
 import {
+  getAppSettingsValue,
   getNotificationDigestPolicy,
   listNotificationChannels,
   listNotificationDigestStates,
 } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { currentLanguage, getT } from '@/i18n/server';
+import { notifications as notificationMessages } from '@/i18n/messages/notifications';
+import { settings as settingsMessages } from '@/i18n/messages/settings';
+import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { settingsSection } from '../sections';
 import { DigestPolicy } from './digest-policy';
@@ -33,19 +38,26 @@ const section = settingsSection('/admin/settings/notifications');
  */
 export default async function NotificationSettingsPage() {
   const auth = await requirePagePermission('/admin/settings/notifications', 'settings:read');
-  const [channels, policy, states] = await Promise.all([
+  const [channels, policy, states, settings] = await Promise.all([
     listNotificationChannels(),
     getNotificationDigestPolicy(),
     listNotificationDigestStates(),
+    getAppSettingsValue(),
   ]);
-  const events = presentNotificationEvents();
+  // Les deux catalogues portent leur propre prose — les événements comme les
+  // canaux et les libellés de leurs champs : on leur passe la langue de
+  // l'instance plutôt que de les laisser retomber sur leur défaut français.
+  const language = await currentLanguage();
+  const events = presentNotificationEvents(language);
+  const ts = await getT(settingsMessages);
+  const t = await getT(notificationMessages);
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader>
-          <CardTitle>{section.title}</CardTitle>
-          <CardDescription>{section.governs}</CardDescription>
+          <CardTitle>{ts(`section.${section.id}.title`)}</CardTitle>
+          <CardDescription>{ts(`section.${section.id}.governs`)}</CardDescription>
         </CardHeader>
         <CardContent>
           <NotificationsManager
@@ -54,7 +66,7 @@ export default async function NotificationSettingsPage() {
               lastSuccessAt: channel.lastSuccessAt?.toISOString() ?? null,
               lastFailureAt: channel.lastFailureAt?.toISOString() ?? null,
             }))}
-            catalog={presentNotificationChannels()}
+            catalog={presentNotificationChannels(language)}
             events={events}
             canManage={auth.can('settings:manage')}
           />
@@ -69,11 +81,8 @@ export default async function NotificationSettingsPage() {
       */}
       <Card>
         <CardHeader>
-          <CardTitle>Regroupement des alertes</CardTitle>
-          <CardDescription>
-            Ce qui empêche cinquante pannes en dix minutes de produire cinquante messages — sans
-            jamais retarder la première.
-          </CardDescription>
+          <CardTitle>{t('digest.card.title')}</CardTitle>
+          <CardDescription>{t('digest.card.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <DigestPolicy
@@ -98,6 +107,7 @@ export default async function NotificationSettingsPage() {
             }}
             events={events}
             canManage={auth.can('settings:manage')}
+            format={formatSettingsOf(settings)}
           />
         </CardContent>
       </Card>

@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useT } from '@/i18n/client';
+import { settings as messages } from '@/i18n/messages/settings';
 import { cn } from '@/lib/utils';
 import { SETTINGS_OVERVIEW, SETTINGS_SECTIONS } from './sections';
 
@@ -23,18 +25,19 @@ import { SETTINGS_OVERVIEW, SETTINGS_SECTIONS } from './sections';
  */
 export function SettingsNav() {
   const pathname = usePathname();
+  const t = useT(messages);
 
   const entries = [
-    { href: SETTINGS_OVERVIEW.href, label: SETTINGS_OVERVIEW.label, icon: null },
+    { href: SETTINGS_OVERVIEW.href, label: t('section.overview.label'), icon: null },
     ...SETTINGS_SECTIONS.map((section) => ({
       href: section.href,
-      label: section.label,
+      label: t(`section.${section.id}.label`),
       icon: section.icon,
     })),
   ];
 
   return (
-    <nav aria-label="Sections des paramètres" className="lg:sticky lg:top-6">
+    <nav aria-label={t('nav.label')} className="lg:sticky lg:top-6">
       <ul
         className={cn(
           'flex gap-1 overflow-x-auto pb-2 [scrollbar-width:none]',

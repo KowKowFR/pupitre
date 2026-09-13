@@ -17,7 +17,8 @@ import {
   logAudit,
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
-import { ConflictError, ForbiddenError, HttpError, NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { ConflictError, ForbiddenError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { getOpsQueue } from '@/lib/queue';
@@ -71,8 +72,12 @@ export const POST = apiRoute(async (request) => {
     getTarget(input.targetId),
   ]);
 
-  if (!application) throw new NotFoundError(`Application « ${input.applicationId} » introuvable`);
-  if (!target) throw new NotFoundError(`Cible « ${input.targetId} » introuvable`);
+  if (!application) {
+    throw new NotFoundError(msg(messages, 'error.applicationNotFound', { id: input.applicationId }));
+  }
+  if (!target) {
+    throw new NotFoundError(msg(messages, 'error.targetNotFound', { id: input.targetId }));
+  }
 
   // Le preflight du jalon 3 fait foi : on ne déploie pas sur un runtime que la
   // cible n'a pas montré.
@@ -80,9 +85,14 @@ export const POST = apiRoute(async (request) => {
   if (!available.includes(input.runtime)) {
     throw new ConflictError(
       target.lastPreflightAt === null
-        ? `La cible « ${target.name} » n'a jamais été testée. Lancez un preflight avant de déployer.`
-        : `Le runtime « ${input.runtime} » n'est pas disponible sur « ${target.name} ». ` +
-          `Runtimes exploitables : ${available.join(', ') || 'aucun'}.`,
+        ? msg(messages, 'error.neverPreflighted', { target: target.name })
+        : msg(
+            messages,
+            available.length === 0
+              ? 'error.runtimeUnavailable.none'
+              : 'error.runtimeUnavailable',
+            { runtime: input.runtime, target: target.name, available: available.join(', ') },
+          ),
     );
   }
 
@@ -106,7 +116,7 @@ export const POST = apiRoute(async (request) => {
 
   const job = await getOpsQueue().add(DEPLOYMENT_RUN_JOB, jobData, { attempts: 1 });
   if (!job.id) {
-    throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+    throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.enqueueFailed'));
   }
 
   await logAudit({

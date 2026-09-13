@@ -7,7 +7,8 @@ import {
   type HostMetrics,
 } from '@pupitre/core';
 import { QueueEvents } from 'bullmq';
-import { HttpError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { HttpError, msg } from '@/lib/errors';
 import { getRedis } from '@/lib/redis';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
@@ -68,18 +69,18 @@ export async function fetchHostMetrics(
     // `waitUntilFinished` ne distingue le dépassement du délai de l'échec de la
     // tâche que par son message — deux situations, deux codes.
     if (/timed out/i.test(message)) {
-      throw new HttpError(
-        504,
-        'host_metrics_timeout',
-        "Le relevé n'a pas abouti dans le délai imparti. Le worker est peut-être saturé.",
-      );
+      throw new HttpError(504, 'host_metrics_timeout', msg(messages, 'error.metricsTimeout'));
     }
-    throw new HttpError(502, 'host_metrics_failed', `Relevé impossible : ${message}`);
+    throw new HttpError(
+      502,
+      'host_metrics_failed',
+      msg(messages, 'error.metricsFailed', { message }),
+    );
   }
 
   const parsed = hostMetricsSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new HttpError(502, 'host_metrics_failed', 'Le worker a renvoyé un relevé illisible');
+    throw new HttpError(502, 'host_metrics_failed', msg(messages, 'error.metricsUnreadable'));
   }
 
   return parsed.data;

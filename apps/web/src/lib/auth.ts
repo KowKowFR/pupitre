@@ -21,6 +21,8 @@ import { APIError } from 'better-auth/api';
 import { admin, twoFactor } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultStatements, userAc } from 'better-auth/plugins/admin/access';
+import { auth as authMessages } from '@/i18n/messages/auth';
+import { getT } from '@/i18n/server';
 import { INVITATION_TTL_MS, sendAccountMail } from './account-mail';
 import { getEnv } from './env';
 import { PASSWORD_MIN_LENGTH } from './password-policy';
@@ -410,11 +412,16 @@ export async function getSession(headers: Headers) {
 
 export { APIError };
 
-/** Refus d'inscription quand `ALLOW_SIGNUP` est à false et qu'un compte existe déjà. */
-export function signupClosedError(): APIError {
+/**
+ * Refus d'inscription quand `ALLOW_SIGNUP` est à false et qu'un compte existe
+ * déjà. Asynchrone parce que la phrase est rendue dans la langue de
+ * l'instance, qui se lit en base.
+ */
+export async function signupClosedError(): Promise<APIError> {
+  const t = await getT(authMessages);
   return new APIError('FORBIDDEN', {
     code: 'SIGNUP_DISABLED',
-    message: "L'inscription publique est désactivée. Demandez un compte à un administrateur.",
+    message: t('signup.closed.api'),
   });
 }
 

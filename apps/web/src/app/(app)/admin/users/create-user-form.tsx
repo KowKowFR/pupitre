@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n/client';
+import { admin } from '@/i18n/messages/admin';
+import { common } from '@/i18n/messages/common';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { cn } from '@/lib/utils';
 
@@ -51,6 +54,8 @@ export function CreateUserForm({
   onCreated?: (user: CreatedUser) => void;
 }) {
   const router = useRouter();
+  const t = useT(admin);
+  const c = useT(common);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -82,7 +87,7 @@ export function CreateUserForm({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? c('http.failure', { status: response.status }));
       setPending(false);
       return;
     }
@@ -96,13 +101,15 @@ export function CreateUserForm({
     // Dire « invitation envoyée » sans le savoir serait exactement le silence
     // que ce parcours doit éviter.
     if (!canInvite) {
-      setNotice('Utilisateur créé. Transmettez-lui son mot de passe par un canal sûr.');
+      setNotice(t('users.created.notice'));
     } else if (created?.invitation?.sent) {
-      setNotice(`Invitation envoyée à ${email}. Le lien est valable 72 heures, une seule fois.`);
+      setNotice(t('users.invited.notice', { email }));
     } else {
       setError(
-        `Le compte de ${email} est créé, mais l’invitation n’est pas partie : ` +
-          `${created?.invitation?.error ?? 'raison inconnue'}. Relancez-la depuis la liste.`,
+        t('users.invited.failed', {
+          email,
+          reason: created?.invitation?.error ?? t('users.reason.unknown'),
+        }),
       );
     }
 
@@ -127,16 +134,16 @@ export function CreateUserForm({
       ) : null}
 
       <div className="space-y-1.5">
-        <Label htmlFor="new-name">Nom</Label>
+        <Label htmlFor="new-name">{t('users.form.name')}</Label>
         <Input id="new-name" name="name" required />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="new-email">E-mail</Label>
+        <Label htmlFor="new-email">{t('users.form.email')}</Label>
         <Input id="new-email" name="email" type="email" required />
       </div>
       {canInvite ? null : (
         <div className="space-y-1.5">
-          <Label htmlFor="new-password">Mot de passe</Label>
+          <Label htmlFor="new-password">{t('users.form.password')}</Label>
           <Input
             id="new-password"
             name="password"
@@ -147,7 +154,7 @@ export function CreateUserForm({
         </div>
       )}
       <div className="space-y-1.5">
-        <Label htmlFor="new-role">Rôle</Label>
+        <Label htmlFor="new-role">{t('users.form.role')}</Label>
         <Select id="new-role" name="role" defaultValue="viewer">
           {roles.map((role) => (
             <option key={role} value={role}>
@@ -160,11 +167,11 @@ export function CreateUserForm({
         <Button type="submit" disabled={pending} className="w-full">
           {pending
             ? canInvite
-              ? 'Envoi…'
-              : 'Création…'
+              ? t('users.form.sending')
+              : c('creating')
             : canInvite
-              ? 'Inviter'
-              : 'Créer'}
+              ? t('users.form.invite')
+              : t('users.form.create')}
         </Button>
       </div>
     </form>

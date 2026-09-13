@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { Translated, UiLanguage } from './i18n.js';
+
 /**
  * Formes du rapport de scan — le vocabulaire normalisé, sans exécution.
  *
@@ -56,11 +58,45 @@ export function compareSeverity(a: Severity, b: Severity): number {
 export const failOnSchema = z.enum(['CRITICAL', 'HIGH', 'NONE']);
 export type FailOn = z.infer<typeof failOnSchema>;
 
-export const FAIL_ON_LABELS: Record<FailOn, string> = {
+/**
+ * Les trois crans du seuil, en toutes lettres.
+ *
+ * Ils s'affichent dans la liste déroulante des paramètres de sécurité et sur
+ * la fiche d'un déploiement — donc dans la langue de l'instance. Seules les
+ * **clés** sont partagées : `CRITICAL` et `HIGH` sont les noms de l'échelle,
+ * ils ne se traduisent pas ; la phrase qui les entoure, si.
+ */
+const failOnLabelsFr = {
   CRITICAL: 'Bloquer sur CRITICAL',
   HIGH: 'Bloquer sur HIGH ou plus',
   NONE: 'Ne pas bloquer',
+} as const satisfies Record<FailOn, string>;
+
+const failOnLabelsEn: Translated<typeof failOnLabelsFr> = {
+  CRITICAL: 'Block on CRITICAL',
+  HIGH: 'Block on HIGH and above',
+  NONE: 'Never block',
 };
+
+export const failOnLabels = { fr: failOnLabelsFr, en: failOnLabelsEn };
+
+/**
+ * Le libellé d'un seuil dans une langue donnée.
+ *
+ * Le défaut est le français parce que c'est la langue source : un appelant qui
+ * ne sait pas dans quelle langue il parle — un log, un seed — obtient la
+ * valeur d'origine plutôt qu'une clé nue.
+ */
+export function failOnLabel(failOn: FailOn, language: UiLanguage = 'fr'): string {
+  const table: Record<FailOn, string> = failOnLabels[language] ?? failOnLabelsFr;
+  return table[failOn];
+}
+
+/**
+ * @deprecated Utiliser `failOnLabel(failOn, language)`. Conservé pour les
+ * appelants qui n'affichent rien — la source reste le français.
+ */
+export const FAIL_ON_LABELS: Record<FailOn, string> = failOnLabelsFr;
 
 /** Un finding atteint-il le seuil ? `NONE` ne bloque jamais. */
 export function blocks(severity: Severity, failOn: FailOn): boolean {
@@ -78,6 +114,32 @@ export type ScanKind = z.infer<typeof scanKindSchema>;
 
 export const sbomFormatSchema = z.enum(['cyclonedx', 'spdx']);
 export type SbomFormat = z.infer<typeof sbomFormatSchema>;
+
+/**
+ * Ce que chaque scanner regarde.
+ *
+ * Le **nom** d'un scanner est un nom propre et reste tel quel dans les deux
+ * langues (cf. `scannerLabel`) ; la phrase qui dit ce qu'il fait, elle,
+ * s'affiche sous la carte d'un scan et se traduit.
+ */
+const scannerDescriptionsFr = {
+  trivy: 'Vulnérabilités des paquets système et applicatifs',
+  grype: 'Vulnérabilités, base Anchore',
+  syft: 'Inventaire des composants (SBOM CycloneDX)',
+} as const satisfies Record<ScannerKey, string>;
+
+const scannerDescriptionsEn: Translated<typeof scannerDescriptionsFr> = {
+  trivy: 'Vulnerabilities in system and application packages',
+  grype: 'Vulnerabilities, Anchore database',
+  syft: 'Component inventory (CycloneDX SBOM)',
+};
+
+export const scannerDescriptions = { fr: scannerDescriptionsFr, en: scannerDescriptionsEn };
+
+export function scannerDescription(key: ScannerKey, language: UiLanguage = 'fr'): string {
+  const table: Record<ScannerKey, string> = scannerDescriptions[language] ?? scannerDescriptionsFr;
+  return table[key];
+}
 
 /**
  * Carte d'identité des scanners — une table de données, jamais une branche.
@@ -103,7 +165,7 @@ export const SCANNERS: Record<
   trivy: {
     label: 'Trivy',
     kind: 'vulnerability',
-    description: 'Vulnérabilités des paquets système et applicatifs',
+    description: scannerDescriptionsFr.trivy,
     sbomFormat: null,
     sbomExtension: null,
     mediaType: 'application/json',
@@ -111,7 +173,7 @@ export const SCANNERS: Record<
   grype: {
     label: 'Grype',
     kind: 'vulnerability',
-    description: 'Vulnérabilités, base Anchore',
+    description: scannerDescriptionsFr.grype,
     sbomFormat: null,
     sbomExtension: null,
     mediaType: 'application/json',
@@ -119,7 +181,7 @@ export const SCANNERS: Record<
   syft: {
     label: 'Syft',
     kind: 'sbom',
-    description: 'Inventaire des composants (SBOM CycloneDX)',
+    description: scannerDescriptionsFr.syft,
     sbomFormat: 'cyclonedx',
     sbomExtension: 'cdx.json',
     mediaType: 'application/vnd.cyclonedx+json',
@@ -133,6 +195,10 @@ export const VULNERABILITY_SCANNERS: readonly ScannerKey[] = SCANNER_KEYS.filter
   (key) => SCANNERS[key].kind === 'vulnerability',
 );
 
+/**
+ * Le nom d'un scanner. **Pas de langue en argument, et c'est voulu** : « Trivy »,
+ * « Grype » et « Syft » sont des noms propres.
+ */
 export function scannerLabel(key: ScannerKey): string {
   return SCANNERS[key].label;
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 import { monitorTypeSchema, type MonitorType } from './catalog.js';
 
 /**
@@ -181,6 +182,54 @@ export function nextMonitorState(
   return { status: outcome, consecutiveFailures, consecutiveSuccesses, transition: 'down' };
 }
 
+// ─── suspension ───────────────────────────────────────────────────────────────
+
+/**
+ * Pourquoi une sonde a été suspendue — une **donnée**, pas une phrase.
+ *
+ * ── Le piège qu'on évite ────────────────────────────────────────────────────
+ * `monitors.paused_reason` est une colonne : ce qu'on y écrit reste écrit. Y
+ * poser « application plus déployée — sonde suspendue automatiquement » figeait
+ * la langue **au moment du balayage**, pour toujours, et pour tous les lecteurs
+ * — y compris celui qui basculerait l'instance en anglais l'année suivante. Une
+ * traduction à l'écriture n'est pas une traduction, c'est un enregistrement.
+ *
+ * ── Pourquoi une clé, et non une énumération ────────────────────────────────
+ * La colonne reste du texte libre, et c'est délibéré. Deux raisons :
+ *   • les lignes **déjà en base** portent la vieille phrase française, et une
+ *     énumération les rendrait illisibles ou obligerait à une migration qui
+ *     réécrit un fait passé ;
+ *   • rien n'interdit qu'un jour un humain y écrive son propre motif, et une
+ *     énumération le lui refuserait.
+ *
+ * D'où le contrat : les motifs **automatiques** s'écrivent avec le préfixe
+ * `auto:`, l'écran les reconnaît et les rend dans sa langue, et **retombe sur la
+ * valeur brute** dès qu'il ne reconnaît pas. Une vieille ligne s'affiche donc
+ * telle qu'elle a été écrite, sans rien casser.
+ */
+export const MONITOR_PAUSE_ORPHANED = 'auto:orphaned';
+
+const UNKNOWN_TYPE_PREFIX = 'auto:unknown-type:';
+
+/** Motif d'une sonde dont le type n'existe plus dans cette version du panel. */
+export function monitorPauseUnknownType(type: string): string {
+  return `${UNKNOWN_TYPE_PREFIX}${type}`;
+}
+
+export type MonitorPause =
+  | { reason: 'orphaned' }
+  | { reason: 'unknownType'; type: string }
+  /** Ce que l'écran ne reconnaît pas : une ligne d'avant, ou un motif libre. */
+  | { reason: 'free'; text: string };
+
+export function parseMonitorPause(raw: string): MonitorPause {
+  if (raw === MONITOR_PAUSE_ORPHANED) return { reason: 'orphaned' };
+  if (raw.startsWith(UNKNOWN_TYPE_PREFIX)) {
+    return { reason: 'unknownType', type: raw.slice(UNKNOWN_TYPE_PREFIX.length) };
+  }
+  return { reason: 'free', text: raw };
+}
+
 // ─── taux de disponibilité ────────────────────────────────────────────────────
 
 /**
@@ -200,38 +249,141 @@ export function uptimeRatio(up: number, samples: number): number | null {
   return up / samples;
 }
 
-export function formatUptime(window: UptimeWindow): string {
-  if (window.ratio === null) return 'aucune mesure';
-  const percent = window.ratio * 100;
-  // Deux décimales sous 100 % : 99,93 % et 99,99 %, ce n'est pas la même panne.
-  const text = percent === 100 ? '100' : percent.toFixed(2).replace('.', ',');
-  return `${text} % sur ${window.samples} mesure${window.samples > 1 ? 's' : ''}`;
+/**
+ * Les mots des durées, des taux et des alertes — et rien que les mots.
+ *
+ * Ces quatre formats s'affichent partout : sous chaque carte de sonde, dans le
+ * bandeau du détail, dans la liste des tâches planifiées. Les laisser en dur
+ * revenait à laisser une phrase française sur un écran anglais à chaque ligne.
+ * Les entrées `alert.*`, elles, ne s'affichent pas : elles partent vers Slack,
+ * Discord ou un récepteur maison. C'est le même besoin — personne n'est devant
+ * l'écran, donc la langue est celle de l'instance, et le worker la passe.
+ *
+ * Deux clés portent une divergence de langue que rien d'autre ne pouvait
+ * absorber : `cadence.every.masculine` et `cadence.every.feminine`. Le français
+ * accorde l'article avec ce qui suit — « toutes les minutes », « tous les
+ * jours » — quand l'anglais dit *every* dans les deux cas. Le choix se fait
+ * donc du côté du code, et l'anglais rend simplement la même phrase deux fois.
+ */
+const fr = {
+  'uptime.none': 'aucune mesure',
+  'uptime.ratio': {
+    one: '{percent} % sur {count} mesure',
+    other: '{percent} % sur {count} mesures',
+  },
+
+  'duration.seconds': '{value} s',
+  'duration.minutes': '{value} min',
+  'duration.hours': '{value} h',
+  'duration.hoursMinutes': '{hours} h {minutes} min',
+  'duration.days': '{value} j',
+
+  'interval.seconds': { one: '{count} seconde', other: '{count} secondes' },
+  'interval.minutes': { one: '{count} minute', other: '{count} minutes' },
+  'interval.hours': { one: '{count} heure', other: '{count} heures' },
+  'interval.days': { one: '{count} jour', other: '{count} jours' },
+
+  'cadence.daily': 'tous les jours',
+  'cadence.hourly': 'toutes les heures',
+  'cadence.minutely': 'toutes les minutes',
+  'cadence.every.masculine': 'tous les {interval}',
+  'cadence.every.feminine': 'toutes les {interval}',
+
+  'alert.down': '🔴 {name} — {target} · {failures}',
+  'alert.down.detail': '🔴 {name} — {target} : {detail} · {failures}',
+  'alert.failures': {
+    one: '{count} échec consécutif',
+    other: '{count} échecs consécutifs',
+  },
+  'alert.up': '🟢 {name} est rétablie — {target}',
+  'alert.up.outage': '🟢 {name} est rétablie — {target} · panne de {duration}',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'uptime.none': 'no readouts',
+  'uptime.ratio': {
+    one: '{percent}% over {count} readout',
+    other: '{percent}% over {count} readouts',
+  },
+
+  'duration.seconds': '{value} s',
+  'duration.minutes': '{value} min',
+  'duration.hours': '{value} h',
+  'duration.hoursMinutes': '{hours} h {minutes} min',
+  'duration.days': '{value} d',
+
+  'interval.seconds': { one: '{count} second', other: '{count} seconds' },
+  'interval.minutes': { one: '{count} minute', other: '{count} minutes' },
+  'interval.hours': { one: '{count} hour', other: '{count} hours' },
+  'interval.days': { one: '{count} day', other: '{count} days' },
+
+  'cadence.daily': 'every day',
+  'cadence.hourly': 'every hour',
+  'cadence.minutely': 'every minute',
+  'cadence.every.masculine': 'every {interval}',
+  'cadence.every.feminine': 'every {interval}',
+
+  'alert.down': '🔴 {name} — {target} · {failures}',
+  'alert.down.detail': '🔴 {name} — {target}: {detail} · {failures}',
+  'alert.failures': {
+    one: '{count} consecutive failure',
+    other: '{count} consecutive failures',
+  },
+  'alert.up': '🟢 {name} recovered — {target}',
+  'alert.up.outage': '🟢 {name} recovered — {target} · down for {duration}',
+};
+
+export const monitorStateCopy = { fr, en };
+
+type StateTranslate = Translate<typeof fr>;
+
+/**
+ * Le défaut reste le français, comme pour le catalogue : le worker et la base
+ * appellent ces formats sans avoir de langue d'instance à offrir. Le panel, lui,
+ * passe la sienne.
+ */
+function copy(language: UiLanguage): StateTranslate {
+  return translator(monitorStateCopy, language);
 }
 
-export function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds} s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
+export function formatUptime(window: UptimeWindow, language: UiLanguage = 'fr'): string {
+  const t = copy(language);
+  if (window.ratio === null) return t('uptime.none');
+  const percent = window.ratio * 100;
+  // Deux décimales sous 100 % : 99,93 % et 99,99 %, ce n'est pas la même panne.
+  // La virgule décimale du français et le point de l'anglais viennent d'`Intl`,
+  // pas d'un remplacement à la main.
+  const text =
+    percent === 100
+      ? '100'
+      : new Intl.NumberFormat(language, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }).format(percent);
+  return t('uptime.ratio', { percent: text, count: window.samples });
+}
+
+export function formatDuration(seconds: number, language: UiLanguage = 'fr'): string {
+  const t = copy(language);
+  if (seconds < 60) return t('duration.seconds', { value: seconds });
+  if (seconds < 3600) return t('duration.minutes', { value: Math.floor(seconds / 60) });
   if (seconds < 86_400) {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
-    return minutes === 0 ? `${hours} h` : `${hours} h ${minutes} min`;
+    return minutes === 0
+      ? t('duration.hours', { value: hours })
+      : t('duration.hoursMinutes', { hours, minutes });
   }
-  return `${Math.floor(seconds / 86_400)} j`;
+  return t('duration.days', { value: Math.floor(seconds / 86_400) });
 }
 
 /** Une durée, en toutes lettres : « 30 secondes », « 6 heures », « 1 jour ». */
-export function formatInterval(seconds: number): string {
-  if (seconds < 60) return `${seconds} seconde${seconds > 1 ? 's' : ''}`;
-  if (seconds % 86_400 === 0) {
-    const days = seconds / 86_400;
-    return `${days} jour${days > 1 ? 's' : ''}`;
-  }
-  if (seconds % 3_600 === 0) {
-    const hours = seconds / 3_600;
-    return `${hours} heure${hours > 1 ? 's' : ''}`;
-  }
-  const minutes = Math.round(seconds / 60);
-  return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+export function formatInterval(seconds: number, language: UiLanguage = 'fr'): string {
+  const t = copy(language);
+  if (seconds < 60) return t('interval.seconds', { count: seconds });
+  if (seconds % 86_400 === 0) return t('interval.days', { count: seconds / 86_400 });
+  if (seconds % 3_600 === 0) return t('interval.hours', { count: seconds / 3_600 });
+  return t('interval.minutes', { count: Math.round(seconds / 60) });
 }
 
 /**
@@ -241,13 +393,14 @@ export function formatInterval(seconds: number): string {
  * les » devant une minute, « tous les » devant un jour. Concaténer une durée
  * après un « toutes les » figé produisait « toutes les heure ».
  */
-export function formatCadence(seconds: number): string {
-  const interval = formatInterval(seconds);
+export function formatCadence(seconds: number, language: UiLanguage = 'fr'): string {
+  const t = copy(language);
+  if (seconds === 86_400) return t('cadence.daily');
+  if (seconds === 3_600) return t('cadence.hourly');
+  if (seconds === 60) return t('cadence.minutely');
+  const interval = formatInterval(seconds, language);
   const masculine = seconds % 86_400 === 0 && seconds >= 86_400;
-  if (seconds === 86_400) return 'tous les jours';
-  if (seconds === 3_600) return 'toutes les heures';
-  if (seconds === 60) return 'toutes les minutes';
-  return `${masculine ? 'tous les' : 'toutes les'} ${interval}`;
+  return t(masculine ? 'cadence.every.masculine' : 'cadence.every.feminine', { interval });
 }
 
 // ─── alerte ───────────────────────────────────────────────────────────────────
@@ -289,16 +442,28 @@ export const monitorAlertSchema = z.object({
 
 export type MonitorAlert = z.infer<typeof monitorAlertSchema>;
 
-export function buildMonitorAlert(input: {
-  event: 'monitor.down' | 'monitor.up';
-  monitor: { id: string; name: string; type: MonitorType; target: string };
-  incident: { id: string; startedAt: Date; resolvedAt: Date | null };
-  status: MonitorStatus;
-  detail: string | null;
-  metrics: CheckMetrics;
-  consecutiveFailures: number;
-  at?: Date;
-}): MonitorAlert {
+/**
+ * La phrase de l'alerte se rend **ici**, dans la langue qu'on lui donne.
+ *
+ * Elle part vers des canaux, pas vers un écran : personne n'est devant, donc la
+ * langue est celle de l'instance. Le worker la lit dans les paramètres et la
+ * passe ; le défaut reste le français, comme partout dans ce fichier, pour les
+ * appelants qui n'en ont pas — un test, un script.
+ */
+export function buildMonitorAlert(
+  input: {
+    event: 'monitor.down' | 'monitor.up';
+    monitor: { id: string; name: string; type: MonitorType; target: string };
+    incident: { id: string; startedAt: Date; resolvedAt: Date | null };
+    status: MonitorStatus;
+    detail: string | null;
+    metrics: CheckMetrics;
+    consecutiveFailures: number;
+    at?: Date;
+  },
+  language: UiLanguage = 'fr',
+): MonitorAlert {
+  const t = copy(language);
   const at = input.at ?? new Date();
   const durationSeconds = input.incident.resolvedAt
     ? Math.max(
@@ -311,11 +476,17 @@ export function buildMonitorAlert(input: {
 
   const text =
     input.event === 'monitor.down'
-      ? `🔴 ${input.monitor.name} — ${input.monitor.target}` +
-        (input.detail ? ` : ${input.detail}` : '') +
-        ` · ${input.consecutiveFailures} échec(s) consécutif(s)`
-      : `🟢 ${input.monitor.name} est rétablie — ${input.monitor.target}` +
-        (durationSeconds === null ? '' : ` · panne de ${formatDuration(durationSeconds)}`);
+      ? t(input.detail ? 'alert.down.detail' : 'alert.down', {
+          name: input.monitor.name,
+          target: input.monitor.target,
+          detail: input.detail ?? '',
+          failures: t('alert.failures', { count: input.consecutiveFailures }),
+        })
+      : t(durationSeconds === null ? 'alert.up' : 'alert.up.outage', {
+          name: input.monitor.name,
+          target: input.monitor.target,
+          duration: formatDuration(durationSeconds ?? 0, language),
+        });
 
   return {
     event: input.event,

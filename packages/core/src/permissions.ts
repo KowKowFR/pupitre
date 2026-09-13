@@ -3,6 +3,8 @@
  * Une permission est une chaîne `ressource:action`.
  */
 
+import type { Translated, UiLanguage } from './i18n.js';
+
 export const PERMISSIONS = [
   'user:read',
   'user:manage',
@@ -38,7 +40,18 @@ export const PERMISSIONS = [
 
 export type Permission = (typeof PERMISSIONS)[number];
 
-export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
+/**
+ * Les libellés d'écran des permissions.
+ *
+ * Ils vivent ici parce que le panel, le worker et le seed partagent le
+ * vocabulaire RBAC — mais seules les **clés** sont partagées : ces phrases-là
+ * ne servent qu'à l'éditeur de rôles, qui les rend dans la langue de l'instance
+ * via `translator(permissionDescriptions, language)`.
+ *
+ * Le `satisfies Record<Permission, string>` est la garde qui compte : une
+ * permission ajoutée à `PERMISSIONS` sans sa description ne compile plus.
+ */
+const descriptionsFr = {
   'user:read': 'Consulter les utilisateurs',
   'user:manage': 'Créer, désactiver et changer le rôle des utilisateurs',
   // Distincte de `user:manage` : retirer le second facteur de quelqu'un lève
@@ -81,7 +94,52 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'audit:read': "Consulter les logs d'activité",
   'settings:read': "Consulter les paramètres de l'instance",
   'settings:manage': "Modifier les paramètres de l'instance, y compris l'accès au modèle d'IA",
+} as const satisfies Record<Permission, string>;
+
+const descriptionsEn: Translated<typeof descriptionsFr> = {
+  'user:read': 'Read users',
+  'user:manage': 'Create users, disable them and change their role',
+  'user:reset-2fa': 'Reset a user’s second factor',
+  'role:read': 'Read roles and their permissions',
+  'role:manage': 'Change roles and their permissions',
+  'target:read': 'Read target machines',
+  'target:create': 'Declare a target machine',
+  'target:update': 'Change a target machine',
+  'target:delete': 'Delete a target machine',
+  'application:read': 'Read applications',
+  'application:create': 'Create an application',
+  'application:update': 'Change an application',
+  'application:delete': 'Delete an application',
+  'deployment:read': 'Read deployments and their logs',
+  'deployment:create': 'Start a deployment',
+  'deployment:rollback': 'Go back to the previous version',
+  'deployment:restart': 'Restart a running application',
+  'deployment:destroy': 'Destroy a deployment',
+  'deployment:purge': 'Erase deployments from the history',
+  'workload:read': 'Read the workloads running on a target',
+  'workload:manage': 'Delete and update a target’s workloads',
+  'scan:read': 'Read scans and their findings',
+  'scan:configure': 'Choose the scanners and the blocking threshold',
+  'job:read': 'Read scheduled jobs',
+  'job:manage': 'Create and disable scheduled jobs',
+  'monitor:read': 'Read site monitoring and its history',
+  'monitor:manage': 'Create, change and pause a monitoring probe',
+  'audit:read': 'Read the activity log',
+  'settings:read': 'Read the instance settings',
+  'settings:manage': 'Change the instance settings, including access to the AI model',
 };
+
+export const permissionDescriptions = { fr: descriptionsFr, en: descriptionsEn };
+
+/**
+ * @deprecated Utiliser `permissionDescriptions`, rendu par
+ * `translator(permissionDescriptions, language)`.
+ *
+ * Conservé pour le seed : lui ne rend rien à l'écran, il **range** ces phrases
+ * dans `permissions.description` comme des valeurs. La source reste le
+ * français, comme le reste de la base.
+ */
+export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = descriptionsFr;
 
 /**
  * Rôles installés sur une base vierge. Ce ne sont que des **valeurs de départ** :
@@ -119,6 +177,12 @@ export const ROLE_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Toute permission dont l'action est `read`. */
 const READ_ONLY = PERMISSIONS.filter((p) => p.endsWith(':read'));
 
+/**
+ * Les rôles de départ. Leurs `label` et `description` ne sont **pas** des
+ * chaînes d'écran : le seed les écrit en base, dans `roles`, où un
+ * administrateur les renomme ensuite. Les traduire figerait la langue au
+ * premier démarrage et laisserait la colonne incohérente.
+ */
 export const ROLE_DEFINITIONS: Record<
   SeededRoleKey,
   { label: string; description: string; permissions: readonly Permission[] }
@@ -175,8 +239,16 @@ export function isPermission(value: string): value is Permission {
 }
 
 
-/** Permissions groupées par ressource, dans l'ordre de déclaration. */
-export function permissionsByResource(): Array<{
+/**
+ * Permissions groupées par ressource, dans l'ordre de déclaration.
+ *
+ * `describe` vient de l'appelant : le regroupement est une affaire de
+ * structure, la phrase une affaire d'écran, et seul l'écran connaît la langue
+ * de l'instance. Sans lui, on retombe sur le français, qui est la source.
+ */
+export function permissionsByResource(
+  describe: (key: Permission) => string = (key) => descriptionsFr[key],
+): Array<{
   resource: string;
   permissions: Array<{ key: Permission; action: string; description: string }>;
 }> {
@@ -185,15 +257,15 @@ export function permissionsByResource(): Array<{
   for (const key of PERMISSIONS) {
     const { resource, action } = splitPermission(key);
     const bucket = groups.get(resource) ?? [];
-    bucket.push({ key, action, description: PERMISSION_DESCRIPTIONS[key] });
+    bucket.push({ key, action, description: describe(key) });
     groups.set(resource, bucket);
   }
 
   return [...groups.entries()].map(([resource, permissions]) => ({ resource, permissions }));
 }
 
-/** Libellés français des ressources, pour l'écran d'édition des rôles. */
-export const RESOURCE_LABELS: Record<string, string> = {
+/** Libellés des ressources, pour l'écran d'édition des rôles. */
+const resourcesFr = {
   user: 'Utilisateurs',
   role: 'Rôles',
   target: 'Machines cibles',
@@ -205,4 +277,32 @@ export const RESOURCE_LABELS: Record<string, string> = {
   monitor: 'Supervision de sites',
   audit: "Logs d'activité",
   settings: "Paramètres de l'instance",
+} as const;
+
+const resourcesEn: Translated<typeof resourcesFr> = {
+  user: 'Users',
+  role: 'Roles',
+  target: 'Target machines',
+  application: 'Applications',
+  deployment: 'Deployments',
+  workload: 'Target workloads',
+  scan: 'Security',
+  job: 'Scheduled jobs',
+  monitor: 'Site monitoring',
+  audit: 'Activity log',
+  settings: 'Instance settings',
 };
+
+export const resourceLabels = { fr: resourcesFr, en: resourcesEn };
+
+/**
+ * Le libellé d'une ressource, ou son nom brut.
+ *
+ * Une ressource est une chaîne libre — la moitié gauche d'une clé de
+ * permission —, pas une clé de dictionnaire : le repli sur le nom brut est ce
+ * qui permet d'ajouter une permission avant son libellé.
+ */
+export function resourceLabelOf(resource: string, language: UiLanguage): string {
+  const table: Record<string, string> = resourceLabels[language] ?? resourcesFr;
+  return table[resource] ?? resourcesFr[resource as keyof typeof resourcesFr] ?? resource;
+}

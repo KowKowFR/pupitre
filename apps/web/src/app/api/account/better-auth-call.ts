@@ -1,6 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { HttpError } from '@/lib/errors';
+import { account } from '@/i18n/messages/account';
+import { HttpError, msg, type MessageRef } from '@/lib/errors';
 
 /**
  * Colle entre les endpoints Better Auth et les conventions HTTP du panel.
@@ -18,52 +19,59 @@ import { HttpError } from '@/lib/errors';
 
 type BetterAuthErrorBody = { code?: unknown; message?: unknown };
 
-/** Correspondances explicites : tout le reste retombe sur un 400 générique. */
-const TRANSLATIONS: Record<string, { status: number; code: string; message: string }> = {
+/**
+ * Correspondances explicites : tout le reste retombe sur un 400 générique.
+ *
+ * Les phrases sont des **références** (`msg()`) et non des chaînes : ce module
+ * est chargé au démarrage, bien avant qu'une requête existe, et il n'a donc
+ * aucun moyen d'aller lire la langue de l'instance. `apiRoute()` la rendra au
+ * moment de sérialiser.
+ */
+const TRANSLATIONS: Record<string, { status: number; code: string; message: MessageRef }> = {
   INVALID_PASSWORD: {
     status: 400,
     code: 'invalid_password',
-    message: 'Le mot de passe actuel est incorrect.',
+    message: msg(account, 'error.invalidPassword'),
   },
   PASSWORD_TOO_SHORT: {
     status: 422,
     code: 'password_too_short',
-    message: 'Le nouveau mot de passe est trop court.',
+    message: msg(account, 'error.passwordTooShort'),
   },
   PASSWORD_TOO_LONG: {
     status: 422,
     code: 'password_too_long',
-    message: 'Le nouveau mot de passe est trop long.',
+    message: msg(account, 'error.passwordTooLong'),
   },
   CREDENTIAL_ACCOUNT_NOT_FOUND: {
     status: 409,
     code: 'no_credential_account',
-    message: "Ce compte n'a pas de mot de passe local.",
+    message: msg(account, 'error.noCredentialAccount'),
   },
   INVALID_CODE: {
     status: 400,
     code: 'invalid_code',
-    message: 'Code invalide. Vérifiez l’horloge de votre téléphone, puis réessayez.',
+    message: msg(account, 'error.invalidCode'),
   },
   TOTP_NOT_ENABLED: {
     status: 409,
     code: 'totp_not_enabled',
-    message: "Aucun second facteur n'est en cours de configuration.",
+    message: msg(account, 'error.totpNotEnabled'),
   },
   TOTP_ALREADY_ENABLED: {
     status: 409,
     code: 'totp_already_enabled',
-    message: 'Le second facteur est déjà actif.',
+    message: msg(account, 'error.totpAlreadyEnabled'),
   },
   TWO_FACTOR_NOT_ENABLED: {
     status: 409,
     code: 'two_factor_not_enabled',
-    message: "Le second facteur n'est pas actif sur ce compte.",
+    message: msg(account, 'error.twoFactorNotEnabled'),
   },
   ACCOUNT_TEMPORARILY_LOCKED: {
     status: 429,
     code: 'account_locked',
-    message: 'Trop de codes erronés. Réessayez dans quelques minutes.',
+    message: msg(account, 'error.accountLocked'),
   },
 };
 
@@ -80,7 +88,10 @@ async function readErrorCode(response: Response): Promise<string | null> {
  * `HttpError` — que `apiRoute()` rend au format d'erreur du panel.
  * Retourne le code d'erreur Better Auth pour l'audit de l'échec.
  */
-export async function assertBetterAuthOk(response: Response, fallback: string): Promise<void> {
+export async function assertBetterAuthOk(
+  response: Response,
+  fallback: MessageRef,
+): Promise<void> {
   if (response.ok) return;
   const code = await readErrorCode(response);
   const known = code ? TRANSLATIONS[code] : undefined;

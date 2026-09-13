@@ -1,5 +1,6 @@
 import 'server-only';
-import { HttpError } from './errors';
+import { errors } from '@/i18n/messages/errors';
+import { HttpError, msg } from './errors';
 import { getRedis } from './redis';
 import { logger } from './logger';
 
@@ -43,8 +44,10 @@ export class RateLimitedError extends HttpError {
     super(
       429,
       'rate_limited',
-      `Trop de requêtes : ${verdict.limit} par ${verdict.resetSec > 0 ? 'fenêtre' : 'période'}. ` +
-        `Réessayez dans ${verdict.resetSec} s.`,
+      msg(errors, verdict.resetSec > 0 ? 'rate_limited.window' : 'rate_limited.period', {
+        limit: verdict.limit,
+        seconds: verdict.resetSec,
+      }),
       { limit: verdict.limit, resetSec: verdict.resetSec },
     );
     this.name = 'RateLimitedError';

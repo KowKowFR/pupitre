@@ -14,8 +14,11 @@
 /* eslint-disable @next/next/no-img-element */
 
 import * as React from 'react';
-import { CAPTURE_KIND_SHORT, type CaptureKind } from '@pupitre/core';
+import type { CaptureKind, Translate } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
+import { useT } from '@/i18n/client';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { formatDateTimeWith, formatNumber, type FormatSettings } from '@/lib/format';
 
 /**
  * Ce que la sonde a vu — les images d'un incident.
@@ -53,8 +56,16 @@ export type CaptureView = {
   purgedAt: string | null;
 };
 
-function formatClock(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
+type Messages = Translate<(typeof messages)['fr']>;
+
+/**
+ * L'instant d'une capture. Composantes imposées par la vignette, locale prise
+ * dans les paramètres d'instance — `settings.locale` tel quel, jamais réduit à
+ * deux lettres, et descendu par props pour que le serveur et le client lisent
+ * la même valeur.
+ */
+function formatClock(iso: string, format: FormatSettings): string {
+  return formatDateTimeWith(iso, format, {
     day: '2-digit',
     month: '2-digit',
     year: '2-digit',
@@ -64,10 +75,27 @@ function formatClock(iso: string): string {
   });
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} Mo`;
+/**
+ * Le mégaoctet passe par un formateur de nombres plutôt que par un
+ * `replace('.', ',')` : la virgule décimale est une propriété de la locale, pas
+ * du français. Et c'est bien la locale de **l'instance** — `fr-FR`, `en-GB` —,
+ * pas la langue à deux lettres, pour la raison qui vaut pour les dates.
+ */
+function formatBytes(bytes: number, t: Messages, format: FormatSettings): string {
+  if (bytes < 1024) return t('capture.bytes.b', { value: bytes });
+  if (bytes < 1024 * 1024) return t('capture.bytes.kb', { value: Math.round(bytes / 1024) });
+  const megabytes = formatNumber(bytes / (1024 * 1024), format, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  return t('capture.bytes.mb', { value: megabytes });
+}
+
+/** Le nom court d'une capture, dans l'ordre où on la regarde. */
+function kindLabel(kind: CaptureKind, t: Messages): string {
+  if (kind === 'reference') return t('capture.kind.reference');
+  if (kind === 'incident_open') return t('capture.kind.incidentOpen');
+  return t('capture.kind.incidentResolved');
 }
 
 function href(monitorId: string, capture: CaptureView): string {
@@ -75,29 +103,39 @@ function href(monitorId: string, capture: CaptureView): string {
 }
 
 /** Une ligne de faits sous une image. Lisible sans regarder l'image. */
-function CaptureFacts({ capture }: { capture: CaptureView }) {
+function CaptureFacts({ capture, format }: { capture: CaptureView; format: FormatSettings }) {
+  const t = useT(messages);
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-ink-muted">
-      <span className="font-mono">{formatClock(capture.takenAt)}</span>
+      <span className="font-mono">{formatClock(capture.takenAt, format)}</span>
       {capture.httpStatus === null ? null : (
-        <Badge variant="outline">code {capture.httpStatus}</Badge>
+        <Badge variant="outline">{t('capture.status', { status: capture.httpStatus })}</Badge>
       )}
       <span className="font-mono">
-        {capture.width}×{capture.height} · {formatBytes(capture.bytes)}
+        {capture.width}×{capture.height} · {formatBytes(capture.bytes, t, format)}
       </span>
       {capture.truncated ? (
-        <Badge variant="secondary" title="La page était plus haute que la borne de rendu.">
-          page tronquée
+        <Badge variant="secondary" title={t('capture.truncated.title')}>
+          {t('capture.truncated')}
         </Badge>
       ) : null}
     </div>
   );
 }
 
-function CaptureThumb({ monitorId, capture }: { monitorId: string; capture: CaptureView }) {
+function CaptureThumb({
+  monitorId,
+  capture,
+  format,
+}: {
+  monitorId: string;
+  capture: CaptureView;
+  format: FormatSettings;
+}) {
+  const t = useT(messages);
   return (
     <figure className="min-w-0 space-y-1.5">
-      <figcaption className="eyebrow text-ink-faint">{CAPTURE_KIND_SHORT[capture.kind]}</figcaption>
+      <figcaption className="eyebrow text-ink-faint">{kindLabel(capture.kind, t)}</figcaption>
       {capture.hasImage ? (
         <a
           href={href(monitorId, capture)}
@@ -105,12 +143,15 @@ function CaptureThumb({ monitorId, capture }: { monitorId: string; capture: Capt
           rel="noreferrer"
           className="block overflow-hidden rounded border"
           style={{ borderColor: 'var(--line)' }}
-          title="Ouvrir l'image en taille réelle"
+          title={t('capture.openFull')}
         >
           {/* Cadrée en haut : le diagnostic d'une page cassée est en haut. */}
           <img
             src={href(monitorId, capture)}
-            alt={`Capture « ${CAPTURE_KIND_SHORT[capture.kind]} » du ${formatClock(capture.takenAt)}`}
+            alt={t('capture.alt', {
+              kind: kindLabel(capture.kind, t),
+              clock: formatClock(capture.takenAt, format),
+            })}
             loading="lazy"
             className="h-40 w-full bg-white object-cover object-top"
           />
@@ -120,12 +161,15 @@ function CaptureThumb({ monitorId, capture }: { monitorId: string; capture: Capt
           className="flex h-40 items-center justify-center rounded border px-3 text-center text-xs text-ink-muted"
           style={{ borderColor: 'var(--line)' }}
         >
-          Image reprise par la rétention
-          {capture.purgedAt ? ` le ${formatClock(capture.purgedAt)}` : null}. La capture a bien eu
-          lieu — {formatBytes(capture.bytes)}.
+          {t('capture.purged', {
+            when: capture.purgedAt
+              ? t('capture.purged.on', { clock: formatClock(capture.purgedAt, format) })
+              : '',
+            size: formatBytes(capture.bytes, t, format),
+          })}
         </div>
       )}
-      <CaptureFacts capture={capture} />
+      <CaptureFacts capture={capture} format={format} />
     </figure>
   );
 }
@@ -141,11 +185,14 @@ function CaptureSlider({
   monitorId,
   before,
   after,
+  format,
 }: {
   monitorId: string;
   before: CaptureView;
   after: CaptureView;
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
   const [position, setPosition] = React.useState(50);
   const height = Math.min(before.height, after.height);
 
@@ -157,12 +204,12 @@ function CaptureSlider({
       >
         <img
           src={href(monitorId, after)}
-          alt={`Page pendant l'incident, ${formatClock(after.takenAt)}`}
+          alt={t('slider.during.alt', { clock: formatClock(after.takenAt, format) })}
           className="absolute inset-0 h-full w-full object-cover object-top"
         />
         <img
           src={href(monitorId, before)}
-          alt={`Page avant l'incident, ${formatClock(before.takenAt)}`}
+          alt={t('slider.before.alt', { clock: formatClock(before.takenAt, format) })}
           className="absolute inset-0 h-full w-full object-cover object-top"
           style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
         />
@@ -171,14 +218,14 @@ function CaptureSlider({
           style={{ left: `${position}%`, background: 'var(--danger)' }}
         />
         <span className="absolute top-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[0.625rem] text-white">
-          avant — {formatClock(before.takenAt)}
+          {t('slider.before.badge', { clock: formatClock(before.takenAt, format) })}
         </span>
         <span className="absolute top-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[0.625rem] text-white">
-          pendant — {formatClock(after.takenAt)}
+          {t('slider.during.badge', { clock: formatClock(after.takenAt, format) })}
         </span>
       </div>
       <label className="flex items-center gap-3 text-xs text-ink-muted">
-        <span className="shrink-0">Révéler l&apos;avant</span>
+        <span className="shrink-0">{t('slider.reveal')}</span>
         <input
           type="range"
           min={0}
@@ -186,9 +233,11 @@ function CaptureSlider({
           value={position}
           onChange={(event) => setPosition(Number(event.target.value))}
           className="w-full"
-          aria-label="Position du comparateur entre la page avant l'incident et pendant l'incident"
+          aria-label={t('slider.aria')}
         />
-        <span className="w-10 shrink-0 text-right font-mono">{position} %</span>
+        <span className="w-10 shrink-0 text-right font-mono">
+          {t('slider.percent', { value: position })}
+        </span>
       </label>
     </div>
   );
@@ -205,22 +254,22 @@ function CaptureSlider({
 export function LiveReferenceCard({
   monitorId,
   capture,
+  format,
 }: {
   monitorId: string;
   capture: CaptureView | null;
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
   if (capture === null) return null;
   return (
     <div className="rounded border p-3" style={{ borderColor: 'var(--line)' }}>
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="eyebrow text-ink-faint">Référence visuelle</span>
-        <span className="text-xs text-ink-muted">
-          La page telle qu&apos;elle était la dernière fois que tout allait bien. C&apos;est le
-          « avant » auquel le prochain incident sera comparé.
-        </span>
+        <span className="eyebrow text-ink-faint">{t('reference.title')}</span>
+        <span className="text-xs text-ink-muted">{t('reference.description')}</span>
       </div>
       <div className="max-w-md">
-        <CaptureThumb monitorId={monitorId} capture={capture} />
+        <CaptureThumb monitorId={monitorId} capture={capture} format={format} />
       </div>
     </div>
   );
@@ -236,10 +285,13 @@ export function LiveReferenceCard({
 export function IncidentCaptures({
   monitorId,
   captures,
+  format,
 }: {
   monitorId: string;
   captures: CaptureView[];
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
   if (captures.length === 0) return null;
 
   const before = captures.find((capture) => capture.kind === 'reference') ?? null;
@@ -251,21 +303,19 @@ export function IncidentCaptures({
 
   return (
     <div className="mt-2 space-y-3 rounded border p-3" style={{ borderColor: 'var(--line)' }}>
-      <div className="eyebrow text-ink-faint">Ce que la sonde a vu</div>
+      <div className="eyebrow text-ink-faint">{t('captures.title')}</div>
 
       {comparable ? (
-        <CaptureSlider monitorId={monitorId} before={before} after={during} />
+        <CaptureSlider monitorId={monitorId} before={before} after={during} format={format} />
       ) : (
         <p className="text-xs text-ink-muted">
-          {before === null
-            ? "Pas d'image de référence pour cet incident : la sonde n'avait pas encore été photographiée en bon état. La comparaison avant/après apparaîtra au prochain."
-            : "Il manque une des deux images : la comparaison n'est pas possible."}
+          {before === null ? t('captures.noReference') : t('captures.incomplete')}
         </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-3">
         {ordered.map((capture) => (
-          <CaptureThumb key={capture.id} monitorId={monitorId} capture={capture} />
+          <CaptureThumb key={capture.id} monitorId={monitorId} capture={capture} format={format} />
         ))}
       </div>
     </div>

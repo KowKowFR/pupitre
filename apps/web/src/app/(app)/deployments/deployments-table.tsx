@@ -11,6 +11,7 @@ import {
   type ScanVerdict,
   type ScannerKey,
   type SeverityCounts,
+  type Translate,
 } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge, CodeBadge } from '@/components/ui/badge';
@@ -27,7 +28,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DEPLOYMENT_LABEL, DeploymentStatusBadge, formatDate, formatDuration } from './status-badge';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import type { FormatSettings } from '@/lib/format';
+import {
+  DeploymentStatusBadge,
+  formatDate,
+  formatDuration,
+  useDeploymentLabels,
+} from './status-badge';
 
 export type DeploymentRow = {
   id: string;
@@ -83,11 +93,16 @@ export function DeploymentsTable({
   items,
   page,
   canPurge,
+  format,
 }: {
   items: DeploymentRow[];
   page: { page: number; totalPages: number; pageSize: number };
   canPurge: boolean;
+  /** Le formatage descend par props : la table est cliente, la locale non. */
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -139,7 +154,7 @@ export function DeploymentsTable({
 
     setConfirmOpen(false);
     setSelected(new Set());
-    setNotice(summarise(report));
+    setNotice(summarise(t, report));
     router.refresh();
   }
 
@@ -152,7 +167,7 @@ export function DeploymentsTable({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       setConfirmOpen(false);
       return null;
     }
@@ -170,13 +185,13 @@ export function DeploymentsTable({
           <div className="flex min-h-8 items-center justify-between gap-3">
             <span className="font-mono text-xs text-ink-faint tabular-nums">
               {selected.size === 0
-                ? 'Cochez des runs pour les effacer de l’historique.'
-                : `${selected.size} run${selected.size > 1 ? 's' : ''} sélectionné${selected.size > 1 ? 's' : ''}`}
+                ? t('table.selectHint')
+                : t('table.selected', { count: selected.size })}
             </span>
             <div className="flex items-center gap-2">
               {selected.size > 0 ? (
                 <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-                  Tout décocher
+                  {t('table.uncheckAll')}
                 </Button>
               ) : null}
               <Button
@@ -185,7 +200,7 @@ export function DeploymentsTable({
                 disabled={selected.size === 0 || pending}
                 onClick={() => void openConfirm()}
               >
-                Purger la sélection
+                {t('table.purgeSelection')}
               </Button>
             </div>
           </div>
@@ -197,7 +212,7 @@ export function DeploymentsTable({
               {canPurge ? (
                 <TableHead className="w-8">
                   <Checkbox
-                    aria-label="Tout sélectionner"
+                    aria-label={tc('selectAll')}
                     checked={allSelected}
                     indeterminate={someSelected}
                     disabled={selectable.length === 0}
@@ -205,9 +220,9 @@ export function DeploymentsTable({
                   />
                 </TableHead>
               ) : null}
-              <TableHead>Application</TableHead>
-              <TableHead>Cible</TableHead>
-              <TableHead>Runtime</TableHead>
+              <TableHead>{t('column.application')}</TableHead>
+              <TableHead>{tc('column.target')}</TableHead>
+              <TableHead>{t('column.runtime')}</TableHead>
               {/*
                 Largeur minimale : la cellule contient un verdict, trois noms de
                 scanner et un décompte. En mise en page automatique, c'est la
@@ -215,11 +230,11 @@ export function DeploymentsTable({
                 navigateur écrase en premier — les cinq pastilles s'empilaient
                 verticalement et chaque ligne du journal faisait 150 px de haut.
               */}
-              <TableHead className="min-w-56">Scans</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Durée</TableHead>
-              <TableHead>Date (UTC)</TableHead>
-              <TableHead>Par</TableHead>
+              <TableHead className="min-w-56">{t('column.scans')}</TableHead>
+              <TableHead>{tc('column.status')}</TableHead>
+              <TableHead>{tc('column.duration')}</TableHead>
+              <TableHead>{t('column.date')}</TableHead>
+              <TableHead>{t('column.by')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -228,14 +243,13 @@ export function DeploymentsTable({
                 {canPurge ? (
                   <TableCell>
                     <Checkbox
-                      aria-label={`Sélectionner ${item.applicationSlug} v${item.version}`}
+                      aria-label={t('row.select', {
+                        slug: item.applicationSlug,
+                        version: item.version,
+                      })}
                       checked={selected.has(item.id)}
                       disabled={item.purgeBlocked}
-                      title={
-                        item.purgeBlocked
-                          ? 'En service ou en cours : détruisez-le avant de le purger.'
-                          : undefined
-                      }
+                      title={item.purgeBlocked ? t('row.purgeBlocked') : undefined}
                       onChange={() => toggle(item.id)}
                     />
                   </TableCell>
@@ -263,10 +277,10 @@ export function DeploymentsTable({
                   {formatDuration(item.startedAt, item.finishedAt)}
                 </TableCell>
                 <TableCell className="font-mono text-xs whitespace-nowrap text-ink-muted tabular-nums">
-                  {formatDate(item.createdAt)}
+                  {formatDate(item.createdAt, format)}
                 </TableCell>
                 <TableCell className="text-xs text-ink-faint">
-                  {item.triggeredByEmail ?? '—'}
+                  {item.triggeredByEmail ?? tc('none')}
                 </TableCell>
               </TableRow>
             ))}
@@ -278,7 +292,7 @@ export function DeploymentsTable({
       {page.totalPages > 1 ? (
         <CardFooter className="flex items-center justify-between text-xs">
           <span className="font-mono text-ink-faint tabular-nums">
-            Page {page.page} sur {page.totalPages}
+            {tc('page.position', { page: page.page, total: page.totalPages })}
           </span>
           <div className="flex gap-4">
             {page.page > 1 ? (
@@ -286,7 +300,7 @@ export function DeploymentsTable({
                 href={`/deployments?page=${page.page - 1}&pageSize=${page.pageSize}`}
                 className="text-ink-muted transition-colors hover:text-signal"
               >
-                ← Précédente
+                {tc('page.previous')}
               </Link>
             ) : null}
             {page.page < page.totalPages ? (
@@ -294,7 +308,7 @@ export function DeploymentsTable({
                 href={`/deployments?page=${page.page + 1}&pageSize=${page.pageSize}`}
                 className="text-ink-muted transition-colors hover:text-signal"
               >
-                Suivante →
+                {tc('page.next')}
               </Link>
             ) : null}
           </div>
@@ -332,35 +346,38 @@ function PurgeDialog({
   rows: DeploymentRow[];
   onConfirm: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const label = useDeploymentLabels();
   const statuses = preview ? Object.entries(preview.purgedByStatus) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Purger l’historique</DialogTitle>
-          <DialogDescription>
-            La purge efface la trace en base. Elle ne touche à rien sur la machine cible.
-          </DialogDescription>
+          <DialogTitle>{t('purge.title')}</DialogTitle>
+          <DialogDescription>{t('purge.description')}</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-3 text-[0.8125rem]">
           {preview === null ? (
-            <p className="text-ink-muted">Calcul de ce qui sera effacé…</p>
+            <p className="text-ink-muted">{t('purge.computing')}</p>
           ) : (
             <>
               <p className="text-ink">
-                <strong className="font-mono tabular-nums">{preview.purgedCount}</strong> run
-                {preview.purgedCount > 1 ? 's' : ''} sur {rows.length} sélectionné
-                {rows.length > 1 ? 's' : ''} {preview.purgedCount > 1 ? 'seront effacés' : 'sera effacé'},
-                avec leurs étapes, leurs logs et leurs scans.
+                <strong className="font-mono tabular-nums">{preview.purgedCount}</strong>{' '}
+                {t('purge.erased', {
+                  count: preview.purgedCount,
+                  total: rows.length,
+                  selected: t('purge.selectedWord', { count: rows.length }),
+                })}
               </p>
 
               {statuses.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-1.5">
                   {statuses.map(([status, total]) => (
                     <CodeBadge key={status}>
-                      {DEPLOYMENT_LABEL[status as DeploymentStatus] ?? status} ×{total}
+                      {label[status as DeploymentStatus] ?? status} ×{total}
                     </CodeBadge>
                   ))}
                 </div>
@@ -368,26 +385,25 @@ function PurgeDialog({
 
               {preview.releasedPorts.length > 0 ? (
                 <Alert variant="info">
-                  Port{preview.releasedPorts.length > 1 ? 's' : ''} rendu
-                  {preview.releasedPorts.length > 1 ? 's' : ''} à leur cible :{' '}
-                  {preview.releasedPorts
-                    .map((entry) => `${entry.port} (${entry.targetName})`)
-                    .join(', ')}
-                  .
+                  {t('purge.releasedPorts', {
+                    count: preview.releasedPorts.length,
+                    list: preview.releasedPorts
+                      .map((entry) => `${entry.port} (${entry.targetName})`)
+                      .join(', '),
+                  })}
                 </Alert>
               ) : null}
 
               {preview.rollbackTargetsLost > 0 ? (
                 <Alert variant="warn">
-                  {preview.rollbackTargetsLost} run{preview.rollbackTargetsLost > 1 ? 's' : ''}{' '}
-                  perdra sa version de repli : le rollback ne sera plus proposé.
+                  {t('purge.rollbackLost', { count: preview.rollbackTargetsLost })}
                 </Alert>
               ) : null}
 
               {preview.refusedCount > 0 ? (
                 <Alert variant="destructive">
                   <p className="font-medium">
-                    {preview.refusedCount} refusé{preview.refusedCount > 1 ? 's' : ''} :
+                    {t('purge.refused', { count: preview.refusedCount })}
                   </p>
                   <ul className="mt-1 list-disc space-y-0.5 pl-4">
                     {preview.refused.map((refusal) => (
@@ -398,22 +414,17 @@ function PurgeDialog({
               ) : null}
 
               {preview.truncated ? (
-                <Alert variant="warn">
-                  Sélection tronquée à {preview.limit} runs par appel. Relancez la purge pour
-                  finir.
-                </Alert>
+                <Alert variant="warn">{t('purge.truncated', { limit: preview.limit })}</Alert>
               ) : null}
 
-              <p className="text-ink-faint">
-                Les logs d’activité, eux, conservent la trace de ce qui a été purgé.
-              </p>
+              <p className="text-ink-faint">{t('purge.auditNote')}</p>
             </>
           )}
         </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Annuler
+            {tc('cancel')}
           </Button>
           <Button
             variant="destructive"
@@ -421,8 +432,8 @@ function PurgeDialog({
             onClick={onConfirm}
           >
             {pending
-              ? 'Purge…'
-              : `Purger ${preview?.purgedCount ?? 0} run${(preview?.purgedCount ?? 0) > 1 ? 's' : ''}`}
+              ? t('purge.pending')
+              : t('purge.confirm', { count: preview?.purgedCount ?? 0 })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -430,12 +441,22 @@ function PurgeDialog({
   );
 }
 
-function summarise(report: PurgeReport): string {
-  const parts = [`${report.purgedCount} run${report.purgedCount > 1 ? 's' : ''} purgé${report.purgedCount > 1 ? 's' : ''}`];
-  if (report.refusedCount > 0) parts.push(`${report.refusedCount} refusé${report.refusedCount > 1 ? 's' : ''}`);
+/**
+ * Le bandeau qui suit une purge. Les trois morceaux sont assemblés ici et non
+ * dans une seule phrase du dictionnaire : deux d'entre eux sont facultatifs, et
+ * une phrase à trous optionnels ne se traduit pas.
+ */
+function summarise(t: Translate<typeof messages.fr>, report: PurgeReport): string {
+  const parts = [t('purge.summary.purged', { count: report.purgedCount })];
+  if (report.refusedCount > 0) {
+    parts.push(t('purge.summary.refused', { count: report.refusedCount }));
+  }
   if (report.releasedPorts.length > 0) {
     parts.push(
-      `port${report.releasedPorts.length > 1 ? 's' : ''} libéré${report.releasedPorts.length > 1 ? 's' : ''} : ${report.releasedPorts.map((entry) => entry.port).join(', ')}`,
+      t('purge.summary.ports', {
+        count: report.releasedPorts.length,
+        list: report.releasedPorts.map((entry) => entry.port).join(', '),
+      }),
     );
   }
   return `${parts.join(' · ')}.`;
@@ -446,8 +467,11 @@ function summarise(report: PurgeReport): string {
  * Les libellés viennent de `SCANNERS` — aucun scanner n'est nommé ici.
  */
 function ScanCell({ scan }: { scan: DeploymentRow['scan'] }) {
+  const t = useT(messages);
+  const tc = useT(common);
+
   if (!scan || scan.scanners.length === 0) {
-    return <span className="text-xs text-ink-faint">—</span>;
+    return <span className="text-xs text-ink-faint">{tc('none')}</span>;
   }
 
   const worst = SEVERITY_ORDER.find((severity) => scan.counts[severity] > 0) ?? null;
@@ -455,11 +479,11 @@ function ScanCell({ scan }: { scan: DeploymentRow['scan'] }) {
   return (
     <div className="flex flex-wrap items-center gap-1">
       {scan.verdict === 'fail' ? (
-        <Badge variant="destructive">bloquant</Badge>
+        <Badge variant="destructive">{t('verdict.fail')}</Badge>
       ) : scan.verdict === 'unknown' ? (
-        <Badge variant="warn">indéterminé</Badge>
+        <Badge variant="warn">{t('verdict.unknown')}</Badge>
       ) : (
-        <Badge variant="ok">conforme</Badge>
+        <Badge variant="ok">{t('verdict.pass')}</Badge>
       )}
       {scan.scanners.map((key) => (
         <CodeBadge key={key}>{SCANNERS[key].label}</CodeBadge>

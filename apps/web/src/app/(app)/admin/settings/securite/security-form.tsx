@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import {
-  FAIL_ON_LABELS,
   SCANNER_KEYS,
+  failOnLabel,
   failOnSchema,
   scannerLabel,
   type AppSettings,
@@ -13,6 +13,8 @@ import {
 import { Alert } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useLanguage, useT } from '@/i18n/client';
+import { settings as messages } from '@/i18n/messages/settings';
 import { SectionForm } from '../section-form';
 import { useSettingsPatch } from '../use-settings-patch';
 
@@ -30,6 +32,8 @@ export function SecurityForm({
   settings: AppSettings;
   canManage: boolean;
 }) {
+  const t = useT(messages);
+  const language = useLanguage();
   const patch = useSettingsPatch();
   const [scanningEnabled, setScanningEnabled] = useState(settings.security.scanningEnabled);
   const [disabledScanners, setDisabledScanners] = useState<ScannerKey[]>(
@@ -62,27 +66,18 @@ export function SecurityForm({
           onChange={(event) => setScanningEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">Analyser les images avant déploiement</span>
-          <span className="block text-xs text-ink-faint">
-            Décocher coupe l&apos;étape pour tout le monde, même si un déploiement demande
-            explicitement des scanners.
-          </span>
+          <span className="block text-ink">{t('security.enabled.label')}</span>
+          <span className="block text-xs text-ink-faint">{t('security.enabled.help')}</span>
         </span>
       </label>
 
       {scanningEnabled ? null : (
-        <Alert variant="destructive">
-          Plus aucune image ne sera analysée. Les vulnérabilités connues des dépendances de vos
-          applications passeront sans être signalées, et le seuil de blocage devient sans effet.
-        </Alert>
+        <Alert variant="destructive">{t('security.disabled.warning')}</Alert>
       )}
 
       <div className="space-y-2">
-        <span className="block text-sm text-ink">Scanners écartés</span>
-        <p className="text-xs text-ink-faint">
-          Utile quand un seul scanner pose problème — une base de vulnérabilités inaccessible
-          depuis la machine cible, par exemple. Les autres continuent de tourner.
-        </p>
+        <span className="block text-sm text-ink">{t('security.skipped.title')}</span>
+        <p className="text-xs text-ink-faint">{t('security.skipped.help')}</p>
         <div className="flex flex-wrap gap-2 pt-1">
           {SCANNER_KEYS.map((key) => {
             const off = disabledScanners.includes(key);
@@ -113,7 +108,7 @@ export function SecurityForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="failOn">Seuil de blocage</Label>
+        <Label htmlFor="failOn">{t('security.failOn.label')}</Label>
         <Select
           id="failOn"
           className="w-full sm:w-72"
@@ -123,22 +118,14 @@ export function SecurityForm({
         >
           {failOnSchema.options.map((option) => (
             <option key={option} value={option}>
-              {FAIL_ON_LABELS[option]}
+              {failOnLabel(option, language)}
             </option>
           ))}
         </Select>
-        <p className="text-xs text-ink-faint">
-          Sévérité à partir de laquelle un finding empêche la mise en ligne. Ce seuil vaut pour
-          toute l&apos;instance : l&apos;écran de déploiement ne le demande plus, une politique de
-          sécurité qui se rediscute à chaque mise en ligne n&apos;en est pas une.
-        </p>
+        <p className="text-xs text-ink-faint">{t('security.failOn.help')}</p>
       </div>
 
-      <p className="text-xs text-ink-faint">
-        Le réglage s&apos;applique au moment où un déploiement est enfilé, et la configuration
-        retenue est gelée avec lui : réactiver l&apos;analyse ne relance pas ce qui est déjà en
-        file. Chaque modification est tracée dans les logs d&apos;activité.
-      </p>
+      <p className="text-xs text-ink-faint">{t('security.frozen')}</p>
     </SectionForm>
   );
 }

@@ -27,6 +27,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useT } from '@/i18n/client';
+import { admin } from '@/i18n/messages/admin';
+import { common } from '@/i18n/messages/common';
+import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
+import type { Translate } from '@pupitre/core';
 
 /** Miroir de `TwoFactorState` (`@pupitre/db`) — le client ne dépend pas de la base. */
 export type TwoFactorState = 'none' | 'pending' | 'active';
@@ -50,18 +55,26 @@ export type AdminUserRow = {
 
 type ApiErrorBody = { error?: { message?: string } };
 
+type T = Translate<typeof admin.fr>;
+
 export function UsersTable({
   items,
   currentUserId,
   roles,
   canResetTwoFactor,
+  format,
 }: {
   items: AdminUserRow[];
   currentUserId: string;
   roles: readonly RoleKey[];
   canResetTwoFactor: boolean;
+  /** Locale et fuseau de l'instance. Par props : cette table est rendue sur le
+   *  serveur avant de l'être ici, et les deux doivent écrire la même date. */
+  format: FormatSettings;
 }) {
   const router = useRouter();
+  const t = useT(admin);
+  const c = useT(common);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -80,7 +93,7 @@ export function UsersTable({
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? c('http.failure', { status: response.status }));
       return;
     }
     startTransition(() => router.refresh());
@@ -107,20 +120,26 @@ export function UsersTable({
         invitation?: { sent?: boolean; channel?: string | null; error?: string | null };
       };
       if (!response.ok) {
-        setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+        setError(body.error?.message ?? c('http.failure', { status: response.status }));
         return;
       }
       if (method === 'DELETE') {
         setNotice(
-          `Invitation de ${user.email} annulée : ${body.revokedLinks ?? 0} lien(s) ne fonctionnent plus. Le compte reste, sans mot de passe.`,
+          t('users.invitation.revoked', { email: user.email, count: body.revokedLinks ?? 0 }),
         );
       } else if (body.invitation?.sent) {
         setNotice(
-          `Nouvelle invitation envoyée à ${user.email} via « ${body.invitation.channel ?? 'SMTP'} ». Les liens précédents sont morts.`,
+          t('users.invitation.resent', {
+            email: user.email,
+            channel: body.invitation.channel ?? 'SMTP',
+          }),
         );
       } else {
         setError(
-          `L’invitation de ${user.email} n’est pas partie : ${body.invitation?.error ?? 'raison inconnue'}`,
+          t('users.invitation.failed', {
+            email: user.email,
+            reason: body.invitation?.error ?? t('users.reason.unknown'),
+          }),
         );
       }
       startTransition(() => router.refresh());
@@ -140,17 +159,19 @@ export function UsersTable({
       });
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
-        setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+        setError(body.error?.message ?? c('http.failure', { status: response.status }));
         return;
       }
       const body = (await response.json()) as { revokedSessions?: number };
       const revoked = body.revokedSessions ?? 0;
       setNotice(
-        `Second facteur de ${user.email} réinitialisé. ` +
-          (revoked > 0
-            ? `${revoked} session${revoked > 1 ? 's' : ''} fermée${revoked > 1 ? 's' : ''}. `
-            : 'Aucune session ouverte à fermer. ') +
-          'Il se reconnecte avec son seul mot de passe.',
+        [
+          t('users.2fa.notice.head', { email: user.email }),
+          revoked > 0
+            ? t('users.2fa.notice.closed', { count: revoked })
+            : t('users.2fa.notice.none'),
+          t('users.2fa.notice.tail'),
+        ].join(' '),
       );
       setConfirmTarget(null);
       startTransition(() => router.refresh());
@@ -168,11 +189,11 @@ export function UsersTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Utilisateur</TableHead>
-              <TableHead>Rôle</TableHead>
-              <TableHead>État</TableHead>
-              <TableHead>Second facteur</TableHead>
-              <TableActionsHead>Actions</TableActionsHead>
+              <TableHead>{t('users.column.user')}</TableHead>
+              <TableHead>{t('users.column.role')}</TableHead>
+              <TableHead>{c('column.state')}</TableHead>
+              <TableHead>{t('users.column.twoFactor')}</TableHead>
+              <TableActionsHead>{c('column.actions')}</TableActionsHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -184,7 +205,7 @@ export function UsersTable({
                     <div className="text-sm font-medium">
                       {user.name}
                       {isSelf ? (
-                        <span className="text-muted-foreground font-normal"> (vous)</span>
+                        <span className="text-muted-foreground font-normal"> {t('users.self')}</span>
                       ) : null}
                     </div>
                     <div className="text-muted-foreground text-xs">{user.email}</div>
@@ -209,10 +230,10 @@ export function UsersTable({
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <AccountStateBadge user={user} />
+                    <AccountStateBadge user={user} t={t} format={format} />
                   </TableCell>
                   <TableCell>
-                    <TwoFactorBadge state={user.twoFactor} />
+                    <TwoFactorBadge state={user.twoFactor} t={t} />
                   </TableCell>
                   <TableActions className="space-x-2 whitespace-nowrap">
                     {user.state !== 'active' && !user.banned ? (
@@ -223,7 +244,9 @@ export function UsersTable({
                           disabled={pending || inviting === user.id}
                           onClick={() => void invitation(user, 'POST')}
                         >
-                          {user.state === 'expired' ? 'Inviter à nouveau' : 'Relancer'}
+                          {user.state === 'expired'
+                            ? t('users.action.inviteAgain')
+                            : t('users.action.resend')}
                         </Button>
                         {user.state === 'invited' ? (
                           <Button
@@ -232,7 +255,7 @@ export function UsersTable({
                             disabled={pending || inviting === user.id}
                             onClick={() => void invitation(user, 'DELETE')}
                           >
-                            Annuler le lien
+                            {t('users.action.cancelLink')}
                           </Button>
                         ) : null}
                       </>
@@ -244,7 +267,7 @@ export function UsersTable({
                         disabled={pending || resetting}
                         onClick={() => setConfirmTarget(user)}
                       >
-                        Réinitialiser le 2FA
+                        {t('users.action.reset2fa')}
                       </Button>
                     ) : null}
                     <Button
@@ -258,7 +281,7 @@ export function UsersTable({
                         })
                       }
                     >
-                      {user.banned ? 'Réactiver' : 'Désactiver'}
+                      {user.banned ? t('users.action.reactivate') : c('disable')}
                     </Button>
                   </TableActions>
                 </TableRow>
@@ -287,11 +310,19 @@ export function UsersTable({
  * lue. Les deux états d'invitation, eux, sont distincts parce qu'ils appellent
  * deux gestes différents — relancer, ou attendre.
  */
-function AccountStateBadge({ user }: { user: AdminUserRow }) {
+function AccountStateBadge({
+  user,
+  t,
+  format,
+}: {
+  user: AdminUserRow;
+  t: T;
+  format: FormatSettings;
+}) {
   if (user.banned) {
     return (
       <Badge variant="destructive" title={user.banReason ?? undefined}>
-        désactivé
+        {t('users.state.disabled')}
       </Badge>
     );
   }
@@ -301,34 +332,41 @@ function AccountStateBadge({ user }: { user: AdminUserRow }) {
         variant="warn"
         title={
           user.invitationExpiresAt
-            ? `Lien valable jusqu’au ${new Date(user.invitationExpiresAt).toLocaleString('fr-FR')}`
+            ? t('users.invitation.validUntil', {
+                // `settings.locale` tel quel : la langue à deux lettres
+                // rendait « 2:32 PM » sur une instance réglée sur `en-GB`.
+                date: formatDateTimeWith(user.invitationExpiresAt, format, {
+                  dateStyle: 'short',
+                  timeStyle: 'medium',
+                }),
+              })
             : undefined
         }
       >
-        invité
+        {t('users.state.invited')}
       </Badge>
     );
   }
   if (user.state === 'expired') {
     return (
-      <Badge variant="destructive" title="Aucun mot de passe, et plus aucun lien valable">
-        invitation périmée
+      <Badge variant="destructive" title={t('users.state.expired.title')}>
+        {t('users.state.expired')}
       </Badge>
     );
   }
-  return <Badge variant="secondary">actif</Badge>;
+  return <Badge variant="secondary">{t('users.state.active')}</Badge>;
 }
 
-function TwoFactorBadge({ state }: { state: TwoFactorState }) {
-  if (state === 'active') return <Badge variant="ok">actif</Badge>;
+function TwoFactorBadge({ state, t }: { state: TwoFactorState; t: T }) {
+  if (state === 'active') return <Badge variant="ok">{t('users.2fa.active')}</Badge>;
   if (state === 'pending') {
     return (
-      <Badge variant="warn" title="Secret généré, jamais confirmé par un code">
-        configuration en cours
+      <Badge variant="warn" title={t('users.2fa.pending.title')}>
+        {t('users.2fa.pending')}
       </Badge>
     );
   }
-  return <span className="text-muted-foreground text-xs">aucun</span>;
+  return <span className="text-muted-foreground text-xs">{t('users.2fa.none')}</span>;
 }
 
 /**
@@ -348,49 +386,48 @@ function ResetTwoFactorDialog({
   onCancel: () => void;
   onConfirm: (user: AdminUserRow) => void;
 }) {
+  const t = useT(admin);
+  const c = useT(common);
+
   return (
     <Dialog open={target !== null} onOpenChange={(open) => (open ? undefined : onCancel())}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Réinitialiser le second facteur</DialogTitle>
+          <DialogTitle>{t('users.2fa.dialog.title')}</DialogTitle>
           <DialogDescription>
-            {target
-              ? `${target.name} — ${target.email}`
-              : 'Aucun utilisateur sélectionné.'}
+            {target ? `${target.name} — ${target.email}` : t('users.2fa.dialog.noTarget')}
           </DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-3 text-[0.8125rem]">
-          <p>Après validation, pour ce compte :</p>
+          <p>{t('users.2fa.dialog.intro')}</p>
           <ul className="text-ink-muted list-disc space-y-1 pl-5">
-            <li>le secret TOTP est supprimé — l’application d’authentification ne sert plus ;</li>
-            <li>les codes de secours déjà émis cessent immédiatement de fonctionner ;</li>
+            <li>{t('users.2fa.dialog.totp')}</li>
+            <li>{t('users.2fa.dialog.backup')}</li>
             <li>
               {isSelf
-                ? 'vos autres sessions sont fermées ; celle-ci reste ouverte.'
-                : 'toutes ses sessions en cours sont fermées, y compris sur un appareil perdu.'}
+                ? t('users.2fa.dialog.sessionsSelf')
+                : t('users.2fa.dialog.sessionsOther')}
             </li>
             <li>
-              la connexion se fait ensuite avec le mot de passe seul, jusqu’à ce que la personne
-              reconfigure un second facteur depuis <code>/account</code>.
+              {t('users.2fa.dialog.after')} <code>/account</code>.
             </li>
           </ul>
-          <Alert variant="warn">
-            Vérifiez l’identité du demandeur avant de continuer : ce geste retire une protection,
-            et rien ne le défait à distance.
-          </Alert>
+          <Alert variant="warn">{t('users.2fa.dialog.warn')}</Alert>
         </DialogBody>
 
         <DialogFooter>
           <Button variant="outline" disabled={pending} onClick={onCancel}>
-            Annuler
+            {c('cancel')}
           </Button>
           <Button
             variant="destructive"
             disabled={pending || target === null}
             onClick={() => (target ? onConfirm(target) : undefined)}
           >
-            {pending ? 'Réinitialisation…' : `Réinitialiser le 2FA de ${target?.name ?? ''}`}
+            {pending
+              ? t('users.2fa.dialog.pending')
+              : t('users.2fa.dialog.confirm', { name: target?.name ?? '' })}
           </Button>
         </DialogFooter>
       </DialogContent>

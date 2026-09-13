@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { targets as messages } from '@/i18n/messages/targets';
 import { cn } from '@/lib/utils';
 
 /**
@@ -85,6 +88,8 @@ export type TargetFormProps = {
 
 export function TargetForm({ initial, onCreated, onCancel, submitLabel }: TargetFormProps) {
   const router = useRouter();
+  const t = useT(messages);
+  const tc = useT(common);
   const values = initial ?? EMPTY;
   const isEdit = Boolean(values.id);
 
@@ -122,7 +127,9 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
     // il n'est jamais pré-rempli, donc jamais réémis vers le navigateur.
     if (credential) payload.credential = credential;
     else if (!isEdit) {
-      setError(authMethod === 'key' ? 'La clé privée est requise.' : 'Le mot de passe est requis.');
+      setError(
+        authMethod === 'key' ? t('form.error.keyRequired') : t('form.error.passwordRequired'),
+      );
       setPending(false);
       return;
     }
@@ -135,7 +142,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       setPending(false);
       return;
     }
@@ -156,38 +163,38 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="name">Nom</Label>
+          <Label htmlFor="name">{t('field.name')}</Label>
           <Input id="name" name="name" defaultValue={values.name} required minLength={2} />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="sshUser">Utilisateur SSH</Label>
+          <Label htmlFor="sshUser">{t('field.sshUser')}</Label>
           <Input id="sshUser" name="sshUser" defaultValue={values.sshUser} required />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="host">Hôte</Label>
+          <Label htmlFor="host">{t('field.host')}</Label>
           <Input id="host" name="host" defaultValue={values.host} placeholder="10.0.0.12" required />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="port">Port</Label>
+          <Label htmlFor="port">{t('field.port')}</Label>
           <Input id="port" name="port" type="number" min={1} max={65535} defaultValue={values.port} required />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="authMethod">Authentification</Label>
+          <Label htmlFor="authMethod">{t('field.authMethod')}</Label>
           <Select
             id="authMethod"
             name="authMethod"
             defaultValue={values.authMethod}
             onChange={(event) => setAuthMethod(event.target.value as 'key' | 'password')}
           >
-            <option value="key">Clé privée</option>
-            <option value="password">Mot de passe</option>
+            <option value="key">{t('auth.key')}</option>
+            <option value="password">{t('auth.password')}</option>
           </Select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="sudoMethod">Élévation sudo</Label>
+          <Label htmlFor="sudoMethod">{t('field.sudoMethod')}</Label>
           <Select id="sudoMethod" name="sudoMethod" defaultValue={values.sudoMethod}>
-            <option value="nopasswd">sudo sans mot de passe</option>
-            <option value="password">sudo avec mot de passe</option>
+            <option value="nopasswd">{t('sudo.nopasswd')}</option>
+            <option value="password">{t('sudo.password')}</option>
           </Select>
         </div>
       </div>
@@ -197,7 +204,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         répond à « qu'est-ce que c'est ? », pas à « comment s'y connecter ? ».
       */}
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="description">Description</Label>
+        <Label htmlFor="description">{t('field.description')}</Label>
         <textarea
           id="description"
           name="description"
@@ -205,14 +212,11 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           maxLength={DESCRIPTION_MAX}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          placeholder="Hyperviseur du client Acme. Redémarrages hors 9h–19h uniquement."
+          placeholder={t('description.placeholder')}
           className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
         />
         <p className="flex justify-between gap-4 text-xs text-ink-muted">
-          <span>
-            À quoi sert cette machine, et ce qu&apos;il faut savoir avant d&apos;y toucher.
-            Facultatif.
-          </span>
+          <span>{t('description.help')}</span>
           <span
             className={cn(
               'shrink-0 font-mono tabular-nums',
@@ -226,7 +230,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="credential">
-          {authMethod === 'key' ? 'Clé privée SSH' : 'Mot de passe'}
+          {authMethod === 'key' ? t('field.credential.key') : t('field.credential.password')}
         </Label>
         {authMethod === 'key' ? (
           <textarea
@@ -242,13 +246,13 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           <Input id="credential" name="credential" type="password" autoComplete="new-password" />
         )}
         <p className="text-xs text-ink-muted">
-          Chiffré en AES-256-GCM avant insertion. Jamais renvoyé par l&apos;API, jamais journalisé.
-          {isEdit ? ' Laissez vide pour conserver le credential actuel.' : ''}
+          {t('credential.help')}
+          {isEdit ? t('credential.help.edit') : ''}
         </p>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>Plage de ports publiables</Label>
+        <Label>{t('field.portRange')}</Label>
         <div className="flex items-center gap-2">
           <Input
             id="portRangeStart"
@@ -272,14 +276,11 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             className="w-32"
           />
         </div>
-        <p className="text-xs text-ink-muted">
-          Ce que le pare-feu de cette machine laisse passer. Chaque application déployée en
-          Docker y réserve un port, garanti unique par la base.
-        </p>
+        <p className="text-xs text-ink-muted">{t('portRange.help')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="labels">Étiquettes</Label>
+        <Label htmlFor="labels">{t('field.labels')}</Label>
         <textarea
           id="labels"
           name="labels"
@@ -290,22 +291,23 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-xs text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
         />
         <TargetLabelList labels={textToLabels(labelsText)} className="pt-0.5" />
+        {/* Coupée autour du `clé=valeur` que le JSX rend en chasse fixe : une clé
+            par fragment, dans l'ordre où la phrase les enchaîne. */}
         <p className="text-xs text-ink-muted">
-          Une paire <code>clé=valeur</code> par ligne. La couleur est dérivée du texte : la
-          même étiquette a partout la même teinte, et aucune ne peut prendre le vert, l&apos;ambre
-          ou le rouge — ces couleurs-là disent l&apos;état d&apos;une machine, pas son rôle.
+          {t('labels.help.before')} <code>{t('labels.help.pair')}</code>{' '}
+          {t('labels.help.after')}
         </p>
       </div>
 
       <div className="flex gap-2">
         <Button type="submit" disabled={pending}>
           {pending
-            ? 'Enregistrement…'
-            : (submitLabel ?? (isEdit ? 'Enregistrer' : 'Créer la cible'))}
+            ? tc('saving')
+            : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
         </Button>
         {onCancel === null ? null : (
           <Button type="button" variant="ghost" onClick={onCancel ?? (() => router.back())}>
-            Annuler
+            {tc('cancel')}
           </Button>
         )}
       </div>

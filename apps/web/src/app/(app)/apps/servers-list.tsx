@@ -2,11 +2,14 @@
 
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
-import type { RuntimesAvailable, TargetHealth } from '@pupitre/core';
+import type { RuntimesAvailable, TargetHealth, Translate } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useT } from '@/i18n/client';
+import { servers as messages } from '@/i18n/messages/servers';
+import type { FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { RuntimeBadges } from '../targets/runtime-badges';
 import { AppsTable, HealthDot, type HealthStatus, type SupervisedRow } from './apps-table';
@@ -50,11 +53,13 @@ export type ServerRow = {
   apps: SupervisedRow[];
 };
 
-const STATUS_LABEL: Record<TargetHealth, string> = {
-  unknown: 'jamais testée',
-  ok: 'opérationnelle',
-  degraded: 'dégradée',
-  unreachable: 'injoignable',
+type T = Translate<typeof messages.fr>;
+
+const STATUS_KEY: Record<TargetHealth, keyof typeof messages.fr> = {
+  unknown: 'status.unknown',
+  ok: 'status.ok',
+  degraded: 'status.degraded',
+  unreachable: 'status.unreachable',
 };
 
 /**
@@ -69,18 +74,13 @@ const STATUS_HEALTH: Record<TargetHealth, HealthStatus> = {
   unreachable: 'unreachable',
 };
 
-function appCountLabel(count: number): string {
-  if (count === 0) return 'aucune application';
-  return `${count} application${count > 1 ? 's' : ''}`;
-}
-
 /** Depuis quand le relevé date. Un relevé sans âge affiché serait un relevé qu'on croit frais. */
-function relevanceLabel(entry: MetricsEntry | undefined): string | null {
+function relevanceLabel(entry: MetricsEntry | undefined, t: T): string | null {
   if (entry === undefined || entry.state === 'loading') return null;
   const seconds = Math.max(0, Math.round((Date.now() - entry.at) / 1000));
-  if (seconds < 60) return "à l'instant";
-  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)} min`;
-  return `il y a ${Math.floor(seconds / 3600)} h`;
+  if (seconds < 60) return t('age.now');
+  if (seconds < 3600) return t('age.minutes', { count: Math.floor(seconds / 60) });
+  return t('age.hours', { count: Math.floor(seconds / 3600) });
 }
 
 function ServerCard({
@@ -91,6 +91,7 @@ function ServerCard({
   canRestart,
   canReadTargets,
   canTune,
+  format,
   onRefresh,
 }: {
   server: ServerRow;
@@ -102,8 +103,10 @@ function ServerCard({
   canReadTargets: boolean;
   /** `target:update` : régler un seuil, c'est décrire la machine. */
   canTune: boolean;
+  format: FormatSettings;
   onRefresh: () => void;
 }) {
+  const t = useT(messages);
   const hasApps = server.apps.length > 0;
 
   // Un serveur qui porte une application en peine s'ouvre de lui-même : c'est
@@ -112,7 +115,7 @@ function ServerCard({
     (app) => app.lastFailedUpdate !== null || app.healthStatus !== 'healthy',
   );
 
-  const age = relevanceLabel(entry);
+  const age = relevanceLabel(entry, t);
   const probing = entry === undefined || entry.state === 'loading';
 
   const identity = (
@@ -146,13 +149,10 @@ function ServerCard({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            <HealthDot
-              health={STATUS_HEALTH[server.status]}
-              label={STATUS_LABEL[server.status]}
-            />
+            <HealthDot health={STATUS_HEALTH[server.status]} label={t(STATUS_KEY[server.status])} />
             {server.runtimes ? <RuntimeBadges runtimes={server.runtimes} /> : null}
             <Badge variant={hasApps ? 'outline' : 'secondary'} className="text-[10px]">
-              {appCountLabel(server.apps.length)}
+              {t('server.apps', { count: server.apps.length })}
             </Badge>
           </div>
 
@@ -164,10 +164,10 @@ function ServerCard({
                 variant="ghost"
                 disabled={probing}
                 onClick={onRefresh}
-                aria-label={`Relever les métriques de ${server.name}`}
+                aria-label={t('server.probe.aria', { name: server.name })}
               >
                 <RefreshCw className={cn(probing && 'animate-spin')} />
-                {probing ? 'Relevé…' : 'Relever'}
+                {probing ? t('server.probe.busy') : t('server.probe')}
               </Button>
             ) : null}
             {canTune && history ? (
@@ -179,7 +179,7 @@ function ServerCard({
             ) : null}
             {server.registered && canReadTargets ? (
               <Button asChild size="sm" variant="outline">
-                <Link href={`/targets/${server.id}`}>Fiche</Link>
+                <Link href={`/targets/${server.id}`}>{t('server.details')}</Link>
               </Button>
             ) : null}
           </div>
@@ -191,7 +191,7 @@ function ServerCard({
 
         {history ? (
           <div className="border-t border-line bg-ground-deep/20">
-            <HostHistory targetId={server.id} initial={history} />
+            <HostHistory targetId={server.id} initial={history} format={format} />
           </div>
         ) : null}
 
@@ -201,8 +201,7 @@ function ServerCard({
           </CollapsiblePanel>
         ) : (
           <p className="border-t border-line px-4 py-3 text-[0.8125rem] text-ink-muted">
-            Aucune application supervisée sur cette machine. Déployez-en une depuis la page
-            Applications : elle apparaîtra ici.
+            {t('server.noApps')}
           </p>
         )}
       </Collapsible>
@@ -216,6 +215,7 @@ export function ServersList({
   canRestart,
   canReadTargets,
   canTune,
+  format,
 }: {
   servers: ServerRow[];
   /** L'historique, par identifiant de cible. Vient de la base, avec la page. */
@@ -224,7 +224,11 @@ export function ServersList({
   /** Sans `target:read`, aucun relevé n'est demandé : la route le refuserait. */
   canReadTargets: boolean;
   canTune: boolean;
+  /** Le formatage descend par props : cette liste est cliente, la locale non. */
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
+
   // Seules les cibles réellement enregistrées peuvent être relevées : une
   // machine connue par le seul souvenir d'un déploiement n'a plus de credential.
   const probeIds = canReadTargets
@@ -239,13 +243,13 @@ export function ServersList({
       {canReadTargets && probeIds.length > 0 ? (
         <div className="flex items-center justify-between gap-3">
           <p className="text-[0.75rem] text-ink-faint">
-            {servers.length} serveur{servers.length > 1 ? 's' : ''} ·{' '}
-            {servers.reduce((total, server) => total + server.apps.length, 0)} application(s)
-            supervisée(s)
+            {`${t('list.servers', { count: servers.length })} · ${t('list.apps', {
+              count: servers.reduce((total, server) => total + server.apps.length, 0),
+            })}`}
           </p>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => void refreshAll()}>
             <RefreshCw className={cn(busy && 'animate-spin')} />
-            {busy ? 'Relevé en cours…' : 'Tout relever'}
+            {busy ? t('readout.pending') : t('list.probeAll')}
           </Button>
         </div>
       ) : null}
@@ -260,6 +264,7 @@ export function ServersList({
           canRestart={canRestart}
           canReadTargets={canReadTargets}
           canTune={canTune && server.registered}
+          format={format}
           onRefresh={() => void refresh(server.id)}
         />
       ))}

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  NOTIFICATION_SEVERITY_LABELS,
+  notificationSeverityLabel,
   type NotificationChannelKind,
   type NotificationEventKey,
   type PresentedNotificationChannel,
@@ -17,6 +17,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useLanguage, useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { notifications as messages } from '@/i18n/messages/notifications';
 
 /**
  * Écran des canaux de notification.
@@ -116,6 +119,8 @@ export function NotificationsManager({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const t = useT(messages);
+  const tc = useT(common);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +142,7 @@ export function NotificationsManager({
     setPending(false);
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as ApiError;
-      setError(payload.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(payload.error?.message ?? tc('http.failure', { status: response.status }));
       return null;
     }
     return response.json();
@@ -187,7 +192,7 @@ export function NotificationsManager({
       );
       if (!result) return;
       setDraft(null);
-      setNotice(draft.id === null ? 'Canal créé.' : 'Canal enregistré.');
+      setNotice(draft.id === null ? t('channel.created') : t('channel.saved'));
       router.refresh();
     })();
   }
@@ -196,7 +201,7 @@ export function NotificationsManager({
     void (async () => {
       const result = await call(`/api/notifications/channels/${channel.id}`, { method: 'DELETE' });
       if (!result) return;
-      setNotice(`Canal « ${channel.name} » supprimé.`);
+      setNotice(t('channel.deleted', { name: channel.name }));
       router.refresh();
     })();
   }
@@ -219,21 +224,17 @@ export function NotificationsManager({
       {notice ? <Alert variant="success">{notice}</Alert> : null}
       {verdict ? (
         <Alert variant={verdict.delivered ? 'success' : 'destructive'}>
-          <strong>{verdict.name}</strong> — {verdict.probe.ok ? 'sonde : ' : 'sonde en échec : '}
+          <strong>{verdict.name}</strong> — {verdict.probe.ok ? t('test.probe') : t('test.probeFailed')}
           {verdict.probe.detail}
           <br />
           {verdict.delivered
-            ? "Message d'essai délivré. Allez vérifier qu'il est bien arrivé : le destinataire est le seul juge."
-            : `Envoi en échec : ${verdict.error ?? 'sans détail'}`}
+            ? t('test.delivered')
+            : t('test.failed', { detail: verdict.error ?? t('test.noDetail') })}
         </Alert>
       ) : null}
 
       {initialChannels.length === 0 ? (
-        <Alert>
-          Aucun canal configuré. Tant qu&apos;il n&apos;y en a pas, un déploiement en échec, un
-          scan bloquant ou une réinitialisation de second facteur ne laissent de trace que dans
-          les logs d&apos;activité — qu&apos;il faut penser à aller lire.
-        </Alert>
+        <Alert>{t('empty')}</Alert>
       ) : (
         <ul className="flex flex-col gap-3">
           {initialChannels.map((channel) => {
@@ -244,36 +245,37 @@ export function NotificationsManager({
                   <span className="font-medium text-ink">{channel.name}</span>
                   <Badge variant="secondary">{descriptor?.label ?? channel.kind}</Badge>
                   <Badge variant={channel.enabled ? 'ok' : 'outline'}>
-                    {channel.enabled ? 'actif' : 'éteint'}
+                    {channel.enabled ? t('channel.on') : t('channel.off')}
                   </Badge>
                   {channel.consecutiveFailures > 0 ? (
                     <Badge variant="destructive">
-                      {channel.consecutiveFailures} échec
-                      {channel.consecutiveFailures > 1 ? 's' : ''} d&apos;affilée
+                      {t('channel.failures', { count: channel.consecutiveFailures })}
                     </Badge>
                   ) : null}
                 </div>
 
                 <p className="mt-1.5 text-xs text-ink-faint">
                   {channel.events.length === 0
-                    ? 'Abonné à aucun événement — ce canal ne recevra jamais rien.'
-                    : `Abonné à : ${channel.events.map(eventLabel).join(', ')}`}
+                    ? t('channel.noEvents')
+                    : t('channel.events', { list: channel.events.map(eventLabel).join(', ') })}
                 </p>
 
                 {channel.configuredSecrets.length > 0 ? (
                   <p className="mt-1 text-xs text-ink-faint">
-                    Secrets enregistrés : {channel.configuredSecrets.join(', ')} — chiffrés en
-                    base, jamais renvoyés.
+                    {t('channel.secrets', { list: channel.configuredSecrets.join(', ') })}
                   </p>
                 ) : null}
 
                 {channel.lastError ? (
                   <p className="mt-1.5 font-mono text-xs text-danger">
-                    Dernier échec ({channel.lastFailureAt ?? '?'}) : {channel.lastError}
+                    {t('channel.lastError', {
+                      at: channel.lastFailureAt ?? '?',
+                      error: channel.lastError,
+                    })}
                   </p>
                 ) : channel.lastSuccessAt ? (
                   <p className="mt-1.5 text-xs text-ink-faint">
-                    Dernier envoi réussi : {channel.lastSuccessAt}
+                    {t('channel.lastSuccess', { at: channel.lastSuccessAt })}
                   </p>
                 ) : null}
 
@@ -286,7 +288,7 @@ export function NotificationsManager({
                       disabled={pending}
                       onClick={() => setDraft(draftFor(descriptor, channel))}
                     >
-                      Modifier
+                      {tc('edit')}
                     </Button>
                     <Button
                       size="sm"
@@ -295,7 +297,7 @@ export function NotificationsManager({
                       disabled={pending}
                       onClick={() => test(channel)}
                     >
-                      {pending ? 'Envoi…' : "Envoyer un message d'essai"}
+                      {pending ? t('test.sending') : t('test.send')}
                     </Button>
                     <Button
                       size="sm"
@@ -304,7 +306,7 @@ export function NotificationsManager({
                       disabled={pending}
                       onClick={() => remove(channel)}
                     >
-                      Supprimer
+                      {tc('delete')}
                     </Button>
                   </div>
                 ) : null}
@@ -317,7 +319,7 @@ export function NotificationsManager({
       {canManage && draft === null ? (
         <div>
           <Button size="sm" type="button" onClick={() => setDraft(emptyDraft(catalog))}>
-            Ajouter un canal
+            {t('channel.add')}
           </Button>
         </div>
       ) : null}
@@ -354,6 +356,9 @@ function ChannelForm({
   onCancel: () => void;
   onSubmit: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const language = useLanguage();
   const descriptor = catalog.find((entry) => entry.kind === draft.kind);
 
   return (
@@ -366,7 +371,7 @@ function ChannelForm({
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="channel-kind">Type de canal</Label>
+          <Label htmlFor="channel-kind">{t('form.kind')}</Label>
           <Select
             id="channel-kind"
             value={draft.kind}
@@ -392,11 +397,11 @@ function ChannelForm({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="channel-name">Nom</Label>
+          <Label htmlFor="channel-name">{t('form.name')}</Label>
           <Input
             id="channel-name"
             value={draft.name}
-            placeholder="astreinte"
+            placeholder={t('form.name.placeholder')}
             onChange={(event) => onChange({ ...draft, name: event.target.value })}
           />
         </div>
@@ -420,12 +425,8 @@ function ChannelForm({
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="eyebrow text-ink-muted">Événements notifiés</legend>
-        <p className="text-xs text-ink-faint">
-          Chaque événement retenu part sur ce canal. La liste est volontairement courte : un
-          événement bavard rend la boîte inutilisable en une journée, et la première chose qu&apos;on
-          fait alors est de tout couper.
-        </p>
+        <legend className="eyebrow text-ink-muted">{t('form.events.legend')}</legend>
+        <p className="text-xs text-ink-faint">{t('form.events.help')}</p>
         <div className="flex flex-col gap-1.5 pt-1">
           {events.map((entry) => {
             const checked = draft.events.includes(entry.key as NotificationEventKey);
@@ -447,7 +448,7 @@ function ChannelForm({
                   <span className="block text-ink">
                     {entry.label}{' '}
                     <span className="text-xs text-ink-faint">
-                      ({NOTIFICATION_SEVERITY_LABELS[entry.severity].toLowerCase()})
+                      ({notificationSeverityLabel(entry.severity, language).toLowerCase()})
                     </span>
                   </span>
                   <span className="block text-xs text-ink-faint">{entry.rationale}</span>
@@ -463,15 +464,15 @@ function ChannelForm({
           checked={draft.enabled}
           onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
         />
-        <span className="text-ink">Canal actif</span>
+        <span className="text-ink">{t('form.enabled')}</span>
       </label>
 
       <div className="flex flex-wrap gap-2">
         <Button size="sm" type="submit" disabled={pending}>
-          {pending ? 'Enregistrement…' : draft.id === null ? 'Créer le canal' : 'Enregistrer'}
+          {pending ? tc('saving') : draft.id === null ? t('form.create') : tc('save')}
         </Button>
         <Button size="sm" type="button" variant="ghost" disabled={pending} onClick={onCancel}>
-          Annuler
+          {tc('cancel')}
         </Button>
       </div>
     </form>
@@ -488,6 +489,7 @@ function FieldInput({
   draft: Draft;
   onChange: (draft: Draft) => void;
 }) {
+  const t = useT(messages);
   const id = `field-${field.name}`;
 
   if (field.kind === 'boolean') {
@@ -519,7 +521,7 @@ function FieldInput({
     <div className="space-y-1.5">
       <Label htmlFor={id}>
         {field.label}
-        {field.required ? null : <span className="text-ink-faint">facultatif</span>}
+        {field.required ? null : <span className="text-ink-faint">{t('field.optional')}</span>}
       </Label>
 
       {field.kind === 'select' ? (
@@ -545,7 +547,7 @@ function FieldInput({
 
       {field.secret && draft.id !== null ? (
         <p className="text-xs text-ink-faint">
-          Laisser vide conserve la valeur enregistrée.
+          {t('field.secret.keep')}
           {field.required ? null : (
             <>
               {' '}
@@ -560,9 +562,9 @@ function FieldInput({
                   })
                 }
               >
-                Effacer ce secret
+                {t('field.secret.clear')}
               </button>
-              {draft.clearedSecrets.includes(field.name) ? ' — sera effacé.' : null}
+              {draft.clearedSecrets.includes(field.name) ? ` ${t('field.secret.cleared')}` : null}
             </>
           )}
         </p>

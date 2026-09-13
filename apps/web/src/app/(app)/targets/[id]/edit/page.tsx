@@ -5,6 +5,8 @@ import { getTarget } from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
+import { targets as messages } from '@/i18n/messages/targets';
 import { requirePagePermission } from '@/lib/page-auth';
 import { TargetForm } from '../../target-form';
 
@@ -19,6 +21,7 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
   await requirePagePermission(`/targets/${parsed.data.id}/edit`, 'target:update');
   const target = await getTarget(parsed.data.id);
   if (!target) notFound();
+  const t = await getT(messages);
 
   return (
     <div className="flex flex-col gap-6">
@@ -32,17 +35,14 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
             {target.name}
           </Link>
         }
-        title={`Modifier « ${target.name} »`}
-        description="Ces réglages valent pour les prochaines connexions. Rien de ce qui tourne déjà sur cette machine n'est redéployé, et les ports déjà réservés le restent même si vous rétrécissez la plage. Après un changement d'hôte, de compte ou de clé, relancez un preflight : le relevé précédent reste affiché tel quel jusque-là."
+        title={t('edit.title', { name: target.name })}
+        description={t('edit.description')}
       />
 
       <Card className="max-w-3xl">
         <CardHeader>
-          <CardTitle>Connexion</CardTitle>
-          <CardDescription>
-            Le credential n&apos;est jamais pré-rempli : laissez le champ vide pour conserver
-            celui déjà en base.
-          </CardDescription>
+          <CardTitle>{t('card.connection')}</CardTitle>
+          <CardDescription>{t('edit.card.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           {/* `target` vient de `getTarget`, qui ne sélectionne pas la colonne

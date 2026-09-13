@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '@/i18n/client';
+import { chrome } from '@/i18n/messages/chrome';
 import { cn } from '@/lib/utils';
 
 /**
@@ -32,6 +34,7 @@ export function TableScroller({
   label?: string;
   children: React.ReactNode;
 }) {
+  const t = useT(chrome);
   const ref = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState({ left: false, right: false });
 
@@ -80,7 +83,9 @@ export function TableScroller({
         )}
         tabIndex={scrollable ? 0 : undefined}
         role={scrollable ? 'region' : undefined}
-        aria-label={scrollable ? `${label ?? 'Tableau'} — défile horizontalement` : undefined}
+        aria-label={
+          scrollable ? t('table.scrollable', { label: label ?? t('table.fallback') }) : undefined
+        }
       >
         {children}
       </div>

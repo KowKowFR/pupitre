@@ -10,7 +10,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -39,7 +40,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { key } = paramsSchema.parse(await context.params);
 
   const role = await getRoleByKey(key);
-  if (!role) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+  if (!role) throw new NotFoundError(msg(admin, 'error.role.notFound', { key }));
 
   return NextResponse.json(role);
 });
@@ -50,10 +51,10 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const patch = await readJsonBody(request, updateRoleSchema);
 
   const before = await getRoleByKey(key);
-  if (!before) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+  if (!before) throw new NotFoundError(msg(admin, 'error.role.notFound', { key }));
 
   const after = await updateRole(key, patch).catch(translate);
-  if (!after) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+  if (!after) throw new NotFoundError(msg(admin, 'error.role.notFound', { key }));
 
   await logAudit({
     actorId: auth.userId,
@@ -73,10 +74,10 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { key } = paramsSchema.parse(await context.params);
 
   const role = await getRoleByKey(key);
-  if (!role) throw new NotFoundError(`Rôle « ${key} » introuvable`);
+  if (!role) throw new NotFoundError(msg(admin, 'error.role.notFound', { key }));
 
   const removed = await deleteRole(key).catch(translate);
-  if (!removed) throw new ConflictError(`Le rôle « ${key} » n'a pas pu être supprimé`);
+  if (!removed) throw new ConflictError(msg(admin, 'error.role.deleteFailed', { key }));
 
   await logAudit({
     actorId: auth.userId,

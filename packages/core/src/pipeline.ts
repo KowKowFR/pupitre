@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_UI_LANGUAGE, type Bundle, type UiLanguage } from './i18n.js';
 
 /**
  * Définition du pipeline de déploiement.
@@ -34,6 +35,69 @@ export const DEPLOYMENT_STEPS = [
 ] as const;
 
 export type DeploymentStepKey = (typeof DEPLOYMENT_STEPS)[number]['key'];
+
+/**
+ * Le nom d'une étape, dans les deux langues — **rendu à la lecture**.
+ *
+ * ── Pourquoi la colonne `deployment_steps.label` ne suffit plus ─────────────
+ * Le panel écrit ce libellé en base au moment d'enfiler le job. C'était sans
+ * conséquence tant qu'il n'existait qu'une langue ; ça n'en a plus aucune
+ * depuis qu'il y en a deux. Un libellé écrit à la création fige la langue de
+ * l'instance **au moment du déploiement** : basculer le panel en anglais
+ * laisserait « Vérification de santé » sur tous les déploiements déjà passés,
+ * et sur eux seuls. Le pipeline afficherait alors deux langues à la fois.
+ *
+ * La règle du projet est la même que pour le journal d'activité : une trace ne
+ * porte que des **données**, et le nom se rend au moment de l'afficher. Ici la
+ * donnée existe déjà — `deployment_steps.key` est écrite à côté du libellé, et
+ * c'est elle qui a toujours servi à la logique. L'affichage la rejoint.
+ *
+ * La colonne reste écrite, telle quelle : elle est le dernier recours pour une
+ * étape dont la clé aurait disparu du catalogue — un déploiement conservé après
+ * qu'on a retiré une étape du pipeline. C'est le seul cas où on la relit.
+ */
+const stepLabels = {
+  fr: {
+    preflight: 'Préflight de la cible',
+    allocate_port: 'Réservation du port',
+    render: 'Rendu des artefacts',
+    upload: 'Dépôt sur la cible',
+    build: 'Construction des images',
+    scan: 'Analyse de sécurité',
+    deploy: 'Démarrage des services',
+    healthcheck: 'Vérification de santé',
+    proxy: 'Publication derrière le proxy',
+    rollback: 'Retour à la version précédente',
+  },
+  en: {
+    preflight: 'Target preflight',
+    allocate_port: 'Port reservation',
+    render: 'Artifact rendering',
+    upload: 'Upload to the target',
+    build: 'Image build',
+    scan: 'Security scan',
+    deploy: 'Service start-up',
+    healthcheck: 'Health check',
+    proxy: 'Publication behind the proxy',
+    rollback: 'Rollback to the previous version',
+  },
+} satisfies Bundle<Record<DeploymentStepKey, string>>;
+
+export const deploymentStepLabels = stepLabels;
+
+/**
+ * Le nom affichable d'une étape. `fallback` sert aux clés que le catalogue ne
+ * connaît plus : on rend alors ce que la base avait écrit, plutôt qu'une clé
+ * nue devant un utilisateur.
+ */
+export function deploymentStepLabel(
+  key: string,
+  language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  fallback?: string,
+): string {
+  const known = stepLabels[language] as Record<string, string | undefined>;
+  return known[key] ?? fallback ?? key;
+}
 
 export const deploymentStepKeys: readonly DeploymentStepKey[] = DEPLOYMENT_STEPS.map(
   (step) => step.key,

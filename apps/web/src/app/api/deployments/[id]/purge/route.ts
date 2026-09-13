@@ -1,7 +1,8 @@
 import { getDeploymentSummary, logAudit, purgeDeployments } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { purgeAuditPayload } from '../../purge-audit';
@@ -26,7 +27,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const report = await purgeDeployments({ ids: [id] });
 

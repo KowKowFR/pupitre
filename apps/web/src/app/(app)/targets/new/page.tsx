@@ -3,6 +3,8 @@ import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { TargetHelpDialog } from '@/components/target-help';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
+import { targets as messages } from '@/i18n/messages/targets';
 import { requirePagePermission } from '@/lib/page-auth';
 import { TargetForm } from '../target-form';
 
@@ -10,6 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewTargetPage() {
   await requirePagePermission('/targets/new', 'target:create');
+  const t = await getT(messages);
 
   return (
     <div className="flex flex-col gap-6">
@@ -20,11 +23,11 @@ export default async function NewTargetPage() {
             className="inline-flex items-center gap-1 transition-colors hover:text-ink"
           >
             <ChevronLeft className="size-3" />
-            Machines cibles
+            {t('nav.back')}
           </Link>
         }
-        title="Ajouter une cible"
-        description="Le panel se connectera en SSH à cette machine pour y déployer. Le credential est chiffré en base dès l'enregistrement."
+        title={t('page.add')}
+        description={t('new.description')}
       />
 
       {/* Le formulaire demande une machine, un compte, une clé, une plage de
@@ -35,13 +38,8 @@ export default async function NewTargetPage() {
 
       <Card className="max-w-3xl">
         <CardHeader>
-          <CardTitle>Connexion</CardTitle>
-          <CardDescription>
-            Rien n&apos;est touché sur la machine à l&apos;enregistrement. C&apos;est le
-            preflight — le contrôle de connexion, de sudo, de runtime et de pare-feu — qui
-            l&apos;ouvre pour la première fois. Il se lance depuis « Tester la connexion », et
-            détermine ce qui sera déployable ici.
-          </CardDescription>
+          <CardTitle>{t('card.connection')}</CardTitle>
+          <CardDescription>{t('new.card.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <TargetForm />

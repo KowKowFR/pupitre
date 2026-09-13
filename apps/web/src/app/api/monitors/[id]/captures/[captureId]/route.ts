@@ -1,7 +1,8 @@
 import { getCaptureBytes } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -42,7 +43,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   // Une capture purgée par la rétention rend `null` : elle n'a plus d'octets,
   // et l'écran le dit déjà à partir des métadonnées. 404 est la bonne réponse.
   if (!capture || capture.monitorId !== id) {
-    throw new NotFoundError(`Capture « ${captureId} » introuvable`);
+    throw new NotFoundError(msg(messages, 'error.captureNotFound', { id: captureId }));
   }
 
   return new NextResponse(new Uint8Array(capture.image), {

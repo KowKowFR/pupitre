@@ -15,7 +15,7 @@
     "db:generate": "pnpm --filter @pupitre/db generate",
     "db:migrate": "pnpm --filter @pupitre/db migrate",
     "db:studio": "pnpm --filter @pupitre/db studio",
-    "test": "pnpm --filter @pupitre/core test",
+    "test": "pnpm build:packages && pnpm -r test",
     "db:seed": "pnpm --filter @pupitre/db seed",
     "test:driver": "tsx --env-file-if-exists=.env scripts/test-driver.ts",
     "test:parity": "tsx --env-file-if-exists=.env scripts/test-parity.ts",

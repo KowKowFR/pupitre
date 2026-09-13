@@ -1,7 +1,8 @@
 import { findingQuerySchema, getScanRun, listFindings } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readSearchParams } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -18,7 +19,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const query = readSearchParams(request, findingQuerySchema);
 
   const run = await getScanRun(id);
-  if (!run) throw new NotFoundError(`Scan « ${id} » introuvable`);
+  if (!run) throw new NotFoundError(msg(messages, 'error.scanNotFound', { id }));
 
   return NextResponse.json({ ...run, findings: await listFindings(id, query) });
 });

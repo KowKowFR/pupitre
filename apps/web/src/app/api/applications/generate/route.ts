@@ -1,6 +1,7 @@
 import {
   DEFAULT_TIMEOUT_MS,
   MissingApiKeyError,
+  aiModelMismatch,
   aiProviderDescriptor,
   createModel,
   redactApiKey,
@@ -8,9 +9,12 @@ import {
   generateAppSpecInputSchema,
   resolveAiConfig,
 } from '@pupitre/core/ai';
+import { renderMessage } from '@pupitre/core';
 import { getAiApiKey, getApplicationBySlug, getAppSettings, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
-import { HttpError, NotImplementedError } from '@/lib/errors';
+import { applications as messages } from '@/i18n/messages/applications';
+import { currentLanguage } from '@/i18n/server';
+import { HttpError, NotImplementedError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { getEnv } from '@/lib/env';
 import { logger } from '@/lib/logger';
@@ -71,17 +75,29 @@ export const POST = apiRoute(async (request) => {
   });
 
   const providerLabel = aiProviderDescriptor(ai.provider).label;
+  // Le même avertissement que celui de `resolveAiConfig()`, mais rendu dans la
+  // langue de l'instance : celui-ci finit dans un message d'erreur lu à l'écran.
+  const uiLanguage = await currentLanguage();
+  const modelWarning = aiModelMismatch(ai.provider, ai.model, {
+    baseUrl: ai.baseUrl,
+    language: uiLanguage,
+  });
 
   if (!ai.enabled) {
     const descriptor = aiProviderDescriptor(ai.provider);
+    // Le renvoi vers la variable d'environnement s'insère DANS la phrase :
+    // il ne peut pas attendre la sérialisation, la clé qui le porte, si.
     throw new NotImplementedError(
       settings.ai.enabled
-        ? `La génération par IA est désactivée : aucune clé d'API ${providerLabel} ` +
-            "n'est configurée sur ce panel. Renseignez-la dans Paramètres → " +
-            `Intelligence artificielle${
-              descriptor.envApiKeyVar ? `, ou via ${descriptor.envApiKeyVar}` : ''
-            }.`
-        : 'La génération par IA est désactivée dans les paramètres de cette instance.',
+        ? msg(messages, 'error.aiNoKey', {
+            provider: providerLabel,
+            envVar: descriptor.envApiKeyVar
+              ? renderMessage(messages, uiLanguage, 'error.aiEnvVar', {
+                  variable: descriptor.envApiKeyVar,
+                })
+              : '',
+          })
+        : msg(messages, 'error.aiDisabled'),
     );
   }
 
@@ -180,8 +196,8 @@ export const POST = apiRoute(async (request) => {
       // Une panne du fournisseur alors que le modèle ne lui ressemble pas : la
       // cause est probablement là, et le message doit le dire plutôt que de
       // laisser lire un 404 brut.
-      result.reason === 'provider' && ai.modelWarning
-        ? `${failureMessage} — ${ai.modelWarning}`
+      result.reason === 'provider' && modelWarning
+        ? `${failureMessage} — ${modelWarning}`
         : failureMessage,
       {
         issues: result.issues,
@@ -202,7 +218,7 @@ export const POST = apiRoute(async (request) => {
     provider: ai.provider,
     providerLabel,
     model: result.model,
-    modelWarning: ai.modelWarning,
+    modelWarning,
     prompt: input.prompt,
     slugTaken: existing !== null,
     attempts: result.attempts.map((attempt) => ({

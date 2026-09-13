@@ -1,12 +1,16 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { getT } from '@/i18n/server';
+import { auth as messages } from '@/i18n/messages/auth';
 
 /**
  * Écran d'entrée. Fond quadrillé très faible — un plan de baie plutôt qu'un
  * dégradé —, marque au-dessus du panneau, mention d'instance en dessous.
  * Le quadrillage est purement décoratif et masqué aux technologies d'assistance.
  */
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default async function AuthLayout({ children }: { children: ReactNode }) {
+  const t = await getT(messages);
+
   return (
     <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-12">
       <div
@@ -33,15 +37,15 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             <span className="font-condensed text-base font-semibold tracking-[0.01em] text-ink">
               Pupitre
             </span>
-            <span className="eyebrow pt-1 text-ink-faint">Plan de contrôle de déploiement</span>
+            <span className="eyebrow pt-1 text-ink-faint">{t('shell.tagline')}</span>
           </span>
         </Link>
 
         {children}
 
         <p className="text-center text-[0.6875rem] leading-relaxed text-ink-faint">
-          Panel auto-hébergé. Les déploiements partent d&apos;ici vers vos machines,
-          <br className="hidden sm:inline" /> en Docker Compose ou en K3s.
+          {t('shell.footer.line1')}
+          <br className="hidden sm:inline" /> {t('shell.footer.line2')}
         </p>
       </div>
     </div>

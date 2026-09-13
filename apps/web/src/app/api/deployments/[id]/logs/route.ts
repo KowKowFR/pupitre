@@ -9,7 +9,8 @@ import { getDeploymentSummary, readDeploymentLog } from '@pupitre/db';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { getEnv } from '@/lib/env';
-import { NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { requirePermission } from '@/lib/rbac';
@@ -40,7 +41,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const channel = deployChannel(id);
   const encoder = new TextEncoder();

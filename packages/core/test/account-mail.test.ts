@@ -31,7 +31,7 @@ function mail(overrides: Partial<AccountMail> = {}): AccountMail {
 describe('e-mails de cycle de vie des comptes', () => {
   it('rend toujours deux parties, et la partie texte ne porte aucune balise', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
-      const { subject, text, html } = renderAccountMail(mail({ kind }));
+      const { subject, text, html } = renderAccountMail(mail({ kind }), 'fr');
 
       assert.ok(subject.length > 0, `sujet vide pour ${kind}`);
       assert.ok(text.length > 0, `texte vide pour ${kind}`);
@@ -47,7 +47,7 @@ describe('e-mails de cycle de vie des comptes', () => {
 
   it('met le lien dans les deux parties, à l’identique', () => {
     const source = mail();
-    const { text, html } = renderAccountMail(source);
+    const { text, html } = renderAccountMail(source, 'fr');
 
     assert.ok(text.includes(source.url), 'le lien manque à la partie texte');
     assert.ok(html.includes(source.url), 'le lien manque à la partie HTML');
@@ -61,6 +61,7 @@ describe('e-mails de cycle de vie des comptes', () => {
   it('échappe ce qui vient du formulaire', () => {
     const { text, html } = renderAccountMail(
       mail({ recipientName: '<script>alert(1)</script>', instance: 'A & B <prod>' }),
+      'fr',
     );
 
     assert.ok(html.includes('&lt;script&gt;'), 'le nom n’est pas échappé dans le HTML');
@@ -72,8 +73,8 @@ describe('e-mails de cycle de vie des comptes', () => {
   });
 
   it('distingue les deux situations dans le sujet et dans le corps', () => {
-    const invitation = renderAccountMail(mail({ kind: 'invitation' }));
-    const reset = renderAccountMail(mail({ kind: 'password_reset' }));
+    const invitation = renderAccountMail(mail({ kind: 'invitation' }), 'fr');
+    const reset = renderAccountMail(mail({ kind: 'password_reset' }), 'fr');
 
     assert.notEqual(invitation.subject, reset.subject);
     assert.match(invitation.text, /a ouvert un accès/);
@@ -84,14 +85,15 @@ describe('e-mails de cycle de vie des comptes', () => {
   });
 
   it('nomme l’auteur de l’invitation quand il est connu, et reste correct sinon', () => {
-    assert.match(renderAccountMail(mail({ actor: 'admin@example.test' })).text, /admin@example\.test/);
-    assert.match(renderAccountMail(mail({ actor: null })).text, /Un administrateur/);
+    assert.match(renderAccountMail(mail({ actor: 'admin@example.test' }), 'fr').text, /admin@example\.test/);
+    assert.match(renderAccountMail(mail({ actor: null }), 'fr').text, /Un administrateur/);
   });
 
   it('annonce une durée lisible, pas un nombre de millisecondes', () => {
-    const long = renderAccountMail(mail({ expiresAt: new Date(Date.now() + 72 * 3600_000).toISOString() }));
+    const long = renderAccountMail(mail({ expiresAt: new Date(Date.now() + 72 * 3600_000).toISOString() }), 'fr');
     const short = renderAccountMail(
       mail({ kind: 'password_reset', expiresAt: new Date(Date.now() + 3600_000).toISOString() }),
+      'fr',
     );
 
     assert.match(long.text, /valable 3 jours/);
@@ -102,10 +104,30 @@ describe('e-mails de cycle de vie des comptes', () => {
 
   it('dit dans les deux cas que le lien ne sert qu’une fois', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
-      const { text, html } = renderAccountMail(mail({ kind }));
+      const { text, html } = renderAccountMail(mail({ kind }), 'fr');
       assert.match(text, /une seule fois/);
       assert.match(html, /une seule fois/);
     }
+  });
+
+  /**
+   * L'e-mail part vers quelqu'un qui n'a pas encore de compte, donc pas de
+   * préférence : c'est la langue de l'instance qui décide, et elle descend en
+   * paramètre parce que `packages/core` ne lit pas la base. Ce test vérifie que
+   * le paramètre traverse bien les trois rendus — sujet, texte et HTML — et que
+   * le `lang` du document suit, faute de quoi un lecteur d'écran anglophone se
+   * ferait lire du français avec une prosodie française.
+   */
+  it('compose dans la langue qu’on lui donne, jusqu’au `lang` du document', () => {
+    const fr = renderAccountMail(mail({ kind: 'invitation' }), 'fr');
+    const en = renderAccountMail(mail({ kind: 'invitation' }), 'en');
+
+    assert.notEqual(fr.subject, en.subject);
+    assert.match(en.subject, /Your access to/i);
+    assert.match(en.text, /Choose my password/);
+    assert.ok(!/Choisir mon mot de passe/.test(en.text), 'du français a survécu dans la version anglaise');
+    assert.match(fr.html, /<html lang="fr"/);
+    assert.match(en.html, /<html lang="en"/);
   });
 
   it('refuse une adresse ou une URL qui n’en sont pas', () => {

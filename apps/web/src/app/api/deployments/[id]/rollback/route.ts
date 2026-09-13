@@ -2,7 +2,8 @@ import { DEPLOYMENT_ROLLBACK_JOB, deploymentJobDataSchema } from '@pupitre/core'
 import { getDeploymentSummary, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
@@ -19,15 +20,13 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   if (!deployment.previousDeploymentId) {
-    throw new ConflictError(
-      "Aucun déploiement précédent réussi sur cette cible : il n'y a nulle part où revenir.",
-    );
+    throw new ConflictError(msg(messages, 'error.noPrevious'));
   }
   if (deployment.status === 'running' || deployment.status === 'pending') {
-    throw new ConflictError('Ce déploiement est en cours.');
+    throw new ConflictError(msg(messages, 'error.inProgress'));
   }
 
   const job = await getOpsQueue().add(
@@ -35,7 +34,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
     deploymentJobDataSchema.parse({ deploymentId: id, actorId: auth.userId, ip: auth.ip }),
     { attempts: 1 },
   );
-  if (!job.id) throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+  if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.enqueueFailed'));
 
   await logAudit({
     actorId: auth.userId,

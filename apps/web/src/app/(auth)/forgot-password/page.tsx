@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { auth as messages } from '@/i18n/messages/auth';
+import { getT } from '@/i18n/server';
 import { canSendAccountMail } from '@/lib/account-mail';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ForgotPasswordForm } from './forgot-password-form';
 
-export const metadata: Metadata = { title: 'Mot de passe oublié — Pupitre' };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT(messages))('meta.forgot') };
+}
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -21,25 +26,25 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ForgotPasswordPage() {
   if (!(await canSendAccountMail())) {
+    const t = await getT(messages);
+
     return (
       <Card className="shadow-raised">
         <CardHeader>
-          <CardTitle className="text-lg">Réinitialisation indisponible</CardTitle>
-          <CardDescription>
-            Cette instance n&apos;a aucun canal e-mail configuré : elle ne peut envoyer aucun lien.
-          </CardDescription>
+          <CardTitle className="text-lg">{t('forgot.unavailable.title')}</CardTitle>
+          <CardDescription>{t('forgot.unavailable.description')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert variant="info">
-            Demandez à un administrateur de vous redonner un accès. Il peut configurer un serveur
-            SMTP dans <span className="font-medium">Paramètres → Notifications</span> pour que ce
-            parcours fonctionne.
+            {t('forgot.unavailable.hint.before')}{' '}
+            <span className="font-medium">{t('forgot.unavailable.hint.path')}</span>{' '}
+            {t('forgot.unavailable.hint.after')}
           </Alert>
           <Link
             href="/login"
             className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
           >
-            Retour à la connexion
+            {t('link.backToLogin')}
           </Link>
         </CardContent>
       </Card>

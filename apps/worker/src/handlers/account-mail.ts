@@ -3,6 +3,7 @@ import {
   accountMailSchema,
   decrypt,
   describeFailure,
+  languageOf,
   renderAccountMail,
   type AccountMailJobResult,
 } from '@pupitre/core';
@@ -118,7 +119,13 @@ export async function handleAccountMail(
     actor: data.actor,
   });
 
-  const envelope = renderAccountMail(mail);
+  /**
+   * La langue de l'e-mail est celle de **l'instance**, pas du destinataire :
+   * une invitation part vers quelqu'un qui n'a pas encore de compte, donc
+   * personne à qui demander. Même règle que les alertes et que le panel, et
+   * même source — la locale de régionalisation.
+   */
+  const envelope = renderAccountMail(mail, languageOf(settings.locale));
   const transport = nodemailerTransport(smtpOptionsFrom(resolved.resolved, NOTIFICATION_TIMEOUT_MS));
 
   try {

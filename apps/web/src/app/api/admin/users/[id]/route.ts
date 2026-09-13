@@ -2,7 +2,8 @@ import { eq, getDb, getTwoFactorStates, getUserGrants, logAudit, users } from '@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { revokeResetTokens } from '@/lib/auth';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { countActiveAdmins } from '../route';
@@ -20,7 +21,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users.id, id));
-  if (!user) throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+  if (!user) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   const grants = await getUserGrants(id, db);
   const twoFactor = await getTwoFactorStates(db);
@@ -42,18 +43,16 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   if (id === auth.userId) {
-    throw new ConflictError('Impossible de supprimer son propre compte');
+    throw new ConflictError(msg(admin, 'error.user.deleteSelf'));
   }
 
   const db = getDb();
   const [user] = await db.select().from(users).where(eq(users.id, id));
-  if (!user) throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+  if (!user) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   const grants = await getUserGrants(id, db);
   if (grants.roles.includes('admin') && (await countActiveAdmins(id)) === 0) {
-    throw new ConflictError(
-      'Impossible de supprimer le dernier administrateur actif de la plateforme',
-    );
+    throw new ConflictError(msg(admin, 'error.user.lastAdmin.delete'));
   }
 
   /**

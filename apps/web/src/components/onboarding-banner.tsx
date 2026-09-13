@@ -5,6 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n/client';
+import { onboarding } from '@/i18n/messages/onboarding';
 
 /**
  * Rappel de reprise, posé en tête de chaque page tant que l'assistant n'est ni
@@ -28,6 +30,7 @@ export function OnboardingBanner({
   done: number;
   total: number;
 }) {
+  const t = useT(onboarding);
   const pathname = usePathname();
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -49,19 +52,24 @@ export function OnboardingBanner({
     <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-signal-edge border-l-[3px] border-l-signal bg-signal-soft/50 px-3.5 py-2.5">
       <Compass className="size-4 shrink-0 text-signal" aria-hidden />
       <div className="min-w-0 flex-1">
+        {/*
+          Le titre de l'étape est mis en avant : la phrase du dictionnaire
+          s'arrête donc aux deux-points, et le point final suit la mise en
+          avant. C'est de la ponctuation, pas du texte à traduire.
+        */}
         <span className="text-[0.8125rem] leading-relaxed text-ink">
-          Prise en main en cours — prochaine étape&nbsp;: <strong>{stepTitle}</strong>.
+          {t('banner.next')} <strong>{stepTitle}</strong>.
         </span>{' '}
         <span className="font-mono text-xs text-ink-muted tabular-nums">
-          {done}/{total} étape{total > 1 ? 's' : ''}
+          {t('banner.count', { done, count: total })}
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <Button asChild size="sm">
-          <Link href="/onboarding">Reprendre</Link>
+          <Link href="/onboarding">{t('banner.resume')}</Link>
         </Button>
         <Button size="sm" variant="ghost" disabled={pending} onClick={() => void dismiss()}>
-          Plus tard
+          {t('action.later')}
         </Button>
       </div>
     </div>

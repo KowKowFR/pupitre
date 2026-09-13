@@ -1,10 +1,12 @@
 import Link from 'next/link';
-import { aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
+import { aiModelMismatch, aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
 import { usableRuntimes } from '@pupitre/core';
 import { getAiApiKey, getAppSettings, listTargets } from '@pupitre/db';
 import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { currentLanguage, getT } from '@/i18n/server';
+import { applications as messages } from '@/i18n/messages/applications';
 import { getEnv } from '@/lib/env';
 import { requirePagePermission } from '@/lib/page-auth';
 import { NewApplicationForm } from './new-application-form';
@@ -13,6 +15,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewApplicationPage() {
   const auth = await requirePagePermission('/applications/new', 'application:create');
+  const t = await getT(messages);
 
   // La clé ne quitte pas le serveur : on ne transmet au client que le fait
   // qu'elle existe, le fournisseur et le nom du modèle — qui ne sont pas des
@@ -27,6 +30,13 @@ export default async function NewApplicationPage() {
     env: process.env,
   });
   const descriptor = aiProviderDescriptor(ai.provider);
+  // `resolveAiConfig()` compose son avertissement sans savoir à qui il parle —
+  // il sert aussi le worker et les logs. On le recalcule ici, dans la langue de
+  // l'instance, parce que celui-là s'affiche dans une `Alert`.
+  const modelWarning = aiModelMismatch(ai.provider, ai.model, {
+    baseUrl: ai.baseUrl,
+    language: await currentLanguage(),
+  });
 
   // Le parcours va jusqu'au déploiement : on propose les cibles dont le
   // preflight a montré un runtime, et rien d'autre.
@@ -49,28 +59,24 @@ export default async function NewApplicationPage() {
             className="inline-flex items-center gap-1 transition-colors hover:text-ink"
           >
             <ChevronLeft className="size-3" />
-            Applications
+            {t('page.title')}
           </Link>
         }
-        title="Nouvelle application"
-        description="Cet écran produit une AppSpec et l'enregistre au catalogue — il ne touche à aucune machine tant que vous ne choisissez pas une cible plus bas. Le runtime n'entre pas dans la spec : c'est ici, au moment de déployer, qu'on tranche entre Docker Compose et K3s."
+        title={t('action.new')}
+        description={t('new.description')}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>AppSpec</CardTitle>
-          <CardDescription>
-            Décrivez l&apos;application et laissez le modèle proposer une spec, ou collez
-            directement un JSON. Dans les deux cas, la proposition s&apos;affiche avant
-            enregistrement, et Zod valide avant que quoi que ce soit n&apos;atteigne la base.
-          </CardDescription>
+          <CardTitle>{t('new.card.title')}</CardTitle>
+          <CardDescription>{t('new.card.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <NewApplicationForm
             aiEnabled={ai.enabled}
             provider={descriptor.label}
             model={ai.model}
-            modelWarning={ai.modelWarning}
+            modelWarning={modelWarning}
             missingKeyVar={descriptor.envApiKeyVar}
             targets={deployTargets}
           />

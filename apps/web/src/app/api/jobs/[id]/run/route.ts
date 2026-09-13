@@ -1,7 +1,8 @@
 import { getScheduledJob, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { jobs as messages } from '@/i18n/messages/jobs';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { triggerNow } from '@/lib/schedules';
@@ -27,7 +28,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const row = await getScheduledJob(id);
-  if (!row) throw new NotFoundError(`Aucune tâche planifiée « ${id} »`);
+  if (!row) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const jobId = await triggerNow(row, { userId: auth.userId, ip: auth.ip });
 

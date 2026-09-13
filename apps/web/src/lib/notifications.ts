@@ -10,7 +10,8 @@ import {
 } from '@pupitre/core';
 import { setAuditObserver } from '@pupitre/db';
 import { Queue, QueueEvents } from 'bullmq';
-import { HttpError } from './errors';
+import { notifications } from '@/i18n/messages/notifications';
+import { HttpError, msg } from './errors';
 import { logger } from './logger';
 import { getRedis } from './redis';
 
@@ -129,15 +130,23 @@ export async function runChannelTest(
       throw new HttpError(
         504,
         'notification_test_timeout',
-        "L'essai n'a pas abouti dans le délai imparti. Le worker est peut-être saturé.",
+        msg(notifications, 'error.testTimeout'),
       );
     }
-    throw new HttpError(502, 'notification_test_failed', `Essai impossible : ${message}`);
+    throw new HttpError(
+      502,
+      'notification_test_failed',
+      msg(notifications, 'error.testFailed', { detail: message }),
+    );
   }
 
   const parsed = notificationTestJobResultSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new HttpError(502, 'notification_test_failed', 'Le worker a renvoyé un verdict illisible');
+    throw new HttpError(
+      502,
+      'notification_test_failed',
+      msg(notifications, 'error.testUnreadable'),
+    );
   }
   return parsed.data;
 }

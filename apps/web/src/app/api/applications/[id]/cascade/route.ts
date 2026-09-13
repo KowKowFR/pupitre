@@ -1,6 +1,7 @@
 import {
   APPLICATION_DELETE_JOB,
   applicationDeleteJobDataSchema,
+  renderMessage,
   workspaceNameFor,
   type Permission,
 } from '@pupitre/core';
@@ -13,7 +14,9 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { applications as messages } from '@/i18n/messages/applications';
+import { currentLanguage } from '@/i18n/server';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
@@ -112,12 +115,12 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
   if (jobId !== undefined) {
     const job = await getOpsQueue().getJob(jobId);
-    if (!job) throw new NotFoundError(`Aucune tâche « ${jobId} » dans la queue ops`);
+    if (!job) throw new NotFoundError(msg(messages, 'error.jobNotFound', { jobId }));
 
     // Une tâche d'une autre application n'a rien à répondre sur ce chemin.
     const data = applicationDeleteJobDataSchema.safeParse(job.data);
     if (!data.success || data.data.applicationId !== id) {
-      throw new NotFoundError(`La tâche « ${jobId} » ne concerne pas cette application`);
+      throw new NotFoundError(msg(messages, 'error.jobOtherApplication', { jobId }));
     }
 
     return NextResponse.json({
@@ -130,7 +133,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   }
 
   const application = await getApplication(id);
-  if (!application) throw new NotFoundError(`Application « ${id} » introuvable`);
+  if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const [blockers, reservedPorts, historyCount] = await Promise.all([
     listApplicationDeletionBlockers(id),
@@ -172,7 +175,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { force, confirm } = await readJsonBody(request, cascadeSchema);
 
   const application = await getApplication(id);
-  if (!application) throw new NotFoundError(`Application « ${id} » introuvable`);
+  if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const blockers = await listApplicationDeletionBlockers(id);
 
@@ -182,26 +185,50 @@ export const POST = apiRoute<Context>(async (request, context) => {
   // on attend.
   const inProgress = blockers.filter((blocker) => blocker.reason === 'in_progress');
   if (inProgress.length > 0) {
+    // Les listes ci-dessous s'insèrent DANS la phrase : elles ne peuvent pas
+    // attendre la sérialisation comme `msg()`. On lit la langue ici pour que
+    // les deux morceaux tombent d'accord.
+    const language = await currentLanguage();
     throw new ConflictError(
-      `${inProgress.length} déploiement(s) de « ${application.slug} » sont en cours : ` +
-        `${inProgress.map((blocker) => `v${blocker.version} sur ${blocker.targetName}`).join(', ')}. ` +
-        `Attendez qu'ils se terminent — le forçage ne s'applique pas à un déploiement en vol.`,
+      msg(messages, 'error.deploymentsInProgress', {
+        count: inProgress.length,
+        slug: application.slug,
+        list: inProgress
+          .map((blocker) =>
+            renderMessage(messages, language, 'error.deploymentEntry', {
+              version: blocker.version,
+              target: blocker.targetName,
+            }),
+          )
+          .join(', '),
+      }),
     );
   }
 
   if (force && confirm !== application.slug) {
+    const language = await currentLanguage();
     throw new HttpError(
       422,
       'confirmation_required',
-      `Le forçage abandonne ${blockers.length} charge(s) sur leurs machines sans les arrêter : ` +
-        `${blockers
-          .map(
-            (blocker) =>
-              `${workspaceNameFor(application.slug)} sur ${blocker.targetName} (${blocker.targetHost}` +
-              `${blocker.publishedPort === null ? '' : `, port ${blocker.publishedPort}`})`,
+      msg(messages, 'error.confirmationRequired', {
+        count: blockers.length,
+        slug: application.slug,
+        list: blockers
+          .map((blocker) =>
+            renderMessage(messages, language, 'error.abandonEntry', {
+              workspace: workspaceNameFor(application.slug),
+              target: blocker.targetName,
+              host: blocker.targetHost,
+              port:
+                blocker.publishedPort === null
+                  ? ''
+                  : renderMessage(messages, language, 'error.abandonPort', {
+                      port: blocker.publishedPort,
+                    }),
+            }),
           )
-          .join(' ; ')}. ` +
-        `Recopiez « ${application.slug} » dans « confirm » pour confirmer.`,
+          .join(' ; '),
+      }),
       { expected: application.slug, abandons: describe(blockers, application.slug) },
     );
   }
@@ -218,7 +245,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
     // effacement rejoué porterait sur une application qui n'existe plus.
     { attempts: 1 },
   );
-  if (!job.id) throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+  if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.enqueueFailed'));
 
   // Tracée **avant** que quoi que ce soit disparaisse : si le worker s'écroule
   // au milieu, le journal dit au moins ce qui avait été demandé, et sur quoi.

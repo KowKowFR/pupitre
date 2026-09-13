@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
+import { auth as messages } from '@/i18n/messages/auth';
+import { getT } from '@/i18n/server';
 import { canSendAccountMail } from '@/lib/account-mail';
 import { isSignupOpen } from '@/lib/auth';
 import { LoginForm } from './login-form';
 
-export const metadata: Metadata = { title: 'Connexion — Pupitre' };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT(messages))('meta.login') };
+}
+
 export const dynamic = 'force-dynamic';
 
 export default async function LoginPage({

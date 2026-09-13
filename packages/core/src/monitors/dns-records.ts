@@ -95,17 +95,9 @@ export const DNS_RECORD_TYPES_LIST = [
 export const dnsRecordTypeSchema = z.enum(DNS_RECORD_TYPES_LIST);
 export type DnsRecordType = z.infer<typeof dnsRecordTypeSchema>;
 
-/** Ce que chaque type observe, pour l'écran. */
-export const DNS_RECORD_TYPE_LABELS: Record<DnsRecordType, string> = {
-  A: 'A — adresse IPv4',
-  AAAA: 'AAAA — adresse IPv6',
-  CNAME: 'CNAME — alias',
-  MX: 'MX — serveurs de courrier',
-  NS: 'NS — serveurs de noms (délégation)',
-  TXT: 'TXT — SPF, DKIM, DMARC, preuves de propriété',
-  CAA: 'CAA — autorités de certification autorisées',
-  SRV: 'SRV — découverte de service',
-};
+// Ce que chaque type observe s'écrit dans le catalogue, aux clés `dns.record.*`
+// de `monitorCatalogCopy` : c'est là que l'écran va le chercher, dans la langue
+// de l'instance. La table qui vivait ici n'avait plus de lecteur.
 
 /** La forme qu'une valeur attendue doit prendre. Affichée en aide de saisie. */
 export const DNS_RECORD_TYPE_FORMATS: Record<DnsRecordType, string> = {

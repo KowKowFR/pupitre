@@ -1,10 +1,16 @@
+import {
+  DEFAULT_UI_LANGUAGE,
+  renderMessage,
+  type Translated,
+  type UiLanguage,
+} from '../i18n.js';
 import type { ChannelConfig } from './catalog.js';
 import {
   renderDigestItemLine,
   renderDigestOmission,
   type NotificationDigest,
 } from './digest.js';
-import { NOTIFICATION_SEVERITY_LABELS, type NotificationMessage } from './message.js';
+import { notificationSeverityLabel, type NotificationMessage } from './message.js';
 import { httpCall, jsonField } from './http.js';
 import {
   NotificationError,
@@ -25,6 +31,34 @@ import {
  * sans dire lequel des dix champs est en cause. On tronque donc ici, une fois,
  * plutôt que de découvrir la limite en production.
  */
+
+/**
+ * Ce que ce canal ajoute autour du message neutre : le pied de l'`embed` d'un
+ * résumé, et les deux verdicts de la sonde.
+ */
+const fr = {
+  'digest.footer': '{count} alertes regroupées',
+  'probe.named': 'Webhook « {name} » reconnu par Discord.',
+  'probe.plain': 'Webhook reconnu par Discord.',
+  'error.noUrl': 'aucune URL de webhook configurée',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'digest.footer': '{count} alerts grouped',
+  'probe.named': 'Webhook “{name}” recognized by Discord.',
+  'probe.plain': 'Webhook recognized by Discord.',
+  'error.noUrl': 'no webhook URL configured',
+};
+
+const DISCORD_TEXT = { fr, en };
+
+function t(
+  language: UiLanguage,
+  key: keyof typeof fr,
+  vars?: Record<string, string | number>,
+): string {
+  return renderMessage(DISCORD_TEXT, language, key, vars);
+}
 
 const LIMIT = { title: 256, description: 4096, fieldName: 256, fieldValue: 1024, fields: 25 };
 
@@ -62,10 +96,10 @@ export class DiscordChannel implements NotificationChannel {
     private readonly timeoutMs: number,
   ) {}
 
-  private url(resolved: ResolvedChannelConfig): string {
+  private url(resolved: ResolvedChannelConfig, language: UiLanguage): string {
     const url = str(resolved.secrets, 'webhookUrl');
     if (url.length === 0) {
-      throw new NotificationError('aucune URL de webhook configurée', this.kind, 'config');
+      throw new NotificationError(t(language, 'error.noUrl'), this.kind, 'config');
     }
     return url;
   }
@@ -75,20 +109,24 @@ export class DiscordChannel implements NotificationChannel {
    * salon : c'est la sonde exacte qu'il faut, et elle valide à la fois l'URL et
    * le jeton qu'elle contient.
    */
-  async test(resolved: ResolvedChannelConfig): Promise<NotificationTestResult> {
+  async test(
+    resolved: ResolvedChannelConfig,
+    language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  ): Promise<NotificationTestResult> {
     try {
       const result = await httpCall({
         channel: this.kind,
         fetch: this.fetchImpl,
-        url: this.url(resolved),
+        url: this.url(resolved, language),
         method: 'GET',
         timeoutMs: this.timeoutMs,
         secrets: resolved.secrets,
       });
       const name = jsonField(result.text, 'name');
+      // Le nom du webhook a été écrit côté Discord : c'est de la donnée.
       return {
         ok: true,
-        detail: name ? `Webhook « ${name} » reconnu par Discord.` : 'Webhook reconnu par Discord.',
+        detail: name ? t(language, 'probe.named', { name }) : t(language, 'probe.plain'),
       };
     } catch (error) {
       return {
@@ -104,7 +142,7 @@ export class DiscordChannel implements NotificationChannel {
     await httpCall({
       channel: this.kind,
       fetch: this.fetchImpl,
-      url: this.url(resolved),
+      url: this.url(resolved, message.language),
       method: 'POST',
       timeoutMs: this.timeoutMs,
       secrets: resolved.secrets,
@@ -126,7 +164,7 @@ export class DiscordChannel implements NotificationChannel {
             })),
             footer: {
               text: clamp(
-                `${message.instance} · ${NOTIFICATION_SEVERITY_LABELS[message.severity]}`,
+                `${message.instance} · ${notificationSeverityLabel(message.severity, message.language)}`,
                 LIMIT.fieldValue,
               ),
             },
@@ -148,7 +186,7 @@ export class DiscordChannel implements NotificationChannel {
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     const username = str(resolved.config, 'username');
     const shown = digest.items.slice(0, DIGEST_LINES);
-    const omission = renderDigestOmission(digest.count - shown.length);
+    const omission = renderDigestOmission(digest.count - shown.length, digest.language);
 
     const description = [
       digest.body,
@@ -160,7 +198,7 @@ export class DiscordChannel implements NotificationChannel {
     await httpCall({
       channel: this.kind,
       fetch: this.fetchImpl,
-      url: this.url(resolved),
+      url: this.url(resolved, digest.language),
       method: 'POST',
       timeoutMs: this.timeoutMs,
       secrets: resolved.secrets,
@@ -176,7 +214,7 @@ export class DiscordChannel implements NotificationChannel {
             fields: [],
             footer: {
               text: clamp(
-                `${digest.instance} · ${NOTIFICATION_SEVERITY_LABELS[digest.severity]} · ${digest.count} alertes regroupées`,
+                `${digest.instance} · ${notificationSeverityLabel(digest.severity, digest.language)} · ${t(digest.language, 'digest.footer', { count: digest.count })}`,
                 LIMIT.fieldValue,
               ),
             },

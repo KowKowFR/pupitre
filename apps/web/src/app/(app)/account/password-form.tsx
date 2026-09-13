@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/i18n/client';
+import { account as messages } from '@/i18n/messages/account';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { readApiError } from './api-error';
 
 export function PasswordForm() {
+  const t = useT(messages);
   const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -25,11 +28,11 @@ export function PasswordForm() {
     setNotice(null);
 
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
-      setError(`Le mot de passe doit faire au moins ${PASSWORD_MIN_LENGTH} caractères.`);
+      setError(t('password.tooShort', { count: PASSWORD_MIN_LENGTH }));
       return;
     }
     if (newPassword !== confirmation) {
-      setError('La confirmation ne correspond pas au nouveau mot de passe.');
+      setError(t('password.mismatch'));
       return;
     }
 
@@ -41,7 +44,7 @@ export function PasswordForm() {
     });
 
     if (!response.ok) {
-      setError(await readApiError(response));
+      setError(await readApiError(response, t('error.http', { status: response.status })));
       setPending(false);
       return;
     }
@@ -49,9 +52,7 @@ export function PasswordForm() {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmation('');
-    setNotice(
-      'Mot de passe changé. Toutes les autres sessions ont été fermées ; celle-ci reste ouverte.',
-    );
+    setNotice(t('password.changed'));
     setPending(false);
     router.refresh();
   }
@@ -59,11 +60,8 @@ export function PasswordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Mot de passe</CardTitle>
-        <CardDescription>
-          L&apos;ancien mot de passe est exigé : sans lui, un cookie de session volé suffirait
-          à s&apos;emparer du compte. Le changement ferme toutes les autres sessions ouvertes.
-        </CardDescription>
+        <CardTitle>{t('password.title')}</CardTitle>
+        <CardDescription>{t('password.description')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={submit} className="flex flex-col gap-4">
@@ -71,7 +69,7 @@ export function PasswordForm() {
           {notice ? <Alert variant="success">{notice}</Alert> : null}
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="current-password">Mot de passe actuel</Label>
+            <Label htmlFor="current-password">{t('password.field.current')}</Label>
             <Input
               id="current-password"
               type="password"
@@ -83,7 +81,7 @@ export function PasswordForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="new-password">Nouveau mot de passe</Label>
+            <Label htmlFor="new-password">{t('password.field.new')}</Label>
             <Input
               id="new-password"
               type="password"
@@ -93,11 +91,13 @@ export function PasswordForm() {
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
             />
-            <p className="text-xs text-ink-faint">{PASSWORD_MIN_LENGTH} caractères minimum.</p>
+            <p className="text-xs text-ink-faint">
+              {t('password.min', { count: PASSWORD_MIN_LENGTH })}
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="confirm-password">Confirmation</Label>
+            <Label htmlFor="confirm-password">{t('password.field.confirmation')}</Label>
             <Input
               id="confirm-password"
               type="password"
@@ -109,7 +109,7 @@ export function PasswordForm() {
           </div>
 
           <Button type="submit" disabled={pending} className="mt-1 self-start">
-            {pending ? 'Changement…' : 'Changer le mot de passe'}
+            {pending ? t('password.pending') : t('password.submit')}
           </Button>
         </form>
       </CardContent>

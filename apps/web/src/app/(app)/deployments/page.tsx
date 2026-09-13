@@ -1,11 +1,15 @@
 import {
   deploymentQuerySchema,
+  getAppSettings,
   listDeployments,
   listLiveDeploymentIds,
   scanDigestForDeployments,
 } from '@pupitre/db';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
+import { getT } from '@/i18n/server';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { DeploymentsTable } from './deployments-table';
 
@@ -15,6 +19,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function DeploymentsPage({ searchParams }: { searchParams: SearchParams }) {
   const auth = await requirePagePermission('/deployments', 'deployment:read');
+  const t = await getT(messages);
 
   const raw = await searchParams;
   const flat: Record<string, string> = {};
@@ -34,25 +39,27 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
   // chaque couple application+cible. Ce sont eux qui ne se purgent pas — la
   // case grisée dit pourquoi avant que le serveur n'ait à le refuser.
   const live = await listLiveDeploymentIds();
+  const { settings } = await getAppSettings();
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Journal des runs"
-        title="Déploiements"
-        description="Chaque ligne est un run : une AppSpec figée, poussée sur une cible, avec ses scans et son verdict. Ouvrez-en un pour revoir ses étapes et ses logs."
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
         actions={
           <span className="font-mono text-xs text-ink-faint tabular-nums">
-            {page.total} run{page.total > 1 ? 's' : ''} · page {page.page}/{page.totalPages}
+            {t('page.counter', {
+              count: page.total,
+              page: page.page,
+              total: page.totalPages,
+            })}
           </span>
         }
       />
 
       {page.items.length === 0 ? (
-        <EmptyState
-          title="Aucun déploiement"
-          hint="Un run naît d'une application déclarée et d'une cible au preflight vert. Commencez par la page Applications."
-        />
+        <EmptyState title={t('empty.title')} hint={t('empty.hint')} />
       ) : (
         <DeploymentsTable
           items={page.items.map((item) => ({
@@ -73,6 +80,7 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
           }))}
           page={{ page: page.page, totalPages: page.totalPages, pageSize: page.pageSize }}
           canPurge={auth.can('deployment:purge')}
+          format={formatSettingsOf(settings)}
         />
       )}
     </div>

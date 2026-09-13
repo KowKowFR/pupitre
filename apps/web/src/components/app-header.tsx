@@ -18,6 +18,8 @@ import type { ReactNode } from 'react';
 import type { RoleKey } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
 import { NavLink } from '@/components/nav-link';
+import { getT } from '@/i18n/server';
+import { chrome } from '@/i18n/messages/chrome';
 
 type Props = {
   email: string;
@@ -48,7 +50,7 @@ type NavItem = { href: string; label: string; icon: ReactNode; visible: boolean 
  * barre haute dont la nav défile horizontalement. Une seule source pour les
  * entrées dans les deux cas.
  */
-export function AppHeader({
+export async function AppHeader({
   email,
   name,
   roles,
@@ -61,33 +63,39 @@ export function AppHeader({
   instanceName,
   instanceTagline,
 }: Props) {
+  const t = await getT(chrome);
+
   const operations: NavItem[] = [
-    { href: '/', label: 'Tableau de bord', icon: <Gauge />, visible: true },
-    { href: '/targets', label: 'Cibles', icon: <Server />, visible: true },
-    { href: '/applications', label: 'Applications', icon: <Boxes />, visible: true },
-    { href: '/apps', label: 'Supervision', icon: <Activity />, visible: true },
-    { href: '/monitors', label: 'Sondes', icon: <Radar />, visible: canReadMonitors },
-    { href: '/deployments', label: 'Déploiements', icon: <Rocket />, visible: true },
-    { href: '/jobs', label: 'Tâches', icon: <Timer />, visible: canReadJobs },
+    { href: '/', label: t('nav.dashboard'), icon: <Gauge />, visible: true },
+    { href: '/targets', label: t('nav.targets'), icon: <Server />, visible: true },
+    { href: '/applications', label: t('nav.applications'), icon: <Boxes />, visible: true },
+    { href: '/apps', label: t('nav.servers'), icon: <Activity />, visible: true },
+    { href: '/monitors', label: t('nav.monitoring'), icon: <Radar />, visible: canReadMonitors },
+    { href: '/deployments', label: t('nav.deployments'), icon: <Rocket />, visible: true },
+    { href: '/jobs', label: t('nav.jobs'), icon: <Timer />, visible: canReadJobs },
   ];
 
   const administration: NavItem[] = [
-    { href: '/admin/logs', label: 'Logs', icon: <ScrollText />, visible: canReadAudit },
-    { href: '/admin/users', label: 'Utilisateurs', icon: <Users />, visible: canManageUsers },
-    { href: '/admin/roles', label: 'Rôles', icon: <KeyRound />, visible: canManageRoles },
+    { href: '/admin/logs', label: t('nav.logs'), icon: <ScrollText />, visible: canReadAudit },
+    { href: '/admin/users', label: t('nav.users'), icon: <Users />, visible: canManageUsers },
+    { href: '/admin/roles', label: t('nav.roles'), icon: <KeyRound />, visible: canManageRoles },
     {
       href: '/admin/settings',
-      label: 'Paramètres',
+      label: t('nav.settings'),
       icon: <SlidersHorizontal />,
       visible: canManageSettings,
     },
   ];
 
   const groups = [
-    { key: 'ops', label: 'Exploitation', items: operations.filter((item) => item.visible) },
+    {
+      key: 'ops',
+      label: t('nav.group.operations'),
+      items: operations.filter((item) => item.visible),
+    },
     {
       key: 'admin',
-      label: 'Administration',
+      label: t('nav.group.administration'),
       items: administration.filter((item) => item.visible),
     },
   ].filter((group) => group.items.length > 0);
@@ -100,7 +108,7 @@ export function AppHeader({
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 overflow-y-auto border-r border-line bg-ground-deep px-3 py-5 lg:flex">
         <Wordmark name={instanceName} tagline={instanceTagline} />
 
-        <nav className="flex flex-1 flex-col gap-5" aria-label="Sections">
+        <nav className="flex flex-1 flex-col gap-5" aria-label={t('nav.landmark')}>
           {groups.map((group) => (
             <div key={group.key} className="flex flex-col gap-1">
               <span className="eyebrow px-3 pb-1 text-ink-faint">{group.label}</span>
@@ -113,7 +121,13 @@ export function AppHeader({
           ))}
         </nav>
 
-        <Operator email={email} name={name} roles={roles} />
+        <Operator
+          email={email}
+          name={name}
+          roles={roles}
+          accountLabel={t('nav.account')}
+          signOutLabel={t('nav.signOut')}
+        />
       </aside>
 
       {/* Barre haute — écrans étroits */}
@@ -124,14 +138,14 @@ export function AppHeader({
             <span className="hidden font-mono text-xs text-ink-muted sm:inline">{email}</span>
             <Link
               href="/account"
-              aria-label="Mon compte"
+              aria-label={t('nav.account')}
               className="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
             >
               <ShieldCheck className="size-4" />
             </Link>
             <Link
               href="/logout"
-              aria-label="Déconnexion"
+              aria-label={t('nav.signOut')}
               className="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
             >
               <LogOut className="size-4" />
@@ -139,7 +153,7 @@ export function AppHeader({
           </div>
         </div>
         <nav
-          aria-label="Sections"
+          aria-label={t('nav.landmark')}
           className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none]"
         >
           {flat.map((item) => (
@@ -191,7 +205,19 @@ function Wordmark({
 }
 
 /** Bloc opérateur en pied de rail : qui est connecté, avec quels rôles. */
-function Operator({ email, name, roles }: { email: string; name: string; roles: RoleKey[] }) {
+function Operator({
+  email,
+  name,
+  roles,
+  accountLabel,
+  signOutLabel,
+}: {
+  email: string;
+  name: string;
+  roles: RoleKey[];
+  accountLabel: string;
+  signOutLabel: string;
+}) {
   return (
     <div className="flex shrink-0 flex-col gap-2 rounded-lg border border-line bg-surface p-3 shadow-panel">
       <div className="min-w-0">
@@ -215,14 +241,14 @@ function Operator({ email, name, roles }: { email: string; name: string; roles: 
           className="flex items-center gap-1.5 text-xs text-ink-muted transition-colors hover:text-ink"
         >
           <ShieldCheck className="size-3.5" />
-          Mon compte
+          {accountLabel}
         </Link>
         <Link
           href="/logout"
           className="flex items-center gap-1.5 text-xs text-ink-muted transition-colors hover:text-ink"
         >
           <LogOut className="size-3.5" />
-          Déconnexion
+          {signOutLabel}
         </Link>
       </div>
     </div>

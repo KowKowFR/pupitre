@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
+import { auth as messages } from '@/i18n/messages/auth';
+import { getT } from '@/i18n/server';
 import { ChoosePasswordForm } from '../choose-password-form';
 
-export const metadata: Metadata = { title: 'Nouveau mot de passe — Pupitre' };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT(messages))('meta.reset') };
+}
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -19,21 +24,20 @@ export default async function ResetPasswordPage({
   searchParams: Promise<{ token?: string; error?: string }>;
 }) {
   const { token, error } = await searchParams;
+  const t = await getT(messages);
 
   return (
     <ChoosePasswordForm
       token={token ?? null}
       linkError={error ?? null}
       copy={{
-        title: 'Nouveau mot de passe',
-        description:
-          'Choisissez un mot de passe. Toutes les sessions ouvertes sur ce compte seront fermées, y compris celles que vous n’avez pas ouvertes.',
-        submit: 'Enregistrer et fermer les sessions',
-        doneTitle: 'Mot de passe changé',
-        doneBody:
-          'Les sessions ouvertes sur ce compte ont été fermées. Reconnectez-vous avec votre nouveau mot de passe.',
-        deadTitle: 'Lien de réinitialisation périmé',
-        deadBody: 'Ce lien ne permet plus de changer de mot de passe.',
+        title: t('reset.title'),
+        description: t('reset.description'),
+        submit: t('reset.submit'),
+        doneTitle: t('reset.done.title'),
+        doneBody: t('reset.done.body'),
+        deadTitle: t('reset.dead.title'),
+        deadBody: t('reset.dead.body'),
       }}
     />
   );

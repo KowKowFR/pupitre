@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { getAppSettings } from '@pupitre/db';
+import { getT } from '@/i18n/server';
+import { onboarding } from '@/i18n/messages/onboarding';
 import { currentAuth } from '@/lib/page-auth';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +28,7 @@ export default async function OnboardingLayout({ children }: { children: ReactNo
   if (!auth) redirect('/login');
 
   const { settings } = await getAppSettings();
+  const t = await getT(onboarding);
 
   return (
     <div className="bg-canvas min-h-dvh">
@@ -41,7 +44,7 @@ export default async function OnboardingLayout({ children }: { children: ReactNo
             <span className="font-condensed text-ink text-[0.9375rem] font-semibold tracking-[0.01em]">
               {settings.instanceName}
             </span>
-            <span className="eyebrow text-ink-faint pt-1">Premiers pas</span>
+            <span className="eyebrow text-ink-faint pt-1">{t('shell.eyebrow')}</span>
           </span>
         </div>
       </header>

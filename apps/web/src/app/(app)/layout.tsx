@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
-import { onboardingStep } from '@pupitre/core';
 import { getAppSettings } from '@pupitre/db';
+import { getT } from '@/i18n/server';
+import { onboarding } from '@/i18n/messages/onboarding';
 import { currentAuth } from '@/lib/page-auth';
 import { AppHeader } from '@/components/app-header';
 import { OnboardingBanner } from '@/components/onboarding-banner';
@@ -42,6 +43,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   ).length;
   const actionable = gate.steps.filter((step) => step.requires !== null).length;
 
+  // Le titre de l'étape est de l'affichage : il vit dans le dictionnaire de
+  // l'assistant, pas dans le catalogue d'étapes.
+  const t = await getT(onboarding);
+
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
       <AppHeader
@@ -61,7 +66,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-9">
           {gate.resumable ? (
             <OnboardingBanner
-              stepTitle={onboardingStep(gate.state.currentStep).title}
+              stepTitle={t(`step.${gate.state.currentStep}.title`)}
               done={done}
               total={actionable}
             />

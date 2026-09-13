@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useT } from '@/i18n/client';
+import { auth as messages } from '@/i18n/messages/auth';
 import { requestPasswordReset } from '@/lib/auth-client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -29,6 +31,7 @@ import { Label } from '@/components/ui/label';
  * par minute), et un bouton qu'on peut marteler invite à le marteler.
  */
 export function ForgotPasswordForm() {
+  const t = useT(messages);
   const [sent, setSent] = useState(false);
   const [throttled, setThrottled] = useState(false);
   const [pending, setPending] = useState(false);
@@ -58,27 +61,20 @@ export function ForgotPasswordForm() {
     return (
       <Card className="shadow-raised">
         <CardHeader>
-          <CardTitle className="text-lg">Vérifiez votre boîte de réception</CardTitle>
-          <CardDescription>
-            Si un compte existe pour cette adresse, un lien vient d&apos;y être envoyé.
-          </CardDescription>
+          <CardTitle className="text-lg">{t('forgot.sent.title')}</CardTitle>
+          <CardDescription>{t('forgot.sent.description')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {throttled ? (
-            <Alert variant="destructive">
-              Trop de demandes depuis cette adresse IP. Attendez une minute avant de réessayer.
-            </Alert>
+            <Alert variant="destructive">{t('forgot.throttled')}</Alert>
           ) : (
-            <Alert variant="info">
-              Le lien ne fonctionne qu&apos;une seule fois et expire au bout d&apos;une heure.
-              Choisir un nouveau mot de passe fermera toutes les sessions ouvertes sur le compte.
-            </Alert>
+            <Alert variant="info">{t('forgot.sent.notice')}</Alert>
           )}
           <Link
             href="/login"
             className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
           >
-            Retour à la connexion
+            {t('link.backToLogin')}
           </Link>
         </CardContent>
       </Card>
@@ -88,27 +84,24 @@ export function ForgotPasswordForm() {
   return (
     <Card className="shadow-raised">
       <CardHeader>
-        <CardTitle className="text-lg">Mot de passe oublié</CardTitle>
-        <CardDescription>
-          Saisissez l&apos;adresse de votre compte. Un lien pour en choisir un nouveau vous y sera
-          envoyé.
-        </CardDescription>
+        <CardTitle className="text-lg">{t('forgot.title')}</CardTitle>
+        <CardDescription>{t('forgot.description')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Adresse e-mail</Label>
+            <Label htmlFor="email">{t('field.email')}</Label>
             <Input id="email" name="email" type="email" autoComplete="email" required autoFocus />
           </div>
           <Button type="submit" className="mt-1 w-full" disabled={pending}>
-            {pending ? 'Envoi…' : 'Envoyer le lien'}
+            {pending ? t('forgot.pending') : t('forgot.submit')}
           </Button>
           <p className="text-center text-xs text-ink-muted">
             <Link
               href="/login"
               className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
             >
-              Retour à la connexion
+              {t('link.backToLogin')}
             </Link>
           </p>
         </form>

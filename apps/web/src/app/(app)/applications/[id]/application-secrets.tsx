@@ -9,6 +9,9 @@ import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { applications as messages } from '@/i18n/messages/applications';
 
 type ApiError = { error?: { message?: string } };
 
@@ -31,6 +34,8 @@ export function ApplicationSecrets({
   secrets: SecretView[];
   canEdit: boolean;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -47,7 +52,7 @@ export function ApplicationSecrets({
     setBusy(null);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       return false;
     }
     setEditing(null);
@@ -65,12 +70,7 @@ export function ApplicationSecrets({
   }
 
   function regenerate(name: string) {
-    const confirmed = window.confirm(
-      `Régénérer « ${name} » ?\n\n` +
-        "La nouvelle valeur ne prendra effet qu'au prochain déploiement, et les données " +
-        'déjà écrites avec l’ancienne (le volume d’une base, par exemple) ne la connaîtront ' +
-        'pas. À ne faire que sur une application neuve ou après avoir migré les données.',
-    );
+    const confirmed = window.confirm(t('secrets.regenerate.confirm', { name }));
     if (!confirmed) return;
     void call(name, {
       method: 'PUT',
@@ -80,25 +80,20 @@ export function ApplicationSecrets({
   }
 
   function remove(name: string) {
-    if (!window.confirm(`Supprimer définitivement la valeur de « ${name} » ?`)) return;
+    if (!window.confirm(t('secrets.delete.confirm', { name }))) return;
     void call(name, { method: 'DELETE' });
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Secrets</CardTitle>
+        <CardTitle>{t('secrets.title')}</CardTitle>
         <CardDescription>
-          L&apos;AppSpec ne déclare que des noms ; les valeurs vivent chiffrées en base, sous
-          <code className="mx-1 font-mono text-xs">MASTER_KEY</code>, et ne sont déchiffrées que
-          par le worker au moment du rendu. Elles sont attachées à l&apos;application, pas au
-          déploiement : un redéploiement réutilise la même valeur, sans quoi le volume d&apos;une
-          base déjà initialisée deviendrait inaccessible.{' '}
-          <strong className="font-medium text-ink">
-            Un nom peut reprendre la valeur d&apos;un autre
-          </strong>{' '}
-          — l&apos;application et sa base attendent souvent le même mot de passe sous deux noms
-          différents. Il n&apos;y a alors qu&apos;une valeur, et un seul endroit où la changer.
+          {t('secrets.description.1')}
+          <code className="mx-1 font-mono text-xs">MASTER_KEY</code>
+          {t('secrets.description.2')}{' '}
+          <strong className="font-medium text-ink">{t('secrets.description.3')}</strong>{' '}
+          {t('secrets.description.4')}
         </CardDescription>
       </CardHeader>
 
@@ -106,9 +101,7 @@ export function ApplicationSecrets({
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
         {secrets.length === 0 ? (
-          <p className="text-sm text-ink-muted">
-            Cette application ne déclare aucun secret.
-          </p>
+          <p className="text-sm text-ink-muted">{t('secrets.none')}</p>
         ) : null}
 
         <ul className="divide-y divide-line">
@@ -124,28 +117,34 @@ export function ApplicationSecrets({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-[0.8125rem] text-ink">{secret.name}</span>
 
-                  {secret.aliasOf ? <Badge variant="secondary">alias</Badge> : null}
+                  {secret.aliasOf ? (
+                    <Badge variant="secondary">{t('secrets.badge.alias')}</Badge>
+                  ) : null}
 
                   {secret.isSet ? (
-                    <Badge variant="ok">définie</Badge>
+                    <Badge variant="ok">{t('secrets.badge.set')}</Badge>
                   ) : (
                     // Pas « manquante » : le worker en génère une avant le
                     // rendu. Un secret déclaré ne peut donc pas bloquer un
                     // déploiement — l'écran ne doit pas laisser croire l'inverse.
-                    <Badge variant="warn">générée au déploiement</Badge>
+                    <Badge variant="warn">{t('secrets.badge.generatedAtDeploy')}</Badge>
                   )}
 
                   {secret.origin === 'generated' ? (
-                    <Badge variant="secondary">générée</Badge>
+                    <Badge variant="secondary">{t('secrets.badge.generated')}</Badge>
                   ) : null}
-                  {secret.origin === 'provided' ? <Badge variant="outline">saisie</Badge> : null}
-                  {secret.declared ? null : <Badge variant="warn">plus déclarée</Badge>}
+                  {secret.origin === 'provided' ? (
+                    <Badge variant="outline">{t('secrets.badge.provided')}</Badge>
+                  ) : null}
+                  {secret.declared ? null : (
+                    <Badge variant="warn">{t('secrets.badge.undeclared')}</Badge>
+                  )}
                 </div>
 
                 <p className="mt-0.5 text-xs text-ink-faint">
                   {secret.declared ? (
                     <>
-                      réclamée par{' '}
+                      {t('secrets.claimedBy')}
                       {secret.services.map((service) => (
                         <CodeBadge key={service} className="mr-1">
                           {service}
@@ -153,7 +152,7 @@ export function ApplicationSecrets({
                       ))}
                     </>
                   ) : (
-                    "aucun service de l'AppSpec courante ne la réclame — conservée tant qu'elle n'est pas supprimée à la main"
+                    t('secrets.orphan')
                   )}
                 </p>
 
@@ -162,14 +161,15 @@ export function ApplicationSecrets({
                     comme deux secrets indépendants. */}
                 {secret.aliasOf ? (
                   <p className="mt-0.5 text-xs text-ink-faint">
-                    reprend la valeur de <CodeBadge>{secret.aliasOf}</CodeBadge> — aucune valeur
-                    propre, aucune ligne en base
+                    {t('secrets.aliasOf.before')}
+                    <CodeBadge>{secret.aliasOf}</CodeBadge>
+                    {t('secrets.aliasOf.after')}
                   </p>
                 ) : null}
 
                 {secret.readAs.length > 0 ? (
                   <p className="mt-0.5 text-xs text-ink-faint">
-                    lue aussi sous{' '}
+                    {t('secrets.readAs')}{' '}
                     {secret.readAs.map((alias) => (
                       <CodeBadge key={alias} className="mr-1">
                         {alias}
@@ -181,7 +181,7 @@ export function ApplicationSecrets({
 
               {canEdit && secret.aliasOf ? (
                 <span className="text-xs text-ink-faint">
-                  se modifie sur « {secret.aliasOf} »
+                  {t('secrets.editOnRoot', { name: secret.aliasOf })}
                 </span>
               ) : null}
 
@@ -191,7 +191,7 @@ export function ApplicationSecrets({
                     autoFocus
                     type="password"
                     value={draft}
-                    placeholder="nouvelle valeur"
+                    placeholder={t('secrets.newValue')}
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') submit(secret.name);
@@ -202,7 +202,7 @@ export function ApplicationSecrets({
                   <Button
                     size="icon"
                     variant="default"
-                    aria-label="Enregistrer"
+                    aria-label={tc('save')}
                     disabled={busy === secret.name}
                     onClick={() => submit(secret.name)}
                   >
@@ -211,7 +211,7 @@ export function ApplicationSecrets({
                   <Button
                     size="icon"
                     variant="ghost"
-                    aria-label="Annuler"
+                    aria-label={tc('cancel')}
                     onClick={() => setEditing(null)}
                   >
                     <X className="size-4" />
@@ -230,13 +230,13 @@ export function ApplicationSecrets({
                       setDraft('');
                     }}
                   >
-                    {secret.isSet ? 'Remplacer' : 'Saisir maintenant'}
+                    {secret.isSet ? t('secrets.replace') : t('secrets.setNow')}
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    aria-label={`Régénérer ${secret.name}`}
-                    title="Tirer une nouvelle valeur au sort"
+                    aria-label={t('secrets.regenerate.label', { name: secret.name })}
+                    title={t('secrets.regenerate.title')}
                     disabled={busy === secret.name}
                     onClick={() => regenerate(secret.name)}
                   >
@@ -246,8 +246,8 @@ export function ApplicationSecrets({
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label={`Supprimer ${secret.name}`}
-                      title="Supprimer définitivement"
+                      aria-label={t('secrets.delete.label', { name: secret.name })}
+                      title={t('secrets.delete.title')}
                       disabled={busy === secret.name}
                       onClick={() => remove(secret.name)}
                     >

@@ -2,7 +2,17 @@ import type { Metadata, Viewport } from 'next';
 import { getAppSettings } from '@pupitre/db';
 import { IBM_Plex_Sans, IBM_Plex_Sans_Condensed, JetBrains_Mono } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { LanguageProvider } from '@/i18n/client';
+import { currentLanguage } from '@/i18n/server';
 import './globals.css';
+
+/**
+ * Le panel n'a aucune page statique : chacune lit la base, et depuis que la
+ * langue vient des paramètres d'instance, ce layout aussi. Le déclarer ici
+ * plutôt que page par page évite qu'une page oubliée se retrouve figée dans la
+ * langue qu'avait l'instance au moment du `next build`.
+ */
+export const dynamic = 'force-dynamic';
 
 /**
  * Trois faces, trois rôles — chargées par `next/font` pour être auto-hébergées
@@ -33,6 +43,11 @@ const jetbrainsMono = JetBrains_Mono({
   display: 'swap',
 });
 
+/**
+ * i18n-ignore — le titre de repli, celui qu'on rend quand la base ne répond
+ * pas. Il ne peut pas être traduit : la langue vit précisément dans la base
+ * qu'on n'arrive pas à joindre. Il reste donc dans la langue du projet.
+ */
 const FALLBACK_METADATA: Metadata = {
   title: 'Pupitre — plan de contrôle de déploiement',
   description: 'Panel de déploiement Docker Compose / K3s',
@@ -69,14 +84,24 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/**
+ * La langue se pose ici, une fois, pour les trois groupes de routes — le panel,
+ * l'écran de connexion et l'assistant de démarrage. Le `lang` du document n'est
+ * pas cosmétique : il commande la coupure des mots, la voix des lecteurs
+ * d'écran et la traduction automatique du navigateur. Il était figé à « fr ».
+ */
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const language = await currentLanguage();
+
   return (
     <html
-      lang="fr"
+      lang={language}
       suppressHydrationWarning
       className={`${plexSans.variable} ${plexCondensed.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <LanguageProvider language={language}>{children}</LanguageProvider>
+      </body>
     </html>
   );
 }

@@ -1,0 +1,534 @@
+import type { Translated } from '@pupitre/core';
+
+/**
+ * Les cibles — la liste, la fiche, le formulaire, les panneaux de ports et de
+ * charges, et les refus que renvoient les routes `/api/targets`.
+ *
+ * L'aide « Qu'est-ce qu'une cible ? » a son propre module (`target-help.ts`) :
+ * c'est de la documentation, elle pèse à elle seule plus que tout le reste de
+ * cet écran, et rien ne justifie de la charger pour afficher un tableau.
+ *
+ * Rappel de la règle : la colonne `fr` reproduit à l'identique les chaînes qui
+ * existaient. « injoignable », « Relevé indisponible » et « initialiser » sont
+ * cherchés tels quels par des scripts d'intégration.
+ *
+ * Ce qui ne se traduit pas et n'entre donc pas ici : `ufw`, les sorties de
+ * `ufw status`, les noms de binaires et de distributions, et les commandes
+ * shell.
+ *
+ * Le `kind` d'une charge, lui, y entre bien — mais par sa **clé**. Le driver
+ * pose `container` ou `pod` ; c'est une donnée, comme le runtime. Les entrées
+ * `workload.kind.*` lui donnent son mot au moment de l'afficher, et l'écran
+ * retombe sur la clé nue pour un genre qu'il ne connaît pas.
+ */
+const fr = {
+  // ── La liste ────────────────────────────────────────────────────────────
+  'page.eyebrow': 'Parc',
+  'page.title': 'Machines cibles',
+  'page.description':
+    "Les machines sur lesquelles le panel déploie, joignables en SSH. Le preflight détermine ce qui y est exécutable — Docker, K3s, ou ni l'un ni l'autre.",
+  'page.add': 'Ajouter une cible',
+
+  'empty.title': 'Aucune machine cible',
+  'empty.hint':
+    'Déclarez une machine avec son accès SSH, puis lancez un preflight : le panel y détectera Docker, K3s et les outils de scan.',
+
+  'filter.placeholder': 'Filtrer : nom, hôte, description, étiquette…',
+  'filter.aria': 'Filtrer les machines cibles',
+  'filter.showAll': 'Tout afficher',
+  'filter.count': {
+    one: '{count} cible sur {total}',
+    other: '{count} cibles sur {total}',
+  },
+  'filter.none': 'Aucune cible ne correspond à ce filtre.',
+
+  /** Titres des pastilles d'étiquette. Fournis par la table : `target-label`
+   *  est rendu des deux côtés de la frontière serveur/client et n'a pas de `t`. */
+  'label.filter.on': 'Filtrer sur {pair}',
+  'label.filter.off': 'Retirer le filtre {pair}',
+
+  'column.runtimes': 'Runtimes',
+  'column.lastCheck': 'Dernier test',
+  'table.timestamps': 'Horodatages en {timezone}.',
+
+  'confirm.delete': 'Supprimer la cible « {name} » ({host}) ?',
+
+  // ── Preflight : le bouton, ses phases, ses échecs ───────────────────────
+  'action.test': 'Tester la connexion',
+  'action.testing': 'Test en cours…',
+  'preflight.never': 'jamais',
+  'phase.queued': 'enfilé…',
+  'phase.waiting': 'en attente…',
+  'phase.ssh': 'connexion SSH…',
+  'phase.done': 'terminé',
+  'preflight.error.timeout': 'Le preflight ne répond pas (timeout)',
+  'preflight.error.poll': 'Suivi de tâche impossible (HTTP {status})',
+  'preflight.error.failed': 'Le preflight a échoué',
+
+  // ── État d'une cible. « injoignable » est cherché tel quel. ─────────────
+  'status.unknown': 'jamais testée',
+  'status.ok': 'opérationnelle',
+  'status.degraded': 'dégradée',
+  'status.unreachable': 'injoignable',
+
+  // ── Création ────────────────────────────────────────────────────────────
+  'nav.back': 'Machines cibles',
+  'new.description':
+    "Le panel se connectera en SSH à cette machine pour y déployer. Le credential est chiffré en base dès l'enregistrement.",
+  'card.connection': 'Connexion',
+  'new.card.description':
+    "Rien n'est touché sur la machine à l'enregistrement. C'est le preflight — le contrôle de connexion, de sudo, de runtime et de pare-feu — qui l'ouvre pour la première fois. Il se lance depuis « Tester la connexion », et détermine ce qui sera déployable ici.",
+
+  // ── Édition ─────────────────────────────────────────────────────────────
+  'edit.title': 'Modifier « {name} »',
+  'edit.description':
+    "Ces réglages valent pour les prochaines connexions. Rien de ce qui tourne déjà sur cette machine n'est redéployé, et les ports déjà réservés le restent même si vous rétrécissez la plage. Après un changement d'hôte, de compte ou de clé, relancez un preflight : le relevé précédent reste affiché tel quel jusque-là.",
+  'edit.card.description':
+    "Le credential n'est jamais pré-rempli : laissez le champ vide pour conserver celui déjà en base.",
+
+  // ── Le formulaire ───────────────────────────────────────────────────────
+  'field.name': 'Nom',
+  'field.sshUser': 'Utilisateur SSH',
+  'field.host': 'Hôte',
+  'field.port': 'Port',
+  'field.authMethod': 'Authentification',
+  'auth.key': 'Clé privée',
+  'auth.password': 'Mot de passe',
+  'field.sudoMethod': 'Élévation sudo',
+  'sudo.nopasswd': 'sudo sans mot de passe',
+  'sudo.password': 'sudo avec mot de passe',
+  'field.description': 'Description',
+  'description.placeholder': 'Hyperviseur du client Acme. Redémarrages hors 9h–19h uniquement.',
+  'description.help':
+    "À quoi sert cette machine, et ce qu'il faut savoir avant d'y toucher. Facultatif.",
+  'field.credential.key': 'Clé privée SSH',
+  'field.credential.password': 'Mot de passe',
+  'credential.help':
+    "Chiffré en AES-256-GCM avant insertion. Jamais renvoyé par l'API, jamais journalisé.",
+  /** Suite de la phrase précédente, en édition seulement. L'espace initiale est
+   *  celle qui séparait les deux phrases dans le JSX d'origine. */
+  'credential.help.edit': ' Laissez vide pour conserver le credential actuel.',
+  'field.portRange': 'Plage de ports publiables',
+  'portRange.help':
+    'Ce que le pare-feu de cette machine laisse passer. Chaque application déployée en Docker y réserve un port, garanti unique par la base.',
+  'field.labels': 'Étiquettes',
+  /** Coupée autour de `clé=valeur`, que le JSX rend en chasse fixe. */
+  'labels.help.before': 'Une paire',
+  'labels.help.pair': 'clé=valeur',
+  'labels.help.after':
+    "par ligne. La couleur est dérivée du texte : la même étiquette a partout la même teinte, et aucune ne peut prendre le vert, l'ambre ou le rouge — ces couleurs-là disent l'état d'une machine, pas son rôle.",
+  'form.error.keyRequired': 'La clé privée est requise.',
+  'form.error.passwordRequired': 'Le mot de passe est requis.',
+  'submit.create': 'Créer la cible',
+
+  // ── La fiche ────────────────────────────────────────────────────────────
+  'label.link.title': 'Voir les cibles portant {pair}',
+  'detail.runtimes.title': 'Runtimes disponibles',
+  'detail.runtimes.description': 'Dernier preflight : {date} ({timezone})',
+  'detail.connection.description': 'Vérifier ce que la machine sait faire.',
+  'detail.config.title': 'Configuration',
+  'value.auth.key': 'clé privée',
+  'value.auth.password': 'mot de passe',
+  'value.sudo.nopasswd': 'sans mot de passe',
+  'value.sudo.password': 'avec mot de passe',
+  'field.credential': 'Credential',
+  'value.credential': 'chiffré en base, non exposé',
+  'field.portRangeShort': 'Plage de ports',
+
+  // ── Les ports alloués ───────────────────────────────────────────────────
+  'ports.title': 'Ports alloués',
+  'ports.range': 'Plage {min}–{max}',
+  'ports.used': {
+    one: '{count} occupé sur {capacity}',
+    other: '{count} occupés sur {capacity}',
+  },
+  'ports.free': { one: '{count} libre', other: '{count} libres' },
+  'ports.empty': 'Aucun port réservé sur cette cible.',
+  'ports.column.port': 'Port',
+  'ports.column.application': 'Application',
+  'ports.column.lastDeployment': 'Dernier déploiement',
+  'ports.column.reservedAt': 'Réservé le',
+  'ports.outOfRange': 'hors plage',
+  'ports.freeSample': 'Prochains ports libres : {list}',
+  'ports.exhausted': 'Plus aucun port libre dans la plage : élargissez-la avant de déployer.',
+
+  /** `ufw` est le nom du programme : il ne se traduit dans aucune langue. */
+  'firewall.unknown': 'État du pare-feu inconnu — lancez un preflight.',
+  'firewall.absent.badge': 'ufw absent',
+  'firewall.absent.text': 'Les ports publiés ne sont filtrés par personne.',
+  'firewall.inactive.badge': 'ufw inactif',
+  'firewall.inactive.text':
+    "Installé mais désactivé : le panel n'y pose aucune règle et ne l'active pas.",
+  'firewall.active.badge': 'ufw actif',
+  'firewall.rules': {
+    one: '{count} règle posée par le panel.',
+    other: '{count} règles posées par le panel.',
+  },
+
+  // ── Le rapport de preflight ─────────────────────────────────────────────
+  'report.title': 'Rapport de preflight',
+  'report.none': "Aucun preflight n'a encore été lancé sur cette cible.",
+  'report.unreachable': 'Cible injoignable',
+  'report.machine': 'Machine',
+  'report.runtimes': 'Runtimes',
+  'row.os': 'Système',
+  'row.kernel': 'Noyau',
+  'row.latency': 'Latence SSH',
+  'row.sudo': 'sudo',
+  'sudo.passwordRequired': 'mot de passe requis',
+  'sudo.unavailable': 'indisponible',
+  'row.disk': 'Disque /',
+  'disk.value': '{available} libres sur {size} ({percent} %)',
+  'unit.gib': 'Gio',
+  'row.memory': 'Mémoire',
+  'memory.value': '{available} Mio disponibles sur {total}',
+  'row.tools': 'Outils',
+  'row.compose': 'Docker Compose',
+  'row.k3s': 'K3s / Kubernetes',
+  'row.readyNodes': 'Nodes prêts',
+  'runtime.unavailable': '✗ indisponible',
+  'report.checks.title': 'Contrôles',
+  'report.checks.description':
+    "Chaque contrôle est indépendant : un échec n'invalide pas les autres.",
+  'column.check': 'Contrôle',
+
+  // ── Ce qui tourne sur la machine ────────────────────────────────────────
+  'workloads.title': 'Ce qui tourne sur cette machine',
+  'workloads.subtitle': 'Inventaire pris en direct sur la machine, par le worker.',
+  'workloads.count': { one: '{count} charge', other: '{count} charges' },
+  'workloads.managed': {
+    one: 'dont {count} déployée par le panel',
+    other: 'dont {count} déployées par le panel',
+  },
+  'workloads.readout': 'relevé du {date}',
+  'workloads.loading': 'Interrogation de la machine…',
+  'workloads.unavailable': 'Inventaire indisponible.',
+  'workloads.empty': 'Rien ne tourne sur cette machine.',
+  'workloads.runtimeError': "{runtime} n'a rien pu dire : {error}",
+  'workloads.error.http': 'Inventaire impossible (HTTP {status})',
+  'workloads.error.plain': 'Inventaire impossible',
+  'workloads.error.silent':
+    "La machine a refusé l'opération sans dire pourquoi. Le journal ci-dessus porte la sortie brute du worker ; « Rafraîchir » redonne l’état réel de la machine.",
+
+  'state.running': 'en marche',
+  'state.restarting': 'redémarre',
+  'state.exited': 'arrêtée',
+  'state.paused': 'en pause',
+  'state.created': 'créée',
+  'state.unknown': 'inconnu',
+
+  'progress.running': 'en cours',
+  'progress.done': 'terminé',
+  'progress.failed': 'échec',
+  'progress.waiting': 'en attente du worker…',
+
+  'column.workload': 'Charge',
+  'column.origin': 'Origine',
+  'column.image': 'Image',
+  'column.ports': 'Ports',
+  'column.createdAt': 'Créée le',
+  'origin.panel': 'panel',
+  'origin.outside': 'hors panel',
+  'workloads.managedNotice': 'gérée par le panel — passez par son déploiement',
+  'action.update': 'Mettre à jour',
+  'image.unknown': 'inconnue',
+
+  /**
+   * Le genre d'une charge, tel que son runtime le nomme.
+   *
+   * Le driver pose une **clé** (`container`, `pod`, …) ; le mot se choisit ici,
+   * et seulement ici. Un genre absent de cette liste — un runtime ajouté plus
+   * tard — s'affiche tel quel : mieux vaut le mot de `kubectl` qu'une clé de
+   * dictionnaire à l'écran.
+   */
+  'workload.kind.container': 'conteneur',
+  'workload.kind.pod': 'pod',
+  'workload.kind.deployment': 'deployment',
+  'workload.kind.statefulset': 'statefulset',
+  'workload.kind.daemonset': 'daemonset',
+
+  'confirm.remove':
+    'Supprimer le {kind} « {name} » de cette machine ?\n\nImage : {image}\nCette suppression est définitive. Les volumes nommés, eux, sont conservés.',
+  'confirm.update':
+    "Mettre à jour le {kind} « {name} » ?\n\nL'image {image} est retirée à sa version la plus récente, puis la charge est recréée avec la même configuration. Elle sera brièvement indisponible.",
+
+  // ── Les refus de l'API ──────────────────────────────────────────────────
+  'error.notFound': 'Cible « {id} » introuvable',
+  'error.nameTaken': 'Une cible se nomme déjà « {name} »',
+  'error.endpointTaken': 'Une cible pointe déjà vers {user}@{host}:{port}',
+  'error.nameTakenShort': 'Ce nom de cible est déjà pris',
+  'error.endpointTakenOther': 'Une autre cible pointe déjà vers cet hôte',
+  'error.badRange':
+    'Plage de ports invalide : {start}-{end}. La borne basse doit précéder la borne haute.',
+  /**
+   * Les deux formes françaises sont identiques, et c'est voulu : la phrase
+   * d'origine écrit « déploiement(s) actif(s) » plutôt que de s'accorder, et
+   * l'aide des cibles la cite mot pour mot. L'anglais, lui, s'accorde.
+   */
+  'error.liveDeployments': {
+    one: 'Cette cible porte {count} déploiement(s) actif(s). Détruisez-les avant de la supprimer.',
+    other:
+      'Cette cible porte {count} déploiement(s) actif(s). Détruisez-les avant de la supprimer.',
+  },
+  'error.pastDeployments': {
+    one: "Cette cible ne porte plus rien en marche, mais garde {count} déploiement(s) dans l'historique, et l'historique ne se supprime pas tout seul. Purgez-les depuis l'écran Déploiements, puis reprenez.",
+    other:
+      "Cette cible ne porte plus rien en marche, mais garde {count} déploiement(s) dans l'historique, et l'historique ne se supprime pas tout seul. Purgez-les depuis l'écran Déploiements, puis reprenez.",
+  },
+  'error.jobNoId': "La tâche n'a pas reçu d'identifiant",
+  'error.metricsTimeout':
+    "Le relevé n'a pas abouti dans le délai imparti. Le worker est peut-être saturé.",
+  'error.metricsFailed': 'Relevé impossible : {message}',
+  'error.metricsUnreadable': 'Le worker a renvoyé un relevé illisible',
+  'error.inventoryTimeout':
+    "La cible n'a pas répondu dans le délai imparti. Vérifiez sa connexion (preflight).",
+  'error.inventoryFailed': 'Inventaire impossible : {message}',
+  'error.inventoryUnreadable': 'Le worker a renvoyé un inventaire illisible',
+  'error.badWorkloadRef': 'Référence de charge illisible : « {ref} »',
+  'error.workloadNotFound': 'Aucune charge « {ref} » sur « {name} »',
+  /** Deux clés plutôt qu'un fragment interpolé : `msg()` est paresseux, la
+   *  langue n'est connue qu'au moment de sérialiser la réponse. */
+  'error.workloadManagedUpdate':
+    "« {name} » est déployée par le panel : sa mise à jour est un redéploiement. Lancez-en un depuis la fiche de l'application, qui rejouera aussi les scans et l'historique.",
+  'error.workloadManagedUpdateApp':
+    "« {name} » est déployée par le panel (application « {app} ») : sa mise à jour est un redéploiement. Lancez-en un depuis la fiche de l'application, qui rejouera aussi les scans et l'historique.",
+} as const;
+
+const en: Translated<typeof fr> = {
+  'page.eyebrow': 'Fleet',
+  'page.title': 'Target machines',
+  'page.description':
+    'The machines the panel deploys to, reachable over SSH. Preflight decides what can run there — Docker, K3s, or neither.',
+  'page.add': 'Add a target',
+
+  'empty.title': 'No target yet',
+  'empty.hint':
+    'Declare a machine with its SSH access, then run a preflight: the panel will find Docker, K3s and the scanners on it.',
+
+  'filter.placeholder': 'Filter: name, host, description, label…',
+  'filter.aria': 'Filter targets',
+  'filter.showAll': 'Show all',
+  'filter.count': {
+    one: '{count} target of {total}',
+    other: '{count} targets of {total}',
+  },
+  'filter.none': 'No target matches this filter.',
+
+  'label.filter.on': 'Filter on {pair}',
+  'label.filter.off': 'Drop the {pair} filter',
+
+  'column.runtimes': 'Runtimes',
+  'column.lastCheck': 'Last check',
+  'table.timestamps': 'Timestamps in {timezone}.',
+
+  'confirm.delete': 'Delete target “{name}” ({host})?',
+
+  'action.test': 'Test the connection',
+  'action.testing': 'Testing…',
+  'preflight.never': 'never',
+  'phase.queued': 'queued…',
+  'phase.waiting': 'waiting…',
+  'phase.ssh': 'SSH connection…',
+  'phase.done': 'done',
+  'preflight.error.timeout': 'Preflight is not answering (timeout)',
+  'preflight.error.poll': 'Cannot follow the job (HTTP {status})',
+  'preflight.error.failed': 'Preflight failed',
+
+  'status.unknown': 'never checked',
+  'status.ok': 'operational',
+  'status.degraded': 'degraded',
+  'status.unreachable': 'unreachable',
+
+  'nav.back': 'Targets',
+  'new.description':
+    'The panel will open an SSH session to this machine to deploy on it. The credential is encrypted in the database as soon as you save.',
+  'card.connection': 'Connection',
+  'new.card.description':
+    'Saving touches nothing on the machine. Preflight — the connection, sudo, runtime and firewall check — is what opens it for the first time. It runs from “Test the connection”, and decides what will be deployable here.',
+
+  'edit.title': 'Edit “{name}”',
+  'edit.description':
+    'These settings hold from the next connection on. Nothing already running on this machine is redeployed, and ports already reserved stay reserved even if you narrow the range. After changing the host, the account or the key, run a preflight again: until then the previous readout stands as it is.',
+  'edit.card.description':
+    'The credential is never prefilled: leave the field empty to keep the one already in the database.',
+
+  'field.name': 'Name',
+  'field.sshUser': 'SSH user',
+  'field.host': 'Host',
+  'field.port': 'Port',
+  'field.authMethod': 'Authentication',
+  'auth.key': 'Private key',
+  'auth.password': 'Password',
+  'field.sudoMethod': 'Sudo elevation',
+  'sudo.nopasswd': 'sudo without a password',
+  'sudo.password': 'sudo with a password',
+  'field.description': 'Description',
+  'description.placeholder': 'Acme’s hypervisor. Restarts outside 9am–7pm only.',
+  'description.help': 'What this machine is for, and what to know before touching it. Optional.',
+  'field.credential.key': 'SSH private key',
+  'field.credential.password': 'Password',
+  'credential.help':
+    'Encrypted with AES-256-GCM before insertion. Never returned by the API, never logged.',
+  'credential.help.edit': ' Leave it empty to keep the current credential.',
+  'field.portRange': 'Publishable port range',
+  'portRange.help':
+    'What this machine’s firewall lets through. Every application deployed on Docker reserves one port in it, kept unique by the database.',
+  'field.labels': 'Labels',
+  'labels.help.before': 'One',
+  'labels.help.pair': 'key=value',
+  'labels.help.after':
+    'pair per line. The color comes from the text: a label keeps the same hue everywhere, and none can take green, amber or red — those colors say a machine’s state, not its role.',
+  'form.error.keyRequired': 'The private key is required.',
+  'form.error.passwordRequired': 'The password is required.',
+  'submit.create': 'Create the target',
+
+  'label.link.title': 'Show targets carrying {pair}',
+  'detail.runtimes.title': 'Available runtimes',
+  'detail.runtimes.description': 'Last preflight: {date} ({timezone})',
+  'detail.connection.description': 'Check what the machine can do.',
+  'detail.config.title': 'Configuration',
+  'value.auth.key': 'private key',
+  'value.auth.password': 'password',
+  'value.sudo.nopasswd': 'no password',
+  'value.sudo.password': 'password required',
+  'field.credential': 'Credential',
+  'value.credential': 'encrypted in the database, never exposed',
+  'field.portRangeShort': 'Port range',
+
+  'ports.title': 'Allocated ports',
+  'ports.range': 'Range {min}–{max}',
+  'ports.used': {
+    one: '{count} taken of {capacity}',
+    other: '{count} taken of {capacity}',
+  },
+  'ports.free': { one: '{count} free', other: '{count} free' },
+  'ports.empty': 'No port reserved on this target.',
+  'ports.column.port': 'Port',
+  'ports.column.application': 'Application',
+  'ports.column.lastDeployment': 'Last deployment',
+  'ports.column.reservedAt': 'Reserved on',
+  'ports.outOfRange': 'out of range',
+  'ports.freeSample': 'Next free ports: {list}',
+  'ports.exhausted': 'No free port left in the range: widen it before deploying.',
+
+  'firewall.unknown': 'Firewall state unknown — run a preflight.',
+  'firewall.absent.badge': 'ufw missing',
+  'firewall.absent.text': 'Nothing filters the published ports.',
+  'firewall.inactive.badge': 'ufw inactive',
+  'firewall.inactive.text':
+    'Installed but off: the panel sets no rule in it and does not turn it on.',
+  'firewall.active.badge': 'ufw active',
+  'firewall.rules': {
+    one: '{count} rule set by the panel.',
+    other: '{count} rules set by the panel.',
+  },
+
+  'report.title': 'Preflight report',
+  'report.none': 'No preflight has run on this target yet.',
+  'report.unreachable': 'Target unreachable',
+  'report.machine': 'Machine',
+  'report.runtimes': 'Runtimes',
+  'row.os': 'System',
+  'row.kernel': 'Kernel',
+  'row.latency': 'SSH latency',
+  'row.sudo': 'sudo',
+  'sudo.passwordRequired': 'password required',
+  'sudo.unavailable': 'unavailable',
+  'row.disk': 'Disk /',
+  'disk.value': '{available} free of {size} ({percent}%)',
+  'unit.gib': 'GiB',
+  'row.memory': 'Memory',
+  'memory.value': '{available} MiB available of {total}',
+  'row.tools': 'Tools',
+  'row.compose': 'Docker Compose',
+  'row.k3s': 'K3s / Kubernetes',
+  'row.readyNodes': 'Ready nodes',
+  'runtime.unavailable': '✗ unavailable',
+  'report.checks.title': 'Checks',
+  'report.checks.description':
+    'Every check stands alone: one failure does not invalidate the others.',
+  'column.check': 'Check',
+
+  'workloads.title': 'What runs on this machine',
+  'workloads.subtitle': 'Inventory taken live on the machine, by the worker.',
+  'workloads.count': { one: '{count} workload', other: '{count} workloads' },
+  'workloads.managed': {
+    one: '{count} of them deployed by the panel',
+    other: '{count} of them deployed by the panel',
+  },
+  'workloads.readout': 'readout from {date}',
+  'workloads.loading': 'Asking the machine…',
+  'workloads.unavailable': 'Inventory unavailable.',
+  'workloads.empty': 'Nothing runs on this machine.',
+  'workloads.runtimeError': '{runtime} had nothing to say: {error}',
+  'workloads.error.http': 'Inventory failed (HTTP {status})',
+  'workloads.error.plain': 'Inventory failed',
+  'workloads.error.silent':
+    'The machine refused the operation without saying why. The log above carries the worker’s raw output; “Refresh” gives back the machine’s real state.',
+
+  'state.running': 'running',
+  'state.restarting': 'restarting',
+  'state.exited': 'stopped',
+  'state.paused': 'paused',
+  'state.created': 'created',
+  'state.unknown': 'unknown',
+
+  'progress.running': 'running',
+  'progress.done': 'done',
+  'progress.failed': 'failed',
+  'progress.waiting': 'waiting for the worker…',
+
+  'column.workload': 'Workload',
+  'column.origin': 'Origin',
+  'column.image': 'Image',
+  'column.ports': 'Ports',
+  'column.createdAt': 'Created on',
+  'origin.panel': 'panel',
+  'origin.outside': 'outside the panel',
+  'workloads.managedNotice': 'managed by the panel — deploy it from there',
+  'action.update': 'Update',
+  'image.unknown': 'unknown',
+
+  'workload.kind.container': 'container',
+  'workload.kind.pod': 'pod',
+  'workload.kind.deployment': 'deployment',
+  'workload.kind.statefulset': 'statefulset',
+  'workload.kind.daemonset': 'daemonset',
+
+  'confirm.remove':
+    'Delete the {kind} “{name}” from this machine?\n\nImage: {image}\nThe deletion is permanent. Named volumes are kept.',
+  'confirm.update':
+    'Update the {kind} “{name}”?\n\nImage {image} is pulled again at its latest version, then the workload is recreated with the same configuration. It will be briefly unavailable.',
+
+  'error.notFound': 'Target “{id}” not found',
+  'error.nameTaken': 'A target is already named “{name}”',
+  'error.endpointTaken': 'A target already points to {user}@{host}:{port}',
+  'error.nameTakenShort': 'That target name is taken',
+  'error.endpointTakenOther': 'Another target already points to this host',
+  'error.badRange': 'Invalid port range: {start}-{end}. The low bound must come first.',
+  'error.liveDeployments': {
+    one: 'This target carries {count} live deployment. Destroy it before deleting the target.',
+    other: 'This target carries {count} live deployments. Destroy them before deleting the target.',
+  },
+  'error.pastDeployments': {
+    one: 'Nothing runs on this target any more, but {count} deployment stays in its history, and history does not delete itself. Purge it from the Deployments screen, then come back.',
+    other:
+      'Nothing runs on this target any more, but {count} deployments stay in its history, and history does not delete itself. Purge them from the Deployments screen, then come back.',
+  },
+  'error.jobNoId': 'The job got no ID',
+  'error.metricsTimeout': 'The readout did not finish in time. The worker may be saturated.',
+  'error.metricsFailed': 'Readout failed: {message}',
+  'error.metricsUnreadable': 'The worker returned an unreadable readout',
+  'error.inventoryTimeout':
+    'The target did not answer in time. Check its connection (preflight).',
+  'error.inventoryFailed': 'Inventory failed: {message}',
+  'error.inventoryUnreadable': 'The worker returned an unreadable inventory',
+  'error.badWorkloadRef': 'Unreadable workload reference: “{ref}”',
+  'error.workloadNotFound': 'No workload “{ref}” on “{name}”',
+  'error.workloadManagedUpdate':
+    '“{name}” is deployed by the panel: updating it means redeploying it. Start a deployment from the application page — it replays the scans and the history too.',
+  'error.workloadManagedUpdateApp':
+    '“{name}” is deployed by the panel (application “{app}”): updating it means redeploying it. Start a deployment from the application page — it replays the scans and the history too.',
+};
+
+export const targets = { fr, en };

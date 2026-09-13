@@ -11,7 +11,8 @@ import {
 } from '@pupitre/core';
 import { listNotificationChannels } from '@pupitre/db';
 import type { Job } from 'bullmq';
-import { HttpError } from './errors';
+import { account as messages } from '@/i18n/messages/account';
+import { HttpError, msg } from './errors';
 import { logger } from './logger';
 import { getNotificationsQueue, notificationsQueueEvents } from './notifications';
 
@@ -210,22 +211,17 @@ export async function captureAccountMail<T>(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/timed out/i.test(message)) {
-      throw new HttpError(
-        504,
-        'account_mail_timeout',
-        "L'e-mail n'est pas parti dans le délai imparti. Le worker est peut-être saturé — " +
-          'le compte existe, vous pouvez relancer l’invitation.',
-      );
+      throw new HttpError(504, 'account_mail_timeout', msg(messages, 'mail.timeout'));
     }
     // Le worker a rapporté un échec (serveur SMTP injoignable, adresse
     // refusée…). Le message est déjà expurgé de tout secret par
     // `describeFailure()` côté worker.
-    throw new HttpError(502, 'account_mail_failed', `L’e-mail n’est pas parti : ${message}`);
+    throw new HttpError(502, 'account_mail_failed', msg(messages, 'mail.failed', { message }));
   }
 
   const parsed = accountMailJobResultSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new HttpError(502, 'account_mail_failed', 'Le worker a renvoyé un verdict illisible');
+    throw new HttpError(502, 'account_mail_failed', msg(messages, 'mail.unreadableVerdict'));
   }
   return { value, verdict: parsed.data };
 }

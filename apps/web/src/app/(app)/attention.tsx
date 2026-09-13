@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Led, type Tone } from '@/components/instrument';
+import { getT } from '@/i18n/server';
+import { dashboard } from '@/i18n/messages/dashboard';
 import { cn } from '@/lib/utils';
 
 /**
@@ -39,8 +41,10 @@ const TONE: Record<AttentionSeverity, Tone> = {
   warn: 'warn',
 };
 
-export function AttentionPanel({ items }: { items: AttentionItem[] }) {
+export async function AttentionPanel({ items }: { items: AttentionItem[] }) {
   if (items.length === 0) return <AllClear />;
+
+  const t = await getT(dashboard);
 
   // Le plus grave d'abord : on ne fait pas défiler pour trouver ce qui brûle.
   const sorted = [...items].sort((a, b) =>
@@ -57,12 +61,9 @@ export function AttentionPanel({ items }: { items: AttentionItem[] }) {
 
       <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-3.5 pr-5 pl-6">
         <h2 id="attention-title" className="text-ink font-condensed text-[0.9375rem] font-semibold">
-          {sorted.length} point{sorted.length > 1 ? 's' : ''} demande
-          {sorted.length > 1 ? 'nt' : ''} votre attention
+          {t('attention.title', { count: sorted.length })}
         </h2>
-        <span className="text-ink-faint text-xs">
-          Le reste de l&apos;instance se porte bien.
-        </span>
+        <span className="text-ink-faint text-xs">{t('attention.aside')}</span>
       </div>
 
       <ul className="divide-line divide-y">
@@ -98,15 +99,14 @@ export function AttentionPanel({ items }: { items: AttentionItem[] }) {
  * « 0 alerte » se lit comme un compteur en panne. Dire que rien ne demande
  * d'intervention est une réponse, pas une absence de réponse.
  */
-function AllClear() {
+async function AllClear() {
+  const t = await getT(dashboard);
   return (
     <section className="border-line bg-card shadow-panel flex items-center gap-3 rounded-lg border px-5 py-4">
       <Led tone="ok" />
       <p className="text-ink text-sm">
-        Rien ne demande d&apos;intervention.{' '}
-        <span className="text-ink-faint">
-          Les cibles répondent, les applications tournent, les sondes sont au vert.
-        </span>
+        {t('attention.clear')}{' '}
+        <span className="text-ink-faint">{t('attention.clear.detail')}</span>
       </p>
     </section>
   );

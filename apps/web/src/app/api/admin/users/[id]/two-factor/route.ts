@@ -9,7 +9,8 @@ import {
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -40,7 +41,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
 
   const db = getDb();
   const [target] = await db.select().from(users).where(eq(users.id, id));
-  if (!target) throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   // Se réinitialiser soi-même est permis : un administrateur qui a perdu son
   // téléphone mais tient encore une session est exactement celui qu'on ne veut
@@ -55,15 +56,13 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     db,
   ).catch((error: unknown) => {
     if (error instanceof UserNotFoundError) {
-      throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+      throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
     }
     throw error;
   });
 
   if (outcome.stateBefore === 'none') {
-    throw new ConflictError(
-      `${target.email} n'a aucun second facteur à réinitialiser.`,
-    );
+    throw new ConflictError(msg(admin, 'error.user.no2fa', { email: target.email }));
   }
 
   // Rien de secret ici : ni l'ancien secret TOTP, ni les codes de secours, qui

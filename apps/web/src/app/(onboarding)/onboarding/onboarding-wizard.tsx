@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { ArrowRight, Check, ChevronLeft, Minus, SkipForward } from 'lucide-react';
 import type {
   AppSettings,
@@ -28,6 +28,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { onboarding } from '@/i18n/messages/onboarding';
 import { cn } from '@/lib/utils';
 import { CreateRoleForm } from '@/app/(app)/admin/roles/create-role-form';
 import { CreateUserForm } from '@/app/(app)/admin/users/create-user-form';
@@ -83,13 +86,44 @@ type Props = {
 type PatchResponse = { state: OnboardingState; steps: OnboardingPresentedStep[] };
 type ApiError = { error?: { message?: string } };
 
-const OUTCOME_BADGE: Record<OnboardingPresentedStep['outcome'], string> = {
-  done: 'faite',
-  skipped: 'passée',
-  todo: 'à faire',
-};
+/**
+ * Les quatre étapes qui portent un prix — exactement celles que `optional`
+ * autorise à passer.
+ *
+ * Une table de clés littérales plutôt qu'un `` `step.${id}.cost` `` construit à
+ * la volée : le compilateur refuse alors `step.welcome.cost`, qui n'existe pas
+ * et ne doit pas exister. C'est la garde qui remplace l'ancien `cost: null`.
+ */
+const COST_KEYS = {
+  target: 'step.target.cost',
+  role: 'step.role.cost',
+  user: 'step.user.cost',
+  security: 'step.security.cost',
+} as const;
+
+const RICH_PART = /\{(\w+)\}/g;
+
+/**
+ * Rend une phrase dont quelques fragments sont des nœuds — un mot en gras, un
+ * lien, un identifiant en chasse fixe.
+ *
+ * Le dictionnaire garde la phrase **entière**, avec un `{nom}` là où le nœud
+ * s'insère. La couper en trois clés aurait laissé au traducteur des bouts sans
+ * contexte et figé l'ordre des mots : l'anglais déplace la mise en avant.
+ * `t()` laisse intacts les `{nom}` qu'on ne lui passe pas en variables, ce qui
+ * suffit à les retrouver ici.
+ */
+function rich(sentence: string, parts: Readonly<Record<string, ReactNode>>): ReactNode {
+  return sentence
+    .split(RICH_PART)
+    .map((chunk, position) => (
+      <Fragment key={position}>{position % 2 === 1 ? parts[chunk] : chunk}</Fragment>
+    ));
+}
 
 export function OnboardingWizard(props: Props) {
+  const t = useT(onboarding);
+  const tc = useT(common);
   const router = useRouter();
 
   const [state, setState] = useState(props.state);
@@ -124,7 +158,7 @@ export function OnboardingWizard(props: Props) {
 
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as ApiError;
-      setError(payload.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(payload.error?.message ?? tc('http.failure', { status: response.status }));
       setBusy(false);
       return false;
     }
@@ -175,6 +209,9 @@ export function OnboardingWizard(props: Props) {
     skip(currentId);
   }
 
+  const costKey = current ? COST_KEYS[current.id as keyof typeof COST_KEYS] : undefined;
+  const currentCost = costKey ? t(costKey) : null;
+
   const previous = index > 0 ? steps[index - 1] : null;
   /** Ce qu'on laisse derrière soi — nommé, pas compté. */
   const remaining = actionable.filter((step) => step.outcome === 'todo');
@@ -183,9 +220,9 @@ export function OnboardingWizard(props: Props) {
   return (
     <>
       <PageHeader
-        eyebrow="Prise en main"
-        title="Assistant de démarrage"
-        description="Ce qu'il faut poser une fois pour que ce panel serve à quelque chose : le nommer, lui donner une machine, décider qui y accède. Le parcours n'affiche que les étapes que vos permissions autorisent, et chacune appelle exactement la même API que l'écran correspondant — rien de ce que vous faites ici n'est un raccourci, ni ne sera à refaire."
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
         actions={
           <>
             <span className="font-mono text-xs text-ink-faint tabular-nums">
@@ -197,7 +234,7 @@ export function OnboardingWizard(props: Props) {
               disabled={busy}
               onClick={() => setConfirming('abandon')}
             >
-              Plus tard
+              {t('action.later')}
             </Button>
           </>
         }
@@ -213,22 +250,28 @@ export function OnboardingWizard(props: Props) {
             <Card>
               <CardHeader>
                 <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle>{current.title}</CardTitle>
-                  {current.optional ? <Badge variant="secondary">facultative</Badge> : null}
-                  {current.outcome === 'done' ? <Badge variant="ok">déjà faite</Badge> : null}
-                  {current.outcome === 'skipped' ? <Badge variant="warn">passée</Badge> : null}
+                  <CardTitle>{t(`step.${current.id}.title`)}</CardTitle>
+                  {current.optional ? (
+                    <Badge variant="secondary">{t('badge.optional')}</Badge>
+                  ) : null}
+                  {current.outcome === 'done' ? (
+                    <Badge variant="ok">{t('badge.done')}</Badge>
+                  ) : null}
+                  {current.outcome === 'skipped' ? (
+                    <Badge variant="warn">{t('badge.skipped')}</Badge>
+                  ) : null}
                 </div>
-                <CardDescription>{current.summary}</CardDescription>
+                <CardDescription>{t(`step.${current.id}.summary`)}</CardDescription>
               </CardHeader>
 
               <CardContent className="pb-0">
                 <p className="text-ink-muted border-line border-l-2 pl-3 text-sm leading-relaxed">
-                  {current.detail}
+                  {t(`step.${current.id}.detail`)}
                 </p>
-                {current.optional && current.cost ? (
+                {currentCost ? (
                   <p className="text-ink-faint pt-3 pl-3 text-xs leading-relaxed">
-                    <span className="text-ink">Si vous la passez : </span>
-                    {current.cost}
+                    <span className="text-ink">{t('cost.inlineLead')}</span>
+                    {currentCost}
                   </p>
                 ) : null}
               </CardContent>
@@ -284,10 +327,10 @@ export function OnboardingWizard(props: Props) {
             </Card>
           ) : null}
 
-          {current?.optional && current.cost ? (
+          {currentCost ? (
             <Alert variant="warn">
-              <span className="block font-medium text-ink">Si vous passez cette étape</span>
-              <span className="block text-ink-muted">{current.cost}</span>
+              <span className="block font-medium text-ink">{t('cost.alertTitle')}</span>
+              <span className="block text-ink-muted">{currentCost}</span>
             </Alert>
           ) : null}
 
@@ -300,7 +343,7 @@ export function OnboardingWizard(props: Props) {
                 onClick={() => goto(previous.id)}
               >
                 <ChevronLeft />
-                {previous.title}
+                {t(`step.${previous.id}.title`)}
               </Button>
             ) : null}
 
@@ -313,13 +356,13 @@ export function OnboardingWizard(props: Props) {
                   onClick={() => setConfirming('skip')}
                 >
                   <SkipForward />
-                  Passer cette étape
+                  {t('action.skipStep')}
                 </Button>
               ) : null}
 
               {currentId === 'welcome' ? (
                 <Button size="sm" disabled={busy} onClick={() => goto(steps[1]?.id ?? 'summary')}>
-                  Commencer
+                  {t('action.start')}
                   <ArrowRight />
                 </Button>
               ) : null}
@@ -327,7 +370,7 @@ export function OnboardingWizard(props: Props) {
               {currentId === 'summary' ? (
                 <Button size="sm" disabled={busy} onClick={() => void leave('finish')}>
                   <Check />
-                  Terminer
+                  {t('action.finish')}
                 </Button>
               ) : null}
             </div>
@@ -341,42 +384,31 @@ export function OnboardingWizard(props: Props) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Quitter l&apos;assistant sans l&apos;avoir terminé ?</DialogTitle>
+            <DialogTitle>{t('leave.title')}</DialogTitle>
             <DialogDescription>
-              Vous avez traité {doneCount} étape{doneCount > 1 ? 's' : ''} sur{' '}
-              {actionable.length}.
+              {t('leave.progress', { count: doneCount, total: actionable.length })}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-3 text-sm">
-            <p className="text-ink-muted leading-relaxed">
-              Le panel restera utilisable, mais dans l&apos;état où vous le laissez. Les étapes
-              non traitées correspondent chacune à un écran : vous pourrez les faire à la main,
-              ou relancer cet assistant depuis les paramètres.
-            </p>
+            <p className="text-ink-muted leading-relaxed">{t('leave.body')}</p>
             {remaining.length > 0 ? (
               <div className="border-line rounded-md border p-3">
-                <span className="text-ink text-xs">Il reste à faire :</span>
+                <span className="text-ink text-xs">{t('leave.remaining')}</span>
                 <ul className="text-ink-muted mt-1.5 flex flex-col gap-1 text-xs">
                   {remaining.map((step) => (
-                    <li key={step.id}>· {step.title}</li>
+                    <li key={step.id}>· {t(`step.${step.id}.title`)}</li>
                   ))}
                 </ul>
               </div>
             ) : null}
-            {noTarget ? (
-              <Alert variant="warn">
-                Aucune cible n&apos;est déclarée. Tant qu&apos;il n&apos;en existe pas une, le
-                panel ne peut rien déployer : les écrans d&apos;application et de déploiement
-                resteront vides.
-              </Alert>
-            ) : null}
+            {noTarget ? <Alert variant="warn">{t('leave.noTarget')}</Alert> : null}
           </DialogBody>
           <DialogFooter>
             <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
-              Continuer l&apos;assistant
+              {t('leave.stay')}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={confirmAbandon}>
-              Quitter quand même
+              {t('leave.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -388,24 +420,23 @@ export function OnboardingWizard(props: Props) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Passer «&nbsp;{current?.title}&nbsp;» ?</DialogTitle>
-            <DialogDescription>{current?.summary}</DialogDescription>
+            <DialogTitle>
+              {t('skip.title', { step: current ? t(`step.${current.id}.title`) : '' })}
+            </DialogTitle>
+            <DialogDescription>
+              {current ? t(`step.${current.id}.summary`) : null}
+            </DialogDescription>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-3 text-sm">
-            {current?.cost ? (
-              <p className="text-ink-muted leading-relaxed">{current.cost}</p>
-            ) : null}
-            <p className="text-ink-faint text-xs leading-relaxed">
-              Vous restez dans l&apos;assistant : seule cette étape est marquée comme passée, et
-              elle se refait plus tard depuis l&apos;écran correspondant.
-            </p>
+            {currentCost ? <p className="text-ink-muted leading-relaxed">{currentCost}</p> : null}
+            <p className="text-ink-faint text-xs leading-relaxed">{t('skip.note')}</p>
           </DialogBody>
           <DialogFooter>
             <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
-              Revenir à l&apos;étape
+              {t('skip.back')}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={confirmSkip}>
-              Passer cette étape
+              {t('action.skipStep')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -428,8 +459,13 @@ function Stepper({
   busy: boolean;
   onSelect: (step: OnboardingStepId) => void;
 }) {
+  const t = useT(onboarding);
+
   return (
-    <nav aria-label="Étapes" className="flex flex-col gap-1 lg:sticky lg:top-6 lg:self-start">
+    <nav
+      aria-label={t('stepper.label')}
+      className="flex flex-col gap-1 lg:sticky lg:top-6 lg:self-start"
+    >
       {steps.map((step, position) => {
         const active = step.id === currentId;
         return (
@@ -466,7 +502,7 @@ function Stepper({
                 position + 1
               )}
             </span>
-            <span className="min-w-0 truncate">{step.title}</span>
+            <span className="min-w-0 truncate">{t(`step.${step.id}.title`)}</span>
           </button>
         );
       })}
@@ -475,36 +511,36 @@ function Stepper({
 }
 
 function Welcome() {
+  const t = useT(onboarding);
+
   return (
     <div className="flex flex-col gap-4 text-[0.8125rem] leading-relaxed text-ink-muted">
       <p>
-        Ce panel est un <strong className="text-ink">plan de contrôle</strong>. Il décide, trace,
-        chiffre et ordonnance ; il n&apos;héberge rien. Vos applications tournent sur{' '}
-        <em>vos</em> machines, jointes en SSH — leurs images sont même construites là-bas, il n&apos;y
-        a pas de registry entre les deux.
+        {rich(t('welcome.p1'), {
+          controlPlane: <strong className="text-ink">{t('welcome.p1.controlPlane')}</strong>,
+          your: <em>{t('welcome.p1.your')}</em>,
+        })}
       </p>
       <p>
-        Conséquence directe, et c&apos;est la seule chose à retenir de cet écran :{' '}
-        <strong className="text-ink">
-          si le panel s&apos;arrête, vos applications continuent de tourner
-        </strong>
-        . Vous perdez la capacité de déployer et de superviser, pas le service rendu.
+        {rich(t('welcome.p2'), {
+          keepRunning: <strong className="text-ink">{t('welcome.p2.keepRunning')}</strong>,
+        })}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-          <div className="eyebrow text-ink-faint">Ce qu&apos;il fait</div>
+          <div className="eyebrow text-ink-faint">{t('welcome.does.title')}</div>
           <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs">
-            <li>Ouvre des sessions SSH vers vos machines</li>
-            <li>Rend une AppSpec en Docker Compose ou en manifests K3s</li>
-            <li>Analyse les images, journalise qui a fait quoi</li>
+            <li>{t('welcome.does.ssh')}</li>
+            <li>{t('welcome.does.render')}</li>
+            <li>{t('welcome.does.scan')}</li>
           </ul>
         </div>
         <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-          <div className="eyebrow text-ink-faint">Ce qu&apos;il ne fait pas</div>
+          <div className="eyebrow text-ink-faint">{t('welcome.doesNot.title')}</div>
           <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs">
-            <li>Exécuter vos applications</li>
-            <li>Installer Docker ou K3s sur une cible</li>
-            <li>Activer un pare-feu à votre place</li>
+            <li>{t('welcome.doesNot.run')}</li>
+            <li>{t('welcome.doesNot.install')}</li>
+            <li>{t('welcome.doesNot.firewall')}</li>
           </ul>
         </div>
       </div>
@@ -525,46 +561,48 @@ function TargetStep({
   disabled: boolean;
   onDone: () => void;
 }) {
+  const t = useT(onboarding);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<string | null>(null);
   const preflight = usePreflight({ onError: setError });
 
   async function afterCreate(target: { id: string; name: string }) {
     if (!canRunPreflight) {
-      setPhase(`« ${target.name} » déclarée. Preflight non lancé : permission target:update requise.`);
+      setPhase(t('target.noPreflight', { name: target.name }));
       onDone();
       return;
     }
-    setPhase(`« ${target.name} » déclarée — preflight en cours…`);
+    setPhase(t('target.running', { name: target.name }));
     // Exactement le même enchaînement que le bouton « Tester la connexion » de
     // la liste des cibles : POST /api/targets/{id}/preflight, puis suivi de la
     // tâche BullMQ. Aucune session SSH n'est ouverte depuis une route HTTP.
     await preflight.run(target.id);
-    setPhase(`« ${target.name} » déclarée et testée.`);
+    setPhase(t('target.tested', { name: target.name }));
     onDone();
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
-        Déclarer une cible n&apos;installe rien : cela n&apos;écrit qu&apos;une ligne en base et un
-        credential chiffré. La machine n&apos;est touchée qu&apos;au preflight, lancé
-        automatiquement juste après — il découvre ce qui y est exécutable, Docker, K3s, ou ni
-        l&apos;un ni l&apos;autre.
-      </p>
+      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">{t('target.intro')}</p>
 
       <div>
-        <TargetHelpDialog label="Qu’est-ce qu’une cible, et que faut-il préparer sur la machine ?" />
+        <TargetHelpDialog label={t('target.help')} />
       </div>
 
       {existing !== null && existing > 0 ? (
         <Alert variant="info" className="flex flex-wrap items-center gap-3">
+          {/*
+            `count` choisit la forme, `{n}` porte le nombre en gras. Deux noms
+            pour une seule valeur : l'un est substitué par `t()`, l'autre reste
+            en place pour que `rich()` y pose le nœud.
+          */}
           <span className="min-w-0 flex-1">
-            Ce panel connaît déjà <strong>{existing}</strong> cible{existing > 1 ? 's' : ''}. Vous
-            pouvez en déclarer une de plus, ou considérer l&apos;étape faite.
+            {rich(t('target.existing', { count: existing }), {
+              n: <strong>{existing}</strong>,
+            })}
           </span>
           <Button size="sm" variant="outline" disabled={disabled} onClick={onDone}>
-            J&apos;en ai déjà une
+            {t('target.haveOne')}
           </Button>
         </Alert>
       ) : null}
@@ -575,7 +613,7 @@ function TargetStep({
       <TargetForm
         onCreated={(target) => void afterCreate(target)}
         onCancel={null}
-        submitLabel="Déclarer et tester"
+        submitLabel={t('target.submit')}
       />
     </div>
   );
@@ -588,19 +626,24 @@ function RoleStep({
   roleKeys: RoleKey[];
   onCreated: () => void;
 }) {
+  const t = useT(onboarding);
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
-        Un utilisateur porte un rôle ; le rôle porte les permissions. Trois rôles sont déjà
-        installés — <code className="font-mono text-xs">admin</code>,{' '}
-        <code className="font-mono text-xs">operator</code>,{' '}
-        <code className="font-mono text-xs">viewer</code>. Un rôle naît{' '}
-        <strong className="text-ink">sans aucune permission</strong> : on les coche ensuite, une par
-        une, depuis{' '}
-        <Link href="/admin/roles" className="text-signal underline underline-offset-4">
-          Rôles
-        </Link>
-        .
+        {rich(t('role.intro'), {
+          admin: <code className="font-mono text-xs">admin</code>,
+          operator: <code className="font-mono text-xs">operator</code>,
+          viewer: <code className="font-mono text-xs">viewer</code>,
+          noPermission: (
+            <strong className="text-ink">{t('role.intro.noPermission')}</strong>
+          ),
+          rolesLink: (
+            <Link href="/admin/roles" className="text-signal underline underline-offset-4">
+              {t('role.intro.link')}
+            </Link>
+          ),
+        })}
       </p>
       <CreateRoleForm existingKeys={[...roleKeys]} onCreated={onCreated} />
     </div>
@@ -618,12 +661,13 @@ function UserStep({
   canInvite: boolean;
   onCreated: () => void;
 }) {
+  const t = useT(onboarding);
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
-        Chaque geste du panel est journalisé avec son auteur. Un compte par personne n&apos;est pas
-        une formalité : c&apos;est ce qui rend les logs lisibles.
-        {existing !== null ? ` Ce panel compte déjà ${existing} compte${existing > 1 ? 's' : ''}.` : ''}
+        {t('user.intro')}
+        {existing !== null ? ` ${t('user.existing', { count: existing })}` : ''}
       </p>
       <CreateUserForm roles={roleKeys} canInvite={canInvite} onCreated={onCreated} />
     </div>
@@ -631,12 +675,20 @@ function UserStep({
 }
 
 function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: OnboardingState }) {
+  const t = useT(onboarding);
+
+  const outcomeLabel: Record<OnboardingPresentedStep['outcome'], string> = {
+    done: t('outcome.done'),
+    skipped: t('outcome.skipped'),
+    todo: t('outcome.todo'),
+  };
+
   const links: Partial<Record<OnboardingStepId, { href: string; label: string }>> = {
-    identity: { href: '/admin/settings', label: 'Paramètres' },
-    target: { href: '/targets', label: 'Cibles' },
-    role: { href: '/admin/roles', label: 'Rôles' },
-    user: { href: '/admin/users', label: 'Utilisateurs' },
-    security: { href: '/admin/settings', label: 'Paramètres' },
+    identity: { href: '/admin/settings', label: t('link.settings') },
+    target: { href: '/targets', label: t('link.targets') },
+    role: { href: '/admin/roles', label: t('link.roles') },
+    user: { href: '/admin/users', label: t('link.users') },
+    security: { href: '/admin/settings', label: t('link.settings') },
   };
 
   const actionable = steps.filter((step) => step.requires !== null);
@@ -651,7 +703,9 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
               const link = links[step.id];
               return (
               <tr key={step.id} className="border-b border-line last:border-b-0">
-                <td className="px-3 py-2 font-medium text-ink">{step.title}</td>
+                <td className="px-3 py-2 font-medium text-ink">
+                  {t(`step.${step.id}.title`)}
+                </td>
                 <td className="px-3 py-2">
                   <Badge
                     variant={
@@ -662,7 +716,7 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
                           : 'secondary'
                     }
                   >
-                    {OUTCOME_BADGE[step.outcome]}
+                    {outcomeLabel[step.outcome]}
                   </Badge>
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -681,21 +735,25 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
 
       {skipped.length > 0 ? (
         <Alert variant="warn">
-          {skipped.length} étape{skipped.length > 1 ? 's' : ''} passée
-          {skipped.length > 1 ? 's' : ''} :{' '}
-          {skipped.map((step) => step.title).join(', ')}. Rien n&apos;est perdu — chacune se refait
-          depuis l&apos;écran correspondant, et l&apos;assistant se relance depuis{' '}
-          <Link href="/admin/settings" className="text-signal underline underline-offset-4">
-            les paramètres
-          </Link>
-          .
+          {rich(
+            t('summary.skipped', {
+              count: skipped.length,
+              list: skipped.map((step) => t(`step.${step.id}.title`)).join(', '),
+            }),
+            {
+              settings: (
+                <Link href="/admin/settings" className="text-signal underline underline-offset-4">
+                  {t('summary.skipped.settings')}
+                </Link>
+              ),
+            },
+          )}
         </Alert>
       ) : null}
 
       <p className="text-xs text-ink-faint">
-        Terminer marque le parcours comme accompli : le bandeau de reprise disparaît et
-        l&apos;assistant ne se proposera plus de lui-même.
-        {state.runs > 0 ? ` C'est le passage n° ${state.runs + 1}.` : ''}
+        {t('summary.finishNote')}
+        {state.runs > 0 ? ` ${t('summary.run', { n: state.runs + 1 })}` : ''}
       </p>
     </div>
   );

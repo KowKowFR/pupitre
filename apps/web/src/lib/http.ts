@@ -1,8 +1,33 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { HttpError } from './errors';
+import { renderMessage } from '@pupitre/core';
+import { errors, type ErrorKey } from '@/i18n/messages/errors';
+import { currentLanguage } from '@/i18n/server';
+import { HttpError, msg, renderRef, type MessageRef } from './errors';
 import { logger } from './logger';
+
+/**
+ * Le seul endroit du panel qui rend un message d'erreur d'API dans la langue
+ * du lecteur.
+ *
+ * Il est asynchrone, et c'est la raison même de son existence : une erreur se
+ * lance depuis du code synchrone, mais la langue vit en base. On repousse donc
+ * la traduction jusqu'ici, où l'on a déjà le droit d'attendre.
+ *
+ * `code` n'est jamais touché. Un script qui filtre sur `error.code` ne voit
+ * aucune différence entre une instance française et une instance anglaise ;
+ * c'est à cela que sert un code.
+ */
+async function localize(message: MessageRef | undefined, fallback: string): Promise<string> {
+  if (!message) return fallback;
+  return renderRef(message, await currentLanguage());
+}
+
+/** Raccourci pour les erreurs que ce module fabrique lui-même. */
+async function localizeKey(key: ErrorKey): Promise<string> {
+  return renderMessage(errors, await currentLanguage(), key);
+}
 
 export type ApiError = {
   error: { code: string; message: string; details?: unknown };
@@ -32,13 +57,18 @@ export function apiRoute<Context>(
       return await handler(request, context);
     } catch (error) {
       if (error instanceof HttpError) {
-        return jsonError(error.status, error.code, error.message, error.details);
+        return jsonError(
+          error.status,
+          error.code,
+          await localize(error.ref, error.message),
+          error.details,
+        );
       }
       if (error instanceof z.ZodError) {
         return jsonError(
           422,
           'validation_failed',
-          'La requête ne respecte pas le schéma',
+          await localizeKey('validation.schema'),
           z.flattenError(error),
         );
       }
@@ -46,7 +76,7 @@ export function apiRoute<Context>(
         { err: error, method: request.method, url: request.url },
         'erreur non gérée dans une route',
       );
-      return jsonError(500, 'internal_error', 'Erreur interne');
+      return jsonError(500, 'internal_error', await localizeKey('internal'));
     }
   };
 }
@@ -61,7 +91,10 @@ export async function parseJsonBody<T extends z.ZodTypeAny>(
     const text = await request.text();
     raw = text.length === 0 ? {} : JSON.parse(text);
   } catch {
-    return { ok: false, response: jsonError(400, 'invalid_json', 'Corps de requête JSON invalide') };
+    return {
+      ok: false,
+      response: jsonError(400, 'invalid_json', await localizeKey('invalid_json')),
+    };
   }
 
   const parsed = schema.safeParse(raw);
@@ -71,7 +104,7 @@ export async function parseJsonBody<T extends z.ZodTypeAny>(
       response: jsonError(
         422,
         'validation_failed',
-        'Le corps de la requête ne respecte pas le schéma',
+        await localizeKey('validation.body'),
         z.flattenError(parsed.error),
       ),
     };
@@ -89,7 +122,7 @@ export async function readJsonBody<T extends z.ZodTypeAny>(
     const text = await request.text();
     raw = text.length === 0 ? {} : JSON.parse(text);
   } catch {
-    throw new HttpError(400, 'invalid_json', 'Corps de requête JSON invalide');
+    throw new HttpError(400, 'invalid_json', msg(errors, 'invalid_json'));
   }
   return schema.parse(raw);
 }

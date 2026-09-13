@@ -15,12 +15,14 @@ import {
   monitorTarget,
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
-import { HttpError, NotFoundError } from '@/lib/errors';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import {
   assertConfigAllowed,
   assertUrlAllowed,
   buildMonitorViews,
+  monitorConfigMessage,
   monitorTypeOptions,
 } from '@/lib/monitors';
 import { requirePermission } from '@/lib/rbac';
@@ -55,10 +57,13 @@ export const dynamic = 'force-dynamic';
  * hurler à la panne. Elle se reprend d'un clic.
  */
 
-function translate(error: unknown): never {
-  if (error instanceof MonitorConfigError) {
-    throw new HttpError(422, 'validation_failed', error.message, { field: error.field });
-  }
+/**
+ * Le refus de `resolveConfig()` arrive en donnée ; la phrase se fabrique dans
+ * `lib/monitors`, où la langue de l'instance est lisible. Les deux routes de
+ * sonde passent par là, donc disent la même chose.
+ */
+async function translate(error: unknown): Promise<never> {
+  if (error instanceof MonitorConfigError) throw await monitorConfigMessage(error);
   throw error;
 }
 
@@ -75,7 +80,7 @@ export const GET = apiRoute(async (request) => {
     // Le catalogue est **envoyé au client** : c'est lui qui dit à l'écran quels
     // champs afficher pour chaque type. Sans ça il faudrait un `if` par type
     // dans le formulaire, et ajouter un type deviendrait une chirurgie.
-    types: monitorTypeOptions(MONITOR_TYPES_LIST),
+    types: await monitorTypeOptions(MONITOR_TYPES_LIST),
     defaults: {
       failureThreshold: MONITOR_FAILURE_THRESHOLD_DEFAULT,
       recoveryThreshold: MONITOR_RECOVERY_THRESHOLD_DEFAULT,
@@ -96,7 +101,9 @@ export const POST = apiRoute(async (request) => {
   if (input.applicationId !== null) {
     const application = await getApplication(input.applicationId);
     if (!application) {
-      throw new NotFoundError(`Application « ${input.applicationId} » introuvable`);
+      throw new NotFoundError(
+        msg(messages, 'error.applicationNotFound', { id: input.applicationId }),
+      );
     }
   }
 

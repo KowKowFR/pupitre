@@ -2,6 +2,7 @@ import {
   MONITOR_FAILURE_THRESHOLD_DEFAULT,
   MONITOR_INTERVAL_CEILING_SECONDS,
   MONITOR_INTERVAL_FLOOR_SECONDS,
+  MONITOR_PAUSE_ORPHANED,
   MONITOR_PRUNE_BATCH,
   MONITOR_RECOVERY_THRESHOLD_DEFAULT,
   MONITOR_THRESHOLD_MAX,
@@ -25,6 +26,7 @@ import {
   type CheckResult,
   type MonitorTransition,
   type MonitorType,
+  type SsrfRefusal,
   type UptimeWindow,
 } from '@pupitre/core';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -56,12 +58,38 @@ export type Monitor = typeof monitors.$inferSelect;
 export type MonitorCheck = typeof monitorChecks.$inferSelect;
 export type MonitorIncident = typeof monitorIncidents.$inferSelect;
 
+/**
+ * Pourquoi une configuration de sonde est refusée, **en donnée**.
+ *
+ * ── Pourquoi pas une phrase, et pas un dictionnaire ici ──────────────────────
+ * Ce refus s'affiche : il remonte en 422 dans le bandeau du formulaire de
+ * sonde. Il devrait donc parler la langue de l'instance — mais `@pupitre/db`
+ * n'en connaît pas, et n'a aucune raison de devenir un dépôt de traductions :
+ * cette couche écrit en base, elle ne parle à personne.
+ *
+ * Le refus voyage donc en pièces détachées — le type, le champ, la borne, la
+ * valeur demandée — et c'est la route HTTP, qui a la langue sous la main, qui
+ * en fait une phrase depuis `i18n/messages/monitors`. Même partage que
+ * `HttpError` : la donnée en bas, les mots en haut.
+ *
+ * `Error.message` reste rempli en français, comme partout ailleurs dans le
+ * projet : c'est ce que voit `Error.stack` et ce que Pino journalise.
+ */
+export type MonitorConfigReason =
+  /** La configuration ne passe pas le schéma du type. `issue` vient de Zod. */
+  | { kind: 'schema'; type: MonitorType; path: string; issue: string }
+  /** Une cible littérale qu'aucune liste d'autorisation n'ouvre. */
+  | { kind: 'target'; refusal: SsrfRefusal }
+  /** Une cadence sous le plancher que ce type déclare. */
+  | { kind: 'interval'; type: MonitorType; minSeconds: number; askedSeconds: number };
+
 /** Une cadence refusée par le type, ou une configuration invalide : 422, pas 500. */
 export class MonitorConfigError extends Error {
   override readonly name = 'MonitorConfigError';
   constructor(
     message: string,
     readonly field: string,
+    readonly reason: MonitorConfigReason,
   ) {
     super(message);
   }
@@ -148,9 +176,11 @@ export function resolveConfig(
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const path = first?.path.join('.') ?? 'config';
+    const issue = first?.message ?? 'valeur refusée';
     throw new MonitorConfigError(
-      `configuration de sonde « ${definition.label} » invalide — ${path} : ${first?.message ?? 'valeur refusée'}`,
+      `configuration de sonde « ${definition.label} » invalide — ${path} : ${issue}`,
       `config.${path}`,
+      { kind: 'schema', type, path, issue },
     );
   }
 
@@ -163,7 +193,10 @@ export function resolveConfig(
   // lit les champs marqués `kind: 'host' | 'url'` dans le catalogue.
   const target = checkMonitorTargetLiterals(type, parsed.data, allowedCidrs());
   if (!target.allowed) {
-    throw new MonitorConfigError(target.reason, `config.${target.field}`);
+    throw new MonitorConfigError(target.reason, `config.${target.field}`, {
+      kind: 'target',
+      refusal: target.refusal,
+    });
   }
 
   const interval = intervalSeconds ?? definition.defaultIntervalSeconds;
@@ -172,6 +205,12 @@ export function resolveConfig(
       `une sonde « ${definition.label} » ne se lance pas plus souvent que ` +
         `${formatCadence(definition.minIntervalSeconds)} — ${formatCadence(interval)} demandé`,
       'intervalSeconds',
+      {
+        kind: 'interval',
+        type,
+        minSeconds: definition.minIntervalSeconds,
+        askedSeconds: interval,
+      },
     );
   }
 
@@ -647,12 +686,16 @@ export async function listAdoptableApps(db: Database = getDb()): Promise<Adoptab
  * de panne — le pire faux positif qui soit, parce qu'il apprend à ignorer les
  * alertes. La sonde n'est pas supprimée : elle est suspendue avec son motif, et
  * se reprend d'un clic.
+ *
+ * Le motif écrit est une **clé**, pas une phrase : cette colonne survit à la
+ * suspension, et une phrase y aurait figé la langue du jour du balayage. Le
+ * raisonnement complet est sur `MONITOR_PAUSE_ORPHANED`, côté `@pupitre/core`.
  */
 export async function suspendOrphanedMonitors(db: Database = getDb()): Promise<number> {
   const rows = await db.execute<{ id: string }>(sql`
     update ${monitors} as m
        set enabled = false,
-           paused_reason = 'application plus déployée — sonde suspendue automatiquement',
+           paused_reason = ${MONITOR_PAUSE_ORPHANED},
            updated_at = now()
      where m.enabled
        and m.application_id is not null
