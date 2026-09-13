@@ -6,6 +6,7 @@ import {
   DEPLOYMENT_DESTROY_JOB,
   DEPLOYMENT_ROLLBACK_JOB,
   DEPLOYMENT_RUN_JOB,
+  MONITOR_CAPTURE_JOB,
   MONITOR_SWEEP_EVERY_MS,
   MONITOR_SWEEP_JOB,
   NOTIFICATIONS_QUEUE,
@@ -38,7 +39,8 @@ import {
 import { handleAppLogs, handleAppRestart } from './handlers/app.js';
 import { handleApplicationDelete } from './handlers/application.js';
 import { handleTargetMetrics, handleTargetMetricsSweep } from './handlers/host-metrics.js';
-import { handleMonitorSweep } from './handlers/monitor.js';
+import { handleMonitorCapture, handleMonitorSweep } from './handlers/monitor.js';
+import { startCaptureEgress, stopCaptureEgress } from './monitors/egress.js';
 import {
   closeNotificationsQueue,
   handleNotificationDeliver,
@@ -110,6 +112,10 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // HTTP. C'est un autre point de vue que `health:periodic`, qui interroge la
   // machine cible par SSH — celle-ci voit le pare-feu, le proxy et le certificat.
   [MONITOR_SWEEP_JOB]: handleMonitorSweep,
+  // Capture d'écran d'une page supervisée. Même file, tâche séparée : le
+  // balayage a déjà écrit l'incident et émis l'alerte quand celle-ci part. Une
+  // capture ne doit jamais retarder ce qui compte.
+  [MONITOR_CAPTURE_JOB]: handleMonitorCapture,
   // Supervision de serveurs : le balayage qui donne une mémoire aux relevés
   // d'hôte. Même file et même raison que `target:metrics`, dont il est
   // l'horloge — une lecture SSH courte, qu'un déploiement ne doit pas retarder.
@@ -267,6 +273,16 @@ async function main(): Promise<void> {
   }
 
   try {
+    // Le mandataire par lequel le navigateur de capture atteint l'Internet.
+    // N'ouvre rien quand la capture est éteinte, et un échec d'ouverture ne
+    // fait pas tomber le worker : sans mandataire, il n'y a pas de capture, et
+    // c'est tout ce qu'on perd.
+    await startCaptureEgress();
+  } catch (error) {
+    logger.error({ err: error }, 'mandataire de sortie des captures indisponible');
+  }
+
+  try {
     await installNotificationDigestSweep();
   } catch (error) {
     // Sans ce balayage, les fenêtres ouvertes ne se referment plus : les
@@ -378,6 +394,7 @@ async function main(): Promise<void> {
       await worker.close();
       await supervision.close();
       await notifications.close();
+      await stopCaptureEgress();
       await closeOpsQueue();
       await closeNotificationsQueue();
       await closePublisher();

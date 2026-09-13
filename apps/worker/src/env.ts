@@ -24,6 +24,34 @@ const envSchema = z.object({
    * multicast et le réservé restent refusés même s'ils sont listés ici.
    */
   MONITOR_ALLOWED_CIDRS: z.string().default(''),
+  /**
+   * Point d'entrée CDP du navigateur de capture — `http://capture-browser:9222`.
+   *
+   * **Vide par défaut, et c'est l'interrupteur de la fonctionnalité.** Sans
+   * cette variable, aucune capture n'est tentée, aucun mandataire de sortie
+   * n'est ouvert, et rien n'échoue : une instance qui ne veut pas de captures
+   * ne démarre pas un navigateur et n'en paie pas le prix. Le conteneur vit
+   * derrière le profil Compose `capture`, comme `mailpit` et `ssh-target`.
+   *
+   * ⚠ Une capture montre la page telle qu'un visiteur anonyme la voit. Le
+   * navigateur ne porte aucune session — contexte neuf à chaque fois — mais une
+   * URL supervisée qui porte elle-même un jeton (`?token=…`) fera apparaître du
+   * contenu privé dans l'image. Les images ne sont servies qu'à `monitor:read`
+   * et ne partent dans aucune alerte ; le raisonnement complet est dans
+   * `packages/core/src/monitors/capture.ts`.
+   */
+  MONITOR_CAPTURE_CDP_URL: z.string().default(''),
+  /**
+   * Port du mandataire de sortie du navigateur, ouvert par le worker et
+   * seulement quand la capture est active.
+   *
+   * Le navigateur est enfermé sur un réseau Compose **interne** : sa seule
+   * route mène au worker. Tout ce qu'il charge passe donc par ce port, et par
+   * la même garde SSRF que les sondes. Le raisonnement — et la mesure qui a
+   * montré qu'un simple réseau séparé ne suffisait pas — est dans
+   * `packages/core/src/capture/egress.ts`.
+   */
+  MONITOR_CAPTURE_EGRESS_PORT: z.coerce.number().int().min(1).max(65_535).default(8383),
   /** Racine où le driver dépose ses artefacts sur les cibles. */
   DRIVER_ROOT_PATH: z.string().min(1).default('/opt/bootstrap'),
   /**

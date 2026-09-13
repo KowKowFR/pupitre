@@ -114,6 +114,29 @@ export const MONITOR_SWEEP_JOB = 'monitor:sweep' as const;
  * mort, et un second chemin où la politique SSRF pourrait diverger.
  */
 
+/**
+ * Capture d'écran d'une page supervisée.
+ *
+ * ── Pourquoi une tâche à part, et pas dans le balayage ──────────────────────
+ * Parce qu'**une capture ne doit jamais retarder une alerte**. Le balayage
+ * travaille sous un budget de vingt-deux secondes pour deux cents sondes ; une
+ * capture coûte deux à dix secondes à elle seule. Rendre cinquante références
+ * dans un balayage épuiserait le budget et laisserait des sondes non
+ * interrogées — c'est-à-dire qu'une fonctionnalité de confort dégraderait la
+ * fonctionnalité principale.
+ *
+ * Séparée, la capture part **après** que l'incident est écrit et que l'alerte
+ * est émise. Elle peut échouer, traîner ou ne jamais tourner : rien de ce qui
+ * compte n'en dépend.
+ *
+ * Sur la file `supervision`, avec les autres lectures : c'est un chargement de
+ * page vers l'extérieur, il ne doit ni retarder un déploiement, ni l'attendre.
+ * `attempts: 1` — une capture ratée ne se rejoue pas : l'instant qu'elle devait
+ * montrer est déjà passé, et une image prise trois minutes après l'incident
+ * raconterait autre chose que ce qu'on lui demande.
+ */
+export const MONITOR_CAPTURE_JOB = 'monitor:capture' as const;
+
 export const pingJobDataSchema = z.object({
   message: z.string().min(1).max(280).default('pong'),
   requestedAt: z.string().datetime(),
@@ -309,6 +332,45 @@ export const monitorSweepJobResultSchema = z.object({
 
 export type MonitorSweepJobData = z.infer<typeof monitorSweepJobDataSchema>;
 export type MonitorSweepJobResult = z.infer<typeof monitorSweepJobResultSchema>;
+
+/**
+ * Deux formes, une union discriminée — parce que ce sont deux demandes qui
+ * n'ont ni le même déclencheur ni la même urgence, et qu'un objet unique aux
+ * champs à moitié `null` obligerait le handler à deviner laquelle il tient.
+ *
+ *   incident    « photographie cette sonde maintenant, pour cet incident ».
+ *               Enfilée à la transition, une par transition.
+ *   references  « rafraîchis les références qui ont vieilli ». Balaie, borné à
+ *               quelques sondes par passage. Personne ne l'attend.
+ */
+export const monitorCaptureJobDataSchema = z.discriminatedUnion('scope', [
+  z.object({
+    scope: z.literal('incident'),
+    monitorId: z.string().uuid(),
+    incidentId: z.string().uuid(),
+    kind: z.enum(['incident_open', 'incident_resolved']),
+  }),
+  z.object({
+    scope: z.literal('references'),
+  }),
+]);
+
+export const monitorCaptureJobResultSchema = z.object({
+  /** Captures tentées. */
+  attempted: z.number().int().nonnegative(),
+  /** Captures enregistrées. */
+  stored: z.number().int().nonnegative(),
+  /** Octets écrits, tous clichés confondus. */
+  bytes: z.number().int().nonnegative(),
+  /**
+   * Motifs des captures qui n'ont pas abouti. Une liste vide n'est pas le cas
+   * nominal : un navigateur éteint remplit cette liste, et c'est **normal**.
+   */
+  skipped: z.array(z.string()),
+});
+
+export type MonitorCaptureJobData = z.infer<typeof monitorCaptureJobDataSchema>;
+export type MonitorCaptureJobResult = z.infer<typeof monitorCaptureJobResultSchema>;
 
 export type WorkloadListJobData = z.infer<typeof workloadListJobDataSchema>;
 export type WorkloadListJobResult = z.infer<typeof workloadListJobResultSchema>;

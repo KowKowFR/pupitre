@@ -17,6 +17,7 @@ import {
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { HealthDot, formatSince } from '@/app/(app)/apps/apps-table';
 import { LatencyChart, OutcomeLegend, OutcomeStrip } from '../monitor-charts';
+import { IncidentCaptures, type CaptureView } from './incident-captures';
 
 /**
  * Détail d'une sonde : sa courbe, sa chronologie d'incidents, et la table de
@@ -94,15 +95,20 @@ function renderMetric(descriptor: MetricDescriptor, metrics: CheckMetrics): stri
 }
 
 export function MonitorDetail({
+  monitorId,
   checks,
   incidents,
+  captures,
   metrics,
   lastMetrics,
   retentionDays,
   uptimeMeans,
 }: {
+  monitorId: string;
   checks: CheckRow[];
   incidents: IncidentRow[];
+  /** Les captures de chaque incident, indexées par incident. Vide = capture éteinte. */
+  captures: Record<string, CaptureView[]>;
   metrics: readonly MetricDescriptor[];
   lastMetrics: CheckMetrics;
   retentionDays: number;
@@ -241,6 +247,12 @@ export function MonitorDetail({
                       Webhook non remis : {incident.alertError ?? incident.resolveAlertError}
                     </Alert>
                   ) : null}
+                  {/* « Code 503 » ne dit pas si la page était blanche, en
+                      maintenance ou défigurée. L'image, si. */}
+                  <IncidentCaptures
+                    monitorId={monitorId}
+                    captures={captures[incident.id] ?? []}
+                  />
                 </li>
               ))}
             </ol>

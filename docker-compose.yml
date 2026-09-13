@@ -89,6 +89,14 @@ services:
     volumes:
       # Clés SSH de l'hôte, en lecture seule — exploitées à partir du jalon 3.
       - ${SSH_KEYS_PATH:-${HOME}/.ssh}:/home/nodejs/.ssh:ro
+    # Le worker est le **seul** service à cheval sur les deux réseaux : lui seul
+    # pilote le navigateur de capture, en CDP. `capture` ne porte aucune route
+    # vers `postgres`, `redis` ni `panel` — c'est précisément ce qui isole le
+    # navigateur, et la raison pour laquelle cette ligne est ici et nulle part
+    # ailleurs. Voir le service `capture-browser` en bas de fichier.
+    networks:
+      - default
+      - capture
     depends_on:
       postgres:
         condition: service_healthy
@@ -184,6 +192,175 @@ services:
     ports:
       - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
       - "127.0.0.1:${MAILPIT_HTTP_PORT:-8025}:8025"
+
+  # ── Navigateur de capture, hors du démarrage normal ──────────────────────────
+  # Démarrage explicite :
+  #   docker compose --profile capture up -d capture-browser
+  #   # puis, dans .env :  MONITOR_CAPTURE_CDP_URL=http://capture-browser:9222
+  #
+  # Ce qu'il fait : rendre la page d'un site supervisé au moment où un incident
+  # s'ouvre ou se referme, pour qu'on voie ce que la sonde a vu. « Code 503 » ne
+  # dit pas si la page était blanche, en maintenance ou défigurée ; une image le
+  # dit. Un site qui rend 200 avec un tunnel de paiement cassé est au vert pour
+  # la sonde et en panne pour ses visiteurs — c'est le cas que seule une image
+  # attrape.
+  #
+  # ── Pourquoi un conteneur à part, et pas Playwright dans le worker ──────────
+  #
+  #  1. **Le réseau, et c'est la vraie raison.** La garde SSRF de la supervision
+  #     (`packages/core/src/monitors/ssrf.ts`) est construite avec soin : on
+  #     résout une fois, on contrôle *toutes* les adresses, on se connecte à
+  #     l'adresse littérale — le rebinding DNS est fermé. Un navigateur passe à
+  #     travers **par l'intérieur** : il suit les redirections, charge les
+  #     sous-ressources, et exécute du JavaScript qui peut requêter ce qu'il
+  #     veut. Une page hostile supervisée par Pupitre irait lire
+  #     `http://panel:3000/api/...` ou taper `postgres:5432`.
+  #
+  #     Une garde applicative *dans* le navigateur (interception de requêtes)
+  #     serait contournable et surtout oubliable. La réponse est donc
+  #     topologique — mais pas celle qu'on croit, et la nuance a été **mesurée**,
+  #     pas supposée : deux réseaux Compose distincts ne sont *pas* isolés l'un
+  #     de l'autre. Depuis un simple réseau `capture` non interne, on joint
+  #     `172.21.0.4:3000` et on lit la réponse du panel. Seul le nom disparaît.
+  #
+  #     Ce qui isole vraiment est `internal: true` : plus de passerelle du tout,
+  #     une seule ligne dans la table de routage. Mais un réseau interne coupe
+  #     aussi l'Internet, et un navigateur sans Internet ne capture rien. D'où
+  #     le montage final : réseau **interne**, dont la seule sortie est un
+  #     mandataire tenu par le worker, qui applique à chaque requête la garde
+  #     SSRF déjà écrite. Une page ne peut pas contourner le mandataire de son
+  #     navigateur, et si quelqu'un retirait l'option, le navigateur ne perdrait
+  #     pas sa garde : il perdrait l'Internet, bruyamment.
+  #
+  #  2. **Le poids.** L'image applicative est sur base Alpine, et les
+  #     navigateurs de Playwright sont liés à la glibc : il n'y en a pas pour
+  #     musl. Le conteneur séparé règle la question sans toucher à l'image du
+  #     worker, qui ne prend pas un octet.
+  #
+  # ── Pourquoi cette image-là ─────────────────────────────────────────────────
+  # `headless-shell` est le binaire Chromium réduit au strict nécessaire pour
+  # être piloté : 146 Mo au lieu de 2 Go pour une image Playwright complète, pas
+  # d'interface, pas de codecs propriétaires. Il expose directement CDP, donc le
+  # worker le pilote avec `fetch` et `WebSocket` — tous deux natifs sous Node 24,
+  # aucune dépendance npm ajoutée nulle part.
+  #
+  # **La version est épinglée au build de Chromium près**, et ce n'est pas une
+  # précaution de principe : un navigateur qui change tout seul change les
+  # captures, et une comparaison avant/après entre deux moteurs différents
+  # compare le moteur, pas le site.
+  capture-browser:
+    profiles: ["capture"]
+    image: chromedp/headless-shell:151.0.7922.109
+    restart: unless-stopped
+    # Le seul réseau, et il ne mène nulle part : ni base, ni cache, ni panel.
+    networks:
+      - capture
+    # Aucun port publié : le worker le joint par le réseau interne. Publier CDP
+    # sur l'hôte donnerait à quiconque sur la machine un navigateur à piloter.
+    # Rien qu'un `Page.navigate` vers `file:///etc/passwd` en ferait une lecture
+    # de fichiers arbitraire.
+    init: true
+    read_only: true
+    # `HOME` pointe dans le tmpfs : sans lui, fontconfig cherche son cache dans
+    # `/root`, que `read_only` interdit, et rescanne toutes les polices à chaque
+    # page. Ça ne casse rien, ça ralentit tout.
+    environment:
+      HOME: /tmp
+    tmpfs:
+      # Le profil est en mémoire et meurt avec le conteneur : aucun cookie,
+      # aucun cache, aucune capture ne survit sur disque.
+      - /tmp
+      - /var/cache/fontconfig
+    # Chromium alloue ses tampons de rendu dans /dev/shm ; les 64 Mo par défaut
+    # de Docker font échouer le rendu des pages un peu lourdes.
+    shm_size: "512m"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Bornes contre la page hostile : une page qui part en boucle ne doit pas
+    # emporter la machine. Pas une garde de sécurité — une garde de voisinage.
+    mem_limit: 1g
+    pids_limit: 512
+    command:
+      # Le bac à sable de Chromium demande CAP_SYS_ADMIN dans un conteneur.
+      # L'arbitrage est assumé : un `--cap-add=SYS_ADMIN` transformerait une
+      # évasion de moteur de rendu en évasion potentielle de conteneur, alors
+      # qu'ici l'évasion ne donne qu'un conteneur sans capacité, sans secret,
+      # sans disque et sans route vers la pile. `run.sh` de l'image pose déjà
+      # `--no-sandbox` ; c'est le réseau qui tient lieu de bac à sable.
+      # **La seule porte de sortie.** Le réseau est interne : sans mandataire,
+      # ce navigateur ne joint rien. Toute requête qu'il émet — page, redirection,
+      # sous-ressource, `fetch()` du JavaScript de la page — passe par le worker,
+      # qui lui applique la garde SSRF. Le port suit `MONITOR_CAPTURE_EGRESS_PORT`
+      # — la même variable des deux côtés, pour qu'ils ne puissent pas diverger.
+      - --proxy-server=http://worker:${MONITOR_CAPTURE_EGRESS_PORT:-8383}
+      - --user-data-dir=/tmp/profile
+      - --hide-scrollbars
+      # Rien ne doit téléphoner à la maison : ni variations, ni mises à jour de
+      # composants, ni synchronisation, ni remontée de plantage.
+      - --disable-background-networking
+      - --disable-component-update
+      - --disable-sync
+      - --disable-breakpad
+      - --disable-domain-reliability
+      - --metrics-recording-only
+      - --no-first-run
+      - --no-default-browser-check
+      - --disable-default-apps
+      - --disable-extensions
+      # Une page supervisée n'ouvre ni fenêtre, ni onglet, et ne demande ni la
+      # géolocalisation ni les notifications : tout est refusé sans question.
+      - --block-new-web-contents
+      - --deny-permission-prompts
+      - --disable-features=Translate,MediaRouter,OptimizationHints,AcceptCHFrame,InterestFeedContentSuggestions
+    healthcheck:
+      # L'image n'a ni curl ni wget ; bash et son /dev/tcp suffisent. `CMD` et
+      # non `CMD-SHELL` : le shell par défaut est dash, qui n'a pas /dev/tcp.
+      #
+      # L'en-tête `Host` n'est pas décoratif : le point d'entrée DevTools ferme
+      # sans répondre toute requête dont le `Host` n'est ni une IP ni
+      # `localhost` — sa protection contre le rebinding DNS. Sans elle, la sonde
+      # lit une réponse vide et le conteneur reste éternellement « unhealthy »
+      # alors que le navigateur va très bien.
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/9222 && printf 'GET /json/version HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -c 15 <&3 | grep -q 200"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+networks:
+  # Le réseau par défaut, celui de toute la pile. Déclaré explicitement parce
+  # qu'un service qui liste ses réseaux ne l'obtient plus implicitement.
+  default:
+  # Le réseau de capture. Deux membres, et deux seulement : le worker, qui
+  # pilote, et le navigateur, qui rend.
+  #
+  # **`internal: true`, et ce n'est pas de la ceinture-bretelles.** L'hypothèse
+  # de départ — « deux réseaux Compose distincts sont isolés l'un de l'autre » —
+  # a été mesurée sur cette machine (Docker Engine 29 / Docker Desktop) et elle
+  # est **fausse** : depuis un réseau `capture` ordinaire, un conteneur joint
+  # `postgres`, `redis` et `panel` par leur adresse IP et lit leurs réponses.
+  # Le réseau séparé fait disparaître les *noms*, rien de plus, et deviner
+  # `172.21.0.x` n'est pas un obstacle.
+  #
+  # Un réseau interne, lui, n'a pas de passerelle. La table de routage du
+  # conteneur tient en une ligne — son propre /16 — et absolument rien d'autre
+  # n'est routable : ni la pile, ni l'hôte, ni l'Internet. C'est la garantie
+  # qu'on cherchait, et elle se vérifie en une commande :
+  #
+  #   docker compose exec capture-browser ip route     # une seule ligne
+  #
+  # Reste que le navigateur doit atteindre les sites supervisés. Sa seule sortie
+  # est le mandataire du worker (`--proxy-server` ci-dessus), qui applique la
+  # garde SSRF du projet à chaque requête. Retirer le mandataire ne rendrait pas
+  # le navigateur dangereux : ça le rendrait aveugle, tout de suite.
+  capture:
+    internal: true
 
 volumes:
   # `pgdata` et `redisdata` portent l'état du plan de contrôle et ont été

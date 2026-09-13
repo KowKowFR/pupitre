@@ -9,6 +9,7 @@ export * from './deployments.js';
 export * from './port-allocator.js';
 export * from './scans.js';
 export * from './monitors.js';
+export * from './captures.js';
 export * from './target-metrics.js';
 export * from './notifications.js';
 export * from './notification-digests.js';

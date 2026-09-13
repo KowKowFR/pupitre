@@ -13,12 +13,15 @@
  *   monitors/ssrf.ts     la politique SSRF, commune à tous les types
  *   monitors/catalog.ts  le catalogue déclaratif des types de sonde
  *   monitors/state.ts    verdict, machine à états, disponibilité, alerte
+ *   monitors/capture.ts  les captures d'écran d'incident — vocabulaire et bornes
  *
- * Trois fichiers, tous **purs** : ce module est importé par des composants
+ * Quatre fichiers, tous **purs** : ce module est importé par des composants
  * client, il ne doit tirer aucun module natif. Les sondes elles-mêmes — celles
- * qui ouvrent des connexions — vivent sous `@pupitre/core/probe`.
+ * qui ouvrent des connexions — vivent sous `@pupitre/core/probe`, et le pilote
+ * du navigateur de capture sous `@pupitre/core/capture`.
  */
 
 export * from './monitors/ssrf.js';
 export * from './monitors/catalog.js';
 export * from './monitors/state.js';
+export * from './monitors/capture.js';
