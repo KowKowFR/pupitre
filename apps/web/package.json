@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "dotenv -c -e ../../.env -- next start --port ${PORT:-3000}",
     "lint": "eslint .",
+    "test": "node --test test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

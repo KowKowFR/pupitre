@@ -1,4 +1,5 @@
 import {
+  getAppSettings,
   listOpenBreaches,
   listSupervisedApps,
   listTargets,
@@ -7,6 +8,9 @@ import {
 } from '@pupitre/db';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
+import { getT } from '@/i18n/server';
+import { servers as messages } from '@/i18n/messages/servers';
+import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import type { SupervisedRow } from './apps-table';
 import type { HostHistoryData, HistoryMetric } from './host-history';
@@ -45,6 +49,7 @@ const HISTORY_BUCKETS = 48;
  */
 export default async function AppsPage() {
   const auth = await requirePagePermission('/apps', 'deployment:read');
+  const t = await getT(messages);
   const canReadTargets = auth.can('target:read');
 
   // Sans `target:read`, on ne liste pas le parc : les seuls serveurs affichés
@@ -135,6 +140,8 @@ export default async function AppsPage() {
 
   const rows = [...servers.values()].sort((a, b) => a.name.localeCompare(b.name));
 
+  const { settings } = await getAppSettings();
+
   // Les données d'historique, mises en forme pour le client : des chaînes ISO
   // plutôt que des `Date`, et rien d'autre que ce que l'écran affiche.
   const history: Record<string, HostHistoryData> = {};
@@ -176,19 +183,15 @@ export default async function AppsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Supervision"
-        title="Serveurs et applications"
-        description="Une ligne par machine : comment elle se porte, et ce qu'elle porte. Dépliez un serveur pour voir ses applications. Une application dont la dernière mise à jour a échoué reste listée — elle tourne toujours, dans sa version précédente. L'historique des déploiements est ailleurs."
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
       />
 
       {rows.length === 0 ? (
         <EmptyState
-          title="Aucun serveur à superviser"
-          hint={
-            canReadTargets
-              ? 'Déclarez une machine cible, puis déployez-y une application : les deux apparaîtront ici.'
-              : "Cet écran part du parc de machines, et le lire demande la permission target:read. Un administrateur peut l'ajouter à votre rôle depuis Administration → Rôles."
-          }
+          title={t('page.empty')}
+          hint={canReadTargets ? t('page.empty.hint') : t('page.empty.restricted')}
         />
       ) : (
         <ServersList
@@ -197,6 +200,7 @@ export default async function AppsPage() {
           canRestart={auth.can('deployment:restart')}
           canReadTargets={canReadTargets}
           canTune={auth.can('target:update')}
+          format={formatSettingsOf(settings)}
         />
       )}
     </div>

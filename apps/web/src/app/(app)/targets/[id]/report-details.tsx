@@ -2,20 +2,25 @@ import type { PreflightReport } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getT } from '@/i18n/server';
+import { common } from '@/i18n/messages/common';
+import { targets as messages } from '@/i18n/messages/targets';
 
-function gib(kb: number): string {
-  return `${(kb / 1024 / 1024).toFixed(1)} Gio`;
+/** L'unité voyage en argument : « Gio » n'est pas « GiB ». */
+function gib(kb: number, unit: string): string {
+  return `${(kb / 1024 / 1024).toFixed(1)} ${unit}`;
 }
 
-export function ReportDetails({ report }: { report: PreflightReport | null }) {
+export async function ReportDetails({ report }: { report: PreflightReport | null }) {
+  const t = await getT(messages);
+  const tc = await getT(common);
+
   if (!report) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Rapport de preflight</CardTitle>
-          <CardDescription>
-            Aucun preflight n&apos;a encore été lancé sur cette cible.
-          </CardDescription>
+          <CardTitle>{t('report.title')}</CardTitle>
+          <CardDescription>{t('report.none')}</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -26,7 +31,7 @@ export function ReportDetails({ report }: { report: PreflightReport | null }) {
       {report.error ? (
         <Card>
           <CardHeader>
-            <CardTitle>Cible injoignable</CardTitle>
+            <CardTitle>{t('report.unreachable')}</CardTitle>
             <CardDescription className="font-mono text-xs text-danger">
               {report.error}
             </CardDescription>
@@ -37,32 +42,39 @@ export function ReportDetails({ report }: { report: PreflightReport | null }) {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Machine</CardTitle>
+            <CardTitle>{t('report.machine')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <Row label="Système">{report.os.prettyName ?? report.os.name ?? '—'}</Row>
-            <Row label="Noyau">{report.os.uname ?? '—'}</Row>
-            <Row label="Latence SSH">
-              {report.latencyMs === null ? '—' : `${report.latencyMs} ms`}
+            <Row label={t('row.os')}>{report.os.prettyName ?? report.os.name ?? tc('none')}</Row>
+            <Row label={t('row.kernel')}>{report.os.uname ?? tc('none')}</Row>
+            <Row label={t('row.latency')}>
+              {report.latencyMs === null ? tc('none') : `${report.latencyMs} ms`}
             </Row>
-            <Row label="sudo">
+            <Row label={t('row.sudo')}>
               {report.sudo.nopasswd
-                ? 'sans mot de passe'
+                ? t('value.sudo.nopasswd')
                 : report.sudo.available
-                  ? 'mot de passe requis'
-                  : 'indisponible'}
+                  ? t('sudo.passwordRequired')
+                  : t('sudo.unavailable')}
             </Row>
-            <Row label="Disque /">
+            <Row label={t('row.disk')}>
               {report.disk
-                ? `${gib(report.disk.availableKb)} libres sur ${gib(report.disk.sizeKb)} (${report.disk.usePercent} %)`
-                : '—'}
+                ? t('disk.value', {
+                    available: gib(report.disk.availableKb, t('unit.gib')),
+                    size: gib(report.disk.sizeKb, t('unit.gib')),
+                    percent: report.disk.usePercent,
+                  })
+                : tc('none')}
             </Row>
-            <Row label="Mémoire">
+            <Row label={t('row.memory')}>
               {report.memory
-                ? `${report.memory.availableMb} Mio disponibles sur ${report.memory.totalMb}`
-                : '—'}
+                ? t('memory.value', {
+                    available: report.memory.availableMb,
+                    total: report.memory.totalMb,
+                  })
+                : tc('none')}
             </Row>
-            <Row label="Outils">
+            <Row label={t('row.tools')}>
               <span className="flex flex-wrap gap-1">
                 {Object.entries(report.tools).map(([tool, present]) => (
                   <Badge key={tool} variant={present ? 'ok' : 'outline'} className="font-mono">
@@ -76,23 +88,25 @@ export function ReportDetails({ report }: { report: PreflightReport | null }) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Runtimes</CardTitle>
+            <CardTitle>{t('report.runtimes')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <Row label="Docker">
               {report.runtimes.docker.available
                 ? `✓ ${report.runtimes.docker.version ?? ''}`
-                : '✗ indisponible'}
+                : t('runtime.unavailable')}
             </Row>
-            <Row label="Docker Compose">{report.runtimes.docker.composeVersion ?? '—'}</Row>
-            <Row label="K3s / Kubernetes">
+            <Row label={t('row.compose')}>
+              {report.runtimes.docker.composeVersion ?? tc('none')}
+            </Row>
+            <Row label={t('row.k3s')}>
               {report.runtimes.k3s.available
                 ? `✓ ${report.runtimes.k3s.version ?? ''}`
-                : '✗ indisponible'}
+                : t('runtime.unavailable')}
             </Row>
-            <Row label="Nodes prêts">
+            <Row label={t('row.readyNodes')}>
               {report.runtimes.k3s.nodes === null
-                ? '—'
+                ? tc('none')
                 : `${report.runtimes.k3s.readyNodes ?? 0} / ${report.runtimes.k3s.nodes}`}
             </Row>
           </CardContent>
@@ -101,19 +115,17 @@ export function ReportDetails({ report }: { report: PreflightReport | null }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Contrôles</CardTitle>
-          <CardDescription>
-            Chaque contrôle est indépendant : un échec n&apos;invalide pas les autres.
-          </CardDescription>
+          <CardTitle>{t('report.checks.title')}</CardTitle>
+          <CardDescription>{t('report.checks.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Contrôle</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Durée</TableHead>
-                <TableHead>Détail</TableHead>
+                <TableHead>{t('column.check')}</TableHead>
+                <TableHead>{tc('column.status')}</TableHead>
+                <TableHead>{tc('column.duration')}</TableHead>
+                <TableHead>{tc('column.detail')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -138,7 +150,7 @@ export function ReportDetails({ report }: { report: PreflightReport | null }) {
                     {check.durationMs} ms
                   </TableCell>
                   <TableCell className="font-mono text-xs text-ink-faint">
-                    {check.error ?? check.detail ?? '—'}
+                    {check.error ?? check.detail ?? tc('none')}
                   </TableCell>
                 </TableRow>
               ))}

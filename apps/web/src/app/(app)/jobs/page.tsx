@@ -1,8 +1,8 @@
 import {
-  SCHEDULED_JOB_TYPES,
   SCHEDULED_JOB_TYPES_LIST,
   describeCron,
   fromCron,
+  scheduledJobTypes,
   supportedTimeZones,
 } from '@pupitre/core';
 import {
@@ -12,6 +12,9 @@ import {
   listScheduledJobs,
 } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
+import { currentLanguage, getT } from '@/i18n/server';
+import { jobs as messages } from '@/i18n/messages/jobs';
+import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { schedulerStates } from '@/lib/schedules';
 import { JobsPanel, type JobRow, type JobTypeOption } from './jobs-panel';
@@ -27,6 +30,9 @@ export const dynamic = 'force-dynamic';
  */
 export default async function JobsPage() {
   const auth = await requirePagePermission('/jobs', 'job:read');
+  const t = await getT(messages);
+  const language = await currentLanguage();
+  const definitions = scheduledJobTypes(language);
 
   const [rows, states, lastRuns, settings] = await Promise.all([
     listScheduledJobs(),
@@ -47,7 +53,7 @@ export default async function JobsPage() {
 
   const jobs: JobRow[] = await Promise.all(
     rows.map(async (row) => {
-      const definition = SCHEDULED_JOB_TYPES[row.type];
+      const definition = definitions[row.type];
       const runs = await listScheduledJobRuns(row.id, 10);
       const lastRun = lastRuns.get(row.id) ?? null;
 
@@ -60,7 +66,10 @@ export default async function JobsPage() {
         description: definition.description,
         neverDoes: definition.neverDoes,
         cron: row.cron,
-        cronDescription: describeCron(row.cron, { timeZone: row.timezone }),
+        cronDescription: describeCron(row.cron, {
+          locale: language,
+          timeZone: row.timezone,
+        }),
         schedule: fromCron(row.cron),
         timeZone: row.timezone,
         // `null` sur un scheduler installé avant la migration `0009`, ou absent
@@ -103,18 +112,18 @@ export default async function JobsPage() {
 
   const types: JobTypeOption[] = SCHEDULED_JOB_TYPES_LIST.map((type) => ({
     type,
-    label: SCHEDULED_JOB_TYPES[type].label,
-    description: SCHEDULED_JOB_TYPES[type].description,
-    defaultCron: SCHEDULED_JOB_TYPES[type].defaultCron,
-    defaultKey: SCHEDULED_JOB_TYPES[type].defaultKey,
+    label: definitions[type].label,
+    description: definitions[type].description,
+    defaultCron: definitions[type].defaultCron,
+    defaultKey: definitions[type].defaultKey,
   }));
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Ordonnancement"
-        title="Tâches planifiées"
-        description="Ce que le panel refait tout seul sur ce qui est déjà déployé : ré-analyser les images, sonder la santé des applications, rafraîchir le preflight des cibles, purger les vieilles versions. Ordonnancées par BullMQ — pas par un cron Linux — et donc visibles, rejouables et traçables ici. Aucune ne redéploie, ne rollback ni ne bloque quoi que ce soit : elles constatent et alertent."
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
       />
 
       <JobsPanel
@@ -123,6 +132,7 @@ export default async function JobsPage() {
         canManage={auth.can('job:manage')}
         defaultTimeZone={defaultTimeZone}
         timeZones={timeZones}
+        format={formatSettingsOf(settings)}
       />
     </div>
   );

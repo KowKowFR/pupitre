@@ -1,12 +1,21 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getApplication, listApplicationSecrets, listApplicationVersions, listTargets } from '@pupitre/db';
+import {
+  getApplication,
+  getAppSettings,
+  listApplicationSecrets,
+  listApplicationVersions,
+  listTargets,
+} from '@pupitre/db';
 import { z } from 'zod';
 import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
+import { applications as messages } from '@/i18n/messages/applications';
 import { buildSecretViews } from '@/lib/application-secrets';
+import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { ApplicationSecrets } from './application-secrets';
 import { VersionTimeline, type VersionRow } from './version-timeline';
@@ -20,6 +29,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   if (!parsed.success) notFound();
 
   const auth = await requirePagePermission(`/applications/${parsed.data.id}`, 'application:read');
+  const t = await getT(messages);
+  const { settings } = await getAppSettings();
 
   const application = await getApplication(parsed.data.id);
   if (!application) notFound();
@@ -54,7 +65,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             className="inline-flex items-center gap-1 transition-colors hover:text-ink"
           >
             <ChevronLeft className="size-3" />
-            Applications
+            {t('page.title')}
           </Link>
         }
         title={
@@ -70,11 +81,8 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
       <Card>
         <CardHeader>
-          <CardTitle>AppSpec courante</CardTitle>
-          <CardDescription>
-            Ce que le prochain déploiement utilisera. Les versions déjà déployées gardent la
-            leur, figée.
-          </CardDescription>
+          <CardTitle>{t('detail.spec.title')}</CardTitle>
+          <CardDescription>{t('detail.spec.description')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
           {spec.services.map((service) =>
@@ -87,7 +95,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             ),
           )}
           <span className="font-mono text-xs text-ink-faint">
-            {spec.ingress?.host ?? 'exposition par port alloué'}
+            {spec.ingress?.host ?? t('detail.spec.byPort')}
           </span>
         </CardContent>
       </Card>
@@ -100,12 +108,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
       <div className="flex flex-col gap-1 pt-1">
         <h2 className="font-condensed text-lg leading-none font-semibold tracking-[0.005em] text-ink">
-          Historique des versions
+          {t('versions.title')}
         </h2>
         <p className="text-[0.8125rem] text-ink-muted">
           {rows.length === 0
-            ? 'Chaque déploiement fige son AppSpec au moment où il part : c’est ce qui permet de rejouer une version telle qu’elle était, sur la même cible ou sur une autre.'
-            : `${rows.length} déploiement${rows.length > 1 ? 's' : ''}, du plus récent au plus ancien. Chaque version garde son AppSpec figée : c’est ce qui la rend rejouable.`}
+            ? t('versions.empty')
+            : t('versions.count', { count: rows.length })}
         </p>
       </div>
 
@@ -115,6 +123,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         versions={rows}
         targets={deployTargets}
         canRedeploy={auth.can('deployment:create')}
+        format={formatSettingsOf(settings)}
       />
     </div>
   );

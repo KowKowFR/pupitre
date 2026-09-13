@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { renderMessage, type Translated, type UiLanguage, type Vars } from '../i18n.js';
 
 /**
  * ⚠ Politique SSRF de la supervision.
@@ -141,17 +142,107 @@ const NEVER_ALLOWED: ReadonlySet<AddressCategory> = new Set<AddressCategory>([
   'unspecified',
 ]);
 
-const CATEGORY_LABEL: Record<AddressCategory, string> = {
-  public: 'publique',
-  loopback: 'de bouclage',
-  private: 'privée',
-  'unique-local': 'locale unique (IPv6)',
-  cgnat: 'de NAT opérateur',
-  'link-local': 'de lien local — ce sont les services de métadonnées',
-  multicast: 'de multidiffusion',
-  reserved: 'réservée',
-  unspecified: 'indéterminée',
+/**
+ * Les mots d'un refus — et rien que les mots.
+ *
+ * ── Pourquoi une **donnée** et pas une phrase ────────────────────────────────
+ * Un refus SSRF ne s'arrête pas ici : il traverse `SsrfBlockedError`, remonte
+ * en 422 dans le bandeau du formulaire de sonde, et se recopie en `detail` d'un
+ * relevé. Le premier s'affiche dans la langue de l'instance, le second est une
+ * trace d'un événement passé qui reste telle quelle. Une fonction ne peut pas
+ * rendre les deux si elle ne rend qu'une chaîne.
+ *
+ * Chaque refus est donc une `SsrfRefusal` — une clé et ses variables — que
+ * l'appelant rend dans la langue qui convient à *son* usage. Les verdicts
+ * portent en plus un `reason` déjà rendu en français : c'est la langue source
+ * du projet, celle des logs et des relevés, et elle laisse intacts les
+ * appelants qui n'ont pas de langue à offrir.
+ *
+ * Le français accroche la catégorie derrière « une adresse », l'anglais la
+ * porte en entier dans la substitution. Les deux gabarits n'ont donc pas la
+ * même forme, et c'est exactement ce qu'une traduction est censée faire.
+ */
+const fr = {
+  'category.public': 'publique',
+  'category.loopback': 'de bouclage',
+  'category.private': 'privée',
+  'category.unique-local': 'locale unique (IPv6)',
+  'category.cgnat': 'de NAT opérateur',
+  'category.link-local': 'de lien local — ce sont les services de métadonnées',
+  'category.multicast': 'de multidiffusion',
+  'category.reserved': 'réservée',
+  'category.unspecified': 'indéterminée',
+
+  'reason.unreadableAddress': 'adresse illisible « {value} »',
+  'reason.neverAllowed':
+    '{value} est une adresse {category} — ' +
+    "elle ne peut être autorisée par aucune liste, c'est une règle du panel",
+  'reason.notListed':
+    "{value} est une adresse {category} et n'appartient à aucune plage " +
+    'autorisée — ajouter la plage à MONITOR_ALLOWED_CIDRS pour la superviser',
+  'reason.noHostname': "la cible n'a pas de nom d'hôte",
+  'reason.localhost': '« localhost » ne se supervise pas depuis le worker',
+  'reason.unreadableUrl': 'URL illisible « {value} »',
+  'reason.badScheme': 'schéma « {scheme} » refusé — http ou https uniquement',
+  'reason.credentials': "une URL de sonde ne porte pas d'identifiants",
+  'reason.unresolved': 'nom « {host} » non résolu : {message}',
+  'reason.noAddress': 'nom « {host} » sans adresse',
+  'reason.hostRefused': 'hôte refusé',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'category.public': 'a public address',
+  'category.loopback': 'a loopback address',
+  'category.private': 'a private address',
+  'category.unique-local': 'a unique-local address (IPv6)',
+  'category.cgnat': 'a carrier-grade NAT address',
+  'category.link-local': 'a link-local address — that is where metadata services live',
+  'category.multicast': 'a multicast address',
+  'category.reserved': 'a reserved address',
+  'category.unspecified': 'an unspecified address',
+
+  'reason.unreadableAddress': 'unreadable address “{value}”',
+  'reason.neverAllowed': '{value} is {category} — no allowlist opens it, that is a panel rule',
+  'reason.notListed':
+    '{value} is {category} and sits in no allowed range — ' +
+    'add the range to MONITOR_ALLOWED_CIDRS to monitor it',
+  'reason.noHostname': 'the target has no hostname',
+  'reason.localhost': '“localhost” is not monitored from the worker',
+  'reason.unreadableUrl': 'unreadable URL “{value}”',
+  'reason.badScheme': 'scheme “{scheme}” refused — http or https only',
+  'reason.credentials': 'a probe URL carries no credentials',
+  'reason.unresolved': 'name “{host}” did not resolve: {message}',
+  'reason.noAddress': 'name “{host}” has no address',
+  'reason.hostRefused': 'host refused',
 };
+
+export const ssrfCopy = { fr, en };
+
+export type SsrfReasonKey = keyof typeof fr;
+
+/**
+ * Un refus, désigné plutôt qu'écrit. La phrase se fabrique au moment de
+ * l'afficher, dans la langue qui convient à cet affichage-là.
+ *
+ * `category` est à part des `vars` parce que c'est la seule substitution qui
+ * soit elle-même une phrase à traduire : la garder en donnée jusqu'au rendu est
+ * ce qui empêche un refus de figer une langue au moment où il est levé.
+ */
+export type SsrfRefusal = {
+  readonly key: SsrfReasonKey;
+  readonly vars?: Vars;
+  readonly category?: AddressCategory;
+};
+
+/** Rend un refus. Le français par défaut : c'est la langue des logs et des relevés. */
+export function ssrfRefusalText(refusal: SsrfRefusal, language: UiLanguage = 'fr'): string {
+  const category =
+    refusal.category === undefined
+      ? undefined
+      : renderMessage(ssrfCopy, language, `category.${refusal.category}` as SsrfReasonKey);
+  const vars = category === undefined ? refusal.vars : { ...refusal.vars, category };
+  return renderMessage(ssrfCopy, language, refusal.key, vars);
+}
 
 /** Une adresse, normalisée en octets. 4 pour IPv4, 16 pour IPv6. */
 export type IpAddress = { bytes: number[]; family: 4 | 6 };
@@ -332,39 +423,46 @@ export function cidrContains(cidr: Cidr, address: IpAddress): boolean {
   return inRange(target.bytes, base.bytes, bits);
 }
 
+/**
+ * Un verdict de refus porte les deux : le refus en donnée (`refusal`) pour qui
+ * doit l'afficher, et la phrase française déjà rendue (`reason`) pour qui
+ * l'écrit dans un relevé ou dans un log. Aucun appelant existant n'a bougé.
+ */
 export type AddressVerdict =
   | { allowed: true; category: AddressCategory; via: string | null }
-  | { allowed: false; category: AddressCategory | null; reason: string };
+  | { allowed: false; category: AddressCategory | null; refusal: SsrfRefusal; reason: string };
+
+function refused(refusal: SsrfRefusal, category: AddressCategory | null = null) {
+  return { allowed: false as const, category, refusal, reason: ssrfRefusalText(refusal) };
+}
+
+/**
+ * Le verdict des contrôles qui jugent une **forme** — un nom d'hôte, une URL,
+ * une adresse littérale — sans liste d'autorisation ni réseau.
+ */
+export type ShapeVerdict = { allowed: boolean; refusal?: SsrfRefusal; reason?: string };
+
+function refusedShape(refusal: SsrfRefusal): ShapeVerdict {
+  return { allowed: false, refusal, reason: ssrfRefusalText(refusal) };
+}
 
 /** Le contrôle d'une adresse, une fois résolue. Point d'entrée unique. */
 export function checkAddress(value: string, allowlist: readonly Cidr[]): AddressVerdict {
   const parsed = parseIp(value);
   const category = parsed ? classifyAddress(value) : null;
   if (!parsed || category === null) {
-    return { allowed: false, category: null, reason: `adresse illisible « ${value} »` };
+    return refused({ key: 'reason.unreadableAddress', vars: { value } });
   }
   if (category === 'public') return { allowed: true, category, via: null };
 
   if (NEVER_ALLOWED.has(category)) {
-    return {
-      allowed: false,
-      category,
-      reason:
-        `${value} est une adresse ${CATEGORY_LABEL[category]} — ` +
-        "elle ne peut être autorisée par aucune liste, c'est une règle du panel",
-    };
+    return refused({ key: 'reason.neverAllowed', vars: { value }, category }, category);
   }
 
   const match = allowlist.find((cidr) => cidrContains(cidr, parsed));
   if (match) return { allowed: true, category, via: match.text };
 
-  return {
-    allowed: false,
-    category,
-    reason:
-      `${value} est une adresse ${CATEGORY_LABEL[category]} et n'appartient à aucune plage ` +
-      'autorisée — ajouter la plage à MONITOR_ALLOWED_CIDRS pour la superviser',
-  };
+  return refused({ key: 'reason.notListed', vars: { value }, category }, category);
 }
 
 /**
@@ -381,26 +479,21 @@ export function checkAddress(value: string, allowlist: readonly Cidr[]): Address
  * Rend `{ allowed: true }` pour un nom : un nom ne se juge qu'une fois résolu,
  * et c'est `resolveGuarded()` qui s'en charge.
  */
-export function checkNeverAllowable(value: string): { allowed: boolean; reason?: string } {
+export function checkNeverAllowable(value: string): ShapeVerdict {
   const category = classifyAddress(value);
   if (category === null) return { allowed: true };
   if (!NEVER_ALLOWED.has(category)) return { allowed: true };
-  return {
-    allowed: false,
-    reason:
-      `${value} est une adresse ${CATEGORY_LABEL[category]} — ` +
-      "elle ne peut être autorisée par aucune liste, c'est une règle du panel",
-  };
+  return refusedShape({ key: 'reason.neverAllowed', vars: { value }, category });
 }
 
 /** Contrôle d'un nom d'hôte, avant toute résolution. */
-export function checkHostname(hostname: string): { allowed: boolean; reason?: string } {
+export function checkHostname(hostname: string): ShapeVerdict {
   const host = hostname.trim().toLowerCase().replace(/\.$/, '');
-  if (host === '') return { allowed: false, reason: "la cible n'a pas de nom d'hôte" };
+  if (host === '') return refusedShape({ key: 'reason.noHostname' });
   // `localhost` ne résout pas toujours en 127.0.0.1 ; on le refuse par son nom
   // en plus de son adresse, pour que le message soit clair.
   if (host === 'localhost' || host.endsWith('.localhost')) {
-    return { allowed: false, reason: '« localhost » ne se supervise pas depuis le worker' };
+    return refusedShape({ key: 'reason.localhost' });
   }
   // Une cible écrite en adresse littérale se juge tout de suite, sans attendre
   // la résolution : `169.254.169.254` n'a aucune raison d'être acceptée à la
@@ -412,21 +505,21 @@ export function checkHostname(hostname: string): { allowed: boolean; reason?: st
 }
 
 /** Schéma, identifiants, nom d'hôte. La résolution DNS vient après, dans la sonde. */
-export function checkUrlShape(value: string): { allowed: boolean; reason?: string } {
+export function checkUrlShape(value: string): ShapeVerdict {
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    return { allowed: false, reason: `URL illisible « ${value} »` };
+    return refusedShape({ key: 'reason.unreadableUrl', vars: { value } });
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    return {
-      allowed: false,
-      reason: `schéma « ${url.protocol.replace(':', '')} » refusé — http ou https uniquement`,
-    };
+    return refusedShape({
+      key: 'reason.badScheme',
+      vars: { scheme: url.protocol.replace(':', '') },
+    });
   }
   if (url.username !== '' || url.password !== '') {
-    return { allowed: false, reason: "une URL de sonde ne porte pas d'identifiants" };
+    return refusedShape({ key: 'reason.credentials' });
   }
   return checkHostname(url.hostname);
 }

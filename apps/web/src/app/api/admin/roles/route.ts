@@ -1,7 +1,14 @@
-import { PERMISSIONS, PERMISSION_DESCRIPTIONS, permissionsByResource } from '@pupitre/core';
+import {
+  PERMISSIONS,
+  permissionDescriptions,
+  permissionsByResource,
+  translator,
+} from '@pupitre/core';
 import { createRole, createRoleSchema, getRoleByKey, listRolesWithPermissions, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
-import { ConflictError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { currentLanguage } from '@/i18n/server';
+import { ConflictError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -16,6 +23,10 @@ export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'role:read');
   const items = await listRolesWithPermissions();
 
+  // Les clés sont le contrat ; les descriptions ne sont que des libellés, et
+  // partent donc dans la langue de l'instance.
+  const describe = translator(permissionDescriptions, await currentLanguage());
+
   return NextResponse.json({
     items,
     total: items.length,
@@ -23,9 +34,9 @@ export const GET = apiRoute(async (request) => {
     vocabulary: {
       permissions: PERMISSIONS.map((key) => ({
         key,
-        description: PERMISSION_DESCRIPTIONS[key],
+        description: describe(key),
       })),
-      byResource: permissionsByResource(),
+      byResource: permissionsByResource(describe),
     },
   });
 });
@@ -35,7 +46,7 @@ export const POST = apiRoute(async (request) => {
   const input = await readJsonBody(request, createRoleSchema);
 
   if (await getRoleByKey(input.key)) {
-    throw new ConflictError(`Un rôle « ${input.key} » existe déjà`);
+    throw new ConflictError(msg(admin, 'error.role.exists', { key: input.key }));
   }
 
   const role = await createRole(input);

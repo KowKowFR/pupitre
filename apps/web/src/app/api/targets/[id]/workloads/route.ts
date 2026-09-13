@@ -2,7 +2,8 @@ import { encodeWorkloadRef } from '@pupitre/core';
 import { getTarget } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { fetchWorkloads } from './inventory';
@@ -25,7 +26,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const list = await fetchWorkloads(id, auth.userId, auth.ip);
 

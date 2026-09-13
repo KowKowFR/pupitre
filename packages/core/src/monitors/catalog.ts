@@ -1,8 +1,13 @@
 import { z } from "zod";
 import {
+  translator,
+  type Translate,
+  type Translated,
+  type UiLanguage,
+} from "../i18n.js";
+import {
   DNS_RECORD_TYPES_LIST,
   DNS_RECORD_TYPE_FORMATS,
-  DNS_RECORD_TYPE_LABELS,
   dnsMatchModeSchema,
   dnsRecordTypeSchema,
   parseExpectedRecords,
@@ -17,6 +22,7 @@ import {
   monitorHostSchema,
   monitorUrlSchema,
   type Cidr,
+  type SsrfRefusal,
 } from "./ssrf.js";
 
 /**
@@ -160,6 +166,414 @@ export type MonitorTypeDefinition<Config> = {
   uptimeMeans: string;
 };
 
+// ─── les mots du catalogue ────────────────────────────────────────────────────
+
+/**
+ * Tout ce que le catalogue **affiche**, et rien d'autre.
+ *
+ * Les clés d'énumération (`http`, `lenient`, `A`), les schémas Zod, les bornes
+ * et les valeurs de départ restent en dessous : ce sont des données, elles
+ * n'ont pas de langue. Ce qui apparaît à l'écran — le nom d'un type, le libellé
+ * d'un champ, l'aide de saisie, le nom d'une mesure — est ici, une fois, et le
+ * compilateur refuse une traduction incomplète.
+ *
+ * Les libellés partagés par plusieurs types (« Hôte », « Code attendu »,
+ * « Temps de réponse ») ne sont écrits qu'une fois, sous un préfixe neutre :
+ * deux types qui affichent le même mot ne doivent pas pouvoir en donner deux
+ * traductions différentes.
+ */
+const fr = {
+  // ── Libellés partagés ───────────────────────────────────────────────────
+  "field.url.label": "URL",
+  "field.host.label": "Hôte",
+  "field.port.label": "Port",
+  "field.expectedStatus.label": "Code attendu",
+  "field.timeout.label": "Délai d'expiration",
+  "field.warnDays.label": "Préavis avant expiration",
+  "field.matching.label": "Comparaison",
+  "placeholder.domain": "exemple.fr",
+  "metric.latencyMs": "Temps de réponse",
+  "metric.httpStatus": "Code HTTP",
+  "metric.redirects": "Redirections suivies",
+  "metric.address": "Adresse jointe",
+  "metric.daysRemaining": "Jours restants",
+  "metric.expiresOn": "Expire le",
+  "unit.days": "jours",
+  "unit.kib": "kio",
+  /** Rendu quand la configuration ne se relit pas — voir `describeMonitorTarget`. */
+  "target.unreadable": "(configuration illisible)",
+
+  // ── http ────────────────────────────────────────────────────────────────
+  "http.label": "Disponibilité HTTP",
+  "http.description":
+    "Une requête depuis le worker vers l'URL publique : code de réponse, temps de " +
+    "réponse, et, si on le demande, présence d'un mot-clé dans la page.",
+  "http.neverDoes":
+    "Ne redémarre rien, ne redéploie rien. C'est un constat, pas une action.",
+  "http.uptime": "part du temps où l'URL a répondu le code attendu",
+  "http.field.url.placeholder": "https://exemple.fr/",
+  "http.field.method.label": "Méthode",
+  "http.field.method.hint":
+    "HEAD évite de télécharger la page — mais interdit la recherche d'un mot-clé.",
+  "http.field.keyword.label": "Mot-clé attendu",
+  "http.field.keyword.placeholder": "facultatif",
+  "http.field.keyword.hint":
+    "Cherché dans les 256 premiers kio de la réponse. Absent = la sonde échoue.",
+
+  // ── keyword ─────────────────────────────────────────────────────────────
+  "keyword.label": "Mot-clé dans la page",
+  "keyword.description":
+    "Télécharge la page et vérifie ce qu'elle dit : un texte attendu, un texte " +
+    "interdit, ou les deux. Un 200 prouve que le serveur répond ; le mot-clé " +
+    "prouve que l'application répond — une page d'erreur, une page de " +
+    "maintenance ou un site défiguré rendent 200 très volontiers.",
+  "keyword.neverDoes":
+    "Ne juge pas l'apparence de la page et n'exécute aucun JavaScript : ce qui " +
+    "n'est écrit que par le navigateur ne sera pas trouvé.",
+  "keyword.uptime": "part du temps où la page a répondu ce qu'on attend d'elle",
+  "keyword.field.url.placeholder": "https://exemple.fr/connexion",
+  "keyword.field.mustContain.label": "Texte attendu",
+  "keyword.field.mustContain.placeholder": "Se connecter",
+  "keyword.field.mustContain.hint": "Absent = la sonde échoue.",
+  "keyword.field.mustNotContain.label": "Texte interdit",
+  "keyword.field.mustNotContain.placeholder": "Erreur 500",
+  "keyword.field.mustNotContain.hint":
+    "Présent = la sonde échoue. Attrape la page d’erreur qui répond 200.",
+  "keyword.field.matching.lenient": "Souple (recommandé)",
+  "keyword.field.matching.strict": "Stricte, au caractère près",
+  "keyword.field.matching.hint":
+    "Souple : casse, accents et espaces indifférents — une espace insécable ne " +
+    "doit pas réveiller quelqu’un à trois heures du matin.",
+  "keyword.field.scope.label": "Chercher dans",
+  "keyword.field.scope.raw": "La réponse telle quelle",
+  "keyword.field.scope.text": "Le texte, balises retirées",
+  "keyword.field.scope.hint":
+    "Balises retirées : approximation par expressions régulières, pas un analyseur " +
+    "HTML. Utile surtout pour un texte interdit, qu’un commentaire ferait sonner à tort.",
+  "keyword.field.expectedStatus.hint":
+    "Une page 404 peut très bien contenir le mot attendu.",
+  "keyword.field.maxKib.label": "Lecture maximale",
+  "keyword.field.maxKib.hint":
+    "Au-delà, la sonde coupe et le dit — elle ne fait jamais passer une coupure pour une absence.",
+  "keyword.metric.bytesRead": "Octets lus",
+  "keyword.metric.truncated": "Réponse coupée",
+  "keyword.metric.finalUrl": "URL finale",
+
+  // ── tls ─────────────────────────────────────────────────────────────────
+  "tls.label": "Certificat TLS",
+  "tls.description":
+    "Une poignée de main TLS depuis le worker : date d'expiration, émetteur, " +
+    "version du protocole. Prévient la panne la plus bête et la plus totale qui " +
+    "soit — un certificat expiré, que personne ne voit venir.",
+  "tls.neverDoes":
+    "Ne renouvelle aucun certificat et ne touche à aucune configuration.",
+  "tls.uptime": "part du temps où le certificat était valide et hors préavis",
+  "tls.field.servername.label": "Nom SNI",
+  "tls.field.servername.placeholder": "identique à l'hôte",
+  "tls.field.warnDays.hint":
+    "En deçà, la sonde passe en échec — pour alerter avant la panne, pas pendant.",
+  "tls.metric.issuer": "Émetteur",
+  "tls.metric.subject": "Sujet",
+  "tls.metric.protocol": "Protocole",
+  "tls.metric.handshakeMs": "Poignée de main",
+
+  // ── tcp ─────────────────────────────────────────────────────────────────
+  "tcp.label": "Port TCP",
+  "tcp.description":
+    "Une connexion TCP depuis le worker vers un hôte et un port : le port accepte-t-il " +
+    "la connexion, en combien de temps, et — si on le demande — le service " +
+    "annonce-t-il bien la bannière attendue.",
+  "tcp.neverDoes":
+    "N'envoie aucun octet à la cible et ne parle aucun protocole : elle écoute, elle " +
+    "ne sollicite pas. Un service où le client parle en premier ne rendra donc jamais " +
+    "de bannière.",
+  "tcp.uptime": "part du temps où le port a accepté la connexion",
+  "tcp.field.expectBanner.label": "Bannière attendue",
+  "tcp.field.expectBanner.placeholder": "facultatif — par exemple SSH-2.0",
+  "tcp.field.expectBanner.hint":
+    "Cherchée sans égard à la casse dans les premiers octets que le service envoie " +
+    "de lui-même. Vide : la poignée TCP suffit. Renseignée face à un service qui " +
+    "n'annonce rien (PostgreSQL, MySQL, HTTP), la sonde attendra le délai entier.",
+  "tcp.metric.connectMs": "Établissement",
+  "tcp.metric.banner": "Bannière reçue",
+  "tcp.metric.bannerMs": "Attente de la bannière",
+
+  // ── dns ─────────────────────────────────────────────────────────────────
+  "dns.label": "Enregistrements DNS",
+  "dns.description":
+    "Une interrogation DNS depuis le worker : les enregistrements du type demandé " +
+    "existent-ils, et valent-ils ce qu'on a déclaré. La comparaison ignore l'ordre " +
+    "et la casse des noms — un résolveur permute ses réponses, ce n'est pas un incident.",
+  "dns.neverDoes":
+    "Ne modifie aucune zone et n'interroge pas le registre du domaine : elle lit des " +
+    "enregistrements, elle ne dit rien de l'expiration du nom.",
+  "dns.uptime": "part du temps où les enregistrements étaient ceux qu'on attend",
+  "dns.field.name.label": "Nom interrogé",
+  "dns.field.recordType.label": "Type d'enregistrement",
+  "dns.field.expected.label": "Valeurs attendues",
+  "dns.field.expected.placeholder": "laisser vide pour ne vérifier que la présence",
+  "dns.field.expected.hint":
+    "Séparées par des virgules ou des retours à la ligne (retours à la ligne " +
+    "seulement pour TXT, dont la valeur peut contenir une virgule). Formats : A " +
+    "« {a} », MX « {mx} », CAA « {caa} », SRV « {srv} ».",
+  "dns.field.match.exact": "Exactement ces valeurs — un ajout est une anomalie",
+  "dns.field.match.contains": "Au moins ces valeurs — le reste est toléré",
+  "dns.field.match.hint":
+    "« Exactement » détecte l'enregistrement ajouté, la signature d'un détournement. " +
+    "« Au moins » sert pour TXT, où un domaine porte de front un SPF, un DKIM et " +
+    "des preuves de propriété dont on ne veut pas tenir l'inventaire.",
+  "dns.field.resolver.label": "Résolveur",
+  "dns.field.resolver.placeholder": "celui du système",
+  "dns.field.resolver.hint":
+    "Une adresse IP. Vide : le résolveur du conteneur worker — ce que voit une " +
+    "machine du parc. Un résolveur public (1.1.1.1, 9.9.9.9) mesure plutôt ce que " +
+    "voit le monde, et contourne le cache local.",
+  "dns.record.A": "A — adresse IPv4",
+  "dns.record.AAAA": "AAAA — adresse IPv6",
+  "dns.record.CNAME": "CNAME — alias",
+  "dns.record.MX": "MX — serveurs de courrier",
+  "dns.record.NS": "NS — serveurs de noms (délégation)",
+  "dns.record.TXT": "TXT — SPF, DKIM, DMARC, preuves de propriété",
+  "dns.record.CAA": "CAA — autorités de certification autorisées",
+  "dns.record.SRV": "SRV — découverte de service",
+  "dns.metric.resolveMs": "Temps de résolution",
+  "dns.metric.recordCount": "Enregistrements",
+  "dns.metric.values": "Valeurs observées",
+  "dns.metric.missing": "Attendues et absentes",
+  "dns.metric.unexpected": "Observées en trop",
+  "dns.metric.resolver": "Résolveur interrogé",
+  "dns.metric.minTtl": "TTL le plus court",
+
+  // ── domain ──────────────────────────────────────────────────────────────
+  "domain.label": "Expiration de domaine",
+  "domain.description":
+    "Interroge le registre en RDAP : date d’expiration, registrar, serveurs de " +
+    "noms, statuts. Prévient la panne dont on ne se relève pas en une heure — un " +
+    "domaine expiré, c’est le site, les courriels et les certificats en même temps.",
+  "domain.neverDoes":
+    "Ne renouvelle rien, ne paie rien, et ne vérifie pas que le domaine pointe " +
+    "quelque part — c’est le registre qu’elle lit, pas le DNS.",
+  "domain.uptime":
+    "part du temps où le domaine était enregistré, hors préavis, et conforme à ce qui est attendu",
+  "domain.field.domain.label": "Nom de domaine",
+  "domain.field.domain.hint":
+    "Le domaine enregistré, pas un sous-domaine : « exemple.fr », pas « www.exemple.fr ».",
+  "domain.field.warnDays.hint":
+    "En deçà, la sonde passe en échec — pour alerter tant qu’il reste le temps d’agir.",
+  "domain.field.expectedRegistrar.label": "Registrar attendu",
+  "domain.field.expectedRegistrar.placeholder": "OVH",
+  "domain.field.expectedRegistrar.hint":
+    "Renseigné, un changement de registrar fait échouer la sonde : c’est ainsi qu’un transfert non voulu se voit.",
+  "domain.field.nameserverSuffix.label": "Suffixe des serveurs de noms",
+  "domain.field.nameserverSuffix.placeholder": "ovh.net",
+  "domain.field.nameserverSuffix.hint":
+    "Renseigné, la sonde échoue si plus aucun serveur de noms ne finit par ce suffixe.",
+  "domain.field.transferLock.label": "Verrou de transfert",
+  "domain.field.transferLock.off": "Ne pas vérifier",
+  "domain.field.transferLock.required": "Exiger clientTransferProhibited",
+  "domain.field.transferLock.hint":
+    "Tous les registres ne publient pas leurs statuts EPP — « .fr » n’annonce souvent qu’« active ».",
+  "domain.metric.registrar": "Registrar",
+  "domain.metric.nameservers": "Serveurs de noms",
+  "domain.metric.eppStatus": "Statuts",
+  "domain.metric.registeredOn": "Enregistré le",
+  "domain.metric.lastChangedOn": "Dernière modification",
+  "domain.metric.rdapServer": "Serveur RDAP",
+} as const;
+
+const en: Translated<typeof fr> = {
+  "field.url.label": "URL",
+  "field.host.label": "Host",
+  "field.port.label": "Port",
+  "field.expectedStatus.label": "Expected status",
+  "field.timeout.label": "Timeout",
+  "field.warnDays.label": "Warning lead time",
+  "field.matching.label": "Matching",
+  "placeholder.domain": "example.com",
+  "metric.latencyMs": "Response time",
+  "metric.httpStatus": "HTTP status",
+  "metric.redirects": "Redirects followed",
+  "metric.address": "Address reached",
+  "metric.daysRemaining": "Days remaining",
+  "metric.expiresOn": "Expires on",
+  "unit.days": "days",
+  "unit.kib": "KiB",
+  "target.unreadable": "(unreadable configuration)",
+
+  "http.label": "HTTP availability",
+  "http.description":
+    "One request from the worker to the public URL: status code, response time, " +
+    "and, if you ask for it, a keyword in the page.",
+  "http.neverDoes":
+    "Restarts nothing, redeploys nothing. It observes, it does not act.",
+  "http.uptime": "share of the time the URL answered the expected status",
+  "http.field.url.placeholder": "https://example.com/",
+  "http.field.method.label": "Method",
+  "http.field.method.hint":
+    "HEAD skips downloading the page — but rules out any keyword search.",
+  "http.field.keyword.label": "Expected keyword",
+  "http.field.keyword.placeholder": "optional",
+  "http.field.keyword.hint":
+    "Searched in the first 256 KiB of the response. Missing = the probe fails.",
+
+  "keyword.label": "Keyword in the page",
+  "keyword.description":
+    "Downloads the page and checks what it says: an expected text, a forbidden " +
+    "text, or both. A 200 proves the server answers; the keyword proves the " +
+    "application answers — an error page, a maintenance page or a defaced site " +
+    "return 200 quite happily.",
+  "keyword.neverDoes":
+    "Does not judge how the page looks and runs no JavaScript: whatever only the " +
+    "browser writes will not be found.",
+  "keyword.uptime": "share of the time the page answered what you expect of it",
+  "keyword.field.url.placeholder": "https://example.com/login",
+  "keyword.field.mustContain.label": "Expected text",
+  "keyword.field.mustContain.placeholder": "Sign in",
+  "keyword.field.mustContain.hint": "Missing = the probe fails.",
+  "keyword.field.mustNotContain.label": "Forbidden text",
+  "keyword.field.mustNotContain.placeholder": "Error 500",
+  "keyword.field.mustNotContain.hint":
+    "Present = the probe fails. Catches the error page that answers 200.",
+  "keyword.field.matching.lenient": "Lenient (recommended)",
+  "keyword.field.matching.strict": "Strict, character for character",
+  "keyword.field.matching.hint":
+    "Lenient: case, accents and spacing ignored — a non-breaking space must not " +
+    "wake someone at three in the morning.",
+  "keyword.field.scope.label": "Search in",
+  "keyword.field.scope.raw": "The response as it comes",
+  "keyword.field.scope.text": "The text, tags stripped",
+  "keyword.field.scope.hint":
+    "Tags stripped: a regular-expression approximation, not an HTML parser. Mostly " +
+    "useful for a forbidden text, which a comment would trip.",
+  "keyword.field.expectedStatus.hint":
+    "A 404 page may well contain the expected word.",
+  "keyword.field.maxKib.label": "Read at most",
+  "keyword.field.maxKib.hint":
+    "Past that the probe cuts and says so — it never passes a cut off for an absence.",
+  "keyword.metric.bytesRead": "Bytes read",
+  "keyword.metric.truncated": "Response cut",
+  "keyword.metric.finalUrl": "Final URL",
+
+  "tls.label": "TLS certificate",
+  "tls.description":
+    "One TLS handshake from the worker: expiry date, issuer, protocol version. " +
+    "Heads off the dumbest and most total outage there is — an expired " +
+    "certificate, which nobody sees coming.",
+  "tls.neverDoes": "Renews no certificate and touches no configuration.",
+  "tls.uptime":
+    "share of the time the certificate was valid and outside the warning window",
+  "tls.field.servername.label": "SNI name",
+  "tls.field.servername.placeholder": "same as the host",
+  "tls.field.warnDays.hint":
+    "Below that the probe fails — to alert before the outage, not during.",
+  "tls.metric.issuer": "Issuer",
+  "tls.metric.subject": "Subject",
+  "tls.metric.protocol": "Protocol",
+  "tls.metric.handshakeMs": "Handshake",
+
+  "tcp.label": "TCP port",
+  "tcp.description":
+    "One TCP connection from the worker to a host and a port: does the port accept " +
+    "the connection, how fast, and — if you ask for it — does the service announce " +
+    "the expected banner.",
+  "tcp.neverDoes":
+    "Sends no byte to the target and speaks no protocol: it listens, it does not " +
+    "solicit. A service where the client speaks first will therefore never yield a banner.",
+  "tcp.uptime": "share of the time the port accepted the connection",
+  "tcp.field.expectBanner.label": "Expected banner",
+  "tcp.field.expectBanner.placeholder": "optional — for instance SSH-2.0",
+  "tcp.field.expectBanner.hint":
+    "Searched case-insensitively in the first bytes the service sends on its own. " +
+    "Empty: the TCP handshake is enough. Set against a service that announces " +
+    "nothing (PostgreSQL, MySQL, HTTP), the probe waits out the whole timeout.",
+  "tcp.metric.connectMs": "Connect",
+  "tcp.metric.banner": "Banner received",
+  "tcp.metric.bannerMs": "Wait for banner",
+
+  "dns.label": "DNS records",
+  "dns.description":
+    "One DNS query from the worker: do the records of the requested type exist, and " +
+    "do they hold what you declared. The comparison ignores order and the case of " +
+    "names — a resolver shuffles its answers, that is not an incident.",
+  "dns.neverDoes":
+    "Changes no zone and does not query the domain registry: it reads records, it " +
+    "says nothing about the name expiring.",
+  "dns.uptime": "share of the time the records were the ones you expect",
+  "dns.field.name.label": "Name queried",
+  "dns.field.recordType.label": "Record type",
+  "dns.field.expected.label": "Expected values",
+  "dns.field.expected.placeholder": "leave empty to check presence only",
+  "dns.field.expected.hint":
+    "Separated by commas or line breaks (line breaks only for TXT, whose value may " +
+    "contain a comma). Formats: A “{a}”, MX “{mx}”, CAA “{caa}”, SRV “{srv}”.",
+  "dns.field.match.exact": "Exactly these values — an addition is an anomaly",
+  "dns.field.match.contains": "At least these values — the rest is tolerated",
+  "dns.field.match.hint":
+    "“Exactly” catches the added record, the signature of a hijack. “At least” is " +
+    "for TXT, where a domain carries an SPF, a DKIM and ownership proofs you do not " +
+    "want to keep an inventory of.",
+  "dns.field.resolver.label": "Resolver",
+  "dns.field.resolver.placeholder": "the system one",
+  "dns.field.resolver.hint":
+    "An IP address. Empty: the worker container’s resolver — what a machine in the " +
+    "fleet sees. A public resolver (1.1.1.1, 9.9.9.9) measures what the world sees " +
+    "instead, and bypasses the local cache.",
+  "dns.record.A": "A — IPv4 address",
+  "dns.record.AAAA": "AAAA — IPv6 address",
+  "dns.record.CNAME": "CNAME — alias",
+  "dns.record.MX": "MX — mail servers",
+  "dns.record.NS": "NS — name servers (delegation)",
+  "dns.record.TXT": "TXT — SPF, DKIM, DMARC, ownership proofs",
+  "dns.record.CAA": "CAA — allowed certificate authorities",
+  "dns.record.SRV": "SRV — service discovery",
+  "dns.metric.resolveMs": "Resolution time",
+  "dns.metric.recordCount": "Records",
+  "dns.metric.values": "Values observed",
+  "dns.metric.missing": "Expected and missing",
+  "dns.metric.unexpected": "Observed in excess",
+  "dns.metric.resolver": "Resolver queried",
+  "dns.metric.minTtl": "Shortest TTL",
+
+  "domain.label": "Domain expiry",
+  "domain.description":
+    "Queries the registry over RDAP: expiry date, registrar, name servers, " +
+    "statuses. Heads off the outage you do not recover from in an hour — an expired " +
+    "domain takes the site, the mail and the certificates at once.",
+  "domain.neverDoes":
+    "Renews nothing, pays nothing, and does not check that the domain points " +
+    "anywhere — it reads the registry, not the DNS.",
+  "domain.uptime":
+    "share of the time the domain was registered, outside the warning window, and as expected",
+  "domain.field.domain.label": "Domain name",
+  "domain.field.domain.hint":
+    "The registered domain, not a subdomain: “example.com”, not “www.example.com”.",
+  "domain.field.warnDays.hint":
+    "Below that the probe fails — to alert while there is still time to act.",
+  "domain.field.expectedRegistrar.label": "Expected registrar",
+  "domain.field.expectedRegistrar.placeholder": "OVH",
+  "domain.field.expectedRegistrar.hint":
+    "Set, a change of registrar fails the probe: that is how an unwanted transfer shows up.",
+  "domain.field.nameserverSuffix.label": "Name server suffix",
+  "domain.field.nameserverSuffix.placeholder": "ovh.net",
+  "domain.field.nameserverSuffix.hint":
+    "Set, the probe fails once no name server ends with this suffix.",
+  "domain.field.transferLock.label": "Transfer lock",
+  "domain.field.transferLock.off": "Do not check",
+  "domain.field.transferLock.required": "Require clientTransferProhibited",
+  "domain.field.transferLock.hint":
+    "Not every registry publishes its EPP statuses — “.fr” often announces only “active”.",
+  "domain.metric.registrar": "Registrar",
+  "domain.metric.nameservers": "Name servers",
+  "domain.metric.eppStatus": "Statuses",
+  "domain.metric.registeredOn": "Registered on",
+  "domain.metric.lastChangedOn": "Last changed",
+  "domain.metric.rdapServer": "RDAP server",
+};
+
+export const monitorCatalogCopy = { fr, en };
+
+type CatalogTranslate = Translate<typeof fr>;
+
 // ─── http ─────────────────────────────────────────────────────────────────────
 
 export const HTTP_METHODS = ["GET", "HEAD", "POST"] as const;
@@ -180,34 +594,31 @@ export const httpConfigSchema = z.object({
 
 export type HttpConfig = z.infer<typeof httpConfigSchema>;
 
-const httpDefinition: MonitorTypeDefinition<HttpConfig> = {
+const httpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<HttpConfig> => ({
   type: "http",
-  label: "Disponibilité HTTP",
-  description:
-    "Une requête depuis le worker vers l'URL publique : code de réponse, temps de " +
-    "réponse, et, si on le demande, présence d'un mot-clé dans la page.",
-  neverDoes:
-    "Ne redémarre rien, ne redéploie rien. C'est un constat, pas une action.",
+  label: t("http.label"),
+  description: t("http.description"),
+  neverDoes: t("http.neverDoes"),
   schema: httpConfigSchema,
   fields: [
     {
       key: "url",
       kind: "url",
-      label: "URL",
-      placeholder: "https://exemple.fr/",
+      label: t("field.url.label"),
+      placeholder: t("http.field.url.placeholder"),
     },
     {
       key: "method",
       kind: "select",
-      label: "Méthode",
+      label: t("http.field.method.label"),
       advanced: true,
       options: HTTP_METHODS.map((method) => ({ value: method, label: method })),
-      hint: "HEAD évite de télécharger la page — mais interdit la recherche d'un mot-clé.",
+      hint: t("http.field.method.hint"),
     },
     {
       key: "expectedStatus",
       kind: "number",
-      label: "Code attendu",
+      label: t("field.expectedStatus.label"),
       min: 100,
       max: 599,
       advanced: true,
@@ -215,15 +626,15 @@ const httpDefinition: MonitorTypeDefinition<HttpConfig> = {
     {
       key: "keyword",
       kind: "text",
-      label: "Mot-clé attendu",
+      label: t("http.field.keyword.label"),
       optional: true,
-      placeholder: "facultatif",
-      hint: "Cherché dans les 256 premiers kio de la réponse. Absent = la sonde échoue.",
+      placeholder: t("http.field.keyword.placeholder"),
+      hint: t("http.field.keyword.hint"),
     },
     {
       key: "timeoutMs",
       kind: "number",
-      label: "Délai d'expiration",
+      label: t("field.timeout.label"),
       min: 1_000,
       max: 30_000,
       step: 500,
@@ -234,18 +645,18 @@ const httpDefinition: MonitorTypeDefinition<HttpConfig> = {
   metrics: [
     {
       key: "latencyMs",
-      label: "Temps de réponse",
+      label: t("metric.latencyMs"),
       kind: "duration-ms",
       primary: true,
     },
     {
       key: "httpStatus",
-      label: "Code HTTP",
+      label: t("metric.httpStatus"),
       kind: "http-status",
       primary: true,
     },
-    { key: "redirects", label: "Redirections suivies", kind: "number" },
-    { key: "address", label: "Adresse jointe", kind: "text" },
+    { key: "redirects", label: t("metric.redirects"), kind: "number" },
+    { key: "address", label: t("metric.address"), kind: "text" },
   ],
   // Trente secondes : en dessous, une sonde coûte plus au worker qu'elle ne
   // rapporte, et la série temporelle double pour détecter une panne trois
@@ -261,8 +672,8 @@ const httpDefinition: MonitorTypeDefinition<HttpConfig> = {
   },
   describeTarget: (config) => config.url,
   linkFor: (config) => (config.url === "" ? null : config.url),
-  uptimeMeans: "part du temps où l'URL a répondu le code attendu",
-};
+  uptimeMeans: t("http.uptime"),
+});
 
 // ─── keyword ──────────────────────────────────────────────────────────────────
 
@@ -337,90 +748,82 @@ export const keywordConfigSchema = z
 
 export type KeywordConfig = z.infer<typeof keywordConfigSchema>;
 
-const keywordDefinition: MonitorTypeDefinition<KeywordConfig> = {
+const keywordDefinition = (
+  t: CatalogTranslate,
+): MonitorTypeDefinition<KeywordConfig> => ({
   type: "keyword",
-  label: "Mot-clé dans la page",
-  description:
-    "Télécharge la page et vérifie ce qu'elle dit : un texte attendu, un texte " +
-    "interdit, ou les deux. Un 200 prouve que le serveur répond ; le mot-clé " +
-    "prouve que l'application répond — une page d'erreur, une page de " +
-    "maintenance ou un site défiguré rendent 200 très volontiers.",
-  neverDoes:
-    "Ne juge pas l'apparence de la page et n'exécute aucun JavaScript : ce qui " +
-    "n'est écrit que par le navigateur ne sera pas trouvé.",
+  label: t("keyword.label"),
+  description: t("keyword.description"),
+  neverDoes: t("keyword.neverDoes"),
   schema: keywordConfigSchema,
   fields: [
     {
       key: "url",
       kind: "url",
-      label: "URL",
-      placeholder: "https://exemple.fr/connexion",
+      label: t("field.url.label"),
+      placeholder: t("keyword.field.url.placeholder"),
     },
     {
       key: "mustContain",
       kind: "text",
-      label: "Texte attendu",
+      label: t("keyword.field.mustContain.label"),
       optional: true,
-      placeholder: "Se connecter",
-      hint: "Absent = la sonde échoue.",
+      placeholder: t("keyword.field.mustContain.placeholder"),
+      hint: t("keyword.field.mustContain.hint"),
     },
     {
       key: "mustNotContain",
       kind: "text",
-      label: "Texte interdit",
+      label: t("keyword.field.mustNotContain.label"),
       optional: true,
-      placeholder: "Erreur 500",
-      hint: "Présent = la sonde échoue. Attrape la page d’erreur qui répond 200.",
+      placeholder: t("keyword.field.mustNotContain.placeholder"),
+      hint: t("keyword.field.mustNotContain.hint"),
     },
     {
       key: "matching",
       kind: "select",
-      label: "Comparaison",
+      label: t("field.matching.label"),
       options: [
-        { value: "lenient", label: "Souple (recommandé)" },
-        { value: "strict", label: "Stricte, au caractère près" },
+        { value: "lenient", label: t("keyword.field.matching.lenient") },
+        { value: "strict", label: t("keyword.field.matching.strict") },
       ],
-      hint:
-        "Souple : casse, accents et espaces indifférents — une espace insécable ne " +
-        "doit pas réveiller quelqu’un à trois heures du matin.",
+      hint: t("keyword.field.matching.hint"),
     },
     {
       key: "scope",
       kind: "select",
-      label: "Chercher dans",
+      label: t("keyword.field.scope.label"),
       advanced: true,
       options: [
-        { value: "raw", label: "La réponse telle quelle" },
-        { value: "text", label: "Le texte, balises retirées" },
+        { value: "raw", label: t("keyword.field.scope.raw") },
+        { value: "text", label: t("keyword.field.scope.text") },
       ],
-      hint:
-        "Balises retirées : approximation par expressions régulières, pas un analyseur " +
-        "HTML. Utile surtout pour un texte interdit, qu’un commentaire ferait sonner à tort.",
+      hint: t("keyword.field.scope.hint"),
     },
     {
       key: "expectedStatus",
       kind: "number",
-      label: "Code attendu",
+      label: t("field.expectedStatus.label"),
       min: 100,
       max: 599,
       advanced: true,
-      hint: "Une page 404 peut très bien contenir le mot attendu.",
+      hint: t("keyword.field.expectedStatus.hint"),
     },
     {
       key: "maxKib",
       kind: "number",
-      label: "Lecture maximale",
+      label: t("keyword.field.maxKib.label"),
       min: KEYWORD_MIN_KIB,
       max: KEYWORD_MAX_KIB,
       step: 16,
-      unit: "kio",
+      unit: t("unit.kib"),
       advanced: true,
-      hint: "Au-delà, la sonde coupe et le dit — elle ne fait jamais passer une coupure pour une absence.",
+      hint: t("keyword.field.maxKib.hint"),
     },
     {
       key: "timeoutMs",
       kind: "number",
-      label: "Délai d'expiration",
+      label: t("field.timeout.label"),
       min: 1_000,
       max: 30_000,
       step: 500,
@@ -431,21 +834,21 @@ const keywordDefinition: MonitorTypeDefinition<KeywordConfig> = {
   metrics: [
     {
       key: "latencyMs",
-      label: "Temps de réponse",
+      label: t("metric.latencyMs"),
       kind: "duration-ms",
       primary: true,
     },
     {
       key: "httpStatus",
-      label: "Code HTTP",
+      label: t("metric.httpStatus"),
       kind: "http-status",
       primary: true,
     },
-    { key: "bytesRead", label: "Octets lus", kind: "number" },
-    { key: "truncated", label: "Réponse coupée", kind: "text" },
-    { key: "redirects", label: "Redirections suivies", kind: "number" },
-    { key: "address", label: "Adresse jointe", kind: "text" },
-    { key: "finalUrl", label: "URL finale", kind: "text" },
+    { key: "bytesRead", label: t("keyword.metric.bytesRead"), kind: "number" },
+    { key: "truncated", label: t("keyword.metric.truncated"), kind: "text" },
+    { key: "redirects", label: t("metric.redirects"), kind: "number" },
+    { key: "address", label: t("metric.address"), kind: "text" },
+    { key: "finalUrl", label: t("keyword.metric.finalUrl"), kind: "text" },
   ],
   // Même cadence que HTTP : c'est la même requête, avec un peu de lecture en
   // plus. Ce qui coûte, c'est le nombre de requêtes, pas ce qu'on en fait.
@@ -463,8 +866,8 @@ const keywordDefinition: MonitorTypeDefinition<KeywordConfig> = {
   },
   describeTarget: (config) => config.url,
   linkFor: (config) => (config.url === "" ? null : config.url),
-  uptimeMeans: "part du temps où la page a répondu ce qu'on attend d'elle",
-};
+  uptimeMeans: t("keyword.uptime"),
+});
 
 // ─── tls ──────────────────────────────────────────────────────────────────────
 
@@ -489,40 +892,41 @@ export const tlsConfigSchema = z.object({
 
 export type TlsConfig = z.infer<typeof tlsConfigSchema>;
 
-const tlsDefinition: MonitorTypeDefinition<TlsConfig> = {
+const tlsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<TlsConfig> => ({
   type: "tls",
-  label: "Certificat TLS",
-  description:
-    "Une poignée de main TLS depuis le worker : date d'expiration, émetteur, " +
-    "version du protocole. Prévient la panne la plus bête et la plus totale qui " +
-    "soit — un certificat expiré, que personne ne voit venir.",
-  neverDoes:
-    "Ne renouvelle aucun certificat et ne touche à aucune configuration.",
+  label: t("tls.label"),
+  description: t("tls.description"),
+  neverDoes: t("tls.neverDoes"),
   schema: tlsConfigSchema,
   fields: [
-    { key: "host", kind: "host", label: "Hôte", placeholder: "exemple.fr" },
-    { key: "port", kind: "number", label: "Port", min: 1, max: 65_535 },
+    {
+      key: "host",
+      kind: "host",
+      label: t("field.host.label"),
+      placeholder: t("placeholder.domain"),
+    },
+    { key: "port", kind: "number", label: t("field.port.label"), min: 1, max: 65_535 },
     {
       key: "servername",
       kind: "text",
-      label: "Nom SNI",
+      label: t("tls.field.servername.label"),
       optional: true,
       advanced: true,
-      placeholder: "identique à l'hôte",
+      placeholder: t("tls.field.servername.placeholder"),
     },
     {
       key: "warnDays",
       kind: "number",
-      label: "Préavis avant expiration",
+      label: t("field.warnDays.label"),
       min: 1,
       max: 180,
-      unit: "jours",
-      hint: "En deçà, la sonde passe en échec — pour alerter avant la panne, pas pendant.",
+      unit: t("unit.days"),
+      hint: t("tls.field.warnDays.hint"),
     },
     {
       key: "timeoutMs",
       kind: "number",
-      label: "Délai d'expiration",
+      label: t("field.timeout.label"),
       min: 1_000,
       max: 30_000,
       step: 500,
@@ -533,15 +937,15 @@ const tlsDefinition: MonitorTypeDefinition<TlsConfig> = {
   metrics: [
     {
       key: "daysRemaining",
-      label: "Jours restants",
+      label: t("metric.daysRemaining"),
       kind: "days",
       primary: true,
     },
-    { key: "validTo", label: "Expire le", kind: "text", primary: true },
-    { key: "issuer", label: "Émetteur", kind: "text" },
-    { key: "subject", label: "Sujet", kind: "text" },
-    { key: "protocol", label: "Protocole", kind: "text" },
-    { key: "handshakeMs", label: "Poignée de main", kind: "duration-ms" },
+    { key: "validTo", label: t("metric.expiresOn"), kind: "text", primary: true },
+    { key: "issuer", label: t("tls.metric.issuer"), kind: "text" },
+    { key: "subject", label: t("tls.metric.subject"), kind: "text" },
+    { key: "protocol", label: t("tls.metric.protocol"), kind: "text" },
+    { key: "handshakeMs", label: t("tls.metric.handshakeMs"), kind: "duration-ms" },
   ],
   // Une heure : un certificat ne change pas plus vite, et chaque mesure est une
   // poignée de main TLS complète chez quelqu'un d'autre.
@@ -560,8 +964,8 @@ const tlsDefinition: MonitorTypeDefinition<TlsConfig> = {
     config.host === ""
       ? null
       : `https://${config.host}${config.port === 443 ? "" : `:${config.port}`}/`,
-  uptimeMeans: "part du temps où le certificat était valide et hors préavis",
-};
+  uptimeMeans: t("tls.uptime"),
+});
 
 // ─── tcp ──────────────────────────────────────────────────────────────────────
 
@@ -582,9 +986,9 @@ export const tcpConfigSchema = z.object({
 
 export type TcpConfig = z.infer<typeof tcpConfigSchema>;
 
-const tcpDefinition: MonitorTypeDefinition<TcpConfig> = {
+const tcpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<TcpConfig> => ({
   type: "tcp",
-  label: "Port TCP",
+  label: t("tcp.label"),
   /**
    * ── Qu'est-ce que « répondre » ? ──────────────────────────────────────────
    * La poignée TCP suffit à établir un fait, et un seul : quelque chose accepte
@@ -614,33 +1018,29 @@ const tcpDefinition: MonitorTypeDefinition<TcpConfig> = {
    * Conséquence assumée : attendre une bannière d'un service qui n'en émet pas
    * coûte le délai d'expiration entier, à chaque mesure. Le message le dit.
    */
-  description:
-    "Une connexion TCP depuis le worker vers un hôte et un port : le port accepte-t-il " +
-    "la connexion, en combien de temps, et — si on le demande — le service " +
-    "annonce-t-il bien la bannière attendue.",
-  neverDoes:
-    "N'envoie aucun octet à la cible et ne parle aucun protocole : elle écoute, elle " +
-    "ne sollicite pas. Un service où le client parle en premier ne rendra donc jamais " +
-    "de bannière.",
+  description: t("tcp.description"),
+  neverDoes: t("tcp.neverDoes"),
   schema: tcpConfigSchema,
   fields: [
-    { key: "host", kind: "host", label: "Hôte", placeholder: "exemple.fr" },
-    { key: "port", kind: "number", label: "Port", min: 1, max: 65_535 },
+    {
+      key: "host",
+      kind: "host",
+      label: t("field.host.label"),
+      placeholder: t("placeholder.domain"),
+    },
+    { key: "port", kind: "number", label: t("field.port.label"), min: 1, max: 65_535 },
     {
       key: "expectBanner",
       kind: "text",
-      label: "Bannière attendue",
+      label: t("tcp.field.expectBanner.label"),
       optional: true,
-      placeholder: "facultatif — par exemple SSH-2.0",
-      hint:
-        "Cherchée sans égard à la casse dans les premiers octets que le service envoie " +
-        "de lui-même. Vide : la poignée TCP suffit. Renseignée face à un service qui " +
-        "n'annonce rien (PostgreSQL, MySQL, HTTP), la sonde attendra le délai entier.",
+      placeholder: t("tcp.field.expectBanner.placeholder"),
+      hint: t("tcp.field.expectBanner.hint"),
     },
     {
       key: "timeoutMs",
       kind: "number",
-      label: "Délai d'expiration",
+      label: t("field.timeout.label"),
       min: 1_000,
       max: 30_000,
       step: 500,
@@ -651,13 +1051,13 @@ const tcpDefinition: MonitorTypeDefinition<TcpConfig> = {
   metrics: [
     {
       key: "connectMs",
-      label: "Établissement",
+      label: t("tcp.metric.connectMs"),
       kind: "duration-ms",
       primary: true,
     },
-    { key: "address", label: "Adresse jointe", kind: "text", primary: true },
-    { key: "banner", label: "Bannière reçue", kind: "text" },
-    { key: "bannerMs", label: "Attente de la bannière", kind: "duration-ms" },
+    { key: "address", label: t("metric.address"), kind: "text", primary: true },
+    { key: "banner", label: t("tcp.metric.banner"), kind: "text" },
+    { key: "bannerMs", label: t("tcp.metric.bannerMs"), kind: "duration-ms" },
   ],
   // Trente secondes, comme HTTP : une poignée TCP coûte moins qu'une requête
   // HTTP, et ce qu'elle observe — un service tombé — change aussi vite.
@@ -671,8 +1071,8 @@ const tcpDefinition: MonitorTypeDefinition<TcpConfig> = {
    * remplir la case serait mentir à l'écran.
    */
   linkFor: () => null,
-  uptimeMeans: "part du temps où le port a accepté la connexion",
-};
+  uptimeMeans: t("tcp.uptime"),
+});
 
 // ─── dns ──────────────────────────────────────────────────────────────────────
 
@@ -745,9 +1145,9 @@ export const dnsConfigSchema = z
 
 export type DnsConfig = z.infer<typeof dnsConfigSchema>;
 
-const dnsDefinition: MonitorTypeDefinition<DnsConfig> = {
+const dnsDefinition = (t: CatalogTranslate): MonitorTypeDefinition<DnsConfig> => ({
   type: "dns",
-  label: "Enregistrements DNS",
+  label: t("dns.label"),
   /**
    * ── Comparer à quoi ? ─────────────────────────────────────────────────────
    * Deux régimes existent dans les services du marché, et ils ne servent pas la
@@ -795,77 +1195,61 @@ const dnsDefinition: MonitorTypeDefinition<DnsConfig> = {
    * détecter un détournement, et qui contourne le cache local. C'est un champ,
    * pas un type à part, parce que c'est la même mesure vue d'un autre point.
    */
-  description:
-    "Une interrogation DNS depuis le worker : les enregistrements du type demandé " +
-    "existent-ils, et valent-ils ce qu'on a déclaré. La comparaison ignore l'ordre " +
-    "et la casse des noms — un résolveur permute ses réponses, ce n'est pas un incident.",
-  neverDoes:
-    "Ne modifie aucune zone et n'interroge pas le registre du domaine : elle lit des " +
-    "enregistrements, elle ne dit rien de l'expiration du nom.",
+  description: t("dns.description"),
+  neverDoes: t("dns.neverDoes"),
   schema: dnsConfigSchema as unknown as z.ZodType<DnsConfig>,
   fields: [
     {
       key: "name",
       kind: "text",
-      label: "Nom interrogé",
-      placeholder: "exemple.fr",
+      label: t("dns.field.name.label"),
+      placeholder: t("placeholder.domain"),
     },
     {
       key: "recordType",
       kind: "select",
-      label: "Type d'enregistrement",
+      label: t("dns.field.recordType.label"),
       options: DNS_RECORD_TYPES_LIST.map((record) => ({
         value: record,
-        label: DNS_RECORD_TYPE_LABELS[record],
+        label: t(`dns.record.${record}`),
       })),
     },
     {
       key: "expected",
       kind: "text",
-      label: "Valeurs attendues",
+      label: t("dns.field.expected.label"),
       optional: true,
-      placeholder: "laisser vide pour ne vérifier que la présence",
-      hint:
-        "Séparées par des virgules ou des retours à la ligne (retours à la ligne " +
-        "seulement pour TXT, dont la valeur peut contenir une virgule). Formats : A " +
-        `« ${DNS_RECORD_TYPE_FORMATS.A} », MX « ${DNS_RECORD_TYPE_FORMATS.MX} », ` +
-        `CAA « ${DNS_RECORD_TYPE_FORMATS.CAA} », SRV « ${DNS_RECORD_TYPE_FORMATS.SRV} ».`,
+      placeholder: t("dns.field.expected.placeholder"),
+      hint: t("dns.field.expected.hint", {
+        a: DNS_RECORD_TYPE_FORMATS.A,
+        mx: DNS_RECORD_TYPE_FORMATS.MX,
+        caa: DNS_RECORD_TYPE_FORMATS.CAA,
+        srv: DNS_RECORD_TYPE_FORMATS.SRV,
+      }),
     },
     {
       key: "match",
       kind: "select",
-      label: "Comparaison",
+      label: t("field.matching.label"),
       options: [
-        {
-          value: "exact",
-          label: "Exactement ces valeurs — un ajout est une anomalie",
-        },
-        {
-          value: "contains",
-          label: "Au moins ces valeurs — le reste est toléré",
-        },
+        { value: "exact", label: t("dns.field.match.exact") },
+        { value: "contains", label: t("dns.field.match.contains") },
       ] satisfies ReadonlyArray<{ value: DnsMatchMode; label: string }>,
-      hint:
-        "« Exactement » détecte l'enregistrement ajouté, la signature d'un détournement. " +
-        "« Au moins » sert pour TXT, où un domaine porte de front un SPF, un DKIM et " +
-        "des preuves de propriété dont on ne veut pas tenir l'inventaire.",
+      hint: t("dns.field.match.hint"),
     },
     {
       key: "resolver",
       kind: "host",
-      label: "Résolveur",
+      label: t("dns.field.resolver.label"),
       optional: true,
       advanced: true,
-      placeholder: "celui du système",
-      hint:
-        "Une adresse IP. Vide : le résolveur du conteneur worker — ce que voit une " +
-        "machine du parc. Un résolveur public (1.1.1.1, 9.9.9.9) mesure plutôt ce que " +
-        "voit le monde, et contourne le cache local.",
+      placeholder: t("dns.field.resolver.placeholder"),
+      hint: t("dns.field.resolver.hint"),
     },
     {
       key: "timeoutMs",
       kind: "number",
-      label: "Délai d'expiration",
+      label: t("field.timeout.label"),
       min: 1_000,
       max: 15_000,
       step: 500,
@@ -876,21 +1260,21 @@ const dnsDefinition: MonitorTypeDefinition<DnsConfig> = {
   metrics: [
     {
       key: "resolveMs",
-      label: "Temps de résolution",
+      label: t("dns.metric.resolveMs"),
       kind: "duration-ms",
       primary: true,
     },
     {
       key: "recordCount",
-      label: "Enregistrements",
+      label: t("dns.metric.recordCount"),
       kind: "number",
       primary: true,
     },
-    { key: "values", label: "Valeurs observées", kind: "text" },
-    { key: "missing", label: "Attendues et absentes", kind: "text" },
-    { key: "unexpected", label: "Observées en trop", kind: "text" },
-    { key: "resolver", label: "Résolveur interrogé", kind: "text" },
-    { key: "minTtl", label: "TTL le plus court", kind: "number" },
+    { key: "values", label: t("dns.metric.values"), kind: "text" },
+    { key: "missing", label: t("dns.metric.missing"), kind: "text" },
+    { key: "unexpected", label: t("dns.metric.unexpected"), kind: "text" },
+    { key: "resolver", label: t("dns.metric.resolver"), kind: "text" },
+    { key: "minTtl", label: t("dns.metric.minTtl"), kind: "number" },
   ],
   /**
    * Cinq minutes au minimum, un quart d'heure par défaut.
@@ -922,8 +1306,8 @@ const dnsDefinition: MonitorTypeDefinition<DnsConfig> = {
   describeTarget: (config) => `${config.recordType} ${config.name}`,
   /** Aucun lien : un enregistrement DNS n'est pas une page. */
   linkFor: () => null,
-  uptimeMeans: "part du temps où les enregistrements étaient ceux qu'on attend",
-};
+  uptimeMeans: t("dns.uptime"),
+});
 
 // ─── domain ───────────────────────────────────────────────────────────────────
 
@@ -1148,67 +1532,64 @@ export const domainConfigSchema = z.object({
 
 export type DomainConfig = z.infer<typeof domainConfigSchema>;
 
-const domainDefinition: MonitorTypeDefinition<DomainConfig> = {
+const domainDefinition = (
+  t: CatalogTranslate,
+): MonitorTypeDefinition<DomainConfig> => ({
   type: "domain",
-  label: "Expiration de domaine",
-  description:
-    "Interroge le registre en RDAP : date d’expiration, registrar, serveurs de " +
-    "noms, statuts. Prévient la panne dont on ne se relève pas en une heure — un " +
-    "domaine expiré, c’est le site, les courriels et les certificats en même temps.",
-  neverDoes:
-    "Ne renouvelle rien, ne paie rien, et ne vérifie pas que le domaine pointe " +
-    "quelque part — c’est le registre qu’elle lit, pas le DNS.",
+  label: t("domain.label"),
+  description: t("domain.description"),
+  neverDoes: t("domain.neverDoes"),
   schema: domainConfigSchema,
   fields: [
     {
       key: "domain",
       kind: "host",
-      label: "Nom de domaine",
-      placeholder: "exemple.fr",
-      hint: "Le domaine enregistré, pas un sous-domaine : « exemple.fr », pas « www.exemple.fr ».",
+      label: t("domain.field.domain.label"),
+      placeholder: t("placeholder.domain"),
+      hint: t("domain.field.domain.hint"),
     },
     {
       key: "warnDays",
       kind: "number",
-      label: "Préavis avant expiration",
+      label: t("field.warnDays.label"),
       min: 1,
       max: 365,
-      unit: "jours",
-      hint: "En deçà, la sonde passe en échec — pour alerter tant qu’il reste le temps d’agir.",
+      unit: t("unit.days"),
+      hint: t("domain.field.warnDays.hint"),
     },
     {
       key: "expectedRegistrar",
       kind: "text",
-      label: "Registrar attendu",
+      label: t("domain.field.expectedRegistrar.label"),
       optional: true,
       advanced: true,
-      placeholder: "OVH",
-      hint: "Renseigné, un changement de registrar fait échouer la sonde : c’est ainsi qu’un transfert non voulu se voit.",
+      placeholder: t("domain.field.expectedRegistrar.placeholder"),
+      hint: t("domain.field.expectedRegistrar.hint"),
     },
     {
       key: "expectedNameserverSuffix",
       kind: "text",
-      label: "Suffixe des serveurs de noms",
+      label: t("domain.field.nameserverSuffix.label"),
       optional: true,
       advanced: true,
-      placeholder: "ovh.net",
-      hint: "Renseigné, la sonde échoue si plus aucun serveur de noms ne finit par ce suffixe.",
+      placeholder: t("domain.field.nameserverSuffix.placeholder"),
+      hint: t("domain.field.nameserverSuffix.hint"),
     },
     {
       key: "transferLock",
       kind: "select",
-      label: "Verrou de transfert",
+      label: t("domain.field.transferLock.label"),
       advanced: true,
       options: [
-        { value: "off", label: "Ne pas vérifier" },
-        { value: "required", label: "Exiger clientTransferProhibited" },
+        { value: "off", label: t("domain.field.transferLock.off") },
+        { value: "required", label: t("domain.field.transferLock.required") },
       ],
-      hint: "Tous les registres ne publient pas leurs statuts EPP — « .fr » n’annonce souvent qu’« active ».",
+      hint: t("domain.field.transferLock.hint"),
     },
     {
       key: "timeoutMs",
       kind: "number",
-      label: "Délai d'expiration",
+      label: t("field.timeout.label"),
       min: 2_000,
       max: 30_000,
       step: 500,
@@ -1219,18 +1600,18 @@ const domainDefinition: MonitorTypeDefinition<DomainConfig> = {
   metrics: [
     {
       key: "daysRemaining",
-      label: "Jours restants",
+      label: t("metric.daysRemaining"),
       kind: "days",
       primary: true,
     },
-    { key: "expiresOn", label: "Expire le", kind: "text", primary: true },
-    { key: "registrar", label: "Registrar", kind: "text" },
-    { key: "nameservers", label: "Serveurs de noms", kind: "text" },
-    { key: "eppStatus", label: "Statuts", kind: "text" },
-    { key: "registeredOn", label: "Enregistré le", kind: "text" },
-    { key: "lastChangedOn", label: "Dernière modification", kind: "text" },
-    { key: "rdapServer", label: "Serveur RDAP", kind: "text" },
-    { key: "latencyMs", label: "Temps de réponse", kind: "duration-ms" },
+    { key: "expiresOn", label: t("metric.expiresOn"), kind: "text", primary: true },
+    { key: "registrar", label: t("domain.metric.registrar"), kind: "text" },
+    { key: "nameservers", label: t("domain.metric.nameservers"), kind: "text" },
+    { key: "eppStatus", label: t("domain.metric.eppStatus"), kind: "text" },
+    { key: "registeredOn", label: t("domain.metric.registeredOn"), kind: "text" },
+    { key: "lastChangedOn", label: t("domain.metric.lastChangedOn"), kind: "text" },
+    { key: "rdapServer", label: t("domain.metric.rdapServer"), kind: "text" },
+    { key: "latencyMs", label: t("metric.latencyMs"), kind: "duration-ms" },
   ],
   // Six heures au minimum. Un domaine n'expire pas entre deux minutes, et un
   // registre est un service public gratuit : l'interroger plus souvent, c'est
@@ -1251,9 +1632,8 @@ const domainDefinition: MonitorTypeDefinition<DomainConfig> = {
   // création (`assertConfigAllowed`) ; rendre une URL ici obligerait le domaine
   // à résoudre publiquement pour qu'on accepte de surveiller sa date de fin.
   linkFor: () => null,
-  uptimeMeans:
-    "part du temps où le domaine était enregistré, hors préavis, et conforme à ce qui est attendu",
-};
+  uptimeMeans: t("domain.uptime"),
+});
 
 // ─── registre ─────────────────────────────────────────────────────────────────
 
@@ -1262,17 +1642,45 @@ const domainDefinition: MonitorTypeDefinition<DomainConfig> = {
  * personne d'autre que l'implémentation n'a besoin du type exact de la config,
  * et c'est précisément ce qui permet à l'écran de ne connaître aucun type.
  */
+function buildCatalog(
+  t: CatalogTranslate,
+): Record<MonitorType, MonitorTypeDefinition<never>> {
+  return {
+    http: httpDefinition(t) as unknown as MonitorTypeDefinition<never>,
+    keyword: keywordDefinition(t) as unknown as MonitorTypeDefinition<never>,
+    tls: tlsDefinition(t) as unknown as MonitorTypeDefinition<never>,
+    tcp: tcpDefinition(t) as unknown as MonitorTypeDefinition<never>,
+    dns: dnsDefinition(t) as unknown as MonitorTypeDefinition<never>,
+    domain: domainDefinition(t) as unknown as MonitorTypeDefinition<never>,
+  };
+}
+
+const CATALOGS = new Map<
+  UiLanguage,
+  Record<MonitorType, MonitorTypeDefinition<never>>
+>();
+
+/**
+ * Le catalogue dans une langue, construit une fois par langue demandée.
+ *
+ * Les schémas Zod, eux, ne sont pas dupliqués : ce sont les mêmes objets de
+ * module dans les deux catalogues. Seuls les libellés diffèrent — ce qui est
+ * exactement ce qu'on voulait dire en séparant les mots des données.
+ */
+function catalogFor(
+  language: UiLanguage,
+): Record<MonitorType, MonitorTypeDefinition<never>> {
+  const cached = CATALOGS.get(language);
+  if (cached) return cached;
+  const built = buildCatalog(translator(monitorCatalogCopy, language));
+  CATALOGS.set(language, built);
+  return built;
+}
+
 export const MONITOR_TYPES: Record<
   MonitorType,
   MonitorTypeDefinition<never>
-> = {
-  http: httpDefinition as unknown as MonitorTypeDefinition<never>,
-  keyword: keywordDefinition as unknown as MonitorTypeDefinition<never>,
-  tls: tlsDefinition as unknown as MonitorTypeDefinition<never>,
-  tcp: tcpDefinition as unknown as MonitorTypeDefinition<never>,
-  dns: dnsDefinition as unknown as MonitorTypeDefinition<never>,
-  domain: domainDefinition as unknown as MonitorTypeDefinition<never>,
-};
+> = catalogFor("fr");
 
 export type AnyMonitorTypeDefinition = {
   type: MonitorType;
@@ -1290,10 +1698,18 @@ export type AnyMonitorTypeDefinition = {
   uptimeMeans: string;
 };
 
+/**
+ * La définition d'un type, dans une langue.
+ *
+ * Le défaut reste le français : le worker et la base y lisent un schéma, une
+ * cadence minimale ou un libellé de journal, et n'ont pas de langue d'instance
+ * à offrir. Le panel, lui, passe la sienne.
+ */
 export function monitorTypeDefinition(
   type: MonitorType,
+  language: UiLanguage = "fr",
 ): AnyMonitorTypeDefinition {
-  return MONITOR_TYPES[type] as unknown as AnyMonitorTypeDefinition;
+  return catalogFor(language)[type] as unknown as AnyMonitorTypeDefinition;
 }
 
 /** Valide la configuration d'une sonde contre le schéma de **son** type. */
@@ -1318,10 +1734,13 @@ export function safeParseMonitorConfig(
 export function describeMonitorTarget(
   type: MonitorType,
   config: unknown,
+  language: UiLanguage = "fr",
 ): string {
-  const definition = monitorTypeDefinition(type);
+  const definition = monitorTypeDefinition(type, language);
   const parsed = definition.schema.safeParse(config);
-  if (!parsed.success) return "(configuration illisible)";
+  if (!parsed.success) {
+    return translator(monitorCatalogCopy, language)("target.unreadable");
+  }
   return definition.describeTarget(parsed.data as never);
 }
 
@@ -1342,7 +1761,8 @@ export function isMonitorType(value: string): value is MonitorType {
 // ─── contrôle SSRF à la création, sans switch et sans réseau ──────────────────
 
 export type MonitorTargetVerdict =
-  { allowed: true } | { allowed: false; field: string; reason: string };
+  | { allowed: true }
+  | { allowed: false; field: string; refusal: SsrfRefusal; reason: string };
 
 /**
  * Refuse, **au moment d'enregistrer la sonde**, toute cible écrite en adresse
@@ -1401,7 +1821,12 @@ export function checkMonitorTargetLiterals(
 
     const verdict = checkAddress(host, allowlist);
     if (!verdict.allowed) {
-      return { allowed: false, field: field.key, reason: verdict.reason };
+      return {
+        allowed: false,
+        field: field.key,
+        refusal: verdict.refusal,
+        reason: verdict.reason,
+      };
     }
   }
 

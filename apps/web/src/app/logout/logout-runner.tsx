@@ -2,9 +2,12 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useT } from '@/i18n/client';
+import { auth as messages } from '@/i18n/messages/auth';
 import { signOut } from '@/lib/auth-client';
 
 export function LogoutRunner() {
+  const t = useT(messages);
   const router = useRouter();
 
   useEffect(() => {
@@ -25,7 +28,7 @@ export function LogoutRunner() {
         aria-hidden
         className="inline-block size-4 animate-spin rounded-full border-2 border-signal border-t-transparent"
       />
-      Déconnexion…
+      {t('logout.pending')}
     </p>
   );
 }

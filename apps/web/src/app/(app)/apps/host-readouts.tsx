@@ -1,8 +1,10 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import type { HostMetrics } from '@pupitre/core';
+import type { HostMetrics, Translate } from '@pupitre/core';
 import { Led, type Tone } from '@/components/instrument';
+import { useT } from '@/i18n/client';
+import { servers } from '@/i18n/messages/servers';
 import { cn } from '@/lib/utils';
 import { toneFor, type HistoryMetric, type ThresholdView } from './host-history';
 import type { MetricsEntry } from './use-host-metrics';
@@ -24,18 +26,24 @@ import type { MetricsEntry } from './use-host-metrics';
  *    une capture en niveaux de gris.
  */
 
+type T = Translate<typeof servers.fr>;
+
+/**
+ * Kio → Gio. Deux divisions par 1024, donc bien des **gibioctets** : l'anglais
+ * dit `GiB`, pas `GB`. Une unité qui ment sur sa base fait douter du chiffre.
+ */
 function gib(kb: number): string {
   return (kb / 1024 / 1024).toFixed(kb / 1024 / 1024 < 10 ? 1 : 0);
 }
 
-export function formatUptime(seconds: number | null): string {
-  if (seconds === null) return 'inconnu';
+export function formatUptime(seconds: number | null, t: T): string {
+  if (seconds === null) return t('unknown');
   const days = Math.floor(seconds / 86_400);
   const hours = Math.floor((seconds % 86_400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  if (days > 0) return `${days} j ${hours} h`;
-  if (hours > 0) return `${hours} h ${minutes} min`;
-  return `${minutes} min`;
+  if (days > 0) return t('uptime.days', { days, hours });
+  if (hours > 0) return t('uptime.hours', { hours, minutes });
+  return t('uptime.minutes', { minutes });
 }
 
 /**
@@ -141,21 +149,20 @@ export function HostReadouts({
    */
   thresholds?: Record<HistoryMetric, ThresholdView>;
 }) {
+  const t = useT(servers);
+
   if (!enabled) {
-    return (
-      <Placeholder
-        tone="idle"
-        message="Relevé indisponible — la permission « target:read » est requise pour interroger la machine."
-      />
-    );
+    return <Placeholder tone="idle" message={t('readout.restricted')} />;
   }
 
   if (entry === undefined || entry.state === 'loading') {
-    return <Placeholder tone="signal" message="Relevé en cours…" />;
+    return <Placeholder tone="signal" message={t('readout.pending')} />;
   }
 
   if (entry.state === 'error') {
-    return <Placeholder tone="danger" message={`Relevé impossible — ${entry.message}`} />;
+    return (
+      <Placeholder tone="danger" message={t('readout.failed', { message: entry.message })} />
+    );
   }
 
   const metrics: HostMetrics = entry.metrics;
@@ -164,7 +171,9 @@ export function HostReadouts({
     return (
       <Placeholder
         tone="danger"
-        message={`Machine injoignable — ${metrics.error ?? 'raison inconnue'}`}
+        message={t('readout.unreachable', {
+          reason: metrics.error ?? t('readout.unreachable.reason'),
+        })}
       />
     );
   }
@@ -180,63 +189,73 @@ export function HostReadouts({
   return (
     <Strip>
       <Metric
-        label="Charge"
+        label={t('metric.load')}
         tone={loadTone}
-        value={load === null ? 'inconnu' : load.one.toFixed(2)}
+        value={load === null ? t('unknown') : load.one.toFixed(2)}
         unknown={load === null}
         // La charge n'a de sens que rapportée aux cœurs : sans `nproc`, on
         // affiche le nombre brut et on dit franchement qu'on ne sait pas diviser.
         ratio={load?.perCore ?? null}
         hint={
           load === null
-            ? 'aucun /proc/loadavg'
+            ? t('load.noSource')
             : load.cores === null
-              ? `${load.five.toFixed(2)} · ${load.fifteen.toFixed(2)} — cœurs inconnus`
-              : `${Math.round((load.perCore ?? 0) * 100)} % de ${load.cores} cœur${load.cores > 1 ? 's' : ''}`
+              ? t('load.noCores', {
+                  five: load.five.toFixed(2),
+                  fifteen: load.fifteen.toFixed(2),
+                })
+              : t('load.perCore', {
+                  percent: Math.round((load.perCore ?? 0) * 100),
+                  count: load.cores,
+                })
         }
       />
 
       <Metric
-        label="Mémoire"
+        label={t('metric.memory')}
         tone={toneFor(
           memory?.usedPercent ?? null,
           thresholds.memory.limitPercent,
           thresholds.memory.enabled,
         )}
-        value={memory === null ? 'inconnu' : `${Math.round(memory.usedPercent)} %`}
+        value={
+          memory === null
+            ? t('unknown')
+            : t('percent', { value: Math.round(memory.usedPercent) })
+        }
         unknown={memory === null}
         ratio={memory === null ? null : memory.usedPercent / 100}
         hint={
           memory === null
-            ? 'aucun MemAvailable'
-            : `${gib(memory.usedKb)} / ${gib(memory.totalKb)} Gio utilisés`
+            ? t('memory.noSource')
+            : t('memory.used', { used: gib(memory.usedKb), total: gib(memory.totalKb) })
         }
       />
 
       <Metric
-        label="Disque"
+        label={t('metric.disk')}
         tone={toneFor(
           disk?.usePercent ?? null,
           thresholds.disk.limitPercent,
           thresholds.disk.enabled,
         )}
-        value={disk === null ? 'inconnu' : `${disk.usePercent} %`}
+        value={disk === null ? t('unknown') : t('percent', { value: disk.usePercent })}
         unknown={disk === null}
         ratio={disk === null ? null : disk.usePercent / 100}
         hint={
           disk === null
-            ? 'aucun df exploitable'
-            : `${gib(disk.availableKb)} Gio libres · ${disk.path}`
+            ? t('disk.noSource')
+            : t('disk.free', { free: gib(disk.availableKb), path: disk.path })
         }
       />
 
       <Metric
-        label="Uptime"
+        label={t('metric.uptime')}
         tone={metrics.uptimeSeconds === null ? 'idle' : 'ok'}
-        value={formatUptime(metrics.uptimeSeconds)}
+        value={formatUptime(metrics.uptimeSeconds, t)}
         unknown={metrics.uptimeSeconds === null}
         ratio={null}
-        hint={metrics.os.prettyName ?? metrics.os.kernel ?? 'système inconnu'}
+        hint={metrics.os.prettyName ?? metrics.os.kernel ?? t('os.unknown')}
       />
     </Strip>
   );

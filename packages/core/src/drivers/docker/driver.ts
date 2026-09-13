@@ -1339,7 +1339,10 @@ function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload
     runtime: 'docker',
     id,
     name: (raw.Name ?? '').replace(/^\//, '') || shortId(id),
-    kind: 'conteneur',
+    // Une **clé**, pas un mot : « conteneur » ici figeait la langue du panel
+    // dans une donnée produite par le driver. Le libellé se choisit à la
+    // lecture, dans l'écran qui l'affiche.
+    kind: 'container',
     scope: project,
     image: raw.Config?.Image ?? null,
     state: toServiceState(rawState),

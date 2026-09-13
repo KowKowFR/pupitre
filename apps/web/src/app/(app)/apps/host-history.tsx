@@ -2,7 +2,11 @@
 
 import { useCallback, useState } from 'react';
 import { ArrowDownRight, ArrowRight, ArrowUpRight, TriangleAlert } from 'lucide-react';
+import type { Translate } from '@pupitre/core';
 import { Led, type Tone } from '@/components/instrument';
+import { useT } from '@/i18n/client';
+import { servers } from '@/i18n/messages/servers';
+import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
@@ -76,11 +80,19 @@ export type HostHistoryData = {
   breaches: BreachView[];
 };
 
-const METRIC_LABEL: Record<HistoryMetric, string> = {
-  disk: 'Disque',
-  memory: 'Mémoire',
-  load: 'Charge',
+type T = Translate<typeof servers.fr>;
+
+const METRIC_KEY: Record<HistoryMetric, keyof typeof servers.fr> = {
+  disk: 'metric.disk',
+  memory: 'metric.memory',
+  load: 'metric.load',
 };
+
+/** Le nom d'une métrique inconnue du catalogue reste brut : c'est un identifiant. */
+function metricLabel(metric: string, t: T): string {
+  const key = METRIC_KEY[metric as HistoryMetric] as keyof typeof servers.fr | undefined;
+  return key === undefined ? metric : t(key);
+}
 
 const METRIC_FIELD: Record<HistoryMetric, keyof HistoryPointView> = {
   disk: 'diskPercent',
@@ -107,20 +119,28 @@ export function toneFor(value: number | null, limit: number, enabled: boolean): 
   return 'ok';
 }
 
-function formatPercent(value: number | null): string {
+function formatPercent(value: number | null, t: T): string {
   if (value === null) return '—';
-  return `${value.toFixed(value < 10 ? 1 : 0)} %`;
+  return t('percent', { value: value.toFixed(value < 10 ? 1 : 0) });
 }
 
 /** La charge se lit mieux « par cœur » qu'en pourcentage de capacité. */
-function formatValue(metric: HistoryMetric, value: number | null): string {
+function formatValue(metric: HistoryMetric, value: number | null, t: T): string {
   if (value === null) return '—';
   if (metric === 'load') return `${(value / 100).toFixed(2)}`;
-  return formatPercent(value);
+  return formatPercent(value, t);
 }
 
-function formatClock(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
+/**
+ * L'instant d'un intervalle, dans l'infobulle d'une barre.
+ *
+ * Les composantes sont imposées par la place — `13/09 00:33` tient dans un
+ * `title`, une date longue non. La locale, elle, vient des paramètres
+ * d'instance et descend par props : ce composant est client, et
+ * `13/09 00:33` sur un panel anglais se lit à l'envers un jour sur deux.
+ */
+function formatClock(iso: string, format: FormatSettings): string {
+  return formatDateTimeWith(iso, format, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -128,11 +148,13 @@ function formatClock(iso: string): string {
   });
 }
 
-function sinceLabel(iso: string): string {
+function sinceLabel(iso: string, t: T): string {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (seconds < 3600) return `depuis ${Math.max(1, Math.floor(seconds / 60))} min`;
-  if (seconds < 86_400) return `depuis ${Math.floor(seconds / 3600)} h`;
-  return `depuis ${Math.floor(seconds / 86_400)} j`;
+  if (seconds < 3600) {
+    return t('breach.since.minutes', { count: Math.max(1, Math.floor(seconds / 60)) });
+  }
+  if (seconds < 86_400) return t('breach.since.hours', { count: Math.floor(seconds / 3600) });
+  return t('breach.since.days', { count: Math.floor(seconds / 86_400) });
 }
 
 /**
@@ -147,14 +169,17 @@ function Spark({
   points,
   limit,
   enabled,
+  format,
   height = 30,
 }: {
   metric: HistoryMetric;
   points: readonly HistoryPointView[];
   limit: number;
   enabled: boolean;
+  format: FormatSettings;
   height?: number;
 }) {
+  const t = useT(servers);
   const field = METRIC_FIELD[metric];
   const values = points.map((point) => point[field] as number | null);
   const measured = values.filter((value): value is number => value !== null);
@@ -170,7 +195,10 @@ function Spark({
       className="relative flex-1"
       style={{ height }}
       role="img"
-      aria-label={`${METRIC_LABEL[metric]} : ${points.length} intervalles, du plus ancien au plus récent`}
+      aria-label={t('spark.aria', {
+        metric: metricLabel(metric, t),
+        count: points.length,
+      })}
     >
       <div className="absolute inset-0 flex items-end gap-px">
         {points.map((point, index) => {
@@ -181,7 +209,7 @@ function Spark({
             return (
               <span
                 key={point.at}
-                title={`${formatClock(point.at)} — aucune mesure`}
+                title={t('spark.empty', { clock: formatClock(point.at, format) })}
                 className="min-w-[2px] flex-1 self-end bg-ink-faint/25"
                 style={{ height: 2 }}
               />
@@ -191,9 +219,11 @@ function Spark({
           return (
             <span
               key={point.at}
-              title={`${formatClock(point.at)} — ${formatPercent(value)}${
-                over ? ` (au-dessus de ${limit} %)` : ''
-              }`}
+              title={t('spark.point', {
+                clock: formatClock(point.at, format),
+                value: formatPercent(value, t),
+                over: over ? t('spark.over', { limit }) : '',
+              })}
               className={cn(
                 'min-w-[2px] flex-1 rounded-t-[1px]',
                 over ? 'bg-danger' : 'bg-signal/55',
@@ -208,7 +238,7 @@ function Spark({
           aria-hidden
           className="pointer-events-none absolute right-0 left-0 border-t border-warn/70"
           style={{ top: Math.max(0, limitY) }}
-          title={`seuil : ${limit} %`}
+          title={t('spark.limit', { limit })}
         />
       ) : null}
     </div>
@@ -216,13 +246,14 @@ function Spark({
 }
 
 function Trend({ metric, trend }: { metric: HistoryMetric; trend: number | null }) {
+  const t = useT(servers);
   // Sous un point de pourcentage sur la fenêtre, il n'y a pas de tendance : il y
   // a du bruit. Annoncer « +0,3 pt » ferait croire à un mouvement.
   if (trend === null || Math.abs(trend) < 1) {
     return (
       <span className="inline-flex items-center gap-1 text-ink-faint">
         <ArrowRight className="size-3" aria-hidden />
-        stable
+        {t('trend.stable')}
       </span>
     );
   }
@@ -234,7 +265,7 @@ function Trend({ metric, trend }: { metric: HistoryMetric; trend: number | null 
       {up ? '+' : '−'}
       {metric === 'load'
         ? (Math.abs(trend) / 100).toFixed(2)
-        : `${Math.abs(trend).toFixed(0)} pt`}
+        : t('trend.points', { value: Math.abs(trend).toFixed(0) })}
     </span>
   );
 }
@@ -242,10 +273,13 @@ function Trend({ metric, trend }: { metric: HistoryMetric; trend: number | null 
 function MetricLine({
   metric,
   data,
+  format,
 }: {
   metric: HistoryMetric;
   data: HostHistoryData;
+  format: FormatSettings;
 }) {
+  const t = useT(servers);
   const summary = data.summary[metric];
   const threshold = data.thresholds[metric];
   const tone = toneFor(summary.worst, threshold.limitPercent, threshold.enabled);
@@ -254,7 +288,7 @@ function MetricLine({
     <div className="flex items-center gap-3 px-3 py-1.5">
       <span className="eyebrow flex w-20 shrink-0 items-center gap-1.5 text-ink-faint">
         <Led tone={tone} className="size-2" />
-        {METRIC_LABEL[metric]}
+        {metricLabel(metric, t)}
       </span>
 
       <Spark
@@ -262,13 +296,14 @@ function MetricLine({
         points={data.points}
         limit={threshold.limitPercent}
         enabled={threshold.enabled}
+        format={format}
       />
 
       <span className="flex w-[13.5rem] shrink-0 items-center justify-end gap-3 font-mono text-[0.6875rem] tabular-nums">
         <span className="text-ink-faint">
-          pire{' '}
+          {t('metric.worst')}{' '}
           <span className={cn(tone === 'danger' ? 'text-danger' : 'text-ink')}>
-            {formatValue(metric, summary.worst)}
+            {formatValue(metric, summary.worst, t)}
           </span>
         </span>
         <Trend metric={metric} trend={summary.trend} />
@@ -276,13 +311,17 @@ function MetricLine({
           className="text-ink-faint"
           title={
             threshold.origin === 'target'
-              ? 'seuil propre à cette machine'
+              ? t('threshold.from.target')
               : threshold.origin === 'global'
-                ? "seuil par défaut de l'instance"
-                : 'seuil livré avec le panel'
+                ? t('threshold.from.global')
+                : t('threshold.from.default')
           }
         >
-          {threshold.enabled ? `seuil ${formatValue(metric, threshold.limitPercent)}` : 'sans seuil'}
+          {threshold.enabled
+            ? t('threshold.value', {
+                value: formatValue(metric, threshold.limitPercent, t),
+              })
+            : t('threshold.off')}
           {threshold.origin === 'default' ? '' : ' *'}
         </span>
       </span>
@@ -292,6 +331,7 @@ function MetricLine({
 
 /** Les dépassements en cours. Une bannière, pas une couleur de plus. */
 function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) {
+  const t = useT(servers);
   if (breaches.length === 0) return null;
   return (
     <div className="flex flex-col gap-1 border-t border-danger/30 bg-danger/5 px-3 py-2">
@@ -299,15 +339,19 @@ function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) {
         <p key={breach.id} className="flex items-center gap-2 text-[0.75rem] text-ink">
           <TriangleAlert className="size-3.5 shrink-0 text-danger" aria-hidden />
           <span className="min-w-0">
-            <strong className="font-medium">
-              {METRIC_LABEL[breach.metric as HistoryMetric] ?? breach.metric}
-            </strong>{' '}
-            au-dessus de {breach.limitPercent} % {sinceLabel(breach.startedAt)} —{' '}
+            <strong className="font-medium">{metricLabel(breach.metric, t)}</strong>{' '}
+            {t('breach.over', {
+              limit: breach.limitPercent,
+              since: sinceLabel(breach.startedAt, t),
+            })}{' '}
             <span className="font-mono tabular-nums">
-              {formatPercent(breach.lastValue)} maintenant, {formatPercent(breach.peakValue)} au pire
+              {t('breach.values', {
+                last: formatPercent(breach.lastValue, t),
+                peak: formatPercent(breach.peakValue, t),
+              })}
             </span>{' '}
             <span className="text-ink-faint">
-              ({breach.samples} relevé{breach.samples > 1 ? 's' : ''})
+              {t('breach.samples', { count: breach.samples })}
             </span>
           </span>
         </p>
@@ -317,17 +361,21 @@ function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) {
 }
 
 const WINDOWS = [
-  { hours: 24, label: '24 h' },
-  { hours: 168, label: '7 j' },
-] as const;
+  { hours: 24, key: 'history.window.24h' },
+  { hours: 168, key: 'history.window.7d' },
+] as const satisfies readonly { hours: number; key: keyof typeof servers.fr }[];
 
 export function HostHistory({
   targetId,
   initial,
+  format,
 }: {
   targetId: string;
   initial: HostHistoryData;
+  /** Le formatage descend par props : la frise est cliente, la locale non. */
+  format: FormatSettings;
 }) {
+  const t = useT(servers);
   const [data, setData] = useState<HostHistoryData>(initial);
   const [loading, setLoading] = useState(false);
 
@@ -356,10 +404,7 @@ export function HostHistory({
 
   if (data.samples === 0) {
     return (
-      <p className="px-3 py-2 text-[0.75rem] text-ink-faint">
-        Aucun relevé en mémoire pour cette machine. Le balayage en écrit un toutes les 5 minutes ;
-        le premier arrive dans la minute qui suit sa déclaration.
-      </p>
+      <p className="px-3 py-2 text-[0.75rem] text-ink-faint">{t('history.empty')}</p>
     );
   }
 
@@ -367,12 +412,12 @@ export function HostHistory({
     <div className="flex flex-col">
       <div className="flex items-center justify-between gap-2 px-3 pt-2">
         <span className="text-[0.6875rem] text-ink-faint">
-          {data.samples} relevé{data.samples > 1 ? 's' : ''} sur la fenêtre
+          {t('history.samples', { count: data.samples })}
           {data.reachable === data.samples
             ? ''
-            : ` · ${data.samples - data.reachable} sans réponse`}
+            : t('history.unanswered', { count: data.samples - data.reachable })}
         </span>
-        <div className="flex items-center gap-1" role="group" aria-label="Fenêtre d'historique">
+        <div className="flex items-center gap-1" role="group" aria-label={t('history.window')}>
           {WINDOWS.map((window) => (
             <button
               key={window.hours}
@@ -387,14 +432,14 @@ export function HostHistory({
                   : 'text-ink-faint hover:text-ink',
               )}
             >
-              {window.label}
+              {t(window.key)}
             </button>
           ))}
         </div>
       </div>
 
       {METRICS.map((metric) => (
-        <MetricLine key={metric} metric={metric} data={data} />
+        <MetricLine key={metric} metric={metric} data={data} format={format} />
       ))}
 
       <OpenBreaches breaches={data.breaches} />

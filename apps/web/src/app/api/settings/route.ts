@@ -73,6 +73,10 @@ export const PATCH = apiRoute(async (request) => {
    * beaucoup de monde et conservée longtemps : c'est le dernier endroit où
    * l'on voudrait retrouver un secret.
    */
+  // i18n-ignore — valeur écrite dans le journal d'activité. Une entrée d'audit
+  // est une trace figée : la traduire à l'écriture fixerait sa langue pour
+  // toujours, et la relire dans une autre demanderait qu'elle soit une donnée,
+  // pas une phrase. Elle reste donc dans la langue du projet.
   const keyMarker = (configured: boolean): string => (configured ? '(défini)' : '(effacé)');
 
   await logAudit({

@@ -2,7 +2,8 @@ import { MONITOR_SWEEP_JOB, monitorSweepJobDataSchema } from '@pupitre/core';
 import { getMonitor, logAudit, markMonitorDue, monitorTarget } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { HttpError, NotFoundError } from '@/lib/errors';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
@@ -28,7 +29,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const monitor = await getMonitor(id);
-  if (!monitor) throw new NotFoundError(`Sonde « ${id} » introuvable`);
+  if (!monitor) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
   // Avancer l'échéance sert au cas où le worker enfilerait la tâche après le
   // prochain balayage : la sonde serait due de toute façon.
@@ -45,7 +46,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
       ip: auth.ip,
     }),
   );
-  if (!job.id) throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+  if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.noJobId'));
 
   await logAudit({
     actorId: auth.userId,

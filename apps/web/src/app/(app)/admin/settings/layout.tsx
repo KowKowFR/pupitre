@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { getAppSettings } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
+import { getT } from '@/i18n/server';
+import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
 import { SettingsNav } from './settings-nav';
 
@@ -27,23 +29,23 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
   const auth = await requirePagePermission('/admin/settings', 'settings:read');
   const record = await getAppSettings();
+  const t = await getT(messages);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Administration"
-        title="Paramètres"
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
         description={
           <>
-            Réglages de l&apos;instance, appliqués à chaud. Ils vivent dans une ligne unique de{' '}
-            <code className="font-mono text-xs">app_settings</code> — un seul JSONB, pour
-            qu&apos;ajouter un réglage ne coûte pas une migration. La clé d&apos;API, elle, est
-            chiffrée dans sa propre colonne et ne ressort jamais d&apos;ici.
+            {t('page.description.before')}{' '}
+            <code className="font-mono text-xs">app_settings</code>{' '}
+            {t('page.description.after')}
           </>
         }
         actions={
           <span className="font-mono text-xs text-ink-faint">
-            {record.updatedAt ? 'personnalisés' : 'valeurs par défaut'}
+            {record.updatedAt ? t('page.state.customized') : t('page.state.defaults')}
           </span>
         }
       />
@@ -53,9 +55,9 @@ export default async function SettingsLayout({ children }: { children: ReactNode
         <div className="flex min-w-0 flex-col gap-5">
           {auth.can('settings:manage') ? null : (
             <Alert>
-              Lecture seule : la permission{' '}
-              <code className="font-mono text-xs">settings:manage</code> est requise pour modifier
-              ces réglages. Les sections restent consultables, leurs champs sont inactifs.
+              {t('page.readonly.before')}{' '}
+              <code className="font-mono text-xs">settings:manage</code>{' '}
+              {t('page.readonly.after')}
             </Alert>
           )}
           {children}

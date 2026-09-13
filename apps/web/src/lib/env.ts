@@ -18,6 +18,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   /** Validée en profondeur par `assertMasterKey()` : hex 32 octets ou passphrase ≥ 32 octets. */
+  // i18n-ignore — refus au démarrage, lu dans la console par un opérateur.
+  // Aucune session, aucune base : la langue de l'instance n'existe pas encore.
   MASTER_KEY: z.string().min(32, 'MASTER_KEY doit faire au moins 32 octets'),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url().default('http://localhost:3000'),

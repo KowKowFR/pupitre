@@ -7,6 +7,9 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { applications as messages } from '@/i18n/messages/applications';
 import { cn } from '@/lib/utils';
 
 /**
@@ -69,17 +72,20 @@ type Props = {
   targets: DeployTarget[];
 };
 
-async function readError(response: Response): Promise<{ message: string; issues: string[] }> {
+async function readError(
+  response: Response,
+  words: { fallback: string; fieldError: (field: string, message: string) => string },
+): Promise<{ message: string; issues: string[] }> {
   const body = (await response.json().catch(() => ({}))) as ApiError;
-  const message = body.error?.message ?? `Échec (HTTP ${response.status})`;
+  const message = body.error?.message ?? words.fallback;
 
   // Deux formes d'erreur, une seule présentation : les reproches de Zod champ
   // par champ (création), et ceux de la validation d'AppSpec (génération).
   const fieldErrors = body.error?.details?.fieldErrors ?? {};
   const issues = [
     ...(body.error?.details?.issues ?? []),
-    ...Object.entries(fieldErrors).flatMap(([field, messages]) =>
-      messages.map((entry) => `${field} : ${entry}`),
+    ...Object.entries(fieldErrors).flatMap(([field, entries]) =>
+      entries.map((entry) => words.fieldError(field, entry)),
     ),
   ];
   return { message, issues };
@@ -131,24 +137,37 @@ function arr(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function describeSource(source: unknown): string {
-  if (!isRecord(source)) return '—';
-  if (source.type === 'image') return str(source.ref, '—');
+/**
+ * Les mots dont la relecture a besoin. Passés en argument plutôt que lus par un
+ * hook : ces fonctions sont pures, appelées hors composant, et le resteront.
+ */
+type ReviewWords = {
+  none: string;
+  unnamed: string;
+  healthPort: (port: number) => string;
+  healthGet: (path: string) => string;
+  healthInterval: (seconds: number) => string;
+  healthRetries: (retries: number) => string;
+};
+
+function describeSource(source: unknown, words: ReviewWords): string {
+  if (!isRecord(source)) return words.none;
+  if (source.type === 'image') return str(source.ref, words.none);
   if (source.type === 'dockerfile') {
     return `build ${str(source.context, '.')}/${str(source.dockerfile, 'Dockerfile')}`;
   }
-  return '—';
+  return words.none;
 }
 
-function describeHealth(health: unknown): string | null {
+function describeHealth(health: unknown, words: ReviewWords): string | null {
   if (!isRecord(health)) return null;
   const port = num(health.port);
   const path = str(health.path, '/');
   const interval = num(health.intervalSec);
   const retries = num(health.retries);
-  const probe = port !== null ? `port ${port}` : `GET ${path}`;
-  return `${probe}${interval !== null ? `, toutes les ${interval} s` : ''}${
-    retries !== null ? `, ${retries} essais` : ''
+  const probe = port !== null ? words.healthPort(port) : words.healthGet(path);
+  return `${probe}${interval !== null ? words.healthInterval(interval) : ''}${
+    retries !== null ? words.healthRetries(retries) : ''
   }`;
 }
 
@@ -167,7 +186,7 @@ function describeSecret(entry: unknown): string {
   return '';
 }
 
-function parseReview(text: string): ReviewSpec | null {
+function parseReview(text: string, words: ReviewWords): ReviewSpec | null {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -179,8 +198,8 @@ function parseReview(text: string): ReviewSpec | null {
   const services = arr(raw.services)
     .filter(isRecord)
     .map<ReviewService>((service) => ({
-      name: str(service.name, '(sans nom)'),
-      image: describeSource(service.source),
+      name: str(service.name, words.unnamed),
+      image: describeSource(service.source, words),
       port: num(service.port),
       exposed: service.exposed === true,
       replicas: num(service.replicas),
@@ -191,11 +210,11 @@ function parseReview(text: string): ReviewSpec | null {
       volumes: arr(service.volumes)
         .filter(isRecord)
         .map((volume) => ({
-          name: str(volume.name, '(sans nom)'),
-          mountPath: str(volume.mountPath, '—'),
+          name: str(volume.name, words.unnamed),
+          mountPath: str(volume.mountPath, words.none),
           size: typeof volume.size === 'string' ? volume.size : null,
         })),
-      health: describeHealth(service.healthcheck),
+      health: describeHealth(service.healthcheck, words),
       dependsOn: arr(service.dependsOn).map((entry) => str(entry)).filter((e) => e !== ''),
     }));
 
@@ -203,13 +222,13 @@ function parseReview(text: string): ReviewSpec | null {
     ? {
         host: typeof raw.ingress.host === 'string' ? raw.ingress.host : null,
         tls: raw.ingress.tls === true,
-        targetService: str(raw.ingress.targetService, '—'),
+        targetService: str(raw.ingress.targetService, words.none),
       }
     : null;
 
   return {
-    name: str(raw.name, '(sans nom)'),
-    version: str(raw.version, '—'),
+    name: str(raw.name, words.unnamed),
+    version: str(raw.version, words.none),
     services,
     ingress,
   };
@@ -237,6 +256,7 @@ function floatingTag(image: string): boolean {
 }
 
 function SpecReview({ spec }: { spec: ReviewSpec }) {
+  const t = useT(messages);
   const secrets = [...new Set(spec.services.flatMap((service) => service.secrets))];
   const images = spec.services.map((service) => service.image);
   const thirdParty = images.filter((image) => thirdPartyImage(image));
@@ -250,7 +270,7 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
           {spec.version}
         </Badge>
         <span className="text-muted-foreground text-xs">
-          {spec.services.length} service{spec.services.length > 1 ? 's' : ''}
+          {t('review.services', { count: spec.services.length })}
         </span>
       </div>
 
@@ -259,9 +279,11 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
           <li key={service.name} className="space-y-1 border-l-2 pl-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono font-medium">{service.name}</span>
-              {service.exposed ? <Badge variant="ok">exposé</Badge> : null}
+              {service.exposed ? <Badge variant="ok">{t('review.exposed')}</Badge> : null}
               {service.port !== null ? (
-                <span className="text-muted-foreground text-xs">port {service.port}</span>
+                <span className="text-muted-foreground text-xs">
+                  {t('review.port', { port: service.port })}
+                </span>
               ) : null}
               {service.replicas !== null && service.replicas > 1 ? (
                 <span className="text-muted-foreground text-xs">×{service.replicas}</span>
@@ -269,11 +291,13 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
             </div>
             <div className="text-muted-foreground font-mono text-xs">{service.image}</div>
             {service.health ? (
-              <div className="text-muted-foreground text-xs">santé : {service.health}</div>
+              <div className="text-muted-foreground text-xs">
+                {t('review.health', { value: service.health })}
+              </div>
             ) : null}
             {service.dependsOn.length > 0 ? (
               <div className="text-muted-foreground text-xs">
-                dépend de : {service.dependsOn.join(', ')}
+                {t('review.dependsOn', { list: service.dependsOn.join(', ') })}
               </div>
             ) : null}
             {service.env.length > 0 ? (
@@ -283,12 +307,12 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
             ) : null}
             {service.secrets.length > 0 ? (
               <div className="text-muted-foreground font-mono text-xs">
-                secrets : {service.secrets.join(', ')}
+                {t('review.secrets', { list: service.secrets.join(', ') })}
               </div>
             ) : null}
             {service.volumes.length > 0 ? (
               <div className="text-muted-foreground text-xs">
-                volumes :{' '}
+                {t('review.volumes')}{' '}
                 {service.volumes
                   .map(
                     (volume) =>
@@ -303,37 +327,37 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
 
       {spec.ingress ? (
         <div className="text-muted-foreground text-xs">
-          ingress : {spec.ingress.host ?? 'sans nom de domaine'} → {spec.ingress.targetService}
-          {spec.ingress.tls ? ' (TLS)' : ''}
+          {t('review.ingress', {
+            host: spec.ingress.host ?? t('review.ingress.noHost'),
+            service: spec.ingress.targetService,
+            tls: spec.ingress.tls ? ' (TLS)' : '',
+          })}
         </div>
       ) : null}
 
       {thirdParty.length > 0 ? (
         <Alert className="text-xs">
-          Image{thirdParty.length > 1 ? 's' : ''} publiée
-          {thirdParty.length > 1 ? 's' : ''} par un tiers :{' '}
-          <span className="font-mono">{thirdParty.join(', ')}</span>. Le panel ne vérifie pas
-          qu&apos;un tag existe avant le déploiement — un tag inexistant fait échouer la mise en
-          ligne au téléchargement de l&apos;image. Vérifiez-le sur le registre avant de
-          déployer.
+          {t('review.thirdParty.lead', { count: thirdParty.length })}{' '}
+          <span className="font-mono">{thirdParty.join(', ')}</span>
+          {t('review.thirdParty.tail')}
         </Alert>
       ) : null}
 
       {floating.length > 0 ? (
         <Alert className="text-xs">
-          Tag flottant : <span className="font-mono">{floating.join(', ')}</span>. Un
-          redéploiement ne redonnera pas forcément la même version. Figez-le si le projet
-          publie un tag de version.
+          {t('review.floating.lead')}
+          <span className="font-mono">{floating.join(', ')}</span>
+          {t('review.floating.tail')}
         </Alert>
       ) : null}
 
       {secrets.length > 0 ? (
         <Alert className="text-xs">
-          Cette spec déclare {secrets.length} secret{secrets.length > 1 ? 's' : ''} —{' '}
-          <span className="font-mono">{secrets.join(', ')}</span>. Seuls leurs{' '}
-          <strong>noms</strong> sont enregistrés : le panel ne stocke pas encore leurs valeurs, et
-          les déploiera vides. Les services qui en dépendent (une base de données, par exemple)
-          ne démarreront pas tant que ces valeurs ne seront pas fournies sur la cible.
+          {t('review.declaredSecrets.lead', { count: secrets.length })}{' '}
+          <span className="font-mono">{secrets.join(', ')}</span>
+          {t('review.declaredSecrets.mid')}{' '}
+          <strong>{t('review.declaredSecrets.names')}</strong>
+          {t('review.declaredSecrets.tail')}
         </Alert>
       ) : null}
     </div>
@@ -350,6 +374,8 @@ export function NewApplicationForm({
   missingKeyVar,
   targets,
 }: Props) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(aiEnabled ? 'prompt' : 'json');
 
@@ -375,7 +401,22 @@ export function NewApplicationForm({
   const selectedTarget = targets.find((target) => target.id === targetId) ?? null;
   const [deployRuntime, setDeployRuntime] = useState<'docker' | 'k3s'>('docker');
 
-  const review = parseReview(value);
+  const words: ReviewWords = {
+    none: tc('none'),
+    unnamed: t('review.unnamed'),
+    healthPort: (port) => t('review.health.port', { port }),
+    healthGet: (path) => t('review.health.get', { path }),
+    healthInterval: (seconds) => t('review.health.interval', { seconds }),
+    healthRetries: (retries) => t('review.health.retries', { retries }),
+  };
+  /** `readError` est pure : elle reçoit ses mots, elle ne va pas les chercher. */
+  const failureOf = (response: Response) =>
+    readError(response, {
+      fallback: tc('http.failure', { status: response.status }),
+      fieldError: (field, message) => t('form.fieldError', { field, message }),
+    });
+
+  const review = parseReview(value, words);
 
   function reset() {
     setError(null);
@@ -403,7 +444,7 @@ export function NewApplicationForm({
       });
 
       if (!response.ok) {
-        const failure = await readError(response);
+        const failure = await failureOf(response);
         setError(failure.message);
         setIssues(failure.issues);
         return;
@@ -424,15 +465,19 @@ export function NewApplicationForm({
 
       const retried = body.attempts.length > 1;
       setGenerationInfo(
-        `${body.providerLabel} · ${body.model} — ${Math.round(body.durationMs / 100) / 10} s` +
-          (body.usage.totalTokens ? `, ${body.usage.totalTokens} tokens` : '') +
-          (retried ? ', après une relance sur erreurs de validation' : '') +
-          (body.slugTaken ? ' — ⚠ une application porte déjà ce nom' : ''),
+        t('generate.info', {
+          provider: body.providerLabel,
+          model: body.model,
+          seconds: Math.round(body.durationMs / 100) / 10,
+        }) +
+          (body.usage.totalTokens
+            ? t('generate.info.tokens', { tokens: body.usage.totalTokens })
+            : '') +
+          (retried ? t('generate.info.retried') : '') +
+          (body.slugTaken ? t('generate.info.slugTaken') : ''),
       );
     } catch (networkError) {
-      setError(
-        networkError instanceof Error ? networkError.message : 'Génération impossible',
-      );
+      setError(networkError instanceof Error ? networkError.message : t('generate.failed'));
     } finally {
       setGenerating(false);
     }
@@ -448,7 +493,9 @@ export function NewApplicationForm({
       appSpec = JSON.parse(value);
     } catch (parseError) {
       setError(
-        `JSON invalide : ${parseError instanceof Error ? parseError.message : 'illisible'}`,
+        t('form.invalidJson', {
+          message: parseError instanceof Error ? parseError.message : t('form.unreadable'),
+        }),
       );
       setSaving(false);
       return;
@@ -463,7 +510,7 @@ export function NewApplicationForm({
     });
 
     if (!response.ok) {
-      const failure = await readError(response);
+      const failure = await failureOf(response);
       setError(failure.message);
       setIssues(failure.issues);
       setSaving(false);
@@ -489,10 +536,12 @@ export function NewApplicationForm({
       });
 
       if (!deployment.ok) {
-        const failure = await readError(deployment);
+        const failure = await failureOf(deployment);
         setError(
-          `L'application « ${review?.name ?? ''} » a bien été enregistrée, mais le ` +
-            `déploiement a échoué : ${failure.message}`,
+          t('form.savedButDeployFailed', {
+            name: review?.name ?? '',
+            message: failure.message,
+          }),
         );
         setIssues(failure.issues);
         setSaving(false);
@@ -512,8 +561,8 @@ export function NewApplicationForm({
   }
 
   const tabs: Array<{ id: Tab; label: string; disabled: boolean }> = [
-    { id: 'prompt', label: 'Depuis une description', disabled: !aiEnabled },
-    { id: 'json', label: 'Depuis un JSON', disabled: false },
+    { id: 'prompt', label: t('tab.fromPrompt'), disabled: !aiEnabled },
+    { id: 'json', label: t('tab.fromJson'), disabled: false },
   ];
 
   return (
@@ -544,23 +593,22 @@ export function NewApplicationForm({
         <form onSubmit={onGenerate} className="space-y-3">
           {!aiEnabled ? (
             <Alert>
-              La génération par IA est désactivée : aucune clé d&apos;API {provider} n&apos;est
-              configurée sur ce panel
+              {t('ai.disabled.lead', { provider })}
               {missingKeyVar ? (
                 <>
                   {' '}
-                  (ni dans Paramètres → Intelligence artificielle, ni via{' '}
+                  {t('ai.disabled.envVar')}{' '}
                   <code className="font-mono text-xs">{missingKeyVar}</code>)
                 </>
               ) : null}
-              . L&apos;onglet « Depuis un JSON » reste disponible.
+              {t('ai.disabled.tail')}
             </Alert>
           ) : null}
 
           {aiEnabled && modelWarning ? <Alert variant="destructive">{modelWarning}</Alert> : null}
 
           <div className="space-y-1.5">
-            <Label htmlFor="prompt">Décrivez l&apos;application</Label>
+            <Label htmlFor="prompt">{t('form.prompt.label')}</Label>
             <textarea
               id="prompt"
               name="prompt"
@@ -568,19 +616,15 @@ export function NewApplicationForm({
               value={prompt}
               disabled={!aiEnabled}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Génère une application GLPI avec sa base de données"
+              placeholder={t('form.prompt.placeholder')}
               className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] disabled:opacity-50"
             />
-            <p className="text-muted-foreground text-xs">
-              Le modèle produit du JSON validé par Zod — jamais une commande. Rien
-              n&apos;est enregistré ni déployé : la spec s&apos;affiche ci-dessous, à
-              relire et à corriger.
-            </p>
+            <p className="text-muted-foreground text-xs">{t('form.prompt.help')}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <Label htmlFor="hint-language">Langage (facultatif)</Label>
+              <Label htmlFor="hint-language">{t('form.hint.language')}</Label>
               <input
                 id="hint-language"
                 value={language}
@@ -591,7 +635,7 @@ export function NewApplicationForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="hint-database">Base de données (facultatif)</Label>
+              <Label htmlFor="hint-database">{t('form.hint.database')}</Label>
               <input
                 id="hint-database"
                 value={database}
@@ -602,7 +646,7 @@ export function NewApplicationForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="hint-runtime">Runtime visé (facultatif)</Label>
+              <Label htmlFor="hint-runtime">{t('form.hint.runtime')}</Label>
               <select
                 id="hint-runtime"
                 value={runtimeHint}
@@ -610,24 +654,21 @@ export function NewApplicationForm({
                 onChange={(event) => setRuntimeHint(event.target.value)}
                 className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs disabled:opacity-50"
               >
-                <option value="">indifférent</option>
+                <option value="">{t('form.hint.runtime.any')}</option>
                 <option value="docker">Docker</option>
                 <option value="k3s">K3s</option>
               </select>
             </div>
           </div>
-          <p className="text-muted-foreground text-xs">
-            Le runtime n&apos;entre jamais dans l&apos;AppSpec — elle ne connaît ni
-            Docker ni Kubernetes. Il ne sert qu&apos;à dimensionner.
-          </p>
+          <p className="text-muted-foreground text-xs">{t('form.hint.note')}</p>
 
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={!aiEnabled || generating || prompt.trim().length < 8}>
-              {generating ? 'Génération…' : 'Générer'}
+              {generating ? t('generate.pending') : t('generate.action')}
             </Button>
             {generating ? (
               <span
-                aria-label="génération en cours"
+                aria-label={t('generate.busy')}
                 className="border-muted-foreground/30 border-t-foreground size-4 animate-spin rounded-full border-2"
               />
             ) : null}
@@ -662,7 +703,8 @@ export function NewApplicationForm({
         {review ? (
           <div className="space-y-1.5">
             <Label>
-              Ce qui va tourner{origin ? ' — proposition du modèle, à valider' : ''}
+              {t('review.label')}
+              {origin ? t('review.label.proposal') : ''}
             </Label>
             <SpecReview spec={review} />
           </div>
@@ -671,7 +713,8 @@ export function NewApplicationForm({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="appSpec">
-              AppSpec (JSON){origin ? ' — générée, éditable' : ''}
+              {t('form.appSpec.label')}
+              {origin ? t('form.appSpec.label.generated') : ''}
             </Label>
             <div className="flex items-center gap-4">
               <AppSpecHelpDialog />
@@ -683,7 +726,7 @@ export function NewApplicationForm({
                 }}
                 className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
               >
-                Insérer un exemple
+                {t('form.insertExample')}
               </button>
             </div>
           </div>
@@ -699,17 +742,14 @@ export function NewApplicationForm({
             className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-xs shadow-xs outline-none focus-visible:ring-[3px]"
           />
           {origin ? (
-            <p className="text-muted-foreground text-xs">
-              Le prompt et la spec générée seront conservés avec l&apos;application, à
-              côté de la version que vous validez.
-            </p>
+            <p className="text-muted-foreground text-xs">{t('form.origin.note')}</p>
           ) : null}
         </div>
 
         {targets.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="deploy-target">Déployer dans la foulée (facultatif)</Label>
+              <Label htmlFor="deploy-target">{t('form.deployTarget.label')}</Label>
               <select
                 id="deploy-target"
                 value={targetId}
@@ -722,7 +762,7 @@ export function NewApplicationForm({
                 }}
                 className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs"
               >
-                <option value="">ne pas déployer maintenant</option>
+                <option value="">{t('form.deployTarget.none')}</option>
                 {targets.map((target) => (
                   <option key={target.id} value={target.id}>
                     {target.name} ({target.host})
@@ -732,7 +772,7 @@ export function NewApplicationForm({
             </div>
             {selectedTarget ? (
               <div className="space-y-1.5">
-                <Label htmlFor="deploy-runtime">Runtime</Label>
+                <Label htmlFor="deploy-runtime">{t('form.runtime.label')}</Label>
                 <select
                   id="deploy-runtime"
                   value={deployRuntime}
@@ -754,10 +794,10 @@ export function NewApplicationForm({
 
         <Button type="submit" disabled={saving || value.trim().length === 0}>
           {saving
-            ? 'Validation…'
+            ? t('form.submit.pending')
             : selectedTarget
-              ? "Enregistrer et déployer l'application"
-              : "Enregistrer l'application"}
+              ? t('form.submit.saveAndDeploy')
+              : t('form.submit.save')}
         </Button>
       </form>
     </div>

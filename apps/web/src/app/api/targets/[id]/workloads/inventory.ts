@@ -9,7 +9,8 @@ import {
   type WorkloadList,
 } from '@pupitre/core';
 import { QueueEvents } from 'bullmq';
-import { HttpError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { HttpError, msg } from '@/lib/errors';
 import { getRedis } from '@/lib/redis';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
@@ -70,18 +71,18 @@ export async function fetchWorkloads(
     // du délai autrement que par son message : les deux méritent pourtant deux
     // codes différents pour l'appelant.
     if (/timed out/i.test(message)) {
-      throw new HttpError(
-        504,
-        'workload_list_timeout',
-        "La cible n'a pas répondu dans le délai imparti. Vérifiez sa connexion (preflight).",
-      );
+      throw new HttpError(504, 'workload_list_timeout', msg(messages, 'error.inventoryTimeout'));
     }
-    throw new HttpError(502, 'workload_list_failed', `Inventaire impossible : ${message}`);
+    throw new HttpError(
+      502,
+      'workload_list_failed',
+      msg(messages, 'error.inventoryFailed', { message }),
+    );
   }
 
   const parsed = workloadListSchema.safeParse(raw);
   if (!parsed.success) {
-    throw new HttpError(502, 'workload_list_failed', 'Le worker a renvoyé un inventaire illisible');
+    throw new HttpError(502, 'workload_list_failed', msg(messages, 'error.inventoryUnreadable'));
   }
 
   return parsed.data;

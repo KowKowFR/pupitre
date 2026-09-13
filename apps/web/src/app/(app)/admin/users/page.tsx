@@ -1,9 +1,20 @@
 import type { RoleKey } from '@pupitre/core';
-import { asc, getDb, getTwoFactorStates, getUserGrants, listRoles, users } from '@pupitre/db';
+import {
+  asc,
+  getAppSettingsValue,
+  getDb,
+  getTwoFactorStates,
+  getUserGrants,
+  listRoles,
+  users,
+} from '@pupitre/db';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
+import { admin } from '@/i18n/messages/admin';
 import { accountStateOf, accountStates } from '@/lib/account-state';
 import { mailChannelName } from '@/lib/account-mail';
+import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { CreateUserForm } from './create-user-form';
 import { UsersTable, type AdminUserRow } from './users-table';
@@ -14,6 +25,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function UsersPage() {
   const auth = await requirePagePermission('/admin/users', 'user:manage');
+  const t = await getT(admin);
 
   const db = getDb();
   // Les rôles proposés viennent de la base : un rôle créé depuis /admin/roles
@@ -22,6 +34,7 @@ export default async function UsersPage() {
   const rows = await db.select().from(users).orderBy(asc(users.createdAt));
   const grants = await Promise.all(rows.map((row) => getUserGrants(row.id, db)));
   const twoFactor = await getTwoFactorStates(db);
+  const settings = await getAppSettingsValue(db);
   const states = await accountStates(db);
 
   // Le nom du canal, pas seulement « oui / non » : l'écran peut alors dire *par
@@ -47,38 +60,29 @@ export default async function UsersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Administration"
-        title="Utilisateurs"
-        description="Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions en cours — il n'est pas supprimé, et son passage reste dans les logs."
+        eyebrow={t('eyebrow')}
+        title={t('users.title')}
+        description={t('users.description')}
       />
 
       <Card>
         <CardHeader>
-          <CardTitle>{channel ? 'Inviter un utilisateur' : 'Créer un utilisateur'}</CardTitle>
+          <CardTitle>{channel ? t('users.invite.title') : t('users.create.title')}</CardTitle>
           <CardDescription>
-            {channel ? (
-              <>
-                La personne reçoit un lien par e-mail (canal «&nbsp;{channel}&nbsp;») et choisit
-                elle-même son mot de passe&nbsp;: personne d&apos;autre ne le connaîtra. Le lien
-                vaut 72&nbsp;heures et ne fonctionne qu&apos;une fois. Rôles disponibles&nbsp;:{' '}
-                {availableRoles.join(', ')}.
-              </>
-            ) : (
-              <>
-                Rôles disponibles&nbsp;: {availableRoles.join(', ')}. Mot de passe de{' '}
-                {PASSWORD_MIN_LENGTH} caractères minimum.
-              </>
-            )}
+            {channel
+              ? t('users.invite.help', { channel, roles: availableRoles.join(', ') })
+              : t('users.create.help', {
+                  roles: availableRoles.join(', '),
+                  min: PASSWORD_MIN_LENGTH,
+                })}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {channel ? null : (
             <Alert variant="info">
-              Aucun canal e-mail (SMTP) actif&nbsp;: le mot de passe doit être saisi ici, puis
-              transmis hors bande — et vous le connaîtrez. Configurez un serveur SMTP dans{' '}
-              <span className="font-medium">Paramètres → Notifications</span> pour inviter par lien
-              à la place, et pour que «&nbsp;mot de passe oublié&nbsp;» fonctionne sur l&apos;écran
-              de connexion.
+              {t('users.noMail.before')}{' '}
+              <span className="font-medium">{t('users.noMail.settings')}</span>{' '}
+              {t('users.noMail.after')}
             </Alert>
           )}
           <CreateUserForm
@@ -93,6 +97,7 @@ export default async function UsersPage() {
         currentUserId={auth.userId}
         roles={availableRoles as readonly RoleKey[]}
         canResetTwoFactor={auth.can('user:reset-2fa')}
+        format={formatSettingsOf(settings)}
       />
     </div>
   );

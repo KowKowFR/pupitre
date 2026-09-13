@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useT } from '@/i18n/client';
+import { monitors as messages } from '@/i18n/messages/monitors';
 
 /**
  * Les champs de configuration d'une sonde, rendus **depuis le catalogue**.
@@ -48,6 +50,7 @@ function FieldControl({
   onChange: (key: string, value: unknown) => void;
   idPrefix: string;
 }) {
+  const t = useT(messages);
   const id = `${idPrefix}-${field.key}`;
   const value = fieldValue(values, field);
   const handle = (raw: string): void => onChange(field.key, readBack(field, raw));
@@ -56,7 +59,9 @@ function FieldControl({
     <div className="space-y-1.5">
       <Label htmlFor={id}>
         {field.label}
-        {field.optional ? <span className="text-ink-faint normal-case">— facultatif</span> : null}
+        {field.optional ? (
+          <span className="text-ink-faint normal-case">{t('config.optional')}</span>
+        ) : null}
       </Label>
 
       {field.kind === 'select' ? (
@@ -110,6 +115,7 @@ export function ConfigFields({
   onChange: (key: string, value: unknown) => void;
   idPrefix: string;
 }) {
+  const t = useT(messages);
   const plain = fields.filter((field) => field.advanced !== true);
   const advanced = fields.filter((field) => field.advanced === true);
 
@@ -130,7 +136,7 @@ export function ConfigFields({
       {advanced.length > 0 ? (
         <Collapsible>
           <CollapsibleTrigger className="eyebrow text-ink-muted hover:text-ink">
-            Options avancées
+            {t('config.advanced')}
           </CollapsibleTrigger>
           <CollapsiblePanel className="grid gap-4 pt-3 sm:grid-cols-2">
             {advanced.map((field) => (

@@ -1,6 +1,14 @@
+import {
+  DEFAULT_UI_LANGUAGE,
+  UI_LANGUAGES,
+  renderMessage,
+  type Translated,
+  type UiLanguage,
+  type Vars,
+} from '../i18n.js';
 import { z } from 'zod';
 import {
-  NOTIFICATION_SEVERITY_LABELS,
+  notificationSeverityLabel,
   notificationSeveritySchema,
   type NotificationSeverity,
 } from './message.js';
@@ -50,6 +58,69 @@ import {
  * d'abstraction que `message.ts` interdit. D'où un second type neutre, et une
  * seconde méthode sur `NotificationChannel`.
  */
+
+// ─── les mots du résumé ───────────────────────────────────────────────────────
+
+/**
+ * Un résumé explique son propre arbitrage : pourquoi un message plutôt que
+ * cinquante, ce qu'il nomme, ce qu'il tait, et quand arrive le suivant. Ces
+ * phrases-là sont la valeur du dispositif — un compteur muet n'aurait besoin
+ * d'aucune traduction.
+ */
+const fr = {
+  'title': '{count} × {label} — résumé',
+  'count': {
+    one: '{count} alerte « {label} » se sont produites entre {start} et {end} (UTC).',
+    other: '{count} alertes « {label} » se sont produites entre {start} et {end} (UTC).',
+  },
+  'window':
+    "La première d'entre elles est partie seule, sans attendre ; celles-ci ont été " +
+    'retenues pendant la fenêtre de regroupement de {duration} ' +
+    'pour ne pas produire {count} messages.',
+  'named.all': 'Elles sont toutes nommées ci-dessous.',
+  'named.partial':
+    '{named} sont nommées ci-dessous, {omitted} ne le sont pas — la liste ' +
+    'est bornée à {limit} lignes.',
+  'next.widened':
+    "L'orage continue : la fenêtre passe à {duration}. " +
+    'Le prochain résumé arrivera dans ce délai au plus tard.',
+  'next.same': 'Prochain résumé dans {duration} au plus tard.',
+  'quiet':
+    'Dès qu’une fenêtre se referme sans rien avoir retenu, la prochaine alerte repart immédiatement.',
+  'omission': {
+    one: '… et {count} autre, non détaillé ici.',
+    other: '… et {count} autres, non détaillés ici.',
+  },
+} as const;
+
+const en: Translated<typeof fr> = {
+  'title': '{count} × {label} — digest',
+  'count': {
+    one: '{count} “{label}” alert fired between {start} and {end} (UTC).',
+    other: '{count} “{label}” alerts fired between {start} and {end} (UTC).',
+  },
+  'window':
+    'The first one went out on its own, with no delay; these were held during the ' +
+    '{duration} grouping window so as not to produce {count} messages.',
+  'named.all': 'They are all named below.',
+  'named.partial':
+    '{named} are named below, {omitted} are not — the list is capped at {limit} lines.',
+  'next.widened':
+    'The storm is still on: the window widens to {duration}. The next digest arrives ' +
+    'within that delay at the latest.',
+  'next.same': 'Next digest within {duration} at the latest.',
+  'quiet': 'As soon as a window closes having held nothing, the next alert goes out at once.',
+  'omission': {
+    one: '… and {count} more, not detailed here.',
+    other: '… and {count} more, not detailed here.',
+  },
+};
+
+const DIGEST_TEXT = { fr, en };
+
+function t(language: UiLanguage, key: keyof typeof fr, vars?: Vars): string {
+  return renderMessage(DIGEST_TEXT, language, key, vars);
+}
 
 // ─── politique ────────────────────────────────────────────────────────────────
 
@@ -145,6 +216,8 @@ export const notificationDigestSchema = z.object({
   url: z.string().url().max(500).nullable().default(null),
   instance: z.string().trim().min(1).max(60),
   occurredAt: z.string().datetime(),
+  /** Langue de composition. Même motif que sur `notificationMessageSchema`. */
+  language: z.enum(UI_LANGUAGES).default(DEFAULT_UI_LANGUAGE),
 });
 
 export type NotificationDigest = z.infer<typeof notificationDigestSchema>;
@@ -156,7 +229,13 @@ export function notificationDigestOmitted(digest: NotificationDigest): number {
 
 // ─── mise en forme commune ────────────────────────────────────────────────────
 
-/** « 15 s », « 5 min », « 1 h 20 ». Le français, pas un ISO 8601 illisible. */
+/**
+ * « 15 s », « 5 min », « 1 h 20 ». Une durée lisible, pas un ISO 8601.
+ *
+ * Sans dictionnaire, et ce n'est pas un oubli : `s`, `min` et `h` sont les
+ * mêmes symboles dans les deux langues. Y faire passer une traduction
+ * ajouterait une langue à porter pour rendre exactement la même chaîne.
+ */
 export function formatDigestDuration(ms: number): string {
   const seconds = Math.max(1, Math.round(ms / 1000));
   if (seconds < 60) return `${seconds} s`;
@@ -186,11 +265,12 @@ export function renderDigestItemLine(item: NotificationDigestItem): string {
  * elle, dix lignes affichées sur cinquante retenues sont un mensonge par
  * omission.
  */
-export function renderDigestOmission(omitted: number): string | null {
+export function renderDigestOmission(
+  omitted: number,
+  language: UiLanguage = DEFAULT_UI_LANGUAGE,
+): string | null {
   if (omitted <= 0) return null;
-  return omitted === 1
-    ? '… et 1 autre, non détaillé ici.'
-    : `… et ${omitted} autres, non détaillés ici.`;
+  return t(language, 'omission', { count: omitted });
 }
 
 /**
@@ -206,14 +286,14 @@ export function renderDigestPlainText(digest: NotificationDigest, maxItems?: num
   const lines = [digest.title, '', digest.body, ''];
   for (const item of shown) lines.push(`• ${renderDigestItemLine(item)}`);
 
-  const omission = renderDigestOmission(omitted);
+  const omission = renderDigestOmission(omitted, digest.language);
   if (omission) lines.push(omission);
 
   if (digest.url) lines.push('', digest.url);
 
   lines.push(
     '',
-    `— ${digest.instance} · ${NOTIFICATION_SEVERITY_LABELS[digest.severity].toLowerCase()} · ${digest.occurredAt}`,
+    `— ${digest.instance} · ${notificationSeverityLabel(digest.severity, digest.language).toLowerCase()} · ${digest.occurredAt}`,
   );
 
   return lines.join('\n');
@@ -238,6 +318,11 @@ export type BuildNotificationDigestInput = {
   panelUrl: string | null;
   /** Chemin du panel qui montre ces objets, ex. `/deployments`. */
   path: string | null;
+  /**
+   * Langue de l'instance. Résolue par le worker, qui a lu les paramètres — le
+   * `eventLabel` ci-dessus doit venir de la même langue.
+   */
+  language: UiLanguage;
 };
 
 /**
@@ -256,29 +341,37 @@ export function buildNotificationDigest(
   const base = input.panelUrl?.replace(/\/+$/, '') ?? null;
   const widened = input.nextWindowMs > input.windowMs;
 
+  const lang = input.language;
+
   const sentences = [
-    `${input.count} alerte${input.count > 1 ? 's' : ''} « ${input.eventLabel} » se sont ` +
-      `produites entre ${digestTimeOfDay(input.windowStartedAt)} et ` +
-      `${digestTimeOfDay(input.windowEndedAt)} (UTC).`,
-    `La première d'entre elles est partie seule, sans attendre ; celles-ci ont été ` +
-      `retenues pendant la fenêtre de regroupement de ${formatDigestDuration(input.windowMs)} ` +
-      `pour ne pas produire ${input.count} messages.`,
+    t(lang, 'count', {
+      count: input.count,
+      label: input.eventLabel,
+      start: digestTimeOfDay(input.windowStartedAt),
+      end: digestTimeOfDay(input.windowEndedAt),
+    }),
+    t(lang, 'window', {
+      duration: formatDigestDuration(input.windowMs),
+      count: input.count,
+    }),
     omitted > 0
-      ? `${input.items.length} sont nommées ci-dessous, ${omitted} ne le sont pas — la liste ` +
-        `est bornée à ${NOTIFICATION_DIGEST_ITEM_LIMIT} lignes.`
-      : 'Elles sont toutes nommées ci-dessous.',
+      ? t(lang, 'named.partial', {
+          named: input.items.length,
+          omitted,
+          limit: NOTIFICATION_DIGEST_ITEM_LIMIT,
+        })
+      : t(lang, 'named.all'),
     widened
-      ? `L'orage continue : la fenêtre passe à ${formatDigestDuration(input.nextWindowMs)}. ` +
-        `Le prochain résumé arrivera dans ce délai au plus tard.`
-      : `Prochain résumé dans ${formatDigestDuration(input.nextWindowMs)} au plus tard.`,
-    'Dès qu’une fenêtre se referme sans rien avoir retenu, la prochaine alerte repart immédiatement.',
+      ? t(lang, 'next.widened', { duration: formatDigestDuration(input.nextWindowMs) })
+      : t(lang, 'next.same', { duration: formatDigestDuration(input.nextWindowMs) }),
+    t(lang, 'quiet'),
   ];
 
   return notificationDigestSchema.parse({
     type: 'digest',
     event: input.event,
     severity: input.severity,
-    title: `${input.count} × ${input.eventLabel} — résumé`,
+    title: t(lang, 'title', { count: input.count, label: input.eventLabel }),
     body: sentences.join(' '),
     items: input.items.slice(0, NOTIFICATION_DIGEST_ITEM_LIMIT),
     count: input.count,
@@ -289,5 +382,6 @@ export function buildNotificationDigest(
     url: base && input.path ? `${base}${input.path}` : null,
     instance: input.instance,
     occurredAt: input.windowEndedAt,
+    language: lang,
   });
 }

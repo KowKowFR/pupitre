@@ -6,6 +6,8 @@ import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { TargetLabelChip, sortedLabelEntries } from '@/components/target-label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
+import { targets as messages } from '@/i18n/messages/targets';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { RuntimeBadges, StatusBadge, formatPreflightDate } from '../runtime-badges';
@@ -30,9 +32,10 @@ export default async function TargetDetailPage({
   const target = await getTarget(parsed.data.id);
   if (!target) notFound();
 
-  const [ports, { settings }] = await Promise.all([
+  const [ports, { settings }, t] = await Promise.all([
     getTargetPortReport(target.id),
     getAppSettings(),
+    getT(messages),
   ]);
   const format = formatSettingsOf(settings);
   const labels = sortedLabelEntries(target.labels);
@@ -46,7 +49,7 @@ export default async function TargetDetailPage({
             className="inline-flex items-center gap-1 transition-colors hover:text-ink"
           >
             <ChevronLeft className="size-3" />
-            Machines cibles
+            {t('nav.back')}
           </Link>
         }
         title={target.name}
@@ -79,7 +82,7 @@ export default async function TargetDetailPage({
                   key={`${key}=${value}`}
                   href={`/targets?label=${encodeURIComponent(`${key}=${value}`)}`}
                   className="rounded-sm focus-visible:outline-2"
-                  title={`Voir les cibles portant ${key}=${value}`}
+                  title={t('label.link.title', { pair: `${key}=${value}` })}
                 >
                   <TargetLabelChip labelKey={key} value={value} />
                 </Link>
@@ -92,21 +95,24 @@ export default async function TargetDetailPage({
       <div className="grid items-start gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Runtimes disponibles</CardTitle>
+            <CardTitle>{t('detail.runtimes.title')}</CardTitle>
             <CardDescription>
-              Dernier preflight : {formatPreflightDate(target.lastPreflightAt, format)} ({format.timezone})
+              {t('detail.runtimes.description', {
+                date: formatPreflightDate(target.lastPreflightAt, format, t('preflight.never')),
+                timezone: format.timezone,
+              })}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap items-center gap-3">
             <RuntimeBadges runtimes={target.runtimesAvailable} />
-            <StatusBadge status={target.status} />
+            <StatusBadge status={target.status} label={t(`status.${target.status}`)} />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Connexion</CardTitle>
-            <CardDescription>Vérifier ce que la machine sait faire.</CardDescription>
+            <CardTitle>{t('card.connection')}</CardTitle>
+            <CardDescription>{t('detail.connection.description')}</CardDescription>
           </CardHeader>
           <CardContent>
             <PreflightPanel
@@ -120,19 +126,21 @@ export default async function TargetDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Configuration</CardTitle>
+          <CardTitle>{t('detail.config.title')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-x-8 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Authentification">
-            {target.authMethod === 'key' ? 'clé privée' : 'mot de passe'}
+          <Field label={t('field.authMethod')}>
+            {target.authMethod === 'key' ? t('value.auth.key') : t('value.auth.password')}
           </Field>
-          <Field label="Élévation sudo">
-            {target.sudoMethod === 'nopasswd' ? 'sans mot de passe' : 'avec mot de passe'}
+          <Field label={t('field.sudoMethod')}>
+            {target.sudoMethod === 'nopasswd'
+              ? t('value.sudo.nopasswd')
+              : t('value.sudo.password')}
           </Field>
-          <Field label="Credential">
-            <span className="text-ink-faint">chiffré en base, non exposé</span>
+          <Field label={t('field.credential')}>
+            <span className="text-ink-faint">{t('value.credential')}</span>
           </Field>
-          <Field label="Plage de ports">
+          <Field label={t('field.portRangeShort')}>
             {target.portRangeStart}–{target.portRangeEnd}
           </Field>
         </CardContent>

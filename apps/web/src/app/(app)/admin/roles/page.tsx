@@ -1,6 +1,14 @@
-import { LOCKED_ROLE, RESOURCE_LABELS, permissionsByResource } from '@pupitre/core';
+import {
+  LOCKED_ROLE,
+  permissionDescriptions,
+  permissionsByResource,
+  resourceLabelOf,
+  translator,
+} from '@pupitre/core';
 import { listRolesWithPermissions } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { admin } from '@/i18n/messages/admin';
+import { currentLanguage, getT } from '@/i18n/server';
 import { requirePagePermission } from '@/lib/page-auth';
 import { CreateRoleForm } from './create-role-form';
 import { RolesEditor, type RoleRow } from './roles-editor';
@@ -10,6 +18,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function RolesPage() {
   const auth = await requirePagePermission('/admin/roles', 'role:read');
+  const t = await getT(admin);
+  const language = await currentLanguage();
 
   const roles = await listRolesWithPermissions();
 
@@ -22,25 +32,28 @@ export default async function RolesPage() {
     userCount: role.userCount,
   }));
 
-  const groups = permissionsByResource().map((group) => ({
-    resource: group.resource,
-    label: RESOURCE_LABELS[group.resource] ?? group.resource,
-    permissions: group.permissions,
-  }));
+  // Les libellés de permission sont rendus ici, au serveur : l'éditeur reçoit
+  // des phrases, pas des clés à traduire une deuxième fois côté client.
+  const groups = permissionsByResource(translator(permissionDescriptions, language)).map(
+    (group) => ({
+      resource: group.resource,
+      label: resourceLabelOf(group.resource, language),
+      permissions: group.permissions,
+    }),
+  );
 
   const canManage = auth.can('role:manage');
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Administration"
-        title="Rôles"
+        eyebrow={t('eyebrow')}
+        title={t('roles.title')}
         description={
           <>
-            Un utilisateur porte un rôle ; le rôle porte les permissions. Le rôle{' '}
-            <code className="font-mono text-xs">{LOCKED_ROLE}</code> est verrouillé : il détient
-            toujours l&apos;intégralité des permissions, pour qu&apos;on ne puisse pas se retirer
-            les droits nécessaires à se les rendre.
+            {t('roles.description.before')}{' '}
+            <code className="font-mono text-xs">{LOCKED_ROLE}</code>{' '}
+            {t('roles.description.after')}
           </>
         }
       />
@@ -48,11 +61,8 @@ export default async function RolesPage() {
       {canManage ? (
         <Card>
           <CardHeader>
-            <CardTitle>Nouveau rôle</CardTitle>
-            <CardDescription>
-              La clé sert d&apos;identifiant et ne change plus ensuite. Les permissions se règlent
-              juste après la création.
-            </CardDescription>
+            <CardTitle>{t('roles.new.title')}</CardTitle>
+            <CardDescription>{t('roles.new.help')}</CardDescription>
           </CardHeader>
           <CardContent>
             <CreateRoleForm existingKeys={items.map((item) => item.key)} />

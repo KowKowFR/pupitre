@@ -1,6 +1,8 @@
 import { aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
 import type { AppSettings } from '@pupitre/core';
 import { Badge } from '@/components/ui/badge';
+import { getT } from '@/i18n/server';
+import { settings as messages } from '@/i18n/messages/settings';
 
 /**
  * L'état réel de la génération par IA, en une pastille.
@@ -25,7 +27,7 @@ export function aiReadiness(settings: AppSettings, storedApiKey: string | null) 
   });
 }
 
-export function AiStatusBadge({
+export async function AiStatusBadge({
   settings,
   storedApiKey,
 }: {
@@ -33,19 +35,23 @@ export function AiStatusBadge({
   storedApiKey: string | null;
 }) {
   const config = aiReadiness(settings, storedApiKey);
+  const t = await getT(messages);
 
   if (!settings.ai.enabled) {
-    return <Badge variant="secondary">désactivée</Badge>;
+    return <Badge variant="secondary">{t('ai.badge.off')}</Badge>;
   }
   if (!config.enabled) {
     // On nomme la variable attendue : « clé manquante » sans dire où la poser
     // renvoie l'utilisateur chercher dans quatre écrans.
     const envVar = aiProviderDescriptor(config.provider).envApiKeyVar;
     return (
-      <Badge variant="warn" title={envVar ? `Aucune clé enregistrée, ${envVar} vide` : undefined}>
-        clé manquante
+      <Badge
+        variant="warn"
+        title={envVar ? t('ai.badge.missingKey.title', { envVar }) : undefined}
+      >
+        {t('ai.badge.missingKey')}
       </Badge>
     );
   }
-  return <Badge variant="ok">activée</Badge>;
+  return <Badge variant="ok">{t('ai.badge.on')}</Badge>;
 }

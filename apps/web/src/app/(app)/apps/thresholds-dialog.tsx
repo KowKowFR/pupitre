@@ -18,6 +18,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { servers } from '@/i18n/messages/servers';
 import type { HistoryMetric, ThresholdView } from './host-history';
 
 /**
@@ -44,22 +47,24 @@ import type { HistoryMetric, ThresholdView } from './host-history';
  * bon endroit pour un réglage rare.
  */
 
-const METRIC_LABEL: Record<HistoryMetric, string> = {
-  disk: 'Disque',
-  memory: 'Mémoire',
-  load: 'Charge par cœur',
+type MessageKey = keyof typeof servers.fr;
+
+const METRIC_KEY: Record<HistoryMetric, MessageKey> = {
+  disk: 'metric.disk',
+  memory: 'metric.memory',
+  load: 'thresholds.metric.load',
 };
 
-const METRIC_HINT: Record<HistoryMetric, string> = {
-  disk: 'partition qui porte les déploiements',
-  memory: 'utilisée = totale − disponible',
-  load: '100 % = un cœur plein par cœur',
+const METRIC_HINT_KEY: Record<HistoryMetric, MessageKey> = {
+  disk: 'thresholds.hint.disk',
+  memory: 'thresholds.hint.memory',
+  load: 'thresholds.hint.load',
 };
 
-const ORIGIN_LABEL: Record<ThresholdView['origin'], string> = {
-  default: 'valeur livrée avec le panel',
-  global: "défaut de l'instance",
-  target: 'propre à cette machine',
+const ORIGIN_KEY: Record<ThresholdView['origin'], MessageKey> = {
+  default: 'thresholds.origin.default',
+  global: 'thresholds.origin.global',
+  target: 'thresholds.origin.target',
 };
 
 const METRICS: readonly HistoryMetric[] = ['disk', 'memory', 'load'];
@@ -75,6 +80,8 @@ export function ThresholdsDialog({
   targetName: string;
   thresholds: Record<HistoryMetric, ThresholdView>;
 }) {
+  const t = useT(servers);
+  const shared = useT(common);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -98,7 +105,7 @@ export function ThresholdsDialog({
       for (const metric of METRICS) {
         const value = Number(draft[metric].limitPercent);
         if (!Number.isFinite(value) || value <= 0 || value > 1000) {
-          setError(`« ${METRIC_LABEL[metric]} » : un pourcentage entre 1 et 1000 est attendu.`);
+          setError(t('thresholds.invalid', { metric: t(METRIC_KEY[metric]) }));
           return;
         }
         const response = await fetch('/api/supervision/thresholds', {
@@ -115,7 +122,9 @@ export function ThresholdsDialog({
           const body = (await response.json().catch(() => ({}))) as {
             error?: { message?: string };
           };
-          setError(body.error?.message ?? `Enregistrement refusé (HTTP ${response.status})`);
+          setError(
+            body.error?.message ?? t('thresholds.refused', { status: response.status }),
+          );
           return;
         }
       }
@@ -124,11 +133,11 @@ export function ThresholdsDialog({
       // la page doit se relire pour que l'écran dise la vérité tout de suite.
       router.refresh();
     } catch {
-      setError('Le panel est injoignable.');
+      setError(t('thresholds.unreachable'));
     } finally {
       setBusy(false);
     }
-  }, [draft, router, targetId]);
+  }, [draft, router, t, targetId]);
 
   /** Retire la surcharge de cette machine : la couche du dessous reprend. */
   const reset = useCallback(
@@ -152,18 +161,18 @@ export function ThresholdsDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" aria-label={`Régler les seuils de ${targetName}`}>
+        <Button size="sm" variant="ghost" aria-label={t('thresholds.aria', { name: targetName })}>
           <SlidersHorizontal />
-          Seuils
+          {t('thresholds.button')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Seuils de {targetName}</DialogTitle>
+          <DialogTitle>{t('thresholds.title', { name: targetName })}</DialogTitle>
           <DialogDescription>
-            Au-delà du seuil, un dépassement s&apos;ouvre et une entrée est écrite au journal
-            d&apos;activité — <strong>une seule</strong>, au franchissement, pas une par relevé.
-            Elle se referme quand la machine repasse sous le seuil.
+            {t('thresholds.description')}{' '}
+            <strong>{t('thresholds.description.once')}</strong>
+            {t('thresholds.description.end')}
           </DialogDescription>
         </DialogHeader>
 
@@ -174,8 +183,10 @@ export function ThresholdsDialog({
             <div key={metric} className="flex flex-col gap-1.5">
               <div className="flex items-end gap-3">
                 <div className="flex-1">
-                  <Label htmlFor={`threshold-${metric}`}>{METRIC_LABEL[metric]}</Label>
-                  <p className="text-[0.6875rem] text-ink-faint">{METRIC_HINT[metric]}</p>
+                  <Label htmlFor={`threshold-${metric}`}>{t(METRIC_KEY[metric])}</Label>
+                  <p className="text-[0.6875rem] text-ink-faint">
+                    {t(METRIC_HINT_KEY[metric])}
+                  </p>
                 </div>
                 <Input
                   id={`threshold-${metric}`}
@@ -205,10 +216,10 @@ export function ThresholdsDialog({
                       }))
                     }
                   />
-                  Surveiller cette métrique
+                  {t('thresholds.watch')}
                 </label>
                 <span className="text-[0.6875rem] text-ink-faint">
-                  {ORIGIN_LABEL[thresholds[metric].origin]}
+                  {t(ORIGIN_KEY[thresholds[metric].origin])}
                   {thresholds[metric].origin === 'target' ? (
                     <button
                       type="button"
@@ -216,7 +227,7 @@ export function ThresholdsDialog({
                       onClick={() => void reset(metric)}
                       className="ml-2 underline underline-offset-2 hover:text-ink"
                     >
-                      rendre au défaut
+                      {t('thresholds.reset')}
                     </button>
                   ) : null}
                 </span>
@@ -227,10 +238,10 @@ export function ThresholdsDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-            Annuler
+            {shared('cancel')}
           </Button>
           <Button onClick={() => void save()} disabled={busy}>
-            {busy ? 'Enregistrement…' : 'Enregistrer'}
+            {busy ? shared('saving') : shared('save')}
           </Button>
         </DialogFooter>
       </DialogContent>

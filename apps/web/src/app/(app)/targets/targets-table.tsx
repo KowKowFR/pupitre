@@ -20,6 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { targets as messages } from '@/i18n/messages/targets';
 import type { FormatSettings } from '@/lib/format';
 import { RuntimeBadges, StatusBadge, formatPreflightDate } from './runtime-badges';
 import { usePreflight } from './use-preflight';
@@ -84,6 +87,8 @@ export function TargetsTable({
   initialLabels,
 }: Props) {
   const router = useRouter();
+  const t = useT(messages);
+  const tc = useT(common);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState<string[]>(initialLabels);
@@ -185,26 +190,26 @@ export function TargetsTable({
     );
   }
 
+  /** Le titre d'une pastille bascule. `target-label` n'a pas de `t` : voir là-bas. */
+  function labelTitle(pair: string, active: boolean): string {
+    return active ? t('label.filter.off', { pair }) : t('label.filter.on', { pair });
+  }
+
   async function remove(target: TargetRow) {
     setError(null);
-    if (!window.confirm(`Supprimer la cible « ${target.name} » (${target.host}) ?`)) return;
+    if (!window.confirm(t('confirm.delete', { name: target.name, host: target.host }))) return;
 
     const response = await fetch(`/api/targets/${target.id}`, { method: 'DELETE' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       return;
     }
     router.refresh();
   }
 
   if (targets.length === 0) {
-    return (
-      <EmptyState
-        title="Aucune machine cible"
-        hint="Déclarez une machine avec son accès SSH, puis lancez un preflight : le panel y détectera Docker, K3s et les outils de scan."
-      />
-    );
+    return <EmptyState title={t('empty.title')} hint={t('empty.hint')} />;
   }
 
   const showSearch = targets.length >= SEARCH_THRESHOLD || query !== '';
@@ -232,8 +237,8 @@ export function TargetsTable({
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Filtrer : nom, hôte, description, étiquette…"
-                  aria-label="Filtrer les machines cibles"
+                  placeholder={t('filter.placeholder')}
+                  aria-label={t('filter.aria')}
                   className="h-8 w-full max-w-xs text-xs"
                 />
               ) : null}
@@ -246,6 +251,7 @@ export function TargetsTable({
                       value={facet.value}
                       active={selectedPairs.has(facet.pair)}
                       onToggle={() => toggleLabel(facet.pair)}
+                      titleOf={(active) => labelTitle(facet.pair, active)}
                     />
                   ))}
                 </div>
@@ -259,31 +265,29 @@ export function TargetsTable({
                     setSelected([]);
                   }}
                 >
-                  Tout afficher
+                  {t('filter.showAll')}
                 </Button>
               ) : null}
             </div>
             {filtering ? (
               <p className="text-xs text-ink-muted" role="status">
-                {visible.length} cible{visible.length > 1 ? 's' : ''} sur {targets.length}
+                {t('filter.count', { count: visible.length, total: targets.length })}
               </p>
             ) : null}
           </div>
         ) : null}
 
         {visible.length === 0 ? (
-          <p className="py-6 text-center text-sm text-ink-muted">
-            Aucune cible ne correspond à ce filtre.
-          </p>
+          <p className="py-6 text-center text-sm text-ink-muted">{t('filter.none')}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Cible</TableHead>
-                <TableHead>Runtimes</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Dernier test</TableHead>
-                <TableActionsHead>Actions</TableActionsHead>
+                <TableHead>{tc('column.target')}</TableHead>
+                <TableHead>{t('column.runtimes')}</TableHead>
+                <TableHead>{tc('column.status')}</TableHead>
+                <TableHead>{t('column.lastCheck')}</TableHead>
+                <TableActionsHead>{tc('column.actions')}</TableActionsHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -320,13 +324,14 @@ export function TargetsTable({
                         className="mt-1.5"
                         onToggle={toggleLabel}
                         activePairs={selectedPairs}
+                        titleOf={labelTitle}
                       />
                     </TableCell>
                     <TableCell className="align-top">
                       <RuntimeBadges runtimes={target.runtimesAvailable} />
                     </TableCell>
                     <TableCell className="align-top">
-                      <StatusBadge status={target.status} />
+                      <StatusBadge status={target.status} label={t(`status.${target.status}`)} />
                     </TableCell>
                     <TableCell className="align-top font-mono text-xs text-ink-muted tabular-nums">
                       {phase ? (
@@ -335,7 +340,7 @@ export function TargetsTable({
                           {phase}
                         </span>
                       ) : (
-                        formatPreflightDate(target.lastPreflightAt, format)
+                        formatPreflightDate(target.lastPreflightAt, format, t('preflight.never'))
                       )}
                     </TableCell>
                     <TableActions className="space-x-2 align-top whitespace-nowrap">
@@ -346,12 +351,12 @@ export function TargetsTable({
                           disabled={isRunning(target.id)}
                           onClick={() => void run(target.id)}
                         >
-                          {isRunning(target.id) ? 'Test en cours…' : 'Tester la connexion'}
+                          {isRunning(target.id) ? t('action.testing') : t('action.test')}
                         </Button>
                       ) : null}
                       {canDelete ? (
                         <Button size="sm" variant="ghost" onClick={() => void remove(target)}>
-                          Supprimer
+                          {tc('delete')}
                         </Button>
                       ) : null}
                     </TableActions>
@@ -369,7 +374,7 @@ export function TargetsTable({
           portable. L'information est la même, elle ne coûte plus une colonne.
         */}
         <p className="text-ink-faint text-xs">
-          Horodatages en {format.timezone}.
+          {t('table.timestamps', { timezone: format.timezone })}
         </p>
       </CardContent>
     </Card>

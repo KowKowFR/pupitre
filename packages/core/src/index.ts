@@ -1,5 +1,6 @@
 export * from './crypto.js';
 export * from './host-metrics.js';
+export * from './i18n.js';
 export * from './monitoring.js';
 export * from './naming.js';
 export * from './notifications/account-mail.js';

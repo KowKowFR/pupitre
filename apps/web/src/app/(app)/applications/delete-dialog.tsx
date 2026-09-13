@@ -14,6 +14,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { applications as messages } from '@/i18n/messages/applications';
 
 /**
  * Confirmation de suppression d'une application.
@@ -95,6 +98,8 @@ export function DeleteApplicationDialog({
   onOpenChange: (open: boolean) => void;
   onDeleted: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [outcome, setOutcome] = useState<CascadeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,10 +112,10 @@ export function DeleteApplicationDialog({
     const response = await fetch(`/api/applications/${application.id}/cascade`);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      throw new Error(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      throw new Error(body.error?.message ?? tc('http.failure', { status: response.status }));
     }
     return (await response.json()) as Preview;
-  }, [application.id]);
+  }, [application.id, tc]);
 
   // La modale est montée à l'ouverture et démontée à la fermeture : l'état
   // repart de zéro tout seul, il n'y a rien à réinitialiser ici.
@@ -122,14 +127,14 @@ export function DeleteApplicationDialog({
       },
       (cause: unknown) => {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : 'Lecture impossible');
+          setError(cause instanceof Error ? cause.message : t('delete.readFailed'));
         }
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [fetchPreview]);
+  }, [fetchPreview, t]);
 
   /** Efface directement : plus rien ne tourne, il ne reste que de l'historique. */
   async function eraseHistory() {
@@ -139,7 +144,7 @@ export function DeleteApplicationDialog({
     setPending(false);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       // La garde a peut-être changé d'avis depuis la prévisualisation : quelque
       // chose a pu être redéployé entre-temps.
       fetchPreview().then(setPreview, () => {});
@@ -152,7 +157,7 @@ export function DeleteApplicationDialog({
   async function cascade(force: boolean) {
     setPending(true);
     setError(null);
-    setProgress(force ? 'Effacement forcé…' : 'Destruction sur les cibles…');
+    setProgress(force ? t('delete.progress.force') : t('delete.progress.cascade'));
 
     const response = await fetch(`/api/applications/${application.id}/cascade`, {
       method: 'POST',
@@ -162,19 +167,22 @@ export function DeleteApplicationDialog({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       setPending(false);
       setProgress(null);
       return;
     }
 
     const { jobId } = (await response.json()) as { jobId: string };
-    const outcomeOrError = await waitForJob(application.id, jobId, setProgress);
+    const outcomeOrError = await waitForJob(application.id, jobId, setProgress, {
+      failed: t('delete.job.failed'),
+      progress: (state) => t('delete.job.progress', { state }),
+    });
     setPending(false);
     setProgress(null);
 
     if (outcomeOrError.result === null) {
-      setError(outcomeOrError.error ?? 'La tâche ne répond plus. Consultez les logs d’activité.');
+      setError(outcomeOrError.error ?? t('delete.job.silent'));
       return;
     }
     if (outcomeOrError.result.deleted) {
@@ -196,13 +204,13 @@ export function DeleteApplicationDialog({
     <Dialog open={open} onOpenChange={pending ? () => {} : onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Supprimer « {application.slug} »</DialogTitle>
+          <DialogTitle>{t('delete.title', { slug: application.slug })}</DialogTitle>
           <DialogDescription>
             {abandoned.length > 0
-              ? 'Une cible n’a pas pu être nettoyée. Lisez ce qui va rester dessus.'
+              ? t('delete.description.abandoned')
               : blockers.length > 0
-                ? 'L’application tourne encore. Elle sera démontée sur ses cibles avant d’être effacée.'
-                : 'L’application ne porte plus que de l’historique.'}
+                ? t('delete.description.blockers')
+                : t('delete.description.history')}
           </DialogDescription>
         </DialogHeader>
 
@@ -210,25 +218,22 @@ export function DeleteApplicationDialog({
           {error ? <Alert variant="destructive">{error}</Alert> : null}
 
           {preview === null && error === null ? (
-            <p className="text-ink-muted">Lecture de ce qui bloque…</p>
+            <p className="text-ink-muted">{t('delete.loading')}</p>
           ) : null}
 
           {preview !== null && abandoned.length === 0 ? (
             <>
               {blockers.length === 0 ? (
                 <p className="text-ink">
-                  Rien ne tourne : {preview.historyCount} déploiement
-                  {preview.historyCount > 1 ? 's' : ''} d’historique
-                  {preview.historyCount > 1 ? ' seront effacés' : ' sera effacé'}, avec leurs
-                  étapes, leurs logs et leurs scans.
+                  {t('delete.historyOnly', { count: preview.historyCount })}
                 </p>
               ) : (
                 <>
                   <p className="text-ink">
-                    {blockers.length} déploiement{blockers.length > 1 ? 's' : ''} encore en place.
-                    {blockers.length > 1 ? ' Ils seront détruits' : ' Il sera détruit'} sur
-                    {blockers.length > 1 ? ' leurs cibles' : ' sa cible'}, puis tout l’historique
-                    ({preview.historyCount} ligne{preview.historyCount > 1 ? 's' : ''}) sera effacé.
+                    {t('delete.blockers', {
+                      count: blockers.length,
+                      lines: t('delete.blockers.lines', { count: preview.historyCount }),
+                    })}
                   </p>
                   <ul className="space-y-1.5">
                     {blockers.map((blocker) => (
@@ -238,12 +243,14 @@ export function DeleteApplicationDialog({
                       >
                         <div className="flex flex-wrap items-center gap-1.5">
                           <CodeBadge>{blocker.workspace}</CodeBadge>
-                          <span className="text-ink">sur {blocker.targetName}</span>
+                          <span className="text-ink">
+                            {t('delete.blocker.on', { target: blocker.targetName })}
+                          </span>
                           <span className="font-mono text-[0.6875rem] text-ink-faint">
                             {blocker.targetHost}
                             {blocker.publishedPort === null
                               ? ''
-                              : ` · port ${blocker.publishedPort}`}
+                              : t('delete.blocker.port', { port: blocker.publishedPort })}
                           </span>
                         </div>
                         <p className="mt-0.5 text-[0.75rem] text-ink-muted">{blocker.message}</p>
@@ -255,26 +262,25 @@ export function DeleteApplicationDialog({
 
               {preview.reservedPorts.length > 0 ? (
                 <Alert variant="info">
-                  Port{preview.reservedPorts.length > 1 ? 's' : ''} rendu
-                  {preview.reservedPorts.length > 1 ? 's' : ''} à leur cible :{' '}
-                  {preview.reservedPorts
-                    .map((entry) => `${entry.port} (${entry.targetName})`)
-                    .join(', ')}
-                  .
+                  {t('delete.releasedPorts', {
+                    count: preview.reservedPorts.length,
+                    list: preview.reservedPorts
+                      .map((entry) => `${entry.port} (${entry.targetName})`)
+                      .join(', '),
+                  })}
                 </Alert>
               ) : null}
 
               {blockers.length > 0 && !preview.canCascade ? (
                 <Alert variant="warn">
-                  La cascade exige en plus{' '}
+                  {t('delete.cascadePermissions.before')}
                   {preview.missingPermissions.map((permission, index) => (
                     <span key={permission}>
                       {index > 0 ? ', ' : ''}
                       <code className="font-mono">{permission}</code>
                     </span>
                   ))}
-                  . Demandez ces permissions, ou détruisez les déploiements un par un depuis
-                  l’écran des déploiements.
+                  {t('delete.cascadePermissions.after')}
                 </Alert>
               ) : null}
             </>
@@ -284,20 +290,19 @@ export function DeleteApplicationDialog({
             <>
               <Alert variant="destructive">
                 <p className="font-medium">
-                  {abandoned.length} déploiement{abandoned.length > 1 ? 's' : ''} n’
-                  {abandoned.length > 1 ? 'ont' : 'a'} pas pu être détruit
-                  {abandoned.length > 1 ? 's' : ''}. Forcer n’arrête rien sur la machine : ce qui
-                  suit continuera de tourner, sans que le panel sache le nommer.
+                  {t('delete.abandoned', { count: abandoned.length })}
                 </p>
                 <ul className="mt-1.5 space-y-1.5">
                   {abandoned.map((residue) => (
                     <li key={residue.deploymentId}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <CodeBadge>{residue.workspace}</CodeBadge>
-                        <span>sur {residue.targetName}</span>
+                        <span>{t('delete.blocker.on', { target: residue.targetName })}</span>
                         <span className="font-mono text-[0.6875rem]">
                           {residue.targetHost}
-                          {residue.publishedPort === null ? '' : ` · port ${residue.publishedPort}`}
+                          {residue.publishedPort === null
+                            ? ''
+                            : t('delete.blocker.port', { port: residue.publishedPort })}
                         </span>
                       </div>
                       <p className="text-[0.75rem] opacity-80">{residue.error}</p>
@@ -308,23 +313,26 @@ export function DeleteApplicationDialog({
 
               {outcome !== null && outcome.destroyed.length > 0 ? (
                 <p className="text-ink-muted">
-                  Déjà détruit :{' '}
-                  {outcome.destroyed
-                    .map((entry) => `v${entry.version} sur ${entry.targetName}`)
-                    .join(', ')}
-                  .
+                  {t('delete.destroyed', {
+                    list: outcome.destroyed
+                      .map((entry) =>
+                        t('delete.destroyed.entry', {
+                          version: entry.version,
+                          target: entry.targetName,
+                        }),
+                      )
+                      .join(', '),
+                  })}
                 </p>
               ) : null}
 
-              <p className="text-ink">
-                Ces informations partent dans les logs d’activité avant l’effacement — c’est la
-                seule trace qui permettra de finir le ménage à la main.
-              </p>
+              <p className="text-ink">{t('delete.auditNote')}</p>
 
               <label className="block space-y-1">
                 <span className="text-ink-muted">
-                  Retapez <code className="font-mono text-ink">{application.slug}</code> pour
-                  débloquer le forçage.
+                  {t('delete.retype.before')}
+                  <code className="font-mono text-ink">{application.slug}</code>
+                  {t('delete.retype.after')}
                 </span>
                 <Input
                   value={confirm}
@@ -341,20 +349,20 @@ export function DeleteApplicationDialog({
 
         <DialogFooter>
           <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
-            Annuler
+            {tc('cancel')}
           </Button>
 
           {abandoned.length > 0 ? (
             <>
               <Button variant="outline" disabled={pending} onClick={() => void cascade(false)}>
-                Réessayer
+                {tc('retry')}
               </Button>
               <Button
                 variant="destructive"
                 disabled={pending || !forceArmed}
                 onClick={() => void cascade(true)}
               >
-                Forcer l’effacement
+                {t('delete.action.force')}
               </Button>
             </>
           ) : blockers.length > 0 ? (
@@ -363,7 +371,7 @@ export function DeleteApplicationDialog({
               disabled={pending || preview === null || !preview.canCascade}
               onClick={() => void cascade(false)}
             >
-              {pending ? 'Suppression…' : `Détruire et supprimer`}
+              {pending ? tc('deleting') : t('delete.action.cascade')}
             </Button>
           ) : (
             <Button
@@ -371,7 +379,7 @@ export function DeleteApplicationDialog({
               disabled={pending || preview === null}
               onClick={() => void eraseHistory()}
             >
-              {pending ? 'Suppression…' : 'Supprimer'}
+              {pending ? tc('deleting') : tc('delete')}
             </Button>
           )}
         </DialogFooter>
@@ -391,6 +399,8 @@ async function waitForJob(
   applicationId: string,
   jobId: string,
   onProgress: (message: string) => void,
+  /** Les deux phrases dont la boucle a besoin, déjà rendues par l'appelant. */
+  words: { failed: string; progress: (state: string) => string },
 ): Promise<{ result: CascadeResult | null; error: string | null }> {
   // Dix minutes : trois cibles injoignables coûtent chacune une tentative SSH
   // bornée, plus la purge. Très au-delà du cas réel.
@@ -409,9 +419,9 @@ async function waitForJob(
       return { result: status.result, error: null };
     }
     if (status.state === 'failed') {
-      return { result: null, error: status.failedReason ?? 'tâche en échec' };
+      return { result: null, error: status.failedReason ?? words.failed };
     }
-    onProgress(`Tâche ${status.state}…`);
+    onProgress(words.progress(status.state));
   }
   return { result: null, error: null };
 }

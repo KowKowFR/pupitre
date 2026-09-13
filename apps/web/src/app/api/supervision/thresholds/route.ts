@@ -10,7 +10,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { settings } from '@/i18n/messages/settings';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -75,7 +76,11 @@ export const PUT = apiRoute(async (request) => {
 
   if (body.targetId !== null) {
     const target = await getTarget(body.targetId);
-    if (!target) throw new NotFoundError(`Cible « ${body.targetId} » introuvable`);
+    if (!target) {
+      throw new NotFoundError(
+        msg(settings, 'threshold.error.targetNotFound', { id: body.targetId }),
+      );
+    }
   }
 
   const row = await upsertThreshold(
@@ -118,7 +123,7 @@ export const DELETE = apiRoute(async (request) => {
   const targetId = query.targetId ?? null;
 
   const removed = await deleteThreshold(targetId, query.metric);
-  if (!removed) throw new NotFoundError('Aucun seuil posé à cette portée pour cette métrique');
+  if (!removed) throw new NotFoundError(msg(settings, 'threshold.error.notSet'));
 
   await logAudit({
     actorId: auth.userId,

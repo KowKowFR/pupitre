@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { translator, type Translated, type UiLanguage } from './i18n.js';
 import { serviceStateSchema } from './supervision.js';
 
 /**
@@ -6,8 +7,9 @@ import { serviceStateSchema } from './supervision.js';
  *
  * « Charge » et pas « conteneur » : une cible peut être en K3s, où ce qui tourne
  * est un pod piloté par un Deployment. Le panel peut écrire « conteneur » dans
- * son interface quand la cible est en Docker — le code, lui, reste neutre, et
- * aucun appelant ne teste jamais le runtime pour savoir quoi faire.
+ * son interface quand la cible est en Docker — mais c'est l'écran qui choisit ce
+ * mot, à partir de la clé `kind` que le driver a posée. Le code, lui, reste
+ * neutre, et aucun appelant ne teste jamais le runtime pour savoir quoi faire.
  *
  * Distinct de `supervision.ts` : celle-ci raconte les services **d'un
  * déploiement du panel**, celui-ci raconte **tout ce qui tourne sur la
@@ -67,9 +69,18 @@ export const workloadSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   /**
-   * Nom que **ce runtime** donne à ce genre de charge : « conteneur »,
-   * « deployment », « pod ». Purement descriptif, destiné à l'affichage — rien
-   * ne s'en sert pour décider quoi que ce soit.
+   * Genre de charge, dans le vocabulaire de **ce runtime** : `container`,
+   * `deployment`, `statefulset`, `daemonset`, `pod`.
+   *
+   * C'est une **clé**, pas une phrase — au même titre qu'un `runtime` ou qu'un
+   * `state`. Le driver produit une donnée stable ; l'écran qui l'affiche lui
+   * donne son mot (`workload.kind.*` dans `messages/targets.ts`) et retombe sur
+   * la clé nue si un runtime à venir en nomme une qu'il ne connaît pas. Rien
+   * entre les deux ne s'en sert pour décider quoi que ce soit.
+   *
+   * Le champ n'est volontairement pas une énumération : ajouter un runtime doit
+   * rester l'affaire d'une classe, et un genre inconnu doit s'afficher tel quel
+   * plutôt que faire échouer la lecture de tout l'inventaire.
    */
   kind: z.string().min(1),
   /** Regroupement propre au runtime : projet Compose, namespace Kubernetes. */
@@ -154,14 +165,53 @@ export function workloadChannel(targetId: string): string {
 }
 
 /**
+ * Les mots du refus, en un seul endroit.
+ *
+ * La phrase existe en deux versions plutôt qu'en une avec un morceau optionnel :
+ * une charge du panel rattachée à une application se nomme par cette
+ * application, et coudre « (application « … ») » au milieu d'un gabarit oblige
+ * les deux langues à placer la parenthèse au même endroit. Deux clés coûtent
+ * une ligne et laissent l'anglais tourner sa phrase comme il l'entend.
+ */
+const fr = {
+  'managed.refusal':
+    '« {name} » est déployée par le panel : ' +
+    'cet écran ne la supprime pas. Passez par la destruction du déploiement ' +
+    "(permission « deployment:destroy »), qui libère aussi son port et met la base à jour.",
+  'managed.refusal.app':
+    '« {name} » est déployée par le panel (application « {app} ») : ' +
+    'cet écran ne la supprime pas. Passez par la destruction du déploiement ' +
+    "(permission « deployment:destroy »), qui libère aussi son port et met la base à jour.",
+} as const;
+
+const en: Translated<typeof fr> = {
+  'managed.refusal':
+    '“{name}” is deployed by the panel: this screen will not remove it. Destroy the ' +
+    'deployment instead (permission “deployment:destroy”) — that also frees its port and ' +
+    'updates the database.',
+  'managed.refusal.app':
+    '“{name}” is deployed by the panel (application “{app}”): this screen will not remove ' +
+    'it. Destroy the deployment instead (permission “deployment:destroy”) — that also frees ' +
+    'its port and updates the database.',
+};
+
+export const workloadCopy = { fr, en };
+
+/**
  * Message d'un refus, en un seul endroit : la route HTTP le rend en 409, le
  * driver le lève en `DriverError`, et les deux disent donc la même chose.
+ *
+ * Le français par défaut : un driver lève cette erreur au fond d'un job, sans
+ * langue d'instance sous la main, et sa trace se lit dans les logs. Le panel,
+ * lui, passe la sienne.
  */
-export function managedWorkloadRefusal(workload: Pick<Workload, 'name' | 'managedApp'>): string {
+export function managedWorkloadRefusal(
+  workload: Pick<Workload, 'name' | 'managedApp'>,
+  language: UiLanguage = 'fr',
+): string {
+  const t = translator(workloadCopy, language);
   const app = workload.managedApp;
-  return (
-    `« ${workload.name} » est déployée par le panel${app ? ` (application « ${app} »)` : ''} : ` +
-    'cet écran ne la supprime pas. Passez par la destruction du déploiement ' +
-    "(permission « deployment:destroy »), qui libère aussi son port et met la base à jour."
-  );
+  return app
+    ? t('managed.refusal.app', { name: workload.name, app })
+    : t('managed.refusal', { name: workload.name });
 }

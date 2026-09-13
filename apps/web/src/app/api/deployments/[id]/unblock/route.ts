@@ -1,7 +1,8 @@
 import { abandonDeployment, getDeploymentSummary, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { getOpsQueue } from '@/lib/queue';
@@ -39,20 +40,16 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const summary = await getDeploymentSummary(id);
-  if (!summary) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!summary) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   if (summary.status !== 'pending' && summary.status !== 'running') {
-    throw new ConflictError(
-      `Ce déploiement est déjà conclu (« ${summary.status} ») : il n'y a rien à débloquer.`,
-    );
+    throw new ConflictError(msg(messages, 'error.alreadySettled', { status: summary.status }));
   }
 
   const verdict = await inspectDeployment(getOpsQueue(), id);
   // Conclu entre les deux lectures : le worker a rendu son verdict tout seul.
   if (!verdict) {
-    throw new ConflictError(
-      "Ce déploiement s'est conclu pendant la vérification : rien à débloquer.",
-    );
+    throw new ConflictError(msg(messages, 'error.settledWhileChecking'));
   }
 
   if (!verdict.ghost) {
@@ -63,12 +60,14 @@ export const POST = apiRoute<Context>(async (request, context) => {
   }
 
   const report = await abandonDeployment(id, {
+    // i18n-ignore — cette cause est écrite une fois dans l'erreur du
+    // déploiement et y reste : c'est la trace d'un événement passé, de la même
+    // classe qu'une ligne de log du worker. La traduire à l'écriture figerait
+    // la langue de l'instance au moment du déblocage.
     cause: 'file interrogée à la demande depuis le panel',
   });
   if (!report) {
-    throw new ConflictError(
-      "Ce déploiement s'est conclu pendant le déblocage : son statut n'a pas été touché.",
-    );
+    throw new ConflictError(msg(messages, 'error.settledWhileUnblocking'));
   }
 
   await logAudit({
@@ -84,6 +83,9 @@ export const POST = apiRoute<Context>(async (request, context) => {
       applicationSlug: report.applicationSlug,
       targetName: report.targetName,
       error: report.error,
+      // i18n-ignore — charge utile du journal d'activité, pas de l'interface :
+      // elle est relue par un humain qui enquête, des mois plus tard, et le
+      // journal est dans la langue du projet comme les noms d'action.
       detectedBy: 'aucune tâche exécutable dans la file « ops »',
     },
     ip: auth.ip,

@@ -1,7 +1,8 @@
 import { logAudit } from '@pupitre/db';
 import { z } from 'zod';
+import { account as messages } from '@/i18n/messages/account';
 import { getAuth } from '@/lib/auth';
-import { HttpError } from '@/lib/errors';
+import { HttpError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requireSession } from '@/lib/rbac';
 import { assertBetterAuthOk, withAuthCookies } from '../../better-auth-call';
@@ -31,7 +32,7 @@ export const POST = apiRoute(async (request) => {
   });
 
   try {
-    await assertBetterAuthOk(response, "La configuration du second facteur a été refusée.");
+    await assertBetterAuthOk(response, msg(messages, 'error.setupRejected'));
   } catch (error) {
     await logAudit({
       actorId: auth.userId,
@@ -51,7 +52,7 @@ export const POST = apiRoute(async (request) => {
     : [];
 
   if (!totpURI) {
-    throw new HttpError(502, 'totp_uri_missing', "Better Auth n'a pas renvoyé d'URI TOTP.");
+    throw new HttpError(502, 'totp_uri_missing', msg(messages, 'error.totpUriMissing'));
   }
 
   await logAudit({

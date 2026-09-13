@@ -4,11 +4,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Compass } from 'lucide-react';
-import { onboardingStep, type OnboardingState } from '@pupitre/core';
+import type { OnboardingState } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { onboarding } from '@/i18n/messages/onboarding';
+import { settings as messages } from '@/i18n/messages/settings';
 
 /**
  * Relance de l'assistant de démarrage depuis les paramètres.
@@ -21,12 +25,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
  * l'instance, pas celui de la personne connectée.
  */
 
-const STATUS_LABEL: Record<OnboardingState['status'], string> = {
-  pending: 'jamais lancé',
-  in_progress: 'en cours',
-  dismissed: 'abandonné',
-  completed: 'terminé',
-};
+/**
+ * Les clés d'état, dans le dictionnaire des paramètres : le sommaire affiche
+ * exactement les mêmes quatre mots, et deux tables séparées finiraient par
+ * diverger.
+ */
+const STATUS_KEY = {
+  pending: 'onboarding.status.pending',
+  in_progress: 'onboarding.status.inProgress',
+  dismissed: 'onboarding.status.dismissed',
+  completed: 'onboarding.status.completed',
+} as const satisfies Record<OnboardingState['status'], string>;
 
 const STATUS_VARIANT = {
   pending: 'secondary',
@@ -45,6 +54,9 @@ export function OnboardingRestart({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const t = useT(messages);
+  const tc = useT(common);
+  const to = useT(onboarding);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -60,7 +72,7 @@ export function OnboardingRestart({
 
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as ApiError;
-      setError(payload.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(payload.error?.message ?? tc('http.failure', { status: response.status }));
       setPending(false);
       return;
     }
@@ -74,64 +86,59 @@ export function OnboardingRestart({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          Assistant de démarrage
-          <Badge variant={STATUS_VARIANT[state.status]}>{STATUS_LABEL[state.status]}</Badge>
+          {t('section.onboarding.title')}
+          <Badge variant={STATUS_VARIANT[state.status]}>{t(STATUS_KEY[state.status])}</Badge>
         </CardTitle>
-        <CardDescription>
-          Le parcours de prise en main : nommer l&apos;instance, déclarer une première cible, créer
-          un rôle et un compte. Il ne fait rien que ces écrans ne fassent — il les met dans
-          l&apos;ordre.
-        </CardDescription>
+        <CardDescription>{t('onboarding.description')}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
         <dl className="grid gap-x-6 gap-y-1.5 text-[0.8125rem] sm:grid-cols-2">
           <div className="flex justify-between gap-3 border-b border-line pb-1.5">
-            <dt className="text-ink-muted">Étapes accomplies</dt>
+            <dt className="text-ink-muted">{t('onboarding.term.completed')}</dt>
             <dd className="font-mono text-ink tabular-nums">{state.completed.length}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-line pb-1.5">
-            <dt className="text-ink-muted">Étapes passées</dt>
+            <dt className="text-ink-muted">{t('onboarding.term.skipped')}</dt>
             <dd className="font-mono text-ink tabular-nums">{state.skipped.length}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-line pb-1.5">
-            <dt className="text-ink-muted">Étape en cours</dt>
+            <dt className="text-ink-muted">{t('onboarding.term.currentStep')}</dt>
             {/*
               `state.currentStep` est une clé interne (`summary`, `identity`…).
-              L'afficher telle quelle laissait un mot anglais en chasse fixe au
+              L'afficher telle quelle laissait un identifiant en chasse fixe au
               milieu d'un écran entièrement rédigé — et sans indiquer à quoi il
-              correspond. Le titre de l'étape dit la même chose, en français.
+              correspond. Le titre de l'étape dit la même chose, dans la langue
+              de l'instance : il se lit dans le dictionnaire de l'assistant, où
+              vit désormais toute sa prose.
             */}
-            <dd className="text-ink">{onboardingStep(state.currentStep).title}</dd>
+            <dd className="text-ink">{to(`step.${state.currentStep}.title`)}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-line pb-1.5">
-            <dt className="text-ink-muted">Relances</dt>
+            <dt className="text-ink-muted">{t('onboarding.term.runs')}</dt>
             <dd className="font-mono text-ink tabular-nums">{state.runs}</dd>
           </div>
         </dl>
 
-        <p className="text-xs text-ink-faint">
-          Relancer remet le parcours à zéro et vous y renvoie. Rien n&apos;est défait : les cibles,
-          rôles et comptes déjà créés restent en place — seul le souvenir de l&apos;avancement est
-          effacé.
-        </p>
+        <p className="text-xs text-ink-faint">{t('onboarding.reset.help')}</p>
 
         <div className="flex flex-wrap items-center gap-2">
           {canManage ? (
             <Button size="sm" variant="outline" disabled={pending} onClick={() => void restart()}>
               <Compass />
-              {pending ? 'Relance…' : "Relancer l'assistant"}
+              {pending ? t('onboarding.restarting') : t('onboarding.restart')}
             </Button>
           ) : (
             <span className="text-xs text-ink-faint">
-              La permission <code className="font-mono">settings:manage</code> est requise pour le
-              relancer.
+              {t('onboarding.needPermission.before')}{' '}
+              <code className="font-mono">settings:manage</code>{' '}
+              {t('onboarding.needPermission.after')}
             </span>
           )}
           {state.status === 'in_progress' ? (
             <Button asChild size="sm" variant="ghost">
-              <Link href="/onboarding">Reprendre où j&apos;en étais</Link>
+              <Link href="/onboarding">{t('onboarding.resume')}</Link>
             </Button>
           ) : null}
         </div>

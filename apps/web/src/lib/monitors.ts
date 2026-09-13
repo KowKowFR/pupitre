@@ -1,27 +1,34 @@
 import 'server-only';
 import {
   MONITOR_SPARKLINE_POINTS,
+  describeMonitorTarget,
+  formatCadence,
   formatUptime,
   isMonitorType,
   monitorTargetLink,
   monitorTypeDefinition,
   parseCidrList,
+  renderMessage,
+  ssrfRefusalText,
   type CheckMetrics,
   type Cidr,
   type MonitorType,
+  type UiLanguage,
   type UptimeWindow,
 } from '@pupitre/core';
 import { SsrfBlockedError, resolveUrlGuarded } from '@pupitre/core/probe';
 import {
   listChecks,
   listIncidents,
-  monitorTarget,
   uptimeWindows,
   type Monitor,
   type MonitorCheck,
+  type MonitorConfigError,
   type MonitorIncident,
 } from '@pupitre/db';
-import { HttpError } from './errors';
+import { currentLanguage } from '@/i18n/server';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { HttpError, msg } from './errors';
 import { getEnv } from './env';
 
 /**
@@ -53,10 +60,63 @@ export async function assertUrlAllowed(url: string, field = 'url'): Promise<void
     await resolveUrlGuarded(url, allowedCidrs());
   } catch (error) {
     if (error instanceof SsrfBlockedError) {
-      throw new HttpError(422, 'url_not_allowed', error.reason, { field, url });
+      // `refusal` plutôt que `reason` : la garde SSRF vit dans `@pupitre/core`,
+      // qui n'a pas de langue d'instance et rend donc du français. Le refus
+      // voyage en donnée, et c'est ici — le seul endroit qui parle à quelqu'un —
+      // qu'il devient une phrase.
+      const reason = ssrfRefusalText(error.refusal, await currentLanguage());
+      throw new HttpError(422, 'url_not_allowed', reason, { field, url });
     }
     throw error;
   }
+}
+
+/**
+ * Le refus d'une configuration de sonde, mis en phrase.
+ *
+ * `@pupitre/db` lève le refus en pièces détachées — voir `MonitorConfigReason`.
+ * Les deux routes qui l'attrapent le rendent d'ici, donc de la même façon : une
+ * seule version de la phrase pour la création et pour la modification.
+ *
+ * Le libellé du type et les cadences sont rendus **tout de suite**, dans la
+ * langue de l'instance ; c'est celle-là même dans laquelle `apiRoute()` rendra
+ * le gabarit.
+ */
+export async function monitorConfigMessage(error: MonitorConfigError): Promise<HttpError> {
+  const language: UiLanguage = await currentLanguage();
+  const details = { field: error.field };
+  const reason = error.reason;
+
+  if (reason.kind === 'target') {
+    return new HttpError(
+      422,
+      'validation_failed',
+      ssrfRefusalText(reason.refusal, language),
+      details,
+    );
+  }
+
+  const label = monitorTypeDefinition(reason.type, language).label;
+
+  if (reason.kind === 'schema') {
+    return new HttpError(
+      422,
+      'validation_failed',
+      msg(messages, 'error.configInvalid', { label, path: reason.path, issue: reason.issue }),
+      details,
+    );
+  }
+
+  return new HttpError(
+    422,
+    'validation_failed',
+    msg(messages, 'error.intervalTooShort', {
+      label,
+      floor: formatCadence(reason.minSeconds, language),
+      asked: formatCadence(reason.askedSeconds, language),
+    }),
+    details,
+  );
 }
 
 /**
@@ -136,8 +196,8 @@ export type MonitorView = {
   createdAt: string;
 };
 
-function view(window: UptimeWindow): UptimeView {
-  return { ...window, label: formatUptime(window) };
+function view(window: UptimeWindow, language: UiLanguage): UptimeView {
+  return { ...window, label: formatUptime(window, language) };
 }
 
 export function toCheckView(check: MonitorCheck): MonitorCheckView {
@@ -180,6 +240,7 @@ export function toIncidentView(incident: MonitorIncident): MonitorIncidentView {
  */
 export async function buildMonitorViews(rows: Monitor[]): Promise<MonitorView[]> {
   const ids = rows.map((row) => row.id);
+  const language = await currentLanguage();
   const [day, week] = await Promise.all([uptimeWindows(ids, 24), uptimeWindows(ids, 24 * 7)]);
 
   return Promise.all(
@@ -189,16 +250,24 @@ export async function buildMonitorViews(rows: Monitor[]): Promise<MonitorView[]>
         listIncidents(row.id, 1),
       ]);
       const open = incidents.find((incident) => incident.resolvedAt === null) ?? null;
-      const type: MonitorType = isMonitorType(row.type) ? row.type : 'http';
-      const definition = monitorTypeDefinition(type);
+      const known = isMonitorType(row.type);
+      const type: MonitorType = known ? (row.type as MonitorType) : 'http';
+      const definition = monitorTypeDefinition(type, language);
 
       return {
         id: row.id,
         name: row.name,
         type,
-        typeLabel: isMonitorType(row.type) ? definition.label : `type inconnu « ${row.type} »`,
-        target: monitorTarget(row),
-        targetLink: isMonitorType(row.type) ? monitorTargetLink(type, row.config) : null,
+        typeLabel: known
+          ? definition.label
+          : renderMessage(messages, language, 'type.unknown', { type: row.type }),
+        // Le même contenu que `monitorTarget()` de `@pupitre/db`, mais rendu
+        // dans la langue de l'instance : la cible s'affiche, elle ne se
+        // journalise pas.
+        target: known
+          ? describeMonitorTarget(type, row.config, language)
+          : renderMessage(messages, language, 'target.unknownType'),
+        targetLink: known ? monitorTargetLink(type, row.config) : null,
         config: row.config,
         intervalSeconds: row.intervalSeconds,
         failureThreshold: row.failureThreshold,
@@ -217,8 +286,11 @@ export async function buildMonitorViews(rows: Monitor[]): Promise<MonitorView[]>
         lastMetrics: row.lastMetrics ?? {},
         nextCheckAt: row.nextCheckAt.toISOString(),
         neverRan: row.lastCheckedAt === null,
-        uptime24h: view(day.get(row.id) ?? { hours: 24, samples: 0, up: 0, ratio: null }),
-        uptime7d: view(week.get(row.id) ?? { hours: 168, samples: 0, up: 0, ratio: null }),
+        uptime24h: view(day.get(row.id) ?? { hours: 24, samples: 0, up: 0, ratio: null }, language),
+        uptime7d: view(
+          week.get(row.id) ?? { hours: 168, samples: 0, up: 0, ratio: null },
+          language,
+        ),
         recent: checks
           .slice()
           .reverse()
@@ -255,9 +327,12 @@ export type MonitorTypeOption = {
   uptimeMeans: string;
 };
 
-export function monitorTypeOptions(types: readonly MonitorType[]): MonitorTypeOption[] {
+export async function monitorTypeOptions(
+  types: readonly MonitorType[],
+): Promise<MonitorTypeOption[]> {
+  const language = await currentLanguage();
   return types.map((type) => {
-    const definition = monitorTypeDefinition(type);
+    const definition = monitorTypeDefinition(type, language);
     return {
       type,
       label: definition.label,

@@ -1,5 +1,7 @@
 import { logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
+import { auth as messages } from '@/i18n/messages/auth';
+import { getT } from '@/i18n/server';
 import { getAuth, getSession, isSignupOpen } from '@/lib/auth';
 import { clientIp } from '@/lib/http';
 import { logger } from '@/lib/logger';
@@ -48,13 +50,12 @@ async function handle(request: Request): Promise<Response> {
       after: { reason: 'signup_disabled' },
       ip,
     });
+    // Ce refus ne passe pas par `apiRoute()` — il est écrit à la main pour
+    // garder la forme d'erreur de Better Auth. La langue se lit donc ici.
+    const t = await getT(messages);
     return NextResponse.json(
       {
-        error: {
-          code: 'SIGNUP_DISABLED',
-          message:
-            "L'inscription publique est désactivée. Demandez un compte à un administrateur.",
-        },
+        error: { code: 'SIGNUP_DISABLED', message: t('signup.closed.api') },
       },
       { status: 403 },
     );

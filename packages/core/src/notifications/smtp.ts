@@ -1,4 +1,10 @@
 import nodemailer from 'nodemailer';
+import {
+  DEFAULT_UI_LANGUAGE,
+  renderMessage,
+  type Translated,
+  type UiLanguage,
+} from '../i18n.js';
 import { splitMailboxList, type ChannelConfig } from './catalog.js';
 import {
   notificationDigestOmitted,
@@ -7,7 +13,8 @@ import {
   type NotificationDigest,
 } from './digest.js';
 import {
-  NOTIFICATION_SEVERITY_LABELS,
+  notificationOpenLabel,
+  notificationSeverityLabel,
   renderPlainText,
   type NotificationMessage,
 } from './message.js';
@@ -34,6 +41,29 @@ import {
  * de l'abstraction : le jour où l'appelant compose du HTML, c'est que la
  * couche a fui.
  */
+
+/**
+ * Ce que ce canal ajoute autour du message neutre. Trois phrases : le mot qui
+ * marque un résumé dans l'en-tête, le verdict de la poignée de main, et le
+ * refus quand aucun destinataire n'est configuré.
+ */
+const fr = {
+  'digestTag': 'résumé',
+  'probe.ok': 'Serveur {host} joignable, authentification acceptée.',
+  'error.noRecipient': 'aucun destinataire configuré',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'digestTag': 'digest',
+  'probe.ok': 'Server {host} reachable, authentication accepted.',
+  'error.noRecipient': 'no recipient configured',
+};
+
+const SMTP_TEXT = { fr, en };
+
+function t(language: UiLanguage, key: keyof typeof fr, vars?: Record<string, string>): string {
+  return renderMessage(SMTP_TEXT, language, key, vars);
+}
 
 /** Échappement HTML. Le contenu vient d'une erreur de déploiement : rien n'est sûr. */
 function escapeHtml(value: string): string {
@@ -68,14 +98,16 @@ function renderHtml(message: NotificationMessage): string {
     )
     .join('');
 
+  const lang = message.language;
+
   const link = message.url
-    ? `<p style="margin:20px 0 0"><a href="${escapeHtml(message.url)}" style="color:${ACCENT[message.severity]};font-size:14px">Ouvrir dans le panel</a></p>`
+    ? `<p style="margin:20px 0 0"><a href="${escapeHtml(message.url)}" style="color:${ACCENT[message.severity]};font-size:14px">${escapeHtml(notificationOpenLabel(lang))}</a></p>`
     : '';
 
   return [
-    '<!doctype html><html lang="fr"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">',
+    `<!doctype html><html lang="${lang}"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">`,
     `<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;border:1px solid #e5e7eb;border-left:4px solid ${ACCENT[message.severity]};padding:20px 24px">`,
-    `<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${ACCENT[message.severity]};font-weight:600">${escapeHtml(NOTIFICATION_SEVERITY_LABELS[message.severity])}</div>`,
+    `<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${ACCENT[message.severity]};font-weight:600">${escapeHtml(notificationSeverityLabel(message.severity, lang))}</div>`,
     `<h1 style="margin:6px 0 12px;font-size:18px;line-height:1.3">${escapeHtml(message.title)}</h1>`,
     `<p style="margin:0;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(message.body)}</p>`,
     rows.length > 0
@@ -110,16 +142,17 @@ function renderDigestHtml(digest: NotificationDigest): string {
     )
     .join('');
 
-  const omission = renderDigestOmission(notificationDigestOmitted(digest));
+  const lang = digest.language;
+  const omission = renderDigestOmission(notificationDigestOmitted(digest), lang);
 
   const link = digest.url
-    ? `<p style="margin:20px 0 0"><a href="${escapeHtml(digest.url)}" style="color:${ACCENT[digest.severity]};font-size:14px">Ouvrir dans le panel</a></p>`
+    ? `<p style="margin:20px 0 0"><a href="${escapeHtml(digest.url)}" style="color:${ACCENT[digest.severity]};font-size:14px">${escapeHtml(notificationOpenLabel(lang))}</a></p>`
     : '';
 
   return [
-    '<!doctype html><html lang="fr"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">',
+    `<!doctype html><html lang="${lang}"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">`,
     `<div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;border:1px solid #e5e7eb;border-left:4px solid ${ACCENT[digest.severity]};padding:20px 24px">`,
-    `<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${ACCENT[digest.severity]};font-weight:600">${escapeHtml(NOTIFICATION_SEVERITY_LABELS[digest.severity])} · résumé</div>`,
+    `<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${ACCENT[digest.severity]};font-weight:600">${escapeHtml(notificationSeverityLabel(digest.severity, lang))} · ${escapeHtml(t(lang, 'digestTag'))}</div>`,
     `<h1 style="margin:6px 0 12px;font-size:18px;line-height:1.3">${escapeHtml(digest.title)}</h1>`,
     `<p style="margin:0;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(digest.body)}</p>`,
     `<ol style="margin:16px 0 0;padding-left:20px">${items}</ol>`,
@@ -233,13 +266,16 @@ export class SmtpChannel implements NotificationChannel {
     return smtpOptionsFrom(resolved, this.timeoutMs);
   }
 
-  async test(resolved: ResolvedChannelConfig): Promise<NotificationTestResult> {
+  async test(
+    resolved: ResolvedChannelConfig,
+    language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  ): Promise<NotificationTestResult> {
     const transport = this.transport(this.options(resolved));
     try {
       await transport.verify();
       return {
         ok: true,
-        detail: `Serveur ${str(resolved.config, 'host')} joignable, authentification acceptée.`,
+        detail: t(language, 'probe.ok', { host: str(resolved.config, 'host') }),
       };
     } catch (error) {
       return { ok: false, detail: describeFailure(error, resolved.secrets) };
@@ -251,7 +287,11 @@ export class SmtpChannel implements NotificationChannel {
   async send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void> {
     const recipients = splitMailboxList(str(resolved.config, 'to'));
     if (recipients.length === 0) {
-      throw new NotificationError('aucun destinataire configuré', this.kind, 'config');
+      throw new NotificationError(
+        t(message.language, 'error.noRecipient'),
+        this.kind,
+        'config',
+      );
     }
 
     const transport = this.transport(this.options(resolved));
@@ -296,7 +336,11 @@ export class SmtpChannel implements NotificationChannel {
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     const recipients = splitMailboxList(str(resolved.config, 'to'));
     if (recipients.length === 0) {
-      throw new NotificationError('aucun destinataire configuré', this.kind, 'config');
+      throw new NotificationError(
+        t(digest.language, 'error.noRecipient'),
+        this.kind,
+        'config',
+      );
     }
 
     const transport = this.transport(this.options(resolved));

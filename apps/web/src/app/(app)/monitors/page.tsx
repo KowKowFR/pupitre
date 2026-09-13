@@ -1,6 +1,9 @@
 import { MONITOR_CHECK_RETENTION_DAYS, MONITOR_TYPES_LIST } from '@pupitre/core';
-import { listAdoptableApps, listMonitors } from '@pupitre/db';
+import { getAppSettingsValue, listAdoptableApps, listMonitors } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
+import { getT } from '@/i18n/server';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { formatSettingsOf } from '@/lib/format';
 import { buildMonitorViews, monitorTypeOptions } from '@/lib/monitors';
 import { requirePagePermission } from '@/lib/page-auth';
 import { MonitorsPanel, type MonitorRow, type TypeOption } from './monitors-panel';
@@ -17,8 +20,13 @@ export const dynamic = 'force-dynamic';
  */
 export default async function MonitorsPage() {
   const auth = await requirePagePermission('/monitors', 'monitor:read');
+  const t = await getT(messages);
 
-  const [rows, adoptable] = await Promise.all([listMonitors(), listAdoptableApps()]);
+  const [rows, adoptable, settings] = await Promise.all([
+    listMonitors(),
+    listAdoptableApps(),
+    getAppSettingsValue(),
+  ]);
   const views = await buildMonitorViews(rows);
 
   const monitors: MonitorRow[] = views.map((view) => ({
@@ -48,14 +56,14 @@ export default async function MonitorsPage() {
     openIncidentSince: view.openIncidentSince,
   }));
 
-  const types = monitorTypeOptions(MONITOR_TYPES_LIST) as TypeOption[];
+  const types = (await monitorTypeOptions(MONITOR_TYPES_LIST)) as TypeOption[];
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Supervision de sites"
-        title="Sondes"
-        description="Chaque sonde part du worker vers l'adresse publique de ce qu'elle surveille. C'est un autre point de vue que le healthcheck périodique, qui interroge la machine cible par SSH : celui-ci prouve que le conteneur se répond à lui-même, celles-là voient le pare-feu, le proxy, le certificat et le DNS. Une sonde constate et alerte — elle ne redéploie, ne redémarre et ne rollback jamais rien."
+        eyebrow={t('page.eyebrow')}
+        title={t('page.title')}
+        description={t('page.description')}
       />
 
       <MonitorsPanel
@@ -69,6 +77,7 @@ export default async function MonitorsPage() {
         }))}
         canManage={auth.can('monitor:manage')}
         retentionDays={MONITOR_CHECK_RETENTION_DAYS}
+        format={formatSettingsOf(settings)}
       />
     </div>
   );

@@ -6,6 +6,9 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/page-header';
+import { useT } from '@/i18n/client';
+import { auth as messages } from '@/i18n/messages/auth';
+import { common } from '@/i18n/messages/common';
 
 /**
  * Filet de rendu du panel.
@@ -27,6 +30,9 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+
   useEffect(() => {
     // La console du navigateur garde la trace complète, y compris en
     // développement où le message n'est pas masqué.
@@ -36,22 +42,20 @@ export default function AppError({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Incident"
-        title="Cet écran n'a pas pu s'afficher"
-        description="Le reste du panel continue de fonctionner."
+        eyebrow={t('appError.eyebrow')}
+        title={t('appError.title')}
+        description={t('appError.description')}
       />
 
       <Card className="border-danger-edge">
         <CardContent className="space-y-4">
-          <Alert variant="destructive">
-            {error.message || 'Erreur inattendue pendant le rendu de la page.'}
-          </Alert>
+          <Alert variant="destructive">{error.message || t('appError.fallback')}</Alert>
 
           {error.digest ? (
             <p className="text-xs text-ink-faint">
-              Référence à citer dans un rapport :{' '}
-              <code className="font-mono text-ink-muted">{error.digest}</code> — elle se retrouve
-              dans les logs du serveur.
+              {t('appError.digest.before')}{' '}
+              <code className="font-mono text-ink-muted">{error.digest}</code>{' '}
+              {t('appError.digest.after')}
             </p>
           ) : null}
 
@@ -61,12 +65,12 @@ export default function AppError({
               c'est le bon geste pour une panne passagère (base indisponible le
               temps d'une requête) et il ne coûte rien si l'erreur persiste.
             */}
-            <Button onClick={reset}>Réessayer</Button>
+            <Button onClick={reset}>{tc('retry')}</Button>
             <Link
               href="/"
               className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
             >
-              Retour au tableau de bord
+              {t('link.backToDashboard')}
             </Link>
           </div>
         </CardContent>

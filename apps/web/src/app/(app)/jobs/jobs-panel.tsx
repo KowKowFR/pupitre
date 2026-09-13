@@ -30,6 +30,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useLanguage, useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { jobs as messages } from '@/i18n/messages/jobs';
+import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { JobsHelpDialog } from './jobs-help';
 import {
@@ -91,17 +95,35 @@ const STATUS_VARIANT: Record<string, 'ok' | 'default' | 'destructive' | 'outline
   pending: 'outline',
 };
 
-function formatDate(value: string | null, timeZone?: string): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleString('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-    ...(timeZone ? { timeZone } : {}),
-  });
+/**
+ * Une date de la table, dans la locale de l'instance.
+ *
+ * `dateStyle`/`timeStyle` courts sont imposés par la colonne : une date longue
+ * casserait l'alignement des chiffres. La locale, elle, vient de
+ * `settings.locale` telle quelle — `en-GB` et `en-US` n'écrivent pas la même
+ * date, et le raccourci d'avant servait la britannique aux deux.
+ *
+ * Le `timeZone` reste facultatif, et c'est délibéré : la colonne « prochaine
+ * occurrence » l'épingle sur le fuseau **de la tâche**, tandis que la ligne
+ * « à votre horloge » veut justement l'absence de fuseau. Ni l'un ni l'autre
+ * n'est le fuseau d'instance.
+ */
+function formatDate(
+  value: string | null,
+  format: FormatSettings,
+  none: string,
+  timeZone?: string,
+): string {
+  return formatDateTimeWith(
+    value,
+    format,
+    { dateStyle: 'short', timeStyle: 'short', ...(timeZone ? { timeZone } : {}) },
+    none,
+  );
 }
 
-function formatDuration(ms: number | null): string {
-  if (ms === null) return '—';
+function formatDuration(ms: number | null, none: string): string {
+  if (ms === null) return none;
   if (ms < 1000) return `${ms} ms`;
   return `${Math.round(ms / 100) / 10} s`;
 }
@@ -114,6 +136,7 @@ export function JobsPanel({
   canManage,
   defaultTimeZone,
   timeZones,
+  format,
 }: {
   jobs: JobRow[];
   types: JobTypeOption[];
@@ -122,7 +145,13 @@ export function JobsPanel({
   defaultTimeZone: string;
   /** Fuseaux proposés, énumérés côté serveur. */
   timeZones: readonly string[];
+  /** Locale et fuseau de l'instance. Par props : cette table est rendue sur le
+   *  serveur avant de l'être ici, et les deux doivent écrire la même date. */
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const language = useLanguage();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
@@ -149,7 +178,7 @@ export function JobsPanel({
       const response = await fetch(path, init);
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as ApiError;
-        setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+        setError(body.error?.message ?? tc('http.failure', { status: response.status }));
         return false;
       }
       const body = response.status === 204 ? null : await response.json().catch(() => null);
@@ -162,7 +191,7 @@ export function JobsPanel({
     }
   }
 
-  const draftInvalid = cronError(draftCron(draft)) !== null;
+  const draftInvalid = cronError(draftCron(draft), language) !== null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -171,11 +200,9 @@ export function JobsPanel({
 
       <Alert variant="info" className="flex flex-wrap items-center justify-between gap-3">
         <span>
-          Chaque tâche porte son propre fuseau, et c&apos;est lui qui décide de l&apos;heure à
-          laquelle elle part&nbsp;: une tâche neuve hérite de <strong>{defaultTimeZone}</strong>,
-          le fuseau des paramètres d&apos;instance, puis vit sa vie. « Lancer » enfile une
-          occurrence immédiate sans déplacer la prochaine, et fonctionne même sur une tâche
-          désactivée — de quoi l&apos;essayer avant de l&apos;activer.
+          {t('banner.a')}
+          <strong>{defaultTimeZone}</strong>
+          {t('banner.b')}
         </span>
         <JobsHelpDialog defaultTimeZone={defaultTimeZone} className="shrink-0" />
       </Alert>
@@ -194,13 +221,13 @@ export function JobsPanel({
                 // conversion et la validation sont l'affaire du serveur.
                 body: JSON.stringify({ type, key, ...draftBody(draft) }),
               },
-              () => `Tâche « ${key} » planifiée`,
+              () => t('notice.created', { key }),
             );
           }}
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="type">Type</Label>
+              <Label htmlFor="type">{t('create.type.label')}</Label>
               <Select
                 id="type"
                 value={type}
@@ -227,17 +254,14 @@ export function JobsPanel({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="key">Clé BullMQ</Label>
+              <Label htmlFor="key">{t('create.key.label')}</Label>
               <Input
                 id="key"
                 value={key}
                 onChange={(event) => setKey(event.target.value)}
                 className="font-mono text-xs md:text-xs"
               />
-              <p className="text-xs text-ink-muted">
-                L&apos;identifiant du scheduler dans Redis. Unique, et c&apos;est ce nom
-                qu&apos;on retrouve dans les logs du worker.
-              </p>
+              <p className="text-xs text-ink-muted">{t('create.key.hint')}</p>
             </div>
           </div>
 
@@ -246,34 +270,32 @@ export function JobsPanel({
             value={draft}
             onChange={setDraft}
             timeZones={timeZones}
+            format={format}
             disabled={pending || busy !== null}
           />
 
           <div>
             <Button type="submit" disabled={pending || busy !== null || draftInvalid}>
-              Planifier
+              {t('create.submit')}
             </Button>
           </div>
         </form>
       ) : null}
 
       {jobs.length === 0 ? (
-        <Alert>
-          Aucune tâche planifiée. Les scans périodiques, les healthchecks et la purge des
-          versions ne tournent que si vous les installez ici.
-        </Alert>
+        <Alert>{t('empty')}</Alert>
       ) : (
         <Card className="py-4">
           <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Tâche</TableHead>
-              <TableHead>Cadence</TableHead>
-              <TableHead>Dernier run</TableHead>
-              <TableHead>Prochain run</TableHead>
-              <TableHead>État</TableHead>
-              <TableActionsHead>Actions</TableActionsHead>
+              <TableHead>{t('column.job')}</TableHead>
+              <TableHead>{t('column.cadence')}</TableHead>
+              <TableHead>{t('column.lastRun')}</TableHead>
+              <TableHead>{t('column.nextRun')}</TableHead>
+              <TableHead>{tc('column.state')}</TableHead>
+              <TableActionsHead>{tc('column.actions')}</TableActionsHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -291,7 +313,7 @@ export function JobsPanel({
                     <div className="text-[0.6875rem] text-ink-faint">{job.timeZone}</div>
                     {job.schedule === null ? (
                       <div className="text-[0.6875rem] text-ink-faint">
-                        expression sans équivalent simple
+                        {t('row.noSimpleForm')}
                       </div>
                     ) : null}
                     {job.enabled &&
@@ -299,38 +321,42 @@ export function JobsPanel({
                     job.schedulerTimeZone !== null &&
                     job.schedulerTimeZone !== job.timeZone ? (
                       <div className="text-[0.6875rem] text-warn">
-                        BullMQ l&apos;interprète encore en {job.schedulerTimeZone}
+                        {t('row.zoneDrift', { zone: job.schedulerTimeZone })}
                       </div>
                     ) : null}
                   </TableCell>
                   <TableCell>
                     <div className="font-mono text-xs text-ink-muted tabular-nums">
-                      {formatDate(job.lastRunAt)}
+                      {formatDate(job.lastRunAt, format, tc('none'))}
                     </div>
                     {job.lastRun ? (
                       <Badge variant={STATUS_VARIANT[job.lastRun.status] ?? 'outline'}>
                         {job.lastRun.status}
-                        {job.lastRun.manual ? ' · manuel' : ''}
+                        {job.lastRun.manual ? t('row.manualSuffix') : ''}
                       </Badge>
                     ) : null}
                   </TableCell>
                   <TableCell className="font-mono text-xs text-ink-muted tabular-nums">
-                    {job.enabled ? formatDate(job.nextRunAt, job.timeZone) : '—'}
+                    {job.enabled
+                      ? formatDate(job.nextRunAt, format, tc('none'), job.timeZone)
+                      : tc('none')}
                     {job.enabled && job.nextRunAt ? (
                       <div className="text-[0.6875rem] text-ink-faint">
                         {job.timeZone}
                         {' · '}
-                        {formatDate(job.nextRunAt)} chez vous
+                        {t('row.yourClock', {
+                          clock: formatDate(job.nextRunAt, format, tc('none')),
+                        })}
                       </div>
                     ) : null}
                   </TableCell>
                   <TableCell>
                     <Badge variant={job.enabled ? 'ok' : 'outline'}>
-                      {job.enabled ? 'active' : 'désactivée'}
+                      {job.enabled ? t('row.active') : t('row.disabled')}
                     </Badge>
                     {job.enabled && !job.installed ? (
                       <div className="mt-1 text-xs text-warn">
-                        absente de BullMQ — le worker la réinstallera au démarrage
+                        {t('row.missingFromBullmq')}
                       </div>
                     ) : null}
                   </TableCell>
@@ -341,7 +367,7 @@ export function JobsPanel({
                       variant="ghost"
                       onClick={() => setExpanded(expanded === job.id ? null : job.id)}
                     >
-                      {expanded === job.id ? 'Masquer' : 'Historique'}
+                      {expanded === job.id ? t('row.hideHistory') : t('row.showHistory')}
                     </Button>
                     {canManage ? (
                       <>
@@ -351,7 +377,7 @@ export function JobsPanel({
                           disabled={busy !== null}
                           onClick={() => setEditing(job)}
                         >
-                          Cadence
+                          {t('row.editCadence')}
                         </Button>
                         <Button
                           size="sm"
@@ -361,7 +387,7 @@ export function JobsPanel({
                             void call(
                               `/api/jobs/${job.id}/run`,
                               { method: 'POST' },
-                              () => `« ${job.key} » lancée`,
+                              () => t('notice.triggered', { key: job.key }),
                             )
                           }
                         >
@@ -381,12 +407,12 @@ export function JobsPanel({
                               },
                               () =>
                                 job.enabled
-                                  ? `« ${job.key} » désactivée`
-                                  : `« ${job.key} » activée`,
+                                  ? t('notice.disabled', { key: job.key })
+                                  : t('notice.enabled', { key: job.key }),
                             )
                           }
                         >
-                          {job.enabled ? 'Désactiver' : 'Activer'}
+                          {job.enabled ? tc('disable') : tc('enable')}
                         </Button>
                         <Button
                           size="sm"
@@ -397,11 +423,11 @@ export function JobsPanel({
                             void call(
                               `/api/jobs/${job.id}`,
                               { method: 'DELETE' },
-                              () => `« ${job.key} » supprimée`,
+                              () => t('notice.deleted', { key: job.key }),
                             )
                           }
                         >
-                          Supprimer
+                          {tc('delete')}
                         </Button>
                       </>
                     ) : null}
@@ -414,7 +440,7 @@ export function JobsPanel({
                     <TableCell colSpan={6} className="bg-surface-2/60">
                       {job.runs.length === 0 ? (
                         <p className="text-xs text-ink-muted">
-                          Aucune exécution enregistrée.
+                          {t('history.empty')}
                         </p>
                       ) : (
                         <ul className="space-y-2">
@@ -424,10 +450,12 @@ export function JobsPanel({
                                 {run.status}
                               </Badge>
                               <span className="font-mono text-ink-muted tabular-nums">
-                                {formatDate(run.startedAt)}
+                                {formatDate(run.startedAt, format, tc('none'))}
                               </span>
-                              <span className="text-ink-faint">{formatDuration(run.durationMs)}</span>
-                              {run.manual ? <span>déclenchée à la main</span> : null}
+                              <span className="text-ink-faint">
+                                {formatDuration(run.durationMs, tc('none'))}
+                              </span>
+                              {run.manual ? <span>{t('history.manual')}</span> : null}
                               <span
                                 className={cn(
                                   'max-w-2xl truncate font-mono text-ink-faint',
@@ -458,6 +486,7 @@ export function JobsPanel({
           key={editing.id}
           job={editing}
           timeZones={timeZones}
+          format={format}
           busy={busy !== null || pending}
           onClose={() => setEditing(null)}
           onSubmit={async (body) => {
@@ -468,7 +497,7 @@ export function JobsPanel({
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify(body),
               },
-              () => `Cadence de « ${editing.key} » modifiée`,
+              () => t('notice.cadenceUpdated', { key: editing.key }),
             );
             if (done) setEditing(null);
           }}
@@ -482,22 +511,27 @@ export function JobsPanel({
 function CadenceDialog({
   job,
   timeZones,
+  format,
   busy,
   onClose,
   onSubmit,
 }: {
   job: JobRow;
   timeZones: readonly string[];
+  format: FormatSettings;
   busy: boolean;
   onClose: () => void;
   onSubmit: (
     body: ({ schedule: SimpleSchedule } | { cron: string }) & { timezone: string },
   ) => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const language = useLanguage();
   const [draft, setDraft] = useState<ScheduleDraft>(() =>
     draftFromCron(job.cron, job.timeZone),
   );
-  const invalid = cronError(draftCron(draft)) !== null;
+  const invalid = cronError(draftCron(draft), language) !== null;
 
   return (
     <Dialog
@@ -508,7 +542,7 @@ function CadenceDialog({
     >
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Cadence de « {job.key} »</DialogTitle>
+          <DialogTitle>{t('dialog.title', { key: job.key })}</DialogTitle>
           <DialogDescription>
             {job.label} — {job.neverDoes}
           </DialogDescription>
@@ -516,11 +550,7 @@ function CadenceDialog({
 
         <DialogBody className="space-y-3">
           {job.schedule === null ? (
-            <p className="text-xs text-ink-faint">
-              L&apos;expression enregistrée n&apos;a pas d&apos;équivalent en mode simple :
-              l&apos;écran s&apos;ouvre en mode expert plutôt que d&apos;afficher une
-              périodicité approchée.
-            </p>
+            <p className="text-xs text-ink-faint">{t('dialog.expertOnly')}</p>
           ) : null}
 
           <ScheduleField
@@ -528,6 +558,7 @@ function CadenceDialog({
             value={draft}
             onChange={setDraft}
             timeZones={timeZones}
+            format={format}
             disabled={busy}
           />
         </DialogBody>
@@ -535,11 +566,11 @@ function CadenceDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button variant="outline" type="button">
-              Annuler
+              {tc('cancel')}
             </Button>
           </DialogClose>
           <Button type="button" disabled={busy || invalid} onClick={() => onSubmit(draftBody(draft))}>
-            Enregistrer
+            {tc('save')}
           </Button>
         </DialogFooter>
       </DialogContent>

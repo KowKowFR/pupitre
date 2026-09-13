@@ -9,6 +9,8 @@ import {
 import {
   AI_MODEL_TIER_LABELS,
   AI_PROVIDERS,
+  aiModelHint,
+  aiModelHints,
   aiModelMismatch,
   aiModelOptions,
   aiProviderDescriptor,
@@ -52,12 +54,42 @@ export const DEFAULT_AI_MODEL = defaultAiModel('openrouter');
 export const SUPPORTED_LOCALES = ['fr-FR', 'en-GB', 'en-US', 'de-DE', 'es-ES'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
+/**
+ * Les locales que le sélecteur propose — celles dont le panel sait réellement
+ * parler la langue.
+ *
+ * `SUPPORTED_LOCALES` reste plus large, et volontairement : une instance qui
+ * porte déjà `de-DE` en base continue de se lire sans que sa validation
+ * échoue au démarrage. Elle obtient simplement l'interface en anglais
+ * (cf. `languageOf()`) et ne retrouvera plus « Deutsch » dans la liste. Offrir
+ * un choix qui ne change qu'à moitié l'écran serait pire que ne pas l'offrir.
+ *
+ * Ajouter une langue, c'est écrire son dictionnaire, l'ajouter à
+ * `UI_LANGUAGES`, puis ajouter sa locale ici. Dans cet ordre.
+ */
+export const TRANSLATED_LOCALES = ['fr-FR', 'en-GB', 'en-US'] as const;
+
+/**
+ * Comment chaque locale se nomme **dans sa propre langue**. Un anglophone
+ * arrivé sur une instance en français doit reconnaître sa ligne sans savoir
+ * lire les autres — c'est la seule chaîne du panel qui ne se traduit pas.
+ */
+export const LOCALE_LABELS: Readonly<Record<SupportedLocale, string>> = {
+  'fr-FR': 'Français (France)',
+  'en-GB': 'English (United Kingdom)',
+  'en-US': 'English (United States)',
+  'de-DE': 'Deutsch (Deutschland)',
+  'es-ES': 'Español (España)',
+};
+
 export const DATE_STYLES = ['short', 'medium', 'long'] as const;
 export type DateStyleName = (typeof DATE_STYLES)[number];
 
 export {
   AI_MODEL_TIER_LABELS,
   AI_PROVIDERS,
+  aiModelHint,
+  aiModelHints,
   aiModelMismatch,
   aiModelOptions,
   aiProviderDescriptor,
@@ -366,11 +398,18 @@ export type OnboardingState = z.infer<typeof onboardingStateSchema>;
 
 export const DEFAULT_ONBOARDING_STATE: OnboardingState = onboardingStateSchema.parse({});
 
+/**
+ * Ce qu'une étape est, une fois la prose retirée.
+ *
+ * Le titre, le résumé, le détail et le prix à payer pour la passer vivaient
+ * ici. Ils sont partis dans `apps/web/src/i18n/messages/onboarding.ts`, sous
+ * `step.<id>.*` : c'était de l'affichage, rien dans ce paquet ne les lisait, et
+ * les garder aurait obligé le catalogue à porter deux langues par champ. Ce qui
+ * reste décide — quelle permission l'étape exige, et si on peut la passer — et
+ * ne dépend d'aucune langue.
+ */
 export type OnboardingStepDefinition = {
   id: OnboardingStepId;
-  title: string;
-  /** Une phrase, affichée sous le titre de l'étape. */
-  summary: string;
   /**
    * Permission sans laquelle l'étape finirait en 403. `null` pour les étapes
    * qui ne créent rien (`welcome`, `summary`) : elles n'ouvrent aucun droit et
@@ -378,128 +417,22 @@ export type OnboardingStepDefinition = {
    */
   requires: Permission | null;
   /**
-   * Facultative : elle peut être passée explicitement. `cost` dit alors ce
-   * qu'on perd — un bouton «&nbsp;Passer&nbsp;» sans conséquence annoncée
-   * n'est pas un choix éclairé.
+   * Facultative : elle peut être passée explicitement. La clé `step.<id>.cost`
+   * du dictionnaire dit alors ce qu'on perd, et elle n'existe que pour ces
+   * étapes-là — un bouton «&nbsp;Passer&nbsp;» sans conséquence annoncée n'est
+   * pas un choix éclairé. `optional` suffit donc à savoir si le prix se lit.
    */
   optional: boolean;
-  cost: string | null;
-  /**
-   * Ce que l'étape fait vraiment, en deux ou trois phrases.
-   *
-   * Vit ici plutôt que dans le JSX parce que c'est du contenu, pas de la mise
-   * en page : il doit être lisible par l'écran de l'assistant comme par un
-   * récapitulatif, sans que deux versions du texte se mettent à diverger.
-   */
-  detail: string;
 };
 
 export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = [
-  {
-    id: 'welcome',
-    title: 'Bienvenue',
-    summary: "Ce que ce panel fait, et ce qu'il ne fait pas.",
-    requires: null,
-    optional: false,
-    cost: null,
-    detail:
-      "Ce panel orchestre, il n'héberge pas. Il se connecte en SSH à des machines que " +
-      "vous possédez déjà et y installe vos applications, en Docker Compose ou en " +
-      "Kubernetes selon la cible. Rien de ce que vous déployez ne tourne ici : ce " +
-      "conteneur-ci ne porte que le panel, sa base et sa file de tâches.",
-  },
-  {
-    id: 'identity',
-    title: 'Identité et régionalisation',
-    summary: "Le nom de l'instance, son fuseau et sa locale.",
-    requires: 'settings:manage',
-    optional: false,
-    cost: null,
-    detail:
-      "Le nom apparaît en haut à gauche et dans le titre de l'onglet — utile dès qu'on " +
-      "administre deux instances. Le fuseau et la locale ne sont pas cosmétiques : " +
-      "toutes les dates affichées en dépendent, et une tâche planifiée « à 3 h » " +
-      "prendra ce fuseau par défaut. Ces réglages se changent à tout moment depuis les " +
-      "paramètres.",
-  },
-  {
-    id: 'target',
-    title: 'Première cible',
-    summary: 'La machine Linux sur laquelle le panel déploiera, jointe en SSH.',
-    requires: 'target:create',
-    optional: true,
-    cost:
-      "Sans cible déclarée, rien ne peut être déployé : les écrans d'application et de " +
-      'déploiement resteront sans destination. Vous pourrez la déclarer plus tard depuis ' +
-      '« Cibles → Ajouter une cible ».',
-    detail:
-      "Une cible est une machine Linux joignable en SSH, avec Docker ou K3s installé. " +
-      "Le panel y construit vos images et y lance vos conteneurs ; il n'y a aucun " +
-      "registre d'images intermédiaire. La clé SSH que vous collez est chiffrée en " +
-      "AES-256-GCM avant d'atteindre la base, et n'en ressort jamais en clair.",
-  },
-  {
-    id: 'role',
-    title: 'Un rôle',
-    summary: 'Un jeu de permissions taillé pour votre équipe.',
-    requires: 'role:manage',
-    optional: true,
-    cost:
-      'Les trois rôles installés d’office (administrateur, opérateur, observateur) restent ' +
-      'disponibles. Vous n’aurez simplement pas de rôle intermédiaire : toute personne à qui ' +
-      'il faut plus que la lecture recevra les droits complets d’un opérateur.',
-    detail:
-      "Un rôle est un jeu de permissions du type « ressource:action » — par exemple « " +
-      "deployment:create » ou « target:delete ». Les rôles sont des données, pas du " +
-      "code : vous pouvez en créer autant que nécessaire et modifier leurs permissions " +
-      "à chaud. Seul « administrateur » est verrouillé, pour qu'une instance ne puisse " +
-      "jamais se retrouver sans personne capable de la réparer.",
-  },
-  {
-    id: 'user',
-    title: 'Un utilisateur',
-    summary: 'Un compte pour quelqu’un d’autre que vous.',
-    requires: 'user:manage',
-    optional: true,
-    cost:
-      'Vous resterez seul à pouvoir vous connecter. Chaque geste du panel étant tracé avec son ' +
-      'auteur, un compte partagé rend les logs d’activité inexploitables.',
-    detail:
-      "Chaque compte porte un rôle, et chaque geste du panel est tracé avec son auteur " +
-      "dans les logs d'activité. Créer un compte par personne plutôt que d'en " +
-      "partager un rend ces logs exploitables. Chacun pourra ensuite protéger son accès par un " +
-      "second facteur depuis son espace personnel.",
-  },
-  {
-    id: 'security',
-    title: 'Sécurité et IA',
-    summary: 'Les scanners d’images, et l’accès au modèle qui rédige les AppSpec.',
-    requires: 'settings:manage',
-    optional: true,
-    cost:
-      'Les scanners restent actifs avec leurs réglages par défaut. Sans clé d’API, la ' +
-      'génération d’AppSpec par description restera indisponible et il faudra écrire le JSON ' +
-      'à la main.',
-    detail:
-      "Les images sont analysées avant mise en ligne par Trivy, Grype et Syft, avec un " +
-      "seuil de blocage réglable. Vous pouvez désactiver l'analyse durablement, ou " +
-      "n'écarter qu'un scanner — utile quand un seul d'entre eux n'atteint pas sa base " +
-      "de vulnérabilités. La clé d'API du modèle sert à rédiger une description " +
-      "d'application à partir d'une phrase ; elle est chiffrée comme les clés SSH, et " +
-      "le modèle ne produit jamais de commande shell, seulement du JSON validé.",
-  },
-  {
-    id: 'summary',
-    title: 'Fin',
-    summary: 'Ce qui a été fait, ce qui a été passé, et où y revenir.',
-    requires: null,
-    optional: false,
-    cost: null,
-    detail:
-      "Rien de ce qui a été passé n'est perdu : chaque étape correspond à un écran du " +
-      "panel, atteignable à tout moment. Vous pouvez aussi relancer cet assistant " +
-      "depuis les paramètres, autant de fois que vous voulez.",
-  },
+  { id: 'welcome', requires: null, optional: false },
+  { id: 'identity', requires: 'settings:manage', optional: false },
+  { id: 'target', requires: 'target:create', optional: true },
+  { id: 'role', requires: 'role:manage', optional: true },
+  { id: 'user', requires: 'user:manage', optional: true },
+  { id: 'security', requires: 'settings:manage', optional: true },
+  { id: 'summary', requires: null, optional: false },
 ];
 
 const STEP_BY_ID = new Map<OnboardingStepId, OnboardingStepDefinition>(

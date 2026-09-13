@@ -4,6 +4,8 @@ import { ChevronLeft } from 'lucide-react';
 import { getDeploymentForRun, getDeploymentSummary, listSteps } from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
+import { getT } from '@/i18n/server';
+import { deployments as messages } from '@/i18n/messages/deployments';
 import { requirePagePermission } from '@/lib/page-auth';
 import { DeploymentDetail, type StepView } from './deployment-view';
 
@@ -16,6 +18,7 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
   if (!parsed.success) notFound();
 
   const auth = await requirePagePermission(`/deployments/${parsed.data.id}`, 'deployment:read');
+  const t = await getT(messages);
 
   const [deployment, steps] = await Promise.all([
     getDeploymentSummary(parsed.data.id),
@@ -49,7 +52,7 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
             className="inline-flex items-center gap-1 transition-colors hover:text-ink"
           >
             <ChevronLeft className="size-3" />
-            Déploiements
+            {t('page.title')}
           </Link>
         }
         title={
@@ -60,7 +63,12 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
             </span>
           </>
         }
-        description={`Déployé sur ${deployment.targetName} (${deployment.targetHost}) en ${deployment.runtime}, derrière ${deployment.proxy}.`}
+        description={t('detail.description', {
+          target: deployment.targetName,
+          host: deployment.targetHost,
+          runtime: deployment.runtime,
+          proxy: deployment.proxy,
+        })}
       />
 
       <DeploymentDetail

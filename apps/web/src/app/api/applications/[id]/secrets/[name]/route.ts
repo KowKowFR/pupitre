@@ -11,7 +11,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { applications as messages } from '@/i18n/messages/applications';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -43,17 +44,14 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const body = await readJsonBody(request, bodySchema);
 
   const application = await getApplication(id);
-  if (!application) throw new NotFoundError(`Application « ${id} » introuvable`);
+  if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   // Un alias n'a pas de valeur à lui : lui en poser une créerait la seconde
   // ligne que `from` existe pour éviter, et les deux services repartiraient
   // avec deux mots de passe différents. On renvoie vers celui qui la porte.
   const root = secretRootName(secretBindings(application.appSpec), name);
   if (root !== name) {
-    throw new ConflictError(
-      `« ${name} » reprend la valeur de « ${root} » : il n'a pas de valeur propre. ` +
-        `Modifiez « ${root} », les deux noms suivront.`,
-    );
+    throw new ConflictError(msg(messages, 'error.secretAlias', { name, root }));
   }
 
   const secret =
@@ -92,17 +90,14 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id, name } = paramsSchema.parse(await context.params);
 
   const application = await getApplication(id);
-  if (!application) throw new NotFoundError(`Application « ${id} » introuvable`);
+  if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   if (declaredSecretsOf(application.appSpec).includes(name)) {
-    throw new ConflictError(
-      `« ${name} » est déclaré par l'AppSpec courante : retirez-le de la spec avant ` +
-        'de supprimer sa valeur.',
-    );
+    throw new ConflictError(msg(messages, 'error.secretDeclared', { name }));
   }
 
   const removed = await deleteApplicationSecret(id, name);
-  if (!removed) throw new NotFoundError(`Secret « ${name} » introuvable`);
+  if (!removed) throw new NotFoundError(msg(messages, 'error.secretNotFound', { name }));
 
   await logAudit({
     actorId: auth.userId,

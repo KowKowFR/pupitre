@@ -8,6 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { notifications as messages } from '@/i18n/messages/notifications';
+import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 
 /**
  * Le garde-fou de volume, vu de l'écran.
@@ -62,14 +66,20 @@ export function DigestPolicy({
   vocabulary,
   events,
   canManage,
+  format,
 }: {
   initialWindowMs: number;
   initialStates: DigestState[];
   vocabulary: DigestVocabulary;
   events: PresentedNotificationEvent[];
   canManage: boolean;
+  /** Locale et fuseau de l'instance. Par props : cet écran est rendu sur le
+   *  serveur avant de l'être ici, et les deux doivent écrire la même heure. */
+  format: FormatSettings;
 }) {
   const router = useRouter();
+  const t = useT(messages);
+  const tc = useT(common);
   const [windowMs, setWindowMs] = useState(initialWindowMs);
   const [states, setStates] = useState(initialStates);
   const [pending, setPending] = useState(false);
@@ -126,23 +136,22 @@ export function DigestPolicy({
     <div className="flex flex-col gap-4">
       <Alert variant="info">
         <p>
-          La <strong>première</strong> alerte d’un incident part sans délai — c’est la règle qui
-          prime sur toutes les autres. Elle ouvre une fenêtre de{' '}
-          <strong>{formatDigestDuration(windowMs)}</strong> pendant laquelle les alertes suivantes du
-          même type sont retenues au lieu d’être envoyées une par une.
+          {t('digest.rule.lead')} <strong>{t('digest.rule.first')}</strong>{' '}
+          {t('digest.rule.opens')} <strong>{formatDigestDuration(windowMs)}</strong>{' '}
+          {t('digest.rule.holds')}
         </p>
         <p className="mt-1.5">
-          À la fermeture : rien de retenu, la fenêtre se referme et la prochaine panne isolée repart
-          immédiatement. Quelque chose de retenu, un <strong>résumé</strong> part — il nomme chacune
-          des alertes qu’il remplace, jusqu’à {vocabulary.itemLimit} — et la fenêtre s’ouvre à
-          nouveau, deux fois plus longue, jusqu’à {formatDigestDuration(vocabulary.widestWindowMs)}.
-          Un orage qui dure fait donc baisser la cadence tout seul.
+          {t('digest.close.lead')} <strong>{t('digest.close.digest')}</strong>{' '}
+          {t('digest.close.rest', {
+            limit: vocabulary.itemLimit,
+            widest: formatDigestDuration(vocabulary.widestWindowMs),
+          })}
         </p>
       </Alert>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor="digest-window">Fenêtre de regroupement</Label>
+          <Label htmlFor="digest-window">{t('digest.window.label')}</Label>
           <Select
             id="digest-window"
             className="w-44"
@@ -163,31 +172,29 @@ export function DigestPolicy({
 
         {canManage ? (
           <Button size="sm" type="button" disabled={pending || windowMs === initialWindowMs} onClick={() => void save()}>
-            Enregistrer
+            {tc('save')}
           </Button>
         ) : null}
 
         <Button size="sm" variant="ghost" type="button" disabled={pending} onClick={() => void refresh()}>
-          Actualiser l’état
+          {t('digest.refresh')}
         </Button>
       </div>
 
       <p className="text-xs text-ink-faint">
-        Réglable de {formatDigestDuration(vocabulary.minWindowMs)} à{' '}
-        {formatDigestDuration(vocabulary.maxWindowMs)}. Le plancher n’est pas zéro : un garde-fou de
-        volume qu’on peut désactiver est un garde-fou désactivé, et cinquante pannes redeviendraient
-        cinquante messages.
+        {t('digest.window.help', {
+          min: formatDigestDuration(vocabulary.minWindowMs),
+          max: formatDigestDuration(vocabulary.maxWindowMs),
+        })}
       </p>
 
       {error ? <Alert variant="destructive">{error}</Alert> : null}
-      {saved ? <Alert variant="success">Fenêtre enregistrée.</Alert> : null}
+      {saved ? <Alert variant="success">{t('digest.saved')}</Alert> : null}
 
       <div className="space-y-2">
-        <p className="eyebrow text-ink-muted">Regroupements en cours</p>
+        <p className="eyebrow text-ink-muted">{t('digest.open.title')}</p>
         {states.length === 0 ? (
-          <p className="text-sm text-ink-faint">
-            Aucune fenêtre ouverte : la prochaine alerte, quelle qu’elle soit, partira sans délai.
-          </p>
+          <p className="text-sm text-ink-faint">{t('digest.open.none')}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {states.map((state) => (
@@ -197,13 +204,21 @@ export function DigestPolicy({
               >
                 <span className="text-ink">{labelOf(state.event)}</span>
                 <Badge variant={state.heldCount > 0 ? 'warn' : 'secondary'}>
-                  {state.heldCount} retenue{state.heldCount > 1 ? 's' : ''}
+                  {t('digest.held', { count: state.heldCount })}
                 </Badge>
                 <span className="text-xs text-ink-faint">
-                  fenêtre de {formatDigestDuration(state.windowMs)}
-                  {state.escalation > 0 ? ` (élargie ${state.escalation}×)` : ''}
+                  {t('digest.state.window', { window: formatDigestDuration(state.windowMs) })}
+                  {state.escalation > 0
+                    ? ` ${t('digest.state.widened', { times: state.escalation })}`
+                    : ''}
                   {state.windowEndsAt
-                    ? ` · se ferme à ${new Date(state.windowEndsAt).toLocaleTimeString('fr-FR')}`
+                    ? ` ${t('digest.state.closesAt', {
+                        // `settings.locale` tel quel : `toLocaleTimeString('en')`
+                        // rendait « 2:32 PM » sur une instance `en-GB`.
+                        time: formatDateTimeWith(state.windowEndsAt, format, {
+                          timeStyle: 'medium',
+                        }),
+                      })}`
                     : ''}
                 </span>
               </li>

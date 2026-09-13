@@ -1,6 +1,9 @@
 'use client';
 
 import * as React from 'react';
+import { useT } from '@/i18n/client';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
@@ -28,13 +31,6 @@ export type OutcomePoint = {
   outcome: string;
 };
 
-const OUTCOME_LABEL: Record<string, string> = {
-  healthy: 'sain',
-  unhealthy: 'répond mal',
-  unreachable: 'injoignable',
-  unknown: 'inconnu',
-};
-
 /** Les trois états, dans l'ordre où on les lit : du bon au pire. */
 const OUTCOME_TONE: Record<string, string> = {
   healthy: 'var(--ok)',
@@ -43,9 +39,23 @@ const OUTCOME_TONE: Record<string, string> = {
   unknown: 'var(--ink-faint)',
 };
 
-function formatClock(iso: string): string {
-  const date = new Date(iso);
-  return date.toLocaleString('fr-FR', {
+/**
+ * L'heure d'un point, dans la locale de l'instance.
+ *
+ * Les composantes — jour, mois, heure, minute — sont imposées par la figure :
+ * un axe n'a pas la place d'une date complète. La **locale**, elle, ne l'est
+ * pas : elle vient de `settings.locale`, telle quelle (`fr-FR`, `en-GB`,
+ * `en-US`), et descend par props comme partout ailleurs. Le raccourci d'avant
+ * — `language === 'fr' ? 'fr-FR' : 'en-GB'` — donnait des dates britanniques à
+ * une instance réglée sur `en-US`, et ignorait le réglage qu'elle avait posé.
+ *
+ * Le fuseau n'est **pas** imposé ici : le faire déplacerait l'heure affichée
+ * sur toute instance dont le process ne tourne pas déjà dans le fuseau de
+ * l'instance — et les conteneurs de ce projet tournent en UTC. C'est un
+ * changement de rendu, pas une traduction ; il appartient à un autre commit.
+ */
+function formatClock(iso: string, format: FormatSettings): string {
+  return formatDateTimeWith(iso, format, {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -64,28 +74,50 @@ function formatClock(iso: string): string {
  */
 export function OutcomeStrip({
   points,
+  format,
   className,
   height = 22,
 }: {
   points: readonly OutcomePoint[];
+  /** Locale et fuseau de l'instance. Par props : le serveur et le client
+   *  doivent lire la même valeur, sinon l'hydratation diverge. */
+  format: FormatSettings;
   className?: string;
   height?: number;
 }) {
+  const t = useT(messages);
   if (points.length === 0) return null;
+
+  const outcomeLabel = (outcome: string): string =>
+    outcome === 'healthy' ||
+    outcome === 'unhealthy' ||
+    outcome === 'unreachable' ||
+    outcome === 'unknown'
+      ? t(`outcome.${outcome}`)
+      : outcome;
 
   return (
     <div
       className={cn('flex items-end gap-[2px]', className)}
       style={{ height }}
       role="img"
-      aria-label={`${points.length} mesures, de la plus ancienne à la plus récente`}
+      aria-label={t('chart.strip.label', { count: points.length })}
     >
       {points.map((point) => (
         <span
           key={point.at}
-          title={`${formatClock(point.at)} — ${OUTCOME_LABEL[point.outcome] ?? point.outcome}${
-            point.latencyMs === null ? '' : ` · ${point.latencyMs} ms`
-          }`}
+          title={
+            point.latencyMs === null
+              ? t('chart.point.title', {
+                  clock: formatClock(point.at, format),
+                  outcome: outcomeLabel(point.outcome),
+                })
+              : t('chart.point.titleWithLatency', {
+                  clock: formatClock(point.at, format),
+                  outcome: outcomeLabel(point.outcome),
+                  latency: point.latencyMs,
+                })
+          }
           className="min-w-[3px] flex-1 rounded-[1px]"
           style={{
             height: '100%',
@@ -99,6 +131,7 @@ export function OutcomeStrip({
 
 /** Légende de la frise. Nomme les couleurs : la teinte seule ne suffit jamais. */
 export function OutcomeLegend({ className }: { className?: string }) {
+  const t = useT(messages);
   return (
     <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', className)}>
       {(['healthy', 'unhealthy', 'unreachable'] as const).map((outcome) => (
@@ -108,7 +141,7 @@ export function OutcomeLegend({ className }: { className?: string }) {
             className="inline-block h-2.5 w-1.5 rounded-[1px]"
             style={{ backgroundColor: OUTCOME_TONE[outcome] }}
           />
-          {OUTCOME_LABEL[outcome]}
+          {t(`outcome.${outcome}`)}
         </span>
       ))}
     </div>
@@ -187,6 +220,7 @@ export function LatencySparkline({
   height?: number;
   className?: string;
 }) {
+  const t = useT(messages);
   const usable = points.filter((point) => point.latencyMs !== null);
   if (usable.length === 0) return null;
 
@@ -203,7 +237,7 @@ export function LatencySparkline({
       viewBox={`0 0 ${width} ${height}`}
       className={cn('overflow-visible', className)}
       role="img"
-      aria-label={`Latence des ${points.length} dernières mesures`}
+      aria-label={t('chart.sparkline.label', { count: points.length })}
     >
       {runs.map((run) => (
         <path
@@ -251,13 +285,16 @@ export function LatencySparkline({
  */
 export function LatencyChart({
   points,
+  format,
   height = 160,
   className,
 }: {
   points: readonly OutcomePoint[];
+  format: FormatSettings;
   height?: number;
   className?: string;
 }) {
+  const t = useT(messages);
   const [hover, setHover] = React.useState<number | null>(null);
   const width = 720;
   const padTop = 12;
@@ -285,7 +322,7 @@ export function LatencyChart({
         className="w-full"
         style={{ height }}
         role="img"
-        aria-label="Latence mesurée au cours du temps"
+        aria-label={t('chart.latency.label')}
         onMouseLeave={() => setHover(null)}
         onMouseMove={(event) => {
           const rect = event.currentTarget.getBoundingClientRect();
@@ -379,7 +416,7 @@ export function LatencyChart({
           y={height - 6}
           className="fill-ink-faint text-[10px] [font-variant-numeric:tabular-nums]"
         >
-          {points[0] ? formatClock(points[0].at) : ''}
+          {points[0] ? formatClock(points[0].at, format) : ''}
         </text>
         <text
           x={width - 8}
@@ -387,14 +424,14 @@ export function LatencyChart({
           textAnchor="end"
           className="fill-ink-faint text-[10px] [font-variant-numeric:tabular-nums]"
         >
-          {points.at(-1) ? formatClock(points.at(-1)!.at) : ''}
+          {points.at(-1) ? formatClock(points.at(-1)!.at, format) : ''}
         </text>
       </svg>
 
       {active ? (
         <div className="pointer-events-none absolute top-0 right-0 rounded-md border border-line bg-surface px-2 py-1 text-[0.6875rem] shadow-raised">
           <div className="font-mono text-ink">{active.point.latencyMs} ms</div>
-          <div className="text-ink-faint">{formatClock(active.point.at)}</div>
+          <div className="text-ink-faint">{formatClock(active.point.at, format)}</div>
         </div>
       ) : null}
     </div>

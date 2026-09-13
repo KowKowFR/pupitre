@@ -1,5 +1,7 @@
 import { getAiApiKey, getAppSettings } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { getT } from '@/i18n/server';
+import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
 import { AiStatusBadge } from '../ai-status';
 import { settingsSection } from '../sections';
@@ -19,17 +21,17 @@ const section = settingsSection('/admin/settings/ia');
 export default async function AiSettingsPage() {
   const auth = await requirePagePermission('/admin/settings/ia', 'settings:read');
   const record = await getAppSettings();
+  const t = await getT(messages);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          {section.title}
+          {t(`section.${section.id}.title`)}
           <AiStatusBadge settings={record.settings} storedApiKey={await getAiApiKey()} />
         </CardTitle>
         <CardDescription>
-          {section.governs} Le modèle ne produit jamais de shell : il rend du JSON, validé par Zod
-          avant que quoi que ce soit ne soit exécuté.
+          {t(`section.${section.id}.governs`)} {t('ai.noShell')}
         </CardDescription>
       </CardHeader>
       <CardContent>

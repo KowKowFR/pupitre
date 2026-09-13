@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { targets as messages } from '@/i18n/messages/targets';
 import { usePreflight } from '../use-preflight';
 
 export function PreflightPanel({
@@ -15,6 +18,8 @@ export function PreflightPanel({
   canRunPreflight: boolean;
   canEdit: boolean;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const [error, setError] = useState<string | null>(null);
   const { run, phaseOf, isRunning } = usePreflight({ onError: setError });
   const phase = phaseOf(targetId);
@@ -29,7 +34,7 @@ export function PreflightPanel({
           disabled={isRunning(targetId)}
           onClick={() => void run(targetId)}
         >
-          {isRunning(targetId) ? 'Test en cours…' : 'Tester la connexion'}
+          {isRunning(targetId) ? t('action.testing') : t('action.test')}
         </Button>
       ) : null}
 
@@ -42,7 +47,7 @@ export function PreflightPanel({
 
       {canEdit ? (
         <Button asChild variant="outline" size="sm" className="w-full">
-          <Link href={`/targets/${targetId}/edit`}>Modifier</Link>
+          <Link href={`/targets/${targetId}/edit`}>{tc('edit')}</Link>
         </Button>
       ) : null}
     </div>

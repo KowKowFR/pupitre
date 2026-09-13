@@ -1,0 +1,565 @@
+import type { Translated } from '@pupitre/core';
+
+/**
+ * Le catalogue d'applications — la liste, la fiche, ses secrets, sa timeline de
+ * versions, la création (formulaire et génération), la suppression en cascade,
+ * et les refus de toutes ces routes.
+ *
+ * ── Ce qui n'est pas traduit, et pourquoi ───────────────────────────────────
+ * `AppSpec` est un nom propre : il ne se traduit ni ne se met au pluriel. Les
+ * **noms de champs** du format (`services`, `env`, `secrets`, `ingress`) sont
+ * des clés JSON, pas des mots — les traduire produirait une spec que Zod
+ * refuserait. Les noms de secrets, de services, d'images et de fournisseurs
+ * viennent des données : ils s'affichent tels quels.
+ *
+ * Certaines phrases sont coupées en deux clés (`.before` / `.after`) : ce sont
+ * celles qui entourent un `<code>` ou un `<strong>` dans le JSX. Une clé par
+ * fragment est laide mais honnête — l'alternative, du balisage dans le
+ * dictionnaire, obligerait le traducteur à écrire du HTML.
+ */
+const fr = {
+  // ── Liste ───────────────────────────────────────────────────────────────
+  'page.eyebrow': 'Catalogue',
+  'page.title': 'Applications',
+  'page.description.before': 'Une application est une ',
+  'page.description.after':
+    " — une description neutre, qui ne connaît ni Docker ni Kubernetes. C'est le driver qui la traduit au moment du déploiement.",
+  'action.new': 'Nouvelle application',
+
+  'empty.title': 'Aucune application',
+  'empty.hint':
+    "Décrivez une application — services, image, port exposé — ou laissez l'IA en proposer une AppSpec que vous relirez avant de déployer.",
+
+  'lifecycle.title': 'Cycle de vie',
+  'lifecycle.autoRollback': "Rollback automatique en cas d'échec",
+  'lifecycle.autoRollback.on':
+    'Un healthcheck raté ramène la version précédente, si elle existe.',
+  'lifecycle.autoRollback.off': 'Un healthcheck raté laisse le déploiement en échec, en l’état.',
+  'lifecycle.note':
+    'Le bouton « Déployer » de cette page part en Docker Compose, derrière Traefik, et ne propose que les cibles où le preflight a vu Docker. Le runtime ne se choisit qu’à la création, sur « Nouvelle application » — l’AppSpec, elle, est la même dans les deux cas.',
+
+  'column.application': 'Application',
+  'column.services': 'Services',
+  'column.exposure': 'Exposition',
+  'exposure.allocatedPort': 'port alloué',
+  'action.deploy': 'Déployer',
+  'action.sending': 'Envoi…',
+
+  'deploy.noDockerTarget':
+    "Aucune cible Docker prête. Cet écran déploie en Docker Compose ; lancez un preflight depuis /targets pour savoir ce que chaque machine sait faire.",
+  // L'espace avant le « ; » est insécable (U+00A0) : c'était un `&nbsp;` dans
+  // le JSX, et le rendu doit rester le même caractère.
+  'warn.noDockerTarget.before':
+    'Aucune cible Docker prête. Cet écran déploie en Docker Compose ; pour une machine K3s, passez par « Nouvelle application », qui laisse choisir le runtime. Un preflight depuis ',
+  'warn.noDockerTarget.after': ' dit ce que chaque machine sait faire.',
+
+  // ── Suppression ─────────────────────────────────────────────────────────
+  'delete.title': 'Supprimer « {slug} »',
+  'delete.description.abandoned':
+    'Une cible n’a pas pu être nettoyée. Lisez ce qui va rester dessus.',
+  'delete.description.blockers':
+    'L’application tourne encore. Elle sera démontée sur ses cibles avant d’être effacée.',
+  'delete.description.history': 'L’application ne porte plus que de l’historique.',
+  'delete.loading': 'Lecture de ce qui bloque…',
+  'delete.readFailed': 'Lecture impossible',
+  'delete.historyOnly': {
+    one: 'Rien ne tourne : {count} déploiement d’historique sera effacé, avec leurs étapes, leurs logs et leurs scans.',
+    other:
+      'Rien ne tourne : {count} déploiements d’historique seront effacés, avec leurs étapes, leurs logs et leurs scans.',
+  },
+  'delete.blockers.lines': { one: '{count} ligne', other: '{count} lignes' },
+  'delete.blockers': {
+    one: '{count} déploiement encore en place. Il sera détruit sur sa cible, puis tout l’historique ({lines}) sera effacé.',
+    other:
+      '{count} déploiements encore en place. Ils seront détruits sur leurs cibles, puis tout l’historique ({lines}) sera effacé.',
+  },
+  'delete.blocker.on': 'sur {target}',
+  'delete.blocker.port': ' · port {port}',
+  'delete.releasedPorts': {
+    one: 'Port rendu à leur cible : {list}.',
+    other: 'Ports rendus à leur cible : {list}.',
+  },
+  'delete.cascadePermissions.before': 'La cascade exige en plus ',
+  'delete.cascadePermissions.after':
+    '. Demandez ces permissions, ou détruisez les déploiements un par un depuis l’écran des déploiements.',
+  'delete.abandoned': {
+    one: '{count} déploiement n’a pas pu être détruit. Forcer n’arrête rien sur la machine : ce qui suit continuera de tourner, sans que le panel sache le nommer.',
+    other:
+      '{count} déploiements n’ont pas pu être détruits. Forcer n’arrête rien sur la machine : ce qui suit continuera de tourner, sans que le panel sache le nommer.',
+  },
+  'delete.destroyed': 'Déjà détruit : {list}.',
+  'delete.destroyed.entry': 'v{version} sur {target}',
+  'delete.auditNote':
+    'Ces informations partent dans les logs d’activité avant l’effacement — c’est la seule trace qui permettra de finir le ménage à la main.',
+  'delete.retype.before': 'Retapez ',
+  'delete.retype.after': ' pour débloquer le forçage.',
+  'delete.progress.force': 'Effacement forcé…',
+  'delete.progress.cascade': 'Destruction sur les cibles…',
+  'delete.job.silent': 'La tâche ne répond plus. Consultez les logs d’activité.',
+  'delete.job.failed': 'tâche en échec',
+  'delete.job.progress': 'Tâche {state}…',
+  'delete.action.force': 'Forcer l’effacement',
+  'delete.action.cascade': 'Détruire et supprimer',
+
+  // ── Fiche ───────────────────────────────────────────────────────────────
+  'detail.spec.title': 'AppSpec courante',
+  'detail.spec.description':
+    'Ce que le prochain déploiement utilisera. Les versions déjà déployées gardent la leur, figée.',
+  'detail.spec.byPort': 'exposition par port alloué',
+
+  'versions.title': 'Historique des versions',
+  'versions.empty':
+    'Chaque déploiement fige son AppSpec au moment où il part : c’est ce qui permet de rejouer une version telle qu’elle était, sur la même cible ou sur une autre.',
+  'versions.count': {
+    one: '{count} déploiement, du plus récent au plus ancien. Chaque version garde son AppSpec figée : c’est ce qui la rend rejouable.',
+    other:
+      '{count} déploiements, du plus récent au plus ancien. Chaque version garde son AppSpec figée : c’est ce qui la rend rejouable.',
+  },
+  'versions.never':
+    "Cette application n'a jamais été déployée. Le bouton « Déployer » de la liste des applications en produit la première version ; elle apparaîtra ici.",
+  'redeploy.confirm':
+    "Redéployer « {slug} » dans sa version {version} sur {target} ?\n\nL'AppSpec figée à l'époque sera rejouée telle quelle — l'application actuelle n'est pas utilisée.",
+  'redeploy.chosenTarget': 'la cible choisie',
+  'redeploy.action': 'Redéployer cette version',
+  'redeploy.impossible': 'Aucune AppSpec figée sur ce déploiement : rien à rejouer.',
+
+  // ── Secrets ─────────────────────────────────────────────────────────────
+  /** Le titre exact que cherchent les vérifications d'intégration. */
+  'secrets.title': 'Secrets',
+  'secrets.description.1':
+    "L'AppSpec ne déclare que des noms ; les valeurs vivent chiffrées en base, sous",
+  'secrets.description.2':
+    ", et ne sont déchiffrées que par le worker au moment du rendu. Elles sont attachées à l'application, pas au déploiement : un redéploiement réutilise la même valeur, sans quoi le volume d'une base déjà initialisée deviendrait inaccessible.",
+  'secrets.description.3': "Un nom peut reprendre la valeur d'un autre",
+  'secrets.description.4':
+    "— l'application et sa base attendent souvent le même mot de passe sous deux noms différents. Il n'y a alors qu'une valeur, et un seul endroit où la changer.",
+  'secrets.none': 'Cette application ne déclare aucun secret.',
+  'secrets.badge.alias': 'alias',
+  'secrets.badge.set': 'définie',
+  'secrets.badge.generatedAtDeploy': 'générée au déploiement',
+  'secrets.badge.generated': 'générée',
+  'secrets.badge.provided': 'saisie',
+  'secrets.badge.undeclared': 'plus déclarée',
+  'secrets.claimedBy': 'réclamée par ',
+  'secrets.orphan':
+    "aucun service de l'AppSpec courante ne la réclame — conservée tant qu'elle n'est pas supprimée à la main",
+  'secrets.aliasOf.before': 'reprend la valeur de ',
+  'secrets.aliasOf.after': ' — aucune valeur propre, aucune ligne en base',
+  'secrets.readAs': 'lue aussi sous',
+  'secrets.editOnRoot': 'se modifie sur « {name} »',
+  'secrets.newValue': 'nouvelle valeur',
+  'secrets.replace': 'Remplacer',
+  'secrets.setNow': 'Saisir maintenant',
+  'secrets.regenerate.label': 'Régénérer {name}',
+  'secrets.regenerate.title': 'Tirer une nouvelle valeur au sort',
+  'secrets.delete.label': 'Supprimer {name}',
+  'secrets.delete.title': 'Supprimer définitivement',
+  'secrets.regenerate.confirm':
+    "Régénérer « {name} » ?\n\nLa nouvelle valeur ne prendra effet qu'au prochain déploiement, et les données déjà écrites avec l’ancienne (le volume d’une base, par exemple) ne la connaîtront pas. À ne faire que sur une application neuve ou après avoir migré les données.",
+  'secrets.delete.confirm': 'Supprimer définitivement la valeur de « {name} » ?',
+
+  // ── Création ────────────────────────────────────────────────────────────
+  'new.description':
+    "Cet écran produit une AppSpec et l'enregistre au catalogue — il ne touche à aucune machine tant que vous ne choisissez pas une cible plus bas. Le runtime n'entre pas dans la spec : c'est ici, au moment de déployer, qu'on tranche entre Docker Compose et K3s.",
+  'new.card.title': 'AppSpec',
+  'new.card.description':
+    "Décrivez l'application et laissez le modèle proposer une spec, ou collez directement un JSON. Dans les deux cas, la proposition s'affiche avant enregistrement, et Zod valide avant que quoi que ce soit n'atteigne la base.",
+
+  'tab.fromPrompt': 'Depuis une description',
+  'tab.fromJson': 'Depuis un JSON',
+
+  'ai.disabled.lead':
+    "La génération par IA est désactivée : aucune clé d'API {provider} n'est configurée sur ce panel",
+  'ai.disabled.envVar': '(ni dans Paramètres → Intelligence artificielle, ni via',
+  'ai.disabled.tail': ". L'onglet « Depuis un JSON » reste disponible.",
+
+  'form.prompt.label': "Décrivez l'application",
+  'form.prompt.placeholder': 'Génère une application GLPI avec sa base de données',
+  'form.prompt.help':
+    "Le modèle produit du JSON validé par Zod — jamais une commande. Rien n'est enregistré ni déployé : la spec s'affiche ci-dessous, à relire et à corriger.",
+  'form.hint.language': 'Langage (facultatif)',
+  'form.hint.database': 'Base de données (facultatif)',
+  'form.hint.runtime': 'Runtime visé (facultatif)',
+  'form.hint.runtime.any': 'indifférent',
+  'form.hint.note':
+    "Le runtime n'entre jamais dans l'AppSpec — elle ne connaît ni Docker ni Kubernetes. Il ne sert qu'à dimensionner.",
+
+  'generate.action': 'Générer',
+  'generate.pending': 'Génération…',
+  'generate.busy': 'génération en cours',
+  'generate.info': '{provider} · {model} — {seconds} s',
+  'generate.info.tokens': ', {tokens} tokens',
+  'generate.info.retried': ', après une relance sur erreurs de validation',
+  'generate.info.slugTaken': ' — ⚠ une application porte déjà ce nom',
+  'generate.failed': 'Génération impossible',
+
+  'form.fieldError': '{field} : {message}',
+  'form.invalidJson': 'JSON invalide : {message}',
+  'form.unreadable': 'illisible',
+  'form.savedButDeployFailed':
+    "L'application « {name} » a bien été enregistrée, mais le déploiement a échoué : {message}",
+
+  'review.label': 'Ce qui va tourner',
+  'review.label.proposal': ' — proposition du modèle, à valider',
+  'form.appSpec.label': 'AppSpec (JSON)',
+  'form.appSpec.label.generated': ' — générée, éditable',
+  'form.insertExample': 'Insérer un exemple',
+  'form.origin.note':
+    "Le prompt et la spec générée seront conservés avec l'application, à côté de la version que vous validez.",
+  'form.deployTarget.label': 'Déployer dans la foulée (facultatif)',
+  'form.deployTarget.none': 'ne pas déployer maintenant',
+  'form.runtime.label': 'Runtime',
+  'form.submit.pending': 'Validation…',
+  'form.submit.saveAndDeploy': "Enregistrer et déployer l'application",
+  'form.submit.save': "Enregistrer l'application",
+
+  // ── Relecture de la spec, avant enregistrement ──────────────────────────
+  'review.unnamed': '(sans nom)',
+  'review.services': { one: '{count} service', other: '{count} services' },
+  'review.exposed': 'exposé',
+  'review.port': 'port {port}',
+  'review.health': 'santé : {value}',
+  'review.health.port': 'port {port}',
+  'review.health.get': 'GET {path}',
+  'review.health.interval': ', toutes les {seconds} s',
+  'review.health.retries': ', {retries} essais',
+  'review.dependsOn': 'dépend de : {list}',
+  'review.secrets': 'secrets : {list}',
+  'review.volumes': 'volumes :',
+  'review.ingress': 'ingress : {host} → {service}{tls}',
+  'review.ingress.noHost': 'sans nom de domaine',
+  'review.thirdParty.lead': {
+    one: 'Image publiée par un tiers :',
+    other: 'Images publiées par un tiers :',
+  },
+  'review.thirdParty.tail':
+    ". Le panel ne vérifie pas qu'un tag existe avant le déploiement — un tag inexistant fait échouer la mise en ligne au téléchargement de l'image. Vérifiez-le sur le registre avant de déployer.",
+  'review.floating.lead': 'Tag flottant : ',
+  'review.floating.tail':
+    '. Un redéploiement ne redonnera pas forcément la même version. Figez-le si le projet publie un tag de version.',
+  'review.declaredSecrets.lead': {
+    one: 'Cette spec déclare {count} secret —',
+    other: 'Cette spec déclare {count} secrets —',
+  },
+  'review.declaredSecrets.mid': '. Seuls leurs',
+  'review.declaredSecrets.names': 'noms',
+  'review.declaredSecrets.tail':
+    ' sont enregistrés : le panel ne stocke pas encore leurs valeurs, et les déploiera vides. Les services qui en dépendent (une base de données, par exemple) ne démarreront pas tant que ces valeurs ne seront pas fournies sur la cible.',
+
+  // ── Refus des routes ────────────────────────────────────────────────────
+  'error.notFound': 'Application « {id} » introuvable',
+  'error.slugTaken': 'Une application « {name} » existe déjà',
+  'error.enqueueFailed': "La tâche n'a pas reçu d'identifiant",
+  'error.deploymentEntry': 'v{version} sur {target}',
+  'error.liveDeployments': {
+    one: "« {slug} » a {count} déploiement encore en place : {list}. Supprimez-la en cascade (POST {path}/cascade) — elle le détruira sur sa cible avant d'effacer l'application —, ou détruisez-le d'abord.",
+    other:
+      "« {slug} » a {count} déploiements encore en place : {list}. Supprimez-la en cascade (POST {path}/cascade) — elle les détruira sur leurs cibles avant d'effacer l'application —, ou détruisez-les d'abord.",
+  },
+  'error.jobNotFound': 'Aucune tâche « {jobId} » dans la queue ops',
+  'error.jobOtherApplication': 'La tâche « {jobId} » ne concerne pas cette application',
+  'error.deploymentsInProgress': {
+    one: "{count} déploiement de « {slug} » est en cours : {list}. Attendez qu'il se termine — le forçage ne s'applique pas à un déploiement en vol.",
+    other:
+      "{count} déploiements de « {slug} » sont en cours : {list}. Attendez qu'ils se terminent — le forçage ne s'applique pas à un déploiement en vol.",
+  },
+  'error.confirmationRequired': {
+    one: "Le forçage abandonne {count} charge sur sa machine sans l'arrêter : {list}. Recopiez « {slug} » dans « confirm » pour confirmer.",
+    other:
+      'Le forçage abandonne {count} charges sur leurs machines sans les arrêter : {list}. Recopiez « {slug} » dans « confirm » pour confirmer.',
+  },
+  'error.abandonEntry': '{workspace} sur {target} ({host}{port})',
+  'error.abandonPort': ', port {port}',
+
+  'error.versionNotFound': 'Version « {id} » introuvable',
+  'error.versionOtherApplication':
+    "Cette version appartient à une autre application : impossible de la rejouer ici.",
+  'error.versionNoSpec':
+    "Le déploiement #{version} n'a pas d'AppSpec figée : il a été enregistré avant que le panel ne conserve la spec de chaque run, et il n'y a donc rien à rejouer. Déployez la version courante de l'application à la place.",
+  'error.targetNotFound': 'Cible « {id} » introuvable',
+  /** Voir `deployments.ts` : « aucun » est une clé, pas une variable. */
+  'error.versionRuntimeUnavailable':
+    "Le runtime « {runtime} » de cette version n'est pas disponible sur « {target} ». Runtimes exploitables : {available}.",
+  'error.versionRuntimeUnavailable.none':
+    "Le runtime « {runtime} » de cette version n'est pas disponible sur « {target} ». Runtimes exploitables : aucun.",
+
+  'error.aiNoKey':
+    "La génération par IA est désactivée : aucune clé d'API {provider} n'est configurée sur ce panel. Renseignez-la dans Paramètres → Intelligence artificielle{envVar}.",
+  'error.aiEnvVar': ', ou via {variable}',
+  'error.aiDisabled': 'La génération par IA est désactivée dans les paramètres de cette instance.',
+
+  'error.secretAlias':
+    "« {name} » reprend la valeur de « {root} » : il n'a pas de valeur propre. Modifiez « {root} », les deux noms suivront.",
+  'error.secretDeclared':
+    "« {name} » est déclaré par l'AppSpec courante : retirez-le de la spec avant de supprimer sa valeur.",
+  'error.secretNotFound': 'Secret « {name} » introuvable',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'page.eyebrow': 'Catalog',
+  'page.title': 'Applications',
+  'page.description.before': 'An application is an ',
+  'page.description.after':
+    ' — a neutral description that knows neither Docker nor Kubernetes. The driver translates it at deploy time.',
+  'action.new': 'New application',
+
+  'empty.title': 'No application',
+  'empty.hint':
+    'Describe an application — services, image, exposed port — or let the AI propose an AppSpec for you to review before deploying.',
+
+  'lifecycle.title': 'Lifecycle',
+  'lifecycle.autoRollback': 'Roll back automatically on failure',
+  'lifecycle.autoRollback.on':
+    'A failed healthcheck brings back the previous version, if there is one.',
+  'lifecycle.autoRollback.off': 'A failed healthcheck leaves the deployment failed, as it stands.',
+  'lifecycle.note':
+    'The “Deploy” button on this page goes out on Docker Compose, behind Traefik, and only offers targets where the preflight saw Docker. The runtime is picked at creation only, on “New application” — the AppSpec is the same either way.',
+
+  'column.application': 'Application',
+  'column.services': 'Services',
+  'column.exposure': 'Exposure',
+  'exposure.allocatedPort': 'allocated port',
+  'action.deploy': 'Deploy',
+  'action.sending': 'Sending…',
+
+  'deploy.noDockerTarget':
+    'No Docker target is ready. This screen deploys on Docker Compose; run a preflight from /targets to see what each machine can do.',
+  'warn.noDockerTarget.before':
+    'No Docker target is ready. This screen deploys on Docker Compose; for a K3s machine, go through “New application”, which lets you pick the runtime. A preflight from ',
+  'warn.noDockerTarget.after': ' says what each machine can do.',
+
+  'delete.title': 'Delete “{slug}”',
+  'delete.description.abandoned':
+    'One target could not be cleaned up. Read what will stay on it.',
+  'delete.description.blockers':
+    'The application is still running. It will be taken down on its targets before it is erased.',
+  'delete.description.history': 'The application carries nothing but history.',
+  'delete.loading': 'Reading what stands in the way…',
+  'delete.readFailed': 'Cannot read',
+  'delete.historyOnly': {
+    one: 'Nothing is running: {count} history deployment will be erased, with its steps, its logs and its scans.',
+    other:
+      'Nothing is running: {count} history deployments will be erased, with their steps, their logs and their scans.',
+  },
+  'delete.blockers.lines': { one: '{count} row', other: '{count} rows' },
+  'delete.blockers': {
+    one: '{count} deployment still in place. It will be destroyed on its target, then the whole history ({lines}) will be erased.',
+    other:
+      '{count} deployments still in place. They will be destroyed on their targets, then the whole history ({lines}) will be erased.',
+  },
+  'delete.blocker.on': 'on {target}',
+  'delete.blocker.port': ' · port {port}',
+  'delete.releasedPorts': {
+    one: 'Port returned to its target: {list}.',
+    other: 'Ports returned to their targets: {list}.',
+  },
+  'delete.cascadePermissions.before': 'A cascade also requires ',
+  'delete.cascadePermissions.after':
+    '. Ask for these permissions, or destroy the deployments one by one from the deployments screen.',
+  'delete.abandoned': {
+    one: '{count} deployment could not be destroyed. Forcing stops nothing on the machine: what follows keeps running, with no name the panel can give it.',
+    other:
+      '{count} deployments could not be destroyed. Forcing stops nothing on the machine: what follows keeps running, with no names the panel can give them.',
+  },
+  'delete.destroyed': 'Already destroyed: {list}.',
+  'delete.destroyed.entry': 'v{version} on {target}',
+  'delete.auditNote':
+    'This goes into the activity log before the erase — it is the only trace left to finish the cleanup by hand.',
+  'delete.retype.before': 'Retype ',
+  'delete.retype.after': ' to unlock forcing.',
+  'delete.progress.force': 'Forced erase…',
+  'delete.progress.cascade': 'Destroying on the targets…',
+  'delete.job.silent': 'The job stopped answering. Check the activity log.',
+  'delete.job.failed': 'job failed',
+  'delete.job.progress': 'Job {state}…',
+  'delete.action.force': 'Force the erase',
+  'delete.action.cascade': 'Destroy and delete',
+
+  'detail.spec.title': 'Current AppSpec',
+  'detail.spec.description':
+    'What the next deployment will use. Versions already deployed keep theirs, frozen.',
+  'detail.spec.byPort': 'exposed on an allocated port',
+
+  'versions.title': 'Version history',
+  'versions.empty':
+    'Each deployment freezes its AppSpec as it leaves: that is what lets you replay a version as it was, on the same target or on another.',
+  'versions.count': {
+    one: '{count} deployment, newest first. Each version keeps its AppSpec frozen: that is what makes it replayable.',
+    other:
+      '{count} deployments, newest first. Each version keeps its AppSpec frozen: that is what makes it replayable.',
+  },
+  'versions.never':
+    'This application has never been deployed. The “Deploy” button in the applications list produces its first version; it will show up here.',
+  'redeploy.confirm':
+    'Redeploy “{slug}” at version {version} on {target}?\n\nThe AppSpec frozen back then will be replayed as it is — the current application is not used.',
+  'redeploy.chosenTarget': 'the chosen target',
+  'redeploy.action': 'Redeploy this version',
+  'redeploy.impossible': 'No frozen AppSpec on this deployment: nothing to replay.',
+
+  'secrets.title': 'Secrets',
+  'secrets.description.1':
+    'The AppSpec declares names only; the values live encrypted in the database, under',
+  'secrets.description.2':
+    ', and the worker decrypts them only when it renders. They belong to the application, not to the deployment: a redeploy reuses the same value, otherwise the volume of an already initialized database would become unreadable.',
+  'secrets.description.3': 'One name can take another’s value',
+  'secrets.description.4':
+    '— an application and its database often expect the same password under two different names. There is then one value, and one place to change it.',
+  'secrets.none': 'This application declares no secret.',
+  'secrets.badge.alias': 'alias',
+  'secrets.badge.set': 'set',
+  'secrets.badge.generatedAtDeploy': 'generated at deploy',
+  'secrets.badge.generated': 'generated',
+  'secrets.badge.provided': 'entered',
+  'secrets.badge.undeclared': 'no longer declared',
+  'secrets.claimedBy': 'claimed by ',
+  'secrets.orphan':
+    'no service of the current AppSpec claims it — kept until someone deletes it by hand',
+  'secrets.aliasOf.before': 'takes the value of ',
+  'secrets.aliasOf.after': ' — no value of its own, no row in the database',
+  'secrets.readAs': 'also read as',
+  'secrets.editOnRoot': 'edited on “{name}”',
+  'secrets.newValue': 'new value',
+  'secrets.replace': 'Replace',
+  'secrets.setNow': 'Set it now',
+  'secrets.regenerate.label': 'Regenerate {name}',
+  'secrets.regenerate.title': 'Draw a new value at random',
+  'secrets.delete.label': 'Delete {name}',
+  'secrets.delete.title': 'Delete for good',
+  'secrets.regenerate.confirm':
+    'Regenerate “{name}”?\n\nThe new value only takes effect at the next deployment, and data already written with the old one (a database volume, for instance) will not know it. Do this on a fresh application only, or once the data has been migrated.',
+  'secrets.delete.confirm': 'Delete the value of “{name}” for good?',
+
+  'new.description':
+    'This screen produces an AppSpec and saves it to the catalog — it touches no machine until you pick a target below. The runtime is not part of the spec: Docker Compose or K3s is settled here, at deploy time.',
+  'new.card.title': 'AppSpec',
+  'new.card.description':
+    'Describe the application and let the model propose a spec, or paste JSON straight in. Either way the proposal shows before it is saved, and Zod validates before anything reaches the database.',
+
+  'tab.fromPrompt': 'From a description',
+  'tab.fromJson': 'From JSON',
+
+  'ai.disabled.lead':
+    'AI generation is off: no {provider} API key is configured on this panel',
+  'ai.disabled.envVar': '(neither under Settings → Artificial intelligence, nor through',
+  'ai.disabled.tail': '. The “From JSON” tab stays available.',
+
+  'form.prompt.label': 'Describe the application',
+  'form.prompt.placeholder': 'Generate a GLPI application with its database',
+  'form.prompt.help':
+    'The model produces JSON validated by Zod — never a command. Nothing is saved or deployed: the spec shows below, to read and fix.',
+  'form.hint.language': 'Language (optional)',
+  'form.hint.database': 'Database (optional)',
+  'form.hint.runtime': 'Target runtime (optional)',
+  'form.hint.runtime.any': 'no preference',
+  'form.hint.note':
+    'The runtime never enters the AppSpec — it knows neither Docker nor Kubernetes. It only helps with sizing.',
+
+  'generate.action': 'Generate',
+  'generate.pending': 'Generating…',
+  'generate.busy': 'generating',
+  'generate.info': '{provider} · {model} — {seconds} s',
+  'generate.info.tokens': ', {tokens} tokens',
+  'generate.info.retried': ', after one retry on validation errors',
+  'generate.info.slugTaken': ' — ⚠ an application already goes by this name',
+  'generate.failed': 'Generation failed',
+
+  'form.fieldError': '{field}: {message}',
+  'form.invalidJson': 'Invalid JSON: {message}',
+  'form.unreadable': 'unreadable',
+  'form.savedButDeployFailed':
+    'Application “{name}” was saved, but the deployment failed: {message}',
+
+  'review.label': 'What will run',
+  'review.label.proposal': ' — the model’s proposal, to approve',
+  'form.appSpec.label': 'AppSpec (JSON)',
+  'form.appSpec.label.generated': ' — generated, editable',
+  'form.insertExample': 'Insert an example',
+  'form.origin.note':
+    'The prompt and the generated spec are kept with the application, next to the version you approve.',
+  'form.deployTarget.label': 'Deploy straight away (optional)',
+  'form.deployTarget.none': 'do not deploy now',
+  'form.runtime.label': 'Runtime',
+  'form.submit.pending': 'Validating…',
+  'form.submit.saveAndDeploy': 'Save and deploy the application',
+  'form.submit.save': 'Save the application',
+
+  'review.unnamed': '(unnamed)',
+  'review.services': { one: '{count} service', other: '{count} services' },
+  'review.exposed': 'exposed',
+  'review.port': 'port {port}',
+  'review.health': 'health: {value}',
+  'review.health.port': 'port {port}',
+  'review.health.get': 'GET {path}',
+  'review.health.interval': ', every {seconds} s',
+  'review.health.retries': ', {retries} tries',
+  'review.dependsOn': 'depends on: {list}',
+  'review.secrets': 'secrets: {list}',
+  'review.volumes': 'volumes:',
+  'review.ingress': 'ingress: {host} → {service}{tls}',
+  'review.ingress.noHost': 'no domain name',
+  'review.thirdParty.lead': {
+    one: 'Image published by a third party:',
+    other: 'Images published by third parties:',
+  },
+  'review.thirdParty.tail':
+    '. The panel does not check that a tag exists before deploying — a tag that does not exist fails the rollout when the image is pulled. Check it on the registry first.',
+  'review.floating.lead': 'Floating tag: ',
+  'review.floating.tail':
+    '. A redeploy will not necessarily bring back the same version. Pin it if the project publishes a version tag.',
+  'review.declaredSecrets.lead': {
+    one: 'This spec declares {count} secret —',
+    other: 'This spec declares {count} secrets —',
+  },
+  'review.declaredSecrets.mid': '. Only their',
+  'review.declaredSecrets.names': 'names',
+  'review.declaredSecrets.tail':
+    ' are stored: the panel does not keep their values yet, and will deploy them empty. Services that need them (a database, for instance) will not start until those values are provided on the target.',
+
+  'error.notFound': 'Application “{id}” not found',
+  'error.slugTaken': 'An application “{name}” already exists',
+  'error.enqueueFailed': 'The job got no ID',
+  'error.deploymentEntry': 'v{version} on {target}',
+  'error.liveDeployments': {
+    one: '“{slug}” has {count} deployment still in place: {list}. Delete it as a cascade (POST {path}/cascade) — that destroys it on its target before erasing the application — or destroy it first.',
+    other:
+      '“{slug}” has {count} deployments still in place: {list}. Delete it as a cascade (POST {path}/cascade) — that destroys them on their targets before erasing the application — or destroy them first.',
+  },
+  'error.jobNotFound': 'No job “{jobId}” in the ops queue',
+  'error.jobOtherApplication': 'Job “{jobId}” does not belong to this application',
+  'error.deploymentsInProgress': {
+    one: '{count} deployment of “{slug}” is running: {list}. Wait for it to finish — forcing does not apply to a deployment in flight.',
+    other:
+      '{count} deployments of “{slug}” are running: {list}. Wait for them to finish — forcing does not apply to a deployment in flight.',
+  },
+  'error.confirmationRequired': {
+    one: 'Forcing abandons {count} workload on its machine without stopping it: {list}. Retype “{slug}” into “confirm” to confirm.',
+    other:
+      'Forcing abandons {count} workloads on their machines without stopping them: {list}. Retype “{slug}” into “confirm” to confirm.',
+  },
+  'error.abandonEntry': '{workspace} on {target} ({host}{port})',
+  'error.abandonPort': ', port {port}',
+
+  'error.versionNotFound': 'Version “{id}” not found',
+  'error.versionOtherApplication':
+    'This version belongs to another application: it cannot be replayed here.',
+  'error.versionNoSpec':
+    'Deployment #{version} has no frozen AppSpec: it was recorded before the panel kept each run’s spec, so there is nothing to replay. Deploy the application’s current version instead.',
+  'error.targetNotFound': 'Target “{id}” not found',
+  'error.versionRuntimeUnavailable':
+    'Runtime “{runtime}” of this version is not available on “{target}”. Usable runtimes: {available}.',
+  'error.versionRuntimeUnavailable.none':
+    'Runtime “{runtime}” of this version is not available on “{target}”. No runtime is usable there.',
+
+  'error.aiNoKey':
+    'AI generation is off: no {provider} API key is configured on this panel. Set one under Settings → Artificial intelligence{envVar}.',
+  'error.aiEnvVar': ', or through {variable}',
+  'error.aiDisabled': 'AI generation is off in this instance’s settings.',
+
+  'error.secretAlias':
+    '“{name}” takes the value of “{root}”: it has none of its own. Change “{root}” and both names follow.',
+  'error.secretDeclared':
+    '“{name}” is declared by the current AppSpec: take it out of the spec before deleting its value.',
+  'error.secretNotFound': 'Secret “{name}” not found',
+};
+
+export const applications = { fr, en };

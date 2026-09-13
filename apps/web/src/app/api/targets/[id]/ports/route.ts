@@ -1,7 +1,8 @@
 import { getTarget, getTargetPortReport } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -24,10 +25,10 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const report = await getTargetPortReport(id);
-  if (!report) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!report) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   return NextResponse.json(report);
 });

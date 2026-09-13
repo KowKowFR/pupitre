@@ -7,6 +7,8 @@ import {
 } from '@pupitre/core';
 import { listUnfinishedDeployments, type UnfinishedDeployment } from '@pupitre/db';
 import type { Queue } from 'bullmq';
+import { deployments } from '@/i18n/messages/deployments';
+import { msg, type MessageRef } from '@/lib/errors';
 
 /**
  * Verdict sur un déploiement que la base croit en cours.
@@ -107,23 +109,24 @@ export async function inspectDeployment(
   return verdictFor(deployment, await listLiveJobs(queue), Date.now());
 }
 
-/** Pourquoi on refuse de déclarer ce déploiement figé — phrase montrée telle quelle. */
-export function refusalMessage(verdict: StuckVerdict): string {
-  const minutes = Math.max(1, Math.round(verdict.ageMs / 60_000));
-
+/**
+ * Pourquoi on refuse de déclarer ce déploiement figé.
+ *
+ * Une **référence** et non une phrase : la fonction est synchrone et n'a aucun
+ * moyen d'aller lire la langue de l'instance. C'est `apiRoute()` qui rendra le
+ * texte, comme pour toutes les erreurs du panel.
+ */
+export function refusalMessage(verdict: StuckVerdict): MessageRef {
   if (verdict.job) {
-    return (
-      `Ce déploiement n'est pas figé : sa tâche « ${verdict.job.name} » ` +
-      `(#${verdict.job.id}) est toujours dans la file « ops », à l'état ` +
-      `« ${verdict.job.state} ». Un déploiement peut légitimement durer plusieurs ` +
-      `minutes — un build, le téléchargement d'une grosse image, une application ` +
-      `qui met du temps à répondre. Celui-ci en est à ${minutes} minute(s). ` +
-      `Attendez son verdict, ou détruisez-le une fois qu'il l'aura rendu.`
-    );
+    return msg(deployments, 'unblock.refusal.job', {
+      name: verdict.job.name,
+      id: verdict.job.id,
+      state: verdict.job.state,
+      count: Math.max(1, Math.round(verdict.ageMs / 60_000)),
+    });
   }
 
-  return (
-    `Ce déploiement vient d'être créé (${Math.round(verdict.ageMs / 1000)} s) : sa tâche ` +
-    `n'a peut-être pas encore été enfilée. Réessayez dans une minute.`
-  );
+  return msg(deployments, 'unblock.refusal.tooRecent', {
+    seconds: Math.round(verdict.ageMs / 1000),
+  });
 }

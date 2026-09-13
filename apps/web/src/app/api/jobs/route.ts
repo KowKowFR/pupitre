@@ -1,4 +1,4 @@
-import { SCHEDULED_JOB_TYPES, describeCron, fromCron } from '@pupitre/core';
+import { SCHEDULED_JOB_TYPES, describeCron, fromCron, scheduledJobTypes } from '@pupitre/core';
 import {
   createScheduledJob,
   createScheduledJobSchema,
@@ -9,7 +9,9 @@ import {
   logAudit,
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
-import { ConflictError } from '@/lib/errors';
+import { currentLanguage } from '@/i18n/server';
+import { jobs as messages } from '@/i18n/messages/jobs';
+import { ConflictError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { schedulerStates, syncScheduler } from '@/lib/schedules';
@@ -28,15 +30,17 @@ export const dynamic = 'force-dynamic';
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'job:read');
 
+  const language = await currentLanguage();
   const [rows, states, lastRuns, settings] = await Promise.all([
     listScheduledJobs(),
     schedulerStates(),
     lastRunsByJob(),
     getAppSettingsValue(),
   ]);
+  const types = scheduledJobTypes(language);
 
   const items = rows.map((row) => {
-    const definition = SCHEDULED_JOB_TYPES[row.type];
+    const definition = types[row.type];
     const state = states.get(row.key);
     const lastRun = lastRuns.get(row.id);
     const timeZone = row.timezone;
@@ -50,7 +54,7 @@ export const GET = apiRoute(async (request) => {
       description: definition.description,
       neverDoes: definition.neverDoes,
       cron: row.cron,
-      cronDescription: describeCron(row.cron, { timeZone }),
+      cronDescription: describeCron(row.cron, { locale: language, timeZone }),
       // `null` quand l'expression n'a pas d'équivalent simplifié : l'écran
       // bascule alors en mode expert plutôt que d'afficher une approximation.
       schedule: fromCron(row.cron),
@@ -95,7 +99,7 @@ export const POST = apiRoute(async (request) => {
 
   const key = input.key ?? SCHEDULED_JOB_TYPES[input.type].defaultKey;
   if (await getScheduledJobByKey(key)) {
-    throw new ConflictError(`Une tâche planifiée « ${key} » existe déjà`);
+    throw new ConflictError(msg(messages, 'error.keyTaken', { key }));
   }
 
   const row = await createScheduledJob({ ...input, key });
@@ -122,7 +126,10 @@ export const POST = apiRoute(async (request) => {
       key: row.key,
       type: row.type,
       cron: row.cron,
-      cronDescription: describeCron(row.cron, { timeZone: row.timezone }),
+      cronDescription: describeCron(row.cron, {
+        locale: await currentLanguage(),
+        timeZone: row.timezone,
+      }),
       // `null` quand l'expression n'a pas d'équivalent simplifié : l'écran
       // bascule alors en mode expert plutôt que d'afficher une approximation.
       schedule: fromCron(row.cron),

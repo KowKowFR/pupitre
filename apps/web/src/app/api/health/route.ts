@@ -61,6 +61,8 @@ type HealthPayload = {
  * `OPENROUTER_API_KEY` et annonçait « IA désactivée » à une instance qui
  * générait très bien depuis OpenAI avec une clé en base.
  */
+// i18n-ignore — marqueur interne passé à `resolveAiConfig()` en guise de clé
+// factice, et jamais relu. Ce n'est pas une phrase, c'est une sentinelle.
 const KEY_PRESENT = '(clé enregistrée en base)';
 
 async function probe(name: string, run: () => Promise<unknown>): Promise<ComponentState> {

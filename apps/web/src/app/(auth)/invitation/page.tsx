@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
+import { auth as messages } from '@/i18n/messages/auth';
+import { getT } from '@/i18n/server';
 import { ChoosePasswordForm } from '../choose-password-form';
 
-export const metadata: Metadata = { title: 'Invitation — Pupitre' };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT(messages))('meta.invitation') };
+}
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -19,20 +24,20 @@ export default async function InvitationPage({
   searchParams: Promise<{ token?: string; error?: string }>;
 }) {
   const { token, error } = await searchParams;
+  const t = await getT(messages);
 
   return (
     <ChoosePasswordForm
       token={token ?? null}
       linkError={error ?? null}
       copy={{
-        title: 'Choisissez votre mot de passe',
-        description:
-          'Votre compte est prêt. Il ne lui manque qu’un mot de passe — vous seul le connaîtrez.',
-        submit: 'Activer mon compte',
-        doneTitle: 'Compte activé',
-        doneBody: 'Votre mot de passe est enregistré. Connectez-vous pour entrer dans le panel.',
-        deadTitle: 'Invitation périmée',
-        deadBody: 'Ce lien d’invitation a déjà servi, ou son délai est passé.',
+        title: t('invitation.title'),
+        description: t('invitation.description'),
+        submit: t('invitation.submit'),
+        doneTitle: t('invitation.done.title'),
+        doneBody: t('invitation.done.body'),
+        deadTitle: t('invitation.dead.title'),
+        deadBody: t('invitation.dead.body'),
       }}
     />
   );

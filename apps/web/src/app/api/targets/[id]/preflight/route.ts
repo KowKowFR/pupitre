@@ -2,7 +2,8 @@ import { TARGET_PREFLIGHT_JOB, targetPreflightJobDataSchema } from '@pupitre/cor
 import { getTarget, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { HttpError, NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
@@ -23,7 +24,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const data = targetPreflightJobDataSchema.parse({
     targetId: id,
@@ -38,7 +39,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   });
 
   if (!job.id) {
-    throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+    throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.jobNoId'));
   }
 
   await logAudit({

@@ -75,6 +75,8 @@ function body(call: Call): Record<string, unknown> {
 }
 
 const CTX = {
+  // La langue est un réglage d'instance : le worker la résout et la descend ici.
+  language: 'fr' as const,
   instance: 'Panel de recette',
   panelUrl: 'https://panel.example.test',
   actor: 'admin@example.test',

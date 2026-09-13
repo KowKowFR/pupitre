@@ -1,7 +1,8 @@
 import { logAudit } from '@pupitre/db';
 import { z } from 'zod';
+import { account as messages } from '@/i18n/messages/account';
 import { getAuth } from '@/lib/auth';
-import { HttpError } from '@/lib/errors';
+import { HttpError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { requireSession } from '@/lib/rbac';
@@ -41,7 +42,7 @@ export const POST = apiRoute(async (request) => {
   });
 
   try {
-    await assertBetterAuthOk(response, 'Le changement de mot de passe a été refusé.');
+    await assertBetterAuthOk(response, msg(messages, 'error.passwordChangeRejected'));
   } catch (error) {
     await logAudit({
       actorId: auth.userId,

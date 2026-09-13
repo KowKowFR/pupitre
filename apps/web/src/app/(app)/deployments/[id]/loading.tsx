@@ -1,13 +1,23 @@
+'use client';
+
 import { Skeleton } from '@/components/ui/skeleton';
+import { useT } from '@/i18n/client';
+import { deployments as messages } from '@/i18n/messages/deployments';
 
 /**
  * Attente du suivi de déploiement : la silhouette annonce déjà les deux
  * colonnes, pour que l'écran ne se réorganise pas sous les yeux au moment où
  * les données arrivent.
+ *
+ * Composant client, pour son seul `aria-label` : un `loading.tsx` est le
+ * fallback d'un `Suspense`, et un fallback ne peut pas suspendre — il ne peut
+ * donc pas être `async`, donc pas appeler `getT()`.
  */
 export default function DeploymentLoading() {
+  const t = useT(messages);
+
   return (
-    <div className="flex flex-col gap-6" aria-busy="true" aria-label="Chargement du déploiement">
+    <div className="flex flex-col gap-6" aria-busy="true" aria-label={t('loading.label')}>
       <div className="flex flex-col gap-2.5 border-b border-line pb-5">
         <Skeleton className="h-3 w-28" />
         <Skeleton className="h-7 w-56" />

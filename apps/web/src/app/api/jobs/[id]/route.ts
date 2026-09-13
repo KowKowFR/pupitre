@@ -1,4 +1,4 @@
-import { SCHEDULED_JOB_TYPES, describeCron, fromCron } from '@pupitre/core';
+import { describeCron, fromCron, scheduledJobTypes } from '@pupitre/core';
 import {
   deleteScheduledJob,
   getScheduledJob,
@@ -9,7 +9,9 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { currentLanguage } from '@/i18n/server';
+import { jobs as messages } from '@/i18n/messages/jobs';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { removeScheduler, schedulerStates, syncScheduler } from '@/lib/schedules';
@@ -26,10 +28,11 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const row = await getScheduledJob(id);
-  if (!row) throw new NotFoundError(`Aucune tâche planifiée « ${id} »`);
+  if (!row) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const [runs, states] = await Promise.all([listScheduledJobRuns(id, 20), schedulerStates()]);
-  const definition = SCHEDULED_JOB_TYPES[row.type];
+  const language = await currentLanguage();
+  const definition = scheduledJobTypes(language)[row.type];
   const timeZone = row.timezone;
 
   return NextResponse.json({
@@ -41,7 +44,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     description: definition.description,
     neverDoes: definition.neverDoes,
     cron: row.cron,
-    cronDescription: describeCron(row.cron, { timeZone }),
+    cronDescription: describeCron(row.cron, { locale: language, timeZone }),
     schedule: fromCron(row.cron),
     timeZone,
     // Fuseau réellement mémorisé par BullMQ, pour rendre l'écart visible.
@@ -72,10 +75,10 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const patch = await readJsonBody(request, updateScheduledJobSchema);
 
   const before = await getScheduledJob(id);
-  if (!before) throw new NotFoundError(`Aucune tâche planifiée « ${id} »`);
+  if (!before) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const row = await updateScheduledJob(id, patch);
-  if (!row) throw new NotFoundError(`Aucune tâche planifiée « ${id} »`);
+  if (!row) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   // Base d'abord, Redis ensuite : voir `lib/schedules.ts`. Un changement de
   // fuseau passe par le même `upsertJobScheduler`, qui recalcule la prochaine
@@ -108,7 +111,10 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     key: row.key,
     type: row.type,
     cron: row.cron,
-    cronDescription: describeCron(row.cron, { timeZone: row.timezone }),
+    cronDescription: describeCron(row.cron, {
+      locale: await currentLanguage(),
+      timeZone: row.timezone,
+    }),
     schedule: fromCron(row.cron),
     timeZone: row.timezone,
     payload: row.payload,
@@ -121,7 +127,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const row = await deleteScheduledJob(id);
-  if (!row) throw new NotFoundError(`Aucune tâche planifiée « ${id} »`);
+  if (!row) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   await removeScheduler(row.key);
 

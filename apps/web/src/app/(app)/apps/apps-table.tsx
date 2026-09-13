@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { DeploymentStatus } from '@pupitre/core';
+import { translator, type DeploymentStatus, type Translate } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { servers } from '@/i18n/messages/servers';
 import { cn } from '@/lib/utils';
 
 export type HealthStatus = 'unknown' | 'healthy' | 'unhealthy' | 'unreachable';
@@ -56,11 +59,13 @@ export type SupervisedRow = {
 
 type ApiError = { error?: { message?: string } };
 
-const HEALTH_LABEL: Record<HealthStatus, string> = {
-  healthy: 'en marche',
-  unhealthy: 'répond mal',
-  unreachable: 'injoignable',
-  unknown: 'état inconnu',
+type T = Translate<typeof servers.fr>;
+
+const HEALTH_KEY: Record<HealthStatus, keyof typeof servers.fr> = {
+  healthy: 'health.healthy',
+  unhealthy: 'health.unhealthy',
+  unreachable: 'health.unreachable',
+  unknown: 'health.unknown',
 };
 
 /**
@@ -72,6 +77,7 @@ const HEALTH_LABEL: Record<HealthStatus, string> = {
  * donc une seule convention de lecture à apprendre.
  */
 export function HealthDot({ health, label }: { health: HealthStatus; label?: string }) {
+  const t = useT(servers);
   const tone = {
     healthy: 'bg-ok',
     unhealthy: 'bg-warn',
@@ -82,18 +88,26 @@ export function HealthDot({ health, label }: { health: HealthStatus; label?: str
   return (
     <span className="inline-flex items-center gap-2">
       <span className={cn('inline-block size-2 shrink-0 rounded-full', tone)} aria-hidden="true" />
-      <span className="text-xs">{label ?? HEALTH_LABEL[health]}</span>
+      <span className="text-xs">{label ?? t(HEALTH_KEY[health])}</span>
     </span>
   );
 }
 
-export function formatSince(iso: string | null): string {
-  if (!iso) return '—';
+/**
+ * Le français, figé, pour les appelants qui n'ont pas encore de `t` sous la
+ * main — les écrans de supervision de sites importent cette fonction et sont
+ * traduits à part. Ils obtiennent exactement la chaîne d'avant tant qu'ils ne
+ * passent rien ; le jour où ils passent leur `t`, la fonction suit.
+ */
+const sinceInFrench = translator(servers, 'fr');
+
+export function formatSince(iso: string | null, t: T = sinceInFrench): string {
+  if (!iso) return t('since.none');
   const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (seconds < 60) return `${seconds} s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} h`;
-  return `${Math.floor(seconds / 86400)} j`;
+  if (seconds < 60) return t('since.seconds', { count: seconds });
+  if (seconds < 3600) return t('since.minutes', { count: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('since.hours', { count: Math.floor(seconds / 3600) });
+  return t('since.days', { count: Math.floor(seconds / 86400) });
 }
 
 /**
@@ -111,6 +125,8 @@ export function AppsTable({
   items: SupervisedRow[];
   canRestart: boolean;
 }) {
+  const t = useT(servers);
+  const shared = useT(common);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -118,9 +134,10 @@ export function AppsTable({
   async function restart(app: SupervisedRow) {
     if (
       !window.confirm(
-        `Redémarrer « ${app.applicationSlug} » sur ${app.targetName} ?\n\n` +
-          'Les conteneurs sont relancés avec les mêmes images et les mêmes volumes. ' +
-          "L'application sera brièvement indisponible.",
+        `${t('restart.confirm', {
+          app: app.applicationSlug,
+          target: app.targetName,
+        })}\n\n${t('restart.confirm.detail')}`,
       )
     ) {
       return;
@@ -132,7 +149,7 @@ export function AppsTable({
     const response = await fetch(`/api/apps/${app.id}/restart`, { method: 'POST' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? shared('http.failure', { status: response.status }));
       setBusy(null);
       return;
     }
@@ -149,11 +166,11 @@ export function AppsTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Application</TableHead>
-            <TableHead>État</TableHead>
-            <TableHead>En ligne depuis</TableHead>
-            <TableHead>Adresse</TableHead>
-            <TableActionsHead>Actions</TableActionsHead>
+            <TableHead>{t('column.application')}</TableHead>
+            <TableHead>{shared('column.state')}</TableHead>
+            <TableHead>{t('column.uptime')}</TableHead>
+            <TableHead>{t('column.address')}</TableHead>
+            <TableActionsHead>{shared('column.actions')}</TableActionsHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -167,8 +184,8 @@ export function AppsTable({
                   {app.applicationSlug}
                 </Link>
                 <div className="text-ink-faint font-mono text-xs">
-                  v{app.version} · {app.services.length} service
-                  {app.services.length > 1 ? 's' : ''} · {app.runtime}
+                  v{app.version} · {t('row.services', { count: app.services.length })} ·{' '}
+                  {app.runtime}
                 </div>
               </TableCell>
 
@@ -176,30 +193,30 @@ export function AppsTable({
                 <HealthDot health={app.healthStatus} />
                 {app.status === 'rolled_back' ? (
                   <Badge variant="warn" className="mt-1 text-[10px]">
-                    version restaurée
+                    {t('row.restored')}
                   </Badge>
                 ) : null}
                 {app.lastFailedUpdate ? (
                   <div className="mt-1">
                     <Link href={`/deployments/${app.lastFailedUpdate.deploymentId}`}>
                       <Badge variant="destructive" className="text-[10px]">
-                        dernière mise à jour échouée
+                        {t('row.updateFailed')}
                       </Badge>
                     </Link>
                     <div className="text-ink-faint mt-1 text-[10px]">
                       v{app.lastFailedUpdate.version}
                       {app.lastFailedUpdate.failedStep
-                        ? ` · étape ${app.lastFailedUpdate.failedStep}`
+                        ? t('row.failedStep', { step: app.lastFailedUpdate.failedStep })
                         : ''}
-                      {app.lastFailedUpdate.mayHaveReplacedServices
-                        ? ' · les conteneurs ont pu être remplacés'
-                        : ''}
+                      {app.lastFailedUpdate.mayHaveReplacedServices ? t('row.replaced') : ''}
                     </div>
                   </div>
                 ) : null}
               </TableCell>
 
-              <TableCell className="font-mono text-xs">{formatSince(app.startedAt)}</TableCell>
+              <TableCell className="font-mono text-xs">
+                {formatSince(app.startedAt, t)}
+              </TableCell>
 
               <TableCell className="font-mono text-xs">
                 {app.url ? (
@@ -213,7 +230,7 @@ export function AppsTable({
 
               <TableActions className="space-x-2 whitespace-nowrap">
                 <Button asChild size="sm" variant="outline">
-                  <Link href={`/apps/${app.id}`}>Logs</Link>
+                  <Link href={`/apps/${app.id}`}>{t('action.logs')}</Link>
                 </Button>
                 {canRestart ? (
                   <Button
@@ -222,7 +239,7 @@ export function AppsTable({
                     disabled={busy === app.id}
                     onClick={() => void restart(app)}
                   >
-                    {busy === app.id ? 'Envoi…' : 'Redémarrer'}
+                    {busy === app.id ? t('action.restart.busy') : t('action.restart')}
                   </Button>
                 ) : null}
               </TableActions>

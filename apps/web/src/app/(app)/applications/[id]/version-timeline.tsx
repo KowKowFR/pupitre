@@ -8,6 +8,10 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { applications as messages } from '@/i18n/messages/applications';
+import type { FormatSettings } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DeploymentStatusBadge, formatDate } from '../../deployments/status-badge';
 
@@ -47,13 +51,18 @@ export function VersionTimeline({
   versions,
   targets,
   canRedeploy,
+  format,
 }: {
   applicationId: string;
   applicationSlug: string;
   versions: VersionRow[];
   targets: RedeployTarget[];
   canRedeploy: boolean;
+  /** Le formatage descend par props : la timeline est cliente, la locale non. */
+  format: FormatSettings;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -61,13 +70,15 @@ export function VersionTimeline({
 
   async function redeploy(version: VersionRow) {
     const targetId = selection[version.deploymentId] ?? version.targetId;
-    const targetName = targets.find((target) => target.id === targetId)?.name ?? 'la cible choisie';
+    const targetName =
+      targets.find((target) => target.id === targetId)?.name ?? t('redeploy.chosenTarget');
 
     const confirmed = window.confirm(
-      `Redéployer « ${applicationSlug} » dans sa version ${version.appVersion ?? `#${version.version}`} ` +
-        `sur ${targetName} ?\n\n` +
-        "L'AppSpec figée à l'époque sera rejouée telle quelle — l'application actuelle " +
-        "n'est pas utilisée.",
+      t('redeploy.confirm', {
+        slug: applicationSlug,
+        version: version.appVersion ?? `#${version.version}`,
+        target: targetName,
+      }),
     );
     if (!confirmed) return;
 
@@ -82,7 +93,7 @@ export function VersionTimeline({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       setBusy(null);
       return;
     }
@@ -95,8 +106,7 @@ export function VersionTimeline({
     return (
       <Card>
         <CardContent className="text-muted-foreground py-10 text-center text-sm">
-          Cette application n&apos;a jamais été déployée. Le bouton « Déployer » de la liste des
-          applications en produit la première version ; elle apparaîtra ici.
+          {t('versions.never')}
         </CardContent>
       </Card>
     );
@@ -138,7 +148,7 @@ export function VersionTimeline({
                   >
                     #{version.version}
                   </Link>
-                  <span className="font-mono text-xs">{version.appVersion ?? '—'}</span>
+                  <span className="font-mono text-xs">{version.appVersion ?? tc('none')}</span>
                   <DeploymentStatusBadge status={version.status} />
                   <span className="text-muted-foreground font-mono text-xs">
                     {version.targetName} · {version.runtime}
@@ -147,7 +157,7 @@ export function VersionTimeline({
                 </div>
 
                 <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 font-mono text-[11px]">
-                  <span>{formatDate(version.createdAt)}</span>
+                  <span>{formatDate(version.createdAt, format)}</span>
                   {version.triggeredByEmail ? <span>{version.triggeredByEmail}</span> : null}
                   {version.imageTag ? <span className="truncate">{version.imageTag}</span> : null}
                   {version.url ? (
@@ -186,15 +196,15 @@ export function VersionTimeline({
                       disabled={busy !== null}
                       onClick={() => void redeploy(version)}
                     >
-                      {busy === version.deploymentId ? 'Envoi…' : 'Redéployer cette version'}
+                      {busy === version.deploymentId
+                        ? t('action.sending')
+                        : t('redeploy.action')}
                     </Button>
                   </div>
                 ) : null}
 
                 {canRedeploy && !version.redeployable ? (
-                  <p className="text-muted-foreground text-xs">
-                    Aucune AppSpec figée sur ce déploiement : rien à rejouer.
-                  </p>
+                  <p className="text-muted-foreground text-xs">{t('redeploy.impossible')}</p>
                 ) : null}
               </div>
             </li>

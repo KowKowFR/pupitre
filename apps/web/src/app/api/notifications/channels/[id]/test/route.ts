@@ -1,7 +1,8 @@
 import { getNotificationChannel, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { notifications } from '@/i18n/messages/notifications';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { runChannelTest } from '@/lib/notifications';
 import { requirePermission } from '@/lib/rbac';
@@ -33,7 +34,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const channel = await getNotificationChannel(id);
-  if (!channel) throw new NotFoundError(`Canal « ${id} » introuvable`);
+  if (!channel) throw new NotFoundError(msg(notifications, 'error.channelNotFound', { id }));
 
   const result = await runChannelTest(id, auth.userId, auth.ip);
 

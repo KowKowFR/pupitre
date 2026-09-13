@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { HostMetrics } from '@pupitre/core';
+import type { HostMetrics, Translate } from '@pupitre/core';
+import { useT } from '@/i18n/client';
+import { servers } from '@/i18n/messages/servers';
 
 /**
  * Relevé des métriques d'hôte, côté navigateur.
@@ -44,25 +46,34 @@ const CONCURRENCY = 2;
 /**
  * Interrogation nue. Hors du composant, donc stable : elle ne touche à aucun
  * état et peut être appelée depuis un effet sans provoquer de rendu.
+ *
+ * Le `t` est passé en argument plutôt que lu ici : la fonction reste hors du
+ * composant, et c'est ce qui lui permet d'être appelée depuis un effet sans
+ * entrer dans ses dépendances.
  */
-async function probeOnce(targetId: string): Promise<MetricsEntry> {
+async function probeOnce(
+  targetId: string,
+  t: Translate<typeof servers.fr>,
+): Promise<MetricsEntry> {
   try {
     const response = await fetch(`/api/targets/${targetId}/metrics`, { cache: 'no-store' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       return {
         state: 'error',
-        message: body.error?.message ?? `Relevé impossible (HTTP ${response.status})`,
+        message:
+          body.error?.message ?? t('readout.failed.http', { status: response.status }),
         at: Date.now(),
       };
     }
     return { state: 'ready', metrics: (await response.json()) as HostMetrics, at: Date.now() };
   } catch {
-    return { state: 'error', message: 'Le panel est injoignable', at: Date.now() };
+    return { state: 'error', message: t('panel.unreachable'), at: Date.now() };
   }
 }
 
 export function useHostMetrics(targetIds: string[], enabled: boolean) {
+  const t = useT(servers);
   const [entries, setEntries] = useState<Record<string, MetricsEntry>>({});
   // Cibles déjà relevées au moins une fois : le premier relevé ne se rejoue pas
   // à chaque `router.refresh()` déclenché par une action sur la page.
@@ -88,7 +99,7 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
         for (;;) {
           const id = queue.shift();
           if (id === undefined) return;
-          const entry = await probeOnce(id);
+          const entry = await probeOnce(id, t);
           if (cancelled) return;
           setEntries((current) => ({ ...current, [id]: entry }));
         }
@@ -98,15 +109,18 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [idsKey, enabled]);
+  }, [idsKey, enabled, t]);
 
   /** Redemande un relevé. Appelé depuis un gestionnaire d'événement, jamais d'un effet. */
-  const refresh = useCallback(async (targetId: string) => {
-    requested.current.add(targetId);
-    setEntries((current) => ({ ...current, [targetId]: { state: 'loading' } }));
-    const entry = await probeOnce(targetId);
-    setEntries((current) => ({ ...current, [targetId]: entry }));
-  }, []);
+  const refresh = useCallback(
+    async (targetId: string) => {
+      requested.current.add(targetId);
+      setEntries((current) => ({ ...current, [targetId]: { state: 'loading' } }));
+      const entry = await probeOnce(targetId, t);
+      setEntries((current) => ({ ...current, [targetId]: entry }));
+    },
+    [t],
+  );
 
   const refreshAll = useCallback(async () => {
     const ids = idsKey.split(',').filter((id) => id !== '');
@@ -121,12 +135,12 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
         for (;;) {
           const id = queue.shift();
           if (id === undefined) return;
-          const entry = await probeOnce(id);
+          const entry = await probeOnce(id, t);
           setEntries((current) => ({ ...current, [id]: entry }));
         }
       }),
     );
-  }, [idsKey]);
+  }, [idsKey, t]);
 
   return { entries, refresh, refreshAll };
 }

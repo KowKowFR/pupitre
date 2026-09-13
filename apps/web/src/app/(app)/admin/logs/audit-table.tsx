@@ -1,25 +1,42 @@
 import Link from 'next/link';
 import type { AuditLogPage } from '@pupitre/db';
+import type { Translate } from '@pupitre/core';
 import { EmptyState } from '@/components/empty-state';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { admin } from '@/i18n/messages/admin';
+import { common } from '@/i18n/messages/common';
+import { getT } from '@/i18n/server';
 import { createDateFormatter, type FormatSettings } from '@/lib/format';
 
 const DENIAL_ACTIONS = new Set(['permission.denied', 'auth.login.failed', 'auth.signup.blocked']);
 
-export function AuditTable({ page, format }: { page: AuditLogPage; format: FormatSettings }) {
+/**
+ * Le journal se lit, il ne se traduit pas.
+ *
+ * Une entrée ne porte que des données : un nom d'action (`deployment.created`),
+ * un type de ressource, un identifiant, une IP, une charge utile JSON. Aucune
+ * n'est de la prose, et traduire à l'écriture aurait figé la langue de la trace
+ * pour toujours. Ce qui se traduit ici, c'est le décor : en-têtes, pagination,
+ * état vide, « système / anonyme », la note de fuseau.
+ */
+export async function AuditTable({
+  page,
+  format,
+}: {
+  page: AuditLogPage;
+  format: FormatSettings;
+}) {
+  const t = await getT(admin);
+  const c = await getT(common);
+
   // Un seul formateur pour toute la table plutôt qu'un `Intl.DateTimeFormat`
   // reconstruit à chaque ligne.
   const formatDate = createDateFormatter(format);
 
   if (page.items.length === 0) {
-    return (
-      <EmptyState
-        title="Aucune entrée"
-        hint="Aucun événement ne correspond à ces filtres. Élargissez la plage de dates ou effacez le filtre d'action."
-      />
-    );
+    return <EmptyState title={t('logs.empty.title')} hint={t('logs.empty.hint')} />;
   }
 
   return (
@@ -28,12 +45,12 @@ export function AuditTable({ page, format }: { page: AuditLogPage; format: Forma
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Acteur</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Ressource</TableHead>
-              <TableHead>IP</TableHead>
-              <TableHead>Détail</TableHead>
+              <TableHead>{c('column.date')}</TableHead>
+              <TableHead>{t('logs.column.actor')}</TableHead>
+              <TableHead>{t('logs.column.action')}</TableHead>
+              <TableHead>{t('logs.column.resource')}</TableHead>
+              <TableHead>{t('logs.column.ip')}</TableHead>
+              <TableHead>{c('column.detail')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -44,7 +61,7 @@ export function AuditTable({ page, format }: { page: AuditLogPage; format: Forma
                 </TableCell>
                 <TableCell className="text-xs text-ink">
                   {item.actorEmail ?? (
-                    <span className="text-ink-faint italic">système / anonyme</span>
+                    <span className="text-ink-faint italic">{t('logs.anonymous')}</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -62,24 +79,34 @@ export function AuditTable({ page, format }: { page: AuditLogPage; format: Forma
                     <span className="font-mono text-ink-faint"> · {item.resourceId}</span>
                   ) : null}
                 </TableCell>
-                <TableCell className="font-mono text-xs text-ink-faint">{item.ip ?? '—'}</TableCell>
+                <TableCell className="font-mono text-xs text-ink-faint">
+                  {item.ip ?? c('none')}
+                </TableCell>
                 <TableCell className="max-w-xs truncate font-mono text-[0.6875rem] text-ink-faint">
-                  {item.after ? JSON.stringify(item.after) : '—'}
+                  {item.after ? JSON.stringify(item.after) : c('none')}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
 
-        <p className="text-ink-faint text-xs">Horodatages en {format.timezone}.</p>
+        <p className="text-ink-faint text-xs">
+          {t('logs.timezone', { timezone: format.timezone })}
+        </p>
       </CardContent>
 
-      <Pagination page={page} />
+      <Pagination page={page} c={c} />
     </Card>
   );
 }
 
-function Pagination({ page }: { page: AuditLogPage }) {
+function Pagination({
+  page,
+  c,
+}: {
+  page: AuditLogPage;
+  c: Translate<typeof common.fr>;
+}) {
   if (page.totalPages <= 1) return null;
 
   const link = (target: number) => `/admin/logs?page=${target}&pageSize=${page.pageSize}`;
@@ -87,7 +114,7 @@ function Pagination({ page }: { page: AuditLogPage }) {
   return (
     <CardFooter className="flex items-center justify-between text-xs">
       <span className="font-mono text-ink-faint tabular-nums">
-        Page {page.page} sur {page.totalPages}
+        {c('page.position', { page: page.page, total: page.totalPages })}
       </span>
       <div className="flex gap-4">
         {page.page > 1 ? (
@@ -95,7 +122,7 @@ function Pagination({ page }: { page: AuditLogPage }) {
             href={link(page.page - 1)}
             className="text-ink-muted transition-colors hover:text-signal"
           >
-            ← Précédente
+            {c('page.previous')}
           </Link>
         ) : null}
         {page.page < page.totalPages ? (
@@ -103,7 +130,7 @@ function Pagination({ page }: { page: AuditLogPage }) {
             href={link(page.page + 1)}
             className="text-ink-muted transition-colors hover:text-signal"
           >
-            Suivante →
+            {c('page.next')}
           </Link>
         ) : null}
       </div>

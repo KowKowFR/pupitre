@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw, Trash2, ArrowUpCircle, Lock } from 'lucide-react';
-import type { ServiceState, Workload } from '@pupitre/core';
+import type { ServiceState, Translate, Workload } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { targets as messages } from '@/i18n/messages/targets';
 import { cn } from '@/lib/utils';
 
 /**
@@ -27,6 +30,11 @@ import { cn } from '@/lib/utils';
  * runtime la nomme — « conteneur », « deployment », « pod » — parce que c'est le
  * driver qui a rempli le champ `kind`. L'interface parle donc la langue de la
  * machine sans que le code n'ait à deviner de quel runtime il s'agit.
+ *
+ * Le driver pose une **clé** (`container`, `pod`, `deployment`, …), pas un mot :
+ * c'est ici, et nulle part ailleurs, qu'elle devient une phrase — sans quoi un
+ * panel anglais demanderait « Remove conteneur "x"? ». Un genre venu d'un
+ * runtime que ce dictionnaire ne connaît pas s'affiche tel quel.
  */
 
 type WorkloadRow = Workload & { ref: string };
@@ -50,15 +58,6 @@ type ApiError = { error?: { message?: string } };
 
 type Progress = { ref: string; name: string; lines: string[]; done: boolean; failed: boolean };
 
-const STATE_LABEL: Record<ServiceState, string> = {
-  running: 'en marche',
-  restarting: 'redémarre',
-  exited: 'arrêtée',
-  paused: 'en pause',
-  created: 'créée',
-  unknown: 'inconnu',
-};
-
 const STATE_TONE: Record<ServiceState, string> = {
   running: 'bg-ok',
   restarting: 'bg-warn',
@@ -68,10 +67,28 @@ const STATE_TONE: Record<ServiceState, string> = {
   unknown: 'bg-ink-faint',
 };
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+/**
+ * Les genres de charge que ce panel sait nommer. Une clé absente d'ici n'est
+ * pas une erreur : c'est un runtime plus récent que ce dictionnaire, et son mot
+ * brut vaut mieux qu'une clé affichée à l'écran.
+ */
+const KNOWN_KINDS = ['container', 'pod', 'deployment', 'statefulset', 'daemonset'] as const;
+type KnownKind = (typeof KNOWN_KINDS)[number];
+
+function isKnownKind(kind: string): kind is KnownKind {
+  return (KNOWN_KINDS as readonly string[]).includes(kind);
+}
+
+type Messages = Translate<(typeof messages)['fr']>;
+
+function kindLabel(kind: string, t: Messages): string {
+  return isKnownKind(kind) ? t(`workload.kind.${kind}`) : kind;
+}
+
+function formatDate(iso: string | null, none: string): string {
+  if (!iso) return none;
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '—' : date.toISOString().slice(0, 16).replace('T', ' ');
+  return Number.isNaN(date.getTime()) ? none : date.toISOString().slice(0, 16).replace('T', ' ');
 }
 
 export function WorkloadsPanel({
@@ -82,6 +99,8 @@ export function WorkloadsPanel({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const t = useT(messages);
+  const tc = useT(common);
   const [inventory, setInventory] = useState<Inventory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,10 +114,12 @@ export function WorkloadsPanel({
     const response = await fetch(`/api/targets/${targetId}/workloads`, { cache: 'no-store' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      throw new Error(body.error?.message ?? `Inventaire impossible (HTTP ${response.status})`);
+      throw new Error(
+        body.error?.message ?? t('workloads.error.http', { status: response.status }),
+      );
     }
     return (await response.json()) as Inventory;
-  }, [targetId]);
+  }, [targetId, t]);
 
   const apply = useCallback((result: Inventory | Error) => {
     if (result instanceof Error) {
@@ -116,9 +137,9 @@ export function WorkloadsPanel({
     try {
       apply(await fetchInventory());
     } catch (cause) {
-      apply(cause instanceof Error ? cause : new Error('Inventaire impossible'));
+      apply(cause instanceof Error ? cause : new Error(t('workloads.error.plain')));
     }
-  }, [apply, fetchInventory]);
+  }, [apply, fetchInventory, t]);
 
   // Premier chargement : les mises à jour d'état n'ont lieu que dans les
   // rappels de la promesse, jamais dans le corps de l'effet.
@@ -129,13 +150,15 @@ export function WorkloadsPanel({
         if (!cancelled) apply(result);
       },
       (cause: unknown) => {
-        if (!cancelled) apply(cause instanceof Error ? cause : new Error('Inventaire impossible'));
+        if (!cancelled) {
+          apply(cause instanceof Error ? cause : new Error(t('workloads.error.plain')));
+        }
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [apply, fetchInventory]);
+  }, [apply, fetchInventory, t]);
 
   const closeStream = useCallback(() => {
     source.current?.close();
@@ -187,12 +210,7 @@ export function WorkloadsPanel({
                 }
               : current,
           );
-          if (failed)
-            setError(
-              payload.detail ??
-                "La machine a refusé l'opération sans dire pourquoi. Le journal ci-dessus porte " +
-                  'la sortie brute du worker ; « Rafraîchir » redonne l’état réel de la machine.',
-            );
+          if (failed) setError(payload.detail ?? t('workloads.error.silent'));
           closeStream();
           setBusy(null);
           void reload();
@@ -200,19 +218,19 @@ export function WorkloadsPanel({
         });
         stream.onerror = () => resolve();
       }),
-    [closeStream, reload, router, targetId],
+    [closeStream, reload, router, t, targetId],
   );
 
   async function act(workload: WorkloadRow, action: 'remove' | 'update') {
-    const noun = workload.kind;
-    const question =
-      action === 'remove'
-        ? `Supprimer le ${noun} « ${workload.name} » de cette machine ?\n\n` +
-          `Image : ${workload.image ?? 'inconnue'}\n` +
-          'Cette suppression est définitive. Les volumes nommés, eux, sont conservés.'
-        : `Mettre à jour le ${noun} « ${workload.name} » ?\n\n` +
-          `L'image ${workload.image ?? 'inconnue'} est retirée à sa version la plus récente, ` +
-          'puis la charge est recréée avec la même configuration. Elle sera brièvement indisponible.';
+    // `kind` vient du driver — `container`, `pod`, `deployment` : c'est le
+    // runtime qui nomme la chose, pas le panel. Il entre dans la phrase avec le
+    // mot de la langue courante, jamais avec la clé.
+    const vars = {
+      kind: kindLabel(workload.kind, t),
+      name: workload.name,
+      image: workload.image ?? t('image.unknown'),
+    };
+    const question = t(action === 'remove' ? 'confirm.remove' : 'confirm.update', vars);
 
     if (!window.confirm(question)) return;
 
@@ -228,7 +246,7 @@ export function WorkloadsPanel({
     const response = await fetch(url, { method: action === 'remove' ? 'DELETE' : 'POST' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       setBusy(null);
       setProgress(null);
       closeStream();
@@ -241,16 +259,22 @@ export function WorkloadsPanel({
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div className="space-y-1.5">
-          <CardTitle>Ce qui tourne sur cette machine</CardTitle>
+          <CardTitle>{t('workloads.title')}</CardTitle>
+          {/* Trois fragments : deux décomptes qui s'accordent chacun de leur
+              côté, et la date du relevé. */}
           <CardDescription>
             {inventory
-              ? `${inventory.total} charge${inventory.total > 1 ? 's' : ''}, dont ${inventory.managed} déployée${inventory.managed > 1 ? 's' : ''} par le panel · relevé du ${formatDate(inventory.checkedAt)}`
-              : 'Inventaire pris en direct sur la machine, par le worker.'}
+              ? `${t('workloads.count', { count: inventory.total })}, ${t('workloads.managed', {
+                  count: inventory.managed,
+                })} · ${t('workloads.readout', {
+                  date: formatDate(inventory.checkedAt, tc('none')),
+                })}`
+              : t('workloads.subtitle')}
           </CardDescription>
         </div>
         <Button variant="outline" size="sm" onClick={() => void reload()} disabled={loading}>
           <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
-          Rafraîchir
+          {tc('refresh')}
         </Button>
       </CardHeader>
 
@@ -261,7 +285,10 @@ export function WorkloadsPanel({
           .filter((report) => !report.ok)
           .map((report) => (
             <Alert key={report.runtime} variant="destructive">
-              {report.runtime} n&apos;a rien pu dire : {report.error}
+              {t('workloads.runtimeError', {
+                runtime: report.runtime,
+                error: report.error ?? '',
+              })}
             </Alert>
           ))}
 
@@ -269,33 +296,37 @@ export function WorkloadsPanel({
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs">
               <Badge variant={progress.failed ? 'destructive' : 'secondary'}>
-                {progress.done ? (progress.failed ? 'échec' : 'terminé') : 'en cours'}
+                {progress.done
+                  ? progress.failed
+                    ? t('progress.failed')
+                    : t('progress.done')
+                  : t('progress.running')}
               </Badge>
               <span className="text-muted-foreground font-mono">{progress.name}</span>
             </div>
             <pre className="bg-muted/40 max-h-48 overflow-auto rounded-md border p-2 font-mono text-[10px]">
-              {progress.lines.length > 0 ? progress.lines.join('\n') : 'en attente du worker…'}
+              {progress.lines.length > 0 ? progress.lines.join('\n') : t('progress.waiting')}
             </pre>
           </div>
         ) : null}
 
         {loading && items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Interrogation de la machine…</p>
+          <p className="text-muted-foreground text-sm">{t('workloads.loading')}</p>
         ) : items.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            {error ? 'Inventaire indisponible.' : 'Rien ne tourne sur cette machine.'}
+            {error ? t('workloads.unavailable') : t('workloads.empty')}
           </p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Charge</TableHead>
-                <TableHead>Origine</TableHead>
-                <TableHead>Image</TableHead>
-                <TableHead>État</TableHead>
-                <TableHead>Ports</TableHead>
-                <TableHead>Créée le</TableHead>
-                {canManage ? <TableActionsHead>Actions</TableActionsHead> : null}
+                <TableHead>{t('column.workload')}</TableHead>
+                <TableHead>{t('column.origin')}</TableHead>
+                <TableHead>{t('column.image')}</TableHead>
+                <TableHead>{tc('column.state')}</TableHead>
+                <TableHead>{t('column.ports')}</TableHead>
+                <TableHead>{t('column.createdAt')}</TableHead>
+                {canManage ? <TableActionsHead>{tc('column.actions')}</TableActionsHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -304,7 +335,7 @@ export function WorkloadsPanel({
                   <TableCell>
                     <div className="font-mono text-xs">{workload.name}</div>
                     <div className="text-ink-faint text-[10px]">
-                      {workload.kind}
+                      {kindLabel(workload.kind, t)}
                       {workload.scope ? ` · ${workload.scope}` : ''}
                     </div>
                   </TableCell>
@@ -313,15 +344,17 @@ export function WorkloadsPanel({
                     {workload.managed ? (
                       <Badge variant="secondary" className="gap-1">
                         <Lock className="size-3" aria-hidden="true" />
-                        panel
+                        {t('origin.panel')}
                         {workload.managedApp ? ` · ${workload.managedApp}` : ''}
                       </Badge>
                     ) : (
-                      <Badge variant="outline">hors panel</Badge>
+                      <Badge variant="outline">{t('origin.outside')}</Badge>
                     )}
                   </TableCell>
 
-                  <TableCell className="font-mono text-[11px]">{workload.image ?? '—'}</TableCell>
+                  <TableCell className="font-mono text-[11px]">
+                    {workload.image ?? tc('none')}
+                  </TableCell>
 
                   <TableCell>
                     <span className="inline-flex items-center gap-2">
@@ -332,7 +365,7 @@ export function WorkloadsPanel({
                         )}
                         aria-hidden="true"
                       />
-                      <span className="text-xs">{STATE_LABEL[workload.state]}</span>
+                      <span className="text-xs">{t(`state.${workload.state}`)}</span>
                     </span>
                     {workload.since ? (
                       <div className="text-ink-faint text-[10px]">{workload.since}</div>
@@ -340,11 +373,11 @@ export function WorkloadsPanel({
                   </TableCell>
 
                   <TableCell className="font-mono text-[11px]">
-                    {workload.ports.length > 0 ? workload.ports.join(', ') : '—'}
+                    {workload.ports.length > 0 ? workload.ports.join(', ') : tc('none')}
                   </TableCell>
 
                   <TableCell className="text-muted-foreground font-mono text-[11px]">
-                    {formatDate(workload.createdAt)}
+                    {formatDate(workload.createdAt, tc('none'))}
                   </TableCell>
 
                   {canManage ? (
@@ -353,7 +386,7 @@ export function WorkloadsPanel({
                         // Dire pourquoi le geste est absent vaut mieux que de
                         // laisser croire à un oubli.
                         <span className="text-ink-faint text-[11px]">
-                          gérée par le panel — passez par son déploiement
+                          {t('workloads.managedNotice')}
                         </span>
                       ) : (
                         <div className="flex justify-end gap-2">
@@ -364,7 +397,7 @@ export function WorkloadsPanel({
                             onClick={() => void act(workload, 'update')}
                           >
                             <ArrowUpCircle className="size-3.5" />
-                            Mettre à jour
+                            {t('action.update')}
                           </Button>
                           <Button
                             variant="destructive"
@@ -373,7 +406,7 @@ export function WorkloadsPanel({
                             onClick={() => void act(workload, 'remove')}
                           >
                             <Trash2 className="size-3.5" />
-                            Supprimer
+                            {tc('delete')}
                           </Button>
                         </div>
                       )}

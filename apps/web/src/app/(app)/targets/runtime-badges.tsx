@@ -45,13 +45,6 @@ export function RuntimeBadges({ runtimes }: { runtimes: RuntimesAvailable }) {
   );
 }
 
-const STATUS_LABEL: Record<TargetHealth, string> = {
-  unknown: 'jamais testée',
-  ok: 'opérationnelle',
-  degraded: 'dégradée',
-  unreachable: 'injoignable',
-};
-
 const STATUS_VARIANT = {
   unknown: 'outline',
   ok: 'ok',
@@ -59,15 +52,28 @@ const STATUS_VARIANT = {
   unreachable: 'destructive',
 } as const;
 
-export function StatusBadge({ status }: { status: TargetHealth }) {
-  return <Badge variant={STATUS_VARIANT[status]}>{STATUS_LABEL[status]}</Badge>;
+/**
+ * Le libellé arrive en prop, il ne se traduit pas ici.
+ *
+ * Ce module est rendu des deux côtés de la frontière — la table des cibles est
+ * un composant client, la fiche d'une cible un composant serveur — et il
+ * n'existe pas de `t` qui vaille pour les deux. L'appelant, lui, sait toujours
+ * lequel il est : il lit `status.{état}` dans le dictionnaire des cibles.
+ */
+export function StatusBadge({ status, label }: { status: TargetHealth; label: string }) {
+  return <Badge variant={STATUS_VARIANT[status]}>{label}</Badge>;
 }
 
 /**
  * Formatage confié au helper partagé : le fuseau et la locale viennent des
  * paramètres d'instance, pas d'un `Intl.DateTimeFormat` recopié dans chaque
- * table. « jamais » reste le repli propre à une cible jamais testée.
+ * table. Le repli d'une cible jamais testée arrive traduit, pour la même
+ * raison que le libellé du badge.
  */
-export function formatPreflightDate(iso: DateInput, format: FormatSettings): string {
-  return formatDateTime(iso, format, 'jamais');
+export function formatPreflightDate(
+  iso: DateInput,
+  format: FormatSettings,
+  never: string,
+): string {
+  return formatDateTime(iso, format, never);
 }

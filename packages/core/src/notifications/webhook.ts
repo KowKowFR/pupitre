@@ -1,3 +1,9 @@
+import {
+  DEFAULT_UI_LANGUAGE,
+  renderMessage,
+  type Translated,
+  type UiLanguage,
+} from '../i18n.js';
 import type { ChannelConfig } from './catalog.js';
 import { notificationDigestOmitted, type NotificationDigest } from './digest.js';
 import type { NotificationMessage } from './message.js';
@@ -23,6 +29,30 @@ import {
  */
 const PAYLOAD_VERSION = 1;
 
+/**
+ * Les deux seules phrases de ce canal. La charge utile, elle, n'a pas de
+ * langue : c'est du JSON destiné à un programme.
+ */
+const fr = {
+  'probe.none':
+    'Un webhook générique n’offre aucune sonde qui ne soit pas une livraison : ' +
+    'seul l’envoi d’essai ci-dessous prouve que la cible répond.',
+  'error.noUrl': 'aucune URL configurée',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'probe.none':
+    'A plain webhook offers no probe that is not a delivery: only the test send below ' +
+    'proves the target answers.',
+  'error.noUrl': 'no URL configured',
+};
+
+const WEBHOOK_TEXT = { fr, en };
+
+function t(language: UiLanguage, key: keyof typeof fr): string {
+  return renderMessage(WEBHOOK_TEXT, language, key);
+}
+
 function str(config: ChannelConfig, key: string): string {
   const value = config[key];
   return typeof value === 'string' ? value.trim() : '';
@@ -36,10 +66,10 @@ export class WebhookChannel implements NotificationChannel {
     private readonly timeoutMs: number,
   ) {}
 
-  private target(resolved: ResolvedChannelConfig): string {
+  private target(resolved: ResolvedChannelConfig, language: UiLanguage): string {
     const url = str(resolved.config, 'url');
     if (url.length === 0) {
-      throw new NotificationError('aucune URL configurée', this.kind, 'config');
+      throw new NotificationError(t(language, 'error.noUrl'), this.kind, 'config');
     }
     return url;
   }
@@ -66,21 +96,19 @@ export class WebhookChannel implements NotificationChannel {
    * POST lui-même, et le sonder reviendrait à livrer. On le dit plutôt que de
    * prétendre avoir vérifié — c'est l'envoi d'essai qui fait foi ici.
    */
-  test(resolved: ResolvedChannelConfig): Promise<NotificationTestResult> {
-    this.target(resolved);
-    return Promise.resolve({
-      ok: true,
-      detail:
-        'Un webhook générique n’offre aucune sonde qui ne soit pas une livraison : ' +
-        'seul l’envoi d’essai ci-dessous prouve que la cible répond.',
-    });
+  test(
+    resolved: ResolvedChannelConfig,
+    language: UiLanguage = DEFAULT_UI_LANGUAGE,
+  ): Promise<NotificationTestResult> {
+    this.target(resolved, language);
+    return Promise.resolve({ ok: true, detail: t(language, 'probe.none') });
   }
 
   async send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void> {
     await httpCall({
       channel: this.kind,
       fetch: this.fetchImpl,
-      url: this.target(resolved),
+      url: this.target(resolved, message.language),
       method: 'POST',
       timeoutMs: this.timeoutMs,
       secrets: resolved.secrets,
@@ -106,7 +134,7 @@ export class WebhookChannel implements NotificationChannel {
     await httpCall({
       channel: this.kind,
       fetch: this.fetchImpl,
-      url: this.target(resolved),
+      url: this.target(resolved, digest.language),
       method: 'POST',
       timeoutMs: this.timeoutMs,
       secrets: resolved.secrets,

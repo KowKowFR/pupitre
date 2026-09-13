@@ -4,11 +4,14 @@ import { useRouter } from 'next/navigation';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
-import type { DeployLogLine, DeploymentStatus, StepStatus } from '@pupitre/core';
+import { deploymentStepLabel, type DeployLogLine, type DeploymentStatus, type StepStatus } from '@pupitre/core';
 import { Led } from '@/components/instrument';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useLanguage, useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { deployments as messages } from '@/i18n/messages/deployments';
 import { cn } from '@/lib/utils';
 import { DeploymentStatusBadge, StepIcon, formatDuration } from '../status-badge';
 import { SecurityPanel } from './security-panel';
@@ -65,6 +68,8 @@ export function DeploymentDetail({
   deployment: DeploymentView;
   steps: StepView[];
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [deployment, setDeployment] = useState(initial);
   const [steps, setSteps] = useState(initialSteps);
@@ -201,10 +206,18 @@ export function DeploymentDetail({
     if (element) element.scrollTop = element.scrollHeight;
   }, [lines, autoScroll]);
 
-  const runningStep = useMemo(
-    () => steps.find((step) => step.status === 'running')?.label ?? null,
-    [steps],
-  );
+  /**
+   * Le nom d'une étape se rend à partir de sa clé, pas du libellé que la base
+   * a figé au moment d'enfiler le job : sans cela, un pipeline lancé en
+   * français resterait français dans un panel passé à l'anglais. Le libellé
+   * stocké ne sert plus que de dernier recours, pour une étape que le
+   * catalogue ne connaît plus.
+   */
+  const language = useLanguage();
+  const runningStep = useMemo(() => {
+    const running = steps.find((step) => step.status === 'running');
+    return running ? deploymentStepLabel(running.key, language, running.label) : null;
+  }, [steps, language]);
 
   const scanStep = useMemo(() => steps.find((step) => step.key === 'scan') ?? null, [steps]);
   /**
@@ -225,7 +238,7 @@ export function DeploymentDetail({
     const response = await fetch(path, { method: label === 'destroy' ? 'DELETE' : 'POST' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setActionError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setActionError(body.error?.message ?? tc('http.failure', { status: response.status }));
       setAction(null);
       return;
     }
@@ -253,10 +266,10 @@ export function DeploymentDetail({
 
       <div className="flex gap-1 border-b border-line">
         <TabButton active={tab === 'pipeline'} onClick={() => setTab('pipeline')}>
-          Pipeline
+          {t('tab.pipeline')}
         </TabButton>
         <TabButton active={tab === 'security'} onClick={() => setTab('security')}>
-          Sécurité
+          {t('tab.security')}
           {scanStep && scanStep.status !== 'pending' ? (
             <StepIcon status={scanStep.status} className="size-3.5" />
           ) : null}
@@ -269,9 +282,9 @@ export function DeploymentDetail({
         <div className="grid gap-5 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
           <Card className="h-fit gap-0 py-0">
             <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-              <span className="eyebrow text-ink-faint">Pipeline</span>
+              <span className="eyebrow text-ink-faint">{t('pipeline.title')}</span>
               <span className="font-mono text-[0.6875rem] text-ink-muted tabular-nums">
-                {succeeded}/{steps.length} réussies
+                {t('pipeline.succeeded', { done: succeeded, total: steps.length })}
               </span>
             </div>
             <CardContent className="px-3 py-3">
@@ -290,9 +303,9 @@ export function DeploymentDetail({
           <Card className="flex min-h-0 flex-col gap-0 overflow-hidden py-0">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line px-5 py-3.5">
               <div className="flex items-center gap-2">
-                <span className="eyebrow text-ink-faint">Flux de logs</span>
+                <span className="eyebrow text-ink-faint">{t('logs.title')}</span>
                 <span className="font-mono text-[0.6875rem] text-ink-muted tabular-nums">
-                  {lines.length} ligne{lines.length > 1 ? 's' : ''}
+                  {t('logs.lines', { count: lines.length })}
                 </span>
               </div>
               <div className="flex items-center gap-3">
@@ -319,7 +332,7 @@ export function DeploymentDetail({
                       autoScroll ? 'bg-signal' : 'bg-ink-faint/50',
                     )}
                   />
-                  défilement auto
+                  {t('logs.autoScroll')}
                 </label>
               </div>
             </div>
@@ -335,9 +348,7 @@ export function DeploymentDetail({
             >
               {lines.length === 0 ? (
                 <p className="text-terminal-dim">
-                  {isTerminal
-                    ? 'Aucun log conservé pour ce déploiement.'
-                    : 'En attente du worker…'}
+                  {isTerminal ? t('logs.empty.settled') : t('logs.empty.waiting')}
                 </p>
               ) : (
                 lines.map((line, index) => (
@@ -375,6 +386,7 @@ export function DeploymentDetail({
  * colonne, donc l'œil y revient tout seul.
  */
 function StepRow({ step, last }: { step: StepView; last: boolean }) {
+  const language = useLanguage();
   const running = step.status === 'running';
   const done = step.status === 'success';
 
@@ -422,7 +434,7 @@ function StepRow({ step, last }: { step: StepView; last: boolean }) {
             running && 'font-medium text-ink',
           )}
         >
-          {step.label}
+          {deploymentStepLabel(step.key, language, step.label)}
         </div>
         {step.error ? (
           <div className="mt-1 rounded-sm border border-danger-edge bg-danger-soft/50 px-2 py-1 font-mono text-[0.6875rem] leading-relaxed break-words text-danger">
@@ -480,19 +492,20 @@ function TabButton({
  * ce que le flux SSE a rejoué depuis l'ouverture de la page.
  */
 function ExportLinks({ deploymentId }: { deploymentId: string }) {
+  const t = useT(messages);
   const formats = [
-    { value: 'text', label: '.log', hint: 'texte horodaté, lisible' },
-    { value: 'jsonl', label: '.jsonl', hint: 'une ligne = un objet JSON' },
+    { value: 'text', label: '.log', hint: t('logs.export.text') },
+    { value: 'jsonl', label: '.jsonl', hint: t('logs.export.jsonl') },
   ] as const;
 
   return (
     <div className="flex items-center gap-1.5 text-[0.6875rem]">
-      <span className="text-ink-faint">Exporter le journal complet</span>
+      <span className="text-ink-faint">{t('logs.export')}</span>
       {formats.map((format) => (
         <a
           key={format.value}
           href={`/api/deployments/${deploymentId}/logs/export?format=${format.value}`}
-          title={`Toutes les lignes conservées en base pour ce déploiement (${format.hint}) — pas seulement celles affichées ci-dessous.`}
+          title={t('logs.export.title', { hint: format.hint })}
           className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted transition-colors hover:border-signal-edge hover:text-ink"
         >
           {format.label}
@@ -503,11 +516,12 @@ function ExportLinks({ deploymentId }: { deploymentId: string }) {
 }
 
 function ConnectionLabel({ state }: { state: 'connecting' | 'live' | 'closed' | 'error' }) {
+  const t = useT(messages);
   const label = {
-    connecting: 'connexion…',
-    live: 'flux en direct',
-    closed: 'flux terminé',
-    error: 'reconnexion…',
+    connecting: t('connection.connecting'),
+    live: t('connection.live'),
+    closed: t('connection.closed'),
+    error: t('connection.error'),
   }[state];
 
   const tone = state === 'live' ? 'signal' : state === 'error' ? 'danger' : 'idle';
@@ -550,6 +564,8 @@ function StatusBanner({
   onDestroy: () => void;
   onUnblock: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const failed = deployment.status === 'failed';
   const rolledBack = deployment.status === 'rolled_back';
   const running = deployment.status === 'running' || deployment.status === 'pending';
@@ -579,18 +595,18 @@ function StatusBanner({
         </div>
 
         <dl className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <Field label="Durée">
+          <Field label={tc('column.duration')}>
             <span className="tabular-nums">
               {formatDuration(deployment.startedAt, deployment.finishedAt)}
             </span>
           </Field>
           {runningStep ? (
-            <Field label="Étape">
+            <Field label={t('field.step')}>
               <span className="text-signal">{runningStep}…</span>
             </Field>
           ) : null}
           {deployment.url ? (
-            <Field label="Adresse">
+            <Field label={t('field.address')}>
               <a
                 href={deployment.url}
                 target="_blank"
@@ -607,12 +623,12 @@ function StatusBanner({
         <div className="ml-auto flex shrink-0 gap-2">
           {(failed || rolledBack) && deployment.canRollback && deployment.hasPrevious ? (
             <Button size="sm" variant="outline" disabled={action !== null} onClick={onRollback}>
-              {action === 'rollback' ? 'Rollback…' : 'Revenir à la version précédente'}
+              {action === 'rollback' ? t('action.rollback.pending') : t('action.rollback')}
             </Button>
           ) : null}
           {deployment.canDestroy && connection !== 'live' && deployment.status !== 'destroyed' ? (
             <Button size="sm" variant="ghost" disabled={action !== null} onClick={onDestroy}>
-              {action === 'destroy' ? 'Destruction…' : 'Détruire'}
+              {action === 'destroy' ? t('action.destroy.pending') : t('action.destroy')}
             </Button>
           ) : null}
           {/*
@@ -625,7 +641,7 @@ function StatusBanner({
           */}
           {running && deployment.canUnblock ? (
             <Button size="sm" variant="ghost" disabled={action !== null} onClick={onUnblock}>
-              {action === 'unblock' ? 'Vérification…' : 'Ce déploiement est figé ?'}
+              {action === 'unblock' ? tc('checking') : t('action.unblock')}
             </Button>
           ) : null}
         </div>
@@ -647,14 +663,12 @@ function StatusBanner({
           {rolledBack ? (
             <p className="text-xs text-warn">
               {deployment.restoredVersion
-                ? `Version ${deployment.restoredVersion} restaurée — le service répond.`
-                : 'Version précédente restaurée — le service répond.'}
+                ? t('banner.restored.version', { version: deployment.restoredVersion })
+                : t('banner.restored')}
             </p>
           ) : null}
           {failed && deployment.autoRollback && !deployment.hasPrevious ? (
-            <p className="text-xs text-ink-muted">
-              Rollback automatique demandé, mais aucune version antérieure sur cette cible.
-            </p>
+            <p className="text-xs text-ink-muted">{t('banner.noFallback')}</p>
           ) : null}
         </div>
       ) : null}

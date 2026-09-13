@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
+import { auth as messages } from '@/i18n/messages/auth';
+import { getT } from '@/i18n/server';
 import { LogoutRunner } from './logout-runner';
 
-export const metadata: Metadata = { title: 'Déconnexion — Pupitre' };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getT(messages))('meta.logout') };
+}
 
 export default function LogoutPage() {
   return (

@@ -1,7 +1,8 @@
 import { SCANNERS } from '@pupitre/core';
 import { getScanRun, getScanRunRaw } from '@pupitre/db';
 import { z } from 'zod';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -23,21 +24,21 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const run = await getScanRun(id);
-  if (!run) throw new NotFoundError(`Scan « ${id} » introuvable`);
+  if (!run) throw new NotFoundError(msg(messages, 'error.scanNotFound', { id }));
 
   const descriptor = SCANNERS[run.scanner];
   if (descriptor.kind !== 'sbom' || descriptor.sbomFormat === null) {
-    throw new ConflictError(`« ${descriptor.label} » ne produit pas de SBOM.`);
+    throw new ConflictError(msg(messages, 'error.sbomUnsupported', { scanner: descriptor.label }));
   }
   if (run.status !== 'success') {
     throw new ConflictError(
-      `Le scan « ${descriptor.label} » n'a pas abouti : aucun SBOM à télécharger.`,
+      msg(messages, 'error.sbomIncomplete', { scanner: descriptor.label }),
     );
   }
 
   const stored = await getScanRunRaw(id);
   if (!stored || stored.raw === null) {
-    throw new NotFoundError('Aucun SBOM enregistré pour ce scan.');
+    throw new NotFoundError(msg(messages, 'error.sbomMissing'));
   }
 
   const filename =

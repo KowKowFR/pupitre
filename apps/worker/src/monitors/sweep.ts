@@ -9,6 +9,7 @@ import {
   MONITOR_SWEEP_CONCURRENCY,
   isMonitorType,
   monitorCaptureJobDataSchema,
+  monitorPauseUnknownType,
   type MonitorSweepJobResult,
 } from '@pupitre/core';
 import { getMonitorProbe } from '@pupitre/core/probe';
@@ -85,10 +86,9 @@ async function runOne(monitor: Monitor, counters: SweepCounters): Promise<void> 
   if (!isMonitorType(monitor.type)) {
     // Retour arrière du code, ou ligne écrite à la main : on suspend avec le
     // motif plutôt que de faire tomber le balayage des quarante-neuf autres.
-    await suspendMonitor(
-      monitor.id,
-      `type de sonde « ${monitor.type} » inconnu de cette version du panel`,
-    );
+    // Le motif est une clé — la colonne survit à la suspension, une phrase y
+    // aurait figé la langue du jour du balayage.
+    await suspendMonitor(monitor.id, monitorPauseUnknownType(monitor.type));
     logger.warn({ monitorId: monitor.id, type: monitor.type }, 'type de sonde inconnu — suspendue');
     return;
   }

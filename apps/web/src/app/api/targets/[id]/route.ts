@@ -10,7 +10,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { targets as messages } from '@/i18n/messages/targets';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { auditableTarget } from '@/lib/targets';
@@ -29,7 +30,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   // `getTarget` ne sélectionne pas `encrypted_credential` :
   // la réponse ne peut structurellement pas le contenir.
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   return NextResponse.json(target);
 });
@@ -40,7 +41,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const patch = await readJsonBody(request, updateTargetSchema);
 
   const before = await getTarget(id);
-  if (!before) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!before) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const conflict = await findConflictingTarget(
     {
@@ -51,8 +52,10 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     },
     id,
   );
-  if (conflict === 'name') throw new ConflictError('Ce nom de cible est déjà pris');
-  if (conflict === 'endpoint') throw new ConflictError('Une autre cible pointe déjà vers cet hôte');
+  if (conflict === 'name') throw new ConflictError(msg(messages, 'error.nameTakenShort'));
+  if (conflict === 'endpoint') {
+    throw new ConflictError(msg(messages, 'error.endpointTakenOther'));
+  }
 
   // Le patch est partiel : les deux bornes ne sont pas forcément dans le corps.
   // On valide sur les valeurs résultantes, pas sur celles reçues — sinon
@@ -61,8 +64,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const rangeEnd = patch.portRangeEnd ?? before.portRangeEnd;
   if (rangeStart > rangeEnd) {
     throw new ConflictError(
-      `Plage de ports invalide : ${rangeStart}-${rangeEnd}. ` +
-        'La borne basse doit précéder la borne haute.',
+      msg(messages, 'error.badRange', { start: rangeStart, end: rangeEnd }),
     );
   }
 
@@ -72,7 +74,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     // Credential absent du corps = on conserve celui déjà en base.
     ...(credential !== undefined ? { encryptedCredential: encrypt(credential) } : {}),
   });
-  if (!after) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!after) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   await logAudit({
     actorId: auth.userId,
@@ -93,7 +95,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const target = await getTarget(id);
-  if (!target) throw new NotFoundError(`Cible « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   // Deux refus, parce qu'il y a deux gestes à faire — et parce que la clé
   // étrangère est en `ON DELETE restrict` : un `failed` oublié bloque autant
@@ -101,16 +103,10 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   // contrainte trancher, et l'appelant recevait un 500 muet.
   const { live, history } = await countDeploymentsOnTarget(id);
   if (live > 0) {
-    throw new ConflictError(
-      `Cette cible porte ${live} déploiement(s) actif(s). Détruisez-les avant de la supprimer.`,
-    );
+    throw new ConflictError(msg(messages, 'error.liveDeployments', { count: live }));
   }
   if (history > 0) {
-    throw new ConflictError(
-      `Cette cible ne porte plus rien en marche, mais garde ${history} déploiement(s) ` +
-        `dans l'historique, et l'historique ne se supprime pas tout seul. ` +
-        `Purgez-les depuis l'écran Déploiements, puis reprenez.`,
-    );
+    throw new ConflictError(msg(messages, 'error.pastDeployments', { count: history }));
   }
 
   await deleteTarget(id);

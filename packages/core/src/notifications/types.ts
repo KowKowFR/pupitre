@@ -1,3 +1,4 @@
+import type { UiLanguage } from '../i18n.js';
 import type { ChannelConfig, NotificationChannelKind } from './catalog.js';
 import type { NotificationDigest } from './digest.js';
 import type { NotificationMessage } from './message.js';
@@ -40,8 +41,13 @@ export interface NotificationChannel {
    * `getMe` Telegram, lecture du webhook Discord).
    *
    * Un canal qui n'en propose aucune le dit — il ne prétend pas avoir vérifié.
+   *
+   * La langue est passée ici, alors que `send()` et `sendDigest()` la lisent sur
+   * la charge qu'ils délivrent : une sonde ne transporte aucun message, et son
+   * verdict s'affiche pourtant dans le panel. C'est l'appelant qui la résout,
+   * `packages/core` ne lisant jamais les paramètres d'instance.
    */
-  test(resolved: ResolvedChannelConfig): Promise<NotificationTestResult>;
+  test(resolved: ResolvedChannelConfig, language?: UiLanguage): Promise<NotificationTestResult>;
 
   /** Délivre une alerte unitaire. Lève une `NotificationError` en cas d'échec. */
   send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void>;

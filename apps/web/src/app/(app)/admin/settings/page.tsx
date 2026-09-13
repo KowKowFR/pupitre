@@ -1,23 +1,18 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { SCANNER_KEYS, FAIL_ON_LABELS, scannerLabel } from '@pupitre/core';
+import { SCANNER_KEYS, failOnLabel, scannerLabel } from '@pupitre/core';
 import { getAiApiKey, getAppSettings, listNotificationChannels } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { currentLanguage, getT } from '@/i18n/server';
+import { settings as messages } from '@/i18n/messages/settings';
 import { formatDateTime, formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { SETTINGS_SECTIONS } from './sections';
 import { AiStatusBadge } from './ai-status';
 
 export const dynamic = 'force-dynamic';
-
-const ONBOARDING_LABEL = {
-  pending: 'jamais lancé',
-  in_progress: 'en cours',
-  dismissed: 'abandonné',
-  completed: 'terminé',
-} as const;
 
 /** Instant de référence de l'aperçu de date — le même que sur la section. */
 const PREVIEW_INSTANT = new Date('2026-01-15T14:32:07Z');
@@ -38,6 +33,8 @@ export default async function SettingsOverviewPage() {
   await requirePagePermission('/admin/settings', 'settings:read');
   const record = await getAppSettings();
   const { settings } = record;
+  const t = await getT(messages);
+  const language = await currentLanguage();
   // La clé ne descend jamais au client : elle sert ici, côté serveur, à savoir
   // si la génération est réellement possible — pas seulement autorisée.
   const aiApiKey = await getAiApiKey();
@@ -48,76 +45,93 @@ export default async function SettingsOverviewPage() {
     (key) => !settings.security.disabledScanners.includes(key),
   );
 
+  const onboardingStatus = {
+    pending: t('onboarding.status.pending'),
+    in_progress: t('onboarding.status.inProgress'),
+    dismissed: t('onboarding.status.dismissed'),
+    completed: t('onboarding.status.completed'),
+  } as const;
+
   const readouts: Record<string, { term: string; value: ReactNode }[]> = {
     '/admin/settings/identite': [
-      { term: 'Nom', value: settings.instanceName },
+      { term: t('overview.term.name'), value: settings.instanceName },
       {
-        term: 'Sous-titre',
+        term: t('overview.term.tagline'),
         value: settings.instanceTagline === '' ? '—' : settings.instanceTagline,
       },
     ],
     '/admin/settings/regionalisation': [
-      { term: 'Fuseau', value: settings.timezone },
-      { term: 'Locale', value: settings.locale },
+      { term: t('overview.term.timezone'), value: settings.timezone },
+      { term: t('overview.term.locale'), value: settings.locale },
       {
-        term: 'Rendu',
+        term: t('overview.term.rendering'),
         value: formatDateTime(PREVIEW_INSTANT, formatSettingsOf(settings)),
       },
     ],
     '/admin/settings/securite': [
       {
-        term: 'Scanners actifs',
+        term: t('overview.term.activeScanners'),
         value: settings.security.scanningEnabled
           ? activeScanners.length === 0
-            ? 'aucun'
+            ? t('overview.scanners.none')
             : activeScanners.map(scannerLabel).join(', ')
-          : 'aucun — analyse coupée',
+          : t('overview.scanners.off'),
       },
-      { term: 'Seuil de blocage', value: FAIL_ON_LABELS[settings.security.failOn] },
+      {
+        term: t('overview.term.failOn'),
+        value: failOnLabel(settings.security.failOn, language),
+      },
     ],
     '/admin/settings/notifications': [
       {
-        term: 'Canaux',
+        term: t('overview.term.channels'),
         value:
           channels.length === 0
-            ? 'aucun — personne n’est prévenu'
-            : `${activeChannels.length} actif${activeChannels.length > 1 ? 's' : ''} sur ${channels.length}`,
+            ? t('overview.channels.none')
+            : t('overview.channels.active', {
+                count: activeChannels.length,
+                total: channels.length,
+              }),
       },
       {
-        term: 'Événements couverts',
+        term: t('overview.term.events'),
         value: String(new Set(activeChannels.flatMap((channel) => channel.events)).size),
       },
       {
-        term: 'En échec',
+        term: t('overview.term.failing'),
         value: String(channels.filter((channel) => channel.consecutiveFailures > 0).length),
       },
     ],
     '/admin/settings/ia': [
-      { term: 'Fournisseur', value: settings.ai.provider },
-      { term: 'Modèle', value: settings.ai.model },
+      { term: t('overview.term.provider'), value: settings.ai.provider },
+      { term: t('overview.term.model'), value: settings.ai.model },
       {
-        term: "Clé d'API",
+        term: t('overview.term.apiKey'),
         value: record.aiApiKeyConfigured
-          ? `enregistrée${record.aiApiKeyLast4 ? ` — …${record.aiApiKeyLast4}` : ''}`
-          : 'aucune — repli sur la variable d’environnement',
+          ? record.aiApiKeyLast4
+            ? t('overview.apiKey.setWithTail', { last4: record.aiApiKeyLast4 })
+            : t('overview.apiKey.set')
+          : t('overview.apiKey.none'),
       },
     ],
     '/admin/settings/demarrage': [
-      { term: 'État', value: ONBOARDING_LABEL[settings.onboarding.status] },
-      { term: 'Étape en cours', value: settings.onboarding.currentStep },
-      { term: 'Relances', value: String(settings.onboarding.runs) },
+      { term: t('onboarding.term.status'), value: onboardingStatus[settings.onboarding.status] },
+      { term: t('onboarding.term.currentStep'), value: settings.onboarding.currentStep },
+      { term: t('onboarding.term.runs'), value: String(settings.onboarding.runs) },
     ],
   };
 
   const badges: Record<string, ReactNode> = {
     '/admin/settings/securite': (
       <Badge variant={settings.security.scanningEnabled ? 'ok' : 'destructive'}>
-        {settings.security.scanningEnabled ? 'active' : 'désactivée'}
+        {settings.security.scanningEnabled ? t('security.badge.on') : t('security.badge.off')}
       </Badge>
     ),
     '/admin/settings/notifications': (
       <Badge variant={activeChannels.length > 0 ? 'ok' : 'secondary'}>
-        {activeChannels.length > 0 ? 'branchées' : 'aucun canal'}
+        {activeChannels.length > 0
+          ? t('overview.badge.channelsOn')
+          : t('overview.badge.channelsOff')}
       </Badge>
     ),
     '/admin/settings/ia': <AiStatusBadge settings={settings} storedApiKey={aiApiKey} />,
@@ -134,10 +148,10 @@ export default async function SettingsOverviewPage() {
                 <span aria-hidden className="text-ink-faint">
                   <Icon className="size-4" />
                 </span>
-                {section.title}
+                {t(`section.${section.id}.title`)}
                 {badges[section.href] ?? null}
               </CardTitle>
-              <CardDescription>{section.governs}</CardDescription>
+              <CardDescription>{t(`section.${section.id}.governs`)}</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <dl className="grid gap-x-6 gap-y-1.5 text-[0.8125rem]">
@@ -155,7 +169,9 @@ export default async function SettingsOverviewPage() {
                 href={section.href}
                 className="inline-flex w-fit items-center gap-1.5 rounded-md text-[0.8125rem] font-medium text-signal underline-offset-4 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
-                Ouvrir {section.label.toLowerCase()}
+                {t('overview.open', {
+                  label: t(`section.${section.id}.label`).toLowerCase(),
+                })}
                 <ArrowRight aria-hidden className="size-3.5" />
               </Link>
             </CardContent>

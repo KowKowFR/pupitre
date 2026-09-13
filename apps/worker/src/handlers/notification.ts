@@ -12,11 +12,13 @@ import {
   buildNotificationMessage,
   describeFailure,
   isNotificationEventKey,
+  languageOf,
   notificationDeliverJobDataSchema,
   notificationDigestGroupKey,
   notificationDigestPath,
   notificationDispatchJobDataSchema,
   notificationEventDescriptor,
+  notificationEventLabel,
   notificationPayloadEvent,
   notificationTestJobDataSchema,
   testNotificationMessage,
@@ -269,6 +271,9 @@ export async function handleNotificationDispatch(
     panelUrl: panelUrl(),
     actor,
     occurredAt: data.occurredAt,
+    // Personne n'est devant l'écran : la langue de l'alerte est celle de
+    // l'instance, la même que le panel et que les e-mails d'invitation.
+    language: languageOf(settings.locale),
   };
 
   const message = buildNotificationMessage(data.event, data.entry, ctx);
@@ -355,11 +360,12 @@ export async function handleNotificationDigestSweep(
 
     const settings = await getAppSettingsValue();
     const descriptor = notificationEventDescriptor(claim.event);
+    const language = languageOf(settings.locale);
 
     const digest = buildNotificationDigest({
       event: claim.event,
       severity: descriptor.severity,
-      eventLabel: descriptor.label,
+      eventLabel: notificationEventLabel(claim.event, language),
       items: claim.items,
       count: claim.count,
       windowStartedAt: claim.windowStartedAt.toISOString(),
@@ -369,6 +375,7 @@ export async function handleNotificationDigestSweep(
       instance: settings.instanceName,
       panelUrl: panelUrl(),
       path: notificationDigestPath(claim.event),
+      language,
     });
 
     digests += 1;
@@ -472,13 +479,14 @@ export async function handleNotificationTest(
 
   const { row } = resolved;
   const settings = await getAppSettingsValue();
+  const language = languageOf(settings.locale);
   const implementation = getNotificationChannel(row.kind);
 
   // Deux étapes distinctes, rapportées séparément : la sonde dit si les
   // identifiants sont bons, l'envoi dit si le destinataire est le bon. Un jeton
   // Telegram valide pointé sur une conversation inexistante passe la première
   // et rate le second — et c'est exactement ce que l'opérateur doit voir.
-  const probe = await implementation.test(resolved.resolved);
+  const probe = await implementation.test(resolved.resolved, language);
 
   let delivered = false;
   let error: string | null = null;
@@ -489,6 +497,7 @@ export async function handleNotificationTest(
         instance: settings.instanceName,
         panelUrl: panelUrl(),
         channelName: row.name,
+        language,
       }),
     );
     delivered = true;

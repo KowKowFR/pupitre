@@ -19,6 +19,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { applications as messages } from '@/i18n/messages/applications';
 import { DeleteApplicationDialog } from './delete-dialog';
 
 export type ApplicationRow = {
@@ -52,6 +55,8 @@ export function ApplicationsTable({
   canDeploy: boolean;
   canDelete: boolean;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -68,10 +73,7 @@ export function ApplicationsTable({
   async function deploy(application: ApplicationRow) {
     const targetId = selection[application.id] ?? targets[0]?.id;
     if (!targetId) {
-      setError(
-        "Aucune cible Docker prête. Cet écran déploie en Docker Compose ; lancez un preflight " +
-          'depuis /targets pour savoir ce que chaque machine sait faire.',
-      );
+      setError(t('deploy.noDockerTarget'));
       return;
     }
 
@@ -92,7 +94,7 @@ export function ApplicationsTable({
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
       setBusy(null);
       return;
     }
@@ -104,10 +106,7 @@ export function ApplicationsTable({
 
   if (items.length === 0) {
     return (
-      <EmptyState
-        title="Aucune application"
-        hint="Décrivez une application — services, image, port exposé — ou laissez l'IA en proposer une AppSpec que vous relirez avant de déployer."
-      />
+      <EmptyState title={t('empty.title')} hint={t('empty.hint')} />
     );
   }
 
@@ -118,7 +117,7 @@ export function ApplicationsTable({
 
         {canDeploy ? (
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-line bg-surface-2/50 px-3 py-2.5">
-            <span className="eyebrow text-ink-faint">Cycle de vie</span>
+            <span className="eyebrow text-ink-faint">{t('lifecycle.title')}</span>
             <label className="flex cursor-pointer items-center gap-2 text-xs text-ink">
               <input
                 type="checkbox"
@@ -126,29 +125,22 @@ export function ApplicationsTable({
                 checked={autoRollback}
                 onChange={(event) => setAutoRollback(event.target.checked)}
               />
-              Rollback automatique en cas d&apos;échec
+              {t('lifecycle.autoRollback')}
             </label>
             <span className="text-xs text-ink-faint">
-              {autoRollback
-                ? 'Un healthcheck raté ramène la version précédente, si elle existe.'
-                : 'Un healthcheck raté laisse le déploiement en échec, en l’état.'}
+              {autoRollback ? t('lifecycle.autoRollback.on') : t('lifecycle.autoRollback.off')}
             </span>
-            <span className="w-full text-xs text-ink-faint">
-              Le bouton « Déployer » de cette page part en Docker Compose, derrière Traefik, et
-              ne propose que les cibles où le preflight a vu Docker. Le runtime ne se choisit
-              qu’à la création, sur « Nouvelle application » — l’AppSpec, elle, est la même dans
-              les deux cas.
-            </span>
+            <span className="w-full text-xs text-ink-faint">{t('lifecycle.note')}</span>
           </div>
         ) : null}
 
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Application</TableHead>
-              <TableHead>Services</TableHead>
-              <TableHead>Exposition</TableHead>
-              <TableActionsHead>Actions</TableActionsHead>
+              <TableHead>{t('column.application')}</TableHead>
+              <TableHead>{t('column.services')}</TableHead>
+              <TableHead>{t('column.exposure')}</TableHead>
+              <TableActionsHead>{tc('column.actions')}</TableActionsHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -180,7 +172,7 @@ export function ApplicationsTable({
                 </TableCell>
                 <TableCell className="font-mono text-xs text-ink-muted">
                   {application.ingressHost ?? (
-                    <span className="text-ink-faint">port alloué</span>
+                    <span className="text-ink-faint">{t('exposure.allocatedPort')}</span>
                   )}
                 </TableCell>
                 <TableActions className="space-x-2 whitespace-nowrap">
@@ -207,7 +199,7 @@ export function ApplicationsTable({
                         disabled={busy === application.id}
                         onClick={() => void deploy(application)}
                       >
-                        {busy === application.id ? 'Envoi…' : 'Déployer'}
+                        {busy === application.id ? t('action.sending') : t('action.deploy')}
                       </Button>
                     </>
                   ) : null}
@@ -218,7 +210,7 @@ export function ApplicationsTable({
                       disabled={busy === application.id}
                       onClick={() => setDeleting(application)}
                     >
-                      Supprimer
+                      {tc('delete')}
                     </Button>
                   ) : null}
                 </TableActions>
@@ -229,10 +221,9 @@ export function ApplicationsTable({
 
         {canDeploy && targets.length === 0 ? (
           <p className="text-xs text-warn">
-            Aucune cible Docker prête. Cet écran déploie en Docker Compose&nbsp;; pour une
-            machine K3s, passez par « Nouvelle application », qui laisse choisir le runtime. Un
-            preflight depuis <code className="font-mono">/targets</code> dit ce que chaque
-            machine sait faire.
+            {t('warn.noDockerTarget.before')}
+            <code className="font-mono">/targets</code>
+            {t('warn.noDockerTarget.after')}
           </p>
         ) : null}
 

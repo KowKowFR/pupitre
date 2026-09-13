@@ -2,7 +2,8 @@ import { PING_JOB, pingJobDataSchema } from '@pupitre/core';
 import { logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { HttpError } from '@/lib/errors';
+import { jobs as messages } from '@/i18n/messages/jobs';
+import { HttpError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { getOpsQueue } from '@/lib/queue';
@@ -32,7 +33,7 @@ export const POST = apiRoute(async (request) => {
 
   const job = await getOpsQueue().add(PING_JOB, data);
   if (!job.id) {
-    throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+    throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.noJobId'));
   }
 
   await logAudit({

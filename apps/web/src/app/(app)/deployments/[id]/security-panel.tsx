@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   SCANNERS,
   SEVERITY_ORDER,
+  scannerDescription,
   type ScanConfig,
   type ScanKind,
   type ScanRunStatus,
@@ -20,6 +21,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useLanguage, useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { deployments as messages } from '@/i18n/messages/deployments';
 import { cn } from '@/lib/utils';
 
 /**
@@ -28,6 +32,13 @@ import { cn } from '@/lib/utils';
  * Aucun scanner n'est nommé en dur : les libellés viennent de `SCANNERS`, la
  * table de données de `@pupitre/core`, et le bouton de téléchargement du SBOM
  * s'affiche sur la foi de `hasSbom`, calculé côté serveur depuis le `kind`.
+ *
+ * ── Ce qui n'est pas traduit ────────────────────────────────────────────────
+ * Le contenu d'un finding — identifiant CVE, paquet, version, intitulé — vient
+ * de Trivy ou de Grype, en anglais, et arrive tel quel. La **sévérité** est
+ * affichée brute (`CRITICAL`, `HIGH`…) : c'est la valeur d'énumération, celle
+ * que porte le filtre de l'URL et celle qu'un script cherche. Les **verdicts**,
+ * eux, sont nos mots et se traduisent.
  */
 
 type ScanRunView = {
@@ -77,6 +88,8 @@ export function SecurityPanel({
   /** Change à chaque transition d'état : recharge sans intervention. */
   refreshKey: string;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
   const [runs, setRuns] = useState<ScanRunView[]>([]);
   const [config, setConfig] = useState<ScanConfig | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -94,7 +107,7 @@ export function SecurityPanel({
       if (cancelled) return;
 
       if (!response.ok) {
-        setError(`Scans indisponibles (HTTP ${response.status})`);
+        setError(t('scans.unavailable', { status: response.status }));
         setLoading(false);
         return;
       }
@@ -117,7 +130,7 @@ export function SecurityPanel({
     return () => {
       cancelled = true;
     };
-  }, [deploymentId, refreshKey]);
+  }, [deploymentId, refreshKey, t]);
 
   useEffect(() => {
     if (!selected) return;
@@ -167,11 +180,11 @@ export function SecurityPanel({
   if (runs.length === 0) {
     return (
       <EmptyState
-        title="Aucun scan"
+        title={t('scans.empty.title')}
         hint={
           config && config.scanners.length === 0
-            ? 'Aucun scanner n’a été sélectionné pour ce déploiement : l’étape a été sautée.'
-            : 'Aucun scan n’est attaché à ce déploiement. Le pipeline, dans l’onglet voisin, dit si l’étape d’analyse a été sautée ou si le run s’est arrêté avant de l’atteindre.'
+            ? t('scans.empty.noScanner')
+            : t('scans.empty.hint')
         }
       />
     );
@@ -199,11 +212,17 @@ export function SecurityPanel({
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
             <div>
-              <CardTitle>{SCANNERS[current.scanner].label} — vulnérabilités</CardTitle>
+              <CardTitle>
+                {t('scans.vulnerabilities', { scanner: SCANNERS[current.scanner].label })}
+              </CardTitle>
               <CardDescription>
                 {current.kind === 'sbom'
-                  ? 'Un inventaire de composants n’énonce aucune vulnérabilité.'
-                  : `${total} finding(s)${severity ? ` de sévérité ${severity}` : ''} · ${current.imageRef ?? '—'}`}
+                  ? t('scans.sbom.noVulnerability')
+                  : t('scans.findings.summary', {
+                      count: total,
+                      filter: severity ? ` ${t('scans.findings.filter', { severity })}` : '',
+                      image: current.imageRef ?? tc('none'),
+                    })}
               </CardDescription>
             </div>
             {current.kind === 'vulnerability' ? (
@@ -212,7 +231,7 @@ export function SecurityPanel({
                 value={severity}
                 onChange={(event) => setSeverity(event.target.value as Severity | '')}
               >
-                <option value="">Toutes sévérités</option>
+                <option value="">{t('scans.severity.all')}</option>
                 {SEVERITY_ORDER.map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -223,21 +242,19 @@ export function SecurityPanel({
           </CardHeader>
           <CardContent>
             {current.kind === 'sbom' ? (
-              <p className="text-[0.8125rem] text-ink-muted">
-                Le document est téléchargeable depuis la carte ci-dessus.
-              </p>
+              <p className="text-[0.8125rem] text-ink-muted">{t('scans.sbom.hint')}</p>
             ) : rows.length === 0 ? (
-              <p className="text-[0.8125rem] text-ink-muted">Aucun finding à afficher.</p>
+              <p className="text-[0.8125rem] text-ink-muted">{t('scans.findings.empty')}</p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Sévérité</TableHead>
-                    <TableHead>CVE</TableHead>
-                    <TableHead>Paquet</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Correctif</TableHead>
-                    <TableHead>Intitulé</TableHead>
+                    <TableHead>{t('column.severity')}</TableHead>
+                    <TableHead>{t('column.cve')}</TableHead>
+                    <TableHead>{t('column.package')}</TableHead>
+                    <TableHead>{t('column.version')}</TableHead>
+                    <TableHead>{t('column.fix')}</TableHead>
+                    <TableHead>{t('column.title')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -262,17 +279,17 @@ export function SecurityPanel({
                       </TableCell>
                       <TableCell className="font-mono text-xs">{finding.package}</TableCell>
                       <TableCell className="font-mono text-xs">
-                        {finding.installedVersion ?? '—'}
+                        {finding.installedVersion ?? tc('none')}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {finding.fixedVersion ? (
                           <span className="text-ok">{finding.fixedVersion}</span>
                         ) : (
-                          <span className="text-ink-faint">aucun</span>
+                          <span className="text-ink-faint">{t('findings.noFix')}</span>
                         )}
                       </TableCell>
                       <TableCell className="max-w-md truncate text-xs" title={finding.title ?? ''}>
-                        {finding.title ?? '—'}
+                        {finding.title ?? tc('none')}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -295,6 +312,9 @@ function ScanRunCard({
   active: boolean;
   onSelect: () => void;
 }) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const language = useLanguage();
   const descriptor = SCANNERS[run.scanner];
 
   return (
@@ -312,7 +332,11 @@ function ScanRunCard({
           <VerdictBadge verdict={run.verdict} status={run.status} />
         </CardTitle>
         <CardDescription className="font-mono text-[0.6875rem] break-all">
-          {run.imageRef ?? '—'} · {formatMs(run.durationMs)} · seuil {run.failOn}
+          {t('scans.run.meta', {
+            image: run.imageRef ?? tc('none'),
+            duration: formatMs(run.durationMs, tc('none')),
+            failOn: run.failOn,
+          })}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -328,11 +352,11 @@ function ScanRunCard({
               ) : null,
             )}
             {run.total === 0 && run.status === 'success' ? (
-              <span className="text-xs text-ok">aucune vulnérabilité</span>
+              <span className="text-xs text-ok">{t('scans.run.clean')}</span>
             ) : null}
           </div>
         ) : (
-          <p className="text-xs text-ink-muted">{descriptor.description}</p>
+          <p className="text-xs text-ink-muted">{scannerDescription(run.scanner, language)}</p>
         )}
 
         {run.hasSbom ? (
@@ -341,7 +365,7 @@ function ScanRunCard({
             onClick={(event) => event.stopPropagation()}
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
-            Télécharger le SBOM
+            {t('scans.sbom.download')}
           </a>
         ) : null}
       </CardContent>
@@ -359,33 +383,35 @@ export function SeverityBadge({ severity, count }: { severity: Severity; count?:
 }
 
 function VerdictBadge({ verdict, status }: { verdict: ScanVerdict; status: ScanRunStatus }) {
+  const t = useT(messages);
+
   if (status === 'failed') {
     return (
-      <Badge variant="destructive">en erreur</Badge>
+      <Badge variant="destructive">{t('verdict.error')}</Badge>
     );
   }
   if (status === 'running') {
     return (
-      <Badge variant="default">en cours</Badge>
+      <Badge variant="default">{t('verdict.running')}</Badge>
     );
   }
   if (verdict === 'fail') {
     return (
-      <Badge variant="destructive">bloquant</Badge>
+      <Badge variant="destructive">{t('verdict.fail')}</Badge>
     );
   }
   if (verdict === 'pass') {
     return (
-      <Badge variant="ok">conforme</Badge>
+      <Badge variant="ok">{t('verdict.pass')}</Badge>
     );
   }
   return (
-    <Badge variant="warn">indéterminé</Badge>
+    <Badge variant="warn">{t('verdict.unknown')}</Badge>
   );
 }
 
-function formatMs(value: number | null): string {
-  if (value === null) return '—';
+function formatMs(value: number | null, absent: string): string {
+  if (value === null) return absent;
   if (value < 1000) return `${value} ms`;
   const seconds = Math.round(value / 1000);
   if (seconds < 60) return `${seconds} s`;

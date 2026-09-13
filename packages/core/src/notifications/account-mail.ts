@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  renderMessage,
+  type Translated,
+  type UiLanguage,
+  type Vars,
+} from '../i18n.js';
 
 /**
  * Les e-mails **transactionnels** du cycle de vie des comptes.
@@ -73,7 +79,121 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Date d'expiration en français, fuseau UTC explicite.
+ * Le texte des deux messages, en un seul endroit — et sa traduction juste à
+ * côté.
+ *
+ * ── Pourquoi le dictionnaire vit ici et pas dans `apps/web` ─────────────────
+ * Ce n'est pas le panel qui compose ces e-mails : c'est le worker, qui a le
+ * transport SMTP et le seul accès au lien en clair. Un dictionnaire rangé dans
+ * `apps/web/src/i18n/messages` lui serait donc inaccessible. Il vit là où vit
+ * la composition, comme le veut la règle : les dictionnaires de l'interface
+ * chez l'interface, ceux du domaine à côté du domaine.
+ *
+ * ── Pourquoi la langue est un paramètre ─────────────────────────────────────
+ * Une invitation part vers quelqu'un qui n'a pas encore de session : il n'y a
+ * personne à qui demander sa langue. C'est donc celle de l'instance, comme les
+ * alertes et comme le panel — et elle est **passée** plutôt que lue ici, parce
+ * que ce module ne dépend que de Zod et n'a aucun accès à la base.
+ */
+const fr = {
+  // ── Le cadre, commun aux deux messages ──────────────────────────────────
+  'greeting': 'Bonjour {name},',
+  'link.label': '{action} :',
+  'link.validity':
+    'Ce lien ne fonctionne qu’une seule fois. Il est valable {validity} et expire le {expiry}.',
+  'link.fallback': 'Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :',
+  'footer': '{instance} · message automatique, ne pas répondre',
+
+  /**
+   * L'échéance, avec son fuseau écrit. Une clé plutôt qu'un `Intl` : le fuseau
+   * de l'instance n'est pas celui du destinataire, et une heure UTC affichée
+   * comme telle est la seule qui ne mente pas. Seule la ponctuation change
+   * d'une langue à l'autre.
+   */
+  'expiry': '{day}/{month}/{year} à {hours} h {minutes} UTC',
+  'validity.days': { one: '{count} jour', other: '{count} jours' },
+  'validity.hours': { one: '{count} heure', other: '{count} heures' },
+  'validity.minutes': { one: '{count} minute', other: '{count} minutes' },
+
+  // ── Invitation ──────────────────────────────────────────────────────────
+  'invitation.subject': 'Votre accès à {instance}',
+  'invitation.heading': 'Un accès vous a été ouvert',
+  'invitation.body.actor': '{actor} vous a ouvert un accès au plan de contrôle {instance}.',
+  'invitation.body.admin':
+    'Un administrateur vous a ouvert un accès au plan de contrôle {instance}.',
+  /**
+   * Dire explicitement que personne d'autre ne connaît le mot de passe est le
+   * point de tout ce chantier : c'est ce qui change par rapport à un compte
+   * fabriqué par un administrateur puis transmis de la main à la main.
+   */
+  'invitation.body.secret':
+    'Votre compte existe déjà : il ne lui manque qu’un mot de passe. Vous le choisissez vous-même, et personne d’autre ne le connaîtra — pas même l’administrateur qui vous a invité.',
+  'invitation.action': 'Choisir mon mot de passe',
+  'invitation.ignore':
+    'Si vous ne vous attendiez pas à ce message, ignorez-le. Sans ce lien, le compte reste inutilisable.',
+
+  // ── Réinitialisation ────────────────────────────────────────────────────
+  'reset.subject': 'Réinitialiser votre mot de passe sur {instance}',
+  'reset.heading': 'Réinitialisation de votre mot de passe',
+  'reset.body.requested':
+    'Quelqu’un a demandé la réinitialisation du mot de passe associé à cette adresse sur {instance}.',
+  /**
+   * Annoncer la déconnexion avant qu'elle n'arrive : une session qui tombe sans
+   * explication ressemble à une panne.
+   */
+  'reset.body.sessions':
+    'En choisissant un nouveau mot de passe, vous fermerez toutes les sessions ouvertes sur ce compte, y compris celles que vous n’avez pas ouvertes.',
+  'reset.action': 'Choisir un nouveau mot de passe',
+  'reset.ignore':
+    'Si vous n’avez rien demandé, ignorez ce message : votre mot de passe actuel reste valable et aucune session n’a été fermée.',
+} as const;
+
+const en: Translated<typeof fr> = {
+  'greeting': 'Hello {name},',
+  'link.label': '{action}:',
+  'link.validity': 'This link works once. It is valid for {validity} and expires on {expiry}.',
+  'link.fallback': 'If the button does not work, copy this address into your browser:',
+  'footer': '{instance} · automated message, do not reply',
+
+  'expiry': '{day}/{month}/{year} at {hours}:{minutes} UTC',
+  'validity.days': { one: '{count} day', other: '{count} days' },
+  'validity.hours': { one: '{count} hour', other: '{count} hours' },
+  'validity.minutes': { one: '{count} minute', other: '{count} minutes' },
+
+  'invitation.subject': 'Your access to {instance}',
+  'invitation.heading': 'An access has been opened for you',
+  'invitation.body.actor': '{actor} opened an access to the {instance} control plane for you.',
+  'invitation.body.admin':
+    'An administrator opened an access to the {instance} control plane for you.',
+  'invitation.body.secret':
+    'Your account already exists: all it lacks is a password. You choose it yourself, and nobody else will know it — not even the administrator who invited you.',
+  'invitation.action': 'Choose my password',
+  'invitation.ignore':
+    'If you were not expecting this message, ignore it. Without this link, the account stays unusable.',
+
+  'reset.subject': 'Reset your password on {instance}',
+  'reset.heading': 'Password reset',
+  'reset.body.requested':
+    'Someone asked to reset the password tied to this address on {instance}.',
+  'reset.body.sessions':
+    'Choosing a new password closes every session open on this account, including the ones you did not open.',
+  'reset.action': 'Choose a new password',
+  'reset.ignore':
+    'If you asked for nothing, ignore this message: your current password stays valid and no session has been closed.',
+};
+
+const accountMailMessages = { fr, en };
+
+type MailKey = keyof typeof fr;
+
+/** Lie le dictionnaire à une langue. Même fonction pure que côté panel. */
+function messageFor(language: UiLanguage) {
+  return (key: MailKey, vars?: Vars): string =>
+    renderMessage(accountMailMessages, language, key, vars);
+}
+
+/**
+ * Date d'expiration, fuseau UTC explicite.
  *
  * `Intl` avec un fuseau nommé serait plus agréable, mais le fuseau de
  * l'instance n'est pas celui du destinataire et il n'existe aucun moyen de
@@ -81,37 +201,43 @@ function escapeHtml(value: string): string {
  * ment pas. La phrase qui l'accompagne donne de toute façon la durée, qui est
  * l'information réellement utile.
  */
-function formatExpiry(iso: string): string {
+function formatExpiry(iso: string, t: ReturnType<typeof messageFor>): string {
   const date = new Date(iso);
   const pad = (value: number) => String(value).padStart(2, '0');
-  return (
-    `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}/${date.getUTCFullYear()} ` +
-    `à ${pad(date.getUTCHours())} h ${pad(date.getUTCMinutes())} UTC`
-  );
+  return t('expiry', {
+    day: pad(date.getUTCDate()),
+    month: pad(date.getUTCMonth() + 1),
+    year: date.getUTCFullYear(),
+    hours: pad(date.getUTCHours()),
+    minutes: pad(date.getUTCMinutes()),
+  });
 }
 
 /** Durée restante, arrondie à l'unité qui se lit — « 7 jours », « 1 heure ». */
-function formatValidity(iso: string): string {
+function formatValidity(iso: string, t: ReturnType<typeof messageFor>): string {
   const ms = new Date(iso).getTime() - Date.now();
   const hours = Math.round(ms / 3_600_000);
-  if (hours >= 48) return `${Math.round(hours / 24)} jours`;
-  if (hours >= 2) return `${hours} heures`;
+  if (hours >= 48) return t('validity.days', { count: Math.round(hours / 24) });
+  if (hours >= 2) return t('validity.hours', { count: hours });
   const minutes = Math.max(1, Math.round(ms / 60_000));
-  return minutes >= 60 ? '1 heure' : `${minutes} minutes`;
+  return minutes >= 60 ? t('validity.hours', { count: 1 }) : t('validity.minutes', { count: minutes });
 }
 
+/** Un paragraphe du corps : sa clé et ce qu'elle attend. */
+type Paragraph = { key: MailKey; vars?: Vars };
+
 type Copy = {
-  subject: (mail: AccountMail) => string;
-  heading: string;
+  subject: MailKey;
+  heading: MailKey;
   /** Paragraphes du corps, dans l'ordre. Du texte simple : aucun balisage. */
-  body: (mail: AccountMail) => string[];
-  action: string;
+  body: (mail: AccountMail) => Paragraph[];
+  action: MailKey;
   /** Ce qu'il faut faire si on n'a rien demandé. Jamais absent — c'est la garde. */
-  ignore: string;
+  ignore: MailKey;
 };
 
 /**
- * Le texte des deux messages, en un seul endroit.
+ * La structure des deux messages, en un seul endroit.
  *
  * Une table de données plutôt qu'un `if (kind === …)` réparti entre le rendu
  * texte et le rendu HTML : les deux parties d'un même message doivent dire la
@@ -120,38 +246,28 @@ type Copy = {
  */
 const COPY: Record<AccountMailKind, Copy> = {
   invitation: {
-    subject: (mail) => `Votre accès à ${mail.instance}`,
-    heading: 'Un accès vous a été ouvert',
-    body: (mail) => [
-      mail.actor
-        ? `${mail.actor} vous a ouvert un accès au plan de contrôle ${mail.instance}.`
-        : `Un administrateur vous a ouvert un accès au plan de contrôle ${mail.instance}.`,
-      // Dire explicitement que personne d'autre ne connaît le mot de passe est
-      // le point de tout ce chantier : c'est ce qui change par rapport à un
-      // compte fabriqué par un administrateur puis transmis de la main à la main.
-      'Votre compte existe déjà : il ne lui manque qu’un mot de passe. ' +
-        'Vous le choisissez vous-même, et personne d’autre ne le connaîtra — ' +
-        'pas même l’administrateur qui vous a invité.',
-    ],
-    action: 'Choisir mon mot de passe',
-    ignore:
-      'Si vous ne vous attendiez pas à ce message, ignorez-le. ' +
-      'Sans ce lien, le compte reste inutilisable.',
+    subject: 'invitation.subject',
+    heading: 'invitation.heading',
+    body: (mail) => {
+      // Annoté plutôt qu'inféré : sans le type explicite, les deux branches du
+      // ternaire fusionnent en une union qui promet `actor: undefined`.
+      const opener: Paragraph = mail.actor
+        ? { key: 'invitation.body.actor', vars: { actor: mail.actor, instance: mail.instance } }
+        : { key: 'invitation.body.admin', vars: { instance: mail.instance } };
+      return [opener, { key: 'invitation.body.secret' }];
+    },
+    action: 'invitation.action',
+    ignore: 'invitation.ignore',
   },
   password_reset: {
-    subject: (mail) => `Réinitialiser votre mot de passe sur ${mail.instance}`,
-    heading: 'Réinitialisation de votre mot de passe',
+    subject: 'reset.subject',
+    heading: 'reset.heading',
     body: (mail) => [
-      `Quelqu’un a demandé la réinitialisation du mot de passe associé à cette adresse sur ${mail.instance}.`,
-      // Annoncer la déconnexion avant qu'elle n'arrive : une session qui tombe
-      // sans explication ressemble à une panne.
-      'En choisissant un nouveau mot de passe, vous fermerez toutes les sessions ' +
-        'ouvertes sur ce compte, y compris celles que vous n’avez pas ouvertes.',
+      { key: 'reset.body.requested', vars: { instance: mail.instance } },
+      { key: 'reset.body.sessions' },
     ],
-    action: 'Choisir un nouveau mot de passe',
-    ignore:
-      'Si vous n’avez rien demandé, ignorez ce message : votre mot de passe actuel ' +
-      'reste valable et aucune session n’a été fermée.',
+    action: 'reset.action',
+    ignore: 'reset.ignore',
   },
 };
 
@@ -166,22 +282,26 @@ const ACCENT = '#3b6fd4';
  * de téléphone. Le lien y figure **en clair et sur sa propre ligne**, parce
  * qu'un lien coupé par un retour à la ligne est un lien mort.
  */
-export function renderAccountMailText(mail: AccountMail): string {
+export function renderAccountMailText(mail: AccountMail, language: UiLanguage): string {
+  const t = messageFor(language);
   const copy = COPY[mail.kind];
+  const action = t(copy.action);
 
   const lines = [
-    copy.heading,
+    t(copy.heading),
     '',
-    `Bonjour ${mail.recipientName},`,
+    t('greeting', { name: mail.recipientName }),
     '',
-    ...copy.body(mail).flatMap((paragraph) => [paragraph, '']),
-    `${copy.action} :`,
+    ...copy.body(mail).flatMap((paragraph) => [t(paragraph.key, paragraph.vars), '']),
+    t('link.label', { action }),
     mail.url,
     '',
-    `Ce lien ne fonctionne qu’une seule fois. Il est valable ${formatValidity(mail.expiresAt)} ` +
-      `et expire le ${formatExpiry(mail.expiresAt)}.`,
+    t('link.validity', {
+      validity: formatValidity(mail.expiresAt, t),
+      expiry: formatExpiry(mail.expiresAt, t),
+    }),
     '',
-    copy.ignore,
+    t(copy.ignore),
     '',
     `— ${mail.instance}`,
   ];
@@ -197,7 +317,8 @@ export function renderAccountMailText(mail: AccountMail): string {
  * répété en clair sous le bouton, parce qu'un bouton qui ne se rend pas ne
  * laisse rien à cliquer.
  */
-export function renderAccountMailHtml(mail: AccountMail): string {
+export function renderAccountMailHtml(mail: AccountMail, language: UiLanguage): string {
+  const t = messageFor(language);
   const copy = COPY[mail.kind];
   const url = escapeHtml(mail.url);
 
@@ -205,25 +326,30 @@ export function renderAccountMailHtml(mail: AccountMail): string {
     .body(mail)
     .map(
       (paragraph) =>
-        `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(paragraph)}</p>`,
+        `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(t(paragraph.key, paragraph.vars))}</p>`,
     )
     .join('');
 
   return [
-    '<!doctype html><html lang="fr"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">',
+    `<!doctype html><html lang="${language}"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">`,
     `<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;border:1px solid #e5e7eb;border-left:4px solid ${ACCENT};padding:20px 24px">`,
     `<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${ACCENT};font-weight:600">${escapeHtml(mail.instance)}</div>`,
-    `<h1 style="margin:6px 0 12px;font-size:18px;line-height:1.3">${escapeHtml(copy.heading)}</h1>`,
-    `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#374151">Bonjour ${escapeHtml(mail.recipientName)},</p>`,
+    `<h1 style="margin:6px 0 12px;font-size:18px;line-height:1.3">${escapeHtml(t(copy.heading))}</h1>`,
+    `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(t('greeting', { name: mail.recipientName }))}</p>`,
     paragraphs,
     `<table role="presentation" style="margin:20px 0 0;border-collapse:collapse"><tr><td style="border-radius:6px;background:${ACCENT}">`,
-    `<a href="${url}" style="display:inline-block;padding:11px 20px;font-size:14px;font-weight:600;color:#fff;text-decoration:none">${escapeHtml(copy.action)}</a>`,
+    `<a href="${url}" style="display:inline-block;padding:11px 20px;font-size:14px;font-weight:600;color:#fff;text-decoration:none">${escapeHtml(t(copy.action))}</a>`,
     '</td></tr></table>',
-    `<p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#6b7280">Si le bouton ne fonctionne pas, copiez cette adresse dans votre navigateur :<br>`,
+    `<p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#6b7280">${escapeHtml(t('link.fallback'))}<br>`,
     `<a href="${url}" style="color:${ACCENT};font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all">${url}</a></p>`,
-    `<p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#374151">Ce lien ne fonctionne qu’une seule fois. Il est valable ${escapeHtml(formatValidity(mail.expiresAt))} et expire le ${escapeHtml(formatExpiry(mail.expiresAt))}.</p>`,
-    `<p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#6b7280">${escapeHtml(copy.ignore)}</p>`,
-    `<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">${escapeHtml(mail.instance)} · message automatique, ne pas répondre</p>`,
+    `<p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#374151">${escapeHtml(
+      t('link.validity', {
+        validity: formatValidity(mail.expiresAt, t),
+        expiry: formatExpiry(mail.expiresAt, t),
+      }),
+    )}</p>`,
+    `<p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#6b7280">${escapeHtml(t(copy.ignore))}</p>`,
+    `<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">${escapeHtml(t('footer', { instance: mail.instance }))}</p>`,
     '</div></body></html>',
   ].join('');
 }
@@ -236,10 +362,10 @@ export function renderAccountMailHtml(mail: AccountMail): string {
  * arrive chez une personne qui attend précisément ce message, et un crochet en
  * tête ressemble à du courrier de machine — donc à du spam.
  */
-export function renderAccountMail(mail: AccountMail): AccountMailEnvelope {
+export function renderAccountMail(mail: AccountMail, language: UiLanguage): AccountMailEnvelope {
   return {
-    subject: COPY[mail.kind].subject(mail),
-    text: renderAccountMailText(mail),
-    html: renderAccountMailHtml(mail),
+    subject: messageFor(language)(COPY[mail.kind].subject, { instance: mail.instance }),
+    text: renderAccountMailText(mail, language),
+    html: renderAccountMailHtml(mail, language),
   };
 }

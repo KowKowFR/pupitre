@@ -1,5 +1,11 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
-import { checkAddress, checkHostname, type Cidr } from '../monitors/ssrf.js';
+import {
+  checkAddress,
+  checkHostname,
+  ssrfRefusalText,
+  type Cidr,
+  type SsrfRefusal,
+} from '../monitors/ssrf.js';
 
 /**
  * La résolution contrôlée, partagée par toutes les sondes.
@@ -9,13 +15,23 @@ import { checkAddress, checkHostname, type Cidr } from '../monitors/ssrf.js';
  * pas être oubliée par un type qui arrive plus tard.
  */
 
+/**
+ * L'erreur porte le refus **en donnée**, pas seulement en phrase.
+ *
+ * `reason` reste ce qu'il était — la phrase française, celle que les sondes
+ * recopient en `detail` d'un relevé et que Pino journalise. `refusal` est la
+ * même chose non rendue : le panel s'en sert pour dire la même chose dans la
+ * langue de l'instance, sans avoir à retraduire une phrase déjà écrite.
+ */
 export class SsrfBlockedError extends Error {
   override readonly name = 'SsrfBlockedError';
+  readonly reason: string;
   constructor(
-    readonly reason: string,
+    readonly refusal: SsrfRefusal,
     readonly target: string,
   ) {
-    super(reason);
+    super(ssrfRefusalText(refusal));
+    this.reason = this.message;
   }
 }
 
@@ -39,7 +55,9 @@ export async function resolveGuarded(
 ): Promise<ResolvedTarget> {
   const host = hostname.replace(/^\[|\]$/g, '');
   const shape = checkHostname(host);
-  if (!shape.allowed) throw new SsrfBlockedError(shape.reason ?? 'hôte refusé', host);
+  if (!shape.allowed) {
+    throw new SsrfBlockedError(shape.refusal ?? { key: 'reason.hostRefused' }, host);
+  }
 
   let records: Array<{ address: string; family: number }>;
   try {
@@ -48,18 +66,19 @@ export async function resolveGuarded(
     records = await dnsLookup(host, { all: true, verbatim: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new SsrfBlockedError(`nom « ${host} » non résolu : ${message}`, host);
+    throw new SsrfBlockedError({ key: 'reason.unresolved', vars: { host, message } }, host);
   }
 
-  if (records.length === 0) throw new SsrfBlockedError(`nom « ${host} » sans adresse`, host);
+  const noAddress: SsrfRefusal = { key: 'reason.noAddress', vars: { host } };
+  if (records.length === 0) throw new SsrfBlockedError(noAddress, host);
 
   for (const record of records) {
     const verdict = checkAddress(record.address, allowlist);
-    if (!verdict.allowed) throw new SsrfBlockedError(verdict.reason, host);
+    if (!verdict.allowed) throw new SsrfBlockedError(verdict.refusal, host);
   }
 
   const first = records[0];
-  if (!first) throw new SsrfBlockedError(`nom « ${host} » sans adresse`, host);
+  if (!first) throw new SsrfBlockedError(noAddress, host);
 
   return {
     hostname: host,
@@ -78,16 +97,16 @@ export async function resolveUrlGuarded(
   try {
     parsed = new URL(url);
   } catch {
-    throw new SsrfBlockedError(`URL illisible « ${url} »`, url);
+    throw new SsrfBlockedError({ key: 'reason.unreadableUrl', vars: { value: url } }, url);
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     throw new SsrfBlockedError(
-      `schéma « ${parsed.protocol.replace(':', '')} » refusé — http ou https uniquement`,
+      { key: 'reason.badScheme', vars: { scheme: parsed.protocol.replace(':', '') } },
       url,
     );
   }
   if (parsed.username !== '' || parsed.password !== '') {
-    throw new SsrfBlockedError("une URL de sonde ne porte pas d'identifiants", url);
+    throw new SsrfBlockedError({ key: 'reason.credentials' }, url);
   }
   return { target: await resolveGuarded(parsed.hostname, allowlist), parsed };
 }

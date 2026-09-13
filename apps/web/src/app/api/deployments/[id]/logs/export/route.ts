@@ -10,7 +10,8 @@ import {
   type DeploymentSummary,
 } from '@pupitre/db';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { deployments as messages } from '@/i18n/messages/deployments';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readSearchParams } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { requirePermission } from '@/lib/rbac';
@@ -54,7 +55,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { format } = readSearchParams(request, querySchema);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const exportedAt = new Date();
   const render = format === 'jsonl' ? renderJsonl : renderText;
@@ -248,19 +249,28 @@ function textHeader(
   actorEmail: string,
 ): string {
   const started = deployment.startedAt?.toISOString() ?? '—';
-  const finished = deployment.finishedAt?.toISOString() ?? 'non terminé';
 
-  return [
-    `# Journal de déploiement — ${deployment.applicationSlug} v${deployment.version}`,
-    `# Déploiement : ${deployment.id}`,
-    `# Cible : ${deployment.targetName} (${deployment.targetHost}) · ${deployment.runtime} · ${deployment.proxy}`,
-    `# Statut : ${deployment.status}${deployment.failedStep ? ` (échec sur « ${deployment.failedStep} »)` : ''}`,
-    `# Démarré : ${started} · terminé : ${finished}`,
-    `# Journal complet tel qu'il est conservé en base, dans l'ordre des étapes.`,
-    `# Exporté le ${exportedAt.toISOString()} par ${actorEmail}`,
-    '#',
-    '',
-  ].join('\n');
+  // i18n-ignore — un fichier exporté n'est pas de l'interface : c'est un
+  // artefact daté, téléchargé, archivé, relu des mois plus tard, en tête de
+  // lignes de log qui restent elles aussi dans la langue du projet. Deux
+  // exports du même déploiement doivent se lire côte à côte, quelle que soit
+  // la langue réglée entre-temps.
+  const finished = deployment.finishedAt?.toISOString() ?? 'non terminé';
+  // i18n-ignore — morceau du même en-tête ; voir la note ci-dessus.
+  const failure = deployment.failedStep ? ` (échec sur « ${deployment.failedStep} »)` : '';
+
+  // i18n-ignore — le corps du même en-tête ; voir la note ci-dessus. Un seul
+  // littéral plutôt que neuf lignes de tableau : une dispense se relit mieux
+  // en un seul endroit, et le texte produit est identique.
+  return `# Journal de déploiement — ${deployment.applicationSlug} v${deployment.version}
+# Déploiement : ${deployment.id}
+# Cible : ${deployment.targetName} (${deployment.targetHost}) · ${deployment.runtime} · ${deployment.proxy}
+# Statut : ${deployment.status}${failure}
+# Démarré : ${started} · terminé : ${finished}
+# Journal complet tel qu'il est conservé en base, dans l'ordre des étapes.
+# Exporté le ${exportedAt.toISOString()} par ${actorEmail}
+#
+`;
 }
 
 // ─── en-tête HTTP ─────────────────────────────────────────────────────────────

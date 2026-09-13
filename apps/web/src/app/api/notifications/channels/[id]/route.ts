@@ -8,7 +8,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { notifications } from '@/i18n/messages/notifications';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -44,7 +45,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const channel = await getNotificationChannel(id);
-  if (!channel) throw new NotFoundError(`Canal « ${id} » introuvable`);
+  if (!channel) throw new NotFoundError(msg(notifications, 'error.channelNotFound', { id }));
 
   return NextResponse.json(channel);
 });
@@ -55,7 +56,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const patch = await readJsonBody(request, patchSchema);
 
   const before = await getNotificationChannel(id);
-  if (!before) throw new NotFoundError(`Canal « ${id} » introuvable`);
+  if (!before) throw new NotFoundError(msg(notifications, 'error.channelNotFound', { id }));
 
   const after = await updateNotificationChannel(id, patch).catch((error: unknown) => {
     if (error instanceof NotificationChannelNameTakenError) {
@@ -63,7 +64,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     }
     throw error;
   });
-  if (!after) throw new NotFoundError(`Canal « ${id} » introuvable`);
+  if (!after) throw new NotFoundError(msg(notifications, 'error.channelNotFound', { id }));
 
   await logAudit({
     actorId: auth.userId,
@@ -97,7 +98,7 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const removed = await deleteNotificationChannel(id);
-  if (!removed) throw new NotFoundError(`Canal « ${id} » introuvable`);
+  if (!removed) throw new NotFoundError(msg(notifications, 'error.channelNotFound', { id }));
 
   await logAudit({
     actorId: auth.userId,

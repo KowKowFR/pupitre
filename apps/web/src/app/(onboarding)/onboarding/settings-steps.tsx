@@ -1,13 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { SCANNER_KEYS, scannerLabel, type ScannerKey } from '@pupitre/core';
+import { LOCALE_LABELS, SCANNER_KEYS, scannerLabel, type ScannerKey } from '@pupitre/core';
 import type { AppSettings, DateStyleName, SupportedLocale } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { onboarding } from '@/i18n/messages/onboarding';
 import { formatDateTime } from '@/lib/format';
 
 /**
@@ -24,13 +27,15 @@ type ApiError = { error?: { message?: string } };
 /** Instant fixe : deux `new Date()` séparés produiraient deux rendus différents. */
 const PREVIEW_INSTANT = new Date('2026-01-15T14:32:07Z');
 
-const DATE_STYLE_LABEL: Record<DateStyleName, string> = {
-  short: 'court',
-  medium: 'moyen',
-  long: 'long',
-};
-
-async function patchSettings(body: Record<string, unknown>): Promise<string | null> {
+/**
+ * `httpFailure` est passé par l'appelant plutôt que rendu ici : cette fonction
+ * n'est pas un composant, elle n'a donc pas de `t`. Le repli reste une phrase
+ * du dictionnaire partagé, la même que partout ailleurs dans le panel.
+ */
+async function patchSettings(
+  body: Record<string, unknown>,
+  httpFailure: (status: number) => string,
+): Promise<string | null> {
   const response = await fetch('/api/settings', {
     method: 'PATCH',
     headers: { 'content-type': 'application/json' },
@@ -38,7 +43,7 @@ async function patchSettings(body: Record<string, unknown>): Promise<string | nu
   });
   if (response.ok) return null;
   const payload = (await response.json().catch(() => ({}))) as ApiError;
-  return payload.error?.message ?? `Échec (HTTP ${response.status})`;
+  return payload.error?.message ?? httpFailure(response.status);
 }
 
 export function IdentityStep({
@@ -56,6 +61,8 @@ export function IdentityStep({
   disabled: boolean;
   onSaved: () => void;
 }) {
+  const t = useT(onboarding);
+  const tc = useT(common);
   const [instanceName, setInstanceName] = useState(settings.instanceName);
   const [instanceTagline, setInstanceTagline] = useState(settings.instanceTagline);
   const [timezone, setTimezone] = useState(settings.timezone);
@@ -65,18 +72,27 @@ export function IdentityStep({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  const styleLabel: Record<DateStyleName, string> = {
+    short: t('style.short'),
+    medium: t('style.medium'),
+    long: t('style.long'),
+  };
+
   const preview = formatDateTime(PREVIEW_INSTANT, { timezone, locale, dateStyle, timeStyle });
 
   async function save() {
     setPending(true);
-    const message = await patchSettings({
-      instanceName,
-      instanceTagline,
-      timezone,
-      locale,
-      dateStyle,
-      timeStyle,
-    });
+    const message = await patchSettings(
+      {
+        instanceName,
+        instanceTagline,
+        timezone,
+        locale,
+        dateStyle,
+        timeStyle,
+      },
+      (status) => tc('http.failure', { status }),
+    );
     setError(message);
     setPending(false);
     if (!message) onSaved();
@@ -88,7 +104,7 @@ export function IdentityStep({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="ob-name">Nom de l&apos;instance</Label>
+          <Label htmlFor="ob-name">{t('identity.name.label')}</Label>
           <Input
             id="ob-name"
             value={instanceName}
@@ -97,17 +113,17 @@ export function IdentityStep({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ob-tagline">Sous-titre</Label>
+          <Label htmlFor="ob-tagline">{t('identity.tagline.label')}</Label>
           <Input
             id="ob-tagline"
             value={instanceTagline}
             maxLength={60}
-            placeholder="Laisser vide pour n'afficher que le nom"
+            placeholder={t('identity.tagline.placeholder')}
             onChange={(event) => setInstanceTagline(event.target.value)}
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ob-timezone">Fuseau horaire</Label>
+          <Label htmlFor="ob-timezone">{t('identity.timezone.label')}</Label>
           <Select
             id="ob-timezone"
             value={timezone}
@@ -121,7 +137,14 @@ export function IdentityStep({
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ob-locale">Locale</Label>
+          <Label htmlFor="ob-locale">{t('identity.locale.label')}</Label>
+          {/*
+            Même sélecteur qu'à la section Régionalisation, et pas un réglage
+            « langue » de plus : la locale décide déjà du nom des mois, elle
+            décide aussi des mots. Les libellés sont ceux de `LOCALE_LABELS` —
+            chaque langue se nomme dans sa propre langue, pour qu'un anglophone
+            reconnaisse sa ligne sur un écran en français.
+          */}
           <Select
             id="ob-locale"
             value={locale}
@@ -129,13 +152,14 @@ export function IdentityStep({
           >
             {locales.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {LOCALE_LABELS[item]}
               </option>
             ))}
           </Select>
+          <p className="text-xs text-ink-faint">{t('identity.locale.help')}</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ob-date-style">Style de date</Label>
+          <Label htmlFor="ob-date-style">{t('identity.dateStyle.label')}</Label>
           <Select
             id="ob-date-style"
             value={dateStyle}
@@ -143,13 +167,13 @@ export function IdentityStep({
           >
             {dateStyles.map((style) => (
               <option key={style} value={style}>
-                {DATE_STYLE_LABEL[style]}
+                {styleLabel[style]}
               </option>
             ))}
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="ob-time-style">Style d&apos;heure</Label>
+          <Label htmlFor="ob-time-style">{t('identity.timeStyle.label')}</Label>
           <Select
             id="ob-time-style"
             value={timeStyle}
@@ -157,7 +181,7 @@ export function IdentityStep({
           >
             {dateStyles.map((style) => (
               <option key={style} value={style}>
-                {DATE_STYLE_LABEL[style]}
+                {styleLabel[style]}
               </option>
             ))}
           </Select>
@@ -165,16 +189,14 @@ export function IdentityStep({
       </div>
 
       <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-        <div className="eyebrow text-ink-faint">Aperçu</div>
+        <div className="eyebrow text-ink-faint">{t('preview.title')}</div>
         <div className="mt-1 font-mono text-sm text-ink tabular-nums">{preview}</div>
-        <div className="mt-1 text-xs text-ink-faint">
-          Instant de référence : 2026-01-15 14:32:07 UTC
-        </div>
+        <div className="mt-1 text-xs text-ink-faint">{t('preview.help')}</div>
       </div>
 
       <div>
         <Button size="sm" disabled={pending || disabled} onClick={() => void save()}>
-          {pending ? 'Enregistrement…' : 'Enregistrer et continuer'}
+          {pending ? tc('saving') : t('action.saveAndContinue')}
         </Button>
       </div>
     </div>
@@ -194,6 +216,8 @@ export function SecurityStep({
   disabled: boolean;
   onSaved: () => void;
 }) {
+  const t = useT(onboarding);
+  const tc = useT(common);
   const [scanningEnabled, setScanningEnabled] = useState(settings.security.scanningEnabled);
   const [disabledScanners, setDisabledScanners] = useState<ScannerKey[]>(
     settings.security.disabledScanners,
@@ -214,7 +238,7 @@ export function SecurityStep({
     // vraiment poser une clé — même distinction qu'à l'écran des paramètres.
     if (apiKeyInput.trim() !== '') body.aiApiKey = apiKeyInput.trim();
 
-    const message = await patchSettings(body);
+    const message = await patchSettings(body, (status) => tc('http.failure', { status }));
     setError(message);
     setPending(false);
     if (!message) {
@@ -235,18 +259,14 @@ export function SecurityStep({
           onChange={(event) => setScanningEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">Analyser les images avant déploiement</span>
-          <span className="block text-xs text-ink-faint">
-            Trivy et Grype cherchent les vulnérabilités connues des dépendances, Syft dresse le
-            SBOM. Le réglage s&apos;applique au moment où un déploiement est enfilé, et il est gelé
-            avec lui.
-          </span>
+          <span className="block text-ink">{t('security.scan.label')}</span>
+          <span className="block text-xs text-ink-faint">{t('security.scan.help')}</span>
         </span>
       </label>
 
       {scanningEnabled ? (
         <div className="space-y-2">
-          <span className="block text-sm text-ink">Scanners écartés</span>
+          <span className="block text-sm text-ink">{t('security.scanners.label')}</span>
           <div className="flex flex-wrap gap-2">
             {SCANNER_KEYS.map((key) => {
               const off = disabledScanners.includes(key);
@@ -275,10 +295,7 @@ export function SecurityStep({
           </div>
         </div>
       ) : (
-        <Alert variant="destructive">
-          Plus aucune image ne sera analysée. Les vulnérabilités connues des dépendances de vos
-          applications passeront sans être signalées.
-        </Alert>
+        <Alert variant="destructive">{t('security.scan.off')}</Alert>
       )}
 
       <label className="flex items-start gap-2.5 rounded-md border border-line px-3 py-2.5 text-sm">
@@ -289,38 +306,41 @@ export function SecurityStep({
           onChange={(event) => setAiEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">Autoriser la génération d&apos;AppSpec par IA</span>
-          <span className="block text-xs text-ink-faint">
-            Le modèle ne produit jamais de shell : il rend du JSON, validé par Zod avant que quoi
-            que ce soit ne soit exécuté.
-          </span>
+          <span className="block text-ink">{t('security.ai.label')}</span>
+          <span className="block text-xs text-ink-faint">{t('security.ai.help')}</span>
         </span>
       </label>
 
       <div className="space-y-1.5">
-        <Label htmlFor="ob-api-key">Clé d&apos;API du modèle</Label>
+        <Label htmlFor="ob-api-key">{t('security.apiKey.label')}</Label>
         <Input
           id="ob-api-key"
           type="password"
           autoComplete="off"
           value={apiKeyInput}
+          /*
+            Trois phrases plutôt qu'une phrase à trous : la variante à quatre
+            derniers caractères place ce fragment ailleurs selon la langue, et
+            un `${}` au milieu d'une chaîne traduite l'aurait figé en français.
+          */
           placeholder={
             aiApiKeyConfigured
-              ? `Clé déjà enregistrée${aiApiKeyLast4 ? ` — …${aiApiKeyLast4}` : ''}, laisser vide pour la conserver`
-              : 'Laisser vide pour ne pas en poser'
+              ? aiApiKeyLast4
+                ? t('security.apiKey.placeholder.storedLast4', { last4: aiApiKeyLast4 })
+                : t('security.apiKey.placeholder.stored')
+              : t('security.apiKey.placeholder.none')
           }
           onChange={(event) => setApiKeyInput(event.target.value)}
         />
         <p className="text-xs text-ink-faint">
-          Chiffrée en AES-256-GCM sous <code className="font-mono">MASTER_KEY</code>, comme les
-          credentials SSH. Elle ne ressort jamais de la base : ni par l&apos;API, ni dans les
-          logs, ni ici. Pour en changer plus tard, on la remplace — on ne la relit pas.
+          {t('security.apiKey.help.before')} <code className="font-mono">MASTER_KEY</code>
+          {t('security.apiKey.help.after')}
         </p>
       </div>
 
       <div>
         <Button size="sm" disabled={pending || disabled} onClick={() => void save()}>
-          {pending ? 'Enregistrement…' : 'Enregistrer et continuer'}
+          {pending ? tc('saving') : t('action.saveAndContinue')}
         </Button>
       </div>
     </div>

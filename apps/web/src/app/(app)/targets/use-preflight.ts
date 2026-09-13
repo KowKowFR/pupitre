@@ -2,6 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { targets } from '@/i18n/messages/targets';
 
 type JobState = {
   state: 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'paused' | 'unknown';
@@ -18,6 +21,8 @@ const POLL_TIMEOUT_MS = 120_000;
  */
 export function usePreflight({ onError }: { onError: (message: string | null) => void }) {
   const router = useRouter();
+  const t = useT(targets);
+  const tc = useT(common);
   const [phases, setPhases] = useState<Record<string, string>>({});
   const running = useRef(new Set<string>());
 
@@ -35,7 +40,7 @@ export function usePreflight({ onError }: { onError: (message: string | null) =>
       if (running.current.has(targetId)) return;
       running.current.add(targetId);
       onError(null);
-      setPhase(targetId, 'enfilé…');
+      setPhase(targetId, t('phase.queued'));
 
       try {
         const enqueue = await fetch(`/api/targets/${targetId}/preflight`, { method: 'POST' });
@@ -43,40 +48,40 @@ export function usePreflight({ onError }: { onError: (message: string | null) =>
           const body = (await enqueue.json().catch(() => ({}))) as {
             error?: { message?: string };
           };
-          throw new Error(body.error?.message ?? `Échec (HTTP ${enqueue.status})`);
+          throw new Error(body.error?.message ?? tc('http.failure', { status: enqueue.status }));
         }
 
         const { jobId } = (await enqueue.json()) as { jobId: string };
         const deadline = Date.now() + POLL_TIMEOUT_MS;
 
         for (;;) {
-          if (Date.now() > deadline) throw new Error('Le preflight ne répond pas (timeout)');
+          if (Date.now() > deadline) throw new Error(t('preflight.error.timeout'));
           await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 
           const poll = await fetch(`/api/queue/jobs/${jobId}`, { cache: 'no-store' });
-          if (!poll.ok) throw new Error(`Suivi de tâche impossible (HTTP ${poll.status})`);
+          if (!poll.ok) throw new Error(t('preflight.error.poll', { status: poll.status }));
 
           const job = (await poll.json()) as JobState;
           if (job.state === 'completed') {
-            setPhase(targetId, 'terminé');
+            setPhase(targetId, t('phase.done'));
             router.refresh();
             // Laisse le rafraîchissement serveur remplacer la mention.
             setTimeout(() => setPhase(targetId, null), 1500);
             return;
           }
           if (job.state === 'failed') {
-            throw new Error(job.failedReason ?? 'Le preflight a échoué');
+            throw new Error(job.failedReason ?? t('preflight.error.failed'));
           }
-          setPhase(targetId, job.state === 'active' ? 'connexion SSH…' : 'en attente…');
+          setPhase(targetId, job.state === 'active' ? t('phase.ssh') : t('phase.waiting'));
         }
       } catch (error) {
-        onError(error instanceof Error ? error.message : 'Le preflight a échoué');
+        onError(error instanceof Error ? error.message : t('preflight.error.failed'));
         setPhase(targetId, null);
       } finally {
         running.current.delete(targetId);
       }
     },
-    [onError, router, setPhase],
+    [onError, router, setPhase, t, tc],
   );
 
   return {

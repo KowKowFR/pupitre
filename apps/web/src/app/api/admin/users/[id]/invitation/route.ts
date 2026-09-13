@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { mailChannelName } from '@/lib/account-mail';
 import { hasPassword, revokeResetTokens } from '@/lib/auth';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { inviteExistingUser } from '../../route';
@@ -33,31 +34,22 @@ export const POST = apiRoute<Context>(async (request, context) => {
 
   const db = getDb();
   const [target] = await db.select().from(users).where(eq(users.id, id));
-  if (!target) throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   if (await hasPassword(id)) {
     // Le compte est actif : la personne a déjà choisi son mot de passe. Lui
     // renvoyer une « invitation » serait une réinitialisation déguisée, décidée
     // par quelqu'un d'autre qu'elle. Si elle est bloquée, c'est à elle de
     // demander une réinitialisation depuis l'écran de connexion.
-    throw new ConflictError(
-      `${target.email} a déjà choisi son mot de passe. ` +
-        'Une réinitialisation se demande depuis l’écran de connexion.',
-    );
+    throw new ConflictError(msg(admin, 'error.user.hasPassword', { email: target.email }));
   }
 
   if (target.banned) {
-    throw new ConflictError(
-      `${target.email} est désactivé : réactivez le compte avant de relancer l’invitation.`,
-    );
+    throw new ConflictError(msg(admin, 'error.user.banned', { email: target.email }));
   }
 
   if (!(await mailChannelName())) {
-    throw new HttpError(
-      409,
-      'mail_channel_missing',
-      'Aucun canal e-mail (SMTP) actif : l’invitation ne pourrait pas partir.',
-    );
+    throw new HttpError(409, 'mail_channel_missing', msg(admin, 'error.mail.missing.resend'));
   }
 
   const revoked = await revokeResetTokens(id);
@@ -89,11 +81,11 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
 
   const db = getDb();
   const [target] = await db.select().from(users).where(eq(users.id, id));
-  if (!target) throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   const revoked = await revokeResetTokens(id);
   if (revoked === 0) {
-    throw new ConflictError(`Aucun lien en cours pour ${target.email}.`);
+    throw new ConflictError(msg(admin, 'error.invitation.none', { email: target.email }));
   }
 
   await logAudit({

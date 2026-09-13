@@ -1,6 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import type { SettingsPatch } from './use-settings-patch';
@@ -30,6 +32,8 @@ export function SectionForm({
   onReset: () => void;
   children: ReactNode;
 }) {
+  const t = useT(common);
+
   return (
     <form
       className="flex flex-col gap-5"
@@ -46,7 +50,7 @@ export function SectionForm({
       {canManage ? (
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" type="submit" disabled={patch.pending}>
-            {patch.pending ? 'Enregistrement…' : 'Enregistrer'}
+            {patch.pending ? t('saving') : t('save')}
           </Button>
           <Button
             size="sm"
@@ -55,7 +59,7 @@ export function SectionForm({
             disabled={patch.pending}
             onClick={onReset}
           >
-            Annuler
+            {t('cancel')}
           </Button>
         </div>
       ) : null}

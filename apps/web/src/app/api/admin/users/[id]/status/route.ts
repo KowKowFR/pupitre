@@ -1,8 +1,11 @@
+import { translator } from '@pupitre/core';
 import { eq, getDb, getUserGrants, logAudit, sessions, users } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { revokeResetTokens } from '@/lib/auth';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { currentLanguage } from '@/i18n/server';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { countActiveAdmins } from '../../route';
@@ -23,21 +26,20 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'user:manage');
   const { id } = paramsSchema.parse(await context.params);
   const { banned, reason } = await readJsonBody(request, bodySchema);
+  const t = translator(admin, await currentLanguage());
 
   if (id === auth.userId) {
-    throw new ConflictError('Impossible de désactiver son propre compte');
+    throw new ConflictError(msg(admin, 'error.user.disableSelf'));
   }
 
   const db = getDb();
   const [target] = await db.select().from(users).where(eq(users.id, id));
-  if (!target) throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   if (banned) {
     const grants = await getUserGrants(id, db);
     if (grants.roles.includes('admin') && (await countActiveAdmins(id)) === 0) {
-      throw new ConflictError(
-        'Impossible de désactiver le dernier administrateur actif de la plateforme',
-      );
+      throw new ConflictError(msg(admin, 'error.user.lastAdmin.disable'));
     }
   }
 
@@ -45,7 +47,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     .update(users)
     .set({
       banned,
-      banReason: banned ? (reason ?? 'Désactivé par un administrateur') : null,
+      banReason: banned ? (reason ?? t('users.banReason.default')) : null,
       banExpires: null,
       updatedAt: new Date(),
     })

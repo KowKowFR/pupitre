@@ -1,7 +1,8 @@
 import { getApplication, listApplicationVersions } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { applications as messages } from '@/i18n/messages/applications';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -23,7 +24,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const application = await getApplication(id);
-  if (!application) throw new NotFoundError(`Application « ${id} » introuvable`);
+  if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const items = await listApplicationVersions(id);
 

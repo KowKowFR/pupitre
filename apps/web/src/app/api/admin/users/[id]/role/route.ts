@@ -2,7 +2,8 @@ import { LOCKED_ROLE } from '@pupitre/core';
 import { eq, getDb, getRoleByKey, getUserGrants, logAudit, roleKeySchema, setUserRoles, users } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { admin } from '@/i18n/messages/admin';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { countActiveAdmins } from '../../route';
@@ -24,10 +25,10 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
 
   const db = getDb();
   const [target] = await db.select().from(users).where(eq(users.id, id));
-  if (!target) throw new NotFoundError(`Utilisateur « ${id} » introuvable`);
+  if (!target) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
   if (!(await getRoleByKey(role, db))) {
-    throw new NotFoundError(`Rôle « ${role} » introuvable`);
+    throw new NotFoundError(msg(admin, 'error.role.notFound', { key: role }));
   }
 
   const before = await getUserGrants(id, db);
@@ -35,9 +36,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   // Interdit de retirer le dernier administrateur actif de la plateforme.
   if (before.roles.includes(LOCKED_ROLE) && role !== LOCKED_ROLE) {
     if ((await countActiveAdmins(id)) === 0) {
-      throw new ConflictError(
-        'Impossible de retirer le dernier administrateur actif de la plateforme',
-      );
+      throw new ConflictError(msg(admin, 'error.user.lastAdmin.role'));
     }
   }
 

@@ -13,12 +13,14 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { HttpError, NotFoundError } from '@/lib/errors';
+import { monitors as messages } from '@/i18n/messages/monitors';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
 import {
   assertConfigAllowed,
   assertUrlAllowed,
   buildMonitorViews,
+  monitorConfigMessage,
   toCheckView,
   toIncidentView,
 } from '@/lib/monitors';
@@ -35,10 +37,13 @@ const querySchema = z.object({
   incidents: z.coerce.number().int().min(1).max(200).default(50),
 });
 
-function translate(error: unknown): never {
-  if (error instanceof MonitorConfigError) {
-    throw new HttpError(422, 'validation_failed', error.message, { field: error.field });
-  }
+/**
+ * Le refus de `resolveConfig()` arrive en donnée ; la phrase se fabrique dans
+ * `lib/monitors`, où la langue de l'instance est lisible. Les deux routes de
+ * sonde passent par là, donc disent la même chose.
+ */
+async function translate(error: unknown): Promise<never> {
+  if (error instanceof MonitorConfigError) throw await monitorConfigMessage(error);
   throw error;
 }
 
@@ -48,7 +53,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { checks, incidents } = readSearchParams(request, querySchema);
 
   const row = await getMonitor(id);
-  if (!row) throw new NotFoundError(`Sonde « ${id} » introuvable`);
+  if (!row) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
   const [[item], checkRows, incidentRows] = await Promise.all([
     buildMonitorViews([row]),
@@ -71,7 +76,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const patch = await readJsonBody(request, updateMonitorSchema);
 
   const before = await getMonitor(id);
-  if (!before) throw new NotFoundError(`Sonde « ${id} » introuvable`);
+  if (!before) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
   // Le type ne se modifie pas : changer le type d'une sonde, c'est en créer une
   // autre — son historique et ses incidents porteraient sur autre chose.
@@ -83,12 +88,14 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   if (patch.applicationId !== undefined && patch.applicationId !== null) {
     const application = await getApplication(patch.applicationId);
     if (!application) {
-      throw new NotFoundError(`Application « ${patch.applicationId} » introuvable`);
+      throw new NotFoundError(
+        msg(messages, 'error.applicationNotFound', { id: patch.applicationId }),
+      );
     }
   }
 
   const after = await updateMonitor(id, patch).catch(translate);
-  if (!after) throw new NotFoundError(`Sonde « ${id} » introuvable`);
+  if (!after) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
   await logAudit({
     actorId: auth.userId,
@@ -125,12 +132,12 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const row = await getMonitor(id);
-  if (!row) throw new NotFoundError(`Sonde « ${id} » introuvable`);
+  if (!row) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
   // Les mesures et les incidents partent avec, par cascade : une sonde
   // supprimée n'a pas d'historique à conserver — c'est son historique.
   const removed = await deleteMonitor(id);
-  if (!removed) throw new NotFoundError(`Sonde « ${id} » introuvable`);
+  if (!removed) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
   await logAudit({
     actorId: auth.userId,
