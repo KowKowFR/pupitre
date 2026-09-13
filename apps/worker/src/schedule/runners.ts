@@ -289,7 +289,7 @@ const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog }) => {
   const enqueued: string[] = [];
 
   for (const target of targets) {
-    // On réutilise la tâche du jalon 3 plutôt que d'en dupliquer la logique :
+    // On réutilise la tâche de preflight plutôt que d'en dupliquer la logique :
     // une seule implémentation du preflight, un seul endroit où un credential
     // est déchiffré.
     const job = await queue.add(TARGET_PREFLIGHT_JOB, {

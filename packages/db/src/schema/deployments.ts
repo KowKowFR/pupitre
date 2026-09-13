@@ -68,7 +68,7 @@ export const deployments = pgTable(
       { onDelete: 'set null' },
     ),
     /**
-     * Santé constatée par le healthcheck **périodique** (jalon 8), distincte du
+     * Santé constatée par le healthcheck **périodique**, distincte du
      * `status` du déploiement : un déploiement `success` peut devenir
      * `unreachable` trois heures plus tard sans cesser d'avoir réussi. La sonde
      * périodique n'écrit que ces deux colonnes — elle ne rollback jamais.

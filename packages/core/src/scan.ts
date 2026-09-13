@@ -254,7 +254,7 @@ export function dedupeScanners(config: ScanConfig): ScanConfig {
  * Vulnérabilité normalisée.
  *
  * Deux scanners qui voient la même CVE sur le même paquet doivent produire le
- * même `Finding`. C'est le point clé du jalon : au-delà de cette frontière,
+ * même `Finding`. C'est tout le point de la normalisation : au-delà de cette frontière,
  * plus rien ne sait qui a parlé.
  */
 export const findingSchema = z.object({
@@ -346,7 +346,7 @@ export function verdictFor(
 
 /**
  * La base porte les mêmes notions en minuscules, avec un cran `negligible`
- * hérité du jalon 1 que notre échelle n'utilise pas. La traduction vit ici,
+ * hérité du schéma d'origine que notre échelle n'utilise pas. La traduction vit ici,
  * une fois, plutôt que dans chaque requête.
  */
 export const DB_SEVERITIES = [

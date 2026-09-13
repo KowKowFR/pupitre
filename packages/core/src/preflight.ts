@@ -37,7 +37,7 @@ export const k3sRuntimeSchema = z.object({
 
 /**
  * Contenu de `targets.runtimes_available`.
- * Structuré et non un simple tableau : le driver du jalon 4 a besoin des
+ * Structuré et non un simple tableau : le driver a besoin des
  * versions, pas seulement de la disponibilité.
  */
 export const runtimesAvailableSchema = z.object({
@@ -113,7 +113,7 @@ export const preflightReportSchema = z.object({
   memory: memoryInfoSchema.nullable().default(null),
   tools: toolsSchema,
   /**
-   * Ajouté au jalon 7. `null` pour les rapports antérieurs : un rapport déjà
+   * Ajouté après coup. `null` pour les rapports antérieurs : un rapport déjà
    * en base ne se réécrit pas, l'UI dit simplement « inconnu ».
    */
   firewall: firewallSchema.nullable().default(null),

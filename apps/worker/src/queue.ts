@@ -5,7 +5,7 @@ import { createRedisConnection } from './redis.js';
 /**
  * Producteur côté worker.
  *
- * Le worker n'était jusqu'ici que consommateur. Le jalon 8 lui donne une
+ * Le worker n'était à l'origine que consommateur. L'ordonnancement lui donne une
  * seconde casquette : le scheduler installe des repeatable jobs, et la tâche
  * de rafraîchissement des cibles enfile un `target:preflight` par cible plutôt
  * que de dupliquer sa logique. Connexion dédiée : celle du `Worker` est

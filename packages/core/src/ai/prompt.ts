@@ -6,7 +6,7 @@ import { readCoreAsset } from './assets.js';
  * Le prompt vit dans `src/ai/prompts/generate-appspec.md`, versionné comme du
  * code — jamais en dur dans un fichier TypeScript. Il porte des marques
  * `{{FIXTURE:nom.json}}` que l'on remplace par le contenu **réel** des fixtures
- * du jalon 4A.
+ * du dépôt.
  *
  * Recopier les fixtures dans le markdown aurait été plus simple, et faux : les
  * exemples few-shot auraient dérivé du jour où une fixture change, sans que rien

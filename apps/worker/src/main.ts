@@ -75,7 +75,7 @@ type JobHandler = (job: Job) => Promise<unknown>;
 /**
  * Un seul point d'enregistrement des tâches de la queue `ops`.
  *
- * Les quatre tâches planifiées du jalon 8 sont enregistrées depuis la table de
+ * Les quatre tâches planifiées sont enregistrées depuis la table de
  * données `SCHEDULED_JOB_TYPES` et partagent la même enveloppe : le nom BullMQ
  * varie, le traitement est dispatché par `type` à l'intérieur. Écrire les
  * quatre noms à la main ici aurait été un cinquième endroit à tenir à jour.

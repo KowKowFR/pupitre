@@ -156,7 +156,7 @@ export const MONITOR_CAPTURE_JOB = 'monitor:capture' as const;
 export const pingJobDataSchema = z.object({
   message: z.string().min(1).max(280).default('pong'),
   requestedAt: z.string().datetime(),
-  /** Renseigné dès le jalon 2, quand l'authentification existe. */
+  /** Renseigné dès qu'une authentification existe. */
   actorId: z.string().min(1).nullable().default(null),
   ip: z.string().min(1).nullable().default(null),
 });

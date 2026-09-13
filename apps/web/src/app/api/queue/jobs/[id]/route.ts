@@ -20,7 +20,7 @@ type Context = { params: Promise<{ id: string }> };
 /**
  * État d'une tâche de la queue `ops`, quel que soit son type.
  *
- * Déplacée de `/api/jobs/:id` vers `/api/queue/jobs/:id` au jalon 8. La raison
+ * Déplacée de `/api/jobs/:id` vers `/api/queue/jobs/:id`. La raison
  * est un conflit de ressources : `/api/jobs` désigne désormais les **tâches
  * planifiées**, qui sont des objets de la base avec un cycle de vie CRUD, et
  * `:id` y est l'identifiant d'une ligne `scheduled_jobs`. Une même route ne

@@ -4,7 +4,7 @@ import { users } from './auth.js';
 /**
  * RBAC. Les permissions sont des chaînes `ressource:action`
  * (`deployment:create`, `target:delete`, `user:manage`, ...).
- * Le câblage réel (`requirePermission()`) arrive au jalon 2.
+ * Le câblage réel passe par `requirePermission()`.
  */
 
 export const roles = pgTable('roles', {

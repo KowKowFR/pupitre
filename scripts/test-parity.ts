@@ -1,5 +1,5 @@
 /**
- * LE TEST DE VÉRITÉ du jalon 5.
+ * LE TEST DE VÉRITÉ de l'architecture.
  *
  * Une seule AppSpec, deux runtimes. Si un champ doit être modifié entre les deux
  * déploiements, l'abstraction a échoué et ce script doit le dire.

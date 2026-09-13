@@ -265,7 +265,12 @@ grep -qE '"v1:[A-Za-z0-9+/]' "$BODY" && fail "le journal d'audit contient la val
 pass "aucun credential dans le journal d'audit"
 
 step "10. Aucun credential dans les logs du worker"
-if docker compose logs worker 2>/dev/null | grep -qF 'BEGIN OPENSSH PRIVATE KEY'; then
+# `grep -c` et non `grep -q` : sous `set -o pipefail`, `grep -q` sort à la
+# première correspondance, `docker compose logs` reçoit un SIGPIPE, et le tube
+# rapporte l'échec du producteur. Sur une assertion **négative** comme celle-ci,
+# ce faux négatif fait **passer** le contrôle alors qu'un secret a fuité — le
+# silence ressemblerait au succès. `grep -c` lit jusqu'au bout.
+if [ "$(docker compose logs worker 2>/dev/null | grep -cF 'BEGIN OPENSSH PRIVATE KEY')" != "0" ]; then
   fail "la clé privée apparaît dans les logs du worker"
 fi
 pass "aucune clé privée dans les logs du worker"

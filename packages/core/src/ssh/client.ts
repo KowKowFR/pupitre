@@ -274,7 +274,7 @@ export async function exec(
 
 /**
  * Exécute une commande en diffusant sa sortie ligne par ligne.
- * Servira au jalon 4 pour pousser les logs de déploiement sur Redis pub/sub.
+ * Sert à pousser les logs de déploiement sur Redis pub/sub.
  */
 export async function execStream(
   session: SshSession,

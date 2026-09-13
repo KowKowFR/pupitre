@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
-/** `<select>` natif habillé — suffisant pour le jalon 2, sans dépendance Radix. */
+/** `<select>` natif habillé — suffisant ici, sans dépendance Radix. */
 function Select({ className, ...props }: React.ComponentProps<'select'>) {
   return (
     <select

@@ -27,7 +27,7 @@ import { findings, scanRuns } from './schema/security.js';
 /**
  * Persistance des scans.
  *
- * Deux écarts de nommage hérités du jalon 1, absorbés ici plutôt que par une
+ * Deux écarts de nommage hérités du schéma d'origine, absorbés ici plutôt que par une
  * migration : `findings.version` porte l'`installedVersion` du rapport, et
  * `findings.reference` son `primaryUrl`. Le reste du projet ne voit que les
  * noms du rapport normalisé.

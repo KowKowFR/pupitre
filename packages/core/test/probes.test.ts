@@ -26,7 +26,7 @@ import {
 } from '../src/probe/index.js';
 
 /**
- * Les deux sondes ajoutées au jalon « supervision » : mot-clé et expiration de
+ * Les deux sondes ajoutées avec la supervision de sites : mot-clé et expiration de
  * domaine.
  *
  * Deux familles d'épreuves, et la séparation est volontaire :

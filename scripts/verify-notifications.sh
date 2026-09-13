@@ -416,7 +416,12 @@ LEAKS=$(psql_q "select count(*) from audit_logs
 pass "absent d'audit_logs"
 
 for service in panel worker; do
-  if docker compose logs "$service" 2>/dev/null | grep -qF 'VERIFSECRET'; then
+  # `grep -c` et non `grep -q` : sous `set -o pipefail`, `grep -q` sort à la
+  # première correspondance, `docker compose logs` reçoit un SIGPIPE, et le tube
+  # rapporte l'échec du producteur. Sur une assertion **négative** comme celle-ci,
+  # ce faux négatif fait **passer** le contrôle alors qu'un secret a fuité — le
+  # silence ressemblerait au succès. `grep -c` lit jusqu'au bout.
+    if [ "$(docker compose logs "$service" 2>/dev/null | grep -cF 'VERIFSECRET')" != "0" ]; then
     fail "un secret apparaît dans docker compose logs $service"
   fi
 done

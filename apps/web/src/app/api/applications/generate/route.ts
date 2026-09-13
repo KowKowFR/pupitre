@@ -150,7 +150,7 @@ export const POST = apiRoute(async (request) => {
   const failureMessage = result.ok ? '' : redactApiKey(result.message, ai.apiKey);
 
   // Une seule entrée d'audit, quel que soit le verdict : c'est la même action.
-  // Le prompt y figure — c'est le point du jalon — mais jamais la clé.
+  // Le prompt y figure — c'est tout l'intérêt de la trace — mais jamais la clé.
   await logAudit({
     actorId: auth.userId,
     action: result.ok ? 'application.generated' : 'application.generation.failed',

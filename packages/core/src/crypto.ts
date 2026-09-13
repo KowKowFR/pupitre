@@ -8,7 +8,7 @@ import {
 
 /**
  * Chiffrement symétrique des secrets stockés en base (credentials SSH au
- * jalon 3, tokens divers ensuite).
+ * d'abord, jetons divers ensuite).
  *
  * Format de sortie : `version:iv:authTag:ciphertext`
  * Les trois derniers champs sont en base64 — l'alphabet base64 ne contient

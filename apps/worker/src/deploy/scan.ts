@@ -59,7 +59,7 @@ export type ScanStepInput = {
    *
    * Vrai dans le pipeline : une relance rejoue l'étape et doit repartir d'une
    * ardoise propre, sinon la page de sécurité cumulerait deux rapports sans
-   * moyen de les distinguer. Faux pour le scan **périodique** du jalon 8, dont
+   * moyen de les distinguer. Faux pour le scan **périodique**, dont
    * tout l'intérêt est justement d'empiler les rapports dans le temps sur un
    * déploiement qui, lui, n'a pas bougé.
    */
@@ -71,7 +71,7 @@ export type ScanStepInput = {
  *
  * Une exécution = un couple (scanner, image), et donc une ligne `scan_runs`.
  * C'est le modèle le plus honnête : la table porte une colonne `image_ref` au
- * singulier depuis le jalon 1, et un rapport agrégé sur plusieurs images
+ * singulier depuis l'origine, et un rapport agrégé sur plusieurs images
  * rendrait le verdict impossible à rattacher à quoi que ce soit.
  */
 export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepResult> {

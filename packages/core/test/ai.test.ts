@@ -23,7 +23,7 @@ import {
  * Aucun de ces tests n'appelle OpenRouter : ils vérifient ce qui est à nous —
  * le prompt, la validation, la relance unique, le rejet propre. La seule chose
  * qu'ils ne prouvent pas, c'est qu'un vrai modèle répond bien ; c'est le rôle
- * de `scripts/verify-jalon8.sh`, quand une clé est disponible.
+ * de `scripts/verify-appspec-generation.sh`, quand une clé est disponible.
  */
 
 const FIXTURES = path.join(
@@ -95,7 +95,7 @@ describe('prompt système', () => {
     assert.match(prompt, /jamais `latest`/i);
   });
 
-  it('substitue les trois fixtures du jalon 4A, sans laisser de marque', () => {
+  it('substitue les trois fixtures du prompt, sans laisser de marque', () => {
     const prompt = generateAppSpecPrompt();
     assert.ok(!prompt.includes('{{FIXTURE:'), 'aucune marque non substituée');
     // Le contenu réel des fixtures, pas une copie qui pourrait dériver.

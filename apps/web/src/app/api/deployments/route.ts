@@ -79,7 +79,7 @@ export const POST = apiRoute(async (request) => {
     throw new NotFoundError(msg(messages, 'error.targetNotFound', { id: input.targetId }));
   }
 
-  // Le preflight du jalon 3 fait foi : on ne déploie pas sur un runtime que la
+  // Le preflight fait foi : on ne déploie pas sur un runtime que la
   // cible n'a pas montré.
   const available = usableRuntimes(target.runtimesAvailable);
   if (!available.includes(input.runtime)) {

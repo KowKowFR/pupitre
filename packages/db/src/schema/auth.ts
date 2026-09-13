@@ -2,7 +2,7 @@ import { boolean, index, integer, pgTable, text, timestamp } from 'drizzle-orm/p
 
 /**
  * Tables compatibles Better Auth (+ plugin `admin`).
- * Better Auth sera branché au jalon 2 avec un mapping `modelName` vers ces
+ * Better Auth est branché avec un mapping `modelName` vers ces
  * noms de tables au pluriel.
  */
 

@@ -197,8 +197,16 @@ step "3 ter. Quitter passe par une confirmation, puis libère"
 # fermé.
 CHUNKS=$(grep -oE '/_next/static/chunks/[A-Za-z0-9_.-]+\.js' "$OB_HTML" | sort -u)
 found=0
+# `curl | grep -q` est un piège sous `set -o pipefail` : `grep` sort dès la
+# première correspondance, `curl` reçoit alors un SIGPIPE, et le tube rapporte
+# l'échec de `curl` alors que la recherche a réussi. Le contrôle échouait donc
+# précisément quand la chaîne était là — pas toujours, seulement quand le chunk
+# est assez gros pour que `curl` écrive encore au moment où `grep` s'arrête,
+# c'est-à-dire sur un serveur de développement et pas sur une image compilée.
+# On lit d'abord, on cherche ensuite : plus de tube, plus de course.
 for chunk in $CHUNKS; do
-  if curl -s -b "$JAR" "$BASE_URL$chunk" | grep -q "Quitter l'assistant sans"; then found=1; break; fi
+  body=$(curl -s -b "$JAR" "$BASE_URL$chunk")
+  case $body in *"Quitter l'assistant sans"*) found=1; break ;; esac
 done
 [ "$found" = "1" ] || fail "la confirmation d'abandon est absente du code servi"
 pass "la confirmation d'abandon est bien servie au navigateur"

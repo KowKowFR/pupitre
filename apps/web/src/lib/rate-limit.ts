@@ -8,7 +8,7 @@ import { logger } from './logger';
  * Limitation de débit, en fenêtre fixe, dans Redis.
  *
  * Il n'existait rien de tel dans le panel : celle de Better Auth ne couvre que
- * l'authentification. Le jalon 8 en a besoin parce qu'une route de génération
+ * l'authentification. La génération par IA en a besoin parce qu'une route de génération
  * appelle un fournisseur payant — sans garde-fou, un utilisateur légitime qui
  * clique douze fois brûle un quota, et un compte compromis brûle le reste.
  *

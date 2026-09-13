@@ -25,7 +25,7 @@ import {
 } from '../src/scanners/index.js';
 
 /**
- * Le point clé du jalon 6 : deux scanners qui voient la même CVE sur le même
+ * Le point clé de la normalisation : deux scanners qui voient la même CVE sur le même
  * paquet doivent produire le *même* `Finding`. Ces tests comparent les deux
  * traductions sur des sorties réelles, sans jamais ouvrir de session SSH.
  */
@@ -250,7 +250,7 @@ describe('correspondance avec les enums Postgres', () => {
     }
   });
 
-  it('`negligible`, hérité du jalon 1, est relu en LOW', () => {
+  it("`negligible`, hérité du schéma d'origine, est relu en LOW", () => {
     assert.equal(severityFromDb('negligible'), 'LOW');
   });
 });

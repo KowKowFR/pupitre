@@ -9,9 +9,9 @@ import {
 import { BACKOFF_CAP_SEC, backoffMs, parseListeningPorts } from '../src/drivers/index.js';
 
 /**
- * Jalon 7 — la logique de cycle de vie qui n'a besoin ni de SSH ni de base.
+ * La logique de cycle de vie qui n'a besoin ni de SSH ni de base.
  * Tout le reste (ufw, sondes, rollback) exige une machine : c'est
- * `scripts/verify-jalon7.sh` qui s'en charge.
+ * `scripts/verify-ports-rollback.sh` qui s'en charge.
  */
 
 describe('plages de ports', () => {

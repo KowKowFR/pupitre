@@ -5,7 +5,7 @@ import { env } from '../env.js';
 import { logger } from '../logger.js';
 
 /**
- * Tâche de fumée du jalon 1 : elle prouve que la chaîne
+ * Tâche de fumée d'origine : elle prouve que la chaîne
  * route HTTP → BullMQ → worker → Postgres est complète.
  */
 export async function handlePing(job: Job<unknown, PingJobResult>): Promise<PingJobResult> {

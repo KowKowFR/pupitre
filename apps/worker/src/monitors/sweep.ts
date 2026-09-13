@@ -36,7 +36,7 @@ import { allowedCidrs } from './policy.js';
  *
  * ── Ce qu'il fait, et ce qu'il ne fait pas ──────────────────────────────────
  * Il constate et alerte. Il ne redéploie rien, ne redémarre rien, ne rollback
- * rien — même règle que les tâches planifiées du jalon 8.
+ * rien — même règle que les tâches planifiées.
  *
  * ── Le problème de temps, qui est le vrai sujet ─────────────────────────────
  * Cinquante sondes à trente secondes de délai, c'est vingt-cinq minutes si on

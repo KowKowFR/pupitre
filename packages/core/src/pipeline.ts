@@ -9,7 +9,7 @@ import { DEFAULT_UI_LANGUAGE, type Bundle, type UiLanguage } from './i18n.js';
  * afficher la liste complète avant que le worker n'ait commencé.
  *
  * `rollback` est déclarée ici comme les autres, et non insérée en cours
- * d'exécution. Le jalon 4 a tranché que **toutes** les steps naissent en base
+ * d'exécution. Il a été tranché que **toutes** les steps naissent en base
  * au moment d'enfiler le job, précisément pour que l'UI montre le pipeline
  * complet d'emblée ; une step qui apparaîtrait en cours de route romprait cette
  * garantie, ferait mentir le compteur « n / total » et obligerait le client SSE

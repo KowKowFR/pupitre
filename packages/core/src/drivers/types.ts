@@ -194,7 +194,7 @@ export interface DeploymentDriver {
 
   /**
    * Réserve le port public. Retourne `null` quand le runtime n'expose pas par
-   * port — le K3sDriver du jalon 5 passe par un Ingress.
+   * port — le K3sDriver passe par un Ingress.
    *
    * Le `onLog` est optionnel : la réservation est silencieuse en temps normal,
    * mais elle a des choses à dire quand un port réservé se révèle occupé sur la
@@ -223,7 +223,7 @@ export interface DeploymentDriver {
    *
    * Le nommage d'une image construite est une décision du driver (préfixe de
    * projet en Compose, préfixe de namespace en K3s) : l'appelant n'a aucun
-   * moyen de la deviner. Les scanners du jalon 6 ont besoin de cette liste
+   * moyen de la deviner. Les scanners ont besoin de cette liste
    * avant `deploy()`, alors qu'aucun conteneur n'a encore démarré.
    */
   images(ctx: DriverContext): Promise<string[]>;
@@ -244,7 +244,7 @@ export interface DeploymentDriver {
    * préservant toujours la version courante. Retourne ce qui a été supprimé.
    *
    * Sur l'interface, et non chez l'appelant : c'est le driver qui sait où il
-   * dépose ses releases. La tâche planifiée `cleanup:versions` du jalon 8
+   * dépose ses releases. La tâche planifiée `cleanup:versions`
    * l'appelle sans jamais nommer un chemin, ni savoir sur quel runtime elle
    * tourne.
    */

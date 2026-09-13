@@ -427,7 +427,12 @@ psql_q "select count(*) from audit_logs where action = 'application.secret.set' 
 pass "audit : application.secret.set journalisé (nom et origine, sans valeur)"
 
 for svc in panel worker; do
-  if docker compose logs --no-log-prefix "$svc" 2>/dev/null | grep -qF "$SECRET"; then
+  # `grep -c` et non `grep -q` : sous `set -o pipefail`, `grep -q` sort à la
+  # première correspondance, `docker compose logs` reçoit un SIGPIPE, et le tube
+  # rapporte l'échec du producteur. Sur une assertion **négative** comme celle-ci,
+  # ce faux négatif fait **passer** le contrôle alors qu'un secret a fuité — le
+  # silence ressemblerait au succès. `grep -c` lit jusqu'au bout.
+    if [ "$(docker compose logs --no-log-prefix "$svc" 2>/dev/null | grep -cF "$SECRET")" != "0" ]; then
     fail "la valeur apparaît dans « docker compose logs $svc »"
   fi
 done

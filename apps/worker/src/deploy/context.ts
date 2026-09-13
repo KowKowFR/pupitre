@@ -26,7 +26,7 @@ import { logger } from '../logger.js';
 /**
  * Ouverture d'un contexte driver pour un déploiement existant.
  *
- * Extrait des handlers de déploiement au jalon 8 : rollback, destroy, scan
+ * Extrait des handlers de déploiement : rollback, destroy, scan
  * périodique, healthcheck périodique et purge des versions ont tous besoin du
  * même contexte, et aucun d'eux ne rejoue le pipeline. Le dupliquer aurait
  * garanti qu'un jour l'un des cinq oublie l'intersection des plages de ports.

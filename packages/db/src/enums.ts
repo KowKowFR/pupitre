@@ -82,7 +82,7 @@ export const healthStatusEnum = pgEnum('health_status', [
 /**
  * Nature d'une tâche planifiée.
  *
- * L'enum date du jalon 1 et n'a **pas** été migrée au jalon 8 : ses quatre
+ * L'enum date du schéma d'origine et n'a **pas** été migrée depuis : ses quatre
  * valeurs couvrent exactement les quatre tâches du brief. Le nom BullMQ
  * (`scan:periodic`, `health:periodic`, `cleanup:versions`, `target:preflight`)
  * vit dans `scheduled_jobs.key`, qui est justement la clé du repeatable job —

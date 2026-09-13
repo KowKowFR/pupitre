@@ -151,7 +151,7 @@ function buildAuth() {
     database: drizzleAdapter(getDb(), {
       provider: 'pg',
       // Nos tables sont au pluriel : on les mappe explicitement aux modèles
-      // Better Auth plutôt que de renommer le schéma du jalon 1.
+      // Better Auth plutôt que de renommer le schéma d'origine.
       schema: {
         user: users,
         session: sessions,

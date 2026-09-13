@@ -10,7 +10,7 @@ import type { ScanContext, ScanLogSink, Scanner } from './types.js';
  * Version relevée sur `api.github.com/repos/anchore/grype/releases/latest`
  * le 2026-09-10.
  *
- * Tout l'intérêt du jalon est ici : Grype décrit la même CVE que Trivy avec un
+ * Tout l'intérêt de l'abstraction est ici : Grype décrit la même CVE que Trivy avec un
  * vocabulaire différent (`Negligible`, `artifact.name`, `fix.versions`). La
  * traduction vers l'échelle commune se fait dans cette classe, et nulle part
  * ailleurs. Pour une même CVE sur un même paquet, les deux scanners produisent

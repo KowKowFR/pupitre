@@ -6,8 +6,8 @@ import { z } from 'zod';
  * Vocabulaire des tâches planifiées, partagé par le panel, le worker et la base.
  *
  * ── Arbitrage sur `scheduled_job_type` ───────────────────────────────────────
- * L'enum Postgres date du jalon 1 et vaut `scan | healthcheck | preflight |
- * cleanup`. Le brief du jalon 8 nomme les tâches `scan:periodic`,
+ * L'enum Postgres date du schéma d'origine et vaut `scan | healthcheck | preflight |
+ * cleanup`. L'ordonnancement, lui, nomme les tâches `scan:periodic`,
  * `health:periodic`, `cleanup:versions`, `target:preflight`. **L'enum n'a pas
  * été migrée** : ses quatre valeurs recouvrent exactement les quatre tâches, et
  * migrer une enum Postgres pour un renommage cosmétique, sur une table déjà
@@ -159,7 +159,7 @@ function buildScheduledJobTypes(
       neverDoes: t('job.cleanup.neverDoes'),
     },
     preflight: {
-      // Nom volontairement distinct de la tâche `target:preflight` du jalon 3,
+      // Nom volontairement distinct de la tâche `target:preflight` du preflight manuel,
       // qui prend UNE cible et ouvre une session SSH. Celle-ci balaye toutes les
       // cibles et enfile un `target:preflight` par cible : elle réutilise le
       // handler existant au lieu d'en dupliquer la logique.
