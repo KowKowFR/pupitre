@@ -66,6 +66,10 @@ export type DeploymentSummary = {
   autoRollback: boolean;
   /** Non nul : l'application a été volontairement arrêtée à cette date. */
   stoppedAt: Date | null;
+  /** Le dépôt, la branche et le commit exact, quand le run vient d'un dépôt lié. */
+  sourceRepository: string | null;
+  sourceRef: string | null;
+  sourceSha: string | null;
 };
 
 const summaryColumns = {
@@ -92,6 +96,9 @@ const summaryColumns = {
   scanConfig: deployments.scanConfig,
   autoRollback: deployments.autoRollback,
   stoppedAt: deployments.stoppedAt,
+  sourceRepository: deployments.sourceRepository,
+  sourceRef: deployments.sourceRef,
+  sourceSha: deployments.sourceSha,
 } as const;
 
 function summaryQuery(db: Database) {
@@ -139,6 +146,8 @@ export async function createDeploymentWithSteps(
   input: CreateDeploymentInput & {
     appSpec: AppSpec;
     triggeredBy: string | null;
+    /** L'origine du code, quand le run vient d'un dépôt lié. */
+    source?: { sourceId: string; repository: string; ref: string; sha: string };
   },
   db: Database = getDb(),
 ): Promise<{ deployment: Deployment; steps: DeploymentStep[] }> {
@@ -178,6 +187,14 @@ export async function createDeploymentWithSteps(
         autoRollback: input.autoRollback,
         triggeredBy: input.triggeredBy,
         previousDeploymentId: previous?.id ?? null,
+        ...(input.source
+          ? {
+              sourceId: input.source.sourceId,
+              sourceRepository: input.source.repository,
+              sourceRef: input.source.ref,
+              sourceSha: input.source.sha,
+            }
+          : {}),
       })
       .returning();
 

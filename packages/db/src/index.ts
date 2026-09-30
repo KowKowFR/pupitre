@@ -6,6 +6,7 @@ export * from './targets.js';
 export * from './applications.js';
 export * from './application-secrets.js';
 export * from './deployments.js';
+export * from './sources.js';
 export * from './port-allocator.js';
 export * from './scans.js';
 export * from './monitors.js';

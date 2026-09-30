@@ -1,0 +1,434 @@
+import type { AppSpec, SpecChange } from '@pupitre/core';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { getDb, type Database } from './client.js';
+import { targets } from './schema/infra.js';
+import {
+  applicationSourceTargets,
+  applicationSources,
+  sourceConnections,
+  sourceProposals,
+} from './schema/sources.js';
+
+/**
+ * Dépôts liés : la connexion au fournisseur, les liaisons application ↔
+ * branche, et les commits qui attendent une validation.
+ *
+ * Rien ici ne parle à GitHub : ce module range ce que le worker et le panel en
+ * ont appris. Voir `@pupitre/core` → `sources/` pour le contrat.
+ */
+
+export type SourceConnection = typeof sourceConnections.$inferSelect;
+export type ApplicationSource = typeof applicationSources.$inferSelect;
+export type SourceProposal = typeof sourceProposals.$inferSelect;
+export type SourceMode = ApplicationSource['mode'];
+
+// ─── connexion ────────────────────────────────────────────────────────────────
+
+export async function getSourceConnection(
+  provider: SourceConnection['provider'] = 'github',
+  db: Database = getDb(),
+): Promise<SourceConnection | null> {
+  const [row] = await db
+    .select()
+    .from(sourceConnections)
+    .where(eq(sourceConnections.provider, provider));
+  return row ?? null;
+}
+
+export type SourceConnectionInput = {
+  provider: SourceConnection['provider'];
+  appId: number;
+  slug: string;
+  name: string;
+  htmlUrl: string;
+  owner: string;
+  apiUrl: string | null;
+  /** Déjà chiffrée par l'appelant : ce module ne voit jamais la clé en clair. */
+  privateKeyEncrypted: string;
+  createdBy: string | null;
+};
+
+/** Une connexion par fournisseur : en enregistrer une nouvelle remplace l'ancienne. */
+export async function saveSourceConnection(
+  input: SourceConnectionInput,
+  db: Database = getDb(),
+): Promise<SourceConnection> {
+  const [row] = await db
+    .insert(sourceConnections)
+    .values(input)
+    .onConflictDoUpdate({
+      target: sourceConnections.provider,
+      set: { ...input, updatedAt: new Date() },
+    })
+    .returning();
+  if (!row) throw new Error("saveSourceConnection : l'écriture n'a rien retourné");
+  return row;
+}
+
+/** Retire la connexion ; ses liaisons partent avec elle (cascade). */
+export async function deleteSourceConnection(
+  provider: SourceConnection['provider'] = 'github',
+  db: Database = getDb(),
+): Promise<{ connection: SourceConnection; sources: number } | null> {
+  return db.transaction(async (tx) => {
+    const [connection] = await tx
+      .select()
+      .from(sourceConnections)
+      .where(eq(sourceConnections.provider, provider));
+    if (!connection) return null;
+    const [count] = await tx
+      .select({ value: sql<number>`count(*)::int` })
+      .from(applicationSources)
+      .where(eq(applicationSources.connectionId, connection.id));
+    await tx.delete(sourceConnections).where(eq(sourceConnections.id, connection.id));
+    return { connection, sources: count?.value ?? 0 };
+  });
+}
+
+// ─── liaisons ─────────────────────────────────────────────────────────────────
+
+/**
+ * Un chemin relatif sans détour : ni `..`, ni racine absolue. Il sert à lire un
+ * fichier du dépôt, jamais à toucher le disque — mais un chemin qui sort du
+ * dépôt n'a de toute façon aucun sens.
+ */
+const repoPathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(512)
+  .refine((path) => !path.startsWith('/') && !path.split('/').includes('..'), {
+    message: 'chemin relatif à la racine du dépôt, sans « .. »',
+  });
+
+export const sourceModeSchema = z.enum(['auto', 'auto_unless_infra', 'manual']);
+
+export const applicationSourceInputSchema = z.object({
+  repository: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'dépôt attendu sous la forme propriétaire/nom'),
+  installationId: z.number().int().positive(),
+  branch: z
+    .string()
+    .trim()
+    .min(1)
+    .max(255)
+    .refine((branch) => !/\s|\.\.|^[/-]|[~^:?*[\\]/.test(branch), { message: 'nom de branche invalide' }),
+  specPath: repoPathSchema.default('pupitre.json'),
+  watchPaths: z.array(repoPathSchema).max(50).default([]),
+  mode: sourceModeSchema.default('auto_unless_infra'),
+  enabled: z.boolean().default(true),
+  targets: z
+    .array(z.object({ targetId: z.string().uuid(), runtime: z.enum(['docker', 'k3s']) }))
+    .min(1, 'au moins une cible')
+    .max(20)
+    .refine(
+      (list) => new Set(list.map((entry) => entry.targetId)).size === list.length,
+      'une cible ne se choisit qu’une fois',
+    ),
+});
+export type ApplicationSourceInput = z.infer<typeof applicationSourceInputSchema>;
+
+export const applicationSourcePatchSchema = applicationSourceInputSchema
+  .omit({ repository: true, installationId: true })
+  .partial()
+  .refine((patch) => Object.keys(patch).length > 0, { message: 'aucun champ à modifier' });
+export type ApplicationSourcePatch = z.infer<typeof applicationSourcePatchSchema>;
+
+export type SourceTarget = { targetId: string; runtime: 'docker' | 'k3s'; targetName: string };
+
+export type ApplicationSourceView = ApplicationSource & {
+  targets: SourceTarget[];
+  pendingProposals: number;
+};
+
+export async function listSourceTargets(
+  sourceIds: readonly string[],
+  db: Database = getDb(),
+): Promise<Map<string, SourceTarget[]>> {
+  const map = new Map<string, SourceTarget[]>();
+  if (sourceIds.length === 0) return map;
+  const rows = await db
+    .select({
+      sourceId: applicationSourceTargets.sourceId,
+      targetId: applicationSourceTargets.targetId,
+      runtime: applicationSourceTargets.runtime,
+      targetName: targets.name,
+    })
+    .from(applicationSourceTargets)
+    .innerJoin(targets, eq(targets.id, applicationSourceTargets.targetId))
+    .where(inArray(applicationSourceTargets.sourceId, [...sourceIds]))
+    .orderBy(asc(targets.name));
+  for (const row of rows) {
+    const list = map.get(row.sourceId) ?? [];
+    list.push({ targetId: row.targetId, runtime: row.runtime, targetName: row.targetName });
+    map.set(row.sourceId, list);
+  }
+  return map;
+}
+
+async function withTargets(
+  rows: ApplicationSource[],
+  db: Database,
+): Promise<ApplicationSourceView[]> {
+  const ids = rows.map((row) => row.id);
+  const [targetMap, pending] = await Promise.all([
+    listSourceTargets(ids, db),
+    ids.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({
+            sourceId: sourceProposals.sourceId,
+            value: sql<number>`count(*)::int`,
+          })
+          .from(sourceProposals)
+          .where(and(inArray(sourceProposals.sourceId, ids), eq(sourceProposals.status, 'pending')))
+          .groupBy(sourceProposals.sourceId),
+  ]);
+  const pendingMap = new Map(pending.map((row) => [row.sourceId, row.value]));
+  return rows.map((row) => ({
+    ...row,
+    targets: targetMap.get(row.id) ?? [],
+    pendingProposals: pendingMap.get(row.id) ?? 0,
+  }));
+}
+
+export async function listApplicationSources(
+  applicationId: string,
+  db: Database = getDb(),
+): Promise<ApplicationSourceView[]> {
+  const rows = await db
+    .select()
+    .from(applicationSources)
+    .where(eq(applicationSources.applicationId, applicationId))
+    .orderBy(asc(applicationSources.createdAt));
+  return withTargets(rows, db);
+}
+
+export async function getApplicationSource(
+  id: string,
+  db: Database = getDb(),
+): Promise<ApplicationSourceView | null> {
+  const [row] = await db.select().from(applicationSources).where(eq(applicationSources.id, id));
+  if (!row) return null;
+  const [view] = await withTargets([row], db);
+  return view ?? null;
+}
+
+/** Les liaisons actives, pour le polling. */
+export async function listEnabledSources(db: Database = getDb()): Promise<ApplicationSourceView[]> {
+  const rows = await db
+    .select()
+    .from(applicationSources)
+    .where(eq(applicationSources.enabled, true))
+    .orderBy(asc(applicationSources.createdAt));
+  return withTargets(rows, db);
+}
+
+export class SourceBindingConflictError extends Error {
+  constructor() {
+    super('cette application suit déjà cette branche de ce dépôt');
+    this.name = 'SourceBindingConflictError';
+  }
+}
+
+export async function createApplicationSource(
+  input: ApplicationSourceInput & {
+    applicationId: string;
+    connectionId: string;
+    createdBy: string | null;
+  },
+  db: Database = getDb(),
+): Promise<ApplicationSourceView> {
+  const created = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ id: applicationSources.id })
+      .from(applicationSources)
+      .where(
+        and(
+          eq(applicationSources.applicationId, input.applicationId),
+          eq(applicationSources.repository, input.repository),
+          eq(applicationSources.branch, input.branch),
+        ),
+      );
+    if (existing) throw new SourceBindingConflictError();
+
+    const [row] = await tx
+      .insert(applicationSources)
+      .values({
+        applicationId: input.applicationId,
+        connectionId: input.connectionId,
+        installationId: input.installationId,
+        repository: input.repository,
+        branch: input.branch,
+        specPath: input.specPath,
+        watchPaths: input.watchPaths,
+        mode: input.mode,
+        enabled: input.enabled,
+        createdBy: input.createdBy,
+      })
+      .returning();
+    if (!row) throw new Error("createApplicationSource : l'insertion n'a rien retourné");
+    await tx
+      .insert(applicationSourceTargets)
+      .values(input.targets.map((target) => ({ sourceId: row.id, ...target })));
+    return row;
+  });
+  const [view] = await withTargets([created], db);
+  return view!;
+}
+
+export async function updateApplicationSource(
+  id: string,
+  patch: ApplicationSourcePatch,
+  db: Database = getDb(),
+): Promise<ApplicationSourceView | null> {
+  const updated = await db.transaction(async (tx) => {
+    const { targets: nextTargets, ...fields } = patch;
+    const [current] = await tx.select().from(applicationSources).where(eq(applicationSources.id, id));
+    if (!current) return null;
+
+    // Changer de branche, c'est repartir de zéro : le prochain passage relit
+    // la tête de la nouvelle branche sans rien déployer.
+    const branchChanged = fields.branch !== undefined && fields.branch !== current.branch;
+    const [row] = await tx
+      .update(applicationSources)
+      .set({
+        ...fields,
+        ...(branchChanged ? { lastSeenSha: null, lastEtag: null, lastError: null } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(applicationSources.id, id))
+      .returning();
+    if (nextTargets) {
+      await tx.delete(applicationSourceTargets).where(eq(applicationSourceTargets.sourceId, id));
+      await tx
+        .insert(applicationSourceTargets)
+        .values(nextTargets.map((target) => ({ sourceId: id, ...target })));
+    }
+    return row ?? null;
+  });
+  if (!updated) return null;
+  const [view] = await withTargets([updated], db);
+  return view ?? null;
+}
+
+export async function deleteApplicationSource(
+  id: string,
+  db: Database = getDb(),
+): Promise<ApplicationSource | null> {
+  const [row] = await db.delete(applicationSources).where(eq(applicationSources.id, id)).returning();
+  return row ?? null;
+}
+
+/** Ce qu'un passage de polling a appris d'une liaison. */
+export async function recordSourceCheck(
+  id: string,
+  result: {
+    /** Le commit désormais traité, s'il a changé. */
+    sha?: string;
+    etag?: string | null;
+    error: string | null;
+  },
+  db: Database = getDb(),
+): Promise<void> {
+  const now = new Date();
+  await db
+    .update(applicationSources)
+    .set({
+      lastCheckedAt: now,
+      lastError: result.error,
+      ...(result.sha !== undefined ? { lastSeenSha: result.sha, lastChangeAt: now } : {}),
+      ...(result.etag !== undefined ? { lastEtag: result.etag } : {}),
+    })
+    .where(eq(applicationSources.id, id));
+}
+
+// ─── commits en attente de validation ─────────────────────────────────────────
+
+export type SourceProposalInput = {
+  sourceId: string;
+  sha: string;
+  commitMessage: string | null;
+  commitAuthor: string | null;
+  commitUrl: string | null;
+  appSpec: AppSpec;
+  reason: 'manual' | 'infra';
+  changes: SpecChange[];
+};
+
+/**
+ * Range un commit en attente. Un commit plus récent sur la même liaison rend
+ * les précédents caducs : on ne valide pas une version qui n'est plus la tête
+ * de la branche.
+ */
+export async function createSourceProposal(
+  input: SourceProposalInput,
+  db: Database = getDb(),
+): Promise<SourceProposal | null> {
+  return db.transaction(async (tx) => {
+    await tx
+      .update(sourceProposals)
+      .set({ status: 'superseded', decidedAt: new Date() })
+      .where(
+        and(
+          eq(sourceProposals.sourceId, input.sourceId),
+          eq(sourceProposals.status, 'pending'),
+          ne(sourceProposals.sha, input.sha),
+        ),
+      );
+    const [row] = await tx
+      .insert(sourceProposals)
+      .values(input)
+      .onConflictDoNothing({ target: [sourceProposals.sourceId, sourceProposals.sha] })
+      .returning();
+    return row ?? null;
+  });
+}
+
+export async function getSourceProposal(
+  id: string,
+  db: Database = getDb(),
+): Promise<SourceProposal | null> {
+  const [row] = await db.select().from(sourceProposals).where(eq(sourceProposals.id, id));
+  return row ?? null;
+}
+
+/** Les commits en attente des liaisons d'une application, le plus récent d'abord. */
+export async function listPendingProposals(
+  applicationId: string,
+  db: Database = getDb(),
+): Promise<SourceProposal[]> {
+  return db
+    .select({ proposal: sourceProposals })
+    .from(sourceProposals)
+    .innerJoin(applicationSources, eq(applicationSources.id, sourceProposals.sourceId))
+    .where(
+      and(
+        eq(applicationSources.applicationId, applicationId),
+        eq(sourceProposals.status, 'pending'),
+      ),
+    )
+    .orderBy(desc(sourceProposals.createdAt))
+    .then((rows) => rows.map((row) => row.proposal));
+}
+
+/**
+ * Tranche un commit en attente. Ne touche qu'une proposition encore
+ * `pending` : deux clics simultanés ne déploient pas deux fois.
+ */
+export async function decideSourceProposal(
+  id: string,
+  status: 'approved' | 'dismissed',
+  decidedBy: string | null,
+  db: Database = getDb(),
+): Promise<SourceProposal | null> {
+  const [row] = await db
+    .update(sourceProposals)
+    .set({ status, decidedBy, decidedAt: new Date() })
+    .where(and(eq(sourceProposals.id, id), eq(sourceProposals.status, 'pending')))
+    .returning();
+  return row ?? null;
+}

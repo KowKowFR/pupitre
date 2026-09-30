@@ -20,6 +20,7 @@ import {
 } from '../enums.js';
 import { users } from './auth.js';
 import { applications, targets } from './infra.js';
+import { applicationSources } from './sources.js';
 
 export const deployments = pgTable(
   'deployments',
@@ -109,6 +110,16 @@ export const deployments = pgTable(
      */
     stoppedAt: timestamp('stopped_at', { withTimezone: true }),
     triggeredBy: text('triggered_by').references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * La liaison à un dépôt qui a déclenché ce run, et le commit exact : on
+     * redéploie ce qui a tourné, pas « la dernière version de main ». Le dépôt
+     * et la branche sont recopiés — une liaison supprimée ne doit pas rendre
+     * l'historique muet sur l'origine du code.
+     */
+    sourceId: uuid('source_id').references(() => applicationSources.id, { onDelete: 'set null' }),
+    sourceRepository: text('source_repository'),
+    sourceRef: text('source_ref'),
+    sourceSha: text('source_sha'),
     error: text('error'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
