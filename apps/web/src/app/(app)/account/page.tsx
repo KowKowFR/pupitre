@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { eq, getDb, users } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { account as messages } from '@/i18n/messages/account';
 import { getT } from '@/i18n/server';
 import { requirePageSession } from '@/lib/page-auth';
@@ -28,17 +29,18 @@ export default async function AccountPage() {
     .where(eq(users.id, auth.userId));
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
+      <Crumb label={t('crumb')} />
       <PageHeader
         title={t('page.title')}
         description={t('page.description')}
-        actions={<span className="font-mono text-xs text-text-3">{auth.email}</span>}
+        actions={<span className="mono t-cap text-text-3">{auth.email}</span>}
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
         <PasswordForm />
         <TwoFactorPanel enabled={row?.twoFactorEnabled ?? false} />
       </div>
-    </div>
+    </>
   );
 }

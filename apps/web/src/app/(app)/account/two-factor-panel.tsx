@@ -6,12 +6,20 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Field, OtpInput } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useT } from '@/i18n/client';
 import { account as messages } from '@/i18n/messages/account';
 import { common } from '@/i18n/messages/common';
+import { toast } from '@/lib/toast';
 import { readApiError } from './api-error';
 
 /**
@@ -44,13 +52,11 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function startSetup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setNotice(null);
     setPending(true);
 
     const response = await fetch('/api/account/two-factor/setup', {
@@ -94,7 +100,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
 
     setSetup(null);
     setCode('');
-    setNotice(t('twoFactor.enabled'));
+    toast({ title: t('twoFactor.enabled') });
     setPending(false);
     router.refresh();
   }
@@ -102,7 +108,6 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
   async function disable(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setNotice(null);
     setPending(true);
 
     const response = await fetch('/api/account/two-factor/disable', {
@@ -118,78 +123,87 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
     }
 
     setPassword('');
-    setNotice(t('twoFactor.disabled'));
+    toast({ title: t('twoFactor.disabled') });
     setPending(false);
     router.refresh();
   }
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {t('twoFactor.title')}
-          {enabled ? (
-            <Badge variant="ok">{t('twoFactor.badge.on')}</Badge>
+      <CardHeader
+        actions={
+          enabled ? (
+            <Badge variant="ok" dot>
+              {t('twoFactor.badge.on')}
+            </Badge>
+          ) : setup ? (
+            <Badge variant="warn" dot>
+              {t('twoFactor.badge.setup')}
+            </Badge>
           ) : (
-            <Badge variant="secondary">{t('twoFactor.badge.off')}</Badge>
-          )}
-        </CardTitle>
+            <Badge>{t('twoFactor.badge.off')}</Badge>
+          )
+        }
+      >
+        <CardTitle>{t('twoFactor.title')}</CardTitle>
         <CardDescription>{t('twoFactor.description')}</CardDescription>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-4">
-        {error ? <Alert variant="destructive">{error}</Alert> : null}
-        {notice ? <Alert variant="success">{notice}</Alert> : null}
-
-        {enabled ? (
-          <form onSubmit={disable} className="flex flex-col gap-4">
-            <p className="text-[0.8125rem] text-text-2">{t('twoFactor.armed.body')}</p>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="disable-password">{t('twoFactor.field.password')}</Label>
+      {enabled ? (
+        <form onSubmit={disable} className="contents">
+          <CardContent className="flex flex-col gap-4">
+            {error ? <Alert variant="destructive">{error}</Alert> : null}
+            <p className="t-sm text-text-2">{t('twoFactor.armed.body')}</p>
+            <Field label={t('twoFactor.field.password')}>
               <Input
-                id="disable-password"
                 type="password"
                 autoComplete="current-password"
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
-            </div>
-            <Button type="submit" variant="destructive" disabled={pending} className="self-start">
+            </Field>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" variant="destructive" loading={pending}>
               {pending ? t('twoFactor.disabling') : tc('disable')}
             </Button>
-          </form>
-        ) : setup ? (
-          <SetupSteps
-            setup={setup}
-            code={code}
-            pending={pending}
-            onCodeChange={setCode}
-            onSubmit={activate}
-            onCancel={() => {
-              setSetup(null);
-              setCode('');
-            }}
-          />
-        ) : (
-          <form onSubmit={startSetup} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="setup-password">{t('twoFactor.field.password')}</Label>
+          </CardFooter>
+        </form>
+      ) : setup ? (
+        <SetupSteps
+          setup={setup}
+          code={code}
+          pending={pending}
+          error={error}
+          onCodeChange={setCode}
+          onSubmit={activate}
+          onCancel={() => {
+            setSetup(null);
+            setCode('');
+          }}
+        />
+      ) : (
+        <form onSubmit={startSetup} className="contents">
+          <CardContent className="flex flex-col gap-4">
+            {error ? <Alert variant="destructive">{error}</Alert> : null}
+            <Field label={t('twoFactor.field.password')}>
               <Input
-                id="setup-password"
                 type="password"
                 autoComplete="current-password"
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
-            </div>
-            <Button type="submit" disabled={pending} className="self-start">
+            </Field>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" loading={pending}>
               {pending ? t('twoFactor.generating') : t('twoFactor.enable')}
             </Button>
-          </form>
-        )}
-      </CardContent>
+          </CardFooter>
+        </form>
+      )}
     </Card>
   );
 }
@@ -198,6 +212,7 @@ function SetupSteps({
   setup,
   code,
   pending,
+  error,
   onCodeChange,
   onSubmit,
   onCancel,
@@ -205,6 +220,7 @@ function SetupSteps({
   setup: Setup;
   code: string;
   pending: boolean;
+  error: string | null;
   onCodeChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
@@ -213,64 +229,54 @@ function SetupSteps({
   const tc = useT(common);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
-        <div className="w-fit shrink-0 rounded-md border border-border bg-white p-3">
-          <QRCodeSVG value={setup.totpURI} size={148} level="M" marginSize={0} />
-        </div>
-        <div className="flex min-w-0 flex-col gap-2">
-          <p className="text-[0.8125rem] leading-relaxed text-text-2">{t('setup.scan')}</p>
-          <div className="flex flex-col gap-1">
-            <Label>{t('setup.key')}</Label>
-            <code className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-xs break-all text-text">
+    <form onSubmit={onSubmit} className="contents">
+      <CardContent className="flex flex-col gap-4">
+        {error ? <Alert variant="destructive">{error}</Alert> : null}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+          {/* Le QR est dessiné dans la page : il ne quitte jamais le navigateur. */}
+          <div className="w-fit shrink-0 rounded-lg border border-border bg-white p-2.5">
+            <QRCodeSVG value={setup.totpURI} size={112} level="M" marginSize={0} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-2">
+            <p className="t-sm text-text-2">{t('setup.scan')}</p>
+            <span className="t-cap text-text-3">{t('setup.key')}</span>
+            <code className="codeblock break-all whitespace-normal">
               {groupSecret(setup.secret)}
             </code>
           </div>
         </div>
-      </div>
 
-      <Alert variant="warn">
-        <strong className="font-medium">{t('setup.backup.title')}</strong> {t('setup.backup.body')}
-      </Alert>
+        <Alert variant="warn" title={t('setup.backup.title')}>
+          {t('setup.backup.body')}
+        </Alert>
 
-      <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        {setup.backupCodes.map((backupCode) => (
-          <li
-            key={backupCode}
-            className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-center font-mono text-xs text-text"
-          >
-            {backupCode}
-          </li>
-        ))}
-      </ul>
+        <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
+          {setup.backupCodes.map((backupCode) => (
+            <li
+              key={backupCode}
+              className="mono rounded-md bg-surface-2 px-2 py-1.5 text-center text-[12.5px] text-text"
+            >
+              {backupCode}
+            </li>
+          ))}
+        </ul>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="totp-code">{t('setup.code.label')}</Label>
-          <Input
-            id="totp-code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="\d{6}"
-            maxLength={6}
-            required
-            autoFocus
-            placeholder="000000"
-            className="w-40 font-mono tracking-[0.3em]"
-            value={code}
-            onChange={(event) => onCodeChange(event.target.value.replace(/\D/g, ''))}
-          />
-          <p className="text-xs text-text-3">{t('setup.code.hint')}</p>
+        <div className="field">
+          <span className="label" id="totp-code-label">
+            {t('setup.code.label')}
+          </span>
+          <OtpInput value={code} onChange={onCodeChange} name="code" autoFocus />
+          <p className="help">{t('setup.code.hint')}</p>
         </div>
-        <div className="flex gap-2">
-          <Button type="submit" disabled={pending}>
-            {pending ? tc('checking') : t('setup.submit')}
-          </Button>
-          <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
-            {tc('cancel')}
-          </Button>
-        </div>
-      </form>
-    </div>
+      </CardContent>
+      <CardFooter>
+        <Button type="submit" loading={pending} disabled={code.length !== 6}>
+          {pending ? tc('checking') : t('setup.submit')}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
+          {tc('cancel')}
+        </Button>
+      </CardFooter>
+    </form>
   );
 }

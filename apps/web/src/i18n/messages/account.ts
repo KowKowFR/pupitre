@@ -18,7 +18,8 @@ const fr = {
   // ── L'écran ─────────────────────────────────────────────────────────────
   'meta.title': 'Mon compte — Pupitre',
   'page.eyebrow': 'Compte',
-  'page.title': 'Sécurité',
+  'page.title': 'Sécurité du compte',
+  'crumb': 'Mon compte',
   'page.description':
     "Ce qui protège l'accès au panel : le mot de passe, et un second facteur qui survit à sa fuite. Les deux se gèrent ici, pour soi seul — un administrateur n'a pas le pouvoir d'activer un second facteur à votre place.",
 
@@ -41,6 +42,7 @@ const fr = {
     one: 'Le mot de passe doit faire au moins {count} caractère.',
     other: 'Le mot de passe doit faire au moins {count} caractères.',
   },
+  'password.tooShortTyped': '{count} caractères minimum ({typed} saisis).',
   'password.mismatch': 'La confirmation ne correspond pas au nouveau mot de passe.',
   'password.submit': 'Changer le mot de passe',
   'password.pending': 'Changement…',
@@ -51,13 +53,13 @@ const fr = {
   'twoFactor.title': 'Double authentification (TOTP)',
   'twoFactor.badge.on': 'active',
   'twoFactor.badge.off': 'inactive',
+  'twoFactor.badge.setup': 'configuration',
   'twoFactor.description':
     "Un code à six chiffres, renouvelé toutes les trente secondes par une application d'authentification. Le QR code est dessiné dans cette page : le secret ne part chez personne.",
   'twoFactor.field.password': 'Mot de passe',
   'twoFactor.enable': 'Activer le second facteur',
   'twoFactor.generating': 'Génération…',
-  'twoFactor.enabled':
-    'Second facteur activé. Il sera demandé à chaque connexion.',
+  'twoFactor.enabled': 'Second facteur activé. Il sera demandé à chaque connexion.',
   'twoFactor.armed.body':
     'Chaque connexion réclame un code. Pour retirer ce facteur, confirmez avec votre mot de passe.',
   'twoFactor.disabling': 'Désactivation…',
@@ -66,7 +68,7 @@ const fr = {
 
   // ── L'activation, étape par étape ───────────────────────────────────────
   'setup.scan':
-    "Scannez ce code, ou saisissez la clé à la main si votre application ne peut pas lire de QR.",
+    'Scannez ce code, ou saisissez la clé à la main si votre application ne peut pas lire de QR.',
   'setup.key': 'Clé de configuration',
   'setup.backup.title': 'Codes de secours — affichés une seule fois.',
   'setup.backup.body':
@@ -106,7 +108,8 @@ const fr = {
 const en: Translated<typeof fr> = {
   'meta.title': 'My account — Pupitre',
   'page.eyebrow': 'Account',
-  'page.title': 'Security',
+  'page.title': 'Account security',
+  'crumb': 'My account',
   'page.description':
     'What protects access to the panel: the password, and a second factor that outlives its leak. You manage both here, for yourself alone — an administrator cannot turn on a second factor in your place.',
 
@@ -123,6 +126,7 @@ const en: Translated<typeof fr> = {
     one: 'The password must be at least {count} character long.',
     other: 'The password must be at least {count} characters long.',
   },
+  'password.tooShortTyped': '{count} characters minimum ({typed} typed).',
   'password.mismatch': 'The confirmation does not match the new password.',
   'password.submit': 'Change the password',
   'password.pending': 'Changing…',
@@ -131,6 +135,7 @@ const en: Translated<typeof fr> = {
   'twoFactor.title': 'Two-factor authentication (TOTP)',
   'twoFactor.badge.on': 'on',
   'twoFactor.badge.off': 'off',
+  'twoFactor.badge.setup': 'setting up',
   'twoFactor.description':
     'A six-digit code, renewed every thirty seconds by an authenticator app. The QR code is drawn in this page: the secret goes to nobody.',
   'twoFactor.field.password': 'Password',
