@@ -86,7 +86,7 @@ export function RegionalForm({
       onSubmit={() => void patch.save({ timezone, locale, dateStyle, timeStyle })}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="timezone">{t('regional.timezone.label')}</Label>
           <Select
             id="timezone"
@@ -100,9 +100,9 @@ export function RegionalForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-text-3">{t('regional.timezone.help')}</p>
+          <p className="help">{t('regional.timezone.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="locale">{t('regional.locale.label')}</Label>
           <Select
             id="locale"
@@ -116,9 +116,9 @@ export function RegionalForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-text-3">{t('regional.locale.help')}</p>
+          <p className="help">{t('regional.locale.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="dateStyle">{t('regional.dateStyle.label')}</Label>
           <Select
             id="dateStyle"
@@ -133,7 +133,7 @@ export function RegionalForm({
             ))}
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="timeStyle">{t('regional.timeStyle.label')}</Label>
           <Select
             id="timeStyle"
@@ -150,10 +150,10 @@ export function RegionalForm({
         </div>
       </div>
 
-      <div className="rounded-md border border-border bg-surface-2 px-3.5 py-3">
-        <div className="eyebrow text-text-3">{t('regional.preview.title')}</div>
-        <div className="mt-1 font-mono text-sm text-text tabular-nums">{preview}</div>
-        <div className="mt-1 text-xs text-text-3">{t('regional.preview.help')}</div>
+      <div className="well">
+        <div className="t-cap font-medium text-text-3">{t('regional.preview.title')}</div>
+        <div className="mt-1 mono text-sm text-text tabular-nums">{preview}</div>
+        <div className="help mt-1">{t('regional.preview.help')}</div>
       </div>
     </SectionForm>
   );

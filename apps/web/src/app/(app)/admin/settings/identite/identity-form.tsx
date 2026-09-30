@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { AppSettings } from '@pupitre/core';
+import { BrandMark } from '@/components/brand-mark';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useT } from '@/i18n/client';
@@ -41,7 +42,7 @@ export function IdentityForm({
       onSubmit={() => void patch.save({ instanceName, instanceTagline })}
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="instanceName">{t('identity.name.label')}</Label>
           <Input
             id="instanceName"
@@ -50,9 +51,9 @@ export function IdentityForm({
             disabled={!canManage}
             onChange={(event) => setInstanceName(event.target.value)}
           />
-          <p className="text-xs text-text-3">{t('identity.name.help')}</p>
+          <p className="help">{t('identity.name.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="instanceTagline">{t('identity.tagline.label')}</Label>
           <Input
             id="instanceTagline"
@@ -62,25 +63,20 @@ export function IdentityForm({
             placeholder={t('identity.tagline.placeholder')}
             onChange={(event) => setInstanceTagline(event.target.value)}
           />
-          <p className="text-xs text-text-3">{t('identity.tagline.help')}</p>
+          <p className="help">{t('identity.tagline.help')}</p>
         </div>
       </div>
 
-      <div className="rounded-md border border-border bg-surface-2 px-3.5 py-3">
-        <div className="eyebrow text-text-3">{t('identity.preview.title')}</div>
+      <div className="well">
+        <div className="t-cap font-medium text-text-3">{t('identity.preview.title')}</div>
         <div className="mt-2 flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="flex size-7 shrink-0 items-center justify-center rounded-[5px] bg-accent shadow-xs"
-          >
-            <span className="size-2 rounded-[1px] bg-accent-fg" />
-          </span>
-          <span className="flex min-w-0 flex-col leading-none">
-            <span className="truncate text-[0.9375rem] font-semibold tracking-[0.01em] text-text">
+          <BrandMark size={28} />
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate text-[14px] font-semibold text-text">
               {instanceName.trim() === '' ? t('identity.preview.nameRequired') : instanceName}
             </span>
             {instanceTagline.trim() === '' ? null : (
-              <span className="eyebrow truncate pt-1 text-text-3">{instanceTagline}</span>
+              <span className="t-cap truncate text-text-3">{instanceTagline}</span>
             )}
           </span>
         </div>

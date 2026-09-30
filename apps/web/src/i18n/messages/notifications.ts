@@ -15,7 +15,7 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── Canaux : la liste ───────────────────────────────────────────────────
-  'empty':
+  empty:
     "Aucun canal configuré. Tant qu'il n'y en a pas, un déploiement en échec, un scan bloquant ou une réinitialisation de second facteur ne laissent de trace que dans les logs d'activité — qu'il faut penser à aller lire.",
   'channel.on': 'actif',
   'channel.off': 'éteint',
@@ -28,6 +28,18 @@ const fr = {
   'channel.secrets': 'Secrets enregistrés : {list} — chiffrés en base, jamais renvoyés.',
   'channel.lastError': 'Dernier échec ({at}) : {error}',
   'channel.lastSuccess': 'Dernier envoi réussi : {at}',
+  'channels.title': 'Canaux',
+  'channels.description': 'Sans canal, les événements ne laissent de trace que dans le journal.',
+  'drawer.kind': 'Notifications',
+  'channel.test': 'Envoyer un essai',
+  'channel.edit.title': 'Modifier « {name} »',
+  'channel.delete.aria': 'Supprimer le canal {name}',
+  'channel.delete.title': 'Supprimer le canal « {name} » ?',
+  'channel.delete.events': 'Les événements auxquels il est abonné ne partiront plus par ce canal.',
+  'channel.delete.secrets': 'Ses secrets sont effacés de la base.',
+  'channel.delete.confirm': 'Supprimer le canal',
+  'channel.never': 'Jamais utilisé',
+  'form.events.count': '{count} sur {total}',
   'channel.add': 'Ajouter un canal',
   'channel.created': 'Canal créé.',
   'channel.saved': 'Canal enregistré.',
@@ -100,7 +112,7 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'empty':
+  empty:
     'No channel configured. Until there is one, a failed deployment, a blocking scan or a second-factor reset leave a trace only in the activity log — which someone has to remember to read.',
   'channel.on': 'on',
   'channel.off': 'off',
@@ -113,6 +125,19 @@ const en: Translated<typeof fr> = {
   'channel.secrets': 'Secrets saved: {list} — encrypted in the database, never returned.',
   'channel.lastError': 'Last failure ({at}): {error}',
   'channel.lastSuccess': 'Last successful send: {at}',
+  'channels.title': 'Channels',
+  'channels.description': 'Without a channel, events leave a trace only in the log.',
+  'drawer.kind': 'Notifications',
+  'channel.test': 'Send a test',
+  'channel.edit.title': 'Edit “{name}”',
+  'channel.delete.aria': 'Delete the channel {name}',
+  'channel.delete.title': 'Delete the channel “{name}”?',
+  'channel.delete.events':
+    'The events it is subscribed to will no longer leave through this channel.',
+  'channel.delete.secrets': 'Its secrets are erased from the database.',
+  'channel.delete.confirm': 'Delete the channel',
+  'channel.never': 'Never used',
+  'form.events.count': '{count} of {total}',
   'channel.add': 'Add a channel',
   'channel.created': 'Channel created.',
   'channel.saved': 'Channel saved.',

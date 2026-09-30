@@ -26,31 +26,37 @@ const fr = {
 
   'section.identity.label': 'Identité',
   'section.identity.title': "Identité de l'instance",
+  'section.identity.short': 'le nom affiché dans le rail et les e-mails',
   'section.identity.governs':
     "Le nom et le sous-titre que le panel affiche de lui-même : en haut du rail de navigation, dans le titre de l'onglet du navigateur, et en tête de l'assistant de démarrage.",
 
   'section.regional.label': 'Régionalisation',
   'section.regional.title': 'Régionalisation',
+  'section.regional.short': 'fuseau, langue et format des dates',
   'section.regional.governs':
     "Le fuseau, la langue et la forme de toutes les dates du panel — tableaux, journaux, horodatages des logs d'activité —, serveur et navigateur compris. Le fuseau sert aussi de défaut aux tâches planifiées créées ensuite.",
 
   'section.security.label': 'Analyse de sécurité',
   'section.security.title': 'Analyse de sécurité',
+  'section.security.short': 'ce qui bloque une mise en ligne',
   'section.security.governs':
     "Le scan des images avant mise en ligne : quels scanners tournent, et à partir de quelle sévérité un finding empêche le déploiement. Le réglage vaut pour toute l'instance, y compris les déploiements lancés depuis l'API.",
 
   'section.notifications.label': 'Notifications',
   'section.notifications.title': 'Notifications',
+  'section.notifications.short': 'où partent les alertes',
   'section.notifications.governs':
     "Qui est prévenu, comment, et de quoi : e-mail, Telegram, Discord ou webhook. Les alertes partent des mêmes événements que les logs d'activité — un déploiement en échec, un scan qui bloque, un geste de sécurité — mais elles vont chercher quelqu'un au lieu d'attendre qu'on vienne lire.",
 
   'section.ai.label': 'Intelligence artificielle',
   'section.ai.title': 'Intelligence artificielle',
+  'section.ai.short': "génération d'AppSpec depuis une description",
   'section.ai.governs':
     "Le fournisseur, le modèle et la clé qui servent à générer une AppSpec depuis une description, sur l'écran « Nouvelle application ». Sans clé ni variable d'environnement, la génération reste hors service.",
 
   'section.onboarding.label': 'Assistant de démarrage',
   'section.onboarding.title': 'Assistant de démarrage',
+  'section.onboarding.short': 'le parcours des premiers pas',
   'section.onboarding.governs':
     "Le parcours de prise en main proposé à l'arrivée sur une instance vierge. On le relance d'ici quand il a été terminé ou abandonné — c'est un raccourci vers un parcours, pas un réglage de plus.",
 
@@ -151,8 +157,7 @@ const fr = {
   'ai.enabled.help':
     'Interrupteur explicite : décocher coupe la génération même si une clé est enregistrée.',
   'ai.provider.label': 'Fournisseur',
-  'ai.provider.help.before':
-    "Chaque fournisseur lit sa propre variable d'environnement de repli",
+  'ai.provider.help.before': "Chaque fournisseur lit sa propre variable d'environnement de repli",
   'ai.provider.help.after': '. Une clé enregistrée ici la remplace.',
   'ai.model.label': 'Modèle',
   'ai.model.aria': 'Identifiant du modèle',
@@ -160,8 +165,7 @@ const fr = {
   'ai.model.help':
     "{hint}. Prix indicatifs en dollars par million de jetons, entrée puis sortie, relevés le 11/09/2026 — ils vieillissent, et la liste n'est qu'une suggestion : tout identifiant reconnu par le fournisseur convient, y compris un modèle sorti après cette liste.",
   'ai.temperature.label': 'Température (0 à 1)',
-  'ai.temperature.help':
-    "Basse, la génération est reproductible — ce qu'on veut d'une AppSpec.",
+  'ai.temperature.help': "Basse, la génération est reproductible — ce qu'on veut d'une AppSpec.",
   'ai.maxTokens.label': 'Jetons maximum',
   'ai.maxTokens.help':
     "Plafond d'une réponse. Trop bas, le JSON est tronqué et la validation échoue.",
@@ -172,8 +176,7 @@ const fr = {
   'ai.apiKey.label': "Clé d'API",
   'ai.apiKey.placeholder.none': 'Aucune clé enregistrée',
   'ai.apiKey.placeholder.set': 'Clé enregistrée, laisser vide pour la conserver',
-  'ai.apiKey.placeholder.setWithTail':
-    'Clé enregistrée — …{last4}, laisser vide pour la conserver',
+  'ai.apiKey.placeholder.setWithTail': 'Clé enregistrée — …{last4}, laisser vide pour la conserver',
   'ai.apiKey.help.before': 'Chiffrée en AES-256-GCM sous',
   'ai.apiKey.help.middle':
     ", comme les credentials SSH. Elle n'est jamais renvoyée par l'API ni écrite dans les logs d'activité — ce champ part toujours vide, même quand une clé est en place. Sans clé ici, le panel retombe sur",
@@ -217,38 +220,43 @@ const en: Translated<typeof fr> = {
 
   'section.identity.label': 'Identity',
   'section.identity.title': 'Instance identity',
+  'section.identity.short': 'the name shown in the rail and e-mails',
   'section.identity.governs':
     'The name and tagline the panel shows of itself: at the top of the navigation rail, in the browser tab title, and at the head of the setup guide.',
 
   'section.regional.label': 'Regional settings',
   'section.regional.title': 'Regional settings',
+  'section.regional.short': 'time zone, language and date format',
   'section.regional.governs':
     'The time zone, the language and the shape of every date in the panel — tables, journals, activity log timestamps — server and browser alike. The time zone is also the default for scheduled jobs created afterwards.',
 
   'section.security.label': 'Security scanning',
   'section.security.title': 'Security scanning',
+  'section.security.short': 'what blocks a rollout',
   'section.security.governs':
     'Image scanning before going live: which scanners run, and from which severity a finding blocks the deployment. The setting holds for the whole instance, deployments launched from the API included.',
 
   'section.notifications.label': 'Notifications',
   'section.notifications.title': 'Notifications',
+  'section.notifications.short': 'where alerts go',
   'section.notifications.governs':
     'Who is warned, how, and of what: email, Telegram, Discord or webhook. Alerts come from the same events as the activity log — a failed deployment, a blocking scan, a security move — but they go find someone instead of waiting to be read.',
 
   'section.ai.label': 'Artificial intelligence',
   'section.ai.title': 'Artificial intelligence',
+  'section.ai.short': 'AppSpec generation from a description',
   'section.ai.governs':
     'The provider, the model and the key used to generate an AppSpec from a description, on the “New application” screen. With neither a key nor an environment variable, generation stays out of service.',
 
   'section.onboarding.label': 'Setup guide',
   'section.onboarding.title': 'Setup guide',
+  'section.onboarding.short': 'the first-steps walkthrough',
   'section.onboarding.governs':
     'The walkthrough offered on arrival at a blank instance. You run it again from here once it has been finished or dismissed — a shortcut to a walkthrough, not one more setting.',
 
   'page.eyebrow': 'Administration',
   'page.title': 'Settings',
-  'page.description.before':
-    'Instance settings, applied live. They live in a single row of',
+  'page.description.before': 'Instance settings, applied live. They live in a single row of',
   'page.description.after':
     '— one JSONB, so that adding a setting costs no migration. The API key sits encrypted in its own column and never comes back out of here.',
   'page.state.customized': 'customized',
@@ -290,8 +298,7 @@ const en: Translated<typeof fr> = {
     'Forty characters at most: it has to fit on one line of the rail, next to the logo.',
   'identity.tagline.label': 'Tagline',
   'identity.tagline.placeholder': 'Leave empty to show the name alone',
-  'identity.tagline.help':
-    'Useful when several instances look alike — “production”, “sandbox”.',
+  'identity.tagline.help': 'Useful when several instances look alike — “production”, “sandbox”.',
   'identity.preview.title': 'Rail preview',
   'identity.preview.nameRequired': 'Name required',
 
@@ -333,8 +340,7 @@ const en: Translated<typeof fr> = {
   'ai.noShell':
     'The model never produces shell: it returns JSON, validated by Zod before anything is executed.',
   'ai.enabled.label': 'Allow AI generation',
-  'ai.enabled.help':
-    'An explicit switch: unchecking cuts generation even when a key is saved.',
+  'ai.enabled.help': 'An explicit switch: unchecking cuts generation even when a key is saved.',
   'ai.provider.label': 'Provider',
   'ai.provider.help.before': 'Each provider reads its own fallback environment variable',
   'ai.provider.help.after': '. A key saved here replaces it.',
@@ -344,8 +350,7 @@ const en: Translated<typeof fr> = {
   'ai.model.help':
     '{hint}. Indicative prices in dollars per million tokens, input then output, taken on 2026-09-11 — they age, and the list is only a suggestion: any ID the provider recognizes will do, a model released after this list included.',
   'ai.temperature.label': 'Temperature (0 to 1)',
-  'ai.temperature.help':
-    'Low, generation is reproducible — what you want from an AppSpec.',
+  'ai.temperature.help': 'Low, generation is reproducible — what you want from an AppSpec.',
   'ai.maxTokens.label': 'Maximum tokens',
   'ai.maxTokens.help':
     'Ceiling for one response. Too low, the JSON is truncated and validation fails.',

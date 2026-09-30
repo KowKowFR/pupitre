@@ -151,7 +151,7 @@ export function DigestPolicy({
       </Alert>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="digest-window">{t('digest.window.label')}</Label>
           <Select
             id="digest-window"
@@ -193,7 +193,7 @@ export function DigestPolicy({
         </Button>
       </div>
 
-      <p className="text-xs text-text-3">
+      <p className="help">
         {t('digest.window.help', {
           min: formatDigestDuration(vocabulary.minWindowMs),
           max: formatDigestDuration(vocabulary.maxWindowMs),
@@ -204,7 +204,7 @@ export function DigestPolicy({
       {saved ? <Alert variant="success">{t('digest.saved')}</Alert> : null}
 
       <div className="space-y-2">
-        <p className="eyebrow text-text-2">{t('digest.open.title')}</p>
+        <p className="t-sm font-semibold text-text">{t('digest.open.title')}</p>
         {states.length === 0 ? (
           <p className="text-sm text-text-3">{t('digest.open.none')}</p>
         ) : (
@@ -218,7 +218,7 @@ export function DigestPolicy({
                 <Badge variant={state.heldCount > 0 ? 'warn' : 'secondary'}>
                   {t('digest.held', { count: state.heldCount })}
                 </Badge>
-                <span className="text-xs text-text-3">
+                <span className="help">
                   {t('digest.state.window', { window: formatDigestDuration(state.windowMs) })}
                   {state.escalation > 0
                     ? ` ${t('digest.state.widened', { times: state.escalation })}`

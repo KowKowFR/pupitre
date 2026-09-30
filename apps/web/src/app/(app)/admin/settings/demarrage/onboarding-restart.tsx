@@ -97,11 +97,11 @@ export function OnboardingRestart({
         <dl className="grid gap-x-6 gap-y-1.5 text-[0.8125rem] sm:grid-cols-2">
           <div className="flex justify-between gap-3 border-b border-border pb-1.5">
             <dt className="text-text-2">{t('onboarding.term.completed')}</dt>
-            <dd className="font-mono text-text tabular-nums">{state.completed.length}</dd>
+            <dd className="mono text-text tabular-nums">{state.completed.length}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-border pb-1.5">
             <dt className="text-text-2">{t('onboarding.term.skipped')}</dt>
-            <dd className="font-mono text-text tabular-nums">{state.skipped.length}</dd>
+            <dd className="mono text-text tabular-nums">{state.skipped.length}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-border pb-1.5">
             <dt className="text-text-2">{t('onboarding.term.currentStep')}</dt>
@@ -117,11 +117,11 @@ export function OnboardingRestart({
           </div>
           <div className="flex justify-between gap-3 border-b border-border pb-1.5">
             <dt className="text-text-2">{t('onboarding.term.runs')}</dt>
-            <dd className="font-mono text-text tabular-nums">{state.runs}</dd>
+            <dd className="mono text-text tabular-nums">{state.runs}</dd>
           </div>
         </dl>
 
-        <p className="text-xs text-text-3">{t('onboarding.reset.help')}</p>
+        <p className="help">{t('onboarding.reset.help')}</p>
 
         <div className="flex flex-wrap items-center gap-2">
           {canManage ? (
@@ -130,9 +130,8 @@ export function OnboardingRestart({
               {pending ? t('onboarding.restarting') : t('onboarding.restart')}
             </Button>
           ) : (
-            <span className="text-xs text-text-3">
-              {t('onboarding.needPermission.before')}{' '}
-              <code className="font-mono">settings:manage</code>{' '}
+            <span className="help">
+              {t('onboarding.needPermission.before')} <code className="mono">settings:manage</code>{' '}
               {t('onboarding.needPermission.after')}
             </span>
           )}

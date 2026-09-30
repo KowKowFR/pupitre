@@ -10,16 +10,23 @@ import {
   type PresentedNotificationEvent,
   type PresentedNotificationField,
 } from '@pupitre/core';
+import { Bell, Plus, Send, Trash2 } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { IconButton } from '@/components/ui/tooltip';
 import { useLanguage, useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { notifications as messages } from '@/i18n/messages/notifications';
+import { formatDateTime, type FormatSettings } from '@/lib/format';
+import { toast } from '@/lib/toast';
 
 /**
  * Écran des canaux de notification.
@@ -110,44 +117,66 @@ function draftFor(
 }
 
 export function NotificationsManager({
+  title,
+  description,
   initialChannels,
   catalog,
   events,
   canManage,
+  format,
 }: {
+  title: string;
+  description: string;
   initialChannels: ChannelView[];
   catalog: PresentedNotificationChannel[];
   events: PresentedNotificationEvent[];
   canManage: boolean;
+  format: FormatSettings;
 }) {
   const router = useRouter();
   const t = useT(messages);
   const tc = useT(common);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [pending, setPending] = useState(false);
+  /** Clé d'ouverture du drawer : un brouillon neuf à chaque ouverture. */
+  const [drawerKey, setDrawerKey] = useState(0);
+  const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [verdict, setVerdict] = useState<TestVerdict | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<ChannelView | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const descriptorOf = (kind: NotificationChannelKind) =>
     catalog.find((entry) => entry.kind === kind);
   const eventLabel = (key: string) => events.find((entry) => entry.key === key)?.label ?? key;
+  const editing = draft?.id
+    ? (initialChannels.find((entry) => entry.id === draft.id) ?? null)
+    : null;
 
-  async function call(url: string, init: RequestInit): Promise<unknown | null> {
-    setPending(true);
-    setError(null);
-    setNotice(null);
+  /** Un appel d'API ; le refus s'affiche là où l'on regarde (`report`). */
+  async function call(
+    key: string,
+    url: string,
+    init: RequestInit,
+    report: (message: string) => void,
+  ): Promise<unknown | null> {
+    setPending(key);
     const response = await fetch(url, {
       ...init,
       headers: { 'content-type': 'application/json', ...init.headers },
     });
-    setPending(false);
+    setPending(null);
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as ApiError;
-      setError(payload.error?.message ?? tc('http.failure', { status: response.status }));
+      report(payload.error?.message ?? tc('http.failure', { status: response.status }));
       return null;
     }
     return response.json();
+  }
+
+  function open(next: Draft) {
+    setFormError(null);
+    setDrawerKey((key) => key + 1);
+    setDraft(next);
   }
 
   function submit(): void {
@@ -186,132 +215,164 @@ export function NotificationsManager({
     };
 
     void (async () => {
+      setFormError(null);
       const result = await call(
+        'form',
         draft.id === null
           ? '/api/notifications/channels'
           : `/api/notifications/channels/${draft.id}`,
         { method: draft.id === null ? 'POST' : 'PATCH', body: JSON.stringify(body) },
+        setFormError,
       );
       if (!result) return;
       setDraft(null);
-      setNotice(draft.id === null ? t('channel.created') : t('channel.saved'));
+      toast({ title: draft.id === null ? t('channel.created') : t('channel.saved') });
       router.refresh();
     })();
   }
 
-  function remove(channel: ChannelView): void {
-    void (async () => {
-      const result = await call(`/api/notifications/channels/${channel.id}`, { method: 'DELETE' });
+  function remove(channel: ChannelView): Promise<void> {
+    return (async () => {
+      setDeleteError(null);
+      const result = await call(
+        channel.id,
+        `/api/notifications/channels/${channel.id}`,
+        { method: 'DELETE' },
+        setDeleteError,
+      );
       if (!result) return;
-      setNotice(t('channel.deleted', { name: channel.name }));
+      setDeleting(null);
+      toast({ title: t('channel.deleted', { name: channel.name }) });
       router.refresh();
     })();
   }
 
   function test(channel: ChannelView): void {
-    setVerdict(null);
     void (async () => {
-      const result = await call(`/api/notifications/channels/${channel.id}/test`, {
-        method: 'POST',
-      });
+      setError(null);
+      const result = (await call(
+        `test:${channel.id}`,
+        `/api/notifications/channels/${channel.id}/test`,
+        { method: 'POST' },
+        setError,
+      )) as TestVerdict | null;
       if (!result) return;
-      setVerdict(result as TestVerdict);
+      // Le verdict dit les deux temps : la sonde de configuration, puis l'envoi.
+      toast({
+        title: result.delivered
+          ? t('test.delivered')
+          : t('test.failed', { detail: result.error ?? t('test.noDetail') }),
+        description: `${result.name} · ${
+          result.probe.ok ? t('test.probe') : t('test.probeFailed')
+        }${result.probe.detail}`,
+        tone: result.delivered ? 'ok' : 'danger',
+      });
       router.refresh();
     })();
   }
 
+  const when = (iso: string) => formatDateTime(iso, format);
+
   return (
-    <div className="flex flex-col gap-5">
-      {error ? <Alert variant="destructive">{error}</Alert> : null}
-      {notice ? <Alert variant="success">{notice}</Alert> : null}
-      {verdict ? (
-        <Alert variant={verdict.delivered ? 'success' : 'destructive'}>
-          <strong>{verdict.name}</strong> —{' '}
-          {verdict.probe.ok ? t('test.probe') : t('test.probeFailed')}
-          {verdict.probe.detail}
-          <br />
-          {verdict.delivered
-            ? t('test.delivered')
-            : t('test.failed', { detail: verdict.error ?? t('test.noDetail') })}
-        </Alert>
+    <section className="card overflow-hidden">
+      <div className="card-h">
+        <div className="flex min-w-0 flex-col">
+          <h2>{title}</h2>
+          <span className="sub">{description}</span>
+        </div>
+        {canManage ? (
+          <span className="ml-auto">
+            <Button variant="secondary" size="sm" onClick={() => open(emptyDraft(catalog))}>
+              <Plus aria-hidden />
+              {t('channel.add')}
+            </Button>
+          </span>
+        ) : null}
+      </div>
+
+      {error ? (
+        <div className="border-b border-border-subtle px-4 py-3">
+          <Alert variant="destructive">{error}</Alert>
+        </div>
       ) : null}
 
       {initialChannels.length === 0 ? (
-        <Alert>{t('empty')}</Alert>
+        <p className="t-sm px-4 py-4 text-text-3">{t('empty')}</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="list">
           {initialChannels.map((channel) => {
             const descriptor = descriptorOf(channel.kind);
             return (
-              <li key={channel.id} className="rounded-md border border-border p-3.5">
+              <li key={channel.id} className="flex-col !items-stretch gap-1.5 !py-3.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-text">{channel.name}</span>
-                  <Badge variant="secondary">{descriptor?.label ?? channel.kind}</Badge>
-                  <Badge variant={channel.enabled ? 'ok' : 'outline'}>
+                  <span className="text-[14px] font-semibold text-text">{channel.name}</span>
+                  <Badge variant="outline">{descriptor?.label ?? channel.kind}</Badge>
+                  <Badge variant={channel.enabled ? 'ok' : 'idle'} dot={channel.enabled}>
                     {channel.enabled ? t('channel.on') : t('channel.off')}
                   </Badge>
                   {channel.consecutiveFailures > 0 ? (
-                    <Badge variant="destructive">
+                    <Badge variant="danger">
                       {t('channel.failures', { count: channel.consecutiveFailures })}
                     </Badge>
                   ) : null}
+                  {canManage ? (
+                    <span className="ml-auto flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={pending === `test:${channel.id}`}
+                        disabled={pending !== null}
+                        onClick={() => test(channel)}
+                      >
+                        {pending === `test:${channel.id}` ? null : <Send aria-hidden />}
+                        {pending === `test:${channel.id}` ? t('test.sending') : t('channel.test')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={pending !== null}
+                        onClick={() => open(draftFor(descriptor, channel))}
+                      >
+                        {tc('edit')}
+                      </Button>
+                      <IconButton
+                        label={t('channel.delete.aria', { name: channel.name })}
+                        size="icon-sm"
+                        disabled={pending !== null}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting(channel);
+                        }}
+                      >
+                        <Trash2 />
+                      </IconButton>
+                    </span>
+                  ) : null}
                 </div>
 
-                <p className="mt-1.5 text-xs text-text-3">
+                <span className="t-cap text-text-2">
                   {channel.events.length === 0
                     ? t('channel.noEvents')
                     : t('channel.events', { list: channel.events.map(eventLabel).join(', ') })}
-                </p>
-
+                </span>
                 {channel.configuredSecrets.length > 0 ? (
-                  <p className="mt-1 text-xs text-text-3">
+                  <span className="t-cap text-text-3">
                     {t('channel.secrets', { list: channel.configuredSecrets.join(', ') })}
-                  </p>
+                  </span>
                 ) : null}
-
+                <span className="t-cap text-text-3">
+                  {channel.lastSuccessAt
+                    ? t('channel.lastSuccess', { at: when(channel.lastSuccessAt) })
+                    : t('channel.never')}
+                </span>
                 {channel.lastError ? (
-                  <p className="mt-1.5 font-mono text-xs text-danger-text">
+                  <span className="t-cap text-danger-text">
                     {t('channel.lastError', {
-                      at: channel.lastFailureAt ?? '?',
-                      error: channel.lastError,
+                      at: channel.lastFailureAt ? when(channel.lastFailureAt) : '?',
+                      error: '',
                     })}
-                  </p>
-                ) : channel.lastSuccessAt ? (
-                  <p className="mt-1.5 text-xs text-text-3">
-                    {t('channel.lastSuccess', { at: channel.lastSuccessAt })}
-                  </p>
-                ) : null}
-
-                {canManage ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      disabled={pending}
-                      onClick={() => setDraft(draftFor(descriptor, channel))}
-                    >
-                      {tc('edit')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      type="button"
-                      disabled={pending}
-                      onClick={() => test(channel)}
-                    >
-                      {pending ? t('test.sending') : t('test.send')}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      type="button"
-                      disabled={pending}
-                      onClick={() => remove(channel)}
-                    >
-                      {tc('delete')}
-                    </Button>
-                  </div>
+                    <span className="mono">{channel.lastError}</span>
+                  </span>
                 ) : null}
               </li>
             );
@@ -319,26 +380,43 @@ export function NotificationsManager({
         </ul>
       )}
 
-      {canManage && draft === null ? (
-        <div>
-          <Button size="sm" type="button" onClick={() => setDraft(emptyDraft(catalog))}>
-            {t('channel.add')}
-          </Button>
-        </div>
+      {canManage ? (
+        <Drawer
+          open={draft !== null}
+          onOpenChange={(value) => (value ? undefined : setDraft(null))}
+          label={draft?.id ? t('channel.edit.title', { name: draft.name }) : t('channel.add')}
+        >
+          {draft ? (
+            <ChannelForm
+              key={drawerKey}
+              draft={draft}
+              catalog={catalog}
+              events={events}
+              pending={pending === 'form'}
+              error={formError}
+              failures={editing?.consecutiveFailures ?? 0}
+              onChange={setDraft}
+              onCancel={() => setDraft(null)}
+              onSubmit={submit}
+              onTest={editing ? () => test(editing) : undefined}
+            />
+          ) : null}
+        </Drawer>
       ) : null}
 
-      {canManage && draft !== null ? (
-        <ChannelForm
-          draft={draft}
-          catalog={catalog}
-          events={events}
-          pending={pending}
-          onChange={setDraft}
-          onCancel={() => setDraft(null)}
-          onSubmit={submit}
-        />
-      ) : null}
-    </div>
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(value) => (value ? undefined : setDeleting(null))}
+        level="trace"
+        icon={<Trash2 />}
+        title={deleting ? t('channel.delete.title', { name: deleting.name }) : ''}
+        consequences={[t('channel.delete.events'), t('channel.delete.secrets')]}
+        confirmLabel={t('channel.delete.confirm')}
+        pending={deleting !== null && pending === deleting.id}
+        error={deleteError}
+        onConfirm={() => (deleting ? remove(deleting) : undefined)}
+      />
+    </section>
   );
 }
 
@@ -347,17 +425,23 @@ function ChannelForm({
   catalog,
   events,
   pending,
+  error,
+  failures,
   onChange,
   onCancel,
   onSubmit,
+  onTest,
 }: {
   draft: Draft;
   catalog: PresentedNotificationChannel[];
   events: PresentedNotificationEvent[];
   pending: boolean;
+  error: string | null;
+  failures: number;
   onChange: (draft: Draft) => void;
   onCancel: () => void;
   onSubmit: () => void;
+  onTest?: () => void;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -366,113 +450,135 @@ function ChannelForm({
 
   return (
     <form
-      className="flex flex-col gap-4 rounded-md border border-border-strong bg-surface-2/40 p-4"
+      className="contents"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
       }}
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="channel-kind">{t('form.kind')}</Label>
-          <Select
-            id="channel-kind"
-            value={draft.kind}
-            // Le type ne se change pas après coup : les champs n'ont rien à voir
-            // d'un canal à l'autre, et « convertir » un SMTP en Discord n'a pas
-            // de sens. On supprime, on recrée.
-            disabled={draft.id !== null}
-            onChange={(event) => {
-              const kind = event.target.value as NotificationChannelKind;
-              const next = draftFor(
-                catalog.find((entry) => entry.kind === kind),
-                null,
+      <DrawerHeader
+        icon={<Bell />}
+        kind={t('drawer.kind')}
+        title={draft.id ? t('channel.edit.title', { name: draft.name }) : t('channel.add')}
+        state={
+          failures > 0 ? (
+            <Badge variant="danger">{t('channel.failures', { count: failures })}</Badge>
+          ) : undefined
+        }
+      />
+      <DrawerBody>
+        {error ? <Alert variant="destructive">{error}</Alert> : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="field">
+            <Label htmlFor="channel-kind">{t('form.kind')}</Label>
+            <Select
+              id="channel-kind"
+              value={draft.kind}
+              // Le type ne se change pas après coup : les champs n'ont rien à voir
+              // d'un canal à l'autre, et « convertir » un SMTP en Discord n'a pas
+              // de sens. On supprime, on recrée.
+              disabled={draft.id !== null}
+              onChange={(event) => {
+                const kind = event.target.value as NotificationChannelKind;
+                const next = draftFor(
+                  catalog.find((entry) => entry.kind === kind),
+                  null,
+                );
+                onChange({ ...next, name: draft.name, events: draft.events });
+              }}
+            >
+              {catalog.map((entry) => (
+                <option key={entry.kind} value={entry.kind}>
+                  {entry.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="field">
+            <Label htmlFor="channel-name">{t('form.name')}</Label>
+            <Input
+              id="channel-name"
+              value={draft.name}
+              placeholder={t('form.name.placeholder')}
+              onChange={(event) => onChange({ ...draft, name: event.target.value })}
+            />
+          </div>
+        </div>
+
+        {descriptor ? (
+          <p className="help">
+            {descriptor.description} <span className="text-text-2">{descriptor.prerequisite}</span>
+          </p>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {(descriptor?.fields ?? []).map((field) => (
+            <FieldInput key={field.name} field={field} draft={draft} onChange={onChange} />
+          ))}
+        </div>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className="flex items-baseline gap-2">
+            <span className="t-sm font-semibold text-text">{t('form.events.legend')}</span>
+            <span className="t-cap text-text-3">
+              {t('form.events.count', { count: draft.events.length, total: events.length })}
+            </span>
+          </legend>
+          <p className="help">{t('form.events.help')}</p>
+          <div className="grid gap-x-4 gap-y-2 pt-1 sm:grid-cols-2">
+            {events.map((entry) => {
+              const checked = draft.events.includes(entry.key as NotificationEventKey);
+              return (
+                <label
+                  key={entry.key}
+                  className="t-sm flex cursor-pointer items-start gap-2.5"
+                  title={`${entry.rationale} (${notificationSeverityLabel(entry.severity, language).toLowerCase()})`}
+                >
+                  <Checkbox
+                    className="mt-0.5"
+                    checked={checked}
+                    onChange={(changed) =>
+                      onChange({
+                        ...draft,
+                        events: changed.target.checked
+                          ? [...draft.events, entry.key as NotificationEventKey]
+                          : draft.events.filter((key) => key !== entry.key),
+                      })
+                    }
+                  />
+                  <span className="min-w-0 text-text">{entry.label}</span>
+                </label>
               );
-              onChange({ ...next, name: draft.name, events: draft.events });
-            }}
-          >
-            {catalog.map((entry) => (
-              <option key={entry.kind} value={entry.kind}>
-                {entry.label}
-              </option>
-            ))}
-          </Select>
-        </div>
+            })}
+          </div>
+        </fieldset>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="channel-name">{t('form.name')}</Label>
-          <Input
-            id="channel-name"
-            value={draft.name}
-            placeholder={t('form.name.placeholder')}
-            onChange={(event) => onChange({ ...draft, name: event.target.value })}
+        <label className="t-sm flex items-center gap-2.5">
+          <Switch
+            checked={draft.enabled}
+            onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
           />
-        </div>
-      </div>
-
-      {descriptor ? (
-        <p className="text-xs text-text-3">
-          {descriptor.description} <span className="text-text-2">{descriptor.prerequisite}</span>
-        </p>
-      ) : null}
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        {(descriptor?.fields ?? []).map((field) => (
-          <FieldInput key={field.name} field={field} draft={draft} onChange={onChange} />
-        ))}
-      </div>
-
-      <fieldset className="space-y-2">
-        <legend className="eyebrow text-text-2">{t('form.events.legend')}</legend>
-        <p className="text-xs text-text-3">{t('form.events.help')}</p>
-        <div className="flex flex-col gap-1.5 pt-1">
-          {events.map((entry) => {
-            const checked = draft.events.includes(entry.key as NotificationEventKey);
-            return (
-              <label key={entry.key} className="flex items-start gap-2.5 text-sm">
-                <Checkbox
-                  className="mt-0.5"
-                  checked={checked}
-                  onChange={(changed) =>
-                    onChange({
-                      ...draft,
-                      events: changed.target.checked
-                        ? [...draft.events, entry.key as NotificationEventKey]
-                        : draft.events.filter((key) => key !== entry.key),
-                    })
-                  }
-                />
-                <span className="min-w-0">
-                  <span className="block text-text">
-                    {entry.label}{' '}
-                    <span className="text-xs text-text-3">
-                      ({notificationSeverityLabel(entry.severity, language).toLowerCase()})
-                    </span>
-                  </span>
-                  <span className="block text-xs text-text-3">{entry.rationale}</span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </fieldset>
-
-      <label className="flex items-center gap-2.5 text-sm">
-        <Checkbox
-          checked={draft.enabled}
-          onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
-        />
-        <span className="text-text">{t('form.enabled')}</span>
-      </label>
-
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" type="submit" disabled={pending}>
+          <span className="text-text">{t('form.enabled')}</span>
+        </label>
+      </DrawerBody>
+      <DrawerFooter
+        end={
+          onTest ? (
+            <Button type="button" variant="ghost" disabled={pending} onClick={onTest}>
+              <Send aria-hidden />
+              {t('channel.test')}
+            </Button>
+          ) : null
+        }
+      >
+        <Button type="submit" loading={pending}>
           {pending ? tc('saving') : draft.id === null ? t('form.create') : tc('save')}
         </Button>
-        <Button size="sm" type="button" variant="ghost" disabled={pending} onClick={onCancel}>
+        <Button type="button" variant="ghost" disabled={pending} onClick={onCancel}>
           {tc('cancel')}
         </Button>
-      </div>
+      </DrawerFooter>
     </form>
   );
 }
@@ -492,7 +598,7 @@ function FieldInput({
 
   if (field.kind === 'boolean') {
     return (
-      <label className="flex items-start gap-2.5 self-end rounded-md border border-border px-3 py-2 text-sm">
+      <label className="t-sm flex items-start gap-2.5 self-end rounded-lg border border-border px-3 py-2">
         <Checkbox
           className="mt-0.5"
           checked={draft.booleans[field.name] ?? false}
@@ -505,7 +611,7 @@ function FieldInput({
         />
         <span className="min-w-0">
           <span className="block text-text">{field.label}</span>
-          {field.help ? <span className="block text-xs text-text-3">{field.help}</span> : null}
+          {field.help ? <span className="help block">{field.help}</span> : null}
         </span>
       </label>
     );
@@ -516,10 +622,10 @@ function FieldInput({
     onChange({ ...draft, values: { ...draft.values, [field.name]: next } });
 
   return (
-    <div className="space-y-1.5">
+    <div className="field">
       <Label htmlFor={id}>
         {field.label}
-        {field.required ? null : <span className="text-text-3">{t('field.optional')}</span>}
+        {field.required ? null : <span className="opt">{t('field.optional')}</span>}
       </Label>
 
       {field.kind === 'select' ? (
@@ -543,17 +649,17 @@ function FieldInput({
         />
       )}
 
-      {field.help ? <p className="text-xs text-text-3">{field.help}</p> : null}
+      {field.help ? <p className="help">{field.help}</p> : null}
 
       {field.secret && draft.id !== null ? (
-        <p className="text-xs text-text-3">
+        <p className="help">
           {t('field.secret.keep')}
           {field.required ? null : (
             <>
               {' '}
               <button
                 type="button"
-                className="text-accent underline-offset-4 hover:underline"
+                className="btn btn-link t-cap"
                 onClick={() =>
                   onChange({
                     ...draft,

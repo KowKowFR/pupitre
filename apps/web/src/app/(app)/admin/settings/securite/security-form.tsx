@@ -65,7 +65,7 @@ export function SecurityForm({
         />
         <span className="min-w-0">
           <span className="block text-text">{t('security.enabled.label')}</span>
-          <span className="block text-xs text-text-3">{t('security.enabled.help')}</span>
+          <span className="help block">{t('security.enabled.help')}</span>
         </span>
       </label>
 
@@ -75,7 +75,7 @@ export function SecurityForm({
 
       <div className="space-y-2">
         <span className="block text-sm text-text">{t('security.skipped.title')}</span>
-        <p className="text-xs text-text-3">{t('security.skipped.help')}</p>
+        <p className="help">{t('security.skipped.help')}</p>
         <div className="flex flex-wrap gap-2 pt-1">
           {SCANNER_KEYS.map((key) => {
             const off = disabledScanners.includes(key);
@@ -105,7 +105,7 @@ export function SecurityForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="field">
         <Label htmlFor="failOn">{t('security.failOn.label')}</Label>
         <Select
           id="failOn"
@@ -120,10 +120,10 @@ export function SecurityForm({
             </option>
           ))}
         </Select>
-        <p className="text-xs text-text-3">{t('security.failOn.help')}</p>
+        <p className="help">{t('security.failOn.help')}</p>
       </div>
 
-      <p className="text-xs text-text-3">{t('security.frozen')}</p>
+      <p className="help">{t('security.frozen')}</p>
     </SectionForm>
   );
 }

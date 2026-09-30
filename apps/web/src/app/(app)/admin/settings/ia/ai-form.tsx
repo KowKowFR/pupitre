@@ -148,12 +148,12 @@ export function AiForm({
         />
         <span className="min-w-0">
           <span className="block text-text">{t('ai.enabled.label')}</span>
-          <span className="block text-xs text-text-3">{t('ai.enabled.help')}</span>
+          <span className="help block">{t('ai.enabled.help')}</span>
         </span>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="aiProvider">{t('ai.provider.label')}</Label>
           <Select
             id="aiProvider"
@@ -167,18 +167,18 @@ export function AiForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-text-3">
+          <p className="help">
             {t('ai.provider.help.before')}
             {descriptor.envApiKeyVar ? (
               <>
                 {' '}
-                (<code className="font-mono">{descriptor.envApiKeyVar}</code>)
+                (<code className="mono">{descriptor.envApiKeyVar}</code>)
               </>
             ) : null}
             {t('ai.provider.help.after')}
           </p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="aiModel">{t('ai.model.label')}</Label>
           <Select
             id="aiModel"
@@ -205,11 +205,9 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setModel(event.target.value)}
           />
-          <p className="text-xs text-text-3">
-            {t('ai.model.help', { hint: aiModelHint(provider, language) })}
-          </p>
+          <p className="help">{t('ai.model.help', { hint: aiModelHint(provider, language) })}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="temperature">{t('ai.temperature.label')}</Label>
           <Input
             id="temperature"
@@ -221,9 +219,9 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setTemperature(event.target.value)}
           />
-          <p className="text-xs text-text-3">{t('ai.temperature.help')}</p>
+          <p className="help">{t('ai.temperature.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="maxTokens">{t('ai.maxTokens.label')}</Label>
           <Input
             id="maxTokens"
@@ -235,14 +233,14 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setMaxTokens(event.target.value)}
           />
-          <p className="text-xs text-text-3">{t('ai.maxTokens.help')}</p>
+          <p className="help">{t('ai.maxTokens.help')}</p>
         </div>
       </div>
 
       {warning ? <Alert variant="destructive">{warning}</Alert> : null}
 
       {descriptor.supportsBaseUrl ? (
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="aiBaseUrl">{t('ai.baseUrl.label')}</Label>
           <Input
             id="aiBaseUrl"
@@ -252,11 +250,11 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setBaseUrl(event.target.value)}
           />
-          <p className="text-xs text-text-3">{t('ai.baseUrl.help')}</p>
+          <p className="help">{t('ai.baseUrl.help')}</p>
         </div>
       ) : null}
 
-      <div className="space-y-1.5 border-t border-border pt-4">
+      <div className="field border-t border-border-subtle pt-4">
         <Label htmlFor="apiKey">{t('ai.apiKey.label')}</Label>
         <Input
           id="apiKey"
@@ -273,11 +271,11 @@ export function AiForm({
           }
           onChange={(event) => setApiKeyInput(event.target.value)}
         />
-        <p className="text-xs text-text-3">
-          {t('ai.apiKey.help.before')} <code className="font-mono">MASTER_KEY</code>
+        <p className="help">
+          {t('ai.apiKey.help.before')} <code className="mono">MASTER_KEY</code>
           {t('ai.apiKey.help.middle')}{' '}
           {descriptor.envApiKeyVar ? (
-            <code className="font-mono">{descriptor.envApiKeyVar}</code>
+            <code className="mono">{descriptor.envApiKeyVar}</code>
           ) : (
             t('ai.apiKey.help.noEnvVar')
           )}
