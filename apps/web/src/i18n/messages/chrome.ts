@@ -21,6 +21,7 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── Rail de navigation ──────────────────────────────────────────────────
+  'shell.loading': 'Chargement',
   'nav.dashboard': "Vue d'ensemble",
   'nav.targets': 'Cibles',
   'nav.applications': 'Applications',
@@ -208,6 +209,7 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
+  'shell.loading': 'Loading',
   'nav.dashboard': 'Overview',
   'nav.targets': 'Targets',
   'nav.applications': 'Applications',

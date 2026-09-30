@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { PageHeader } from '@/components/page-header';
+import { RotateCcw } from 'lucide-react';
+import { AccessCard } from '@/components/access-shell';
 import { useT } from '@/i18n/client';
 import { auth as messages } from '@/i18n/messages/auth';
 import { common } from '@/i18n/messages/common';
@@ -40,37 +40,34 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t('appError.title')} description={t('appError.description')} />
+    <div className="mx-auto mt-6 w-full max-w-[440px]">
+      <AccessCard tone="danger" title={t('appError.title')} description={t('appError.description')}>
+        <Alert variant="destructive">
+          <span className="mono">{error.message || t('appError.fallback')}</span>
+        </Alert>
 
-      <Card className="border-danger-line">
-        <CardContent className="space-y-4">
-          <Alert variant="destructive">{error.message || t('appError.fallback')}</Alert>
+        {error.digest ? (
+          <p className="t-cap text-text-3">
+            {t('appError.digest.before')} <code className="mono">digest {error.digest}</code>{' '}
+            {t('appError.digest.after')}
+          </p>
+        ) : null}
 
-          {error.digest ? (
-            <p className="text-xs text-text-3">
-              {t('appError.digest.before')}{' '}
-              <code className="font-mono text-text-2">{error.digest}</code>{' '}
-              {t('appError.digest.after')}
-            </p>
-          ) : null}
-
-          <div className="flex items-center gap-3">
-            {/*
-              `reset()` refait le rendu du segment sans recharger la page :
-              c'est le bon geste pour une panne passagère (base indisponible le
-              temps d'une requête) et il ne coûte rien si l'erreur persiste.
-            */}
-            <Button onClick={reset}>{tc('retry')}</Button>
-            <Link
-              href="/"
-              className="text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
-            >
-              {t('link.backToDashboard')}
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="flex items-center gap-2">
+          {/*
+            `reset()` refait le rendu du segment sans recharger la page :
+            c'est le bon geste pour une panne passagère (base indisponible le
+            temps d'une requête) et il ne coûte rien si l'erreur persiste.
+          */}
+          <Button onClick={reset}>
+            <RotateCcw aria-hidden />
+            {tc('retry')}
+          </Button>
+          <Button asChild variant="ghost">
+            <Link href="/">{t('link.back')}</Link>
+          </Button>
+        </div>
+      </AccessCard>
     </div>
   );
 }

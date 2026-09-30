@@ -37,6 +37,8 @@ export default function GlobalError({
     console.error('[panel] erreur fatale', error);
   }, [error]);
 
+  // Page minimale aux styles en ligne : à ce stade, aucune feuille de style
+  // n'est garantie. Les couleurs sont celles du thème clair, écrites en dur.
   return (
     <html lang={language}>
       <body
@@ -45,20 +47,34 @@ export default function GlobalError({
           minHeight: '100dvh',
           display: 'grid',
           placeItems: 'center',
-          background: 'oklch(0.196 0.014 258)',
-          color: 'oklch(0.955 0.005 250)',
-          fontFamily: 'system-ui, sans-serif',
-          padding: '1.5rem',
+          background: '#f7f8fa',
+          color: '#14161b',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          padding: '24px',
         }}
       >
-        <main style={{ maxWidth: '32rem' }}>
-          <h1 style={{ fontSize: '1.125rem', margin: '0 0 0.5rem' }}>{t('globalError.title')}</h1>
-          <p style={{ margin: '0 0 1rem', color: 'oklch(0.712 0.018 254)', fontSize: '0.875rem' }}>
+        <main
+          style={{
+            width: '100%',
+            maxWidth: '400px',
+            boxSizing: 'border-box',
+            background: '#ffffff',
+            border: '1px solid #e3e6ec',
+            borderRadius: '14px',
+            boxShadow: '0 4px 12px rgba(20, 22, 27, 0.08)',
+            padding: '28px',
+          }}
+        >
+          <h1 style={{ fontSize: '20px', lineHeight: '28px', fontWeight: 600, margin: '0 0 6px' }}>
+            {t('globalError.title')}
+          </h1>
+          <p style={{ margin: '0 0 12px', color: '#4b5160', fontSize: '14px', lineHeight: '20px' }}>
             {t('globalError.body')}
           </p>
           {error.digest ? (
-            <p style={{ margin: '0 0 1rem', fontSize: '0.75rem', color: 'oklch(0.588 0.018 254)' }}>
-              {t('globalError.reference')} <code>{error.digest}</code>
+            <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#6b7180' }}>
+              {t('globalError.reference')}{' '}
+              <code style={{ fontFamily: 'ui-monospace, monospace' }}>digest {error.digest}</code>
             </p>
           ) : null}
           <button
@@ -67,11 +83,13 @@ export default function GlobalError({
             style={{
               cursor: 'pointer',
               border: 0,
-              borderRadius: '0.375rem',
-              padding: '0.5rem 0.875rem',
-              fontSize: '0.875rem',
-              background: 'oklch(0.742 0.104 212)',
-              color: 'oklch(0.184 0.032 240)',
+              borderRadius: '8px',
+              height: '34px',
+              padding: '0 14px',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              background: '#2e44d6',
+              color: '#ffffff',
             }}
           >
             {tc('retry')}

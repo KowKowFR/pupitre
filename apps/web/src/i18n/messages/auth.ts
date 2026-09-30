@@ -52,7 +52,8 @@ const fr = {
 
   // ── Sorties de secours ──────────────────────────────────────────────────
   'link.backToLogin': 'Retour à la connexion',
-  'link.backToDashboard': 'Retour au tableau de bord',
+  'link.backToDashboard': "Retour à la vue d'ensemble",
+  'link.back': 'Retour',
 
   // ── Connexion ───────────────────────────────────────────────────────────
   'login.title': 'Connexion',
@@ -176,7 +177,7 @@ const fr = {
   // ── Filet de rendu d'un écran ───────────────────────────────────────────
   'appError.eyebrow': 'Incident',
   'appError.title': "Cet écran n'a pas pu s'afficher",
-  'appError.description': 'Le reste du panel continue de fonctionner.',
+  'appError.description': 'Le rail reste utilisable ; seule cette page a échoué.',
   'appError.fallback': 'Erreur inattendue pendant le rendu de la page.',
   'appError.digest.before': 'Référence à citer dans un rapport :',
   'appError.digest.after': '— elle se retrouve dans les logs du serveur.',
@@ -214,7 +215,8 @@ const en: Translated<typeof fr> = {
   },
 
   'link.backToLogin': 'Back to sign-in',
-  'link.backToDashboard': 'Back to the dashboard',
+  'link.backToDashboard': 'Back to the overview',
+  'link.back': 'Back',
 
   'login.title': 'Sign in',
   'login.description': 'With the address and password of your account.',
