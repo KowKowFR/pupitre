@@ -95,6 +95,8 @@ const fr = {
   'toast.deployed.detail': 'Run #{number} · suivez-le dans Déploiements.',
   'toast.follow': 'Suivre',
   'toast.deleted': 'Application {slug} supprimée',
+  'toast.created': 'Application {name} enregistrée',
+  'toast.created.detail': 'Relisez-la et déployez-la depuis son aperçu.',
 
   'empty.title': 'Aucune application',
   'empty.hint':
@@ -268,6 +270,7 @@ const fr = {
   'form.submit.pending': 'Validation…',
   'form.submit.saveAndDeploy': "Enregistrer et déployer l'application",
   'form.submit.save': "Enregistrer l'application",
+  'form.submit.empty': "Écrivez, collez ou générez d'abord une spec.",
 
   // ── Relecture de la spec, avant enregistrement ──────────────────────────
   'review.unnamed': '(sans nom)',
@@ -427,6 +430,8 @@ const en: Translated<typeof fr> = {
   'toast.deployed.detail': 'Run #{number} · follow it in Deployments.',
   'toast.follow': 'Follow',
   'toast.deleted': 'Application {slug} deleted',
+  'toast.created': 'Application {name} saved',
+  'toast.created.detail': 'Review it and deploy it from its preview.',
 
   'empty.title': 'No application',
   'empty.hint':
@@ -595,6 +600,7 @@ const en: Translated<typeof fr> = {
   'form.submit.pending': 'Validating…',
   'form.submit.saveAndDeploy': 'Save and deploy the application',
   'form.submit.save': 'Save the application',
+  'form.submit.empty': 'Write, paste or generate a spec first.',
 
   'review.unnamed': '(unnamed)',
   'review.services': { one: '{count} service', other: '{count} services' },

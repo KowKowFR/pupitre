@@ -214,7 +214,7 @@ export function CommandPalette({
         meta: t('palette.cmd.newApp.meta'),
         verb: 'open',
         words: 'appspec json',
-        perform: () => go('/applications/new'),
+        perform: () => go('/applications?add=new'),
       },
       'suggestions',
     );
@@ -226,7 +226,7 @@ export function CommandPalette({
         meta: t('palette.cmd.newTarget.meta'),
         verb: 'open',
         words: 'ssh',
-        perform: () => go('/targets/new'),
+        perform: () => go('/targets?add=new'),
       },
       'suggestions',
     );

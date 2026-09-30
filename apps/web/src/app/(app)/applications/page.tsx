@@ -2,6 +2,7 @@ import { usableRuntimes } from '@pupitre/core';
 import { listApplications, listSupervisedApps, listTargets } from '@pupitre/db';
 import { getT } from '@/i18n/server';
 import { common } from '@/i18n/messages/common';
+import { newApplicationAi } from '@/lib/new-application';
 import { requirePagePermission } from '@/lib/page-auth';
 import { relativeTime } from '@/lib/relative-time';
 import { ApplicationsView, type ApplicationRow, type DeployTarget } from './applications-view';
@@ -68,6 +69,7 @@ export default async function ApplicationsPage() {
       canCreate={auth.can('application:create')}
       canDeploy={canDeploy}
       canDelete={auth.can('application:delete')}
+      ai={auth.can('application:create') ? await newApplicationAi() : null}
     />
   );
 }

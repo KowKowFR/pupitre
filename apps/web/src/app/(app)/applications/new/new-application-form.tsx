@@ -7,14 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Rocket, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { DrawerBody, DrawerFooter, DrawerSection } from '@/components/ui/drawer';
 import { Field } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -82,6 +75,12 @@ type Props = {
   missingKeyVar: string | null;
   /** Cibles déployables. Vide si l'utilisateur n'a pas `deployment:create`. */
   targets: DeployTarget[];
+  /**
+   * Après un enregistrement **sans** déploiement. Avec déploiement, on part
+   * suivre le run.
+   */
+  onSaved: (application: { id: string; name: string }) => void;
+  onCancel: () => void;
 };
 
 async function readError(
@@ -378,6 +377,8 @@ export function NewApplicationForm({
   modelWarning,
   missingKeyVar,
   targets,
+  onSaved,
+  onCancel,
 }: Props) {
   const t = useT(messages);
   const tc = useT(common);
@@ -560,270 +561,281 @@ export function NewApplicationForm({
     }
 
     setSaving(false);
-    router.push('/applications');
-    router.refresh();
+    onSaved({ id: application.id, name: review?.name ?? '' });
   }
 
-  return (
-    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-      <div className="flex min-w-0 flex-col gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('new.card.title')}</CardTitle>
-            <CardDescription>{t('new.left.sub')}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            <Tabs label={t('new.card.title')}>
-              <Tab
-                selected={tab === 'prompt'}
+  // ─── Blocs communs aux deux cadres ─────────────────────────────────────────
+
+  const describe = (
+    <>
+      <Tabs label={t('new.card.title')}>
+        <Tab selected={tab === 'prompt'} disabled={!aiEnabled} onClick={() => setTab('prompt')}>
+          {t('tab.fromPrompt')}
+        </Tab>
+        <Tab selected={tab === 'json'} onClick={() => setTab('json')}>
+          {t('tab.fromJson')}
+        </Tab>
+      </Tabs>
+
+      {tab === 'prompt' ? (
+        <form onSubmit={onGenerate} className="flex flex-col gap-4">
+          {!aiEnabled ? (
+            <Alert>
+              {t('ai.disabled.lead', { provider })}
+              {missingKeyVar ? (
+                <>
+                  {' '}
+                  {t('ai.disabled.envVar')} <code className="code">{missingKeyVar}</code>)
+                </>
+              ) : null}
+              {t('ai.disabled.tail')}
+            </Alert>
+          ) : null}
+
+          {aiEnabled && modelWarning ? <Alert variant="destructive">{modelWarning}</Alert> : null}
+
+          <Field label={t('form.prompt.label')} help={t('form.prompt.help')}>
+            <Textarea
+              name="prompt"
+              rows={3}
+              value={prompt}
+              disabled={!aiEnabled}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder={t('form.prompt.placeholder')}
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+            <Field label={t('form.hint.language')} optional>
+              <Input
+                value={language}
                 disabled={!aiEnabled}
-                onClick={() => setTab('prompt')}
+                onChange={(event) => setLanguage(event.target.value)}
+                placeholder="Node.js"
+              />
+            </Field>
+            <Field label={t('form.hint.database')} optional>
+              <Input
+                value={database}
+                disabled={!aiEnabled}
+                onChange={(event) => setDatabase(event.target.value)}
+                placeholder="PostgreSQL"
+              />
+            </Field>
+            <Field label={t('form.hint.runtime')} optional>
+              <Select
+                value={runtimeHint}
+                disabled={!aiEnabled}
+                onChange={(event) => setRuntimeHint(event.target.value)}
               >
-                {t('tab.fromPrompt')}
-              </Tab>
-              <Tab selected={tab === 'json'} onClick={() => setTab('json')}>
-                {t('tab.fromJson')}
-              </Tab>
-            </Tabs>
+                <option value="">{t('form.hint.runtime.any')}</option>
+                <option value="docker">Docker</option>
+                <option value="k3s">K3s</option>
+              </Select>
+            </Field>
+            <Button
+              type="submit"
+              variant={origin ? 'secondary' : 'default'}
+              loading={generating}
+              disabled={!aiEnabled || prompt.trim().length < 8}
+            >
+              {generating ? null : <Sparkles aria-hidden />}
+              {generating
+                ? t('generate.pending')
+                : origin
+                  ? t('generate.again')
+                  : t('generate.action')}
+            </Button>
+          </div>
+          <p className="help">
+            {t('form.hint.note')}{' '}
+            <span className="mono">
+              {provider} · {model}
+            </span>
+          </p>
 
-            {tab === 'prompt' ? (
-              <form onSubmit={onGenerate} className="flex flex-col gap-4">
-                {!aiEnabled ? (
-                  <Alert>
-                    {t('ai.disabled.lead', { provider })}
-                    {missingKeyVar ? (
-                      <>
-                        {' '}
-                        {t('ai.disabled.envVar')} <code className="code">{missingKeyVar}</code>)
-                      </>
-                    ) : null}
-                    {t('ai.disabled.tail')}
-                  </Alert>
-                ) : null}
-
-                {aiEnabled && modelWarning ? (
-                  <Alert variant="destructive">{modelWarning}</Alert>
-                ) : null}
-
-                <Field label={t('form.prompt.label')} help={t('form.prompt.help')}>
-                  <Textarea
-                    name="prompt"
-                    rows={3}
-                    value={prompt}
-                    disabled={!aiEnabled}
-                    onChange={(event) => setPrompt(event.target.value)}
-                    placeholder={t('form.prompt.placeholder')}
-                  />
-                </Field>
-
-                <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-                  <Field label={t('form.hint.language')} optional>
-                    <Input
-                      value={language}
-                      disabled={!aiEnabled}
-                      onChange={(event) => setLanguage(event.target.value)}
-                      placeholder="Node.js"
-                    />
-                  </Field>
-                  <Field label={t('form.hint.database')} optional>
-                    <Input
-                      value={database}
-                      disabled={!aiEnabled}
-                      onChange={(event) => setDatabase(event.target.value)}
-                      placeholder="PostgreSQL"
-                    />
-                  </Field>
-                  <Field label={t('form.hint.runtime')} optional>
-                    <Select
-                      value={runtimeHint}
-                      disabled={!aiEnabled}
-                      onChange={(event) => setRuntimeHint(event.target.value)}
-                    >
-                      <option value="">{t('form.hint.runtime.any')}</option>
-                      <option value="docker">Docker</option>
-                      <option value="k3s">K3s</option>
-                    </Select>
-                  </Field>
-                  <Button
-                    type="submit"
-                    variant={origin ? 'secondary' : 'default'}
-                    loading={generating}
-                    disabled={!aiEnabled || prompt.trim().length < 8}
-                  >
-                    {generating ? null : <Sparkles aria-hidden />}
-                    {generating
-                      ? t('generate.pending')
-                      : origin
-                        ? t('generate.again')
-                        : t('generate.action')}
-                  </Button>
-                </div>
-                <p className="help">
-                  {t('form.hint.note')}{' '}
-                  <span className="mono">
-                    {provider} · {model}
-                  </span>
-                </p>
-
-                {generationInfo ? (
-                  <Alert variant="success" title={t('generate.done')}>
-                    <span className="mono text-[12px]">{generationInfo}</span>
-                  </Alert>
-                ) : null}
-              </form>
-            ) : (
-              <div className="flex flex-col items-start gap-3">
-                <p className="t-sm text-text-2">{t('new.json.tab.hint')}</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <AppSpecHelpDialog />
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setValue(EXAMPLE);
-                      setOrigin(null);
-                    }}
-                  >
-                    {t('form.insertExample')}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <form onSubmit={onSave}>
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('new.deploy.title')}</CardTitle>
-              <CardDescription>{tChrome('field.optional')}</CardDescription>
-            </CardHeader>
-            {targets.length > 0 ? (
-              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label={t('drawer.deploy.target')}>
-                  <Select
-                    value={targetId}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setTargetId(next);
-                      const target = targets.find((candidate) => candidate.id === next);
-                      const first = target?.runtimes[0];
-                      if (first) setDeployRuntime(first);
-                    }}
-                  >
-                    <option value="">{t('form.deployTarget.none')}</option>
-                    {targets.map((target) => (
-                      <option key={target.id} value={target.id}>
-                        {target.name} ({target.host})
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label={t('form.runtime.label')} help={t('drawer.deploy.runtime.help')}>
-                  <Select
-                    value={deployRuntime}
-                    disabled={!selectedTarget}
-                    onChange={(event) =>
-                      setDeployRuntime(event.target.value === 'k3s' ? 'k3s' : 'docker')
-                    }
-                  >
-                    {(selectedTarget?.runtimes ?? ['docker' as const]).map((entry) => (
-                      <option key={entry} value={entry}>
-                        {t(`runtime.${entry}`)}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </CardContent>
-            ) : null}
-            <CardFooter className="flex-wrap">
-              <span className="t-cap text-text-3">
-                {selectedTarget ? t('new.deploy.note') : t('new.deploy.noteSave')}
-              </span>
-              <span className="ml-auto flex items-center gap-2">
-                <Button variant="ghost" type="button" onClick={() => router.back()}>
-                  {tc('cancel')}
-                </Button>
-                <Button type="submit" loading={saving} disabled={value.trim().length === 0}>
-                  {saving ? null : selectedTarget ? <Rocket aria-hidden /> : null}
-                  {saving
-                    ? t('form.submit.pending')
-                    : selectedTarget
-                      ? t('form.submit.saveAndDeploy')
-                      : t('form.submit.save')}
-                </Button>
-              </span>
-            </CardFooter>
-          </Card>
+          {generationInfo ? (
+            <Alert variant="success" title={t('generate.done')}>
+              <span className="mono text-[12px]">{generationInfo}</span>
+            </Alert>
+          ) : null}
         </form>
+      ) : (
+        <div className="flex flex-col items-start gap-3">
+          <p className="t-sm text-text-2">{t('new.json.tab.hint')}</p>
+          <AppSpecHelpDialog />
+        </div>
+      )}
+    </>
+  );
+
+  const deployFields =
+    targets.length > 0 ? (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label={t('drawer.deploy.target')}>
+          <Select
+            value={targetId}
+            onChange={(event) => {
+              const next = event.target.value;
+              setTargetId(next);
+              const target = targets.find((candidate) => candidate.id === next);
+              const first = target?.runtimes[0];
+              if (first) setDeployRuntime(first);
+            }}
+          >
+            <option value="">{t('form.deployTarget.none')}</option>
+            {targets.map((target) => (
+              <option key={target.id} value={target.id}>
+                {target.name} ({target.host})
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('form.runtime.label')} help={t('drawer.deploy.runtime.help')}>
+          <Select
+            value={deployRuntime}
+            disabled={!selectedTarget}
+            onChange={(event) => setDeployRuntime(event.target.value === 'k3s' ? 'k3s' : 'docker')}
+          >
+            {(selectedTarget?.runtimes ?? ['docker' as const]).map((entry) => (
+              <option key={entry} value={entry}>
+                {t(`runtime.${entry}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
+    ) : null;
 
-      <div className="flex min-w-0 flex-col gap-6">
-        {error ? (
-          <Alert variant="destructive">
-            <div>{error}</div>
-            {issues.length > 0 ? (
-              <ul className="bul mono mt-1 flex flex-col gap-0.5 text-[12px]">
-                {issues.map((issue) => (
-                  <li key={issue}>{issue}</li>
-                ))}
-              </ul>
-            ) : null}
-          </Alert>
-        ) : null}
+  const saveNote = (
+    <span className="t-cap text-text-3">
+      {selectedTarget ? t('new.deploy.note') : t('new.deploy.noteSave')}
+    </span>
+  );
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('review.label')}</CardTitle>
-            <CardDescription>
+  const saveButton = (
+    <Button
+      type="submit"
+      loading={saving}
+      disabledReason={value.trim().length === 0 ? t('form.submit.empty') : null}
+    >
+      {saving ? null : selectedTarget ? <Rocket aria-hidden /> : null}
+      {saving
+        ? t('form.submit.pending')
+        : selectedTarget
+          ? t('form.submit.saveAndDeploy')
+          : t('form.submit.save')}
+    </Button>
+  );
+
+  const cancelButton = (
+    <Button variant="ghost" type="button" onClick={onCancel}>
+      {tc('cancel')}
+    </Button>
+  );
+
+  const errorAlert = error ? (
+    <Alert variant="destructive">
+      <div>{error}</div>
+      {issues.length > 0 ? (
+        <ul className="bul mono mt-1 flex flex-col gap-0.5 text-[12px]">
+          {issues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+      ) : null}
+    </Alert>
+  ) : null;
+
+  const reviewBody = review ? (
+    <SpecReview spec={review} />
+  ) : (
+    <p className="t-sm text-text-3">{t('new.review.empty')}</p>
+  );
+
+  const insertExample = (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => {
+        setValue(EXAMPLE);
+        setOrigin(null);
+      }}
+    >
+      {t('form.insertExample')}
+    </Button>
+  );
+
+  const specEditor = (
+    <>
+      <Textarea
+        id="appSpec"
+        name="appSpec"
+        rows={18}
+        wrap="off"
+        spellCheck={false}
+        aria-label={t('form.appSpec.label')}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder={EXAMPLE}
+        className="mono bg-surface-2"
+      />
+      {origin ? <p className="help">{t('form.origin.note')}</p> : null}
+    </>
+  );
+
+  // ─── Tout empilé dans le tiroir, l'enregistrement dans son pied ────────────
+
+  return (
+    <>
+      <DrawerBody>
+        {errorAlert}
+        <DrawerSection
+          title={t('new.card.title')}
+          aside={<span className="t-cap font-normal text-text-3">{t('new.left.sub')}</span>}
+        >
+          <div className="flex flex-col gap-4">{describe}</div>
+        </DrawerSection>
+        <DrawerSection
+          title={t('review.label')}
+          aside={
+            <span className="t-cap font-normal text-text-3">
               {origin ? t('new.review.sub.proposal') : t('new.review.sub.manual')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {review ? (
-              <SpecReview spec={review} />
-            ) : (
-              <p className="t-sm text-text-3">{t('new.review.empty')}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader
-            actions={
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setValue(EXAMPLE);
-                  setOrigin(null);
-                }}
-              >
-                {t('form.insertExample')}
-              </Button>
+            </span>
+          }
+        >
+          {reviewBody}
+        </DrawerSection>
+        <DrawerSection
+          title={t('form.appSpec.label')}
+          aside={
+            <>
+              <span className="t-cap font-normal text-text-3">
+                {origin ? t('new.json.sub.generated') : t('new.json.sub.manual')}
+              </span>
+              <span className="ml-auto">{insertExample}</span>
+            </>
+          }
+        >
+          {specEditor}
+        </DrawerSection>
+        {deployFields ? (
+          <DrawerSection
+            title={t('new.deploy.title')}
+            aside={
+              <span className="t-cap font-normal text-text-3">{tChrome('field.optional')}</span>
             }
           >
-            <CardTitle>{t('form.appSpec.label')}</CardTitle>
-            <CardDescription>
-              {origin ? t('new.json.sub.generated') : t('new.json.sub.manual')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <Textarea
-              id="appSpec"
-              name="appSpec"
-              rows={18}
-              wrap="off"
-              spellCheck={false}
-              aria-label={t('form.appSpec.label')}
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder={EXAMPLE}
-              className="mono bg-surface-2"
-            />
-            {origin ? <p className="help">{t('form.origin.note')}</p> : null}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+            {deployFields}
+          </DrawerSection>
+        ) : null}
+      </DrawerBody>
+      <form onSubmit={onSave} className="contents">
+        <DrawerFooter end={saveNote}>
+          {saveButton}
+          {cancelButton}
+        </DrawerFooter>
+      </form>
+    </>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Boxes, Ellipsis, Plus, Rocket, Trash2 } from 'lucide-react';
 import { AppSpecHelpDialog } from '@/components/appspec-help';
@@ -30,8 +30,11 @@ import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { applications as messages } from '@/i18n/messages/applications';
+import { hrefWithSelection } from '@/lib/drawer-url';
+import type { NewApplicationAi } from '@/lib/new-application';
 import { toast } from '@/lib/toast';
 import { ApplicationDrawer } from './application-drawer';
+import { NewApplicationDrawer } from './new/new-application-drawer';
 import { DeleteApplicationDialog } from './delete-dialog';
 
 export type ServiceRow = {
@@ -80,12 +83,15 @@ export function ApplicationsView({
   canCreate,
   canDeploy,
   canDelete,
+  ai,
 }: {
   items: ApplicationRow[];
   targets: DeployTarget[];
   canCreate: boolean;
   canDeploy: boolean;
   canDelete: boolean;
+  /** L'état de la génération par IA, pour « Nouvelle application ». `null` sans `application:create`. */
+  ai: NewApplicationAi | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -105,6 +111,27 @@ export function ApplicationsView({
   // La palette arrive ici avec `?app=…&deploy=1` : l'aperçu s'ouvre sur le
   // déploiement.
   const focusDeploy = search.get('deploy') === '1';
+  // « Nouvelle application » vit dans l'URL comme l'aperçu : `?add=new` l'ouvre
+  // depuis la palette ou l'ancienne adresse `/applications/new`.
+  const adding = useDrawerSelection('add');
+  const pathname = usePathname();
+
+  /** L'application enregistrée : le tiroir de création se ferme, son aperçu s'ouvre. */
+  function saved(application: { id: string; name: string }) {
+    const withoutAdd = hrefWithSelection(pathname, window.location.search, 'add', null);
+    const query = withoutAdd.includes('?') ? withoutAdd.slice(withoutAdd.indexOf('?')) : '';
+    window.history.replaceState(
+      null,
+      '',
+      application.name ? hrefWithSelection(pathname, query, 'app', application.name) : withoutAdd,
+    );
+    toast({
+      title: t('toast.created', { name: application.name }),
+      description: t('toast.created.detail'),
+      tone: 'ok',
+    });
+    router.refresh();
+  }
 
   async function deploy(application: ApplicationRow, targetId: string, runtime: 'docker' | 'k3s') {
     setBusy(true);
@@ -148,11 +175,9 @@ export function ApplicationsView({
           <>
             <AppSpecHelpDialog />
             {canCreate ? (
-              <Button asChild>
-                <Link href="/applications/new">
-                  <Plus aria-hidden />
-                  {t('action.new')}
-                </Link>
+              <Button onClick={() => adding.open('new')}>
+                <Plus aria-hidden />
+                {t('action.new')}
               </Button>
             ) : null}
           </>
@@ -180,11 +205,9 @@ export function ApplicationsView({
           hint={t('empty.hint')}
           action={
             canCreate ? (
-              <Button asChild>
-                <Link href="/applications/new">
-                  <Plus aria-hidden />
-                  {t('action.new')}
-                </Link>
+              <Button onClick={() => adding.open('new')}>
+                <Plus aria-hidden />
+                {t('action.new')}
               </Button>
             ) : undefined
           }
@@ -291,6 +314,16 @@ export function ApplicationsView({
           </div>
         </section>
       )}
+
+      {canCreate && ai ? (
+        <NewApplicationDrawer
+          open={adding.selected !== null}
+          ai={ai}
+          targets={targets}
+          onClose={adding.close}
+          onSaved={saved}
+        />
+      ) : null}
 
       <ApplicationDrawer
         application={current}

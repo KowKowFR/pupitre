@@ -1,65 +1,14 @@
-import { aiModelMismatch, aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
-import { usableRuntimes } from '@pupitre/core';
-import { getAiApiKey, getAppSettings, listTargets } from '@pupitre/db';
-import { PageHeader } from '@/components/page-header';
-import { Crumb } from '@/components/shell/breadcrumb';
-import { currentLanguage, getT } from '@/i18n/server';
-import { applications as messages } from '@/i18n/messages/applications';
-import { getEnv } from '@/lib/env';
+import { redirect } from 'next/navigation';
 import { requirePagePermission } from '@/lib/page-auth';
-import { NewApplicationForm } from './new-application-form';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * La création d'une application se fait dans un tiroir, au-dessus de la liste.
+ * Cette adresse reste valable pour les liens et favoris qui la connaissent :
+ * elle ouvre ce tiroir.
+ */
 export default async function NewApplicationPage() {
-  const auth = await requirePagePermission('/applications/new', 'application:create');
-  const t = await getT(messages);
-
-  // La clé ne quitte pas le serveur : on ne transmet au client que le fait
-  // qu'elle existe, le fournisseur et le nom du modèle — qui ne sont pas des
-  // secrets. `process.env` plutôt que `getEnv()` pour les clés de fournisseurs :
-  // quelle variable lire appartient au descripteur du fournisseur, pas au
-  // schéma d'environnement du panel.
-  getEnv();
-  const { settings } = await getAppSettings();
-  const ai = resolveAiConfig({
-    settings: settings.ai,
-    settingsApiKey: await getAiApiKey(),
-    env: process.env,
-  });
-  const descriptor = aiProviderDescriptor(ai.provider);
-  // `resolveAiConfig()` compose son avertissement sans savoir à qui il parle —
-  // il sert aussi le worker et les logs. On le recalcule ici, dans la langue de
-  // l'instance, parce que celui-là s'affiche dans une `Alert`.
-  const modelWarning = aiModelMismatch(ai.provider, ai.model, {
-    baseUrl: ai.baseUrl,
-    language: await currentLanguage(),
-  });
-
-  // Le parcours va jusqu'au déploiement : on propose les cibles dont le
-  // preflight a montré un runtime, et rien d'autre.
-  const targets = auth.can('deployment:create') ? await listTargets() : [];
-  const deployTargets = targets
-    .filter((target) => usableRuntimes(target.runtimesAvailable).length > 0)
-    .map((target) => ({
-      id: target.id,
-      name: target.name,
-      host: target.host,
-      runtimes: usableRuntimes(target.runtimesAvailable),
-    }));
-
-  return (
-    <>
-      <Crumb label={t('action.new')} />
-      <PageHeader title={t('action.new')} description={t('new.description')} />
-      <NewApplicationForm
-        aiEnabled={ai.enabled}
-        provider={descriptor.label}
-        model={ai.model}
-        modelWarning={modelWarning}
-        missingKeyVar={descriptor.envApiKeyVar}
-        targets={deployTargets}
-      />
-    </>
-  );
+  await requirePagePermission('/applications/new', 'application:create');
+  redirect('/applications?add=new');
 }
