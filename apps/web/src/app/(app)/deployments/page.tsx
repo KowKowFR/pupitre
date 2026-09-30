@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/page-header';
 import { DeployButton } from '@/components/shell/deploy-button';
 import { getT } from '@/i18n/server';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { commitSourceOf } from '@/lib/commit';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { DeploymentsTable } from './deployments-table';
@@ -103,6 +104,7 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
           applicationSlug: item.applicationSlug,
           targetName: item.targetName,
           triggeredByEmail: item.triggeredByEmail,
+          source: commitSourceOf(item),
           startedAt: item.startedAt?.toISOString() ?? null,
           finishedAt: item.finishedAt?.toISOString() ?? null,
           createdAt: item.createdAt.toISOString(),

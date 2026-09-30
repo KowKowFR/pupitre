@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { SCANNER_KEYS, failOnLabel, scannerLabel } from '@pupitre/core';
-import { getAiApiKey, getAppSettings, listNotificationChannels } from '@pupitre/db';
+import {
+  countApplicationSources,
+  getAiApiKey,
+  getAppSettings,
+  getSourceConnection,
+  listNotificationChannels,
+} from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { KeyValue } from '@/components/ui/data';
 import { currentLanguage, getT } from '@/i18n/server';
@@ -38,6 +44,10 @@ export default async function SettingsOverviewPage() {
   // si la génération est réellement possible — pas seulement autorisée.
   const aiApiKey = await getAiApiKey();
   const channels = await listNotificationChannels();
+  const [github, linkedSources] = await Promise.all([
+    getSourceConnection('github'),
+    countApplicationSources(),
+  ]);
   const activeChannels = channels.filter((channel) => channel.enabled);
 
   const activeScanners = SCANNER_KEYS.filter(
@@ -126,6 +136,15 @@ export default async function SettingsOverviewPage() {
           : t('overview.apiKey.none'),
       },
     ],
+    '/admin/settings/integrations': [
+      {
+        term: t('integrations.term.github'),
+        value: github
+          ? t('integrations.github.connected', { name: github.name })
+          : t('integrations.github.none'),
+      },
+      { term: t('integrations.term.sources'), value: String(linkedSources) },
+    ],
     '/admin/settings/demarrage': [
       { term: t('onboarding.term.status'), value: onboardingStatus[settings.onboarding.status] },
       { term: t('onboarding.term.currentStep'), value: settings.onboarding.currentStep },
@@ -147,6 +166,11 @@ export default async function SettingsOverviewPage() {
       </Badge>
     ),
     '/admin/settings/ia': <AiStatusBadge settings={settings} storedApiKey={aiApiKey} />,
+    '/admin/settings/integrations': (
+      <Badge variant={github ? 'ok' : 'idle'} dot>
+        {github ? t('overview.badge.githubOn') : t('overview.badge.githubOff')}
+      </Badge>
+    ),
   };
 
   return (

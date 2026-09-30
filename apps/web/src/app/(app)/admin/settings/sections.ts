@@ -1,4 +1,13 @@
-import { Bell, Compass, Globe, ScanSearch, Signature, Sparkles, type LucideIcon } from 'lucide-react';
+import {
+  Bell,
+  Compass,
+  Globe,
+  Plug,
+  ScanSearch,
+  Signature,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 
 /**
  * Le découpage des paramètres, en un seul endroit.
@@ -26,6 +35,7 @@ export type SettingsSectionId =
   | 'security'
   | 'notifications'
   | 'ai'
+  | 'integrations'
   | 'onboarding';
 
 export type SettingsSection = {
@@ -42,6 +52,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { href: '/admin/settings/securite', id: 'security', icon: ScanSearch },
   { href: '/admin/settings/notifications', id: 'notifications', icon: Bell },
   { href: '/admin/settings/ia', id: 'ai', icon: Sparkles },
+  { href: '/admin/settings/integrations', id: 'integrations', icon: Plug },
   { href: '/admin/settings/demarrage', id: 'onboarding', icon: Compass },
 ];
 

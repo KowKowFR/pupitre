@@ -1,10 +1,13 @@
 import { notFound } from 'next/navigation';
-import { usableRuntimes } from '@pupitre/core';
+import { defaultWatchPaths, usableRuntimes } from '@pupitre/core';
 import {
   getApplication,
   getAppSettings,
+  getSourceConnection,
   listApplicationSecrets,
+  listApplicationSources,
   listApplicationVersions,
+  listPendingProposals,
   listTargets,
 } from '@pupitre/db';
 import { z } from 'zod';
@@ -13,14 +16,19 @@ import { Crumb } from '@/components/shell/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { applications as messages } from '@/i18n/messages/applications';
+import { common } from '@/i18n/messages/common';
 import { buildSecretViews } from '@/lib/application-secrets';
+import { commitSourceOf } from '@/lib/commit';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
+import { relativeTime } from '@/lib/relative-time';
+import { connectionView } from '@/lib/sources';
 import { ServiceChips } from '../applications-view';
 import { ingressOf, serviceRows } from '../rows';
 import { ServiceList } from '../service-list';
 import { ApplicationActions } from './application-actions';
 import { ApplicationSecrets } from './application-secrets';
+import { ApplicationSources, type SourceView } from './application-sources';
 import { VersionTimeline, type VersionRow } from './version-timeline';
 
 export const dynamic = 'force-dynamic';
@@ -28,8 +36,9 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 
 /**
- * La fiche d'une application : son AppSpec courante, ses secrets, et
- * l'historique de ses versions — chacune rejouable telle qu'elle est partie.
+ * La fiche d'une application : son AppSpec courante, ses secrets, le dépôt
+ * qu'elle suit, et l'historique de ses versions — chacune rejouable telle
+ * qu'elle est partie.
  */
 export default async function ApplicationPage({ params }: { params: Promise<{ id: string }> }) {
   const parsed = paramsSchema.safeParse(await params);
@@ -37,22 +46,29 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
   const auth = await requirePagePermission(`/applications/${parsed.data.id}`, 'application:read');
   const t = await getT(messages);
+  const tc = await getT(common);
   const { settings } = await getAppSettings();
 
   const application = await getApplication(parsed.data.id);
   if (!application) notFound();
 
-  const [versions, targets, storedSecrets] = await Promise.all([
+  const [versions, targets, storedSecrets, sources, proposals, connection] = await Promise.all([
     listApplicationVersions(application.id),
     listTargets(),
     listApplicationSecrets(application.id),
+    listApplicationSources(application.id),
+    listPendingProposals(application.id),
+    getSourceConnection('github'),
   ]);
 
-  const rows: VersionRow[] = versions.map((version) => ({
-    ...version,
-    createdAt: version.createdAt.toISOString(),
-    finishedAt: version.finishedAt?.toISOString() ?? null,
-  }));
+  const rows: VersionRow[] = versions.map(
+    ({ sourceRepository, sourceRef, sourceSha, ...version }) => ({
+      ...version,
+      source: commitSourceOf({ sourceRepository, sourceRef, sourceSha }),
+      createdAt: version.createdAt.toISOString(),
+      finishedAt: version.finishedAt?.toISOString() ?? null,
+    }),
+  );
 
   // Une cible n'accueille un redéploiement que si son preflight a montré un
   // runtime exploitable. C'est la route qui tranche ; l'interface évite juste
@@ -64,6 +80,34 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       name: target.name,
       runtimes: usableRuntimes(target.runtimesAvailable),
     }));
+
+  const sourceViews: SourceView[] = sources.map((source) => ({
+    id: source.id,
+    repository: source.repository,
+    branch: source.branch,
+    specPath: source.specPath,
+    watchPaths: source.watchPaths,
+    defaultWatchPaths: defaultWatchPaths(source.specPath),
+    mode: source.mode,
+    enabled: source.enabled,
+    lastSeenSha: source.lastSeenSha,
+    checkedAgo: relativeTime(source.lastCheckedAt, tc),
+    lastError: source.lastError,
+    targets: source.targets,
+    proposals: proposals
+      .filter((proposal) => proposal.sourceId === source.id)
+      .map((proposal) => ({
+        id: proposal.id,
+        sha: proposal.sha,
+        commitMessage: proposal.commitMessage,
+        commitAuthor: proposal.commitAuthor,
+        commitUrl: proposal.commitUrl,
+        reason: proposal.reason,
+        changes: proposal.changes,
+        receivedAgo: relativeTime(proposal.createdAt, tc),
+      })),
+  }));
+  const linkedTo = connection ? connectionView(connection) : null;
 
   const spec = application.appSpec;
   const services = serviceRows(spec);
@@ -105,6 +149,15 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           canEdit={auth.can('application:update')}
         />
       </div>
+
+      <ApplicationSources
+        applicationId={application.id}
+        sources={sourceViews}
+        targets={deployTargets}
+        connection={linkedTo ? { installUrl: linkedTo.installUrl } : null}
+        canEdit={auth.can('application:update')}
+        canDeploy={auth.can('deployment:create')}
+      />
 
       <Card>
         <CardHeader>

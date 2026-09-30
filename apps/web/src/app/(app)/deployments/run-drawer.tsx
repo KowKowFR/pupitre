@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Rocket, ScrollText, Undo2 } from 'lucide-react';
 import { SCANNERS, type DeploymentStatus } from '@pupitre/core';
+import { CommitRef } from '@/components/commit-ref';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -21,6 +22,7 @@ import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { appConsole } from '@/i18n/messages/console';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { sources } from '@/i18n/messages/sources';
 import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { VerdictBadge, worstOf, type DeploymentRow } from './deployments-table';
@@ -89,6 +91,7 @@ function RunDrawerContent({
 }) {
   const t = useT(messages);
   const tc = useT(common);
+  const ts = useT(sources);
   const tConsole = useT(appConsole);
   const router = useRouter();
   const [detail, setDetail] = useState<RunDetail | null>(null);
@@ -218,6 +221,9 @@ function RunDrawerContent({
               },
               { term: t('drawer.target'), value: <span className="mono">{row.targetName}</span> },
               { term: t('drawer.runtime'), value: row.runtime },
+              ...(row.source
+                ? [{ term: ts('run.source'), value: <CommitRef source={row.source} /> }]
+                : []),
               {
                 term: t('field.by'),
                 value: <span className="mono">{row.triggeredByEmail ?? tc('none')}</span>,

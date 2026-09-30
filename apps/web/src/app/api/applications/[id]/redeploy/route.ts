@@ -112,6 +112,18 @@ export const POST = apiRoute<Context>(async (request, context) => {
     autoRollback: input.autoRollback,
     appSpec,
     triggeredBy: auth.userId,
+    // Le commit suit l'AppSpec : un service qui se construit a besoin du code
+    // exact de la version rejouée, pas de la tête actuelle de la branche.
+    ...(source.deployment.sourceRepository && source.deployment.sourceSha
+      ? {
+          source: {
+            sourceId: source.deployment.sourceId,
+            repository: source.deployment.sourceRepository,
+            ref: source.deployment.sourceRef,
+            sha: source.deployment.sourceSha,
+          },
+        }
+      : {}),
   });
 
   const job = await getOpsQueue().add(

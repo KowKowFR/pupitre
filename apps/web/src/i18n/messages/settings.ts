@@ -54,6 +54,17 @@ const fr = {
   'section.ai.governs':
     "Le fournisseur, le modèle et la clé qui servent à générer une AppSpec depuis une description, sur l'écran « Nouvelle application ». Sans clé ni variable d'environnement, la génération reste hors service.",
 
+  'section.integrations.label': 'Intégrations',
+  'section.integrations.title': 'Intégrations',
+  'section.integrations.short': 'les dépôts GitHub liés aux applications',
+  'section.integrations.governs':
+    "La GitHub App qui relie Pupitre aux dépôts : elle lit le code et le pupitre.json des branches liées, et écrit l'état des déploiements sur les commits. Le panel reste privé : c'est lui qui interroge GitHub.",
+  'integrations.term.github': 'GitHub',
+  'integrations.term.sources': 'Applications liées',
+  'integrations.github.connected': 'connectée — {name}',
+  'integrations.github.none': 'non connectée',
+  'overview.badge.githubOn': 'GitHub connecté',
+  'overview.badge.githubOff': 'GitHub non connecté',
   'section.onboarding.label': 'Assistant de démarrage',
   'section.onboarding.title': 'Assistant de démarrage',
   'section.onboarding.short': 'le parcours des premiers pas',
@@ -247,6 +258,17 @@ const en: Translated<typeof fr> = {
   'section.ai.governs':
     'The provider, the model and the key used to generate an AppSpec from a description, on the “New application” screen. With neither a key nor an environment variable, generation stays out of service.',
 
+  'section.integrations.label': 'Integrations',
+  'section.integrations.title': 'Integrations',
+  'section.integrations.short': 'GitHub repositories linked to applications',
+  'section.integrations.governs':
+    'The GitHub App that links Pupitre to repositories: it reads the code and the pupitre.json of linked branches, and writes deployment states on commits. The panel stays private: it asks GitHub itself.',
+  'integrations.term.github': 'GitHub',
+  'integrations.term.sources': 'Linked applications',
+  'integrations.github.connected': 'connected — {name}',
+  'integrations.github.none': 'not connected',
+  'overview.badge.githubOn': 'GitHub connected',
+  'overview.badge.githubOff': 'GitHub not connected',
   'section.onboarding.label': 'Setup guide',
   'section.onboarding.title': 'Setup guide',
   'section.onboarding.short': 'the first-steps walkthrough',

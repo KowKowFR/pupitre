@@ -11,6 +11,7 @@ import {
   type ScanVerdict,
   type SeverityCounts,
 } from '@pupitre/core';
+import { CommitRef } from '@/components/commit-ref';
 import { Led } from '@/components/instrument';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,8 @@ import { useLanguage, useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { appConsole } from '@/i18n/messages/console';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { sources } from '@/i18n/messages/sources';
+import type { CommitSource } from '@/lib/commit';
 import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -53,6 +56,8 @@ export type DeploymentView = {
   targetName: string;
   targetHost: string;
   triggeredByEmail: string | null;
+  /** Le commit déployé, quand le run vient d'un dépôt lié. */
+  source: CommitSource | null;
   startedAt: string | null;
   finishedAt: string | null;
   canRollback: boolean;
@@ -564,6 +569,7 @@ function Summary({
 }) {
   const t = useT(messages);
   const tc = useT(common);
+  const ts = useT(sources);
   const failed = deployment.status === 'failed';
   const rolledBack = deployment.status === 'rolled_back';
   const running = deployment.status === 'running' || deployment.status === 'pending';
@@ -595,6 +601,11 @@ function Summary({
             <a href={deployment.url} target="_blank" rel="noreferrer" className="link mono">
               {deployment.url.replace(/^https?:\/\//, '')}
             </a>
+          </FieldValue>
+        ) : null}
+        {deployment.source ? (
+          <FieldValue label={ts('run.source')}>
+            <CommitRef source={deployment.source} />
           </FieldValue>
         ) : null}
         <FieldValue label={t('field.by')}>

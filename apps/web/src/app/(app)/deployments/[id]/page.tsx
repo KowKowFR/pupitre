@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/page-header';
 import { Crumb } from '@/components/shell/breadcrumb';
 import { getT } from '@/i18n/server';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { commitSourceOf } from '@/lib/commit';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { DeploymentDetail, type StepView } from './deployment-view';
@@ -95,6 +96,7 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
           targetName: deployment.targetName,
           targetHost: deployment.targetHost,
           triggeredByEmail: deployment.triggeredByEmail,
+          source: commitSourceOf(deployment),
           startedAt: deployment.startedAt?.toISOString() ?? null,
           finishedAt: deployment.finishedAt?.toISOString() ?? null,
           canRollback: auth.can('deployment:rollback'),
