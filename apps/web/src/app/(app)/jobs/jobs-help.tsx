@@ -1,5 +1,6 @@
 'use client';
 
+import { CircleHelp } from 'lucide-react';
 import { SCHEDULED_JOB_TYPES_LIST, scheduledJobTypes } from '@pupitre/core/schedule';
 import type { Translate as CoreTranslate } from '@pupitre/core';
 import * as React from 'react';
@@ -41,7 +42,7 @@ type Translate = CoreTranslate<(typeof messages)['fr']>;
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h3 className="text-foreground text-sm font-semibold">{title}</h3>
+      <h3 className="text-text text-sm font-semibold">{title}</h3>
       {children}
     </section>
   );
@@ -49,7 +50,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Code({ children }: { children: React.ReactNode }) {
   return (
-    <code className="bg-muted text-foreground rounded px-1 py-0.5 font-mono text-[0.8em]">
+    <code className="bg-surface-2 text-text rounded px-1 py-0.5 font-mono text-[0.8em]">
       {children}
     </code>
   );
@@ -172,36 +173,31 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 rounded-sm text-xs underline underline-offset-4 outline-none focus-visible:ring-[3px]',
-            className,
-          )}
-        >
+        <button type="button" className={cn('btn btn-ghost', className)}>
+          <CircleHelp aria-hidden />
           {label ?? t('help.trigger')}
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
+      <DialogContent size="xwide">
+        <DialogHeader icon={<CircleHelp />} tone="accent">
           <DialogTitle>{t('help.title')}</DialogTitle>
           <DialogDescription>{t('help.subtitle')}</DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-6 text-sm">
           <Section title={t('help.idea.title')}>
-            <p className="text-muted-foreground">{t('help.idea.p1')}</p>
-            <p className="text-muted-foreground">
+            <p className="text-text-2">{t('help.idea.p1')}</p>
+            <p className="text-text-2">
               {t('help.idea.p2.a')}
-              <strong className="text-foreground font-medium">{t('help.idea.p2.strong')}</strong>
+              <strong className="text-text font-medium">{t('help.idea.p2.strong')}</strong>
               {t('help.idea.p2.b')}
             </p>
           </Section>
 
           <Section title={t('help.types.title')}>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('help.types.column.type')}</th>
                   <th className="px-3 py-2 font-medium">{t('help.types.column.what')}</th>
@@ -215,24 +211,24 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
                   return (
                     <tr key={type} className="border-t align-top">
                       <td className="px-3 py-2">
-                        <div className="text-foreground font-medium whitespace-nowrap">
+                        <div className="text-text font-medium whitespace-nowrap">
                           {definition.label}
                         </div>
-                        <code className="text-muted-foreground font-mono text-[0.7rem]">
+                        <code className="text-text-2 font-mono text-[0.7rem]">
                           {definition.jobName}
                         </code>
-                        <div className="text-muted-foreground mt-1 text-[0.7rem]">
+                        <div className="text-text-2 mt-1 text-[0.7rem]">
                           {t('help.types.default')}
                           <Code>{definition.defaultCron}</Code>
                         </div>
                       </td>
-                      <td className="text-muted-foreground px-3 py-2">
+                      <td className="text-text-2 px-3 py-2">
                         {rows.steps}
-                        <div className="text-foreground/80 mt-1.5 text-[0.7rem]">
+                        <div className="text-text/80 mt-1.5 text-[0.7rem]">
                           {definition.neverDoes}
                         </div>
                       </td>
-                      <td className="text-muted-foreground px-3 py-2">{rows.payload}</td>
+                      <td className="text-text-2 px-3 py-2">{rows.payload}</td>
                     </tr>
                   );
                 })}
@@ -241,9 +237,9 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
           </Section>
 
           <Section title={t('help.when.title')}>
-            <p className="text-muted-foreground">
+            <p className="text-text-2">
               {t('help.when.a')}
-              <strong className="text-foreground font-medium">{t('help.when.bullmq')}</strong>
+              <strong className="text-text font-medium">{t('help.when.bullmq')}</strong>
               {t('help.when.b')}
               <em>{t('help.when.scheduler')}</em>
               {t('help.when.c')}
@@ -253,22 +249,22 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
           </Section>
 
           <Section title={t('help.zone.title')}>
-            <p className="text-muted-foreground">
-              <strong className="text-foreground font-medium">{t('help.zone.p1.strong')}</strong>
+            <p className="text-text-2">
+              <strong className="text-text font-medium">{t('help.zone.p1.strong')}</strong>
               {t('help.zone.p1.a')}
               <Code>{'{ pattern, tz }'}</Code>
               {t('help.zone.p1.b')}
               <Code>Europe/Paris</Code>
               {t('help.zone.p1.c')}
             </p>
-            <p className="text-muted-foreground">
+            <p className="text-text-2">
               {t('help.zone.p2.a')}
               <Code>{defaultTimeZone}</Code>
               {t('help.zone.p2.b')}
             </p>
-            <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">
-                <strong className="text-foreground font-medium">
+            <div className="bg-surface-2/40 rounded-md border px-3 py-2">
+              <p className="text-text-2 text-xs">
+                <strong className="text-text font-medium">
                   {t('help.zone.legacy.a')}
                   <Code>UTC</Code>
                 </strong>
@@ -280,8 +276,8 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
           </Section>
 
           <Section title={t('help.modes.title')}>
-            <p className="text-muted-foreground">{t('help.modes.p1')}</p>
-            <p className="text-muted-foreground">
+            <p className="text-text-2">{t('help.modes.p1')}</p>
+            <p className="text-text-2">
               {t('help.modes.p2.a')}
               <Code>*/7 2-5 * * 1,3</Code>
               {t('help.modes.p2.b')}
@@ -289,21 +285,19 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
           </Section>
 
           <Section title={t('help.actions.title')}>
-            <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
+            <ul className="text-text-2 list-disc space-y-1.5 pl-5">
               <li>
-                <strong className="text-foreground font-medium">{t('help.actions.run')}</strong>
+                <strong className="text-text font-medium">{t('help.actions.run')}</strong>
                 {t('help.actions.run.a')}
                 <Code>{t('help.actions.run.manual')}</Code>
                 {t('help.actions.run.b')}
               </li>
               <li>
-                <strong className="text-foreground font-medium">
-                  {t('help.actions.disable')}
-                </strong>
+                <strong className="text-text font-medium">{t('help.actions.disable')}</strong>
                 {t('help.actions.disable.text')}
               </li>
               <li>
-                <strong className="text-foreground font-medium">{t('help.actions.delete')}</strong>
+                <strong className="text-text font-medium">{t('help.actions.delete')}</strong>
                 {t('help.actions.delete.text')}
               </li>
             </ul>
@@ -311,7 +305,7 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
 
           <Section title={t('help.cadence.title')}>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('help.cadence.column.job')}</th>
                   <th className="px-3 py-2 font-medium">{t('help.cadence.column.value')}</th>
@@ -323,10 +317,8 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
                   <td className="px-3 py-2 whitespace-nowrap">
                     {t('help.cadence.healthcheck.job')}
                   </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.healthcheck.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
+                  <td className="text-text-2 px-3 py-2">{t('help.cadence.healthcheck.value')}</td>
+                  <td className="text-text-2 px-3 py-2">
                     {t('help.cadence.healthcheck.why.a')}
                     <Code>MaxStartups</Code>
                     {t('help.cadence.healthcheck.why.b')}
@@ -334,40 +326,28 @@ export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
                 </tr>
                 <tr className="border-t align-top">
                   <td className="px-3 py-2 whitespace-nowrap">{t('help.cadence.scan.job')}</td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.scan.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">{t('help.cadence.scan.why')}</td>
+                  <td className="text-text-2 px-3 py-2">{t('help.cadence.scan.value')}</td>
+                  <td className="text-text-2 px-3 py-2">{t('help.cadence.scan.why')}</td>
                 </tr>
                 <tr className="border-t align-top">
                   <td className="px-3 py-2 whitespace-nowrap">{t('help.cadence.cleanup.job')}</td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.cleanup.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.cleanup.why')}
-                  </td>
+                  <td className="text-text-2 px-3 py-2">{t('help.cadence.cleanup.value')}</td>
+                  <td className="text-text-2 px-3 py-2">{t('help.cadence.cleanup.why')}</td>
                 </tr>
                 <tr className="border-t align-top">
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {t('help.cadence.preflight.job')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.preflight.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.preflight.why')}
-                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">{t('help.cadence.preflight.job')}</td>
+                  <td className="text-text-2 px-3 py-2">{t('help.cadence.preflight.value')}</td>
+                  <td className="text-text-2 px-3 py-2">{t('help.cadence.preflight.why')}</td>
                 </tr>
               </tbody>
             </ScrollableTable>
           </Section>
 
           <Section title={t('help.syntax.title')}>
-            <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed">
+            <pre className="codeblock">
               <code>{t('help.cheatsheet')}</code>
             </pre>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-text-2 text-xs">
               {t('help.syntax.note.a')}
               <em>{t('help.syntax.note.before')}</em>
               {t('help.syntax.note.b')}

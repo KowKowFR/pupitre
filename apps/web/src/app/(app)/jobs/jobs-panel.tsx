@@ -3,10 +3,12 @@
 import { cronError, type SimpleSchedule } from '@pupitre/core/schedule';
 import { useRouter } from 'next/navigation';
 import { Fragment, useState, useTransition } from 'react';
+import { Ellipsis, History, Play, Plus, Power, Timer, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Dialog,
   DialogBody,
@@ -17,8 +19,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import {
   Table,
@@ -30,10 +39,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { IconButton } from '@/components/ui/tooltip';
 import { useLanguage, useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { jobs as messages } from '@/i18n/messages/jobs';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
+import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { JobsHelpDialog } from './jobs-help';
 import {
@@ -87,13 +98,33 @@ export type JobTypeOption = {
   defaultKey: string;
 };
 
-const STATUS_VARIANT: Record<string, 'ok' | 'default' | 'destructive' | 'outline'> = {
+const STATUS_VARIANT: Record<string, 'ok' | 'accent' | 'danger' | 'idle'> = {
   success: 'ok',
-  running: 'default',
-  failed: 'destructive',
-  skipped: 'outline',
-  pending: 'outline',
+  running: 'accent',
+  failed: 'danger',
+  skipped: 'idle',
+  pending: 'idle',
 };
+
+const STATUS_KEY: Record<string, keyof typeof messages.fr> = {
+  success: 'status.success',
+  running: 'status.running',
+  failed: 'status.failed',
+  skipped: 'status.skipped',
+  pending: 'status.pending',
+};
+
+/** Le statut d'une exécution, en pastille : un mot traduit, jamais la valeur brute. */
+function RunStatus({ run }: { run: JobRunView }) {
+  const t = useT(messages);
+  const key = STATUS_KEY[run.status];
+  return (
+    <Badge variant={STATUS_VARIANT[run.status] ?? 'idle'} dot>
+      {key ? t(key) : run.status}
+      {run.manual ? t('row.manualSuffix') : ''}
+    </Badge>
+  );
+}
 
 /**
  * Une date de la table, dans la locale de l'instance.
@@ -151,39 +182,40 @@ export function JobsPanel({
 }) {
   const t = useT(messages);
   const tc = useT(common);
-  const language = useLanguage();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editing, setEditing] = useState<JobRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<JobRow | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
-  const [type, setType] = useState(types[0]?.type ?? 'scan');
-  const [key, setKey] = useState(types[0]?.defaultKey ?? 'scan:periodic');
-  const [draft, setDraft] = useState<ScheduleDraft>(() =>
-    draftFromCron(types[0]?.defaultCron ?? '0 4 * * *', defaultTimeZone),
-  );
-
+  /**
+   * Un appel d'API. Le refus s'affiche là où l'on regarde : dans le dialogue
+   * ouvert s'il y en a un (`inDialog`), sinon en tête de page.
+   */
   async function call(
     path: string,
     init: RequestInit,
-    onDone: (body: unknown) => string | null,
+    onDone: () => string | null,
+    inDialog = false,
   ): Promise<boolean> {
     setError(null);
-    setNotice(null);
+    setDialogError(null);
     setBusy(path);
     try {
       const response = await fetch(path, init);
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as ApiError;
-        setError(body.error?.message ?? tc('http.failure', { status: response.status }));
+        const message = body.error?.message ?? tc('http.failure', { status: response.status });
+        if (inDialog) setDialogError(message);
+        else setError(message);
         return false;
       }
-      const body = response.status === 204 ? null : await response.json().catch(() => null);
-      const message = onDone(body);
-      if (message) setNotice(message);
+      const message = onDone();
+      if (message) toast({ title: message });
       startTransition(() => router.refresh());
       return true;
     } finally {
@@ -191,290 +223,273 @@ export function JobsPanel({
     }
   }
 
-  const draftInvalid = cronError(draftCron(draft), language) !== null;
-
   return (
-    <div className="flex flex-col gap-5">
-      {error ? <Alert variant="destructive">{error}</Alert> : null}
-      {notice ? <Alert variant="success">{notice}</Alert> : null}
+    <>
+      <PageHeader
+        title={t('page.title')}
+        description={t('page.description')}
+        actions={
+          <>
+            <JobsHelpDialog defaultTimeZone={defaultTimeZone} />
+            {canManage ? (
+              <Button
+                onClick={() => {
+                  setDialogError(null);
+                  setCreating(true);
+                }}
+              >
+                <Plus aria-hidden />
+                {t('page.schedule')}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      <Alert variant="info" className="flex flex-wrap items-center justify-between gap-3">
-        <span>
-          {t('banner.a')}
-          <strong>{defaultTimeZone}</strong>
-          {t('banner.b')}
-        </span>
-        <JobsHelpDialog defaultTimeZone={defaultTimeZone} className="shrink-0" />
+      <Alert variant="info">
+        {t('banner.a')}
+        <strong>{defaultTimeZone}</strong>
+        {t('banner.b')}
       </Alert>
 
-      {canManage ? (
-        <form
-          className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-xs"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void call(
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
+
+      {jobs.length === 0 ? (
+        <Alert>{t('empty')}</Alert>
+      ) : (
+        <section className="card overflow-hidden">
+          <Table label={t('page.title')}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('column.job')}</TableHead>
+                <TableHead>{t('column.cadence')}</TableHead>
+                <TableHead>{t('column.lastRun')}</TableHead>
+                <TableHead>{t('column.nextRun')}</TableHead>
+                <TableHead>{tc('column.state')}</TableHead>
+                <TableActionsHead>
+                  <span className="sr-only">{tc('column.actions')}</span>
+                </TableActionsHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobs.map((job) => (
+                <Fragment key={job.id}>
+                  <TableRow>
+                    <TableCell>
+                      <span className="flex flex-col" title={job.neverDoes}>
+                        <span className="mono text-[12.5px] font-semibold text-text">
+                          {job.key}
+                        </span>
+                        <span className="t-cap text-text-3">{job.label}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="flex flex-col">
+                        <span className="t-sm">{job.cronDescription}</span>
+                        <code className="mono text-[11.5px] text-text-3">{job.cron}</code>
+                        {job.schedule === null ? (
+                          <span className="t-cap text-text-3">{t('row.noSimpleForm')}</span>
+                        ) : null}
+                        {job.enabled &&
+                        job.installed &&
+                        job.schedulerTimeZone !== null &&
+                        job.schedulerTimeZone !== job.timeZone ? (
+                          <span className="t-cap text-warn-text">
+                            {t('row.zoneDrift', { zone: job.schedulerTimeZone })}
+                          </span>
+                        ) : null}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {job.lastRun ? (
+                        <span className="flex flex-col items-start gap-0.5">
+                          <RunStatus run={job.lastRun} />
+                          <span className="mono text-[11.5px] text-text-3">
+                            {formatDate(job.lastRunAt, format, tc('none'))}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="t-cap text-text-3">{t('row.lastRun.none')}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {job.enabled ? (
+                        <span className="flex flex-col">
+                          <span className="mono text-[12px] text-text-2">
+                            {formatDate(job.nextRunAt, format, tc('none'), job.timeZone)}
+                          </span>
+                          {job.nextRunAt ? (
+                            <span className="t-cap text-text-3">
+                              {t('row.yourClock', {
+                                clock: formatDate(job.nextRunAt, format, tc('none')),
+                              })}
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        <span className="text-text-3">{tc('none')}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="flex flex-col items-start gap-1">
+                        <Badge variant={job.enabled ? 'ok' : 'idle'}>
+                          {job.enabled ? t('row.active') : t('row.disabled')}
+                        </Badge>
+                        {job.enabled && !job.installed ? (
+                          <span className="t-cap text-warn-text">{t('row.missingFromBullmq')}</span>
+                        ) : null}
+                      </span>
+                    </TableCell>
+                    <TableActions>
+                      <span className="inline-flex items-center gap-1.5">
+                        {canManage ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={busy !== null}
+                              onClick={() => {
+                                setDialogError(null);
+                                setEditing(job);
+                              }}
+                            >
+                              {t('row.editCadence')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={busy !== null}
+                              onClick={() =>
+                                void call(`/api/jobs/${job.id}/run`, { method: 'POST' }, () =>
+                                  t('notice.triggered', { key: job.key }),
+                                )
+                              }
+                            >
+                              <Play aria-hidden />
+                              {t('row.runNow')}
+                            </Button>
+                          </>
+                        ) : null}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <IconButton label={t('row.more')} size="icon-sm">
+                              <Ellipsis />
+                            </IconButton>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() => setExpanded(expanded === job.id ? null : job.id)}
+                            >
+                              <History aria-hidden />
+                              {expanded === job.id ? t('row.hideHistory') : t('row.showHistory')}
+                            </DropdownMenuItem>
+                            {canManage ? (
+                              <>
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    void call(
+                                      `/api/jobs/${job.id}`,
+                                      {
+                                        method: 'PATCH',
+                                        headers: { 'content-type': 'application/json' },
+                                        body: JSON.stringify({ enabled: !job.enabled }),
+                                      },
+                                      () =>
+                                        job.enabled
+                                          ? t('notice.disabled', { key: job.key })
+                                          : t('notice.enabled', { key: job.key }),
+                                    )
+                                  }
+                                >
+                                  <Power aria-hidden />
+                                  {job.enabled ? tc('disable') : tc('enable')}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  destructive
+                                  onSelect={() => {
+                                    setDialogError(null);
+                                    setDeleting(job);
+                                  }}
+                                >
+                                  <Trash2 aria-hidden />
+                                  {t('delete.confirm')}…
+                                </DropdownMenuItem>
+                              </>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </span>
+                    </TableActions>
+                  </TableRow>
+
+                  {expanded === job.id ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="bg-surface-2">
+                        {job.runs.length === 0 ? (
+                          <p className="t-sm text-text-2">{t('history.empty')}</p>
+                        ) : (
+                          <ul className="flex flex-col gap-2">
+                            {job.runs.map((run) => (
+                              <li key={run.id} className="t-sm flex flex-wrap items-center gap-3">
+                                <RunStatus run={run} />
+                                <span className="mono text-text-2">
+                                  {formatDate(run.startedAt, format, tc('none'))}
+                                </span>
+                                <span className="num text-text-3">
+                                  {formatDuration(run.durationMs, tc('none'))}
+                                </span>
+                                {run.manual ? (
+                                  <span className="t-cap text-text-3">{t('history.manual')}</span>
+                                ) : null}
+                                <span
+                                  className={cn(
+                                    'mono max-w-2xl truncate text-[11.5px] text-text-3',
+                                    run.error && 'text-danger-text',
+                                  )}
+                                >
+                                  {run.error ?? summarize(run.summary)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+      )}
+
+      {creating ? (
+        <CreateDialog
+          types={types}
+          defaultTimeZone={defaultTimeZone}
+          timeZones={timeZones}
+          format={format}
+          busy={busy !== null || pending}
+          error={dialogError}
+          onClose={() => setCreating(false)}
+          onSubmit={async (body, key) => {
+            const done = await call(
               '/api/jobs',
               {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
                 // `draftBody` envoie la périodicité ou l'expression : la
                 // conversion et la validation sont l'affaire du serveur.
-                body: JSON.stringify({ type, key, ...draftBody(draft) }),
+                body: JSON.stringify(body),
               },
               () => t('notice.created', { key }),
+              true,
             );
+            if (done) setCreating(false);
           }}
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="type">{t('create.type.label')}</Label>
-              <Select
-                id="type"
-                value={type}
-                onChange={(event) => {
-                  const next = types.find((entry) => entry.type === event.target.value);
-                  setType(event.target.value);
-                  if (next) {
-                    setKey(next.defaultKey);
-                    // Le fuseau déjà choisi survit au changement de type : c'est
-                    // un réglage de l'opérateur, pas une propriété du type.
-                    setDraft(draftFromCron(next.defaultCron, draft.timeZone));
-                  }
-                }}
-              >
-                {types.map((entry) => (
-                  <option key={entry.type} value={entry.type}>
-                    {entry.label}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-text-2">
-                {types.find((entry) => entry.type === type)?.description}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="key">{t('create.key.label')}</Label>
-              <Input
-                id="key"
-                value={key}
-                onChange={(event) => setKey(event.target.value)}
-                className="font-mono text-xs md:text-xs"
-              />
-              <p className="text-xs text-text-2">{t('create.key.hint')}</p>
-            </div>
-          </div>
-
-          <ScheduleField
-            idPrefix="new"
-            value={draft}
-            onChange={setDraft}
-            timeZones={timeZones}
-            format={format}
-            disabled={pending || busy !== null}
-          />
-
-          <div>
-            <Button type="submit" disabled={pending || busy !== null || draftInvalid}>
-              {t('create.submit')}
-            </Button>
-          </div>
-        </form>
+        />
       ) : null}
-
-      {jobs.length === 0 ? (
-        <Alert>{t('empty')}</Alert>
-      ) : (
-        <Card className="py-4">
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('column.job')}</TableHead>
-                  <TableHead>{t('column.cadence')}</TableHead>
-                  <TableHead>{t('column.lastRun')}</TableHead>
-                  <TableHead>{t('column.nextRun')}</TableHead>
-                  <TableHead>{tc('column.state')}</TableHead>
-                  <TableActionsHead>{tc('column.actions')}</TableActionsHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobs.map((job) => (
-                  <Fragment key={job.id}>
-                    <TableRow>
-                      <TableCell>
-                        <div className="text-[0.8125rem] font-medium text-text">{job.label}</div>
-                        <div className="font-mono text-[0.6875rem] text-text-3">{job.key}</div>
-                        <div className="mt-1 max-w-md text-xs text-text-2">{job.neverDoes}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-[0.8125rem] text-text">{job.cronDescription}</div>
-                        <code className="font-mono text-[0.6875rem] text-text-3">{job.cron}</code>
-                        <div className="text-[0.6875rem] text-text-3">{job.timeZone}</div>
-                        {job.schedule === null ? (
-                          <div className="text-[0.6875rem] text-text-3">
-                            {t('row.noSimpleForm')}
-                          </div>
-                        ) : null}
-                        {job.enabled &&
-                        job.installed &&
-                        job.schedulerTimeZone !== null &&
-                        job.schedulerTimeZone !== job.timeZone ? (
-                          <div className="text-[0.6875rem] text-warn-text">
-                            {t('row.zoneDrift', { zone: job.schedulerTimeZone })}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-mono text-xs text-text-2 tabular-nums">
-                          {formatDate(job.lastRunAt, format, tc('none'))}
-                        </div>
-                        {job.lastRun ? (
-                          <Badge variant={STATUS_VARIANT[job.lastRun.status] ?? 'outline'}>
-                            {job.lastRun.status}
-                            {job.lastRun.manual ? t('row.manualSuffix') : ''}
-                          </Badge>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-text-2 tabular-nums">
-                        {job.enabled
-                          ? formatDate(job.nextRunAt, format, tc('none'), job.timeZone)
-                          : tc('none')}
-                        {job.enabled && job.nextRunAt ? (
-                          <div className="text-[0.6875rem] text-text-3">
-                            {job.timeZone}
-                            {' · '}
-                            {t('row.yourClock', {
-                              clock: formatDate(job.nextRunAt, format, tc('none')),
-                            })}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={job.enabled ? 'ok' : 'outline'}>
-                          {job.enabled ? t('row.active') : t('row.disabled')}
-                        </Badge>
-                        {job.enabled && !job.installed ? (
-                          <div className="mt-1 text-xs text-warn-text">
-                            {t('row.missingFromBullmq')}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableActions>
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setExpanded(expanded === job.id ? null : job.id)}
-                          >
-                            {expanded === job.id ? t('row.hideHistory') : t('row.showHistory')}
-                          </Button>
-                          {canManage ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={busy !== null}
-                                onClick={() => setEditing(job)}
-                              >
-                                {t('row.editCadence')}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={busy !== null}
-                                onClick={() =>
-                                  void call(`/api/jobs/${job.id}/run`, { method: 'POST' }, () =>
-                                    t('notice.triggered', { key: job.key }),
-                                  )
-                                }
-                              >
-                                Lancer
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                disabled={busy !== null}
-                                onClick={() =>
-                                  void call(
-                                    `/api/jobs/${job.id}`,
-                                    {
-                                      method: 'PATCH',
-                                      headers: { 'content-type': 'application/json' },
-                                      body: JSON.stringify({ enabled: !job.enabled }),
-                                    },
-                                    () =>
-                                      job.enabled
-                                        ? t('notice.disabled', { key: job.key })
-                                        : t('notice.enabled', { key: job.key }),
-                                  )
-                                }
-                              >
-                                {job.enabled ? tc('disable') : tc('enable')}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-danger-text hover:bg-danger-soft/60 hover:text-danger-text"
-                                disabled={busy !== null}
-                                onClick={() =>
-                                  void call(`/api/jobs/${job.id}`, { method: 'DELETE' }, () =>
-                                    t('notice.deleted', { key: job.key }),
-                                  )
-                                }
-                              >
-                                {tc('delete')}
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </TableActions>
-                    </TableRow>
-
-                    {expanded === job.id ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="bg-surface-2/60">
-                          {job.runs.length === 0 ? (
-                            <p className="text-xs text-text-2">{t('history.empty')}</p>
-                          ) : (
-                            <ul className="space-y-2">
-                              {job.runs.map((run) => (
-                                <li
-                                  key={run.id}
-                                  className="flex flex-wrap items-start gap-3 text-xs"
-                                >
-                                  <Badge variant={STATUS_VARIANT[run.status] ?? 'outline'}>
-                                    {run.status}
-                                  </Badge>
-                                  <span className="font-mono text-text-2 tabular-nums">
-                                    {formatDate(run.startedAt, format, tc('none'))}
-                                  </span>
-                                  <span className="text-text-3">
-                                    {formatDuration(run.durationMs, tc('none'))}
-                                  </span>
-                                  {run.manual ? <span>{t('history.manual')}</span> : null}
-                                  <span
-                                    className={cn(
-                                      'max-w-2xl truncate font-mono text-text-3',
-                                      run.error && 'text-danger-text',
-                                    )}
-                                  >
-                                    {run.error ?? summarize(run.summary)}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
 
       {editing ? (
         <CadenceDialog
@@ -485,6 +500,7 @@ export function JobsPanel({
           timeZones={timeZones}
           format={format}
           busy={busy !== null || pending}
+          error={dialogError}
           onClose={() => setEditing(null)}
           onSubmit={async (body) => {
             const done = await call(
@@ -495,12 +511,138 @@ export function JobsPanel({
                 body: JSON.stringify(body),
               },
               () => t('notice.cadenceUpdated', { key: editing.key }),
+              true,
             );
             if (done) setEditing(null);
           }}
         />
       ) : null}
-    </div>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => (open ? undefined : setDeleting(null))}
+        level="trace"
+        icon={<Trash2 />}
+        title={deleting ? t('delete.title', { key: deleting.key }) : ''}
+        consequences={[t('delete.schedule'), t('delete.history')]}
+        confirmLabel={t('delete.confirm')}
+        pending={busy !== null}
+        error={dialogError}
+        onConfirm={async () => {
+          if (!deleting) return;
+          const done = await call(
+            `/api/jobs/${deleting.id}`,
+            { method: 'DELETE' },
+            () => t('notice.deleted', { key: deleting.key }),
+            true,
+          );
+          if (done) setDeleting(null);
+        }}
+      />
+    </>
+  );
+}
+
+/** Planification d'une tâche neuve : son type, sa clé, sa cadence. */
+function CreateDialog({
+  types,
+  defaultTimeZone,
+  timeZones,
+  format,
+  busy,
+  error,
+  onClose,
+  onSubmit,
+}: {
+  types: JobTypeOption[];
+  defaultTimeZone: string;
+  timeZones: readonly string[];
+  format: FormatSettings;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (body: Record<string, unknown>, key: string) => void;
+}) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const language = useLanguage();
+  const [type, setType] = useState(types[0]?.type ?? 'scan');
+  const [key, setKey] = useState(types[0]?.defaultKey ?? 'scan:periodic');
+  const [draft, setDraft] = useState<ScheduleDraft>(() =>
+    draftFromCron(types[0]?.defaultCron ?? '0 4 * * *', defaultTimeZone),
+  );
+  const invalid = cronError(draftCron(draft), language) !== null;
+
+  return (
+    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+      <DialogContent size="wide">
+        <form
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSubmit({ type, key, ...draftBody(draft) }, key);
+          }}
+        >
+          <DialogHeader icon={<Timer />} tone="accent">
+            <DialogTitle>{t('page.schedule')}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            {error ? <Alert variant="destructive">{error}</Alert> : null}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                label={t('create.type.label')}
+                help={types.find((entry) => entry.type === type)?.description}
+              >
+                <Select
+                  value={type}
+                  onChange={(event) => {
+                    const next = types.find((entry) => entry.type === event.target.value);
+                    setType(event.target.value);
+                    if (next) {
+                      setKey(next.defaultKey);
+                      // Le fuseau déjà choisi survit au changement de type :
+                      // c'est un réglage de l'opérateur, pas une propriété du type.
+                      setDraft(draftFromCron(next.defaultCron, draft.timeZone));
+                    }
+                  }}
+                >
+                  {types.map((entry) => (
+                    <option key={entry.type} value={entry.type}>
+                      {entry.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t('create.key.label')} help={t('create.key.hint')}>
+                <Input
+                  className="mono"
+                  value={key}
+                  onChange={(event) => setKey(event.target.value)}
+                />
+              </Field>
+            </div>
+            <ScheduleField
+              idPrefix="new"
+              value={draft}
+              onChange={setDraft}
+              timeZones={timeZones}
+              format={format}
+              disabled={busy}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="ghost" type="button">
+                {tc('cancel')}
+              </Button>
+            </DialogClose>
+            <Button type="submit" loading={busy} disabled={invalid}>
+              {t('create.submit')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -510,6 +652,7 @@ function CadenceDialog({
   timeZones,
   format,
   busy,
+  error,
   onClose,
   onSubmit,
 }: {
@@ -517,6 +660,7 @@ function CadenceDialog({
   timeZones: readonly string[];
   format: FormatSettings;
   busy: boolean;
+  error: string | null;
   onClose: () => void;
   onSubmit: (
     body: ({ schedule: SimpleSchedule } | { cron: string }) & { timezone: string },
@@ -535,18 +679,17 @@ function CadenceDialog({
         if (!open) onClose();
       }}
     >
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent>
+        <DialogHeader icon={<Timer />} tone="accent">
           <DialogTitle>{t('dialog.title', { key: job.key })}</DialogTitle>
           <DialogDescription>
             {job.label} — {job.neverDoes}
           </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="space-y-3">
-          {job.schedule === null ? (
-            <p className="text-xs text-text-3">{t('dialog.expertOnly')}</p>
-          ) : null}
+        <DialogBody>
+          {error ? <Alert variant="destructive">{error}</Alert> : null}
+          {job.schedule === null ? <p className="help">{t('dialog.expertOnly')}</p> : null}
 
           <ScheduleField
             idPrefix={`edit-${job.id}`}
@@ -560,16 +703,17 @@ function CadenceDialog({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" type="button">
+            <Button variant="ghost" type="button">
               {tc('cancel')}
             </Button>
           </DialogClose>
           <Button
             type="button"
-            disabled={busy || invalid}
+            loading={busy}
+            disabled={invalid}
             onClick={() => onSubmit(draftBody(draft))}
           >
-            {tc('save')}
+            {t('dialog.save')}
           </Button>
         </DialogFooter>
       </DialogContent>
