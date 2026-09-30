@@ -1,4 +1,5 @@
 export * from './catalog/index.js';
+export * from './chat.js';
 export * from './crypto.js';
 export * from './host-metrics.js';
 export * from './i18n.js';
@@ -16,6 +17,7 @@ export * from './pipeline.js';
 export * from './ports.js';
 export * from './preflight.js';
 export * from './queue.js';
+export * from './realtime.js';
 export * from './schedule.js';
 export * from './scan.js';
 export * from './settings.js';
