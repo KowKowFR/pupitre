@@ -26,6 +26,7 @@ const fr = {
 
   // ── Formulaire de création ──────────────────────────────────────────────
   'page.schedule': 'Planifier une tâche',
+  'drawer.kind': 'Tâche planifiée',
   'status.success': 'réussi',
   'status.running': 'en cours',
   'status.failed': 'échoué',
@@ -45,6 +46,9 @@ const fr = {
   'create.key.hint':
     "L'identifiant du scheduler dans Redis. Unique, et c'est ce nom qu'on retrouve dans les logs du worker.",
   'create.submit': 'Planifier',
+  'create.description':
+    "Une tâche répète un constat à la cadence choisie. Elle ne redéploie rien et ne bloque rien : elle mesure et alerte.",
+  'create.invalid': "La cadence n'est pas valide : corrigez-la ci-dessus.",
 
   // ── Table ───────────────────────────────────────────────────────────────
   empty:
@@ -296,6 +300,7 @@ const en: Translated<typeof fr> = {
     ', the instance time zone, then lives its own life. “Run now” queues an immediate occurrence without moving the next one, and works even on a disabled job — enough to try it before turning it on.',
 
   'page.schedule': 'Schedule a job',
+  'drawer.kind': 'Scheduled job',
   'status.success': 'succeeded',
   'status.running': 'running',
   'status.failed': 'failed',
@@ -315,6 +320,9 @@ const en: Translated<typeof fr> = {
   'create.key.hint':
     'The scheduler ID in Redis. Unique, and it is the name you find again in the worker logs.',
   'create.submit': 'Schedule',
+  'create.description':
+    'A job repeats a check at the chosen cadence. It redeploys nothing and blocks nothing: it measures and alerts.',
+  'create.invalid': 'The cadence is not valid: fix it above.',
 
   empty:
     'No scheduled job. Periodic scans, healthchecks and the version purge run only if you install them here.',

@@ -26,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Drawer, DrawerBody, DrawerFooter, DrawerHeader } from '@/components/ui/drawer';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -464,32 +465,31 @@ export function JobsPanel({
         </section>
       )}
 
-      {creating ? (
-        <CreateDialog
-          types={types}
-          defaultTimeZone={defaultTimeZone}
-          timeZones={timeZones}
-          format={format}
-          busy={busy !== null || pending}
-          error={dialogError}
-          onClose={() => setCreating(false)}
-          onSubmit={async (body, key) => {
-            const done = await call(
-              '/api/jobs',
-              {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                // `draftBody` envoie la périodicité ou l'expression : la
-                // conversion et la validation sont l'affaire du serveur.
-                body: JSON.stringify(body),
-              },
-              () => t('notice.created', { key }),
-              true,
-            );
-            if (done) setCreating(false);
-          }}
-        />
-      ) : null}
+      <CreateDrawer
+        open={creating}
+        types={types}
+        defaultTimeZone={defaultTimeZone}
+        timeZones={timeZones}
+        format={format}
+        busy={busy !== null || pending}
+        error={dialogError}
+        onClose={() => setCreating(false)}
+        onSubmit={async (body, key) => {
+          const done = await call(
+            '/api/jobs',
+            {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              // `draftBody` envoie la périodicité ou l'expression : la
+              // conversion et la validation sont l'affaire du serveur.
+              body: JSON.stringify(body),
+            },
+            () => t('notice.created', { key }),
+            true,
+          );
+          if (done) setCreating(false);
+        }}
+      />
 
       {editing ? (
         <CadenceDialog
@@ -543,8 +543,29 @@ export function JobsPanel({
   );
 }
 
-/** Planification d'une tâche neuve : son type, sa clé, sa cadence. */
-function CreateDialog({
+/**
+ * Planification d'une tâche neuve : son type, sa clé, sa cadence — dans un
+ * tiroir, la liste des tâches reste visible derrière. Le formulaire n'est monté
+ * qu'à l'ouverture : chaque fois, il repart des valeurs par défaut.
+ */
+function CreateDrawer({
+  open,
+  ...props
+}: { open: boolean } & React.ComponentProps<typeof CreateForm>) {
+  const t = useT(messages);
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={(next) => (next ? undefined : props.onClose())}
+      wide
+      label={t('page.schedule')}
+    >
+      {open ? <CreateForm {...props} /> : null}
+    </Drawer>
+  );
+}
+
+function CreateForm({
   types,
   defaultTimeZone,
   timeZones,
@@ -574,75 +595,78 @@ function CreateDialog({
   const invalid = cronError(draftCron(draft), language) !== null;
 
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
-      <DialogContent size="wide">
-        <form
-          className="contents"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmit({ type, key, ...draftBody(draft) }, key);
-          }}
-        >
-          <DialogHeader icon={<Timer />} tone="accent">
-            <DialogTitle>{t('page.schedule')}</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            {error ? <Alert variant="destructive">{error}</Alert> : null}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                label={t('create.type.label')}
-                help={types.find((entry) => entry.type === type)?.description}
+    <>
+      <DrawerHeader
+        icon={<Timer />}
+        kind={t('drawer.kind')}
+        title={t('page.schedule')}
+        extra={<p className="t-sm text-text-2">{t('create.description')}</p>}
+      />
+      <form
+        className="contents"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit({ type, key, ...draftBody(draft) }, key);
+        }}
+      >
+        <DrawerBody>
+          {error ? <Alert variant="destructive">{error}</Alert> : null}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field
+              label={t('create.type.label')}
+              help={types.find((entry) => entry.type === type)?.description}
+            >
+              <Select
+                value={type}
+                onChange={(event) => {
+                  const next = types.find((entry) => entry.type === event.target.value);
+                  setType(event.target.value);
+                  if (next) {
+                    setKey(next.defaultKey);
+                    // Le fuseau déjà choisi survit au changement de type :
+                    // c'est un réglage de l'opérateur, pas une propriété du type.
+                    setDraft(draftFromCron(next.defaultCron, draft.timeZone));
+                  }
+                }}
               >
-                <Select
-                  value={type}
-                  onChange={(event) => {
-                    const next = types.find((entry) => entry.type === event.target.value);
-                    setType(event.target.value);
-                    if (next) {
-                      setKey(next.defaultKey);
-                      // Le fuseau déjà choisi survit au changement de type :
-                      // c'est un réglage de l'opérateur, pas une propriété du type.
-                      setDraft(draftFromCron(next.defaultCron, draft.timeZone));
-                    }
-                  }}
-                >
-                  {types.map((entry) => (
-                    <option key={entry.type} value={entry.type}>
-                      {entry.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={t('create.key.label')} help={t('create.key.hint')}>
-                <Input
-                  className="mono"
-                  value={key}
-                  onChange={(event) => setKey(event.target.value)}
-                />
-              </Field>
-            </div>
-            <ScheduleField
-              idPrefix="new"
-              value={draft}
-              onChange={setDraft}
-              timeZones={timeZones}
-              format={format}
-              disabled={busy}
-            />
-          </DialogBody>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="ghost" type="button">
-                {tc('cancel')}
-              </Button>
-            </DialogClose>
-            <Button type="submit" loading={busy} disabled={invalid}>
-              {t('create.submit')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+                {types.map((entry) => (
+                  <option key={entry.type} value={entry.type}>
+                    {entry.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('create.key.label')} help={t('create.key.hint')}>
+              <Input
+                className="mono"
+                value={key}
+                onChange={(event) => setKey(event.target.value)}
+              />
+            </Field>
+          </div>
+          <ScheduleField
+            idPrefix="new"
+            value={draft}
+            onChange={setDraft}
+            timeZones={timeZones}
+            format={format}
+            disabled={busy}
+          />
+        </DrawerBody>
+        <DrawerFooter end={null}>
+          <Button
+            type="submit"
+            loading={busy}
+            disabledReason={invalid ? t('create.invalid') : null}
+          >
+            {t('create.submit')}
+          </Button>
+          <Button variant="ghost" type="button" onClick={onClose}>
+            {tc('cancel')}
+          </Button>
+        </DrawerFooter>
+      </form>
+    </>
   );
 }
 
