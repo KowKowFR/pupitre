@@ -162,7 +162,12 @@ export function RealtimeProvider({
     let source: EventSource | null = null;
     let leading = false;
 
-    const post = (message: BusMessage) => channel?.postMessage(message);
+    // Après le démontage, plus rien ne part : le canal est fermé, et un
+    // message tardif lèverait une erreur.
+    const post = (message: BusMessage) => {
+      if (stop.signal.aborted) return;
+      channel?.postMessage(message);
+    };
 
     if (channel) {
       channel.onmessage = ({ data }: MessageEvent<BusMessage>) => {
@@ -220,6 +225,13 @@ export function RealtimeProvider({
           { signal: stop.signal },
           () =>
             new Promise<void>((resolve) => {
+              // Le verrou peut arriver après le démontage (StrictMode monte,
+              // démonte, remonte) : on le rend aussitôt, sinon ce montage mort
+              // le garderait et plus aucun onglet ne mènerait.
+              if (stop.signal.aborted) {
+                resolve();
+                return;
+              }
               lead();
               stop.signal.addEventListener('abort', () => resolve(), { once: true });
             }),
