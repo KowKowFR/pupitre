@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   MONITOR_CHECK_RETENTION_DAYS,
@@ -16,8 +15,8 @@ import {
   type CaptureMeta,
 } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { currentLanguage, getT } from '@/i18n/server';
 import { monitors as messages } from '@/i18n/messages/monitors';
 import { formatSettingsOf } from '@/lib/format';
@@ -91,13 +90,15 @@ export default async function MonitorPage({ params }: { params: Promise<{ id: st
   const definition = isMonitorType(row.type) ? monitorTypeDefinition(row.type, language) : null;
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
+      <Crumb label={view.name} />
       <PageHeader
         title={view.name}
         description={
           <>
-            <span className="font-mono">{view.target}</span>{' '}
-            {t('detail.summary', {
+            <span className="mono">{view.target}</span>
+            {' · '}
+            {t('drawer.summary', {
               typeLabel: view.typeLabel,
               cadence: formatCadence(view.intervalSeconds, language),
               failures: t('detail.failures', { count: view.failureThreshold }),
@@ -107,27 +108,18 @@ export default async function MonitorPage({ params }: { params: Promise<{ id: st
           </>
         }
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={view.enabled ? 'ok' : 'secondary'}>
+          <span className="flex flex-wrap items-center gap-1.5">
+            <Badge variant={view.enabled ? 'ok' : 'idle'} dot>
               {view.enabled ? t('detail.badge.active') : t('detail.badge.paused')}
             </Badge>
-            <Badge variant="outline">
+            <Badge title={view.uptime24h.label}>
               {t('detail.badge.day', { label: view.uptime24h.label })}
             </Badge>
-            <Badge variant="outline">
+            <Badge title={view.uptime7d.label}>
               {t('detail.badge.week', { label: view.uptime7d.label })}
             </Badge>
-            <Button asChild size="sm" variant="outline">
-              <Link href="/monitors">{t('detail.back')}</Link>
-            </Button>
-          </div>
+          </span>
         }
-      />
-
-      <LiveReferenceCard
-        monitorId={id}
-        capture={reference === null ? null : toCaptureView(reference)}
-        format={format}
       />
 
       <MonitorDetail
@@ -138,9 +130,15 @@ export default async function MonitorPage({ params }: { params: Promise<{ id: st
         metrics={definition?.metrics ?? []}
         lastMetrics={view.lastMetrics}
         retentionDays={MONITOR_CHECK_RETENTION_DAYS}
-        uptimeMeans={definition?.uptimeMeans ?? t('detail.uptimeMeans.fallback')}
+        intervalSeconds={view.intervalSeconds}
         format={format}
       />
-    </div>
+
+      <LiveReferenceCard
+        monitorId={id}
+        capture={reference === null ? null : toCaptureView(reference)}
+        format={format}
+      />
+    </>
   );
 }

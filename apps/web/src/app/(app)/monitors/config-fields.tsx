@@ -56,12 +56,10 @@ function FieldControl({
   const handle = (raw: string): void => onChange(field.key, readBack(field, raw));
 
   return (
-    <div className="space-y-1.5">
+    <div className="field">
       <Label htmlFor={id}>
         {field.label}
-        {field.optional ? (
-          <span className="text-text-3 normal-case">{t('config.optional')}</span>
-        ) : null}
+        {field.optional ? <span className="opt">{t('config.optional')}</span> : null}
       </Label>
 
       {field.kind === 'select' ? (
@@ -84,7 +82,7 @@ function FieldControl({
             value={value}
             onChange={(event) => handle(event.target.value)}
           />
-          {field.unit ? <span className="shrink-0 text-xs text-text-3">{field.unit}</span> : null}
+          {field.unit ? <span className="t-cap shrink-0 text-text-3">{field.unit}</span> : null}
         </div>
       ) : (
         <Input
@@ -97,7 +95,7 @@ function FieldControl({
         />
       )}
 
-      {field.hint ? <p className="text-[0.6875rem] text-text-3">{field.hint}</p> : null}
+      {field.hint ? <p className="help">{field.hint}</p> : null}
     </div>
   );
 }
@@ -118,7 +116,7 @@ export function ConfigFields({
   const advanced = fields.filter((field) => field.advanced === true);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         {plain.map((field) => (
           <FieldControl
@@ -133,7 +131,7 @@ export function ConfigFields({
 
       {advanced.length > 0 ? (
         <Collapsible>
-          <CollapsibleTrigger className="eyebrow text-text-2 hover:text-text">
+          <CollapsibleTrigger className="t-sm font-medium text-text-2 hover:text-text">
             {t('config.advanced')}
           </CollapsibleTrigger>
           <CollapsiblePanel className="grid gap-4 pt-3 sm:grid-cols-2">

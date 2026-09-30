@@ -19,7 +19,7 @@ const fr = {
   'page.eyebrow': 'Supervision de sites',
   'page.title': 'Sondes',
   'page.description':
-    "Chaque sonde part du worker vers l'adresse publique de ce qu'elle surveille. C'est un autre point de vue que le healthcheck périodique, qui interroge la machine cible par SSH : celui-ci prouve que le conteneur se répond à lui-même, celles-là voient le pare-feu, le proxy, le certificat et le DNS. Une sonde constate et alerte — elle ne redéploie, ne redémarre et ne rollback jamais rien.",
+    "Une sonde part du worker vers l'adresse publique d'un service. Elle voit ce que le healthcheck SSH ne voit pas : le pare-feu, le proxy, le certificat.",
 
   // ── Verdicts d'une mesure ───────────────────────────────────────────────
   'outcome.healthy': 'sain',
@@ -73,7 +73,7 @@ const fr = {
   'card.paused.orphaned': 'application plus déployée — sonde suspendue automatiquement',
   'card.paused.unknownType': 'type de sonde « {type} » inconnu de cette version du panel',
   'card.neverRan': 'Jamais exécutée — première mesure au prochain balayage.',
-  'card.measured': 'Mesurée il y a {since} · {cadence}',
+  'card.measured': 'il y a {since} · {cadence}',
   'card.pending': {
     one: '{count} échec sur {threshold} — non confirmé',
     other: '{count} échec sur {threshold} — non confirmé',
@@ -102,6 +102,34 @@ const fr = {
 
   // ── Adoption ────────────────────────────────────────────────────────────
   'adopt.title': 'Applications déployées, pas encore supervisées',
+  'adopt.count': {
+    one: '{count} application déployée n’est pas encore supervisée',
+    other: '{count} applications déployées ne sont pas encore supervisées',
+  },
+  'adopt.short':
+    "Pupitre ne crée pas de sonde tout seul : un clic suffit, avec l'URL de l'ingress.",
+  'axis.now': 'maintenant',
+  'card.more': 'Suspendre, supprimer',
+  'card.open': 'Aperçu de {name}',
+  'delete.title': 'Supprimer la sonde « {name} » ?',
+  'delete.checks': "Ses mesures, sa chronologie d'incidents et ses captures partent avec elle.",
+  'delete.alerts': 'Plus aucune alerte ne partira pour cette adresse.',
+  'delete.confirm': 'Supprimer la sonde',
+  'toast.probed': 'Mesure de {name} demandée',
+  'toast.probed.detail': 'Le résultat s’affiche au prochain rafraîchissement.',
+  'toast.paused': '{name} suspendue',
+  'toast.resumed': '{name} reprise',
+  'toast.deleted': 'Sonde {name} supprimée',
+  'toast.created': 'Sonde {name} déclarée',
+  'drawer.kind': 'Sonde',
+  'drawer.target': 'Cible',
+  'drawer.recent': 'Derniers passages',
+  'drawer.last': 'Dernier relevé',
+  'drawer.latency': 'Temps de réponse',
+  'drawer.detail': 'Détail',
+  'drawer.open': 'Ouvrir la fiche',
+  'drawer.summary':
+    '{typeLabel}, {cadence}. Panne confirmée après {failures}, rétablissement après {recovery} succès.',
   'adopt.description':
     "Le panel connaît déjà leur adresse. Il ne crée pas la sonde tout seul — une sonde émet du trafic sortant à la minute, ce n'est pas un effet de bord qu'un déploiement doit produire sans qu'on l'ait demandé. Un clic suffit.",
   'adopt.action': 'Superviser {slug}',
@@ -135,7 +163,7 @@ const fr = {
   'create.submit': 'Créer la sonde',
 
   // ── Champs de configuration, rendus depuis le catalogue ─────────────────
-  'config.optional': '— facultatif',
+  'config.optional': 'facultatif',
   'config.advanced': 'Options avancées',
 
   // ── Détail ──────────────────────────────────────────────────────────────
@@ -165,6 +193,12 @@ const fr = {
   'detail.latency.title': 'Latence mesurée',
   'detail.latency.description':
     "Temps jusqu'aux en-têtes de la réponse, pas jusqu'à la fin du téléchargement : ce qu'on veut savoir est la réactivité du service, pas le débit du lien. Les bandes rouges sont les mesures où rien n'a répondu — le trait est coupé plutôt que de raconter une continuité qui n'a pas eu lieu.",
+  'detail.latency.sub': {
+    one: '{count} dernière mesure, {cadence}',
+    other: '{count} dernières mesures, {cadence}',
+  },
+  'detail.latency.gapNote':
+    "Les bandes rouges marquent les mesures sans réponse : le trait est coupé plutôt qu'interpolé.",
   'detail.latency.empty': "Aucune mesure pour l'instant. La sonde n'a pas encore tourné.",
 
   'detail.incidents.title': 'Chronologie des incidents',
@@ -172,9 +206,11 @@ const fr = {
   'detail.incidents.description.transition': 'transition',
   'detail.incidents.description.b':
     " — quand le seuil d'échecs consécutifs est atteint — et se referme au rétablissement. Un rebond isolé n'en crée aucun. Les incidents ne sont jamais purgés, contrairement aux mesures.",
+  'detail.incidents.sub': 'du plus récent au plus ancien',
+  'detail.incident.since': 'depuis {clock}',
   'detail.incidents.empty': "Aucun incident. Cette sonde n'est jamais passée en panne confirmée.",
-  'detail.incident.closed': 'incident refermé',
-  'detail.incident.open': 'incident ouvert',
+  'detail.incident.closed': 'Incident refermé',
+  'detail.incident.open': 'Incident ouvert',
   'detail.incident.outage': '{duration} de panne',
   'detail.incident.ongoing': 'en cours depuis {since}',
   'detail.incident.confirmedAfter': {
@@ -197,6 +233,8 @@ const fr = {
     one: '{count} mesure — afficher la table',
     other: '{count} mesures — afficher la table',
   },
+  'detail.checks.count': { one: '{count} mesure', other: '{count} mesures' },
+  'detail.checks.hint': 'afficher la table (équivalent lisible sans couleur)',
   'detail.checks.column.instant': 'Instant',
   'detail.checks.column.verdict': 'Verdict',
 
@@ -220,8 +258,7 @@ const fr = {
   'slider.before.badge': 'avant — {clock}',
   'slider.during.badge': 'pendant — {clock}',
   'slider.reveal': "Révéler l'avant",
-  'slider.aria':
-    "Position du comparateur entre la page avant l'incident et pendant l'incident",
+  'slider.aria': "Position du comparateur entre la page avant l'incident et pendant l'incident",
   'slider.percent': '{value} %',
 
   'reference.title': 'Référence visuelle',
@@ -254,7 +291,7 @@ const en: Translated<typeof fr> = {
   'page.eyebrow': 'Site monitoring',
   'page.title': 'Probes',
   'page.description':
-    'Every probe leaves the worker for the public address of what it watches. That is a different vantage point from the periodic healthcheck, which asks the target machine over SSH: the healthcheck proves the container answers itself, probes see the firewall, the proxy, the certificate and DNS. A probe observes and alerts — it never redeploys, never restarts, never rolls back.',
+    "A monitor goes from the worker to a service's public address. It sees what the SSH healthcheck cannot: the firewall, the proxy, the certificate.",
 
   'outcome.healthy': 'healthy',
   'outcome.unhealthy': 'unhealthy',
@@ -292,7 +329,7 @@ const en: Translated<typeof fr> = {
   'card.paused.orphaned': 'application no longer deployed — probe paused automatically',
   'card.paused.unknownType': 'probe type “{type}” is unknown to this version of the panel',
   'card.neverRan': 'Never ran — first readout on the next sweep.',
-  'card.measured': 'Measured {since} ago · {cadence}',
+  'card.measured': '{since} ago · {cadence}',
   'card.pending': {
     one: '{count} failure out of {threshold} — not confirmed',
     other: '{count} failures out of {threshold} — not confirmed',
@@ -318,6 +355,34 @@ const en: Translated<typeof fr> = {
   'chart.point.titleWithLatency': '{clock} — {outcome} · {latency} ms',
 
   'adopt.title': 'Deployed applications, not watched yet',
+  'adopt.count': {
+    one: '{count} deployed application is not monitored yet',
+    other: '{count} deployed applications are not monitored yet',
+  },
+  'adopt.short':
+    'Pupitre never creates a monitor on its own: one click is enough, with the ingress URL.',
+  'axis.now': 'now',
+  'card.more': 'Pause, delete',
+  'card.open': 'Preview {name}',
+  'delete.title': 'Delete the monitor “{name}”?',
+  'delete.checks': 'Its samples, its incident timeline and its captures go with it.',
+  'delete.alerts': 'No alert will leave for this address anymore.',
+  'delete.confirm': 'Delete the monitor',
+  'toast.probed': 'Check of {name} requested',
+  'toast.probed.detail': 'The result shows at the next refresh.',
+  'toast.paused': '{name} paused',
+  'toast.resumed': '{name} resumed',
+  'toast.deleted': 'Monitor {name} deleted',
+  'toast.created': 'Monitor {name} declared',
+  'drawer.kind': 'Monitor',
+  'drawer.target': 'Target',
+  'drawer.recent': 'Latest checks',
+  'drawer.last': 'Latest readout',
+  'drawer.latency': 'Response time',
+  'drawer.detail': 'Detail',
+  'drawer.open': 'Open the page',
+  'drawer.summary':
+    '{typeLabel}, {cadence}. Outage confirmed after {failures}, recovery after {recovery} successes.',
   'adopt.description':
     'The panel already knows their address. It does not create the probe on its own — a probe sends outbound traffic every minute, and that is not a side effect a deployment should produce unasked. One click is enough.',
   'adopt.action': 'Watch {slug}',
@@ -329,16 +394,14 @@ const en: Translated<typeof fr> = {
   'create.interval.label': 'Cadence',
   'create.interval.floor': 'No more often than {cadence} for this type.',
   'create.failure.label': 'Failure threshold',
-  'create.failure.hint':
-    'Consecutive failures before the incident. A single blip raises nothing.',
+  'create.failure.hint': 'Consecutive failures before the incident. A single blip raises nothing.',
   'create.recovery.label': 'Recovery threshold',
   'create.recovery.hint': 'Consecutive successes before the incident closes.',
   'create.webhook.label': 'Alert webhook — optional',
   'create.webhook.placeholder': 'https://hooks.slack.com/services/…',
   'create.webhook.payload.a': 'One JSON POST on the outage ',
   'create.webhook.payload.and': 'and',
-  'create.webhook.payload.b':
-    ' on the recovery, never on every failure. The payload carries ',
+  'create.webhook.payload.b': ' on the recovery, never on every failure. The payload carries ',
   'create.webhook.payload.c': ' and',
   'create.webhook.payload.d':
     ', which is what Slack and Discord read. The URL is encrypted in the database and never shown again.',
@@ -351,7 +414,7 @@ const en: Translated<typeof fr> = {
     ' probe they subscribe to — bursts grouped. Filling in both therefore sends two messages for one outage: keep it for a probe that must alert somewhere the others do not.',
   'create.submit': 'Create the probe',
 
-  'config.optional': '— optional',
+  'config.optional': 'optional',
   'config.advanced': 'Advanced options',
 
   'detail.summary':
@@ -376,6 +439,12 @@ const en: Translated<typeof fr> = {
   'detail.latency.title': 'Latency measured',
   'detail.latency.description':
     'Time to the response headers, not to the end of the download: what you want to know is how responsive the service is, not how fast the link is. Red bands are the readouts where nothing answered — the line breaks rather than telling of a continuity that never happened.',
+  'detail.latency.sub': {
+    one: 'last {count} sample, {cadence}',
+    other: 'last {count} samples, {cadence}',
+  },
+  'detail.latency.gapNote':
+    'Red bands mark samples with no answer: the line is cut rather than interpolated.',
   'detail.latency.empty': 'No readout yet. The probe has not run.',
 
   'detail.incidents.title': 'Incident timeline',
@@ -383,9 +452,11 @@ const en: Translated<typeof fr> = {
   'detail.incidents.description.transition': 'transition',
   'detail.incidents.description.b':
     ' — when the consecutive-failure threshold is reached — and closes on recovery. A single blip creates none. Incidents are never purged, unlike readouts.',
+  'detail.incidents.sub': 'most recent first',
+  'detail.incident.since': 'since {clock}',
   'detail.incidents.empty': 'No incident. This probe has never gone to a confirmed outage.',
-  'detail.incident.closed': 'incident closed',
-  'detail.incident.open': 'incident open',
+  'detail.incident.closed': 'Incident closed',
+  'detail.incident.open': 'Incident open',
   'detail.incident.outage': '{duration} down',
   'detail.incident.ongoing': 'ongoing for {since}',
   'detail.incident.confirmedAfter': {
@@ -407,6 +478,8 @@ const en: Translated<typeof fr> = {
     one: '{count} readout — show the table',
     other: '{count} readouts — show the table',
   },
+  'detail.checks.count': { one: '{count} sample', other: '{count} samples' },
+  'detail.checks.hint': 'show the table (readable without colour)',
   'detail.checks.column.instant': 'Instant',
   'detail.checks.column.verdict': 'Verdict',
 

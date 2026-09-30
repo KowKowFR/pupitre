@@ -65,6 +65,14 @@ function formatClock(iso: string, format: FormatSettings): string {
 
 // ─── frise des verdicts ───────────────────────────────────────────────────────
 
+/** La classe `.strip` de chaque verdict : vert par défaut, puis ambre, rouge, gris. */
+const STRIP_CLASS: Record<string, string> = {
+  healthy: '',
+  unhealthy: 'w',
+  unreachable: 'd',
+  unknown: 'n',
+};
+
 /**
  * Une barre par mesure, de la plus ancienne à la plus récente.
  *
@@ -98,14 +106,15 @@ export function OutcomeStrip({
 
   return (
     <div
-      className={cn('flex items-end gap-[2px]', className)}
+      className={cn('strip', className)}
       style={{ height }}
       role="img"
       aria-label={t('chart.strip.label', { count: points.length })}
     >
       {points.map((point) => (
-        <span
+        <i
           key={point.at}
+          className={STRIP_CLASS[point.outcome] ?? 'n'}
           title={
             point.latencyMs === null
               ? t('chart.point.title', {
@@ -118,15 +127,41 @@ export function OutcomeStrip({
                   latency: point.latencyMs,
                 })
           }
-          className="min-w-[3px] flex-1 rounded-[1px]"
-          style={{
-            height: '100%',
-            backgroundColor: OUTCOME_TONE[point.outcome] ?? OUTCOME_TONE.unknown,
-          }}
         />
       ))}
     </div>
   );
+}
+
+/** L'axe sous une frise : le premier passage à gauche, maintenant à droite. */
+export function StripAxis({
+  points,
+  format,
+  ticks = 2,
+}: {
+  points: readonly OutcomePoint[];
+  format: FormatSettings;
+  /** Nombre de repères, extrémités comprises. */
+  ticks?: number;
+}) {
+  const t = useT(messages);
+  if (points.length === 0) return null;
+  const labels = Array.from({ length: ticks }, (_, index) => {
+    if (index === ticks - 1) return t('axis.now');
+    const point = points[Math.round((index / (ticks - 1)) * (points.length - 1))];
+    return point ? clockOf(point.at, format) : '';
+  });
+  return (
+    <div className="axis" aria-hidden>
+      {labels.map((label, index) => (
+        <span key={index}>{label}</span>
+      ))}
+    </div>
+  );
+}
+
+function clockOf(iso: string, format: FormatSettings): string {
+  return formatDateTimeWith(iso, format, { hour: '2-digit', minute: '2-digit' });
 }
 
 /** Légende de la frise. Nomme les couleurs : la teinte seule ne suffit jamais. */
@@ -205,22 +240,25 @@ function segmentsOf(points: readonly OutcomePoint[], plotted: Plotted[]): Plotte
 
 /**
  * Courbe compacte des latences récentes — une seule série, donc pas de légende :
- * le titre la nomme. La dernière valeur est étiquetée en clair à côté, de sorte
- * qu'aucun chiffre ne dépende du survol.
+ * la colonne la nomme. Une aire pâle sous le trait, comme les autres courbes
+ * du panel.
  *
- * Les mesures sans latence — rien n'a répondu — coupent le trait et laissent une
- * marque rouge sur la ligne de base. Un trait qui relierait les deux côtés d'une
- * panne raconterait une continuité qui n'a pas eu lieu.
+ * Les mesures sans latence — rien n'a répondu — coupent le trait. Un trait qui
+ * relierait les deux côtés d'une panne raconterait une continuité qui n'a pas
+ * eu lieu.
  */
 export function LatencySparkline({
   points,
-  width = 120,
-  height = 28,
+  width = 150,
+  height = 30,
+  tone = 'var(--accent)',
   className,
 }: {
   points: readonly OutcomePoint[];
   width?: number;
   height?: number;
+  /** La teinte du trait : l'outremer, ou le danger quand la sonde est en panne. */
+  tone?: string;
   className?: string;
 }) {
   const t = useT(messages);
@@ -228,10 +266,9 @@ export function LatencySparkline({
   if (usable.length === 0) return null;
 
   const padTop = 3;
-  const padBottom = 3;
-  const { plotted, gaps } = buildGeometry(points, width, height, padTop, padBottom);
+  const padBottom = 1;
+  const { plotted } = buildGeometry(points, width, height, padTop, padBottom);
   const runs = segmentsOf(points, plotted);
-  const last = plotted.at(-1);
 
   return (
     <svg
@@ -242,38 +279,32 @@ export function LatencySparkline({
       role="img"
       aria-label={t('chart.sparkline.label', { count: points.length })}
     >
-      {runs.map((run) => (
-        <path
-          key={run[0]?.point.at ?? 'run'}
-          d={run.map((entry, index) => `${index === 0 ? 'M' : 'L'}${entry.x} ${entry.y}`).join(' ')}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
-      {gaps.map((x) => (
-        <rect
-          key={`gap-${x}`}
-          x={x - 1}
-          y={height - padBottom - 3}
-          width={2}
-          height={3}
-          rx={1}
-          fill="var(--danger)"
-        />
-      ))}
-      {last ? (
-        <circle
-          cx={last.x}
-          cy={last.y}
-          r={2.5}
-          fill="var(--accent)"
-          stroke="var(--surface)"
-          strokeWidth={2}
-        />
-      ) : null}
+      {runs.map((run) => {
+        const line = run
+          .map((entry, index) => `${index === 0 ? 'M' : 'L'}${entry.x} ${entry.y}`)
+          .join(' ');
+        const first = run[0];
+        const last = run.at(-1);
+        return (
+          <g key={first?.point.at ?? 'run'}>
+            {first && last ? (
+              <path
+                d={`${line} L${last.x} ${height} L${first.x} ${height} Z`}
+                fill={tone}
+                opacity={0.1}
+              />
+            ) : null}
+            <path
+              d={line}
+              fill="none"
+              stroke={tone}
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -283,13 +314,14 @@ export function LatencySparkline({
 /**
  * La même série, en grand, avec un réticule au survol.
  *
- * L'infobulle **enrichit**, elle ne conditionne rien : l'axe porte l'échelle, et
- * la table des mesures, plus bas dans l'écran, contient toutes les valeurs.
+ * Pas d'axe des ordonnées : la valeur survolée s'affiche en clair, et la table
+ * des mesures, plus bas dans l'écran, contient toutes les valeurs. Les mesures
+ * sans réponse se regroupent en bandes hachurées rouges, bordées d'un pointillé.
  */
 export function LatencyChart({
   points,
   format,
-  height = 160,
+  height = 120,
   className,
 }: {
   points: readonly OutcomePoint[];
@@ -299,144 +331,146 @@ export function LatencyChart({
 }) {
   const t = useT(messages);
   const [hover, setHover] = React.useState<number | null>(null);
-  const width = 720;
-  const padTop = 12;
-  const padBottom = 20;
-  const padLeft = 44;
+  const width = 1000;
+  const padTop = 8;
+  const padBottom = 2;
 
   const usable = points.filter((point) => point.latencyMs !== null);
   if (points.length === 0 || usable.length === 0) return null;
 
-  const plotWidth = width - padLeft - 8;
-  const { plotted, gaps, max } = buildGeometry(points, plotWidth, height, padTop, padBottom);
+  const { plotted, step } = buildGeometry(points, width, height, padTop, padBottom);
   const runs = segmentsOf(points, plotted);
 
-  const ticks = [0, 0.5, 1].map((ratio) => ({
-    value: Math.round(max * ratio),
-    y: padTop + (height - padTop - padBottom) * (1 - ratio),
-  }));
+  // Les trous consécutifs deviennent une seule bande, du trou au suivant.
+  const bands: Array<{ from: number; to: number }> = [];
+  points.forEach((point, index) => {
+    if (point.latencyMs !== null) return;
+    const x = points.length > 1 ? index * step : width / 2;
+    const previous = bands.at(-1);
+    if (previous && Math.abs(previous.to - (x - step)) < 0.5) previous.to = x;
+    else bands.push({ from: x, to: x });
+  });
 
   const active = hover === null ? null : (plotted[hover] ?? null);
+  const ticks = [0, 1 / 3, 2 / 3, 1].map(
+    (ratio) => points[Math.round(ratio * (points.length - 1))],
+  );
 
   return (
-    <div className={cn('relative', className)}>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        style={{ height }}
-        role="img"
-        aria-label={t('chart.latency.label')}
-        onMouseLeave={() => setHover(null)}
-        onMouseMove={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          const ratio = (event.clientX - rect.left) / rect.width;
-          const x = ratio * width - padLeft;
-          if (plotted.length === 0) return;
-          let nearest = 0;
-          let best = Number.POSITIVE_INFINITY;
-          plotted.forEach((entry, index) => {
-            const distance = Math.abs(entry.x - x);
-            if (distance < best) {
-              best = distance;
-              nearest = index;
-            }
-          });
-          setHover(nearest);
-        }}
-      >
-        {/* Grille : des filets pleins, un cran sous la surface. Jamais de pointillés. */}
-        {ticks.map((tick) => (
-          <g key={tick.value}>
-            <line
-              x1={padLeft}
-              x2={width - 8}
-              y1={tick.y}
-              y2={tick.y}
-              stroke="var(--border)"
-              strokeWidth={1}
-            />
-            <text
-              x={padLeft - 8}
-              y={tick.y + 4}
-              textAnchor="end"
-              className="fill-text-3 text-[10px] [font-variant-numeric:tabular-nums]"
+    <div className={cn('flex flex-col gap-2', className)}>
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className="block w-full"
+          style={{ height }}
+          role="img"
+          aria-label={t('chart.latency.label')}
+          onMouseLeave={() => setHover(null)}
+          onMouseMove={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const x = ((event.clientX - rect.left) / rect.width) * width;
+            if (plotted.length === 0) return;
+            let nearest = 0;
+            let best = Number.POSITIVE_INFINITY;
+            plotted.forEach((entry, index) => {
+              const distance = Math.abs(entry.x - x);
+              if (distance < best) {
+                best = distance;
+                nearest = index;
+              }
+            });
+            setHover(nearest);
+          }}
+        >
+          <defs>
+            <pattern
+              id="latency-gap"
+              width="9"
+              height="9"
+              patternUnits="userSpaceOnUse"
+              patternTransform="rotate(0)"
             >
-              {tick.value}
-            </text>
-          </g>
-        ))}
-
-        <g transform={`translate(${padLeft} 0)`}>
-          {runs.map((run) => (
-            <path
-              key={run[0]?.point.at ?? 'run'}
-              d={run
-                .map((entry, index) => `${index === 0 ? 'M' : 'L'}${entry.x} ${entry.y}`)
-                .join(' ')}
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          ))}
-          {gaps.map((x) => (
-            <rect
-              key={`gap-${x}`}
-              x={x - 1.5}
-              y={padTop}
-              width={3}
-              height={height - padTop - padBottom}
-              rx={1}
-              fill="var(--danger)"
-              opacity={0.18}
-            />
-          ))}
-          {active ? (
-            <>
+              <rect width="6" height="9" fill="var(--danger)" opacity="0.14" />
+            </pattern>
+          </defs>
+          {bands.map((band) => (
+            <g key={band.from}>
+              <rect
+                x={band.from - step / 2}
+                y={0}
+                width={Math.max(3, band.to - band.from + step)}
+                height={height}
+                fill="url(#latency-gap)"
+              />
               <line
-                x1={active.x}
-                x2={active.x}
-                y1={padTop}
-                y2={height - padBottom}
-                stroke="var(--border-strong)"
-                strokeWidth={1}
+                x1={band.from - step / 2}
+                x2={band.from - step / 2}
+                y1={0}
+                y2={height}
+                stroke="var(--danger)"
+                strokeDasharray="3 3"
+                vectorEffect="non-scaling-stroke"
               />
-              <circle
-                cx={active.x}
-                cy={active.y}
-                r={4}
-                fill="var(--accent)"
-                stroke="var(--surface)"
-                strokeWidth={2}
-              />
-            </>
+            </g>
+          ))}
+          {runs.map((run) => {
+            const line = run
+              .map((entry, index) => `${index === 0 ? 'M' : 'L'}${entry.x} ${entry.y}`)
+              .join(' ');
+            const first = run[0];
+            const last = run.at(-1);
+            return (
+              <g key={first?.point.at ?? 'run'}>
+                {first && last ? (
+                  <path
+                    d={`${line} L${last.x} ${height} L${first.x} ${height} Z`}
+                    fill="var(--accent)"
+                    opacity={0.1}
+                  />
+                ) : null}
+                <path
+                  d={line}
+                  fill="none"
+                  stroke="var(--accent)"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </g>
+            );
+          })}
+          {active ? (
+            <line
+              x1={active.x}
+              x2={active.x}
+              y1={0}
+              y2={height}
+              stroke="var(--border-strong)"
+              vectorEffect="non-scaling-stroke"
+            />
           ) : null}
-        </g>
-
-        <text
-          x={padLeft}
-          y={height - 6}
-          className="fill-text-3 text-[10px] [font-variant-numeric:tabular-nums]"
-        >
-          {points[0] ? formatClock(points[0].at, format) : ''}
-        </text>
-        <text
-          x={width - 8}
-          y={height - 6}
-          textAnchor="end"
-          className="fill-text-3 text-[10px] [font-variant-numeric:tabular-nums]"
-        >
-          {points.at(-1) ? formatClock(points.at(-1)!.at, format) : ''}
-        </text>
-      </svg>
-
-      {active ? (
-        <div className="pointer-events-none absolute top-0 right-0 rounded-md border border-border bg-surface px-2 py-1 text-[0.6875rem] shadow-sm">
-          <div className="font-mono text-text">{active.point.latencyMs} ms</div>
-          <div className="text-text-3">{formatClock(active.point.at, format)}</div>
-        </div>
-      ) : null}
+        </svg>
+        {active ? (
+          <>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-accent"
+              style={{ left: `${(active.x / width) * 100}%`, top: active.y }}
+            />
+            <div className="pointer-events-none absolute top-0 right-0 rounded-md border border-border bg-surface px-2 py-1 text-[11px] shadow-sm">
+              <div className="mono text-text">{active.point.latencyMs} ms</div>
+              <div className="text-text-3">{formatClock(active.point.at, format)}</div>
+            </div>
+          </>
+        ) : null}
+      </div>
+      <div className="axis" aria-hidden>
+        {ticks.map((point, index) => (
+          <span key={index}>{point ? clockOf(point.at, format) : ''}</span>
+        ))}
+      </div>
     </div>
   );
 }
