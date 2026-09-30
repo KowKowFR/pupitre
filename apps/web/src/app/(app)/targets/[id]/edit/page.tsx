@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { getTarget } from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { targets as messages } from '@/i18n/messages/targets';
@@ -23,6 +24,7 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="flex flex-col gap-6">
+      <Crumb label={target.name} />
       <PageHeader
         title={t('edit.title', { name: target.name })}
         description={t('edit.description')}

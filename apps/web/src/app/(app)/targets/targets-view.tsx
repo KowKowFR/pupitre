@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { Kbd } from '@/components/ui/kbd';
-import { State, type Tone } from '@/components/ui/led';
+import { State } from '@/components/ui/led';
 import {
   Table,
   TableBody,
@@ -38,6 +38,7 @@ import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
 import { toast } from '@/lib/toast';
+import { STATUS_TONE } from './status';
 import { TargetDrawer } from './target-drawer';
 import { usePreflight } from './use-preflight';
 
@@ -75,12 +76,6 @@ export type TargetRow = {
 
 export type Limits = { load: number; memory: number; disk: number };
 
-export const STATUS_TONE: Record<TargetHealth, Tone> = {
-  ok: 'ok',
-  degraded: 'warn',
-  unreachable: 'danger',
-  unknown: 'idle',
-};
 
 const STATUSES: TargetHealth[] = ['ok', 'degraded', 'unreachable', 'unknown'];
 

@@ -21,7 +21,8 @@ import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
-import { Runtimes, STATUS_TONE, type Limits, type TargetRow } from './targets-view';
+import { STATUS_TONE } from './status';
+import { Runtimes, type Limits, type TargetRow } from './targets-view';
 
 const HEALTH_TONE: Record<string, Tone> = {
   healthy: 'ok',

@@ -1,4 +1,5 @@
 import { PageHeader } from '@/components/page-header';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { TargetHelpDialog } from '@/components/target-help';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
@@ -14,13 +15,15 @@ export default async function NewTargetPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t('page.add')} description={t('new.description')} />
-
+      <Crumb label={t('page.add')} />
       {/* Le formulaire demande une machine, un compte, une clé, une plage de
-          ports — sans jamais dire ce qu'il faut avoir préparé en face. La
-          modale le dit, et reste à portée du champ qu'on est en train de
-          remplir. */}
-      <TargetHelpDialog />
+          ports — sans jamais dire ce qu'il faut avoir préparé en face. L'aide
+          le dit, à portée du formulaire. */}
+      <PageHeader
+        title={t('page.add')}
+        description={t('new.description')}
+        actions={<TargetHelpDialog />}
+      />
 
       <Card className="max-w-3xl">
         <CardHeader>

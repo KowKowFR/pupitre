@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { TargetLabelList } from '@/components/target-label';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { SecretInput } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -162,15 +163,15 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="name">{t('field.name')}</Label>
           <Input id="name" name="name" defaultValue={values.name} required minLength={2} />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="sshUser">{t('field.sshUser')}</Label>
-          <Input id="sshUser" name="sshUser" defaultValue={values.sshUser} required />
+          <Input id="sshUser" name="sshUser" defaultValue={values.sshUser} required className="mono" />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="host">{t('field.host')}</Label>
           <Input
             id="host"
@@ -178,9 +179,10 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             defaultValue={values.host}
             placeholder="10.0.0.12"
             required
+            className="mono"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="port">{t('field.port')}</Label>
           <Input
             id="port"
@@ -190,9 +192,10 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             max={65535}
             defaultValue={values.port}
             required
+            className="mono"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="authMethod">{t('field.authMethod')}</Label>
           <Select
             id="authMethod"
@@ -204,7 +207,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             <option value="password">{t('auth.password')}</option>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="sudoMethod">{t('field.sudoMethod')}</Label>
           <Select id="sudoMethod" name="sudoMethod" defaultValue={values.sudoMethod}>
             <option value="nopasswd">{t('sudo.nopasswd')}</option>
@@ -217,7 +220,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         Sous l'identité de la machine et avant ses secrets : la description
         répond à « qu'est-ce que c'est ? », pas à « comment s'y connecter ? ».
       */}
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label htmlFor="description">{t('field.description')}</Label>
         <textarea
           id="description"
@@ -227,9 +230,9 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder={t('description.placeholder')}
-          className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-text-3 focus-visible:border-accent focus-visible:ring-[3px] focus-visible:ring-accent/25"
+          className="textarea"
         />
-        <p className="flex justify-between gap-4 text-xs text-text-2">
+        <p className="help flex justify-between gap-4">
           <span>{t('description.help')}</span>
           <span
             className={cn(
@@ -242,7 +245,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         </p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label htmlFor="credential">
           {authMethod === 'key' ? t('field.credential.key') : t('field.credential.password')}
         </Label>
@@ -254,18 +257,18 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             spellCheck={false}
             autoComplete="off"
             placeholder={'-----BEGIN OPENSSH PRIVATE KEY-----\n…'}
-            className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs text-text outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-text-3 focus-visible:border-accent focus-visible:ring-[3px] focus-visible:ring-accent/25"
+            className="textarea mono"
           />
         ) : (
-          <Input id="credential" name="credential" type="password" autoComplete="new-password" />
+          <SecretInput id="credential" name="credential" stored={isEdit} />
         )}
-        <p className="text-xs text-text-2">
+        <p className="help">
           {t('credential.help')}
           {isEdit ? t('credential.help.edit') : ''}
         </p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label>{t('field.portRange')}</Label>
         <div className="flex items-center gap-2">
           <Input
@@ -276,7 +279,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             max={65535}
             defaultValue={values.portRangeStart}
             required
-            className="w-32"
+            className="mono w-32"
           />
           <span className="text-sm text-text-3">→</span>
           <Input
@@ -287,13 +290,13 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             max={65535}
             defaultValue={values.portRangeEnd}
             required
-            className="w-32"
+            className="mono w-32"
           />
         </div>
-        <p className="text-xs text-text-2">{t('portRange.help')}</p>
+        <p className="help">{t('portRange.help')}</p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label htmlFor="labels">{t('field.labels')}</Label>
         <textarea
           id="labels"
@@ -302,18 +305,18 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           value={labelsText}
           onChange={(event) => setLabelsText(event.target.value)}
           placeholder={'env=prod\nzone=eu-west'}
-          className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs text-text outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-text-3 focus-visible:border-accent focus-visible:ring-[3px] focus-visible:ring-accent/25"
+          className="textarea mono"
         />
         <TargetLabelList labels={textToLabels(labelsText)} className="pt-0.5" />
         {/* Coupée autour du `clé=valeur` que le JSX rend en chasse fixe : une clé
             par fragment, dans l'ordre où la phrase les enchaîne. */}
-        <p className="text-xs text-text-2">
+        <p className="help">
           {t('labels.help.before')} <code>{t('labels.help.pair')}</code> {t('labels.help.after')}
         </p>
       </div>
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" loading={pending}>
           {pending ? tc('saving') : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
         </Button>
         {onCancel === null ? null : (

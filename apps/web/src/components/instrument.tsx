@@ -16,6 +16,7 @@ export function Readout({
   tone = 'idle',
   pulse = false,
   hint,
+  aside,
 }: {
   label: ReactNode;
   value: ReactNode;
@@ -23,12 +24,17 @@ export function Readout({
   tone?: Tone;
   pulse?: boolean;
   hint?: ReactNode;
+  /** Une méta à droite de l'étiquette : la tendance (« stable », « +6 pt »). */
+  aside?: ReactNode;
 }) {
   return (
     <div className="readout">
       <span className="lbl">
         <Led tone={tone} pulse={pulse} />
         <span className="truncate">{label}</span>
+        {aside ? (
+          <span className="t-cap ml-auto shrink-0 font-normal text-text-3">{aside}</span>
+        ) : null}
       </span>
       <span>
         <span className="t-stat">{value}</span>

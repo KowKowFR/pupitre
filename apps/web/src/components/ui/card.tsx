@@ -15,11 +15,21 @@ function Card({ className, ...props }: React.ComponentProps<'section'>) {
 }
 
 /**
- * En-tête de carte : titre et sous-titre à gauche, actions à droite. Les
- * enfants libres (actions, liens) se rangent après le bloc titre.
+ * En-tête de carte : titre et sous-titre empilés à gauche, actions à droite
+ * (`actions`), séparés du corps par un filet.
  */
-function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="card-header" className={cn('card-h flex-wrap', className)} {...props} />;
+function CardHeader({
+  className,
+  actions,
+  children,
+  ...props
+}: React.ComponentProps<'div'> & { actions?: React.ReactNode }) {
+  return (
+    <div data-slot="card-header" className={cn('card-h flex-wrap', className)} {...props}>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">{children}</div>
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+    </div>
+  );
 }
 
 function CardTitle({ className, ...props }: React.ComponentProps<'h2'>) {
