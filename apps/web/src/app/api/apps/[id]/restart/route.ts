@@ -2,7 +2,9 @@ import { APP_RESTART_JOB, deploymentJobDataSchema, isSupervisable } from '@pupit
 import { getDeploymentSummary, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { appConsole } from '@/i18n/messages/console';
+import { deployments } from '@/i18n/messages/deployments';
+import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
@@ -22,11 +24,9 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(deployments, 'error.notFound', { id }));
   if (!isSupervisable(deployment.status)) {
-    throw new ConflictError(
-      `Un déploiement « ${deployment.status} » ne se redémarre pas.`,
-    );
+    throw new ConflictError(msg(appConsole, 'error.notRestartable', { status: deployment.status }));
   }
   /**
    * Redémarrer une application arrêtée serait ambigu : `docker compose restart`
@@ -37,16 +37,14 @@ export const POST = apiRoute<Context>(async (request, context) => {
    * l'architecture refuse. Le geste existe, il s'appelle « Démarrer ».
    */
   if (deployment.stoppedAt !== null) {
-    throw new ConflictError(
-      'Cette application est arrêtée : démarrez-la plutôt que de la redémarrer.',
-    );
+    throw new ConflictError(msg(appConsole, 'error.stoppedRestart'));
   }
 
   const job = await getSupervisionQueue().add(
     APP_RESTART_JOB,
     deploymentJobDataSchema.parse({ deploymentId: id, actorId: auth.userId, ip: auth.ip }),
   );
-  if (!job.id) throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+  if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(deployments, 'error.enqueueFailed'));
 
   await logAudit({
     actorId: auth.userId,

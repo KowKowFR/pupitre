@@ -38,16 +38,12 @@ const srcRoot = path.join(webRoot, 'src');
 const messagesRoot = path.join(srcRoot, 'i18n', 'messages');
 
 /**
- * Les deux surfaces que deux autres chantiers refont en parallèle. Elles
- * restent en français, sciemment, et la garde le sait plutôt que de faire
- * semblant. Le jour où elles sont traduites, on retire ces deux lignes — et
- * si quelqu'un les oublie, rien ne casse : la garde devient simplement plus
- * stricte.
+ * Les surfaces qu'un autre chantier refait en parallèle, laissées en français
+ * sciemment le temps qu'il aboutisse. Vide : tout le panel est traduit. Le
+ * mécanisme reste pour la prochaine fois — et si quelqu'un oublie d'en retirer
+ * une ligne, rien ne casse : la garde devient simplement plus stricte.
  */
-const NOT_YET_TRANSLATED = [
-  path.join(srcRoot, 'app', '(app)', 'apps', '[id]'),
-  path.join(srcRoot, 'app', 'api', 'apps', '[id]'),
-];
+const NOT_YET_TRANSLATED = [];
 
 /**
  * Fichiers dont les chaînes françaises sont de la donnée, pas de l'interface :

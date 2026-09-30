@@ -2,7 +2,8 @@ import { isSupervisable, workspaceNameFor } from '@pupitre/core';
 import { getDeploymentSummary } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { deployments } from '@/i18n/messages/deployments';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -35,7 +36,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(deployments, 'error.notFound', { id }));
 
   // La version vers laquelle un rollback ramène, nommée : « revenir à la v2 »
   // se comprend, « revenir en arrière » se subit.

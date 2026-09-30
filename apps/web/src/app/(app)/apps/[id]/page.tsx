@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { isSupervisable, parseAppSpec } from '@pupitre/core';
+import { isSupervisable, parseAppSpec, type Translate } from '@pupitre/core';
 import {
   getAppSettings,
   getDeploymentForRun,
   getDeploymentSummary,
+  listChecks,
   listMonitors,
   listSupervisedApps,
+  openIncidentFor,
   resolveThresholds,
   scanDigestForDeployments,
   targetHistories,
@@ -15,10 +17,26 @@ import {
 import { z } from 'zod';
 import { MiniGauge, MicroSpark } from '@/components/chart';
 import { PageHeader } from '@/components/page-header';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { formatSettingsOf, createDateFormatter } from '@/lib/format';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FieldValue } from '@/components/ui/data';
+import { getT } from '@/i18n/server';
+import { common } from '@/i18n/messages/common';
+import { appConsole } from '@/i18n/messages/console';
+import { servers } from '@/i18n/messages/servers';
+import {
+  createDateFormatter,
+  formatDateTimeWith,
+  formatNumber,
+  formatSettingsOf,
+  type FormatSettings,
+} from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
+import { relativeTime } from '@/lib/relative-time';
+import { withSlot } from '@/lib/rich';
+import { HealthDot } from '../apps-table';
 import { AppActions } from './app-actions';
 import { AppConsole, type ConsoleApp, type ConsoleService } from './app-console';
 
@@ -32,7 +50,12 @@ export const dynamic = 'force-dynamic';
 const HISTORY_HOURS = 24;
 const HISTORY_BUCKETS = 48;
 
+/** Les derniers passages de la sonde, en bande : assez pour voir une panne qui dure. */
+const MONITOR_STRIP = 36;
+
 const paramsSchema = z.object({ id: z.string().uuid() });
+
+type T = Translate<typeof appConsole.fr>;
 
 /**
  * L'écran d'une application en marche.
@@ -59,22 +82,22 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
   const deployment = await getDeploymentSummary(parsed.data.id);
   if (!deployment) notFound();
 
+  const t = await getT(appConsole);
+
   if (!isSupervisable(deployment.status)) {
     return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          title={deployment.applicationSlug}
-          description="Ce déploiement ne tourne plus."
-        />
+      <>
+        <Crumb label={deployment.applicationSlug} />
+        <PageHeader title={deployment.applicationSlug} description={t('gone.description')} />
         <Alert variant="destructive">
-          Ce déploiement est « {deployment.status} » : il n&apos;y a pas d&apos;application à
-          suivre. Consultez son{' '}
-          <Link href={`/deployments/${deployment.id}`} className="underline underline-offset-4">
-            historique de déploiement
-          </Link>
-          .
+          {withSlot(
+            (link) => t('gone.alert', { status: deployment.status, link }),
+            <Link href={`/deployments/${deployment.id}`} className="link">
+              {t('gone.link')}
+            </Link>,
+          )}
         </Alert>
-      </div>
+      </>
     );
   }
 
@@ -84,14 +107,17 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
 
   // `listSupervisedApps` porte la santé et l'échec de mise à jour éventuel ; on
   // y relit cette application plutôt que de recomposer l'information à la main.
-  const [supervisedAll, run, { settings }, scanDigests, monitors] = await Promise.all([
-    listSupervisedApps(),
-    // Une seule requête pour l'AppSpec figée du déploiement *et* ses étapes.
-    getDeploymentForRun(deployment.id),
-    getAppSettings(),
-    canReadScans ? scanDigestForDeployments([deployment.id]) : Promise.resolve(null),
-    canReadMonitors ? listMonitors() : Promise.resolve([]),
-  ]);
+  const [supervisedAll, run, { settings }, scanDigests, monitors, tCommon, tServers] =
+    await Promise.all([
+      listSupervisedApps(),
+      // Une seule requête pour l'AppSpec figée du déploiement *et* ses étapes.
+      getDeploymentForRun(deployment.id),
+      getAppSettings(),
+      canReadScans ? scanDigestForDeployments([deployment.id]) : Promise.resolve(null),
+      canReadMonitors ? listMonitors() : Promise.resolve([]),
+      getT(common),
+      getT(servers),
+    ]);
 
   const supervised = supervisedAll.find((app) => app.id === deployment.id);
   const format = formatSettingsOf(settings);
@@ -106,6 +132,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
    * faire.
    */
   const spec = run ? parseAppSpec(run.deployment.appSpec) : null;
+  const specVersion = spec?.version ?? null;
 
   const services: ConsoleService[] = (spec?.services ?? []).map((service) => ({
     name: service.name,
@@ -129,7 +156,13 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
   // par l'application, jamais par le déploiement : une sonde survit aux
   // versions.
   const monitor = monitors.find((row) => row.applicationId === deployment.applicationId) ?? null;
-  const uptime = monitor ? ((await uptimeWindows([monitor.id], 24)).get(monitor.id) ?? null) : null;
+  const [uptime, checks, incident] = monitor
+    ? await Promise.all([
+        uptimeWindows([monitor.id], 24).then((windows) => windows.get(monitor.id) ?? null),
+        listChecks(monitor.id, MONITOR_STRIP),
+        openIncidentFor(monitor.id),
+      ])
+    : [null, [], null];
 
   // Le passé de la machine vient de la base, pas de la machine : il s'affiche
   // même quand elle ne répond plus, ce qui est précisément le moment où on le
@@ -145,33 +178,43 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
   const scan = scanDigests?.get(deployment.id) ?? null;
   const steps = run?.steps ?? [];
   const failedStep = steps.find((step) => step.status === 'failed') ?? null;
+  const onlineSince = deployment.finishedAt ?? deployment.createdAt;
 
   const view: ConsoleApp = {
     id: deployment.id,
-    applicationId: deployment.applicationId,
     applicationSlug: deployment.applicationSlug,
-    targetId: deployment.targetId,
     targetName: deployment.targetName,
     targetHost: deployment.targetHost,
     runtime: deployment.runtime,
     version: deployment.version,
-    specVersion: spec?.version ?? null,
-    url: deployment.url,
-    publishedPort: deployment.publishedPort,
     healthStatus: supervised?.healthStatus ?? 'unknown',
     lastHealthAt: supervised?.lastHealthAt?.toISOString() ?? null,
-    onlineSince: (deployment.finishedAt ?? deployment.createdAt).toISOString(),
     services,
-    uptime24h: uptime?.ratio ?? null,
-    uptimeSamples: uptime?.samples ?? 0,
-    restored: deployment.status === 'rolled_back',
   };
 
+  const over = (value: number | null, limit: number | undefined) =>
+    value !== null && value >= (limit ?? 100);
+
   return (
-    <div className="flex flex-col gap-6">
+    <>
+      <Crumb label={deployment.applicationSlug} />
       <PageHeader
-        title={deployment.applicationSlug}
-        description="Ce que la machine dit d’elle-même, relu en direct. La colonne de gauche vient de la base du panel — elle répond même quand la machine se tait."
+        title={
+          <span className="inline-flex flex-wrap items-baseline gap-x-3">
+            {deployment.applicationSlug}
+            <span className="mono text-[15px] font-normal text-text-3">
+              @{deployment.targetName}
+            </span>
+          </span>
+        }
+        status={
+          deployment.status === 'rolled_back' ? (
+            <Badge variant="warn" dot>
+              {t('page.restored')}
+            </Badge>
+          ) : undefined
+        }
+        description={t('page.description')}
         actions={
           <AppActions
             deploymentId={deployment.id}
@@ -179,28 +222,38 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
             applicationSlug={deployment.applicationSlug}
             targetName={deployment.targetName}
             runtime={deployment.runtime}
+            specVersion={specVersion}
+            format={format}
             canDeploy={auth.can('deployment:create')}
             canDestroy={auth.can('deployment:destroy')}
           />
         }
-      />
+      >
+        {deployment.url ? (
+          <a
+            href={deployment.url}
+            target="_blank"
+            rel="noreferrer"
+            className="link mono t-sm mt-1 w-fit break-all"
+          >
+            {deployment.url}
+          </a>
+        ) : null}
+      </PageHeader>
 
       {/* La version affichée n'est pas forcément la dernière qu'on a voulu poser. */}
       {supervised?.lastFailedUpdate ? (
         <Alert variant="warn">
-          La dernière mise à jour de cette application a échoué (déploiement #
-          {supervised.lastFailedUpdate.version}
-          {supervised.lastFailedUpdate.failedStep
-            ? `, étape ${supervised.lastFailedUpdate.failedStep}`
-            : ''}
-          ). C&apos;est la version ci-dessous qui reste en service.{' '}
-          <Link
-            href={`/deployments/${supervised.lastFailedUpdate.deploymentId}`}
-            className="underline underline-offset-4"
-          >
-            Voir le déploiement échoué
+          {t('failedUpdate.text', {
+            version: supervised.lastFailedUpdate.version,
+            step: supervised.lastFailedUpdate.failedStep
+              ? t('failedUpdate.step', { step: supervised.lastFailedUpdate.failedStep })
+              : '',
+            current: specVersion ?? `#${deployment.version}`,
+          })}{' '}
+          <Link href={`/deployments/${supervised.lastFailedUpdate.deploymentId}`} className="link">
+            {t('failedUpdate.link')}
           </Link>
-          .
         </Alert>
       ) : null}
 
@@ -213,261 +266,276 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
         */
         context={
           <>
-            <Panel
-              title="Mise en ligne"
-              aside={
-                <Link
-                  href={`/deployments/${deployment.id}`}
-                  className="hover:text-accent text-text-3 text-xs underline-offset-4 hover:underline"
-                >
-                  Voir la trace
-                </Link>
-              }
-            >
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 px-5 py-3.5">
-                <Field label="Version">
-                  #{deployment.version}
-                  {view.specVersion ? (
-                    <span className="text-text-3"> · spec {view.specVersion}</span>
-                  ) : null}
-                </Field>
-                <Field label="Runtime">{deployment.runtime}</Field>
-                <Field label="Mise en ligne">
-                  {formatDate(deployment.finishedAt ?? deployment.createdAt)}
-                </Field>
-                <Field label="Durée">
-                  {deployDuration(deployment.startedAt, deployment.finishedAt)}
-                </Field>
-                <Field label="Déclenchée par" wide>
-                  {deployment.triggeredByEmail ?? 'origine inconnue'}
-                </Field>
-                {failedStep ? (
-                  <Field label="Étape en échec" wide>
-                    <span className="text-danger-text">{failedStep.label}</span>
-                  </Field>
-                ) : null}
-              </dl>
-
-              {/*
-                Le scan appartient à cette mise en ligne, pas à l'instant
-                présent : il a tourné sur les images de cette version, une fois.
-                Lui donner un panneau à lui laissait croire à une surveillance
-                continue — il est donc en pied de la mise en ligne, là où le
-                lecteur vient de lire la date.
-              */}
-              <div className="border-border flex flex-wrap items-center gap-2 border-t px-5 py-3">
-                {!canReadScans ? (
-                  <span className="text-text-3 text-[0.8125rem]">
-                    Lire les scans demande la permission scan:read.
-                  </span>
-                ) : !scan || scan.scanners.length === 0 ? (
-                  <span className="text-text-3 text-[0.8125rem]">
-                    Aucun scan n’a tourné pour cette version.
-                  </span>
-                ) : (
-                  <>
-                    <Badge
-                      variant={
-                        scan.verdict === 'fail'
-                          ? 'destructive'
-                          : scan.verdict === 'pass'
-                            ? 'ok'
-                            : 'secondary'
-                      }
-                    >
-                      {scan.verdict === 'fail'
-                        ? 'seuil dépassé'
-                        : scan.verdict === 'pass'
-                          ? 'sous le seuil'
-                          : 'sans verdict'}
-                    </Badge>
-                    <span className="text-text-2 font-mono text-xs">
-                      {scan.counts.CRITICAL} critique{scan.counts.CRITICAL > 1 ? 's' : ''} ·{' '}
-                      {scan.counts.HIGH} élevée{scan.counts.HIGH > 1 ? 's' : ''}
-                    </span>
-                    <span className="text-text-3 w-full text-[0.6875rem]">
-                      {scan.scanners.join(' · ')} — au moment de la mise en ligne, pas maintenant
-                    </span>
-                  </>
-                )}
-              </div>
-            </Panel>
-
-            <Panel
-              title="La machine"
-              aside={
-                canReadTargets ? (
-                  <Link
-                    href={`/targets/${deployment.targetId}`}
-                    className="hover:text-accent text-text-3 text-xs underline-offset-4 hover:underline"
-                  >
-                    {deployment.targetName}
+            <Card>
+              <CardHeader
+                actions={
+                  <Link href={`/deployments/${deployment.id}`} className="link t-cap">
+                    {t('rollout.trace')}
                   </Link>
-                ) : (
-                  <span className="text-text-3 text-xs">{deployment.targetName}</span>
-                )
-              }
-            >
-              <div className="space-y-2.5 px-5 py-3.5">
+                }
+              >
+                <CardTitle>{t('rollout.title')}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-x-6 gap-y-4">
+                <FieldValue label={t('rollout.version')}>
+                  <span className="mono">
+                    #{deployment.version}
+                    {specVersion ? ` · ${t('rollout.spec', { version: specVersion })}` : ''}
+                  </span>
+                </FieldValue>
+                <FieldValue label={t('rollout.runtime')}>
+                  {t(`runtime.${deployment.runtime}`)}
+                </FieldValue>
+                <FieldValue label={t('rollout.at')}>
+                  <span className="flex flex-col">
+                    <span className="mono">{formatDate(onlineSince)}</span>
+                    <span className="t-cap text-text-3">{relativeTime(onlineSince, tCommon)}</span>
+                  </span>
+                </FieldValue>
+                <FieldValue label={t('rollout.duration')}>
+                  {deployDuration(deployment.startedAt, deployment.finishedAt, t)}
+                </FieldValue>
+                <FieldValue label={t('rollout.by')}>
+                  <span className="mono t-cap break-all">
+                    {deployment.triggeredByEmail ?? t('rollout.byUnknown')}
+                  </span>
+                </FieldValue>
+                {/*
+                  Le scan appartient à cette mise en ligne, pas à l'instant
+                  présent : il a tourné sur les images de cette version, une
+                  fois. Il est donc un champ de la mise en ligne, à côté de sa
+                  date, et non une surveillance à part.
+                */}
+                <FieldValue label={t('rollout.scan')}>
+                  <ScanSummary canRead={canReadScans} scan={scan} t={t} />
+                </FieldValue>
+                {failedStep ? (
+                  <div className="col-span-2">
+                    <FieldValue label={t('rollout.failedStep')}>
+                      <span className="text-danger-text">{failedStep.label}</span>
+                    </FieldValue>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader
+                actions={
+                  canReadTargets ? (
+                    <Link href={`/targets/${deployment.targetId}`} className="link mono t-cap">
+                      {deployment.targetName}
+                    </Link>
+                  ) : (
+                    <span className="mono t-cap text-text-3">{deployment.targetName}</span>
+                  )
+                }
+              >
+                <CardTitle>{t('machine.title')}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2.5">
                 {!canReadTargets ? (
-                  <p className="text-text-3 text-[0.8125rem]">
-                    Lire les relevés machine demande la permission target:read.
-                  </p>
+                  <p className="t-sm text-text-3">{t('machine.restricted')}</p>
                 ) : history && history.samples > 0 ? (
                   <>
-                    <div className="flex items-center gap-3">
+                    <span
+                      role="img"
+                      aria-label={t('machine.spark', { hours: HISTORY_HOURS })}
+                      className="block"
+                    >
                       <MicroSpark
                         values={history.points.map((point) => point.loadPercent)}
                         max={Math.max(
                           thresholds?.load.limitPercent ?? 100,
                           history.summary.load.worst ?? 0,
                         )}
-                        tone={
-                          (history.summary.load.worst ?? 0) >=
-                          (thresholds?.load.limitPercent ?? 100)
-                            ? 'var(--warn)'
-                            : 'var(--accent)'
-                        }
-                        width={72}
+                        width={300}
+                        height={36}
+                        className="h-9 w-full"
                       />
-                      <MiniGauge
-                        label="chg"
-                        value={history.summary.load.last}
-                        tone={
-                          (history.summary.load.last ?? 0) >= (thresholds?.load.limitPercent ?? 100)
-                            ? 'var(--warn)'
-                            : 'var(--accent)'
-                        }
-                      />
-                    </div>
+                    </span>
                     <div className="flex flex-wrap items-center gap-3">
                       <MiniGauge
-                        label="mém"
-                        value={history.summary.memory.last}
-                        tone={
-                          (history.summary.memory.last ?? 0) >=
-                          (thresholds?.memory.limitPercent ?? 100)
-                            ? 'var(--warn)'
-                            : 'var(--accent)'
-                        }
+                        label={t('gauge.load')}
+                        value={history.summary.load.last}
+                        warn={over(history.summary.load.last, thresholds?.load.limitPercent)}
                       />
                       <MiniGauge
-                        label="dsk"
+                        label={t('gauge.memory')}
+                        value={history.summary.memory.last}
+                        warn={over(history.summary.memory.last, thresholds?.memory.limitPercent)}
+                      />
+                      <MiniGauge
+                        label={t('gauge.disk')}
                         value={history.summary.disk.last}
-                        tone={
-                          (history.summary.disk.last ?? 0) >= (thresholds?.disk.limitPercent ?? 100)
-                            ? 'var(--warn)'
-                            : 'var(--accent)'
-                        }
+                        warn={over(history.summary.disk.last, thresholds?.disk.limitPercent)}
                       />
                     </div>
-                    <p className="text-text-3 text-[0.6875rem]">
-                      la machine entière sur {HISTORY_HOURS} h, pas cette application — la
-                      consommation par conteneur n’est pas relevée.
+                    <p className="t-cap text-text-3">
+                      {t('machine.caption', { hours: HISTORY_HOURS })}
                     </p>
                   </>
                 ) : (
-                  <p className="text-text-3 text-[0.8125rem]">
-                    Aucun relevé sur {HISTORY_HOURS} h pour cette machine.
-                  </p>
+                  <p className="t-sm text-text-3">{t('machine.empty', { hours: HISTORY_HOURS })}</p>
                 )}
-              </div>
-            </Panel>
+              </CardContent>
+            </Card>
 
-            <Panel
-              title="Sonde de site"
-              aside={
-                monitor ? (
-                  <Link
-                    href="/monitors"
-                    className="hover:text-accent text-text-3 text-xs underline-offset-4 hover:underline"
-                  >
-                    {monitor.name}
-                  </Link>
-                ) : null
-              }
-            >
-              <div className="space-y-1.5 px-5 py-3.5 text-[0.8125rem]">
-                {!canReadMonitors ? (
-                  <p className="text-text-3">Lire les sondes demande la permission monitor:read.</p>
-                ) : !monitor ? (
-                  <p className="text-text-3">
-                    Aucune sonde ne surveille cette application depuis l’extérieur.{' '}
-                    <Link href="/monitors" className="underline underline-offset-4">
-                      En poser une
+            <Card>
+              <CardHeader
+                actions={
+                  monitor ? (
+                    <Link href={`/monitors/${monitor.id}`} className="link t-cap">
+                      {monitor.name}
                     </Link>
-                    .
+                  ) : null
+                }
+              >
+                <CardTitle>{t('monitor.title')}</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                {!canReadMonitors ? (
+                  <p className="t-sm text-text-3">{t('monitor.restricted')}</p>
+                ) : !monitor ? (
+                  <p className="t-sm text-text-3">
+                    {t('monitor.none')}{' '}
+                    <Link href="/monitors" className="link">
+                      {t('monitor.create')}
+                    </Link>
                   </p>
                 ) : (
                   <>
-                    <div className="text-text-2">
-                      Dernier passage : {formatDate(monitor.lastCheckedAt)}
-                      {monitor.lastLatencyMs === null ? '' : ` · ${monitor.lastLatencyMs} ms`}
-                    </div>
-                    {monitor.lastDetail ? (
-                      <div className="text-text-3 font-mono text-[0.6875rem]">
-                        {monitor.lastDetail}
+                    <HealthDot
+                      health={monitor.status}
+                      meta={
+                        incident
+                          ? t('monitor.since', { age: shortAge(incident.startedAt, tServers) })
+                          : undefined
+                      }
+                    />
+                    {checks.length > 0 ? (
+                      <div
+                        className="strip"
+                        style={{ height: 14 }}
+                        role="img"
+                        aria-label={t('monitor.strip', { count: checks.length })}
+                      >
+                        {[...checks].reverse().map((check) => (
+                          <i
+                            key={check.id}
+                            className={STRIP_CLASS[check.outcome]}
+                            title={formatDateTimeWith(check.checkedAt, format, {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          />
+                        ))}
                       </div>
+                    ) : null}
+                    <p className="t-cap text-text-3">
+                      {[
+                        monitor.lastCheckedAt
+                          ? t('monitor.last', { clock: clockOf(monitor.lastCheckedAt, format) })
+                          : t('monitor.never'),
+                        monitor.lastLatencyMs === null
+                          ? null
+                          : t('monitor.latency', { ms: monitor.lastLatencyMs }),
+                        monitor.lastDetail,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                    {uptime?.ratio !== null && uptime !== null ? (
+                      <p className="t-cap text-text-3">
+                        {t('monitor.uptime', {
+                          percent: formatNumber(uptime.ratio * 100, format, {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 1,
+                          }),
+                          count: uptime.samples,
+                        })}
+                      </p>
                     ) : null}
                   </>
                 )}
-              </div>
-            </Panel>
+              </CardContent>
+            </Card>
           </>
         }
       />
-    </div>
+    </>
   );
 }
 
-/**
- * Coque de panneau de la colonne de gauche.
- *
- * Une `Card` par bloc empilerait des cadres de tailles inégales ; ici tous les
- * blocs partagent la même mesure d'en-tête que les panneaux du tableau de bord,
- * pour que la colonne se lise comme une seule face avant.
- */
-function Panel({
-  title,
-  aside,
-  children,
-}: {
-  title: string;
-  aside?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="border-border bg-card shadow-xs min-w-0 rounded-lg border">
-      <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-        <h2 className="text-text text-[0.9375rem] font-semibold">{title}</h2>
-        {aside}
-      </div>
-      {children}
-    </section>
-  );
-}
+/** La couleur d'un passage, dans la bande des derniers résultats. */
+const STRIP_CLASS: Record<string, string> = {
+  healthy: '',
+  unhealthy: 'w',
+  unreachable: 'd',
+  unknown: 'n',
+};
 
-function Field({
-  label,
-  wide,
-  children,
+function ScanSummary({
+  canRead,
+  scan,
+  t,
 }: {
-  label: string;
-  wide?: boolean;
-  children: React.ReactNode;
+  canRead: boolean;
+  scan: {
+    verdict: string | null;
+    scanners: string[];
+    counts: { CRITICAL: number; HIGH: number };
+  } | null;
+  t: T;
 }) {
+  if (!canRead) return <span className="t-cap text-text-3">{t('scan.restricted')}</span>;
+  if (!scan || scan.scanners.length === 0) {
+    return <span className="t-cap text-text-3">{t('scan.none')}</span>;
+  }
   return (
-    <div className={wide ? 'col-span-2 min-w-0' : 'min-w-0'}>
-      <dt className="eyebrow text-text-3">{label}</dt>
-      <dd className="text-text truncate font-mono text-xs">{children}</dd>
-    </div>
+    <span className="flex flex-col items-start gap-1">
+      <span className="flex flex-wrap items-center gap-1.5">
+        <Badge
+          variant={scan.verdict === 'fail' ? 'danger' : scan.verdict === 'pass' ? 'ok' : 'idle'}
+        >
+          {scan.verdict === 'fail'
+            ? t('scan.verdict.fail')
+            : scan.verdict === 'pass'
+              ? t('scan.verdict.pass')
+              : t('scan.verdict.none')}
+        </Badge>
+      </span>
+      <span className="t-cap text-text-3">
+        {t('scan.critical', { count: scan.counts.CRITICAL })} ·{' '}
+        {t('scan.high', { count: scan.counts.HIGH })}
+      </span>
+      <span className="t-cap text-text-3">
+        {t('scan.when', { scanners: scan.scanners.join(' · ') })}
+      </span>
+    </span>
   );
 }
 
 /** Le temps qu'a pris la mise en ligne, quand les deux bornes sont connues. */
-function deployDuration(startedAt: Date | null, finishedAt: Date | null): string {
+function deployDuration(startedAt: Date | null, finishedAt: Date | null, t: T): string {
   if (!startedAt || !finishedAt) return '—';
   const seconds = Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000));
-  if (seconds < 60) return `${seconds} s`;
-  return `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, '0')} s`;
+  if (seconds < 60) return t('duration.seconds', { seconds });
+  return t('duration.minutes', {
+    minutes: Math.floor(seconds / 60),
+    seconds: String(seconds % 60).padStart(2, '0'),
+  });
+}
+
+/** « 12 min », « 3 h » : l'âge d'un incident, dans les unités de la supervision. */
+function shortAge(date: Date, t: Translate<typeof servers.fr>): string {
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 60) return t('since.seconds', { count: seconds });
+  if (seconds < 3600) return t('since.minutes', { count: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('since.hours', { count: Math.floor(seconds / 3600) });
+  return t('since.days', { count: Math.floor(seconds / 86400) });
+}
+
+function clockOf(date: Date, format: FormatSettings): string {
+  return formatDateTimeWith(date, format, { hour: '2-digit', minute: '2-digit' });
 }

@@ -1,8 +1,15 @@
-import { APP_START_JOB, APP_STOP_JOB, deploymentJobDataSchema, isSupervisable } from '@pupitre/core';
+import {
+  APP_START_JOB,
+  APP_STOP_JOB,
+  deploymentJobDataSchema,
+  isSupervisable,
+} from '@pupitre/core';
 import { getDeploymentSummary, logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ConflictError, HttpError, NotFoundError } from '@/lib/errors';
+import { appConsole } from '@/i18n/messages/console';
+import { deployments } from '@/i18n/messages/deployments';
+import { ConflictError, HttpError, NotFoundError, msg, type MessageRef } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
@@ -39,7 +46,7 @@ type Gesture = {
    * Refus quand l'application est déjà dans l'état visé. Rendre 202 sur un
    * geste sans effet ferait croire à une action ; on préfère le dire.
    */
-  refuseWhen: (stoppedAt: Date | null) => string | null;
+  refuseWhen: (stoppedAt: Date | null) => MessageRef | null;
 };
 
 export const STOP_GESTURE: Gesture = {
@@ -49,15 +56,18 @@ export const STOP_GESTURE: Gesture = {
   refuseWhen: (stoppedAt) =>
     stoppedAt === null
       ? null
-      : `Cette application est déjà arrêtée depuis le ${stoppedAt.toLocaleString('fr-FR')}.`,
+      : // Horodatage neutre : la phrase est rendue dans la langue du demandeur,
+        // pas la date — elle se lit en UTC, comme le journal d'activité.
+        msg(appConsole, 'error.alreadyStopped', {
+          date: `${stoppedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+        }),
 };
 
 export const START_GESTURE: Gesture = {
   key: 'start',
   jobName: APP_START_JOB,
   auditAction: 'app.start.requested',
-  refuseWhen: (stoppedAt) =>
-    stoppedAt === null ? "Cette application n'est pas arrêtée : il n'y a rien à démarrer." : null,
+  refuseWhen: (stoppedAt) => (stoppedAt === null ? msg(appConsole, 'error.notStopped') : null),
 };
 
 export function lifecycleRoute(gesture: Gesture) {
@@ -66,15 +76,13 @@ export function lifecycleRoute(gesture: Gesture) {
     const { id } = paramsSchema.parse(await context.params);
 
     const deployment = await getDeploymentSummary(id);
-    if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+    if (!deployment) throw new NotFoundError(msg(deployments, 'error.notFound', { id }));
 
     // Même garde que le redémarrage et que le flux de logs : hors de ces deux
     // statuts, il n'y a pas d'application en marche dont on puisse disposer.
     if (!isSupervisable(deployment.status)) {
       throw new ConflictError(
-        `Un déploiement « ${deployment.status} » n'a pas d'application à ${
-          gesture.key === 'stop' ? 'arrêter' : 'démarrer'
-        }.`,
+        msg(appConsole, `error.notSupervisable.${gesture.key}`, { status: deployment.status }),
       );
     }
 
@@ -86,7 +94,7 @@ export function lifecycleRoute(gesture: Gesture) {
       deploymentJobDataSchema.parse({ deploymentId: id, actorId: auth.userId, ip: auth.ip }),
     );
     if (!job.id) {
-      throw new HttpError(500, 'enqueue_failed', "La tâche n'a pas reçu d'identifiant");
+      throw new HttpError(500, 'enqueue_failed', msg(deployments, 'error.enqueueFailed'));
     }
 
     await logAudit({

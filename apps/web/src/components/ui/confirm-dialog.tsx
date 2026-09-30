@@ -17,6 +17,7 @@ import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 import { common } from '@/i18n/messages/common';
 import { confirmMatches, confirmVariant, type ConfirmLevel } from '@/lib/confirm';
+import { withSlot } from '@/lib/rich';
 
 /**
  * Dialogue de confirmation, en trois niveaux (voir `lib/confirm.ts`).
@@ -180,7 +181,11 @@ function ConfirmBody({
         {retypeName !== undefined ? (
           <div className="field">
             <label htmlFor={inputId} className="label">
-              {retypeLabel ?? t('confirm.retype', { name: retypeName })}
+              {retypeLabel ??
+                withSlot(
+                  (name) => t('confirm.retype', { name }),
+                  <span className="mono">{retypeName}</span>,
+                )}
             </label>
             <input
               id={inputId}
