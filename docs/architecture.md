@@ -224,10 +224,20 @@ onglet ou après 75 s de silence (processus tué), absent après 5 min sans
 interaction. Un balayage toutes les 20 s, sous verrou Redis, annonce ce que le
 temps seul fait changer.
 
-**Discussion** — en base (`chat_messages`, `chat_reads`). Une mention est un
+**Discussion** — une bulle en bas à droite de chaque écran, qui ouvre le fil
+par-dessus la page (couche 55 : sous les tiroirs et dialogues, qui piègent le
+focus). Elle vit dans le layout : elle survit à la navigation, et le fil reste
+à jour en direct même fermé. La bulle porte les non-lus — en rouge quand l'un
+d'eux mentionne la personne ou répond à l'un de ses messages — et un « +1 »
+s'en envole à chaque arrivée.
+
+En base : `chat_messages` (avec `reply_to_id`), `chat_reads`, `chat_reactions`
+(clé `(message, personne, emoji)` : réagir deux fois retire). Une mention est un
 jeton `<@user|target|app:id>` posé par le compositeur, avec son libellé du
-moment ; la route ne garde que celles que l'auteur a le droit d'ouvrir. Texte
-brut, jamais de HTML. Un message effacé garde sa ligne, vidée ; effacer celui
+moment ; la route ne garde que celles que l'auteur a le droit d'ouvrir. Une
+réaction n'est qu'un emoji (`isChatEmoji`), jamais du texte — sinon elle
+deviendrait un second canal de messages. Texte brut, jamais de HTML. Un
+message effacé garde sa ligne, vidée, et perd ses réactions ; effacer celui
 d'un autre demande `user:manage` et passe par `logAudit()`.
 
 ## Ports : la base tranche, la cible vérifie

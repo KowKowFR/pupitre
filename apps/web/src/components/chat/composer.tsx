@@ -1,14 +1,16 @@
 'use client';
 
 import * as React from 'react';
-import { Boxes, SendHorizontal, Server } from 'lucide-react';
-import { CHAT_MESSAGE_MAX, mentionToken } from '@pupitre/core';
+import { Boxes, CornerUpLeft, SendHorizontal, Server, Smile, X } from 'lucide-react';
+import { CHAT_MESSAGE_MAX, mentionToken, type ChatQuote } from '@pupitre/core';
 import { PresenceAvatar } from '@/components/realtime/presence';
-import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { chat as messages } from '@/i18n/messages/chat';
 import type { DirectoryEntry } from '@/lib/chat';
 import { cn } from '@/lib/utils';
+import { EmojiPicker } from './emoji-picker';
 
 /**
  * Le compositeur. `@` ouvre la liste des personnes, machines et applications
@@ -17,7 +19,8 @@ import { cn } from '@/lib/utils';
  * `<@kind:id>` — un « @prod-1 » tapé sans passer par la liste reste du texte.
  *
  * Entrée envoie, Maj + Entrée va à la ligne. Dans la liste : flèches, Entrée
- * ou Tab pour choisir, Échap pour fermer.
+ * ou Tab pour choisir, Échap pour fermer. Échap, hors de la liste, annule la
+ * réponse en cours.
  */
 
 type Suggest = { query: string; start: number; index: number };
@@ -65,9 +68,16 @@ function encode(text: string, picked: readonly DirectoryEntry[]): string {
 export function Composer({
   directory,
   onSend,
+  replyTo,
+  onCancelReply,
+  autoFocus = false,
 }: {
   directory: readonly DirectoryEntry[];
   onSend: (body: string) => Promise<boolean>;
+  /** Le message auquel on répond, montré au-dessus de la saisie. */
+  replyTo: ChatQuote | null;
+  onCancelReply: () => void;
+  autoFocus?: boolean;
 }) {
   const t = useT(messages);
   const listId = React.useId();
@@ -76,15 +86,43 @@ export function Composer({
   const [picked, setPicked] = React.useState<DirectoryEntry[]>([]);
   const [suggest, setSuggest] = React.useState<Suggest | null>(null);
   const [sending, setSending] = React.useState(false);
+  const [emojiOpen, setEmojiOpen] = React.useState(false);
+  /** Où poser le curseur au prochain rendu : dans le même cadre que le texte, pas après. */
+  const caret = React.useRef<number | null>(null);
 
   const candidates = suggest ? candidatesFor(directory, suggest.query) : [];
   const open = suggest !== null;
   const over = text.trim().length - CHAT_MESSAGE_MAX;
 
-  // Hauteur au contenu, de une à huit lignes.
+  React.useEffect(() => {
+    if (autoFocus) area.current?.focus();
+  }, [autoFocus]);
+
+  // Répondre ramène le curseur dans la saisie.
+  React.useEffect(() => {
+    if (replyTo) area.current?.focus();
+  }, [replyTo]);
+
+  /** L'emoji entre là où est le curseur, et le curseur repart juste après. */
+  function insertEmoji(emoji: string) {
+    const node = area.current;
+    const start = node?.selectionStart ?? text.length;
+    const end = node?.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    caret.current = start + emoji.length;
+    setText(next);
+    setEmojiOpen(false);
+  }
+
+  // Hauteur au contenu, de une à huit lignes — et le curseur là où on l'a demandé.
   React.useLayoutEffect(() => {
     const node = area.current;
     if (!node) return;
+    if (caret.current !== null) {
+      node.focus();
+      node.setSelectionRange(caret.current, caret.current);
+      caret.current = null;
+    }
     node.style.height = 'auto';
     node.style.height = `${Math.min(node.scrollHeight, 8 * 21 + 18)}px`;
   }, [text]);
@@ -102,17 +140,13 @@ export function Composer({
   function pick(entry: DirectoryEntry) {
     const node = area.current;
     if (!suggest || !node) return;
-    const caret = node.selectionStart;
+    const end = node.selectionStart;
     const inserted = `@${entry.label} `;
-    const next = text.slice(0, suggest.start) + inserted + text.slice(caret);
+    const next = text.slice(0, suggest.start) + inserted + text.slice(end);
+    caret.current = suggest.start + inserted.length;
     setText(next);
     setPicked((current) => [...current, entry]);
     setSuggest(null);
-    requestAnimationFrame(() => {
-      const position = suggest.start + inserted.length;
-      node.focus();
-      node.setSelectionRange(position, position);
-    });
   }
 
   async function submit() {
@@ -151,6 +185,12 @@ export function Composer({
     if (open && event.key === 'Escape') {
       event.preventDefault();
       setSuggest(null);
+      return;
+    }
+    if (!open && event.key === 'Escape' && replyTo) {
+      event.preventDefault();
+      event.stopPropagation();
+      onCancelReply();
       return;
     }
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -218,6 +258,21 @@ export function Composer({
         </div>
       ) : null}
 
+      {replyTo ? (
+        <div className="mb-2 flex items-start gap-2 rounded-md border-l-2 border-accent bg-accent-soft py-1.5 pr-1 pl-2.5">
+          <CornerUpLeft aria-hidden className="mt-0.5 size-3.5 shrink-0 text-accent-text" />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="t-cap font-semibold text-accent-text">
+              {t('reply.to', { name: replyTo.authorName ?? t('message.unknownAuthor') })}
+            </span>
+            <span className="t-cap truncate text-text-2">{replyTo.excerpt}</span>
+          </span>
+          <IconButton label={t('reply.cancel')} size="icon-sm" onClick={onCancelReply}>
+            <X />
+          </IconButton>
+        </div>
+      ) : null}
+
       <div className="flex items-end gap-2">
         <label className="sr-only" htmlFor={`${listId}-input`}>
           {t('composer.label')}
@@ -242,15 +297,25 @@ export function Composer({
           onKeyDown={onKeyDown}
           onBlur={() => setSuggest(null)}
         />
-        <Button
-          type="button"
+        <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+          <PopoverTrigger asChild>
+            <IconButton label={t('composer.emoji')} variant="ghost">
+              <Smile />
+            </IconButton>
+          </PopoverTrigger>
+          <PopoverContent side="top" align="end" className="w-auto p-0">
+            <EmojiPicker onPick={insertEmoji} />
+          </PopoverContent>
+        </Popover>
+        <IconButton
+          label={t('composer.send')}
+          variant="default"
           loading={sending}
           disabled={text.trim().length === 0 || over > 0}
           onClick={() => void submit()}
         >
-          <SendHorizontal aria-hidden />
-          {t('composer.send')}
-        </Button>
+          <SendHorizontal />
+        </IconButton>
       </div>
       <p className={cn('t-cap mt-1.5', over > 0 ? 'text-danger-text' : 'text-text-3')}>
         {over > 0 ? t('composer.tooLong', { count: over }) : t('composer.hint')}

@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useOptionalRealtime } from '@/components/realtime/realtime-provider';
 import { Led } from '@/components/ui/led';
 import { activeSection, type SectionKey } from '@/lib/navigation';
 import { cn } from '@/lib/utils';
@@ -33,12 +32,6 @@ export function NavItem({
   const pathname = usePathname();
   const active = activeSection(pathname) === section;
   const Icon = SECTION_ICON[section];
-  // Les non-lus de la discussion vivent dans le flux temps réel, pas dans le
-  // rendu serveur du rail : ils changent sans navigation.
-  const realtime = useOptionalRealtime();
-  if (section === 'chat' && realtime && realtime.unread > 0) {
-    meta = { kind: 'count', value: realtime.unread };
-  }
 
   return (
     <Link

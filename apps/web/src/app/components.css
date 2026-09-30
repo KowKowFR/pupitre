@@ -289,6 +289,50 @@
   .presence-dot.is-inline { position: static; display: inline-block; flex-shrink: 0; border: 0; width: 8px; height: 8px; }
   .presence-dot.is-inline.is-busy::after { left: 1px; right: 1px; }
 
+  /* ---------- discussion : la bulle et son panneau ---------- */
+  /* La bulle vit en bas à droite de chaque écran ; les toasts remontent
+     au-dessus d'elle, et s'écartent du panneau quand il est ouvert.
+     Couche 55 : au-dessus de la page, sous les tiroirs et les dialogues (qui
+     piègent le focus — le fil n'y serait pas utilisable), et sous les menus,
+     popovers et info-bulles qui s'ouvrent depuis le panneau lui-même. */
+  .chat-bubble {
+    position: fixed; right: 20px; bottom: 20px; z-index: 55; width: 52px; height: 52px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: var(--sh-lg);
+    transition: transform var(--d-2) var(--ease-out), background var(--d-2);
+  }
+  .chat-bubble:hover { transform: translateY(-2px); }
+  .chat-bubble:focus-visible { outline: none; box-shadow: var(--sh-lg), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+  .chat-bubble > svg { width: 22px; height: 22px; }
+  .chat-bubble.is-open { background: var(--text); color: var(--bg); }
+  .chat-bubble .count {
+    position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px;
+    display: grid; place-items: center; font-size: 11px; font-weight: 600; line-height: 1;
+    background: var(--text); color: var(--bg); border: 2px solid var(--bg); font-variant-numeric: tabular-nums;
+  }
+  .chat-bubble .count.is-mention { background: var(--danger); color: #fff; }
+  .chat-plus {
+    position: absolute; top: -10px; left: 50%; padding: 1px 6px; border-radius: 9px; pointer-events: none;
+    background: var(--surface); color: var(--accent-text); box-shadow: var(--sh-sm);
+    font-size: 11px; font-weight: 700; line-height: 16px; white-space: nowrap;
+    animation: chat-plus 1.2s var(--ease-out) both;
+  }
+  .chat-panel {
+    position: fixed; right: 20px; bottom: 84px; z-index: 55; display: flex; flex-direction: column;
+    width: min(400px, calc(100vw - 32px)); height: min(640px, calc(100dvh - 108px));
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--sh-lg);
+    overflow: hidden; transform-origin: bottom right; animation: pp-pop var(--d-2) var(--ease-out) both;
+  }
+  .chat-flash { animation: chat-flash 1.6s var(--ease-out); }
+  body:has(.chat-bubble) .toasts { bottom: 84px; }
+  @media (min-width: 900px) {
+    body:has(.chat-panel) .toasts { right: 436px; }
+  }
+  @media (max-width: 640px) {
+    .chat-bubble { right: 16px; bottom: 16px; }
+    .chat-panel { inset: 0; width: auto; height: auto; border-radius: 0; border: 0; }
+    body:has(.chat-panel) .chat-bubble { display: none; }
+  }
+
   /* ---------- surfaces ---------- */
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--sh-xs); min-width: 0; }
   .card-h { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); }
@@ -649,6 +693,17 @@
   .codeblock .n { color: var(--sev-high); }
 }
 
+@keyframes chat-plus {
+  from { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+  20% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  to { opacity: 0; transform: translate(-50%, -22px); }
+}
+
+@keyframes chat-flash {
+  0%, 40% { background: var(--accent-soft); }
+  to { background: transparent; }
+}
+
 @keyframes pp-tip {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: none; }
@@ -659,4 +714,7 @@
   .led-pulse::after {
     display: none;
   }
+  /* Le « +1 » reste lisible, sans s'envoler. */
+  .chat-plus { animation: none; top: -12px; transform: translateX(-50%); }
+  .chat-bubble, .chat-panel { transition: none; animation: none; }
 }

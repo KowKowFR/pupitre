@@ -2,7 +2,14 @@ import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { CHAT_DEFAULT_CHANNEL } from '@pupitre/core';
-import { countUnreadChat, getAppSettings, listChatMembers, listRoles } from '@pupitre/db';
+import {
+  countUnreadChat,
+  countUnreadChatMentions,
+  getAppSettings,
+  listChatMembers,
+  listRoles,
+} from '@pupitre/db';
+import { ChatDock } from '@/components/chat/chat-dock';
 import { RealtimeProvider } from '@/components/realtime/realtime-provider';
 import { CrumbProvider } from '@/components/shell/breadcrumb';
 import type { NavMeta } from '@/components/shell/nav-item';
@@ -14,6 +21,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { getT } from '@/i18n/server';
 import { chrome } from '@/i18n/messages/chrome';
 import { onboarding } from '@/i18n/messages/onboarding';
+import { formatSettingsOf } from '@/lib/format';
 import { visibleCommands, visibleNavigation } from '@/lib/navigation';
 import { offerOnboarding, onboardingGate } from '@/lib/onboarding-gate';
 import {
@@ -77,6 +85,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     cookieStore,
     chatMembers,
     chatUnread,
+    chatMentions,
   ] = await Promise.all([
     attentionFor(auth),
     auth.can('target:read') ? loadTargets() : Promise.resolve(null),
@@ -88,6 +97,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     cookies(),
     listChatMembers(),
     countUnreadChat(auth.userId, CHAT_DEFAULT_CHANNEL),
+    countUnreadChatMentions(auth.userId, CHAT_DEFAULT_CHANNEL),
   ]);
 
   const metas: Partial<Record<string, NavMeta>> = {};
@@ -131,6 +141,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         me={auth.userId}
         members={chatMembers.map((member) => ({ id: member.id, name: member.name }))}
         initialUnread={chatUnread}
+        initialMentions={chatMentions}
       >
         <ShellProvider sections={sections} commands={visibleCommands(auth.can)}>
           <CrumbProvider>
@@ -159,6 +170,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                 </main>
               </div>
             </div>
+            <ChatDock canModerate={auth.can('user:manage')} format={formatSettingsOf(settings)} />
             <Toaster />
           </CrumbProvider>
         </ShellProvider>

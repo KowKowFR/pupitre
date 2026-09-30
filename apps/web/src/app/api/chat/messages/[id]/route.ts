@@ -24,7 +24,9 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   if (!message || message.deleted) throw new NotFoundError(msg(messages, 'error.notFound'));
 
   const own = message.authorId === auth.userId;
-  if (!own && !auth.can('user:manage')) throw new ForbiddenError('user:manage');
+  if (!own && !auth.can('user:manage')) {
+    throw new ForbiddenError('user:manage', msg(messages, 'error.forbidden'));
+  }
 
   await deleteChatMessage(id);
   if (!own) {

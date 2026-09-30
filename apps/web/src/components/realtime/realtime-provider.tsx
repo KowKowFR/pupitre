@@ -35,6 +35,8 @@ type Hello = {
   me: string;
   presence: Record<string, PresenceStatus>;
   unread: number;
+  /** Parmi les non-lus, ceux qui s'adressent à la personne (mention, réponse). */
+  mentions: number;
   choice: PresenceChoice | null;
 };
 
@@ -59,10 +61,12 @@ type RealtimeValue = {
   choice: PresenceChoice | null;
   setChoice: (choice: PresenceChoice | null) => Promise<void>;
   unread: number;
-  /** Tous les onglets remettent le compteur à zéro. */
+  mentions: number;
+  /** Tous les onglets remettent les compteurs à zéro. */
   clearUnread: () => void;
-  /** La page Discussion est ouverte et visible : ni compteur, ni toast. */
-  setReading: (reading: boolean) => void;
+  /** La discussion est ouverte dans cet onglet : visible, elle vaut lecture. */
+  chatOpen: boolean;
+  setChatOpen: (open: boolean) => void;
   subscribe: <T extends RealtimeEventType>(
     type: T,
     handler: (event: EventOf<T>) => void,
@@ -77,6 +81,7 @@ const EVENT_TYPES: RealtimeEventType[] = [
   'presence',
   'chat.message',
   'chat.deleted',
+  'chat.reactions',
   'live',
   'activity',
 ];
@@ -85,24 +90,34 @@ export function RealtimeProvider({
   me,
   members,
   initialUnread,
+  initialMentions,
   children,
 }: {
   me: string;
   members: Member[];
   initialUnread: number;
+  initialMentions: number;
   children: React.ReactNode;
 }) {
   const t = useT(messages);
   const [connected, setConnected] = React.useState(false);
   const [presence, setPresence] = React.useState<Record<string, PresenceStatus>>({});
   const [unread, setUnread] = React.useState(initialUnread);
+  const [mentions, setMentions] = React.useState(initialMentions);
   const [choice, setChoiceState] = React.useState<PresenceChoice | null>(null);
+  const [chatOpen, setChatOpenState] = React.useState(false);
 
   const handlers = React.useRef(new Map<RealtimeEventType, Set<Handler>>());
   const bus = React.useRef<BroadcastChannel | null>(null);
   const reading = React.useRef(false);
   // Ce que le meneur rediffuse à un onglet qui arrive.
-  const state = React.useRef<Hello>({ me, presence: {}, unread: initialUnread, choice: null });
+  const state = React.useRef<Hello>({
+    me,
+    presence: {},
+    unread: initialUnread,
+    mentions: initialMentions,
+    choice: null,
+  });
   const choiceRef = React.useRef<PresenceChoice | null>(null);
   const tRef = React.useRef(t);
   React.useEffect(() => {
@@ -114,8 +129,33 @@ export function RealtimeProvider({
     choiceRef.current = hello.choice;
     setPresence(hello.presence);
     setUnread(hello.unread);
+    setMentions(hello.mentions);
     setChoiceState(hello.choice);
   }, []);
+
+  const setChatOpen = React.useCallback((open: boolean) => {
+    reading.current = open;
+    setChatOpenState(open);
+    try {
+      sessionStorage.setItem('pupitre.chat.open', open ? '1' : '0');
+    } catch {
+      // Stockage indisponible (navigation privée) : l'état ne survit pas au rechargement.
+    }
+  }, []);
+
+  // Rouverte après un rechargement si elle l'était : on ne perd pas le fil.
+  // Au cadre suivant, pas au rendu : le serveur, lui, l'a rendue fermée.
+  React.useEffect(() => {
+    let reopen = false;
+    try {
+      reopen = sessionStorage.getItem('pupitre.chat.open') === '1';
+    } catch {
+      // Rien à restaurer.
+    }
+    if (!reopen) return;
+    const frame = requestAnimationFrame(() => setChatOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, [setChatOpen]);
 
   const receive = React.useCallback(
     (event: RealtimeEvent) => {
@@ -128,17 +168,24 @@ export function RealtimeProvider({
       } else if (event.type === 'chat.message' && event.message.authorId !== me) {
         const visible = typeof document !== 'undefined' && document.visibilityState === 'visible';
         if (!(reading.current && visible)) {
-          state.current = { ...state.current, unread: state.current.unread + 1 };
-          setUnread((count) => count + 1);
           const mentioned = event.message.mentions.some(
             (mention) => mention.kind === 'user' && mention.id === me,
           );
-          if (mentioned && choiceRef.current !== 'busy' && visible) {
+          const repliedTo = event.message.replyTo?.authorId === me;
+          state.current = {
+            ...state.current,
+            unread: state.current.unread + 1,
+            mentions: state.current.mentions + (mentioned || repliedTo ? 1 : 0),
+          };
+          setUnread((count) => count + 1);
+          if (mentioned || repliedTo) setMentions((count) => count + 1);
+          if ((mentioned || repliedTo) && choiceRef.current !== 'busy' && visible) {
+            const name = event.message.authorName ?? '—';
             toast({
-              title: tRef.current('toast.mention', { name: event.message.authorName ?? '—' }),
+              title: tRef.current(mentioned ? 'toast.mention' : 'toast.reply', { name }),
               description: chatPlainText(event.message.body, event.message.mentions).slice(0, 160),
               tone: 'accent',
-              action: { label: tRef.current('toast.open'), href: '/chat' },
+              action: { label: tRef.current('toast.open'), onClick: () => setChatOpen(true) },
             });
           }
         }
@@ -151,7 +198,7 @@ export function RealtimeProvider({
         }
       }
     },
-    [me],
+    [me, setChatOpen],
   );
 
   // ── Transport : un meneur, des suiveurs ─────────────────────────────────
@@ -175,8 +222,9 @@ export function RealtimeProvider({
         else if (data.kind === 'hello') applyHello(data.hello);
         else if (data.kind === 'connected') setConnected(data.connected);
         else if (data.kind === 'read') {
-          state.current = { ...state.current, unread: 0 };
+          state.current = { ...state.current, unread: 0, mentions: 0 };
           setUnread(0);
+          setMentions(0);
         } else if (data.kind === 'sync' && leading) {
           post({ kind: 'hello', hello: state.current });
           post({ kind: 'connected', connected: source?.readyState === EventSource.OPEN });
@@ -301,17 +349,18 @@ export function RealtimeProvider({
         }).catch(() => undefined);
       },
       unread,
+      mentions,
       clearUnread: () => {
-        state.current = { ...state.current, unread: 0 };
+        state.current = { ...state.current, unread: 0, mentions: 0 };
         setUnread(0);
+        setMentions(0);
         bus.current?.postMessage({ kind: 'read' } satisfies BusMessage);
       },
-      setReading: (next) => {
-        reading.current = next;
-      },
+      chatOpen,
+      setChatOpen,
       subscribe,
     }),
-    [me, connected, presence, members, choice, unread, subscribe],
+    [me, connected, presence, members, choice, unread, mentions, chatOpen, setChatOpen, subscribe],
   );
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;

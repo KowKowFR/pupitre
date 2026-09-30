@@ -1,5 +1,5 @@
 import { CHAT_DEFAULT_CHANNEL, PRESENCE_TOUCH_MS, type RealtimeEvent } from '@pupitre/core';
-import { countUnreadChat } from '@pupitre/db';
+import { countUnreadChat, countUnreadChatMentions } from '@pupitre/db';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { requireSession } from '@/lib/rbac';
@@ -78,12 +78,13 @@ export const GET = apiRoute(async (request) => {
 
       try {
         await presenceConnected(auth.userId);
-        const [presence, unread, choice] = await Promise.all([
+        const [presence, unread, mentions, choice] = await Promise.all([
           presenceSnapshot(),
           countUnreadChat(auth.userId, CHAT_DEFAULT_CHANNEL),
+          countUnreadChatMentions(auth.userId, CHAT_DEFAULT_CHANNEL),
           getPresenceChoice(auth.userId),
         ]);
-        send('hello', { me: auth.userId, presence, unread, choice });
+        send('hello', { me: auth.userId, presence, unread, mentions, choice });
       } catch (error) {
         logger.error({ err: error }, 'flux temps réel indisponible');
         send('error', { code: 'unavailable' });

@@ -4,12 +4,12 @@ import {
   CHAT_PAGE_SIZE,
   keepMentions,
 } from '@pupitre/core';
-import { insertChatMessage, listChatMessages, markChatRead } from '@pupitre/db';
+import { getChatMessage, insertChatMessage, listChatMessages, markChatRead } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { chat as messages } from '@/i18n/messages/chat';
 import { resolveMentions } from '@/lib/chat';
-import { HttpError, msg } from '@/lib/errors';
+import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { enforceRateLimit, type RateLimitRule } from '@/lib/rate-limit';
 import { requireSession } from '@/lib/rbac';
@@ -34,7 +34,11 @@ export const GET = apiRoute(async (request) => {
   return NextResponse.json({ items, hasMore: items.length === query.limit });
 });
 
-const bodySchema = z.object({ body: z.string().max(CHAT_MESSAGE_MAX * 2) });
+const bodySchema = z.object({
+  body: z.string().max(CHAT_MESSAGE_MAX * 2),
+  /** Le message auquel on répond. Il doit exister, dans ce salon, et ne pas être effacé. */
+  replyToId: z.string().uuid().nullable().default(null),
+});
 
 /**
  * Écrire à l'équipe. Les mentions sont revérifiées ici : un jeton vers ce que
@@ -61,6 +65,13 @@ export const POST = apiRoute(async (request) => {
     );
   }
 
+  if (input.replyToId) {
+    const original = await getChatMessage(input.replyToId);
+    if (!original || original.deleted || original.channel !== CHAT_DEFAULT_CHANNEL) {
+      throw new NotFoundError(msg(messages, 'error.replyNotFound'));
+    }
+  }
+
   const mentions = await resolveMentions(raw, auth);
   const body = keepMentions(raw, mentions);
   const message = await insertChatMessage({
@@ -68,6 +79,7 @@ export const POST = apiRoute(async (request) => {
     authorId: auth.userId,
     body,
     mentions,
+    replyToId: input.replyToId,
   });
   await markChatRead(auth.userId, CHAT_DEFAULT_CHANNEL, new Date(message.createdAt));
 
@@ -80,6 +92,8 @@ export const POST = apiRoute(async (request) => {
       authorName: message.authorName,
       body: message.body,
       mentions: message.mentions,
+      replyTo: message.replyTo,
+      reactions: message.reactions,
       createdAt: message.createdAt,
     },
   });

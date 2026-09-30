@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import type { PresenceStatus } from '@pupitre/core';
 import { MessagesSquare } from 'lucide-react';
 import { Avatar } from '@/components/ui/data';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useT } from '@/i18n/client';
 import { chat as messages } from '@/i18n/messages/chat';
 import { cn } from '@/lib/utils';
@@ -69,13 +68,13 @@ export function sortByPresence(
 }
 
 /**
- * La barre haute : qui d'autre est là (quelques avatars, puis « +3 »), et
- * l'accès à la discussion avec ses non-lus. Un clic sur les avatars ouvre la
- * liste complète de l'équipe.
+ * La barre haute : qui d'autre est là (quelques avatars, puis « +3 »). Un clic
+ * ouvre la liste complète de l'équipe, et de là, la discussion. La discussion
+ * elle-même vit dans sa bulle, en bas à droite de chaque écran.
  */
 export function TeamPresence() {
   const t = useT(messages);
-  const { members, me, statusOf, unread, connected } = useRealtime();
+  const { members, me, statusOf, setChatOpen } = useRealtime();
   const others = sortByPresence(
     members.filter((member) => member.id !== me),
     statusOf,
@@ -132,27 +131,16 @@ export function TeamPresence() {
               ))
             )}
           </ul>
+          <div className="border-t border-border p-1.5">
+            <PopoverClose asChild>
+              <button type="button" className="menu-item w-full" onClick={() => setChatOpen(true)}>
+                <MessagesSquare aria-hidden />
+                {t('dock.open')}
+              </button>
+            </PopoverClose>
+          </div>
         </PopoverContent>
       </Popover>
-
-      <Link
-        href="/chat"
-        className="btn btn-ghost btn-icon relative"
-        aria-label={
-          unread > 0
-            ? `${t('presence.chat')} · ${t('presence.unread', { count: unread })}`
-            : t('presence.chat')
-        }
-        title={t('presence.chat')}
-      >
-        <MessagesSquare aria-hidden />
-        {unread > 0 ? (
-          <span className="badge b-count absolute -top-1 -right-1 min-w-[18px] justify-center px-1">
-            {unread > 99 ? '99+' : unread}
-          </span>
-        ) : null}
-        {!connected ? <span className="sr-only">{t('offline')}</span> : null}
-      </Link>
     </div>
   );
 }
