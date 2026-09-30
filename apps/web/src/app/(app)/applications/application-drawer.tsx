@@ -76,7 +76,12 @@ export function ApplicationDrawer({
   const runtime =
     runtimeChoice && target?.runtimes.includes(runtimeChoice) ? runtimeChoice : target?.runtimes[0];
 
-  if (!application) return <Drawer open={false} onOpenChange={onOpenChange}>{null}</Drawer>;
+  if (!application)
+    return (
+      <Drawer open={false} onOpenChange={onOpenChange}>
+        {null}
+      </Drawer>
+    );
 
   return (
     <Drawer
@@ -145,7 +150,8 @@ export function ApplicationDrawer({
                     >
                       {targets.map((candidate) => (
                         <option key={candidate.id} value={candidate.id}>
-                          {candidate.name} · {candidate.runtimes
+                          {candidate.name} ·{' '}
+                          {candidate.runtimes
                             .map((entry) =>
                               entry === 'docker'
                                 ? `Docker ${candidate.dockerVersion ?? ''}`.trim()
@@ -194,7 +200,9 @@ export function ApplicationDrawer({
         {canDeploy && target && runtime ? (
           <Button loading={busy} onClick={() => onDeploy(target.id, runtime)}>
             {busy ? null : <Rocket aria-hidden />}
-            {busy ? t('action.sending') : t('drawer.deploy.action', { version: application.version })}
+            {busy
+              ? t('action.sending')
+              : t('drawer.deploy.action', { version: application.version })}
           </Button>
         ) : null}
         <Button variant="secondary" asChild>

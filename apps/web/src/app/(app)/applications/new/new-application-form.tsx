@@ -218,7 +218,9 @@ function parseReview(text: string, words: ReviewWords): ReviewSpec | null {
       env: isRecord(service.env)
         ? Object.entries(service.env).map(([key, value]) => [key, str(value)])
         : [],
-      secrets: arr(service.secrets).map(describeSecret).filter((entry) => entry !== ''),
+      secrets: arr(service.secrets)
+        .map(describeSecret)
+        .filter((entry) => entry !== ''),
       volumes: arr(service.volumes)
         .filter(isRecord)
         .map((volume) => ({
@@ -227,7 +229,9 @@ function parseReview(text: string, words: ReviewWords): ReviewSpec | null {
           size: typeof volume.size === 'string' ? volume.size : null,
         })),
       health: describeHealth(service.healthcheck, words),
-      dependsOn: arr(service.dependsOn).map((entry) => str(entry)).filter((e) => e !== ''),
+      dependsOn: arr(service.dependsOn)
+        .map((entry) => str(entry))
+        .filter((e) => e !== ''),
     }));
 
   const ingress = isRecord(raw.ingress)
@@ -279,7 +283,9 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
       <div className="flex flex-wrap items-baseline gap-2">
         <span className="t-h mono">{spec.name}</span>
         <span className="mono t-cap text-text-3">{spec.version}</span>
-        <span className="t-sm text-text-3">{t('review.services', { count: spec.services.length })}</span>
+        <span className="t-sm text-text-3">
+          {t('review.services', { count: spec.services.length })}
+        </span>
       </div>
 
       <div className="card card-flat overflow-hidden">
@@ -289,11 +295,18 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
               service.port !== null ? t('review.port', { port: service.port }) : null,
               service.replicas !== null && service.replicas > 1 ? `×${service.replicas}` : null,
               service.health ? t('review.health', { value: service.health }) : null,
-              service.dependsOn.length > 0 ? t('review.dependsOn', { list: service.dependsOn.join(', ') }) : null,
-              service.secrets.length > 0 ? t('review.secrets', { list: service.secrets.join(', ') }) : null,
+              service.dependsOn.length > 0
+                ? t('review.dependsOn', { list: service.dependsOn.join(', ') })
+                : null,
+              service.secrets.length > 0
+                ? t('review.secrets', { list: service.secrets.join(', ') })
+                : null,
               service.volumes.length > 0
                 ? `${t('review.volumes')} ${service.volumes
-                    .map((volume) => `${volume.name} → ${volume.mountPath}${volume.size ? ` (${volume.size})` : ''}`)
+                    .map(
+                      (volume) =>
+                        `${volume.name} → ${volume.mountPath}${volume.size ? ` (${volume.size})` : ''}`,
+                    )
                     .join(', ')}`
                 : null,
             ].filter(Boolean);
@@ -304,7 +317,9 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
                   {service.exposed ? <Badge variant="accent">{t('review.exposed')}</Badge> : null}
                   <span className="mono t-cap text-text-3">{service.image}</span>
                 </span>
-                {parts.length > 0 ? <span className="t-cap text-text-3">{parts.join(' · ')}</span> : null}
+                {parts.length > 0 ? (
+                  <span className="t-cap text-text-3">{parts.join(' · ')}</span>
+                ) : null}
                 {service.env.length > 0 ? (
                   <span className="mono t-cap text-text-3">
                     {service.env.map(([key, value]) => `${key}=${value}`).join('  ')}
@@ -429,9 +444,7 @@ export function NewApplicationForm({
       const response = await fetch('/api/applications/generate', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(
-          Object.keys(hints).length > 0 ? { prompt, hints } : { prompt },
-        ),
+        body: JSON.stringify(Object.keys(hints).length > 0 ? { prompt, hints } : { prompt }),
       });
 
       if (!response.ok) {
@@ -561,7 +574,11 @@ export function NewApplicationForm({
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <Tabs label={t('new.card.title')}>
-              <Tab selected={tab === 'prompt'} disabled={!aiEnabled} onClick={() => setTab('prompt')}>
+              <Tab
+                selected={tab === 'prompt'}
+                disabled={!aiEnabled}
+                onClick={() => setTab('prompt')}
+              >
                 {t('tab.fromPrompt')}
               </Tab>
               <Tab selected={tab === 'json'} onClick={() => setTab('json')}>
@@ -584,7 +601,9 @@ export function NewApplicationForm({
                   </Alert>
                 ) : null}
 
-                {aiEnabled && modelWarning ? <Alert variant="destructive">{modelWarning}</Alert> : null}
+                {aiEnabled && modelWarning ? (
+                  <Alert variant="destructive">{modelWarning}</Alert>
+                ) : null}
 
                 <Field label={t('form.prompt.label')} help={t('form.prompt.help')}>
                   <Textarea
@@ -632,7 +651,11 @@ export function NewApplicationForm({
                     disabled={!aiEnabled || prompt.trim().length < 8}
                   >
                     {generating ? null : <Sparkles aria-hidden />}
-                    {generating ? t('generate.pending') : origin ? t('generate.again') : t('generate.action')}
+                    {generating
+                      ? t('generate.pending')
+                      : origin
+                        ? t('generate.again')
+                        : t('generate.action')}
                   </Button>
                 </div>
                 <p className="help">
@@ -699,7 +722,9 @@ export function NewApplicationForm({
                   <Select
                     value={deployRuntime}
                     disabled={!selectedTarget}
-                    onChange={(event) => setDeployRuntime(event.target.value === 'k3s' ? 'k3s' : 'docker')}
+                    onChange={(event) =>
+                      setDeployRuntime(event.target.value === 'k3s' ? 'k3s' : 'docker')
+                    }
                   >
                     {(selectedTarget?.runtimes ?? ['docker' as const]).map((entry) => (
                       <option key={entry} value={entry}>
@@ -754,7 +779,11 @@ export function NewApplicationForm({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {review ? <SpecReview spec={review} /> : <p className="t-sm text-text-3">{t('new.review.empty')}</p>}
+            {review ? (
+              <SpecReview spec={review} />
+            ) : (
+              <p className="t-sm text-text-3">{t('new.review.empty')}</p>
+            )}
           </CardContent>
         </Card>
 

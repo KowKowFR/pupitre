@@ -169,7 +169,13 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         </div>
         <div className="field">
           <Label htmlFor="sshUser">{t('field.sshUser')}</Label>
-          <Input id="sshUser" name="sshUser" defaultValue={values.sshUser} required className="mono" />
+          <Input
+            id="sshUser"
+            name="sshUser"
+            defaultValue={values.sshUser}
+            required
+            className="mono"
+          />
         </div>
         <div className="field">
           <Label htmlFor="host">{t('field.host')}</Label>

@@ -45,10 +45,17 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
             <KeyValue
               items={[
                 { term: t('row.os'), value: report.os.prettyName ?? report.os.name ?? tc('none') },
-                { term: t('row.kernel'), value: <span className="mono">{report.os.uname ?? tc('none')}</span> },
+                {
+                  term: t('row.kernel'),
+                  value: <span className="mono">{report.os.uname ?? tc('none')}</span>,
+                },
                 {
                   term: t('row.latency'),
-                  value: <span className="mono">{report.latencyMs === null ? tc('none') : `${report.latencyMs} ms`}</span>,
+                  value: (
+                    <span className="mono">
+                      {report.latencyMs === null ? tc('none') : `${report.latencyMs} ms`}
+                    </span>
+                  ),
                 },
                 {
                   term: t('row.sudo'),
@@ -71,7 +78,10 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
                 {
                   term: t('row.memory'),
                   value: report.memory
-                    ? t('memory.value', { available: report.memory.availableMb, total: report.memory.totalMb })
+                    ? t('memory.value', {
+                        available: report.memory.availableMb,
+                        total: report.memory.totalMb,
+                      })
                     : tc('none'),
                 },
                 {
@@ -88,7 +98,11 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
                 },
                 {
                   term: t('row.compose'),
-                  value: <span className="mono">{report.runtimes.docker.composeVersion ?? tc('none')}</span>,
+                  value: (
+                    <span className="mono">
+                      {report.runtimes.docker.composeVersion ?? tc('none')}
+                    </span>
+                  ),
                 },
                 {
                   term: t('row.readyNodes'),
@@ -127,7 +141,11 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
                       <Badge
                         dot
                         variant={
-                          check.status === 'success' ? 'ok' : check.status === 'failed' ? 'danger' : 'idle'
+                          check.status === 'success'
+                            ? 'ok'
+                            : check.status === 'failed'
+                              ? 'danger'
+                              : 'idle'
                         }
                       >
                         {t(`check.status.${check.status}`)}

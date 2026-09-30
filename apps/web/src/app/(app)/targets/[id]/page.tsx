@@ -179,7 +179,10 @@ export default async function TargetDetailPage({
             tone={toneOf(latest?.loadPercent ?? null, HOST_METRIC_CATALOG.load.defaultLimitPercent)}
             hint={
               latest?.loadPercent != null && latest.cores
-                ? t('readout.load.hint', { count: latest.cores, value: Math.round(latest.loadPercent) })
+                ? t('readout.load.hint', {
+                    count: latest.cores,
+                    value: Math.round(latest.loadPercent),
+                  })
                 : t('readout.none')
             }
           />
@@ -188,7 +191,10 @@ export default async function TargetDetailPage({
             aside={trendOf(history?.summary.memory, t)}
             value={latest?.memoryPercent == null ? '—' : Math.round(latest.memoryPercent)}
             unit={latest?.memoryPercent == null ? undefined : '%'}
-            tone={toneOf(latest?.memoryPercent ?? null, HOST_METRIC_CATALOG.memory.defaultLimitPercent)}
+            tone={toneOf(
+              latest?.memoryPercent ?? null,
+              HOST_METRIC_CATALOG.memory.defaultLimitPercent,
+            )}
             hint={
               latest?.memoryTotalKb
                 ? t('readout.memory.hint', {
@@ -262,7 +268,10 @@ export default async function TargetDetailPage({
                   <RuntimePill
                     name="K3s"
                     version={target.runtimesAvailable.k3s.version}
-                    available={target.runtimesAvailable.k3s.available && target.runtimesAvailable.k3s.clusterReady}
+                    available={
+                      target.runtimesAvailable.k3s.available &&
+                      target.runtimesAvailable.k3s.clusterReady
+                    }
                   />
                 </div>
                 <p className="t-sm text-text-2">
@@ -312,11 +321,15 @@ export default async function TargetDetailPage({
                 },
                 {
                   term: t('field.authMethod'),
-                  value: target.authMethod === 'key' ? t('value.auth.key') : t('value.auth.password'),
+                  value:
+                    target.authMethod === 'key' ? t('value.auth.key') : t('value.auth.password'),
                 },
                 {
                   term: t('field.sudoMethod'),
-                  value: target.sudoMethod === 'nopasswd' ? t('value.sudo.nopasswd') : t('value.sudo.password'),
+                  value:
+                    target.sudoMethod === 'nopasswd'
+                      ? t('value.sudo.nopasswd')
+                      : t('value.sudo.password'),
                 },
                 { term: t('field.credential'), value: t('value.credential') },
                 {
