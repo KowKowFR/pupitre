@@ -2,11 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { LogOut } from 'lucide-react';
+import { LogOut, Monitor, Smartphone, Tablet } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { KeyValue } from '@/components/ui/data';
 import { useT } from '@/i18n/client';
 import { account as messages } from '@/i18n/messages/account';
 import { toast } from '@/lib/toast';
@@ -31,14 +31,24 @@ type Target = { kind: 'one'; session: SessionRow } | { kind: 'others' };
  * La session courante est nommée (« celle-ci ») et ne propose aucune
  * fermeture : on la quitte par « Déconnexion », qui nettoie aussi le cookie.
  */
-export function SessionsCard({
-  sessions,
-  lastSignIn,
-}: {
-  sessions: SessionRow[];
-  /** Dernière connexion réussie, déjà mise en forme : date, méthode, IP. */
-  lastSignIn: string | null;
-}) {
+/** L'icône d'un appareil, devinée du nom que l'agent a donné. */
+function DeviceIcon({ device }: { device: string | null }) {
+  const Icon = /iPad/.test(device ?? '')
+    ? Tablet
+    : /iPhone|Android/.test(device ?? '')
+      ? Smartphone
+      : Monitor;
+  return (
+    <span
+      aria-hidden
+      className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-surface-2 text-text-2"
+    >
+      <Icon className="size-4" />
+    </span>
+  );
+}
+
+export function SessionsCard({ sessions }: { sessions: SessionRow[] }) {
   const t = useT(messages);
   const router = useRouter();
   const [target, setTarget] = useState<Target | null>(null);
@@ -48,10 +58,10 @@ export function SessionsCard({
   const others = sessions.filter((session) => !session.current);
   const deviceOf = (session: SessionRow) => session.device ?? t('sessions.unknownDevice');
 
-  function describe(session: SessionRow): string {
-    return [deviceOf(session), session.ipAddress, session.current ? null : session.lastActive]
-      .filter((part): part is string => Boolean(part))
-      .join(' · ');
+  /** « dernière activité il y a 2 j » : depuis quand la session a servi. */
+  function when(session: SessionRow): string | null {
+    if (session.current) return t('sessions.activeNow');
+    return session.lastActive ? t('sessions.lastActive', { when: session.lastActive }) : null;
   }
 
   async function confirm(): Promise<void> {
@@ -105,54 +115,43 @@ export function SessionsCard({
         <CardTitle>{t('sessions.title')}</CardTitle>
         <CardDescription>{t('sessions.description')}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <KeyValue
-          items={sessions
-            .map((session) => ({
-              key: session.id,
-              term: session.current ? t('sessions.current') : t('sessions.other'),
-              value: (
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="min-w-0">
-                    {describe(session)}
-                    {session.current ? (
-                      <>
-                        {' · '}
-                        <span className="font-medium text-ok-text">{t('sessions.this')}</span>
-                      </>
-                    ) : null}
-                  </span>
-                  {session.current ? null : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="ml-auto"
-                      aria-label={t('sessions.close.aria', { device: deviceOf(session) })}
-                      onClick={() => {
-                        setError(null);
-                        setTarget({ kind: 'one', session });
-                      }}
-                    >
-                      {t('sessions.close')}
-                    </Button>
-                  )}
-                </span>
-              ),
-            }))
-            .concat(
-              lastSignIn
-                ? [
-                    {
-                      key: 'last-sign-in',
-                      term: t('sessions.lastSignIn'),
-                      value: <span className="mono t-sm">{lastSignIn}</span>,
-                    },
-                  ]
-                : [],
+      <ul className="list">
+        {sessions.map((session) => (
+          <li key={session.id} className="flex items-center gap-3">
+            <DeviceIcon device={session.device} />
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate font-medium text-text">{deviceOf(session)}</span>
+              <span className="t-cap truncate text-text-3">
+                {session.ipAddress ? <span className="mono">{session.ipAddress}</span> : null}
+                {session.ipAddress && when(session) ? ' · ' : null}
+                {when(session)}
+              </span>
+            </span>
+            {session.current ? (
+              <Badge variant="ok" dot>
+                {t('sessions.badge.current')}
+              </Badge>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={t('sessions.close.aria', { device: deviceOf(session) })}
+                onClick={() => {
+                  setError(null);
+                  setTarget({ kind: 'one', session });
+                }}
+              >
+                {t('sessions.close')}
+              </Button>
             )}
-        />
-        {others.length === 0 ? <p className="t-sm mt-3 text-text-3">{t('sessions.none')}</p> : null}
-      </CardContent>
+          </li>
+        ))}
+      </ul>
+      {others.length === 0 ? (
+        <CardContent className="border-t border-border-subtle py-3">
+          <p className="t-cap text-text-3">{t('sessions.none')}</p>
+        </CardContent>
+      ) : null}
 
       <ConfirmDialog
         open={target !== null}

@@ -69,13 +69,13 @@ export function PasswordForm() {
   }
 
   return (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader>
         <CardTitle>{t('password.title')}</CardTitle>
         <CardDescription>{t('password.description')}</CardDescription>
       </CardHeader>
       <form onSubmit={submit} className="contents">
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="flex flex-1 flex-col gap-4">
           {error ? <Alert variant="destructive">{error}</Alert> : null}
 
           <Field label={t('password.field.current')}>

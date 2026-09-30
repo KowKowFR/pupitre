@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { KeyRound, ShieldCheck, Smartphone } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -129,7 +130,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader
         actions={
           enabled ? (
@@ -151,7 +152,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
 
       {enabled ? (
         <form onSubmit={disable} className="contents">
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="flex flex-1 flex-col gap-4">
             {error ? <Alert variant="destructive">{error}</Alert> : null}
             <p className="t-sm text-text-2">{t('twoFactor.armed.body')}</p>
             <Field label={t('twoFactor.field.password')}>
@@ -185,8 +186,29 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
         />
       ) : (
         <form onSubmit={startSetup} className="contents">
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="flex flex-1 flex-col gap-4">
             {error ? <Alert variant="destructive">{error}</Alert> : null}
+            {/* Ce que le second facteur change, avant de demander le mot de passe : la
+                couleur dit la nature de chaque point, l'icône et le texte le disent aussi. */}
+            <ul className="flex flex-col gap-2.5">
+              {(
+                [
+                  ['stolen', ShieldCheck, 'border-ok-line bg-ok-soft text-ok-text'],
+                  ['code', Smartphone, 'border-accent-line bg-accent-soft text-accent-text'],
+                  ['backup', KeyRound, 'border-warn-line bg-warn-soft text-warn-text'],
+                ] as const
+              ).map(([key, Icon, tone]) => (
+                <li key={key} className="flex items-start gap-3">
+                  <span
+                    aria-hidden
+                    className={`grid size-7 shrink-0 place-items-center rounded-lg border ${tone}`}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+                  <span className="t-sm pt-1 text-text-2">{t(`twoFactor.why.${key}`)}</span>
+                </li>
+              ))}
+            </ul>
             <Field label={t('twoFactor.field.password')}>
               <Input
                 type="password"
