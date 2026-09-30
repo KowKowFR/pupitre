@@ -24,7 +24,7 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── Commun aux deux écrans d'administration ─────────────────────────────
-  'eyebrow': 'Administration',
+  eyebrow: 'Administration',
 
   // ═══ Utilisateurs ═══════════════════════════════════════════════════════
   'users.title': 'Utilisateurs',
@@ -35,8 +35,7 @@ const fr = {
   'users.create.title': 'Créer un utilisateur',
   'users.invite.help':
     "La personne reçoit un lien par e-mail (canal « {channel} ») et choisit elle-même son mot de passe : personne d'autre ne le connaîtra. Le lien vaut 72 heures et ne fonctionne qu'une fois. Rôles disponibles : {roles}.",
-  'users.create.help':
-    'Rôles disponibles : {roles}. Mot de passe de {min} caractères minimum.',
+  'users.create.help': 'Rôles disponibles : {roles}. Mot de passe de {min} caractères minimum.',
 
   // Coupée en trois : « Paramètres → Notifications » est mis en évidence dans
   // la phrase, et un fragment de JSX ne se range pas dans un dictionnaire.
@@ -175,11 +174,11 @@ const fr = {
 
   // ═══ Journal d'activité ═════════════════════════════════════════════════
   'logs.eyebrow': 'Traçabilité',
-  'logs.title': 'Logs',
+  'logs.title': 'Journal d’activité',
   'logs.description.before':
-    "Qui a fait quoi, quand et depuis quelle IP — les logs d'activité du panel, à ne pas confondre avec les logs d'un déploiement ni avec ceux d'une application en marche, qui se lisent sur leurs écrans respectifs. Écrits exclusivement par",
+    'Qui a fait quoi, quand, et depuis quelle IP. Chaque action du panel passe par',
   'logs.description.after':
-    ": un point d'entrée unique, jamais un insert dispersé dans un handler. Les refus de permission y figurent au même titre que les actions abouties.",
+    "; ce ne sont ni les logs d'un déploiement ni ceux d'une application. Les refus y figurent au même titre que les actions abouties.",
   'logs.summary': {
     one: '{count} entrée · page {page}/{total}',
     other: '{count} entrées · page {page}/{total}',
@@ -202,6 +201,17 @@ const fr = {
   'logs.column.ip': 'IP',
   /** Une action sans acteur : le worker, le scheduler, ou un visiteur non connecté. */
   'logs.anonymous': 'système / anonyme',
+  'logs.denial': 'refus',
+  'logs.row.open': "Ouvrir l'entrée {action}",
+  'logs.drawer.kind': 'Entrée du journal',
+  'logs.drawer.who': 'Qui, quoi, où',
+  'logs.drawer.payload': 'Charge JSON',
+  'logs.drawer.before': 'Avant',
+  'logs.drawer.after': 'Après',
+  'logs.drawer.none': 'Aucune charge utile pour cette entrée.',
+  'logs.drawer.copy': 'Copier le JSON',
+  'logs.drawer.copied': 'JSON copié',
+  'logs.drawer.filterActor': 'Filtrer sur cet acteur',
   'logs.timezone': 'Horodatages en {timezone}.',
 
   // ═══ Erreurs des routes ═════════════════════════════════════════════════
@@ -237,7 +247,7 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'eyebrow': 'Administration',
+  eyebrow: 'Administration',
 
   'users.title': 'Users',
   'users.description':
@@ -325,8 +335,7 @@ const en: Translated<typeof fr> = {
   'users.2fa.dialog.confirm': 'Reset the 2FA of {name}',
 
   'roles.title': 'Roles',
-  'roles.description.before':
-    'A user carries a role; the role carries the permissions. The role',
+  'roles.description.before': 'A user carries a role; the role carries the permissions. The role',
   'roles.description.after':
     'is locked: it always holds every permission, so nobody can drop the rights needed to grant them back.',
 
@@ -368,10 +377,9 @@ const en: Translated<typeof fr> = {
 
   'logs.eyebrow': 'Traceability',
   'logs.title': 'Activity log',
-  'logs.description.before':
-    'Who did what, when and from which IP — the panel’s activity log, not to be confused with a deployment’s logs or those of a running application, which are read on their own screens. Written only by',
+  'logs.description.before': 'Who did what, when, and from which IP. Every panel action goes through',
   'logs.description.after':
-    ': one entry point, never an insert scattered across handlers. Permission denials appear here just like actions that went through.',
+    "; these are neither a deployment's logs nor an application's. Denials are recorded just like completed actions.",
   'logs.summary': {
     one: '{count} entry · page {page}/{total}',
     other: '{count} entries · page {page}/{total}',
@@ -393,6 +401,17 @@ const en: Translated<typeof fr> = {
   'logs.column.resource': 'Resource',
   'logs.column.ip': 'IP',
   'logs.anonymous': 'system / anonymous',
+  'logs.denial': 'denial',
+  'logs.row.open': 'Open the entry {action}',
+  'logs.drawer.kind': 'Log entry',
+  'logs.drawer.who': 'Who, what, where',
+  'logs.drawer.payload': 'JSON payload',
+  'logs.drawer.before': 'Before',
+  'logs.drawer.after': 'After',
+  'logs.drawer.none': 'No payload for this entry.',
+  'logs.drawer.copy': 'Copy the JSON',
+  'logs.drawer.copied': 'JSON copied',
+  'logs.drawer.filterActor': 'Filter on this actor',
   'logs.timezone': 'Timestamps in {timezone}.',
 
   'error.role.exists': 'A role “{key}” already exists',
@@ -406,13 +425,11 @@ const en: Translated<typeof fr> = {
   'error.user.lastAdmin.delete': 'You cannot delete the last active administrator of the platform',
   'error.user.lastAdmin.disable':
     'You cannot disable the last active administrator of the platform',
-  'error.user.lastAdmin.role':
-    'You cannot remove the last active administrator of the platform',
+  'error.user.lastAdmin.role': 'You cannot remove the last active administrator of the platform',
 
   'error.mail.missing.create':
     'No active email channel (SMTP): the invitation could not go out. Set one up under Settings → Notifications, or create the account with a password.',
-  'error.mail.missing.resend':
-    'No active email channel (SMTP): the invitation could not go out.',
+  'error.mail.missing.resend': 'No active email channel (SMTP): the invitation could not go out.',
   'error.user.hasPassword':
     '{email} has already picked a password. A reset is asked for from the sign-in screen.',
   'error.user.banned':

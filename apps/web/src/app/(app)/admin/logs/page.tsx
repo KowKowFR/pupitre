@@ -1,12 +1,10 @@
 import { auditQuerySchema, getAppSettings, listAuditLogs } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
-import { Card, CardContent } from '@/components/ui/card';
 import { admin } from '@/i18n/messages/admin';
 import { getT } from '@/i18n/server';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
-import { AuditFilters } from './audit-filters';
-import { AuditTable } from './audit-table';
+import { AuditView } from './audit-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,17 +26,17 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
   const [page, { settings }] = await Promise.all([listAuditLogs(query), getAppSettings()]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <PageHeader
         title={t('logs.title')}
         description={
           <>
-            {t('logs.description.before')} <code className="font-mono text-xs">logAudit()</code>{' '}
+            {t('logs.description.before')} <code className="mono">logAudit()</code>{' '}
             {t('logs.description.after')}
           </>
         }
         actions={
-          <span className="font-mono text-xs text-text-3 tabular-nums">
+          <span className="mono t-cap text-text-3">
             {t('logs.summary', {
               count: page.total,
               page: page.page,
@@ -48,21 +46,29 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
         }
       />
 
-      <Card>
-        <CardContent>
-          <AuditFilters
-            defaults={{
-              actorId: flat.actorId ?? '',
-              action: flat.action ?? '',
-              resourceType: flat.resourceType ?? '',
-              from: flat.from ?? '',
-              to: flat.to ?? '',
-            }}
-          />
-        </CardContent>
-      </Card>
-
-      <AuditTable page={page} format={formatSettingsOf(settings)} />
-    </div>
+      <AuditView
+        items={page.items.map((item) => ({
+          id: item.id,
+          createdAt: item.createdAt.toISOString(),
+          actorId: item.actorId,
+          actorEmail: item.actorEmail,
+          action: item.action,
+          resourceType: item.resourceType,
+          resourceId: item.resourceId,
+          ip: item.ip,
+          before: item.before,
+          after: item.after,
+        }))}
+        page={{ page: page.page, totalPages: page.totalPages, pageSize: page.pageSize }}
+        filters={{
+          actorId: flat.actorId ?? '',
+          action: flat.action ?? '',
+          resourceType: flat.resourceType ?? '',
+          from: flat.from ?? '',
+          to: flat.to ?? '',
+        }}
+        format={formatSettingsOf(settings)}
+      />
+    </>
   );
 }
