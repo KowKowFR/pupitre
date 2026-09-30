@@ -84,9 +84,7 @@ function FieldControl({
             value={value}
             onChange={(event) => handle(event.target.value)}
           />
-          {field.unit ? (
-            <span className="shrink-0 text-xs text-text-3">{field.unit}</span>
-          ) : null}
+          {field.unit ? <span className="shrink-0 text-xs text-text-3">{field.unit}</span> : null}
         </div>
       ) : (
         <Input
@@ -157,9 +155,7 @@ export function ConfigFields({
 
 /** Valeurs de départ d'un type, telles que le catalogue les donne. */
 export function defaultsOf(defaults: unknown): ConfigValues {
-  return defaults !== null && typeof defaults === 'object'
-    ? { ...(defaults as ConfigValues) }
-    : {};
+  return defaults !== null && typeof defaults === 'object' ? { ...(defaults as ConfigValues) } : {};
 }
 
 /** Retire les champs vides avant l'envoi : Zod appliquera ses propres défauts. */

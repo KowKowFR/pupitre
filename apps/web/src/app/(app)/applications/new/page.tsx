@@ -50,10 +50,7 @@ export default async function NewApplicationPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('action.new')}
-        description={t('new.description')}
-      />
+      <PageHeader title={t('action.new')} description={t('new.description')} />
 
       <Card>
         <CardHeader>

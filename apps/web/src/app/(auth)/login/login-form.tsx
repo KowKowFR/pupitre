@@ -101,9 +101,7 @@ export function LoginForm({
         <CardHeader>
           <CardTitle className="text-lg">{t('twoFactor.title')}</CardTitle>
           <CardDescription>
-            {useBackupCode
-              ? t('twoFactor.description.backup')
-              : t('twoFactor.description.totp')}
+            {useBackupCode ? t('twoFactor.description.backup') : t('twoFactor.description.totp')}
           </CardDescription>
         </CardHeader>
         <CardContent>

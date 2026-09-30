@@ -44,14 +44,23 @@ export function SegmentedLinks({
   label,
   className,
 }: {
-  options: ReadonlyArray<{ href: React.ComponentProps<typeof Link>['href']; label: React.ReactNode; active: boolean }>;
+  options: ReadonlyArray<{
+    href: React.ComponentProps<typeof Link>['href'];
+    label: React.ReactNode;
+    active: boolean;
+  }>;
   label: string;
   className?: string;
 }) {
   return (
     <nav aria-label={label} className={cn('seg', className)}>
       {options.map((option, index) => (
-        <Link key={index} href={option.href} aria-current={option.active ? 'page' : undefined} scroll={false}>
+        <Link
+          key={index}
+          href={option.href}
+          aria-current={option.active ? 'page' : undefined}
+          scroll={false}
+        >
           {option.label}
         </Link>
       ))}

@@ -133,9 +133,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
       const fresh = JSON.parse((event as MessageEvent<string>).data) as AppStatus;
       // Le relevé retenu par la route et le relevé frais du worker peuvent se
       // croiser à l'ouverture : on ne recule jamais dans le temps.
-      setStatus((current) =>
-        current && current.checkedAt > fresh.checkedAt ? current : fresh,
-      );
+      setStatus((current) => (current && current.checkedAt > fresh.checkedAt ? current : fresh));
     });
 
     source.addEventListener('log', (event) => {
@@ -323,15 +321,13 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
           value={sinceValue(now, app.onlineSince)}
           unit={sinceUnit(now, app.onlineSince)}
           tone={app.restored ? 'warn' : 'idle'}
-          hint={app.restored ? 'version restaurée après un retour arrière' : `version #${app.version}`}
+          hint={
+            app.restored ? 'version restaurée après un retour arrière' : `version #${app.version}`
+          }
         />
         <Readout
           label="Disponibilité 24 h"
-          value={
-            app.uptime24h === null
-              ? '—'
-              : (app.uptime24h * 100).toFixed(1).replace('.', ',')
-          }
+          value={app.uptime24h === null ? '—' : (app.uptime24h * 100).toFixed(1).replace('.', ',')}
           unit={app.uptime24h === null ? undefined : '%'}
           tone={app.uptime24h === null ? 'idle' : app.uptime24h >= 0.99 ? 'ok' : 'warn'}
           hint={
@@ -434,14 +430,14 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
 
         <section className="border-border bg-card shadow-xs flex min-h-0 min-w-0 flex-col self-stretch rounded-lg border xl:col-start-2 xl:row-span-2 xl:row-start-1">
           <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-            <h2 className="text-text text-[0.9375rem] font-semibold">
-              Logs applicatifs
-            </h2>
+            <h2 className="text-text text-[0.9375rem] font-semibold">Logs applicatifs</h2>
             <span className="text-text-3 text-xs">
               {filtering
                 ? `${visible.length} sur ${lines.length} ligne${lines.length > 1 ? 's' : ''}`
                 : `${lines.length} ligne${lines.length > 1 ? 's' : ''}`}
-              {flagged.length > 0 ? ` · ${flagged.length} signalée${flagged.length > 1 ? 's' : ''}` : ''}{' '}
+              {flagged.length > 0
+                ? ` · ${flagged.length} signalée${flagged.length > 1 ? 's' : ''}`
+                : ''}{' '}
               · <ConnectionLabel state={connection} />
             </span>
           </div>
@@ -491,9 +487,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
               <Button
                 size="sm"
                 variant={freeze === null ? 'outline' : 'secondary'}
-                onClick={() =>
-                  setFreeze((current) => (current === null ? seqRef.current : null))
-                }
+                onClick={() => setFreeze((current) => (current === null ? seqRef.current : null))}
                 title="Le flux continue d’arriver pendant la pause : aucune ligne n’est perdue, elles sont seulement retenues."
               >
                 {freeze === null ? (
@@ -536,7 +530,12 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
                   `soit au plus les ${MAX_LINES} dernières lignes reçues depuis l’ouverture de cette page.`
                 }
                 onClick={() =>
-                  downloadBuffer(app, visible, { service, query: query.trim(), onlyFlagged }, exportFormat)
+                  downloadBuffer(
+                    app,
+                    visible,
+                    { service, query: query.trim(), onlyFlagged },
+                    exportFormat,
+                  )
                 }
               >
                 {visible.length === 0
@@ -637,7 +636,8 @@ function ServiceRow({
       : 'danger';
 
   const health = live ? SERVICE_HEALTH_LABEL[live.health] : null;
-  const image = live?.image ?? spec?.image ?? (spec?.built ? 'image construite sur la cible' : null);
+  const image =
+    live?.image ?? spec?.image ?? (spec?.built ? 'image construite sur la cible' : null);
   const ports = live?.ports.length ? live.ports.join(', ') : spec ? `port ${spec.port}` : null;
 
   return (
@@ -645,13 +645,15 @@ function ServiceRow({
       <div className="flex items-center gap-2">
         <Led tone={tone} pulse={live?.state === 'restarting'} />
         <span className="text-text min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
-        {spec?.exposed ? (
-          <span className="text-text-3 text-[0.6875rem]">exposé</span>
-        ) : null}
+        {spec?.exposed ? <span className="text-text-3 text-[0.6875rem]">exposé</span> : null}
         <span
           className={cn(
             'shrink-0 text-[0.6875rem]',
-            tone === 'danger' ? 'text-danger-text' : tone === 'warn' ? 'text-warn-text' : 'text-text-2',
+            tone === 'danger'
+              ? 'text-danger-text'
+              : tone === 'warn'
+                ? 'text-warn-text'
+                : 'text-text-2',
           )}
         >
           {live

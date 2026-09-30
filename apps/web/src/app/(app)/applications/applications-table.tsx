@@ -105,9 +105,7 @@ export function ApplicationsTable({
   }
 
   if (items.length === 0) {
-    return (
-      <EmptyState title={t('empty.title')} hint={t('empty.hint')} />
-    );
+    return <EmptyState title={t('empty.title')} hint={t('empty.hint')} />;
   }
 
   return (
@@ -159,15 +157,15 @@ export function ApplicationsTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {application.services.map((service) => (
+                    {application.services.map((service) =>
                       service === application.exposedService ? (
                         <Badge key={service} variant="default" className="font-mono">
                           {service}
                         </Badge>
                       ) : (
                         <CodeBadge key={service}>{service}</CodeBadge>
-                      )
-                    ))}
+                      ),
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="font-mono text-xs text-text-2">
@@ -246,4 +244,3 @@ export function ApplicationsTable({
     </Card>
   );
 }
-

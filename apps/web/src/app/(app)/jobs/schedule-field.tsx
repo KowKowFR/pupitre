@@ -69,9 +69,7 @@ export function draftBody(
   draft: ScheduleDraft,
 ): ({ schedule: SimpleSchedule } | { cron: string }) & { timezone: string } {
   const cadence =
-    draft.mode === 'simple'
-      ? { schedule: draft.simple }
-      : { cron: draft.cron.trim() };
+    draft.mode === 'simple' ? { schedule: draft.simple } : { cron: draft.cron.trim() };
   return { ...cadence, timezone: draft.timeZone };
 }
 
@@ -180,7 +178,8 @@ function SchedulePreview({
   const error = cron.length === 0 ? t('preview.emptyCron') : cronError(cron, language);
 
   const runs = useMemo(
-    () => (error || now === null ? [] : nextRuns(cron, { from: new Date(now), count: 3, timeZone })),
+    () =>
+      error || now === null ? [] : nextRuns(cron, { from: new Date(now), count: 3, timeZone }),
     [cron, error, now, timeZone],
   );
 
@@ -214,8 +213,7 @@ function SchedulePreview({
                 {index === 0 ? t('preview.next') : t('preview.then', { rank: index + 1 })}
               </dt>
               <dd className="font-mono tabular-nums">
-                {formatIn(run, timeZone, format)}{' '}
-                <span className="text-text-3">{timeZone}</span>
+                {formatIn(run, timeZone, format)} <span className="text-text-3">{timeZone}</span>
                 {differentZone && viewerZone ? (
                   <span className="text-text-3">
                     {' · '}
@@ -358,7 +356,9 @@ export function ScheduleField({
               onChange={(event) =>
                 setSimple({
                   kind: 'interval',
-                  everyMinutes: Number(event.target.value) as (typeof SIMPLE_INTERVAL_MINUTES)[number],
+                  everyMinutes: Number(
+                    event.target.value,
+                  ) as (typeof SIMPLE_INTERVAL_MINUTES)[number],
                 })
               }
             >
@@ -405,7 +405,11 @@ export function ScheduleField({
           ) : null}
 
           {simple.kind === 'weekly' ? (
-            <div className="flex flex-wrap gap-1" role="group" aria-label={t('field.weekdays.aria')}>
+            <div
+              className="flex flex-wrap gap-1"
+              role="group"
+              aria-label={t('field.weekdays.aria')}
+            >
               {WEEKDAY_VALUES.map((day) => (
                 <CheckboxChip
                   key={day}
@@ -458,7 +462,9 @@ export function ScheduleField({
         />
       )}
 
-      {value.mode === 'expert' && !expertHasSimpleForm && cronError(value.cron.trim(), language) === null ? (
+      {value.mode === 'expert' &&
+      !expertHasSimpleForm &&
+      cronError(value.cron.trim(), language) === null ? (
         <p className="text-xs text-text-3">{t('field.expertNoSimple')}</p>
       ) : null}
 

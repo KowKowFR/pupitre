@@ -60,10 +60,7 @@ export default async function MonitorsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('page.title')}
-        description={t('page.description')}
-      />
+      <PageHeader title={t('page.title')} description={t('page.description')} />
 
       <MonitorsPanel
         monitors={monitors}

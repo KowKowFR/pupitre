@@ -26,7 +26,9 @@ export function EmptyState({
       </span>
       <h3>{title}</h3>
       {hint ? <p>{hint}</p> : null}
-      {action ? <div className="mt-1 flex flex-wrap items-center justify-center gap-2">{action}</div> : null}
+      {action ? (
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">{action}</div>
+      ) : null}
     </div>
   );
 }

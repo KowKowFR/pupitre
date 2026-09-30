@@ -19,11 +19,7 @@ export const dynamic = 'force-dynamic';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 
-export default async function TargetDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function TargetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) notFound();
 
@@ -61,9 +57,7 @@ export default async function TargetDetailPage({
       {target.description || labels.length > 0 ? (
         <div className="-mt-2 flex flex-col gap-2.5">
           {target.description ? (
-            <p className="max-w-3xl text-sm leading-relaxed text-text-2">
-              {target.description}
-            </p>
+            <p className="max-w-3xl text-sm leading-relaxed text-text-2">{target.description}</p>
           ) : null}
           {labels.length > 0 ? (
             <div className="flex flex-wrap items-center gap-1">
@@ -123,9 +117,7 @@ export default async function TargetDetailPage({
             {target.authMethod === 'key' ? t('value.auth.key') : t('value.auth.password')}
           </Field>
           <Field label={t('field.sudoMethod')}>
-            {target.sudoMethod === 'nopasswd'
-              ? t('value.sudo.nopasswd')
-              : t('value.sudo.password')}
+            {target.sudoMethod === 'nopasswd' ? t('value.sudo.nopasswd') : t('value.sudo.password')}
           </Field>
           <Field label={t('field.credential')}>
             <span className="text-text-3">{t('value.credential')}</span>

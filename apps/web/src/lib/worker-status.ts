@@ -17,9 +17,7 @@ import { getOpsQueue } from './queue';
  */
 
 export type WorkerStatus =
-  | { state: 'active'; idleSeconds: number }
-  | { state: 'idle' }
-  | { state: 'unknown' };
+  { state: 'active'; idleSeconds: number } | { state: 'idle' } | { state: 'unknown' };
 
 const TIMEOUT_MS = 800;
 

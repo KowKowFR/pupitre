@@ -52,7 +52,12 @@ function DialogContent({
         // Radix pose `aria-hidden` sur les frères de la modale ; `aria-modal`
         // le dit en plus sur la boîte elle-même. Les deux sont attendus.
         aria-modal="true"
-        className={cn('dialog', size === 'wide' && 'is-wide', size === 'xwide' && 'is-xwide', className)}
+        className={cn(
+          'dialog',
+          size === 'wide' && 'is-wide',
+          size === 'xwide' && 'is-xwide',
+          className,
+        )}
         {...props}
       >
         {children}
@@ -74,7 +79,10 @@ function DialogHeader({
   return (
     <div data-slot="dialog-header" className={cn('dlg-h', className)} {...props}>
       {icon ? (
-        <span aria-hidden className={cn('dlg-icon', tone === 'warn' && 'is-warn', tone === 'accent' && 'is-accent')}>
+        <span
+          aria-hidden
+          className={cn('dlg-icon', tone === 'warn' && 'is-warn', tone === 'accent' && 'is-accent')}
+        >
           {icon}
         </span>
       ) : null}
@@ -92,10 +100,7 @@ function DialogFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="dialog-footer" className={cn('dlg-f', className)} {...props} />;
 }
 
-function DialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Title>) {
+function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"

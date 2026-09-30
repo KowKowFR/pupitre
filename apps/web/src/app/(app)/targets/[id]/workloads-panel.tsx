@@ -91,13 +91,7 @@ function formatDate(iso: string | null, none: string): string {
   return Number.isNaN(date.getTime()) ? none : date.toISOString().slice(0, 16).replace('T', ' ');
 }
 
-export function WorkloadsPanel({
-  targetId,
-  canManage,
-}: {
-  targetId: string;
-  canManage: boolean;
-}) {
+export function WorkloadsPanel({ targetId, canManage }: { targetId: string; canManage: boolean }) {
   const router = useRouter();
   const t = useT(messages);
   const tc = useT(common);
@@ -206,7 +200,8 @@ export function WorkloadsPanel({
                   ...current,
                   done: true,
                   failed,
-                  lines: failed && payload.detail ? [...current.lines, payload.detail] : current.lines,
+                  lines:
+                    failed && payload.detail ? [...current.lines, payload.detail] : current.lines,
                 }
               : current,
           );

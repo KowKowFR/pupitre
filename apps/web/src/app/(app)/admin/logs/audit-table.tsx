@@ -4,7 +4,14 @@ import type { Translate } from '@pupitre/core';
 import { EmptyState } from '@/components/empty-state';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { admin } from '@/i18n/messages/admin';
 import { common } from '@/i18n/messages/common';
 import { getT } from '@/i18n/server';
@@ -21,13 +28,7 @@ const DENIAL_ACTIONS = new Set(['permission.denied', 'auth.login.failed', 'auth.
  * pour toujours. Ce qui se traduit ici, c'est le décor : en-têtes, pagination,
  * état vide, « système / anonyme », la note de fuseau.
  */
-export async function AuditTable({
-  page,
-  format,
-}: {
-  page: AuditLogPage;
-  format: FormatSettings;
-}) {
+export async function AuditTable({ page, format }: { page: AuditLogPage; format: FormatSettings }) {
   const t = await getT(admin);
   const c = await getT(common);
 
@@ -90,9 +91,7 @@ export async function AuditTable({
           </TableBody>
         </Table>
 
-        <p className="text-text-3 text-xs">
-          {t('logs.timezone', { timezone: format.timezone })}
-        </p>
+        <p className="text-text-3 text-xs">{t('logs.timezone', { timezone: format.timezone })}</p>
       </CardContent>
 
       <Pagination page={page} c={c} />
@@ -100,13 +99,7 @@ export async function AuditTable({
   );
 }
 
-function Pagination({
-  page,
-  c,
-}: {
-  page: AuditLogPage;
-  c: Translate<typeof common.fr>;
-}) {
+function Pagination({ page, c }: { page: AuditLogPage; c: Translate<typeof common.fr> }) {
   if (page.totalPages <= 1) return null;
 
   const link = (target: number) => `/admin/logs?page=${target}&pageSize=${page.pageSize}`;

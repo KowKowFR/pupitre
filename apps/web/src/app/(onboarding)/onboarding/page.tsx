@@ -39,10 +39,7 @@ export default async function OnboardingPage() {
   if (!gate.applies) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader
-          title={t('notApplicable.title')}
-          description={t('notApplicable.description')}
-        />
+        <PageHeader title={t('notApplicable.title')} description={t('notApplicable.description')} />
         <EmptyState
           title={t('notApplicable.empty.title')}
           hint={t('notApplicable.empty.hint')}

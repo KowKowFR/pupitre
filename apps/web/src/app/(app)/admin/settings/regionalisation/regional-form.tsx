@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { LOCALE_LABELS, type AppSettings, type DateStyleName, type SupportedLocale } from '@pupitre/core';
+import {
+  LOCALE_LABELS,
+  type AppSettings,
+  type DateStyleName,
+  type SupportedLocale,
+} from '@pupitre/core';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';

@@ -297,7 +297,9 @@ export function IncidentCaptures({
   const before = captures.find((capture) => capture.kind === 'reference') ?? null;
   const during = captures.find((capture) => capture.kind === 'incident_open') ?? null;
   const after = captures.find((capture) => capture.kind === 'incident_resolved') ?? null;
-  const ordered = [before, during, after].filter((capture): capture is CaptureView => capture !== null);
+  const ordered = [before, during, after].filter(
+    (capture): capture is CaptureView => capture !== null,
+  );
 
   const comparable = before !== null && during !== null && before.hasImage && during.hasImage;
 

@@ -289,9 +289,7 @@ export function DeleteApplicationDialog({
           {abandoned.length > 0 ? (
             <>
               <Alert variant="destructive">
-                <p className="font-medium">
-                  {t('delete.abandoned', { count: abandoned.length })}
-                </p>
+                <p className="font-medium">{t('delete.abandoned', { count: abandoned.length })}</p>
                 <ul className="mt-1.5 space-y-1.5">
                   {abandoned.map((residue) => (
                     <li key={residue.deploymentId}>

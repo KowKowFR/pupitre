@@ -360,9 +360,7 @@ function MonitorCard({
         </div>
 
         {monitor.lastDetail ? (
-          <p className="font-mono text-[0.6875rem] break-all text-text-2">
-            {monitor.lastDetail}
-          </p>
+          <p className="font-mono text-[0.6875rem] break-all text-text-2">{monitor.lastDetail}</p>
         ) : null}
 
         {monitor.openIncidentSince ? (
@@ -402,9 +400,7 @@ function CreateMonitor({
   const [type, setType] = React.useState<MonitorType>(first?.type ?? 'http');
   const [name, setName] = React.useState('');
   const [config, setConfig] = React.useState<ConfigValues>(defaultsOf(first?.defaults));
-  const [intervalSeconds, setIntervalSeconds] = React.useState(
-    first?.defaultIntervalSeconds ?? 60,
-  );
+  const [intervalSeconds, setIntervalSeconds] = React.useState(first?.defaultIntervalSeconds ?? 60);
   const [failureThreshold, setFailureThreshold] = React.useState(3);
   const [recoveryThreshold, setRecoveryThreshold] = React.useState(2);
   const [webhookUrl, setWebhookUrl] = React.useState('');
@@ -610,8 +606,7 @@ function CreateMonitor({
                   <strong>{t('create.webhook.payload.and')}</strong>
                   {t('create.webhook.payload.b')}
                   <code className="font-mono">text</code>
-                  {t('create.webhook.payload.c')}{' '}
-                  <code className="font-mono">content</code>
+                  {t('create.webhook.payload.c')} <code className="font-mono">content</code>
                   {t('create.webhook.payload.d')}
                 </p>
                 {/*

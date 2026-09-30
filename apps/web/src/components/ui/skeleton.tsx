@@ -15,7 +15,12 @@ export function Skeleton({
   return (
     <div
       aria-hidden
-      className={cn('sk', variant === 'text' && 'sk-t', variant === 'circle' && 'sk-circle', className)}
+      className={cn(
+        'sk',
+        variant === 'text' && 'sk-t',
+        variant === 'circle' && 'sk-circle',
+        className,
+      )}
     />
   );
 }

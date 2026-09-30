@@ -1,20 +1,13 @@
 import Link from 'next/link';
+import { Info } from 'lucide-react';
 import { deploymentStepLabel, type Translate } from '@pupitre/core';
 import {
   activityPulse,
-  deploymentPulse,
-  deploymentQuerySchema,
   foldFleet,
   getAppSettings,
   HOST_METRIC_CATALOG,
-  listApplications,
-  listDeployments,
-  listMonitors,
-  listSupervisedApps,
-  listTargets,
   monitorPulse,
   pulseWindow,
-  scanPosture,
   targetHistories,
   type ActivityPulse,
   type DeploymentPulse,
@@ -23,11 +16,10 @@ import {
   type MonitorPulse,
   type PublicTarget,
   type ScanPosture,
+  type SupervisedApp,
   type TargetHistory,
 } from '@pupitre/db';
 import {
-  ChartLegend,
-  CoverageNote,
   densityOf,
   EventRail,
   MicroSpark,
@@ -40,63 +32,52 @@ import {
 } from '@/components/chart';
 import { Led, Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
+import { DeployButton } from '@/components/shell/deploy-button';
+import { RuntimePill } from '@/components/ui/badge';
+import { SegmentedLinks } from '@/components/ui/segmented';
 import { currentLanguage, getT } from '@/i18n/server';
 import { dashboard } from '@/i18n/messages/dashboard';
 import { formatNumber, formatSettingsOf, type FormatSettings } from '@/lib/format';
+import {
+  CHRONICLE_DAYS,
+  collectAttention,
+  loadApplications,
+  loadDeploymentPulse,
+  loadMonitors,
+  loadRecentDeployments,
+  loadScanPosture,
+  loadSupervisedApps,
+  loadTargets,
+} from '@/lib/overview';
 import { currentAuth } from '@/lib/page-auth';
-import { collectAttention } from '@/lib/overview';
 import { AttentionPanel, Panel, PanelEmpty } from './attention';
 import { DeploymentStatusBadge } from './deployments/status-badge';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Poste d'exploitation.
+ * La vue d'ensemble. Trois questions, dans cet ordre, et l'écran ne répond à
+ * rien d'autre :
  *
- * ── L'ordre de lecture ──────────────────────────────────────────────────────
- * Il reste celui qui était déjà écrit ici, et il tient : **les anomalies
- * d'abord, l'inventaire en dernier**. Un opérateur ouvre cet écran pour savoir
- * s'il doit intervenir, pas pour compter ses machines.
+ *   1. **Faut-il intervenir ?** — le bloc d'attention, en tête.
+ *   2. **Que s'est-il passé ?** — la fenêtre (24 h ou 7 jours) : quatre
+ *      relevés, puis quatre pistes sur un axe partagé.
+ *   3. **Dans quel état est le parc ?** — les machines, ce qui tourne, les
+ *      derniers déploiements, puis l'inventaire qui ferme l'écran.
  *
- * Ce qui manquait n'était pas l'ordre, c'était le **milieu**. Entre « qu'est-ce
- * qui brûle » et « qu'est-ce que je possède », il n'y avait rien : tout l'écran
- * parlait de l'instant présent. On ne pouvait pas voir qu'une sonde s'était
- * dégradée dans la nuit, ni qu'un déploiement s'était replié il y a deux
- * heures. C'est cette bande temporelle qui est ajoutée, et elle se glisse
- * exactement là — après l'alarme, avant l'inventaire.
- *
- * ── La fenêtre est de 24 heures, et ce n'est pas un défaut ──────────────────
- * On aurait aimé « depuis la semaine dernière ». Les données ne le permettent
- * pas, et il vaut mieux l'écrire que le maquiller : sur cette instance, les
- * relevés machine couvrent deux heures, les mesures de sonde trente-quatre, et
- * les déploiements trente-six. Un axe de sept jours serait vide aux cinq
- * sixièmes, et un axe vide se lit comme une panne. Vingt-quatre heures est la
- * plus longue fenêtre que les séries denses remplissent réellement ; la
- * chronique des déploiements, elle, garde sept jours parce qu'elle compte des
- * événements rares et qu'un événement rare ne se dilue pas.
- *
- * ── Le mensonge qu'on refuse ────────────────────────────────────────────────
- * Chaque figure sort de la base avec son dénombrement, et aucune ne dessine un
- * zéro là où rien n'a été mesuré. Une heure sans relevé est un moignon gris,
- * une heure à une seule mesure est hachurée, et une série trop maigre est
- * remplacée par la phrase qui dit combien il manque. « 100 % de disponibilité »
- * sur trois mesures ne s'affiche pas comme un taux.
- *
- * ── RBAC ────────────────────────────────────────────────────────────────────
- * Chaque bloc n'est rendu que si la permission correspondante est accordée, et
- * une anomalie qu'on n'a pas le droit de voir n'entre pas dans le décompte. Les
- * agrégats temporels suivent la même règle : une piste de la bande disparaît
- * plutôt que de s'afficher vide.
+ * Tout ce qu'une permission interdit disparaît : une piste, une carte, un
+ * bouton. Rien n'est grisé.
  */
 
-/** La fenêtre dense. Un seau par heure — voir `monitorPulse` pour le pourquoi. */
-const WINDOW_HOURS = 24;
-const WINDOW_BUCKETS = 24;
+/** Les deux fenêtres d'observation : 24 seaux d'une heure, ou 28 de six heures. */
+const WINDOWS = {
+  day: { hours: 24, buckets: 24 },
+  week: { hours: 168, buckets: 28 },
+} as const;
 
-/** La chronique des événements rares. Sept jours, parce qu'on y compte des faits. */
-const CHRONICLE_DAYS = 7;
+type WindowKey = keyof typeof WINDOWS;
 
-/** Sous ce nombre de mesures, un pourcentage est une mise en scène. */
+/** Plancher sous lequel un taux n'est qu'un décompte : 20 mesures. */
 const RATE_FLOOR = 20;
 
 const HEALTH_TONE: Record<string, Tone> = {
@@ -106,11 +87,13 @@ const HEALTH_TONE: Record<string, Tone> = {
   unknown: 'idle',
 };
 
-/**
- * Les statuts sont associés à une **clé** de dictionnaire, pas à une phrase.
- * Un statut que le catalogue ne connaît pas continue de s'afficher brut, comme
- * avant : afficher `rolled_back` est moins trompeur qu'une traduction inventée.
- */
+const TARGET_TONE: Record<PublicTarget['status'], Tone> = {
+  ok: 'ok',
+  degraded: 'warn',
+  unreachable: 'danger',
+  unknown: 'idle',
+};
+
 type MessageKey = keyof typeof dashboard.fr;
 type T = Translate<typeof dashboard.fr>;
 
@@ -121,14 +104,14 @@ const HEALTH_KEY: Record<string, MessageKey | undefined> = {
   unknown: 'health.unknown',
 };
 
-function labelOf(
-  catalog: Record<string, MessageKey | undefined>,
-  status: string,
-  t: T,
-): string {
-  const key = catalog[status];
-  return key === undefined ? status : t(key);
-}
+const STATUS_KEY: Record<string, MessageKey | undefined> = {
+  success: 'status.success',
+  failed: 'status.failed',
+  rolled_back: 'status.rolled_back',
+  destroyed: 'status.destroyed',
+  running: 'status.running',
+  pending: 'status.pending',
+};
 
 const DEPLOYMENT_TONE: Record<string, Tone> = {
   success: 'ok',
@@ -138,6 +121,11 @@ const DEPLOYMENT_TONE: Record<string, Tone> = {
   running: 'accent',
   pending: 'accent',
 };
+
+function labelOf(catalog: Record<string, MessageKey | undefined>, status: string, t: T): string {
+  const key = catalog[status];
+  return key === undefined ? status : t(key);
+}
 
 /** « il y a 3 min ». Rend `null` plutôt qu'un tiret : l'appelant décide. */
 function since(date: Date | null, t: T): string | null {
@@ -149,6 +137,15 @@ function since(date: Date | null, t: T): string | null {
   return t('since.days', { count: Math.floor(seconds / 86_400) });
 }
 
+/** « 74 s », « 1 min 52 s ». */
+function duration(seconds: number, t: T): string {
+  if (seconds < 90) return t('duration.seconds', { seconds });
+  return t('duration.minutes', {
+    minutes: Math.floor(seconds / 60),
+    seconds: String(seconds % 60).padStart(2, '0'),
+  });
+}
+
 /** Médiane d'une série éparse. `null` sous trois valeurs — deux n'en ont pas. */
 function median(values: readonly (number | null)[]): number | null {
   const clean = values.filter((value): value is number => value !== null).sort((a, b) => a - b);
@@ -156,9 +153,15 @@ function median(values: readonly (number | null)[]): number | null {
   return clean[Math.floor(clean.length / 2)] ?? null;
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const auth = await currentAuth('/');
   const t = await getT(dashboard);
+  const windowKey: WindowKey = (await searchParams).window === '7d' ? 'week' : 'day';
+  const { hours, buckets } = WINDOWS[windowKey];
 
   const canReadTargets = auth?.can('target:read') ?? false;
   const canReadDeployments = auth?.can('deployment:read') ?? false;
@@ -166,51 +169,54 @@ export default async function HomePage() {
   const canReadMonitors = auth?.can('monitor:read') ?? false;
   const canReadScans = auth?.can('scan:read') ?? false;
   const canReadAudit = auth?.can('audit:read') ?? false;
+  const canDeploy = auth?.can('deployment:create') ?? false;
 
-  const window = pulseWindow(WINDOW_HOURS, WINDOW_BUCKETS);
+  const window = pulseWindow(hours, buckets);
 
   // Les cibles d'abord : leurs identifiants conditionnent l'historique du parc.
-  // Une lecture indexée sur cinq lignes, puis tout le reste en parallèle.
-  const targets = canReadTargets ? await listTargets() : ([] as PublicTarget[]);
+  const targets = canReadTargets ? await loadTargets() : ([] as PublicTarget[]);
 
   // Le formatage descend par props jusqu'aux figures : la locale d'instance
-  // décide de « 00:33 » comme de « 12 345 », et elle décide la même chose
-  // partout sur l'écran.
+  // décide de « 00:33 » comme de « 12 345 », partout sur l'écran.
   const { settings } = await getAppSettings();
   const format = formatSettingsOf(settings);
 
-  const [deployments, applications, running, monitors, pulse, activity, chronicle, posture, histories] =
-    await Promise.all([
-      canReadDeployments
-        ? listDeployments(deploymentQuerySchema.parse({ pageSize: '6' }))
-        : Promise.resolve(null),
-      canReadApplications ? listApplications() : Promise.resolve([]),
-      canReadDeployments ? listSupervisedApps() : Promise.resolve([]),
-      canReadMonitors ? listMonitors() : Promise.resolve([]),
-      canReadMonitors ? monitorPulse(WINDOW_HOURS, WINDOW_BUCKETS) : Promise.resolve(null),
-      canReadAudit ? activityPulse(WINDOW_HOURS, WINDOW_BUCKETS) : Promise.resolve(null),
-      canReadDeployments ? deploymentPulse(CHRONICLE_DAYS) : Promise.resolve(null),
-      canReadScans ? scanPosture(CHRONICLE_DAYS) : Promise.resolve(null),
-      canReadTargets
-        ? targetHistories(
-            targets.map((target) => target.id),
-            WINDOW_HOURS,
-            WINDOW_BUCKETS,
-          )
-        : Promise.resolve(new Map<string, TargetHistory>()),
-    ]);
+  const [
+    deployments,
+    applications,
+    running,
+    monitors,
+    pulse,
+    activity,
+    chronicle,
+    posture,
+    histories,
+  ] = await Promise.all([
+    canReadDeployments ? loadRecentDeployments() : Promise.resolve(null),
+    canReadApplications ? loadApplications() : Promise.resolve([]),
+    canReadDeployments ? loadSupervisedApps() : Promise.resolve([] as SupervisedApp[]),
+    canReadMonitors ? loadMonitors() : Promise.resolve([]),
+    canReadMonitors ? monitorPulse(hours, buckets) : Promise.resolve(null),
+    canReadAudit ? activityPulse(hours, buckets) : Promise.resolve(null),
+    canReadDeployments ? loadDeploymentPulse() : Promise.resolve(null),
+    canReadScans ? loadScanPosture() : Promise.resolve(null),
+    canReadTargets
+      ? targetHistories(
+          targets.map((target) => target.id),
+          hours,
+          buckets,
+        )
+      : Promise.resolve(new Map<string, TargetHistory>()),
+  ]);
 
   const fleet = canReadTargets ? foldFleet(histories.values(), window) : null;
 
   const recent: DeploymentSummary[] = deployments?.items ?? [];
-  const inFlight = recent.filter(
-    (item) => item.status === 'running' || item.status === 'pending',
-  ).length;
+  const inFlight = recent.filter((item) => item.status === 'running' || item.status === 'pending');
   const targetsUp = targets.filter((target) => target.status === 'ok').length;
   // Une cible jamais testée n'est pas une cible en panne : c'est une
   // installation qu'on n'a pas finie. Les confondre faisait dire deux choses
-  // contraires au même écran — « rien ne demande d'intervention » en tête, et
-  // un relevé orange en bas pour des machines dont on ignore simplement l'état.
+  // contraires au même écran.
   const targetsUntested = targets.filter((target) => target.status === 'unknown').length;
   const targetsDown = targets.length - targetsUp - targetsUntested;
   const monitorsUp = monitors.filter((monitor) => monitor.status === 'healthy').length;
@@ -219,15 +225,28 @@ export default async function HomePage() {
   const attention = collectAttention({ targets, running, monitors, recent, chronicle, posture, t });
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       <PageHeader
         title={t('page.title')}
         description={t('page.description')}
+        actions={
+          <>
+            <SegmentedLinks
+              label={t('window.label')}
+              options={[
+                { href: '/', label: t('window.day'), active: windowKey === 'day' },
+                { href: '/?window=7d', label: t('window.week'), active: windowKey === 'week' },
+              ]}
+            />
+            {canDeploy ? <DeployButton label={t('page.deploy')} /> : null}
+          </>
+        }
       />
 
       <AttentionPanel items={attention} />
 
       <PulseBand
+        windowKey={windowKey}
         window={window}
         pulse={pulse}
         fleet={fleet}
@@ -241,121 +260,135 @@ export default async function HomePage() {
         format={format}
       />
 
-      {canReadTargets ? <FleetPanel targets={targets} histories={histories} /> : null}
+      {canReadTargets ? (
+        <FleetPanel
+          targets={targets}
+          histories={histories}
+          running={running}
+          windowKey={windowKey}
+        />
+      ) : null}
 
       {/*
-        `items-start` et non l'alignement par défaut : ces deux blocs n'ont
-        aucune raison d'avoir la même hauteur. La grille les étirait, et une
-        liste d'une seule ligne se retrouvait au milieu d'une boîte de 260 px
-        de vide — c'était la moitié du blanc de l'écran.
+        `items-start` : ces deux blocs n'ont aucune raison d'avoir la même
+        hauteur. Étirés, une liste d'une ligne se retrouvait au milieu d'un
+        grand vide.
       */}
-      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-2">
-        <Panel
-          title={t('running.title')}
-          href={canReadDeployments ? '/apps' : undefined}
-          linkLabel={t('link.servers')}
-          hint={canReadDeployments ? undefined : t('restricted')}
-        >
-          {running.length === 0 ? (
-            <PanelEmpty>
-              {t('running.empty')}{' '}
-              <Link href="/applications" className="text-accent underline underline-offset-4">
-                {t('link.applications')}
-              </Link>
-              .
-            </PanelEmpty>
-          ) : (
-            <ul className="divide-border divide-y">
-              {running.slice(0, 6).map((app) => (
-                <li
-                  key={app.id}
-                  className="flex items-center gap-3 px-5 py-2.5 text-[0.8125rem]"
-                >
-                  <Led tone={HEALTH_TONE[app.healthStatus] ?? 'idle'} />
-                  <Link
-                    href={`/apps/${app.id}`}
-                    className="text-text min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
-                  >
-                    {app.applicationSlug}
-                    <span className="text-text-3">@{app.targetName}</span>
-                  </Link>
-                  <span className="text-text-2 shrink-0">
-                    {labelOf(HEALTH_KEY, app.healthStatus, t)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+      {canReadDeployments ? (
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[1fr_1.25fr]">
+          <Panel
+            title={t('running.title')}
+            aside={
+              running.length > 6
+                ? t('running.aside', { shown: 6, total: running.length })
+                : undefined
+            }
+            href="/apps"
+            linkLabel={t('link.all')}
+          >
+            {running.length === 0 ? (
+              <PanelEmpty>
+                {t('running.empty')}{' '}
+                <Link href="/applications" className="link">
+                  {t('link.applications')}
+                </Link>
+                .
+              </PanelEmpty>
+            ) : (
+              <ul className="list">
+                {running.slice(0, 6).map((app) => (
+                  <li key={app.id}>
+                    <Led tone={HEALTH_TONE[app.healthStatus] ?? 'idle'} />
+                    <Link
+                      href={`/apps/${app.id}`}
+                      className="mono min-w-0 flex-1 truncate text-[12.5px] text-text hover:underline"
+                    >
+                      {app.applicationSlug}
+                      <span className="text-text-3">@{app.targetName}</span>
+                    </Link>
+                    <span className="t-cap shrink-0 text-text-3">
+                      {labelOf(HEALTH_KEY, app.healthStatus, t)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
 
-        <DeploymentsPanel
-          recent={recent}
-          chronicle={chronicle}
-          canReadDeployments={canReadDeployments}
-        />
-      </div>
+          <DeploymentsPanel recent={recent} chronicle={chronicle} />
+        </div>
+      ) : null}
 
       {/*
         L'inventaire ferme l'écran au lieu de l'ouvrir : ces chiffres rassurent,
-        ils ne déclenchent rien. Les mettre en tête repousserait plus bas la
-        seule information pour laquelle on ouvre un tableau de bord.
+        ils ne déclenchent rien.
       */}
       <ReadoutBar>
-        <Readout
-          label={t('readout.targets')}
-          value={targetsUp}
-          unit={`/ ${targets.length}`}
-          tone={
-            !canReadTargets || targets.length === 0
-              ? 'idle'
-              : targetsDown > 0
-                ? 'warn'
-                : targetsUntested > 0
-                  ? 'idle'
-                  : 'ok'
-          }
-          hint={targetsHint({ canReadTargets, targetsDown, targetsUntested }, t)}
-        />
-        <Readout
-          label={t('readout.apps')}
-          value={appsHealthy}
-          unit={`/ ${running.length}`}
-          tone={running.length === 0 ? 'idle' : appsHealthy === running.length ? 'ok' : 'warn'}
-          hint={t('readout.apps.declared', { count: applications.length })}
-        />
-        <Readout
-          label={t('readout.monitors')}
-          value={monitorsUp}
-          unit={`/ ${monitors.length}`}
-          tone={monitors.length === 0 ? 'idle' : monitorsUp === monitors.length ? 'ok' : 'warn'}
-          hint={canReadMonitors ? t('readout.monitors.hint') : t('restricted')}
-        />
-        <Readout
-          label={t('readout.inFlight')}
-          value={inFlight}
-          tone={inFlight > 0 ? 'accent' : 'idle'}
-          pulse={inFlight > 0}
-          hint={inFlight > 0 ? t('readout.inFlight.on') : t('readout.inFlight.off')}
-        />
+        {canReadTargets ? (
+          <Readout
+            label={t('readout.targets')}
+            value={targetsUp}
+            unit={`/ ${targets.length}`}
+            tone={
+              targets.length === 0
+                ? 'idle'
+                : targetsDown > 0
+                  ? 'warn'
+                  : targetsUntested > 0
+                    ? 'idle'
+                    : 'ok'
+            }
+            hint={targetsHint({ targetsDown, targetsUntested }, t)}
+          />
+        ) : null}
+        {canReadDeployments ? (
+          <Readout
+            label={t('readout.apps')}
+            value={appsHealthy}
+            unit={`/ ${running.length}`}
+            tone={running.length === 0 ? 'idle' : appsHealthy === running.length ? 'ok' : 'warn'}
+            hint={t('readout.apps.declared', { count: applications.length })}
+          />
+        ) : null}
+        {canReadMonitors ? (
+          <Readout
+            label={t('readout.monitors')}
+            value={monitorsUp}
+            unit={`/ ${monitors.length}`}
+            tone={monitors.length === 0 ? 'idle' : monitorsUp === monitors.length ? 'ok' : 'warn'}
+            hint={t('readout.monitors.hint')}
+          />
+        ) : null}
+        {canReadDeployments ? (
+          <Readout
+            label={t('readout.inFlight')}
+            value={inFlight.length}
+            tone={inFlight.length > 0 ? 'accent' : 'idle'}
+            pulse={inFlight.length > 0}
+            hint={
+              inFlight[0]
+                ? `${inFlight[0].applicationSlug} v${inFlight[0].version} · ${inFlight[0].targetName}`
+                : t('readout.inFlight.off')
+            }
+          />
+        ) : null}
       </ReadoutBar>
-    </div>
+    </>
   );
 }
 
-// ─── la bande temporelle ──────────────────────────────────────────────────────
+// ─── la fenêtre ───────────────────────────────────────────────────────────────
 
 /**
- * Les dernières vingt-quatre heures, sur un axe unique.
+ * La fenêtre d'observation, sur un axe unique.
  *
- * Les trois pistes partagent exactement les mêmes bornes de seau — c'est garanti
- * par `pulseWindow`, dont l'alignement sur l'époque est le même que celui de
- * `targetHistories`. C'est ce qui permet de lire verticalement : le déploiement
- * de 00 h 33 tombe au-dessus du creux de charge de 00 h 33, et on n'a pas eu à
- * croiser deux écrans pour s'en apercevoir.
- *
- * Une piste dont on n'a pas la permission n'est pas grisée : elle n'existe pas.
+ * Les pistes partagent exactement les mêmes bornes de seau — c'est garanti par
+ * `pulseWindow`, dont l'alignement est le même que celui de `targetHistories`.
+ * C'est ce qui permet de lire verticalement : le déploiement de 00 h 33 tombe
+ * au-dessus du creux de charge de 00 h 33.
  */
 async function PulseBand({
+  windowKey,
   window,
   pulse,
   fleet,
@@ -368,6 +401,7 @@ async function PulseBand({
   canReadAudit,
   format,
 }: {
+  windowKey: WindowKey;
   window: ReturnType<typeof pulseWindow>;
   pulse: MonitorPulse | null;
   fleet: FleetPulse | null;
@@ -381,10 +415,11 @@ async function PulseBand({
   format: FormatSettings;
 }) {
   const t = await getT(dashboard);
+  const title = windowKey === 'week' ? t('band.title.week') : t('band.title');
   const lanes = [canReadMonitors, canReadTargets, canReadDeployments].filter(Boolean).length;
   if (lanes === 0) {
     return (
-      <Panel title={t('band.title')} hint={t('restricted')}>
+      <Panel title={title}>
         <PanelEmpty>{t('band.locked')}</PanelEmpty>
       </Panel>
     );
@@ -393,32 +428,20 @@ async function PulseBand({
   const monitorSamples = pulse?.coverage.samples ?? 0;
   const monitorHealthy = pulse?.points.reduce((sum, point) => sum + point.healthy, 0) ?? 0;
   const latencyMedian = median(pulse?.points.map((point) => point.latencyAvgMs) ?? []);
-  const fleetPeak = fleet
-    ? Math.max(0, ...fleet.points.map((point) => point.loadPercent ?? 0))
-    : 0;
+  const fleetPeak = fleet ? Math.max(0, ...fleet.points.map((point) => point.loadPercent ?? 0)) : 0;
+  const loadLimit = HOST_METRIC_CATALOG.load.defaultLimitPercent;
 
   return (
-    <section className="border-border bg-card shadow-xs min-w-0 rounded-lg border">
-      <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-        <h2 className="text-text text-[0.9375rem] font-semibold">
-          {t('band.title')}
-        </h2>
-        <span className="text-text-3 text-xs">{t('band.aside')}</span>
+    <section className="card min-w-0 overflow-hidden">
+      <div className="card-h flex-wrap">
+        <h2>{title}</h2>
+        <span className="t-cap ml-auto text-text-3">
+          {windowKey === 'week' ? t('band.aside.week') : t('band.aside')}
+        </span>
       </div>
 
-      {/*
-        Les relevés temporels. Ce sont des variations, pas un inventaire :
-        l'inventaire est en bas d'écran et n'a pas à être répété ici.
-
-        Le seuil est `@3xl`, le même que `ReadoutBar`, et pour la même raison :
-        à 1024 px de fenêtre le rail prend 248 px et il ne reste que 712 px. En
-        `@2xl` (672 px) quatre colonnes tenaient tout juste et tronquaient
-        « médiane des moyennes horaires » en « médiane des moyennes ho… ».
-        C'est une requête de conteneur et non de fenêtre pour que le bon seuil
-        ne dépende pas de la largeur du rail de navigation.
-      */}
-      <div className="@container">
-        <div className="divide-border border-border grid grid-cols-2 divide-x divide-y border-b @3xl:grid-cols-4 @3xl:divide-y-0">
+      <ReadoutBar bare>
+        {canReadMonitors ? (
           <Readout
             label={t('band.availability')}
             value={
@@ -438,12 +461,9 @@ async function PulseBand({
                   : '%'
             }
             /*
-              Vert seulement quand le vert veut dire quelque chose. Sous le
-              plancher de mesures, le voyant reste éteint : « tout va bien » sur
-              deux relevés est une affirmation que la mesure ne soutient pas, et
-              c'est un voyant vert qu'un exploitant croit sur parole. L'ambre,
-              lui, reste dû dès qu'une mesure a échoué — un défaut constaté est
-              un fait, même s'il est seul.
+              Vert seulement quand le vert veut dire quelque chose : sous le
+              plancher de mesures, le voyant reste éteint. L'ambre, lui, reste
+              dû dès qu'une mesure a échoué — un défaut constaté est un fait.
             */
             tone={
               monitorSamples === 0
@@ -455,126 +475,119 @@ async function PulseBand({
                     : 'ok'
             }
             hint={
-              !canReadMonitors
-                ? t('restricted')
-                : monitorSamples === 0
-                  ? t('band.availability.none')
-                  : monitorSamples < RATE_FLOOR
-                    ? t('band.availability.thin')
-                    : t('band.availability.over', { count: monitorSamples })
+              monitorSamples === 0
+                ? t('band.availability.none')
+                : monitorSamples < RATE_FLOOR
+                  ? t('band.availability.thin')
+                  : t('band.availability.over', { count: formatNumber(monitorSamples, format) })
             }
           />
+        ) : null}
+        {canReadMonitors ? (
           <Readout
             label={t('band.latency')}
-            value={latencyMedian === null ? '—' : latencyMedian}
+            value={latencyMedian === null ? '—' : Math.round(latencyMedian)}
             unit={latencyMedian === null ? undefined : 'ms'}
-            tone={latencyMedian === null ? 'idle' : 'accent'}
+            tone="idle"
             hint={latencyMedian === null ? t('band.latency.none') : t('band.latency.over')}
           />
+        ) : null}
+        {canReadTargets ? (
           <Readout
             label={t('band.load')}
             value={fleet === null || fleet.coverage.samples === 0 ? '—' : Math.round(fleetPeak)}
             unit={fleet === null || fleet.coverage.samples === 0 ? undefined : '%'}
-            /* Même règle que la disponibilité : un dépassement constaté se dit
-               toujours, une absence de dépassement ne se célèbre qu'au-delà du
-               plancher de relevés. */
             tone={
               fleet === null || fleet.coverage.samples === 0
                 ? 'idle'
-                : fleetPeak >= HOST_METRIC_CATALOG.load.defaultLimitPercent
-                  ? 'warn'
-                  : fleet.coverage.samples < RATE_FLOOR
-                    ? 'idle'
-                    : 'ok'
+                : fleetPeak >= loadLimit
+                  ? 'danger'
+                  : fleetPeak >= loadLimit * 0.7
+                    ? 'warn'
+                    : fleet.coverage.samples < RATE_FLOOR
+                      ? 'idle'
+                      : 'ok'
             }
             hint={
-              !canReadTargets
-                ? t('restricted')
-                : fleet === null || fleet.coverage.samples === 0
-                  ? t('band.load.none')
-                  : t('band.load.over', {
-                      covered: fleet.coverage.covered,
-                      buckets: fleet.coverage.buckets,
-                    })
+              fleet === null || fleet.coverage.samples === 0
+                ? t('band.load.none')
+                : t('band.load.over', {
+                    covered: fleet.coverage.covered,
+                    buckets: fleet.coverage.buckets,
+                  })
             }
           />
+        ) : null}
+        {canReadAudit ? (
           <Readout
             label={t('band.denied')}
             value={activity === null ? '—' : activity.denied}
-            tone={activity === null ? 'idle' : activity.denied > 0 ? 'warn' : 'ok'}
+            tone={activity === null ? 'idle' : activity.denied > 0 ? 'danger' : 'ok'}
             hint={
-              !canReadAudit
-                ? t('restricted')
-                : activity === null
-                  ? ''
-                  : t('band.denied.over', { count: formatNumber(activity.total, format) })
+              activity === null
+                ? ''
+                : t('band.denied.over', { count: formatNumber(activity.total, format) })
             }
           />
+        ) : null}
+      </ReadoutBar>
+
+      {canReadMonitors && pulse ? (
+        <Track
+          title={t('lane.monitor.title')}
+          aside={
+            pulse.monitorsSeen > 0
+              ? t('lane.monitor.aside.active', { count: pulse.monitorsSeen })
+              : t('lane.monitor.aside')
+          }
+          href="/monitors"
+        >
+          <MonitorLane pulse={pulse} format={format} />
+        </Track>
+      ) : null}
+
+      {canReadMonitors && pulse ? (
+        <Track title={t('lane.latency.title')} aside={t('lane.latency.aside')} href="/monitors">
+          <LatencyLane pulse={pulse} format={format} />
+        </Track>
+      ) : null}
+
+      {canReadTargets && fleet ? (
+        <Track
+          title={t('lane.fleet.title')}
+          aside={t('lane.fleet.aside', { limit: loadLimit })}
+          href="/apps"
+        >
+          <FleetLane fleet={fleet} limit={loadLimit} format={format} />
+        </Track>
+      ) : null}
+
+      {canReadDeployments && chronicle ? (
+        <Track
+          title={t('lane.chronicle.title')}
+          aside={chronicleAside(chronicle, posture, window, t)}
+          href="/deployments"
+        >
+          <ChronicleLane chronicle={chronicle} window={window} />
+        </Track>
+      ) : null}
+
+      <div className="flex items-center gap-6 px-[18px] pt-2 pb-3.5">
+        <div className="w-[190px] shrink-0 max-md:hidden" />
+        <div className="min-w-0 flex-1">
+          <TimeAxis from={window.from} to={window.to} />
         </div>
-      </div>
-
-      <div className="flex flex-col gap-4 px-5 py-4">
-        {canReadMonitors && pulse ? (
-          <Lane
-            title={t('lane.monitor.title')}
-            aside={
-              pulse.monitorsSeen > 0
-                ? t('lane.monitor.aside.active', { count: pulse.monitorsSeen })
-                : t('lane.monitor.aside')
-            }
-            href="/monitors"
-          >
-            <MonitorLane pulse={pulse} format={format} />
-          </Lane>
-        ) : null}
-
-        {canReadMonitors && pulse ? (
-          <Lane
-            title={t('lane.latency.title')}
-            aside={t('lane.latency.aside')}
-            href="/monitors"
-          >
-            <LatencyLane pulse={pulse} format={format} />
-          </Lane>
-        ) : null}
-
-        {canReadTargets && fleet ? (
-          <Lane
-            title={t('lane.fleet.title')}
-            aside={t('lane.fleet.aside', {
-              limit: HOST_METRIC_CATALOG.load.defaultLimitPercent,
-            })}
-            href="/apps"
-          >
-            <FleetLane fleet={fleet} format={format} />
-          </Lane>
-        ) : null}
-
-        {canReadDeployments && chronicle ? (
-          <Lane
-            title={t('lane.chronicle.title')}
-            aside={
-              chronicle.events.length === 0
-                ? t('lane.chronicle.aside.none', { days: CHRONICLE_DAYS })
-                : t('lane.chronicle.aside.some', {
-                    count: chronicle.events.length,
-                    days: CHRONICLE_DAYS,
-                  })
-            }
-            href="/deployments"
-          >
-            <ChronicleLane chronicle={chronicle} posture={posture} window={window} />
-          </Lane>
-        ) : null}
-
-        <TimeAxis from={window.from} to={window.to} format={format} />
       </div>
     </section>
   );
 }
 
-/** L'en-tête d'une piste : son nom, ce qu'elle mesure, et où elle mène. */
-function Lane({
+/**
+ * Une piste : son nom (qui mène à l'écran détaillé) et ce qu'elle mesure, dans
+ * une colonne de 190 px, puis la figure. Toutes les pistes partagent cette
+ * colonne : c'est ce qui aligne les figures sur l'axe.
+ */
+function Track({
   title,
   aside,
   href,
@@ -586,37 +599,26 @@ function Lane({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-w-0">
-      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <Link
-          href={href}
-          className="eyebrow text-text-2 hover:text-accent underline-offset-4 transition-colors hover:underline"
-        >
+    <div className="flex items-center gap-6 border-t border-border-subtle px-[18px] py-3 max-md:flex-col max-md:items-stretch max-md:gap-2">
+      <div className="flex w-[190px] shrink-0 flex-col gap-0.5 max-md:w-auto">
+        <Link href={href as never} className="t-sm font-semibold text-text hover:underline">
           {title}
         </Link>
-        {aside ? <span className="text-text-3 text-[0.6875rem]">{aside}</span> : null}
+        {aside ? <span className="t-cap text-text-3">{aside}</span> : null}
       </div>
-      {children}
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
 
-async function MonitorLane({
-  pulse,
-  format,
-}: {
-  pulse: MonitorPulse;
-  format: FormatSettings;
-}) {
+async function MonitorLane({ pulse, format }: { pulse: MonitorPulse; format: FormatSettings }) {
   const t = await getT(dashboard);
-  const buckets = pulse.points.map((point) => ({
+  const bars = pulse.points.map((point) => ({
     at: point.at,
     samples: point.samples,
     hits: point.healthy,
   }));
-  const density = densityOf(buckets);
-
-  if (density.verdict === 'none') {
+  if (densityOf(bars).verdict === 'none') {
     return (
       <NotEnoughHistory
         covered={0}
@@ -625,9 +627,9 @@ async function MonitorLane({
         since={pulse.coverage.firstAt}
         format={format}
       >
-        <p className="text-text-3 text-xs">
+        <p className="t-cap text-text-3">
           {t('lane.monitor.help')}{' '}
-          <Link href="/monitors" className="text-accent underline underline-offset-4">
+          <Link href="/monitors" className="link">
             {t('link.monitors')}
           </Link>
           .
@@ -635,71 +637,32 @@ async function MonitorLane({
       </NotEnoughHistory>
     );
   }
-
   return (
-    <>
-      <RatioBars
-        id="monitor-lane"
-        buckets={buckets}
-        label={t('lane.monitor.title')}
-        unit={t('lane.monitor.unit')}
-        format={format}
-      />
-      <CoverageNote
-        covered={density.covered}
-        buckets={pulse.coverage.buckets}
-        thin={density.thin}
-        samples={density.samples}
-        what="sample"
-        className="mt-0.5"
-      />
-      {/*
-        La légende est ici et pas au pied de la bande : elle nomme les teintes
-        *de ces barres*. Posée sous les quatre pistes, elle avait l'air de
-        décrire aussi les courbes, qui n'emploient aucune de ces couleurs.
-      */}
-      <ChartLegend
-        className="mt-1"
-        items={[
-          { color: 'var(--ok)', label: t('legend.allHealthy') },
-          { color: 'var(--warn)', label: t('legend.partlyHealthy') },
-          { color: 'var(--danger)', label: t('legend.noneHealthy') },
-          { color: 'var(--ok)', label: t('legend.thin'), hatched: true },
-          { color: 'var(--text-3)', label: t('legend.noSample') },
-        ]}
-      />
-    </>
+    <RatioBars
+      buckets={bars}
+      label={t('lane.monitor.title')}
+      unit={t('lane.monitor.unit')}
+      format={format}
+    />
   );
 }
 
 /**
- * La latence mesurée, heure par heure.
- *
- * Deuxième piste tirée des mêmes mesures que la disponibilité, et ce n'est pas
- * une redite : une sonde peut rester « saine » en devenant deux fois plus
- * lente, et c'est exactement le genre de dégradation qu'un tableau de bord de
- * l'instant ne peut pas montrer. Le plafond est arrondi au quart de seconde
- * supérieur plutôt que collé au maximum observé — une échelle qui se recadre à
- * chaque rendu ne se compare pas d'un jour sur l'autre.
+ * La latence mesurée, seau par seau. Une sonde peut rester « saine » en
+ * devenant deux fois plus lente : c'est la dégradation qu'un tableau de bord
+ * de l'instant ne montre pas. Le plafond est arrondi au quart de seconde
+ * supérieur, pour que l'échelle se compare d'un jour sur l'autre.
  */
-async function LatencyLane({
-  pulse,
-  format,
-}: {
-  pulse: MonitorPulse;
-  format: FormatSettings;
-}) {
+async function LatencyLane({ pulse, format }: { pulse: MonitorPulse; format: FormatSettings }) {
   const t = await getT(dashboard);
-  const buckets = pulse.points.map((point) => ({
+  const series = pulse.points.map((point) => ({
     at: point.at,
     // Sans latence relevée, le seau est vide : une sonde injoignable n'a pas
     // « mis 0 ms », elle n'a rien mesuré du tout.
     samples: point.latencyAvgMs === null ? 0 : point.samples,
     value: point.latencyAvgMs,
   }));
-  const density = densityOf(buckets);
-
-  if (density.verdict === 'none') {
+  if (densityOf(series).verdict === 'none') {
     return (
       <NotEnoughHistory
         covered={0}
@@ -710,44 +673,34 @@ async function LatencyLane({
       />
     );
   }
-
-  const peak = Math.max(...buckets.map((bucket) => bucket.value ?? 0));
-  const ceiling = Math.max(50, Math.ceil(peak / 25) * 25);
-
+  const peak = Math.max(...series.map((bucket) => bucket.value ?? 0));
   return (
-    <>
-      <SeriesLine
-        buckets={buckets}
-        label={t('lane.latency.title')}
-        max={ceiling}
-        unit=" ms"
-        format={format}
-      />
-      <CoverageNote
-        covered={density.covered}
-        buckets={pulse.coverage.buckets}
-        thin={density.thin}
-        samples={density.samples}
-        what="sample"
-        className="mt-0.5"
-      />
-    </>
+    <SeriesLine
+      buckets={series}
+      label={t('lane.latency.title')}
+      max={Math.max(50, Math.ceil(peak / 25) * 25)}
+      unit=" ms"
+      format={format}
+    />
   );
 }
 
-async function FleetLane({ fleet, format }: { fleet: FleetPulse; format: FormatSettings }) {
+async function FleetLane({
+  fleet,
+  limit,
+  format,
+}: {
+  fleet: FleetPulse;
+  limit: number;
+  format: FormatSettings;
+}) {
   const t = await getT(dashboard);
-  const buckets = fleet.points.map((point) => ({
+  const series = fleet.points.map((point) => ({
     at: point.at,
     samples: point.samples,
     value: point.loadPercent,
   }));
-  const density = densityOf(buckets);
-  const ceiling = Math.max(
-    HOST_METRIC_CATALOG.load.defaultLimitPercent,
-    ...buckets.map((bucket) => bucket.value ?? 0),
-  );
-
+  const density = densityOf(series);
   if (density.verdict === 'none') {
     return (
       <NotEnoughHistory
@@ -757,50 +710,59 @@ async function FleetLane({ fleet, format }: { fleet: FleetPulse; format: FormatS
         since={fleet.coverage.firstAt}
         format={format}
       >
-        <p className="text-text-3 text-xs">{t('lane.fleet.help')}</p>
+        <p className="t-cap text-text-3">{t('lane.fleet.help')}</p>
       </NotEnoughHistory>
     );
   }
-
   return (
     <>
       <SeriesLine
-        buckets={buckets}
+        buckets={series}
         label={t('lane.fleet.series')}
-        max={ceiling}
+        max={Math.max(100, ...series.map((bucket) => bucket.value ?? 0))}
         unit="%"
+        tone="var(--gauge-fill)"
+        threshold={limit}
         format={format}
       />
-      <CoverageNote
-        covered={density.covered}
-        buckets={fleet.coverage.buckets}
-        thin={density.thin}
-        samples={density.samples}
-        what="readout"
-        className="mt-0.5"
-      />
       {density.verdict === 'sparse' ? (
-        <p className="text-warn-text mt-0.5 text-[0.6875rem]">{t('lane.fleet.sparse')}</p>
+        <p className="t-cap mt-1 text-warn-text">{t('lane.fleet.sparse')}</p>
       ) : null}
     </>
   );
 }
 
+/** « 7 runs dans la fenêtre · durée médiane 81 s ». */
+function chronicleAside(
+  chronicle: DeploymentPulse,
+  posture: ScanPosture | null,
+  window: ReturnType<typeof pulseWindow>,
+  t: T,
+): string {
+  const start = Date.parse(window.from);
+  const inWindow = chronicle.events.filter((event) => Date.parse(event.at) >= start).length;
+  const older = chronicle.events.length - inWindow;
+  return (
+    t('chronicle.inWindow', { count: inWindow }) +
+    (older > 0 ? t('chronicle.offAxis', { count: older }) : '') +
+    (chronicle.medianDurationSeconds === null
+      ? t('chronicle.median.none')
+      : t('chronicle.median.value', { seconds: chronicle.medianDurationSeconds })) +
+    (posture && posture.runs > 0 ? t('chronicle.scans', { count: posture.runs }) : '')
+  );
+}
+
 /**
- * Les événements de la fenêtre, posés à leur instant exact.
- *
- * La chronique interroge sept jours, la bande n'en montre que vingt-quatre
- * heures : les événements plus anciens sont comptés dans le résumé sous la
- * piste, mais ne sont pas dessinés hors de l'axe. Un point tassé contre le bord
- * gauche pour dire « quelque part avant » serait une position inventée.
+ * Les événements de la fenêtre, posés à leur instant exact. Les plus anciens
+ * de la chronique sont comptés dans le sous-titre de la piste, mais ne sont
+ * pas dessinés hors de l'axe : un point tassé contre le bord gauche serait une
+ * position inventée.
  */
 async function ChronicleLane({
   chronicle,
-  posture,
   window,
 }: {
   chronicle: DeploymentPulse;
-  posture: ScanPosture | null;
   window: ReturnType<typeof pulseWindow>;
 }) {
   const t = await getT(dashboard);
@@ -825,9 +787,9 @@ async function ChronicleLane({
 
   if (events.length === 0) {
     return (
-      <div className="border-border bg-surface-2/40 rounded-md border border-dashed px-4 py-3">
-        <p className="text-text text-[0.8125rem]">{t('chronicle.empty')}</p>
-        <p className="text-text-3 text-xs">
+      <div className="rounded-[10px] border border-dashed border-border-strong bg-surface-2 px-3.5 py-2.5">
+        <p className="t-sm">{t('chronicle.empty')}</p>
+        <p className="t-cap text-text-3">
           {older === 0
             ? t('chronicle.empty.none', { days: CHRONICLE_DAYS })
             : t('chronicle.empty.older', { count: older, days: CHRONICLE_DAYS })}
@@ -837,59 +799,44 @@ async function ChronicleLane({
   }
 
   return (
-    <>
-      <EventRail
-        events={events}
-        from={window.from}
-        to={window.to}
-        label={t('lane.chronicle.title')}
-      />
-      <p className="text-text-3 mt-0.5 text-[0.6875rem]">
-        {t('chronicle.inWindow', { count: events.length })}
-        {older > 0 ? t('chronicle.offAxis', { count: older }) : ''}
-        {chronicle.medianDurationSeconds === null
-          ? t('chronicle.median.none')
-          : t('chronicle.median.value', { seconds: chronicle.medianDurationSeconds })}
-        {posture && posture.runs > 0 ? t('chronicle.scans', { count: posture.runs }) : ''}
-      </p>
-    </>
+    <EventRail
+      events={events}
+      from={window.from}
+      to={window.to}
+      label={t('lane.chronicle.title')}
+    />
   );
 }
-
-const STATUS_KEY: Record<string, MessageKey | undefined> = {
-  success: 'status.success',
-  failed: 'status.failed',
-  rolled_back: 'status.rolled_back',
-  destroyed: 'status.destroyed',
-  running: 'status.running',
-  pending: 'status.pending',
-};
 
 // ─── le parc ──────────────────────────────────────────────────────────────────
 
 /**
- * Une ligne par machine, avec la forme de sa charge sur la fenêtre.
- *
- * La micro-courbe ne porte pas d'échelle et n'en a pas besoin : le chiffre
- * lisible est à côté d'elle, et on ne lui demande que de montrer si ça monte.
- * Une machine sans relevé le dit en toutes lettres au lieu d'afficher une
- * courbe plate à zéro, qui se lirait « machine au repos ».
+ * Une ligne par machine : son état, la forme de sa charge sur la fenêtre, ce
+ * qu'elle porte, son runtime, sa mémoire et son disque. La micro-courbe ne
+ * porte pas d'échelle — on ne lui demande que de montrer si ça monte. Une
+ * machine sans relevé le dit en toutes lettres au lieu d'afficher une courbe
+ * plate à zéro, qui se lirait « machine au repos ».
  */
 async function FleetPanel({
   targets,
   histories,
+  running,
+  windowKey,
 }: {
   targets: readonly PublicTarget[];
   histories: Map<string, TargetHistory>;
+  running: readonly SupervisedApp[];
+  windowKey: WindowKey;
 }) {
   const t = await getT(dashboard);
+  const windowLabel = windowKey === 'week' ? t('fleet.window.week') : t('fleet.window.day');
 
   if (targets.length === 0) {
     return (
       <Panel title={t('fleet.title')} href="/targets" linkLabel={t('link.targets')}>
         <PanelEmpty>
           {t('fleet.empty')}{' '}
-          <Link href="/targets" className="text-accent underline underline-offset-4">
+          <Link href="/targets" className="link">
             {t('link.targets')}
           </Link>
           .
@@ -901,72 +848,82 @@ async function FleetPanel({
   const load = HOST_METRIC_CATALOG.load.defaultLimitPercent;
   const memory = HOST_METRIC_CATALOG.memory.defaultLimitPercent;
   const disk = HOST_METRIC_CATALOG.disk.defaultLimitPercent;
+  const appsOn = new Map<string, number>();
+  for (const app of running) appsOn.set(app.targetId, (appsOn.get(app.targetId) ?? 0) + 1);
 
   return (
-    <Panel title={t('fleet.title')} href="/apps" linkLabel={t('link.servers')}>
-      <div className="@container">
-        <ul className="divide-border grid divide-y @3xl:grid-cols-2 @3xl:[&>li:nth-child(2n)]:border-l">
-          {targets.map((target) => {
-            const history = histories.get(target.id);
-            const points = history?.points ?? [];
-            const summary = history?.summary;
-            const measured = (history?.samples ?? 0) > 0;
+    <Panel
+      title={t('fleet.title')}
+      aside={t('fleet.aside', { count: targets.length, window: windowLabel })}
+      href="/apps"
+      linkLabel={t('link.servers')}
+    >
+      <ul className="list">
+        {targets.map((target) => {
+          const history = histories.get(target.id);
+          const summary = history?.summary;
+          const measured = (history?.samples ?? 0) > 0;
+          const apps = appsOn.get(target.id) ?? 0;
+          const runtimes = target.runtimesAvailable;
+          const hot = (summary?.load.worst ?? 0) >= load || target.status === 'degraded';
 
-            return (
-              <li key={target.id} className="border-border flex items-center gap-3 px-5 py-2.5">
-                <Led
-                  tone={
-                    target.status === 'ok'
-                      ? 'ok'
-                      : target.status === 'unknown'
-                        ? 'idle'
-                        : target.status === 'degraded'
-                          ? 'warn'
-                          : 'danger'
-                  }
-                />
+          return (
+            <li key={target.id} className="flex-wrap gap-y-1 py-2.5">
+              <Led tone={TARGET_TONE[target.status]} label={target.status} />
+              <span className="flex w-[150px] min-w-0 flex-col">
                 <Link
                   href={`/targets/${target.id}`}
-                  className="text-text min-w-0 flex-1 truncate font-mono text-[0.8125rem] underline-offset-4 hover:underline"
+                  className="mono truncate text-[12.5px] font-semibold text-text hover:underline"
                 >
                   {target.name}
-                  <span className="text-text-3"> {target.host}</span>
                 </Link>
-
+                <span className="mono truncate text-[11px] text-text-3">{target.host}</span>
+              </span>
+              <span className="w-[260px] max-lg:hidden">
                 {measured ? (
-                  <>
-                    <MicroSpark
-                      values={points.map((point) => point.loadPercent)}
-                      max={Math.max(load, summary?.load.worst ?? 0)}
-                      tone={
-                        (summary?.load.worst ?? 0) >= load ? 'var(--warn)' : 'var(--accent)'
-                      }
-                    />
-                    <span className="hidden shrink-0 items-center gap-2.5 @xl:flex">
-                      <MiniGauge
-                        label={t('fleet.gauge.memory')}
-                        value={summary?.memory.last ?? null}
-                        tone={
-                          (summary?.memory.last ?? 0) >= memory ? 'var(--warn)' : 'var(--accent)'
-                        }
-                      />
-                      <MiniGauge
-                        label={t('fleet.gauge.disk')}
-                        value={summary?.disk.last ?? null}
-                        tone={(summary?.disk.last ?? 0) >= disk ? 'var(--warn)' : 'var(--accent)'}
-                      />
-                    </span>
-                  </>
+                  <MicroSpark
+                    values={(history?.points ?? []).map((point) => point.loadPercent)}
+                    width={240}
+                    height={22}
+                    max={100}
+                    tone={hot ? 'var(--warn)' : 'var(--gauge-fill)'}
+                  />
                 ) : (
-                  <span className="text-text-3 shrink-0 text-[0.6875rem]">
-                    {t('fleet.noReadout')}
-                  </span>
+                  <span className="t-cap text-text-3">{t('fleet.noReadout')}</span>
                 )}
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+              </span>
+              <span className="t-cap w-[120px] text-text-3 max-md:hidden">
+                {apps > 0 ? t('fleet.apps', { count: apps }) : t('fleet.apps.none')}
+              </span>
+              <span className="t-cap flex items-center gap-1.5 text-text-3 max-md:hidden">
+                {runtimes.docker.available ? (
+                  <RuntimePill name="Docker" version={runtimes.docker.version} available />
+                ) : null}
+                {runtimes.k3s.available ? (
+                  <RuntimePill name="K3s" version={runtimes.k3s.version} available />
+                ) : null}
+                {!runtimes.docker.available && !runtimes.k3s.available
+                  ? t('fleet.runtime.unknown')
+                  : null}
+              </span>
+              {measured ? (
+                <span className="ml-auto flex items-center gap-3">
+                  <MiniGauge
+                    label={t('fleet.gauge.memory')}
+                    value={summary?.memory.last ?? null}
+                    warn={(summary?.memory.last ?? 0) >= memory}
+                  />
+                  <MiniGauge
+                    label={t('fleet.gauge.disk')}
+                    value={summary?.disk.last ?? null}
+                    warn={(summary?.disk.last ?? 0) >= disk}
+                  />
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
     </Panel>
   );
 }
@@ -974,133 +931,89 @@ async function FleetPanel({
 // ─── les déploiements ─────────────────────────────────────────────────────────
 
 /**
- * Les derniers déploiements, avec leur durée.
- *
- * La barre de durée est relative au plus long de la liste, pas à une échelle
- * absolue : ce qu'on cherche du coin de l'œil, c'est « celui-là a pris trois
- * fois plus de temps que les autres », jamais « il a pris 74 secondes » — ce
- * chiffre est écrit à côté.
+ * Les derniers déploiements, avec leur durée. La barre est relative au plus
+ * long de la liste : ce qu'on cherche du coin de l'œil, c'est « celui-là a
+ * pris trois fois plus de temps que les autres » ; le chiffre est à côté.
  */
 async function DeploymentsPanel({
   recent,
   chronicle,
-  canReadDeployments,
 }: {
   recent: readonly DeploymentSummary[];
   chronicle: DeploymentPulse | null;
-  canReadDeployments: boolean;
 }) {
   const t = await getT(dashboard);
-  /**
-   * Le nom d'une étape se rend ici, à partir de sa clé — jamais depuis le
-   * libellé que la base a figé le jour du déploiement. Ce libellé ne sert plus
-   * que de dernier recours, pour une étape retirée du pipeline depuis.
-   */
+  // Le nom d'une étape se rend à partir de sa clé, dans la langue courante.
   const language = await currentLanguage();
   const durations = new Map(
     (chronicle?.events ?? []).map((event) => [event.id, event.durationSeconds]),
   );
   const longest = Math.max(1, ...[...durations.values()].map((value) => value ?? 0));
+  const weakness = chronicle?.weaknesses[0];
 
   return (
     <Panel
       title={t('deployments.title')}
-      href={canReadDeployments ? '/deployments' : undefined}
+      href="/deployments"
       linkLabel={t('link.history')}
-      hint={canReadDeployments ? undefined : t('restricted')}
+      footer={
+        weakness ? (
+          <>
+            <Info aria-hidden className="!size-3.5 shrink-0" />
+            <span>
+              {t('deployments.weakness', { days: CHRONICLE_DAYS })}{' '}
+              {t('deployments.weakness.name', {
+                name: deploymentStepLabel(weakness.key, language, weakness.label),
+              })}{' '}
+              {t('deployments.weakness.count', {
+                count: weakness.failed,
+                failed: weakness.failed,
+                decided: weakness.decided,
+              })}
+              .
+            </span>
+          </>
+        ) : undefined
+      }
     >
       {recent.length === 0 ? (
         <PanelEmpty>{t('deployments.empty')}</PanelEmpty>
       ) : (
-        /*
-          Requête de conteneur, et pas `sm:` : ce qui manque de place ici, c'est
-          le panneau, pas la fenêtre. À 1024 px de fenêtre ce bloc n'occupe que
-          344 px — la ligne débordait du cadre et le nom de l'application se
-          réduisait à « c… ». La fenêtre, elle, faisait 1024 : n'importe quel
-          seuil `sm:` l'aurait laissée passer.
-
-          Sous le seuil la ligne se plie en deux au lieu de tronquer. On ne
-          cache aucune information : un tableau de bord étroit reste un tableau
-          de bord, il est seulement plus haut.
-        */
-        <div className="@container">
-          <ul className="divide-border divide-y">
-            {recent.map((item) => {
-              const duration = durations.get(item.id) ?? null;
-              return (
-                <li
-                  key={item.id}
-                  className="flex flex-col gap-1 px-5 py-2.5 text-[0.8125rem] @md:flex-row @md:items-center @md:gap-3"
+        <ul className="list">
+          {recent.map((item) => {
+            const seconds = durations.get(item.id) ?? null;
+            return (
+              <li key={item.id} className="flex-wrap gap-y-1">
+                <Link
+                  href={`/deployments/${item.id}`}
+                  className="mono w-[190px] min-w-0 truncate text-[12.5px] text-text hover:underline max-sm:flex-1"
                 >
-                  <span className="flex min-w-0 flex-1 items-center gap-3">
-                    <Led tone={DEPLOYMENT_TONE[item.status] ?? 'idle'} />
-                    <Link
-                      href={`/deployments/${item.id}`}
-                      className="text-text min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
-                    >
-                      {item.applicationSlug}
-                      <span className="text-text-3"> v{item.version}</span>
-                    </Link>
+                  {item.applicationSlug} <span className="text-text-3">v{item.version}</span>
+                </Link>
+                <span className="flex w-[110px] items-center gap-2 max-sm:hidden">
+                  <i
+                    aria-hidden
+                    className="relative block h-1 w-10 overflow-hidden rounded-sm bg-surface-3"
+                  >
+                    {seconds === null ? null : (
+                      <b
+                        className="absolute inset-y-0 left-0 bg-idle"
+                        style={{ width: `${Math.max(6, (seconds / longest) * 100)}%` }}
+                      />
+                    )}
+                  </i>
+                  <span className="t-cap num text-text-3">
+                    {seconds === null ? '—' : duration(seconds, t)}
                   </span>
-
-                  {/*
-                    `flex-wrap` et pas de largeur fixe sur l'horodatage tant
-                    qu'on est plié : le badge « rollback effectué » est le plus
-                    large de la série et débordait le cadre de quelques pixels.
-                    La largeur fixe ne revient qu'au-dessus du seuil, là où elle
-                    sert à aligner la colonne.
-                  */}
-                  <span className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 pl-[22px] @md:flex-nowrap @md:pl-0">
-                    {/* La durée, dessinée puis chiffrée. Un pipeline qui n'a pas
-                        fini n'a pas de durée : on n'invente pas de barre pour lui. */}
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      <span className="bg-surface-3 relative h-1 w-10 overflow-hidden rounded-full">
-                        {duration === null ? null : (
-                          <span
-                            className="bg-accent absolute inset-y-0 left-0 rounded-full"
-                            style={{ width: `${Math.max(4, (duration / longest) * 100)}%` }}
-                          />
-                        )}
-                      </span>
-                      <span className="text-text-3 w-9 text-right font-mono text-[0.6875rem] tabular-nums">
-                        {duration === null ? '—' : `${duration}s`}
-                      </span>
-                    </span>
-
-                    <DeploymentStatusBadge status={item.status} />
-                    <span className="text-text-3 shrink-0 text-xs whitespace-nowrap tabular-nums @md:w-20 @md:text-right">
-                      {since(item.finishedAt ?? item.createdAt, t) ?? ''}
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-
-          {chronicle && chronicle.weaknesses.length > 0 ? (
-            <div className="border-border border-t px-5 py-2.5">
-              <p className="text-text-3 text-[0.6875rem]">
-                {t('deployments.weakness', { days: CHRONICLE_DAYS })}{' '}
-                {chronicle.weaknesses.map((weakness, index) => (
-                  <span key={weakness.key}>
-                    {index > 0 ? ', ' : ''}
-                    <span className="text-text-2">
-                      {t('deployments.weakness.name', {
-                        name: deploymentStepLabel(weakness.key, language, weakness.label),
-                      })}
-                    </span>{' '}
-                    {t('deployments.weakness.count', {
-                      count: weakness.failed,
-                      failed: weakness.failed,
-                      decided: weakness.decided,
-                    })}
-                  </span>
-                ))}
-                .
-              </p>
-            </div>
-          ) : null}
-        </div>
+                </span>
+                <DeploymentStatusBadge status={item.status} />
+                <span className="t-cap ml-auto shrink-0 whitespace-nowrap text-text-3">
+                  {since(item.finishedAt ?? item.createdAt, t) ?? ''}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </Panel>
   );
@@ -1108,28 +1021,14 @@ async function DeploymentsPanel({
 
 /**
  * La ligne sous le compteur de cibles — elle doit expliquer l'écart, pas le
- * commenter. « preflight au vert » ne disait rien quand le compte était
- * incomplet, ce qui est précisément le moment où on lit cette ligne.
+ * commenter.
  */
 function targetsHint(
-  {
-    canReadTargets,
-    targetsDown,
-    targetsUntested,
-  }: {
-    canReadTargets: boolean;
-    targetsDown: number;
-    targetsUntested: number;
-  },
+  { targetsDown, targetsUntested }: { targetsDown: number; targetsUntested: number },
   t: T,
 ): string {
-  if (!canReadTargets) return t('restricted');
-
   const parts: string[] = [];
   if (targetsDown > 0) parts.push(t('readout.targets.faulty', { count: targetsDown }));
-  if (targetsUntested > 0) {
-    parts.push(t('readout.targets.untested', { count: targetsUntested }));
-  }
-  return parts.length > 0 ? parts.join(' · ') : t('readout.targets.ok');
+  if (targetsUntested > 0) parts.push(t('readout.targets.untested', { count: targetsUntested }));
+  return parts.length > 0 ? parts.join(', ') : t('readout.targets.ok');
 }
-

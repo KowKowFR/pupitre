@@ -70,10 +70,6 @@ export function StatusBadge({ status, label }: { status: TargetHealth; label: st
  * table. Le repli d'une cible jamais testée arrive traduit, pour la même
  * raison que le libellé du badge.
  */
-export function formatPreflightDate(
-  iso: DateInput,
-  format: FormatSettings,
-  never: string,
-): string {
+export function formatPreflightDate(iso: DateInput, format: FormatSettings, never: string): string {
   return formatDateTime(iso, format, never);
 }

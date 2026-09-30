@@ -27,7 +27,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { deployments as messages } from '@/i18n/messages/deployments';
@@ -216,7 +223,9 @@ export function DeploymentsTable({
                     checked={allSelected}
                     indeterminate={someSelected}
                     disabled={selectable.length === 0}
-                    onChange={(event: React.ChangeEvent<HTMLInputElement>) => toggleAll(event.target.checked)}
+                    onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                      toggleAll(event.target.checked)
+                    }
                   />
                 </TableHead>
               ) : null}
@@ -286,7 +295,6 @@ export function DeploymentsTable({
             ))}
           </TableBody>
         </Table>
-
       </CardContent>
 
       {page.totalPages > 1 ? (

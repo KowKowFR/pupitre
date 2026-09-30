@@ -30,9 +30,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
         <Link href="/" className="flex items-center gap-2.5 self-center">
           <BrandMark size={32} />
           <span className="flex flex-col leading-none">
-            <span className="text-base font-semibold tracking-[0.01em] text-text">
-              Pupitre
-            </span>
+            <span className="text-base font-semibold tracking-[0.01em] text-text">Pupitre</span>
             <span className="eyebrow pt-1 text-text-3">{t('shell.tagline')}</span>
           </span>
         </Link>

@@ -9,7 +9,15 @@ import { cn } from '@/lib/utils';
  * aux lecteurs d'écran, et le clavier est celui du système.
  */
 function Switch({ className, ...props }: Omit<React.ComponentProps<'input'>, 'type' | 'role'>) {
-  return <input type="checkbox" role="switch" data-slot="switch" className={cn('sw', className)} {...props} />;
+  return (
+    <input
+      type="checkbox"
+      role="switch"
+      data-slot="switch"
+      className={cn('sw', className)}
+      {...props}
+    />
+  );
 }
 
 /** Interrupteur et son libellé, avec une aide dessous. */

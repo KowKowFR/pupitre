@@ -41,10 +41,7 @@ export default function AppError({
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('appError.title')}
-        description={t('appError.description')}
-      />
+      <PageHeader title={t('appError.title')} description={t('appError.description')} />
 
       <Card className="border-danger-line">
         <CardContent className="space-y-4">

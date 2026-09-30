@@ -126,11 +126,7 @@ export function CollapsibleTrigger({
 }
 
 /** Le panneau contrôlé par le déclencheur. Nommé par lui, pour les lecteurs d'écran. */
-export function CollapsiblePanel({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<'div'>) {
+export function CollapsiblePanel({ className, children, ...props }: React.ComponentProps<'div'>) {
   const { open, triggerId, panelId } = useCollapsibleContext('CollapsiblePanel');
 
   return (

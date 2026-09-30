@@ -29,7 +29,9 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
   }
 
   const parsed = deploymentQuerySchema.safeParse(flat);
-  const page = await listDeployments(parsed.success ? parsed.data : deploymentQuerySchema.parse({}));
+  const page = await listDeployments(
+    parsed.success ? parsed.data : deploymentQuerySchema.parse({}),
+  );
 
   // Une seule requête pour toute la page : la colonne « Scans » ne doit pas
   // coûter un aller-retour par ligne.

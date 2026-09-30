@@ -102,9 +102,7 @@ export default async function JobsPage() {
           error: run.error,
           startedAt: run.startedAt.toISOString(),
           finishedAt: run.finishedAt?.toISOString() ?? null,
-          durationMs: run.finishedAt
-            ? run.finishedAt.getTime() - run.startedAt.getTime()
-            : null,
+          durationMs: run.finishedAt ? run.finishedAt.getTime() - run.startedAt.getTime() : null,
         })),
       };
     }),
@@ -120,10 +118,7 @@ export default async function JobsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('page.title')}
-        description={t('page.description')}
-      />
+      <PageHeader title={t('page.title')} description={t('page.description')} />
 
       <JobsPanel
         jobs={jobs}

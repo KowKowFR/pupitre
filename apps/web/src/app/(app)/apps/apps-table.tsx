@@ -118,13 +118,7 @@ export function formatSince(iso: string | null, t: T = sinceInFrench): string {
  * plus d'une `Card` non plus — c'est le panneau du serveur qui porte la
  * surface, sinon on empile deux cadres pour une seule information.
  */
-export function AppsTable({
-  items,
-  canRestart,
-}: {
-  items: SupervisedRow[];
-  canRestart: boolean;
-}) {
+export function AppsTable({ items, canRestart }: { items: SupervisedRow[]; canRestart: boolean }) {
   const t = useT(servers);
   const shared = useT(common);
   const router = useRouter();
@@ -214,13 +208,16 @@ export function AppsTable({
                 ) : null}
               </TableCell>
 
-              <TableCell className="font-mono text-xs">
-                {formatSince(app.startedAt, t)}
-              </TableCell>
+              <TableCell className="font-mono text-xs">{formatSince(app.startedAt, t)}</TableCell>
 
               <TableCell className="font-mono text-xs">
                 {app.url ? (
-                  <a href={app.url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                  <a
+                    href={app.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-4"
+                  >
                     {app.url.replace(/^https?:\/\//, '')}
                   </a>
                 ) : (

@@ -53,9 +53,7 @@ export function SecurityForm({
       patch={patch}
       canManage={canManage}
       onReset={reset}
-      onSubmit={() =>
-        void patch.save({ security: { scanningEnabled, disabledScanners, failOn } })
-      }
+      onSubmit={() => void patch.save({ security: { scanningEnabled, disabledScanners, failOn } })}
     >
       <label className="flex items-start gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm">
         <input

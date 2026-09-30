@@ -100,9 +100,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           {t('versions.title')}
         </h2>
         <p className="text-[0.8125rem] text-text-2">
-          {rows.length === 0
-            ? t('versions.empty')
-            : t('versions.count', { count: rows.length })}
+          {rows.length === 0 ? t('versions.empty') : t('versions.count', { count: rows.length })}
         </p>
       </div>
 

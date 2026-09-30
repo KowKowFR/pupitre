@@ -24,7 +24,9 @@ export function confirmMatches(typed: string, expected: string): boolean {
 }
 
 /** Le verbe final prend la variante du niveau. */
-export function confirmVariant(level: ConfirmLevel): 'default' | 'destructive' | 'destructive-solid' {
+export function confirmVariant(
+  level: ConfirmLevel,
+): 'default' | 'destructive' | 'destructive-solid' {
   if (level === 'data') return 'destructive-solid';
   if (level === 'trace') return 'destructive';
   return 'default';

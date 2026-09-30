@@ -33,8 +33,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
         title={t('logs.title')}
         description={
           <>
-            {t('logs.description.before')}{' '}
-            <code className="font-mono text-xs">logAudit()</code>{' '}
+            {t('logs.description.before')} <code className="font-mono text-xs">logAudit()</code>{' '}
             {t('logs.description.after')}
           </>
         }

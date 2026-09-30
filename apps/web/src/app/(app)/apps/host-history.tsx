@@ -350,9 +350,7 @@ function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) {
                 peak: formatPercent(breach.peakValue, t),
               })}
             </span>{' '}
-            <span className="text-text-3">
-              {t('breach.samples', { count: breach.samples })}
-            </span>
+            <span className="text-text-3">{t('breach.samples', { count: breach.samples })}</span>
           </span>
         </p>
       ))}
@@ -403,9 +401,7 @@ export function HostHistory({
   );
 
   if (data.samples === 0) {
-    return (
-      <p className="px-3 py-2 text-[0.75rem] text-text-3">{t('history.empty')}</p>
-    );
+    return <p className="px-3 py-2 text-[0.75rem] text-text-3">{t('history.empty')}</p>;
   }
 
   return (

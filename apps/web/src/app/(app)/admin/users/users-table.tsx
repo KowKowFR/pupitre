@@ -205,7 +205,10 @@ export function UsersTable({
                     <div className="text-sm font-medium">
                       {user.name}
                       {isSelf ? (
-                        <span className="text-muted-foreground font-normal"> {t('users.self')}</span>
+                        <span className="text-muted-foreground font-normal">
+                          {' '}
+                          {t('users.self')}
+                        </span>
                       ) : null}
                     </div>
                     <div className="text-muted-foreground text-xs">{user.email}</div>
@@ -405,9 +408,7 @@ function ResetTwoFactorDialog({
             <li>{t('users.2fa.dialog.totp')}</li>
             <li>{t('users.2fa.dialog.backup')}</li>
             <li>
-              {isSelf
-                ? t('users.2fa.dialog.sessionsSelf')
-                : t('users.2fa.dialog.sessionsOther')}
+              {isSelf ? t('users.2fa.dialog.sessionsSelf') : t('users.2fa.dialog.sessionsOther')}
             </li>
             <li>
               {t('users.2fa.dialog.after')} <code>/account</code>.

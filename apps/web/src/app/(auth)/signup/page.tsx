@@ -25,8 +25,7 @@ export default async function SignupPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert variant="info">
-            {t('signup.closed.hint')}{' '}
-            <code className="font-mono text-xs">ALLOW_SIGNUP=true</code>.
+            {t('signup.closed.hint')} <code className="font-mono text-xs">ALLOW_SIGNUP=true</code>.
           </Alert>
           <Link
             href="/login"

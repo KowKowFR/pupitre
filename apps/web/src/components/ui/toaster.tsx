@@ -37,7 +37,11 @@ export function Toaster() {
   const t = useT(chrome);
   const toasts = React.useSyncExternalStore(subscribeToasts, getToasts, () => EMPTY);
   return (
-    <section aria-label={t('toast.region')} aria-live="polite" className="toasts pointer-events-none">
+    <section
+      aria-label={t('toast.region')}
+      aria-live="polite"
+      className="toasts pointer-events-none"
+    >
       {toasts.map((item) => (
         <Toast key={item.id} item={item} dismissLabel={t('toast.dismiss')} />
       ))}
@@ -117,7 +121,13 @@ function Toast({ item, dismissLabel }: { item: ToastItem; dismissLabel: string }
       >
         <X aria-hidden className="!size-3.5" />
       </button>
-      {item.life ? <span className="bar" aria-hidden style={paused ? { animationPlayState: 'paused' } : undefined} /> : null}
+      {item.life ? (
+        <span
+          className="bar"
+          aria-hidden
+          style={paused ? { animationPlayState: 'paused' } : undefined}
+        />
+      ) : null}
     </div>
   );
 }

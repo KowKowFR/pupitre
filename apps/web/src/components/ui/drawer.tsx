@@ -8,7 +8,13 @@ import { ArrowUpRight, ChevronDown, ChevronUp, Maximize2, X } from 'lucide-react
 import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
-import { drawerKeyAction, hrefWithSelection, isTyping, neighbour, selectionFrom } from '@/lib/drawer-url';
+import {
+  drawerKeyAction,
+  hrefWithSelection,
+  isTyping,
+  neighbour,
+  selectionFrom,
+} from '@/lib/drawer-url';
 import { cn } from '@/lib/utils';
 
 /**
@@ -52,7 +58,10 @@ export function Drawer({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const nav = React.useMemo(() => ({ onPrevious, onNext, recordHref }), [onPrevious, onNext, recordHref]);
+  const nav = React.useMemo(
+    () => ({ onPrevious, onNext, recordHref }),
+    [onPrevious, onNext, recordHref],
+  );
 
   function onKeyDown(event: React.KeyboardEvent) {
     const action = drawerKeyAction(
@@ -64,7 +73,11 @@ export function Drawer({
         tag: (event.target as HTMLElement).tagName?.toLowerCase(),
         typing: isTyping(event.target),
       },
-      { canPrevious: Boolean(onPrevious), canNext: Boolean(onNext), hasRecord: Boolean(recordHref) },
+      {
+        canPrevious: Boolean(onPrevious),
+        canNext: Boolean(onNext),
+        hasRecord: Boolean(recordHref),
+      },
     );
     if (action === null) return;
     event.preventDefault();
@@ -122,10 +135,22 @@ export function DrawerHeader({
         <span className="ml-auto flex shrink-0 items-center gap-0.5">
           {onPrevious !== undefined || onNext !== undefined ? (
             <>
-              <IconButton label={t('drawer.previous')} kbd="K" size="icon-sm" disabled={!onPrevious} onClick={onPrevious}>
+              <IconButton
+                label={t('drawer.previous')}
+                kbd="K"
+                size="icon-sm"
+                disabled={!onPrevious}
+                onClick={onPrevious}
+              >
                 <ChevronUp />
               </IconButton>
-              <IconButton label={t('drawer.next')} kbd="J" size="icon-sm" disabled={!onNext} onClick={onNext}>
+              <IconButton
+                label={t('drawer.next')}
+                kbd="J"
+                size="icon-sm"
+                disabled={!onNext}
+                onClick={onNext}
+              >
                 <ChevronDown />
               </IconButton>
             </>
@@ -144,8 +169,12 @@ export function DrawerHeader({
           </DialogPrimitive.Close>
         </span>
       </div>
-      <DialogPrimitive.Title className="t-drawer min-w-0 break-words">{title}</DialogPrimitive.Title>
-      {state ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px]">{state}</div> : null}
+      <DialogPrimitive.Title className="t-drawer min-w-0 break-words">
+        {title}
+      </DialogPrimitive.Title>
+      {state ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[13px]">{state}</div>
+      ) : null}
       {extra}
     </div>
   );
@@ -243,7 +272,8 @@ export function useDrawerSelection(key: string, ids?: readonly string[]) {
     select,
     open: (id: string) => select(id, selected === null ? 'push' : 'replace'),
     close: () => select(null),
-    onPrevious: previous !== null && selected !== null ? () => select(previous, 'replace') : undefined,
+    onPrevious:
+      previous !== null && selected !== null ? () => select(previous, 'replace') : undefined,
     onNext: next !== null && selected !== null ? () => select(next, 'replace') : undefined,
   };
 }

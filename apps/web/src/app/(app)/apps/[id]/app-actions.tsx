@@ -296,8 +296,8 @@ export function AppActions({
         {error ? <Alert variant="destructive">{error}</Alert> : null}
         {visible.length === 0 && state !== null ? (
           <Alert>
-            Votre rôle ne permet aucun geste sur cette application. La consultation des logs
-            reste ouverte.
+            Votre rôle ne permet aucun geste sur cette application. La consultation des logs reste
+            ouverte.
           </Alert>
         ) : null}
 
@@ -470,7 +470,9 @@ function buildGestures({
 
   const rollback: Gesture = {
     key: 'rollback',
-    label: state.previous ? `Revenir à la version #${state.previous.version}` : 'Revenir en arrière',
+    label: state.previous
+      ? `Revenir à la version #${state.previous.version}`
+      : 'Revenir en arrière',
     busyLabel: 'Retour en arrière…',
     variant: 'outline',
     disabledReason: state.previous

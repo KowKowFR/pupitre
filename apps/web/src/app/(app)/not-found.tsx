@@ -17,10 +17,7 @@ export default async function AppNotFound() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('appNotFound.title')}
-        description={t('appNotFound.description')}
-      />
+      <PageHeader title={t('appNotFound.title')} description={t('appNotFound.description')} />
       <Card>
         <CardContent className="space-y-3">
           <p className="text-[0.8125rem] text-text-2">{t('appNotFound.body')}</p>

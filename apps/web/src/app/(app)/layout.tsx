@@ -14,7 +14,13 @@ import { chrome } from '@/i18n/messages/chrome';
 import { onboarding } from '@/i18n/messages/onboarding';
 import { visibleCommands, visibleNavigation } from '@/lib/navigation';
 import { offerOnboarding, onboardingGate } from '@/lib/onboarding-gate';
-import { attentionFor, loadApplications, loadMonitors, loadRecentDeployments, loadTargets } from '@/lib/overview';
+import {
+  attentionFor,
+  loadApplications,
+  loadMonitors,
+  loadRecentDeployments,
+  loadTargets,
+} from '@/lib/overview';
 import { currentAuth } from '@/lib/page-auth';
 import { parseTheme, THEME_COOKIE } from '@/lib/theme';
 import { workerStatus } from '@/lib/worker-status';
@@ -49,21 +55,26 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const tOnboarding = await getT(onboarding);
   const groups = visibleNavigation(auth.can);
   const sections = groups.flatMap((group) =>
-    group.sections.map((section) => ({ key: section.key, href: section.href, shortcut: section.shortcut })),
+    group.sections.map((section) => ({
+      key: section.key,
+      href: section.href,
+      shortcut: section.shortcut,
+    })),
   );
 
   // Les métas du rail lisent ce que lit la vue d'ensemble, avec les mêmes
   // chargeurs mis en cache : sur `/`, rien n'est lu deux fois.
-  const [attention, targets, applications, recent, monitors, worker, roles, cookieStore] = await Promise.all([
-    attentionFor(auth),
-    auth.can('target:read') ? loadTargets() : Promise.resolve(null),
-    auth.can('application:read') ? loadApplications() : Promise.resolve(null),
-    auth.can('deployment:read') ? loadRecentDeployments() : Promise.resolve(null),
-    auth.can('monitor:read') ? loadMonitors() : Promise.resolve(null),
-    workerStatus(),
-    listRoles(),
-    cookies(),
-  ]);
+  const [attention, targets, applications, recent, monitors, worker, roles, cookieStore] =
+    await Promise.all([
+      attentionFor(auth),
+      auth.can('target:read') ? loadTargets() : Promise.resolve(null),
+      auth.can('application:read') ? loadApplications() : Promise.resolve(null),
+      auth.can('deployment:read') ? loadRecentDeployments() : Promise.resolve(null),
+      auth.can('monitor:read') ? loadMonitors() : Promise.resolve(null),
+      workerStatus(),
+      listRoles(),
+      cookies(),
+    ]);
 
   const metas: Partial<Record<string, NavMeta>> = {};
   if (attention.length > 0) {
@@ -80,7 +91,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     metas.deployments = { kind: 'inflight', label: t('shell.meta.inflight') };
   }
   const failing = monitors?.filter(
-    (monitor) => monitor.enabled && (monitor.status === 'unhealthy' || monitor.status === 'unreachable'),
+    (monitor) =>
+      monitor.enabled && (monitor.status === 'unhealthy' || monitor.status === 'unreachable'),
   ).length;
   if (failing) metas.monitoring = { kind: 'count', value: failing, alert: true };
 
@@ -91,9 +103,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     : null;
 
   const roleLabel =
-    auth.roles
-      .map((key) => roles.find((role) => role.key === key)?.label ?? key)
-      .join(', ') || '—';
+    auth.roles.map((key) => roles.find((role) => role.key === key)?.label ?? key).join(', ') || '—';
   const user = {
     name: auth.name,
     email: auth.email,
@@ -117,7 +127,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <div className="main">
               <MobileHeader
                 instanceName={settings.instanceName}
-                sections={sections.map((section) => ({ ...section, label: t(`nav.${section.key}`) }))}
+                sections={sections.map((section) => ({
+                  ...section,
+                  label: t(`nav.${section.key}`),
+                }))}
                 metas={metas}
                 user={user}
               />

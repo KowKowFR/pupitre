@@ -37,7 +37,8 @@ export function hrefWithSelection(
  * descend une liste doit sentir qu'il en a atteint le bout.
  */
 export function neighbour<T>(ids: readonly T[], current: T | null, direction: 1 | -1): T | null {
-  if (current === null) return ids.length > 0 ? (direction === 1 ? ids[0]! : ids[ids.length - 1]!) : null;
+  if (current === null)
+    return ids.length > 0 ? (direction === 1 ? ids[0]! : ids[ids.length - 1]!) : null;
   const index = ids.indexOf(current);
   if (index === -1) return null;
   const next = index + direction;
@@ -50,7 +51,11 @@ export function neighbour<T>(ids: readonly T[], current: T | null, direction: 1 
  */
 export function isTyping(target: EventTarget | null): boolean {
   if (!target || typeof target !== 'object' || !('tagName' in target)) return false;
-  const element = target as { tagName: string; isContentEditable?: boolean; getAttribute?: (name: string) => string | null };
+  const element = target as {
+    tagName: string;
+    isContentEditable?: boolean;
+    getAttribute?: (name: string) => string | null;
+  };
   const tag = element.tagName.toLowerCase();
   if (tag === 'textarea' || tag === 'select') return true;
   if (tag === 'input') {
@@ -83,6 +88,7 @@ export function drawerKeyAction(
   const key = event.key.toLowerCase();
   if (key === 'j' && nav.canNext) return 'next';
   if (key === 'k' && nav.canPrevious) return 'previous';
-  if (event.key === 'Enter' && nav.hasRecord && event.tag !== 'a' && event.tag !== 'button') return 'record';
+  if (event.key === 'Enter' && nav.hasRecord && event.tag !== 'a' && event.tag !== 'button')
+    return 'record';
   return null;
 }

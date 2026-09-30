@@ -30,7 +30,12 @@ function FilterChipLink({
   ...props
 }: React.ComponentProps<typeof Link> & { active: boolean; count?: React.ReactNode }) {
   return (
-    <Link aria-current={active ? 'page' : undefined} className={cn('chip', className)} scroll={false} {...props}>
+    <Link
+      aria-current={active ? 'page' : undefined}
+      className={cn('chip', className)}
+      scroll={false}
+      {...props}
+    >
       {children}
       {count !== undefined ? <span className="count num">{count}</span> : null}
     </Link>

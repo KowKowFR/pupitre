@@ -53,7 +53,8 @@ export const GET = apiRoute(async (request) => {
   const auth = await requireSession(request);
   const { q, kind } = readSearchParams(request, querySchema);
   const needle = q.toLowerCase().replace(/^#/, '');
-  if (needle === '' && kind === undefined) return NextResponse.json({ items: [] satisfies SearchHit[] });
+  if (needle === '' && kind === undefined)
+    return NextResponse.json({ items: [] satisfies SearchHit[] });
 
   const wants = (family: SearchHit['kind']) => kind === undefined || kind === family;
   const limit = kind === undefined ? FAMILY_LIMIT : SCOPED_LIMIT;
@@ -61,19 +62,37 @@ export const GET = apiRoute(async (request) => {
   const [targets, applications, deployments, monitors] = await Promise.all([
     wants('target') && auth.can('target:read') ? listTargets() : null,
     wants('application') && auth.can('application:read') ? listApplications() : null,
-    wants('deployment') && auth.can('deployment:read') ? listDeployments({ page: 1, pageSize: 100 }) : null,
+    wants('deployment') && auth.can('deployment:read')
+      ? listDeployments({ page: 1, pageSize: 100 })
+      : null,
     wants('monitor') && auth.can('monitor:read') ? listMonitors() : null,
   ]);
 
   const items: SearchHit[] = [];
 
-  for (const target of (targets ?? []).filter((t) =>
-    matches(needle, t.name, t.host, t.description, ...Object.entries(t.labels).map(([k, v]) => `${k}=${v}`)),
-  ).slice(0, limit)) {
-    items.push({ kind: 'target', id: target.id, title: target.name, host: target.host, status: target.status });
+  for (const target of (targets ?? [])
+    .filter((t) =>
+      matches(
+        needle,
+        t.name,
+        t.host,
+        t.description,
+        ...Object.entries(t.labels).map(([k, v]) => `${k}=${v}`),
+      ),
+    )
+    .slice(0, limit)) {
+    items.push({
+      kind: 'target',
+      id: target.id,
+      title: target.name,
+      host: target.host,
+      status: target.status,
+    });
   }
 
-  for (const app of (applications ?? []).filter((a) => matches(needle, a.slug, a.name, a.description)).slice(0, limit)) {
+  for (const app of (applications ?? [])
+    .filter((a) => matches(needle, a.slug, a.name, a.description))
+    .slice(0, limit)) {
     const spec = app.appSpec as { version?: unknown } | null;
     items.push({
       kind: 'application',
@@ -85,7 +104,15 @@ export const GET = apiRoute(async (request) => {
   }
 
   for (const deployment of (deployments?.items ?? [])
-    .filter((d) => matches(needle, d.applicationSlug, d.targetName, `v${d.version}`, `${d.applicationSlug} v${d.version}`))
+    .filter((d) =>
+      matches(
+        needle,
+        d.applicationSlug,
+        d.targetName,
+        `v${d.version}`,
+        `${d.applicationSlug} v${d.version}`,
+      ),
+    )
     .slice(0, limit)) {
     items.push({
       kind: 'deployment',
@@ -97,8 +124,16 @@ export const GET = apiRoute(async (request) => {
     });
   }
 
-  for (const monitor of (monitors ?? []).filter((m) => matches(needle, m.name, m.type)).slice(0, limit)) {
-    items.push({ kind: 'monitor', id: monitor.id, title: monitor.name, type: monitor.type, status: monitor.status });
+  for (const monitor of (monitors ?? [])
+    .filter((m) => matches(needle, m.name, m.type))
+    .slice(0, limit)) {
+    items.push({
+      kind: 'monitor',
+      id: monitor.id,
+      title: monitor.name,
+      type: monitor.type,
+      status: monitor.status,
+    });
   }
 
   return NextResponse.json({ items });

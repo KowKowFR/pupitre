@@ -131,9 +131,7 @@ export function TargetsTable({
       }
     }
     return [...counts.entries()]
-      .sort(
-        ([pairA, a], [pairB, b]) => b.count - a.count || pairA.localeCompare(pairB, 'fr'),
-      )
+      .sort(([pairA, a], [pairB, b]) => b.count - a.count || pairA.localeCompare(pairB, 'fr'))
       .map(([pair, entry]) => ({ pair, ...entry }));
   }, [targets]);
 

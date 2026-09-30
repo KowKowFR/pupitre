@@ -323,9 +323,11 @@
 
   /* ---------- coquille ---------- */
   .shell { position: relative; display: flex; width: 100%; min-height: 100dvh; background: var(--bg); }
+  /* Le fond du rail court sur toute la hauteur ; son contenu, lui, reste collé à la fenêtre. */
+  .side-wrap { width: 240px; flex-shrink: 0; background: var(--bg-subtle); border-right: 1px solid var(--border); }
   .side {
-    position: sticky; top: 0; height: 100dvh; width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px;
-    padding: 12px 10px; background: var(--bg-subtle); border-right: 1px solid var(--border); overflow-y: auto;
+    position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 14px;
+    padding: 12px 10px; overflow-y: auto;
   }
   .side-brand {
     display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 6px; border-radius: 9px; cursor: pointer; width: 100%;

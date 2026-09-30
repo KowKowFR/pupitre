@@ -20,7 +20,14 @@ import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useLanguage, useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { deployments as messages } from '@/i18n/messages/deployments';
@@ -386,28 +393,18 @@ function VerdictBadge({ verdict, status }: { verdict: ScanVerdict; status: ScanR
   const t = useT(messages);
 
   if (status === 'failed') {
-    return (
-      <Badge variant="destructive">{t('verdict.error')}</Badge>
-    );
+    return <Badge variant="destructive">{t('verdict.error')}</Badge>;
   }
   if (status === 'running') {
-    return (
-      <Badge variant="default">{t('verdict.running')}</Badge>
-    );
+    return <Badge variant="default">{t('verdict.running')}</Badge>;
   }
   if (verdict === 'fail') {
-    return (
-      <Badge variant="destructive">{t('verdict.fail')}</Badge>
-    );
+    return <Badge variant="destructive">{t('verdict.fail')}</Badge>;
   }
   if (verdict === 'pass') {
-    return (
-      <Badge variant="ok">{t('verdict.pass')}</Badge>
-    );
+    return <Badge variant="ok">{t('verdict.pass')}</Badge>;
   }
-  return (
-    <Badge variant="warn">{t('verdict.unknown')}</Badge>
-  );
+  return <Badge variant="warn">{t('verdict.unknown')}</Badge>;
 }
 
 function formatMs(value: number | null, absent: string): string {

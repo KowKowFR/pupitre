@@ -62,7 +62,11 @@ export function UserMenu({
           </button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent side={variant === 'rail' ? 'top' : 'bottom'} align={variant === 'rail' ? 'start' : 'end'} className="w-[240px]">
+      <DropdownMenuContent
+        side={variant === 'rail' ? 'top' : 'bottom'}
+        align={variant === 'rail' ? 'start' : 'end'}
+        className="w-[240px]"
+      >
         <div className="-mx-1 -mt-1 mb-1 flex items-center gap-2.5 border-b border-border-subtle px-3 py-2.5">
           <Avatar name={name} />
           <span className="flex min-w-0 flex-col">

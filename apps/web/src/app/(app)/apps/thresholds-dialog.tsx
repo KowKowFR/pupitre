@@ -86,16 +86,17 @@ export function ThresholdsDialog({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Record<HistoryMetric, Draft>>(() =>
-    Object.fromEntries(
-      METRICS.map((metric) => [
-        metric,
-        {
-          limitPercent: String(thresholds[metric].limitPercent),
-          enabled: thresholds[metric].enabled,
-        },
-      ]),
-    ) as Record<HistoryMetric, Draft>,
+  const [draft, setDraft] = useState<Record<HistoryMetric, Draft>>(
+    () =>
+      Object.fromEntries(
+        METRICS.map((metric) => [
+          metric,
+          {
+            limitPercent: String(thresholds[metric].limitPercent),
+            enabled: thresholds[metric].enabled,
+          },
+        ]),
+      ) as Record<HistoryMetric, Draft>,
   );
 
   const save = useCallback(async () => {
@@ -122,9 +123,7 @@ export function ThresholdsDialog({
           const body = (await response.json().catch(() => ({}))) as {
             error?: { message?: string };
           };
-          setError(
-            body.error?.message ?? t('thresholds.refused', { status: response.status }),
-          );
+          setError(body.error?.message ?? t('thresholds.refused', { status: response.status }));
           return;
         }
       }
@@ -145,10 +144,9 @@ export function ThresholdsDialog({
       setBusy(true);
       setError(null);
       try {
-        await fetch(
-          `/api/supervision/thresholds?targetId=${targetId}&metric=${metric}`,
-          { method: 'DELETE' },
-        );
+        await fetch(`/api/supervision/thresholds?targetId=${targetId}&metric=${metric}`, {
+          method: 'DELETE',
+        });
         setOpen(false);
         router.refresh();
       } finally {
@@ -170,8 +168,7 @@ export function ThresholdsDialog({
         <DialogHeader>
           <DialogTitle>{t('thresholds.title', { name: targetName })}</DialogTitle>
           <DialogDescription>
-            {t('thresholds.description')}{' '}
-            <strong>{t('thresholds.description.once')}</strong>
+            {t('thresholds.description')} <strong>{t('thresholds.description.once')}</strong>
             {t('thresholds.description.end')}
           </DialogDescription>
         </DialogHeader>
@@ -184,9 +181,7 @@ export function ThresholdsDialog({
               <div className="flex items-end gap-3">
                 <div className="flex-1">
                   <Label htmlFor={`threshold-${metric}`}>{t(METRIC_KEY[metric])}</Label>
-                  <p className="text-[0.6875rem] text-text-3">
-                    {t(METRIC_HINT_KEY[metric])}
-                  </p>
+                  <p className="text-[0.6875rem] text-text-3">{t(METRIC_HINT_KEY[metric])}</p>
                 </div>
                 <Input
                   id={`threshold-${metric}`}

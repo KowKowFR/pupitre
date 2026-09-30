@@ -58,7 +58,9 @@ type ApiError = { error?: { message?: string } };
  * n'a besoin d'une fenêtre de 137 secondes, et un champ libre invite à saisir
  * la plus petite valeur acceptée « pour voir ».
  */
-const PRESETS_MS = [15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000];
+const PRESETS_MS = [
+  15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000,
+];
 
 export function DigestPolicy({
   initialWindowMs,
@@ -136,9 +138,8 @@ export function DigestPolicy({
     <div className="flex flex-col gap-4">
       <Alert variant="info">
         <p>
-          {t('digest.rule.lead')} <strong>{t('digest.rule.first')}</strong>{' '}
-          {t('digest.rule.opens')} <strong>{formatDigestDuration(windowMs)}</strong>{' '}
-          {t('digest.rule.holds')}
+          {t('digest.rule.lead')} <strong>{t('digest.rule.first')}</strong> {t('digest.rule.opens')}{' '}
+          <strong>{formatDigestDuration(windowMs)}</strong> {t('digest.rule.holds')}
         </p>
         <p className="mt-1.5">
           {t('digest.close.lead')} <strong>{t('digest.close.digest')}</strong>{' '}
@@ -171,12 +172,23 @@ export function DigestPolicy({
         </div>
 
         {canManage ? (
-          <Button size="sm" type="button" disabled={pending || windowMs === initialWindowMs} onClick={() => void save()}>
+          <Button
+            size="sm"
+            type="button"
+            disabled={pending || windowMs === initialWindowMs}
+            onClick={() => void save()}
+          >
             {tc('save')}
           </Button>
         ) : null}
 
-        <Button size="sm" variant="ghost" type="button" disabled={pending} onClick={() => void refresh()}>
+        <Button
+          size="sm"
+          variant="ghost"
+          type="button"
+          disabled={pending}
+          onClick={() => void refresh()}
+        >
           {t('digest.refresh')}
         </Button>
       </div>

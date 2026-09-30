@@ -161,9 +161,7 @@ export function HostReadouts({
   }
 
   if (entry.state === 'error') {
-    return (
-      <Placeholder tone="danger" message={t('readout.failed', { message: entry.message })} />
-    );
+    return <Placeholder tone="danger" message={t('readout.failed', { message: entry.message })} />;
   }
 
   const metrics: HostMetrics = entry.metrics;
@@ -220,9 +218,7 @@ export function HostReadouts({
           thresholds.memory.enabled,
         )}
         value={
-          memory === null
-            ? t('unknown')
-            : t('percent', { value: Math.round(memory.usedPercent) })
+          memory === null ? t('unknown') : t('percent', { value: Math.round(memory.usedPercent) })
         }
         unknown={memory === null}
         ratio={memory === null ? null : memory.usedPercent / 100}

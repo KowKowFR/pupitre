@@ -41,15 +41,7 @@ export type AlertProps = React.ComponentProps<'div'> &
     icon?: boolean;
   };
 
-function Alert({
-  className,
-  variant,
-  title,
-  action,
-  icon = true,
-  children,
-  ...props
-}: AlertProps) {
+function Alert({ className, variant, title, action, icon = true, children, ...props }: AlertProps) {
   const tone: Variant = variant ?? 'default';
   const Icon = ICON[tone];
   return (

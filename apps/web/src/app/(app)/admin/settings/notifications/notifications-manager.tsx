@@ -73,15 +73,17 @@ function emptyDraft(catalog: PresentedNotificationChannel[]): Draft {
   return draftFor(first, null);
 }
 
-function draftFor(descriptor: PresentedNotificationChannel | undefined, channel: ChannelView | null): Draft {
+function draftFor(
+  descriptor: PresentedNotificationChannel | undefined,
+  channel: ChannelView | null,
+): Draft {
   const values: Record<string, string> = {};
   const booleans: Record<string, boolean> = {};
 
   for (const field of descriptor?.fields ?? []) {
     const current = channel?.config[field.name];
     if (field.kind === 'boolean') {
-      booleans[field.name] =
-        typeof current === 'boolean' ? current : field.defaultValue === true;
+      booleans[field.name] = typeof current === 'boolean' ? current : field.defaultValue === true;
       continue;
     }
     // Un secret n'arrive jamais du serveur : le champ reste vide, et vide
@@ -224,7 +226,8 @@ export function NotificationsManager({
       {notice ? <Alert variant="success">{notice}</Alert> : null}
       {verdict ? (
         <Alert variant={verdict.delivered ? 'success' : 'destructive'}>
-          <strong>{verdict.name}</strong> — {verdict.probe.ok ? t('test.probe') : t('test.probeFailed')}
+          <strong>{verdict.name}</strong> —{' '}
+          {verdict.probe.ok ? t('test.probe') : t('test.probeFailed')}
           {verdict.probe.detail}
           <br />
           {verdict.delivered
@@ -415,12 +418,7 @@ function ChannelForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {(descriptor?.fields ?? []).map((field) => (
-          <FieldInput
-            key={field.name}
-            field={field}
-            draft={draft}
-            onChange={onChange}
-          />
+          <FieldInput key={field.name} field={field} draft={draft} onChange={onChange} />
         ))}
       </div>
 
@@ -535,7 +533,9 @@ function FieldInput({
       ) : (
         <Input
           id={id}
-          type={field.kind === 'password' ? 'password' : field.kind === 'number' ? 'number' : 'text'}
+          type={
+            field.kind === 'password' ? 'password' : field.kind === 'number' ? 'number' : 'text'
+          }
           value={value}
           placeholder={field.placeholder ?? undefined}
           autoComplete={field.secret ? 'new-password' : 'off'}

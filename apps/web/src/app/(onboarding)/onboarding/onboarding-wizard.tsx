@@ -335,12 +335,7 @@ export function OnboardingWizard(props: Props) {
 
           <div className="flex flex-wrap items-center gap-2">
             {previous ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => goto(previous.id)}
-              >
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => goto(previous.id)}>
                 <ChevronLeft />
                 {t(`step.${previous.id}.title`)}
               </Button>
@@ -440,7 +435,6 @@ export function OnboardingWizard(props: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </>
   );
 }
@@ -477,7 +471,9 @@ function Stepper({
               'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[0.8125rem]',
               'transition-colors duration-100 ease-out disabled:opacity-60',
               'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-              active ? 'bg-surface-2 text-text' : 'text-text-2 hover:bg-surface-2/60 hover:text-text',
+              active
+                ? 'bg-surface-2 text-text'
+                : 'text-text-2 hover:bg-surface-2/60 hover:text-text',
             )}
             aria-current={active ? 'step' : undefined}
           >
@@ -618,13 +614,7 @@ function TargetStep({
   );
 }
 
-function RoleStep({
-  roleKeys,
-  onCreated,
-}: {
-  roleKeys: RoleKey[];
-  onCreated: () => void;
-}) {
+function RoleStep({ roleKeys, onCreated }: { roleKeys: RoleKey[]; onCreated: () => void }) {
   const t = useT(onboarding);
 
   return (
@@ -634,9 +624,7 @@ function RoleStep({
           admin: <code className="font-mono text-xs">admin</code>,
           operator: <code className="font-mono text-xs">operator</code>,
           viewer: <code className="font-mono text-xs">viewer</code>,
-          noPermission: (
-            <strong className="text-text">{t('role.intro.noPermission')}</strong>
-          ),
+          noPermission: <strong className="text-text">{t('role.intro.noPermission')}</strong>,
           rolesLink: (
             <Link href="/admin/roles" className="text-accent underline underline-offset-4">
               {t('role.intro.link')}
@@ -701,31 +689,29 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
             {actionable.map((step) => {
               const link = links[step.id];
               return (
-              <tr key={step.id} className="border-b border-border last:border-b-0">
-                <td className="px-3 py-2 font-medium text-text">
-                  {t(`step.${step.id}.title`)}
-                </td>
-                <td className="px-3 py-2">
-                  <Badge
-                    variant={
-                      step.outcome === 'done'
-                        ? 'ok'
-                        : step.outcome === 'skipped'
-                          ? 'warn'
-                          : 'secondary'
-                    }
-                  >
-                    {outcomeLabel[step.outcome]}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {link ? (
-                    <Link href={link.href} className="text-accent underline underline-offset-4">
-                      {link.label}
-                    </Link>
-                  ) : null}
-                </td>
-              </tr>
+                <tr key={step.id} className="border-b border-border last:border-b-0">
+                  <td className="px-3 py-2 font-medium text-text">{t(`step.${step.id}.title`)}</td>
+                  <td className="px-3 py-2">
+                    <Badge
+                      variant={
+                        step.outcome === 'done'
+                          ? 'ok'
+                          : step.outcome === 'skipped'
+                            ? 'warn'
+                            : 'secondary'
+                      }
+                    >
+                      {outcomeLabel[step.outcome]}
+                    </Badge>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {link ? (
+                      <Link href={link.href} className="text-accent underline underline-offset-4">
+                        {link.label}
+                      </Link>
+                    ) : null}
+                  </td>
+                </tr>
               );
             })}
           </tbody>

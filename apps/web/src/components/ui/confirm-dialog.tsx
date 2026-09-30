@@ -208,7 +208,12 @@ function ConfirmBody({
         <Button ref={cancelRef} variant="ghost" disabled={pending} onClick={onCancel}>
           {cancelLabel ?? tc('cancel')}
         </Button>
-        <Button variant={confirmVariant(level)} disabled={!unlocked} loading={pending} onClick={() => void onConfirm()}>
+        <Button
+          variant={confirmVariant(level)}
+          disabled={!unlocked}
+          loading={pending}
+          onClick={() => void onConfirm()}
+        >
           {pending && pendingLabel ? pendingLabel : confirmLabel}
         </Button>
       </DialogFooter>

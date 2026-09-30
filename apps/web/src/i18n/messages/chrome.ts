@@ -126,7 +126,7 @@ const fr = {
   'palette.toast.preflight.detail': "Les résultats s'affichent sur l'écran des cibles.",
   'palette.toast.preflight.follow': 'Suivre',
   'palette.scope.deploy': 'Déployer',
-  'palette.scope.deploy.placeholder': "Quelle application déployer ?",
+  'palette.scope.deploy.placeholder': 'Quelle application déployer ?',
   'palette.scope.deploy.meta': 'Choisir la cible dans l’aperçu',
   'palette.cmd.newApp': 'Nouvelle application',
   'palette.cmd.newApp.meta': 'AppSpec depuis une description ou un JSON',
@@ -180,6 +180,8 @@ const fr = {
   'chart.rail.more': '… et {count} de plus',
 
   'chart.axis.now': 'maintenant',
+  'chart.axis.hoursAgo': '−{hours} h',
+  'chart.axis.daysAgo': '−{days} j',
 
   'chart.history.title': "Pas encore assez d'historique pour une tendance.",
   'chart.history.nothing': '{nothing} sur la fenêtre.',
@@ -349,6 +351,8 @@ const en: Translated<typeof fr> = {
   'chart.rail.more': '… and {count} more',
 
   'chart.axis.now': 'now',
+  'chart.axis.hoursAgo': '−{hours} h',
+  'chart.axis.daysAgo': '−{days} d',
 
   'chart.history.title': 'Not enough history yet for a trend.',
   'chart.history.nothing': '{nothing} over the window.',

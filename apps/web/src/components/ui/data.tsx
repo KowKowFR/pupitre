@@ -28,7 +28,13 @@ export function KeyValue({
 }
 
 /** Champ en lecture : légende grise au-dessus, valeur dessous. */
-export function FieldValue({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+export function FieldValue({
+  label,
+  children,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="fg">
       <span>{label}</span>
@@ -86,7 +92,10 @@ export function MiniGauge({
 }) {
   const clamped = Math.max(0, Math.min(100, percent));
   return (
-    <span className={cn('mgauge', tone === 'warn' && 'is-warn', tone === 'danger' && 'is-danger')} title={title}>
+    <span
+      className={cn('mgauge', tone === 'warn' && 'is-warn', tone === 'danger' && 'is-danger')}
+      title={title}
+    >
       {label}
       <i aria-hidden>
         <b style={{ width: `${clamped}%` }} />
@@ -97,7 +106,15 @@ export function MiniGauge({
 }
 
 /** Initiales d'une personne, dans un disque graphite. */
-export function Avatar({ name, large = false, className }: { name: string; large?: boolean; className?: string }) {
+export function Avatar({
+  name,
+  large = false,
+  className,
+}: {
+  name: string;
+  large?: boolean;
+  className?: string;
+}) {
   return (
     <span aria-hidden className={cn('av', large && 'av-lg', className)}>
       {initialsOf(name)}
@@ -106,7 +123,10 @@ export function Avatar({ name, large = false, className }: { name: string; large
 }
 
 export function initialsOf(name: string): string {
-  const parts = name.trim().split(/[\s@._-]+/).filter(Boolean);
+  const parts = name
+    .trim()
+    .split(/[\s@._-]+/)
+    .filter(Boolean);
   if (parts.length === 0) return '?';
   const first = parts[0]?.[0] ?? '';
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : (parts[0]?.[1] ?? '');

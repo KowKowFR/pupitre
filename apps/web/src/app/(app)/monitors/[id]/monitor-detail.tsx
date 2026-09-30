@@ -156,7 +156,9 @@ export function MonitorDetail({
       descriptor,
       value: renderMetric(descriptor, lastMetrics, t, format),
     }))
-    .filter((entry): entry is { descriptor: MetricDescriptor; value: string } => entry.value !== null);
+    .filter(
+      (entry): entry is { descriptor: MetricDescriptor; value: string } => entry.value !== null,
+    );
 
   return (
     <div className="flex flex-col gap-5">
@@ -269,7 +271,7 @@ export function MonitorDetail({
                       </Badge>
                     ) : null}
                   </div>
-                  {incident.alertError ?? incident.resolveAlertError ? (
+                  {(incident.alertError ?? incident.resolveAlertError) ? (
                     <Alert variant="warn">
                       {t('detail.incident.webhookFailed', {
                         error: incident.alertError ?? incident.resolveAlertError ?? '',
@@ -340,8 +342,7 @@ export function MonitorDetail({
                             .filter((descriptor) => descriptor.primary)
                             .map((descriptor) => (
                               <TableCell key={descriptor.key} className="font-mono text-xs">
-                                {renderMetric(descriptor, check.metrics, t, format) ??
-                                  tc('none')}
+                                {renderMetric(descriptor, check.metrics, t, format) ?? tc('none')}
                               </TableCell>
                             ))}
                           <TableCell className="text-xs text-text-2">

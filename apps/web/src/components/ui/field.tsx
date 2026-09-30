@@ -34,7 +34,8 @@ export function Field({
 }) {
   const t = useT(chrome);
   const generated = React.useId();
-  const child = React.Children.count(children) === 1 && React.isValidElement(children) ? children : null;
+  const child =
+    React.Children.count(children) === 1 && React.isValidElement(children) ? children : null;
   const childProps = (child?.props ?? {}) as { id?: string; 'aria-describedby'?: string };
   const id = htmlFor ?? childProps.id ?? generated;
   const helpId = `${id}-help`;

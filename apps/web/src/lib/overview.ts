@@ -36,7 +36,9 @@ export const loadTargets = cache(() => listTargets());
 export const loadApplications = cache(() => listApplications());
 export const loadSupervisedApps = cache(() => listSupervisedApps());
 export const loadMonitors = cache(() => listMonitors());
-export const loadRecentDeployments = cache(() => listDeployments(deploymentQuerySchema.parse({ pageSize: '6' })));
+export const loadRecentDeployments = cache(() =>
+  listDeployments(deploymentQuerySchema.parse({ pageSize: '6' })),
+);
 export const loadDeploymentPulse = cache(() => deploymentPulse(CHRONICLE_DAYS));
 export const loadScanPosture = cache(() => scanPosture(CHRONICLE_DAYS));
 
@@ -65,7 +67,15 @@ export const attentionFor = cache(async (auth: AuthContext): Promise<AttentionIt
     canReadDeployments ? loadDeploymentPulse() : Promise.resolve(null),
     auth.can('scan:read') ? loadScanPosture() : Promise.resolve(null),
   ]);
-  return collectAttention({ targets, running, monitors, recent: recent?.items ?? [], chronicle, posture, t });
+  return collectAttention({
+    targets,
+    running,
+    monitors,
+    recent: recent?.items ?? [],
+    chronicle,
+    posture,
+    t,
+  });
 });
 
 /**
@@ -170,9 +180,7 @@ export function collectAttention({
       subject: `${item.applicationSlug} v${item.version}`,
       detail: t('attention.deployment.failed', {
         target: item.targetName,
-        step: item.failedStep
-          ? t('attention.deployment.atStep', { step: item.failedStep })
-          : '',
+        step: item.failedStep ? t('attention.deployment.atStep', { step: item.failedStep }) : '',
       }),
       severity: 'danger',
       href: `/deployments/${item.id}`,

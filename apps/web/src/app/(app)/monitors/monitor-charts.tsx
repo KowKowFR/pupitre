@@ -135,7 +135,10 @@ export function OutcomeLegend({ className }: { className?: string }) {
   return (
     <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', className)}>
       {(['healthy', 'unhealthy', 'unreachable'] as const).map((outcome) => (
-        <span key={outcome} className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-3">
+        <span
+          key={outcome}
+          className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-3"
+        >
           <span
             aria-hidden
             className="inline-block h-2.5 w-1.5 rounded-[1px]"
@@ -313,7 +316,7 @@ export function LatencyChart({
     y: padTop + (height - padTop - padBottom) * (1 - ratio),
   }));
 
-  const active = hover === null ? null : plotted[hover] ?? null;
+  const active = hover === null ? null : (plotted[hover] ?? null);
 
   return (
     <div className={cn('relative', className)}>

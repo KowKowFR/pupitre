@@ -64,15 +64,23 @@ export const NAVIGATION: readonly NavGroup[] = [
 export function visibleNavigation(can: (permission: Permission) => boolean): NavGroup[] {
   return NAVIGATION.map((group) => ({
     key: group.key,
-    sections: group.sections.filter((section) => section.permission === null || can(section.permission)),
+    sections: group.sections.filter(
+      (section) => section.permission === null || can(section.permission),
+    ),
   })).filter((group) => group.sections.length > 0);
 }
 
 /** La section active pour un chemin : `/` n'est actif que sur lui-même. */
-export function activeSection(pathname: string, groups: readonly NavGroup[] = NAVIGATION): SectionKey | null {
+export function activeSection(
+  pathname: string,
+  groups: readonly NavGroup[] = NAVIGATION,
+): SectionKey | null {
   let best: NavSection | null = null;
   for (const section of groups.flatMap((group) => group.sections)) {
-    const hit = section.href === '/' ? pathname === '/' : pathname === section.href || pathname.startsWith(`${section.href}/`);
+    const hit =
+      section.href === '/'
+        ? pathname === '/'
+        : pathname === section.href || pathname.startsWith(`${section.href}/`);
     if (hit && (best === null || section.href.length > best.href.length)) best = section;
   }
   return best?.key ?? null;
@@ -82,9 +90,14 @@ export function activeSection(pathname: string, groups: readonly NavGroup[] = NA
  * Les commandes de la palette et ce qu'elles exigent. Une commande interdite
  * n'apparaît pas — elle n'est ni grisée ni expliquée.
  */
-export type CommandKey = 'deploy' | 'testTargets' | 'newApp' | 'newTarget' | 'theme' | 'language' | 'shortcuts';
+export type CommandKey =
+  'deploy' | 'testTargets' | 'newApp' | 'newTarget' | 'theme' | 'language' | 'shortcuts';
 
-export const COMMANDS: ReadonlyArray<{ key: CommandKey; permission: Permission | null; group: 'suggestions' | 'preferences' }> = [
+export const COMMANDS: ReadonlyArray<{
+  key: CommandKey;
+  permission: Permission | null;
+  group: 'suggestions' | 'preferences';
+}> = [
   { key: 'deploy', permission: 'deployment:create', group: 'suggestions' },
   { key: 'testTargets', permission: 'target:update', group: 'suggestions' },
   { key: 'newApp', permission: 'application:create', group: 'suggestions' },

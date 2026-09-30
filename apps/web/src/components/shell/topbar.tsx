@@ -18,9 +18,7 @@ import { useShell } from './shell-provider';
 import { UserMenu } from './user-menu';
 
 export type WorkerPill =
-  | { state: 'active'; idleSeconds: number }
-  | { state: 'idle' }
-  | { state: 'unknown' };
+  { state: 'active'; idleSeconds: number } | { state: 'idle' } | { state: 'unknown' };
 
 /**
  * Barre haute — 52 px. À gauche, le fil d'Ariane : l'instance, la section,
@@ -104,7 +102,9 @@ function WorkerStatusPill({ worker }: { worker: WorkerPill }) {
         tabIndex={0}
         className="t-cap inline-flex h-7 items-center gap-2 rounded-full border border-border bg-surface px-2.5 text-text-2"
       >
-        <Led tone={worker.state === 'active' ? 'ok' : worker.state === 'idle' ? 'danger' : 'idle'} />
+        <Led
+          tone={worker.state === 'active' ? 'ok' : worker.state === 'idle' ? 'danger' : 'idle'}
+        />
         {label}
       </span>
     </Tooltip>
@@ -136,13 +136,21 @@ export function MobileHeader({
           <span className="truncate text-[14px] font-semibold">{instanceName}</span>
         </Link>
         <div className="ml-auto flex items-center gap-1">
-          <button type="button" className="btn btn-ghost btn-icon" aria-label={t('palette.open')} onClick={() => openPalette()}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-icon"
+            aria-label={t('palette.open')}
+            onClick={() => openPalette()}
+          >
             <Search aria-hidden />
           </button>
           <UserMenu {...user} variant="icon" />
         </div>
       </div>
-      <nav aria-label={t('nav.landmark')} className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none]">
+      <nav
+        aria-label={t('nav.landmark')}
+        className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none]"
+      >
         {sections.map((section) => (
           <NavItem
             key={section.key}

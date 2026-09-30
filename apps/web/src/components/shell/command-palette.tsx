@@ -84,7 +84,10 @@ export function CommandPalette({
   const t = useT(chrome);
   const router = useRouter();
   const [raw, setRaw] = React.useState('');
-  const [found, setFound] = React.useState<{ key: string; items: SearchHit[] }>({ key: '', items: [] });
+  const [found, setFound] = React.useState<{ key: string; items: SearchHit[] }>({
+    key: '',
+    items: [],
+  });
   const [searching, setSearching] = React.useState(false);
   // Lu une fois par ouverture : la coquille remonte la palette à chaque fois.
   const [theme] = React.useState<ThemeChoice>(() => {
@@ -135,7 +138,9 @@ export function CommandPalette({
     if (!response.ok) return;
     const { items } = (await response.json()) as { items: Array<{ id: string }> };
     const results = await Promise.all(
-      items.map((target) => fetch(`/api/targets/${target.id}/preflight`, { method: 'POST' }).then((r) => r.ok)),
+      items.map((target) =>
+        fetch(`/api/targets/${target.id}/preflight`, { method: 'POST' }).then((r) => r.ok),
+      ),
     );
     const count = results.filter(Boolean).length;
     toast({
@@ -156,7 +161,9 @@ export function CommandPalette({
         group: 'objects',
         icon: Boxes,
         title: hit.title,
-        meta: [hit.slug, hit.version ? `v${hit.version}` : null, t('palette.scope.deploy.meta')].filter(Boolean).join(' · '),
+        meta: [hit.slug, hit.version ? `v${hit.version}` : null, t('palette.scope.deploy.meta')]
+          .filter(Boolean)
+          .join(' · '),
         verb: 'open',
         words: `${hit.title} ${hit.slug}`,
         isCommand: false,
@@ -164,44 +171,65 @@ export function CommandPalette({
       });
     }
   } else {
-    const command = (key: CommandKey, item: Omit<Item, 'id' | 'group' | 'isCommand'>, group: Item['group']) => {
-      if (commands.includes(key)) items.push({ ...item, id: `cmd-${key}-${item.title}`, group, isCommand: true });
+    const command = (
+      key: CommandKey,
+      item: Omit<Item, 'id' | 'group' | 'isCommand'>,
+      group: Item['group'],
+    ) => {
+      if (commands.includes(key))
+        items.push({ ...item, id: `cmd-${key}-${item.title}`, group, isCommand: true });
     };
-    command('deploy', {
-      icon: Rocket,
-      title: t('palette.cmd.deploy'),
-      meta: t('palette.cmd.deploy.meta'),
-      verb: 'run',
-      words: 'deploy',
-      perform: () => {
-        setRaw('');
-        onScopeChange('deploy');
+    command(
+      'deploy',
+      {
+        icon: Rocket,
+        title: t('palette.cmd.deploy'),
+        meta: t('palette.cmd.deploy.meta'),
+        verb: 'run',
+        words: 'deploy',
+        perform: () => {
+          setRaw('');
+          onScopeChange('deploy');
+        },
       },
-    }, 'suggestions');
-    command('testTargets', {
-      icon: RefreshCw,
-      title: t('palette.cmd.testTargets'),
-      meta: t('palette.cmd.testTargets.meta'),
-      verb: 'run',
-      words: 'preflight ssh',
-      perform: () => void testAllTargets(),
-    }, 'suggestions');
-    command('newApp', {
-      icon: Plus,
-      title: t('palette.cmd.newApp'),
-      meta: t('palette.cmd.newApp.meta'),
-      verb: 'open',
-      words: 'appspec json',
-      perform: () => go('/applications/new'),
-    }, 'suggestions');
-    command('newTarget', {
-      icon: ServerCog,
-      title: t('palette.cmd.newTarget'),
-      meta: t('palette.cmd.newTarget.meta'),
-      verb: 'open',
-      words: 'ssh',
-      perform: () => go('/targets/new'),
-    }, 'suggestions');
+      'suggestions',
+    );
+    command(
+      'testTargets',
+      {
+        icon: RefreshCw,
+        title: t('palette.cmd.testTargets'),
+        meta: t('palette.cmd.testTargets.meta'),
+        verb: 'run',
+        words: 'preflight ssh',
+        perform: () => void testAllTargets(),
+      },
+      'suggestions',
+    );
+    command(
+      'newApp',
+      {
+        icon: Plus,
+        title: t('palette.cmd.newApp'),
+        meta: t('palette.cmd.newApp.meta'),
+        verb: 'open',
+        words: 'appspec json',
+        perform: () => go('/applications/new'),
+      },
+      'suggestions',
+    );
+    command(
+      'newTarget',
+      {
+        icon: ServerCog,
+        title: t('palette.cmd.newTarget'),
+        meta: t('palette.cmd.newTarget.meta'),
+        verb: 'open',
+        words: 'ssh',
+        perform: () => go('/targets/new'),
+      },
+      'suggestions',
+    );
 
     for (const section of sections) {
       items.push({
@@ -222,44 +250,63 @@ export function CommandPalette({
     }
 
     if (commands.includes('theme')) {
-      const next: ThemeChoice[] = theme === 'dark' ? ['light', 'system'] : theme === 'light' ? ['dark', 'system'] : ['dark', 'light'];
+      const next: ThemeChoice[] =
+        theme === 'dark'
+          ? ['light', 'system']
+          : theme === 'light'
+            ? ['dark', 'system']
+            : ['dark', 'light'];
       for (const choice of next) {
-        command('theme', {
-          icon: choice === 'dark' ? Moon : choice === 'light' ? Sun : SunMoon,
-          title: t(`palette.cmd.theme.${choice}`),
-          meta: t('palette.cmd.theme.meta'),
-          verb: 'run',
-          words: 'theme dark light',
-          perform: () => {
-            applyTheme(choice);
-            onOpenChange(false);
+        command(
+          'theme',
+          {
+            icon: choice === 'dark' ? Moon : choice === 'light' ? Sun : SunMoon,
+            title: t(`palette.cmd.theme.${choice}`),
+            meta: t('palette.cmd.theme.meta'),
+            verb: 'run',
+            words: 'theme dark light',
+            perform: () => {
+              applyTheme(choice);
+              onOpenChange(false);
+            },
           },
-        }, 'preferences');
+          'preferences',
+        );
       }
     }
-    command('language', {
-      icon: Languages,
-      title: t('palette.cmd.language'),
-      meta: t('palette.cmd.language.meta'),
-      verb: 'open',
-      words: 'locale i18n',
-      perform: () => go('/admin/settings/regionalisation'),
-    }, 'preferences');
-    command('shortcuts', {
-      icon: Keyboard,
-      title: t('palette.cmd.shortcuts'),
-      meta: t('palette.cmd.shortcuts.meta'),
-      verb: 'open',
-      words: 'shortcuts keyboard',
-      perform: onShowShortcuts,
-    }, 'preferences');
+    command(
+      'language',
+      {
+        icon: Languages,
+        title: t('palette.cmd.language'),
+        meta: t('palette.cmd.language.meta'),
+        verb: 'open',
+        words: 'locale i18n',
+        perform: () => go('/admin/settings/regionalisation'),
+      },
+      'preferences',
+    );
+    command(
+      'shortcuts',
+      {
+        icon: Keyboard,
+        title: t('palette.cmd.shortcuts'),
+        meta: t('palette.cmd.shortcuts.meta'),
+        verb: 'open',
+        words: 'shortcuts keyboard',
+        perform: onShowShortcuts,
+      },
+      'preferences',
+    );
   }
 
   const needle = query.toLowerCase();
   const visible = items.filter((item) => {
     if (commandsOnly && !item.isCommand) return false;
     if (item.group === 'objects') return true; // déjà filtrés par le serveur
-    return needle === '' || `${item.title} ${item.meta} ${item.words}`.toLowerCase().includes(needle);
+    return (
+      needle === '' || `${item.title} ${item.meta} ${item.words}`.toLowerCase().includes(needle)
+    );
   });
 
   const empty = visible.length === 0 && !searching && raw.trim() !== '';
@@ -276,11 +323,15 @@ export function CommandPalette({
     >
       <div className="cmdk-in">
         <Search aria-hidden className="!size-[18px] text-text-3" />
-        {scope === 'deploy' ? <span className="cmdk-scope">{t('palette.scope.deploy')} ›</span> : null}
+        {scope === 'deploy' ? (
+          <span className="cmdk-scope">{t('palette.scope.deploy')} ›</span>
+        ) : null}
         <Command.Input
           value={raw}
           onValueChange={setRaw}
-          placeholder={scope === 'deploy' ? t('palette.scope.deploy.placeholder') : t('palette.placeholder')}
+          placeholder={
+            scope === 'deploy' ? t('palette.scope.deploy.placeholder') : t('palette.placeholder')
+          }
           aria-label={t('palette.label')}
           onKeyDown={(event) => {
             if (event.key === 'Backspace' && raw === '' && scope !== null) onScopeChange(null);
@@ -295,7 +346,12 @@ export function CommandPalette({
           return (
             <Command.Group key={group} heading={t(GROUP_LABEL[group])} className="cmdk-group">
               {inGroup.map((item) => (
-                <Command.Item key={item.id} value={item.id} onSelect={item.perform} className="cmdk-item">
+                <Command.Item
+                  key={item.id}
+                  value={item.id}
+                  onSelect={item.perform}
+                  className="cmdk-item"
+                >
                   <span className="ico">
                     <item.icon aria-hidden />
                   </span>
@@ -315,7 +371,9 @@ export function CommandPalette({
         {empty ? (
           <div className="flex flex-col items-center gap-1.5 px-4 py-9 text-center">
             <Search aria-hidden className="!size-5 text-text-3" />
-            <span className="t-sm font-semibold">{t('palette.empty.title', { query: raw.trim() })}</span>
+            <span className="t-sm font-semibold">
+              {t('palette.empty.title', { query: raw.trim() })}
+            </span>
             <span className="t-cap max-w-[52ch] text-text-3">{t('palette.empty.hint')}</span>
           </div>
         ) : null}
@@ -342,7 +400,11 @@ export function CommandPalette({
   );
 }
 
-function objectItem(hit: SearchHit, t: Translate<(typeof chrome)['fr']>, go: (href: string) => void): Item {
+function objectItem(
+  hit: SearchHit,
+  t: Translate<(typeof chrome)['fr']>,
+  go: (href: string) => void,
+): Item {
   switch (hit.kind) {
     case 'target':
       return {
@@ -362,7 +424,9 @@ function objectItem(hit: SearchHit, t: Translate<(typeof chrome)['fr']>, go: (hr
         group: 'objects',
         icon: Boxes,
         title: hit.title,
-        meta: [t('palette.kind.application'), hit.slug, hit.version ? `v${hit.version}` : null].filter(Boolean).join(' · '),
+        meta: [t('palette.kind.application'), hit.slug, hit.version ? `v${hit.version}` : null]
+          .filter(Boolean)
+          .join(' · '),
         verb: 'open',
         words: hit.slug,
         isCommand: false,

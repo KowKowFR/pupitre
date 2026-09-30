@@ -37,8 +37,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
         title={t('page.title')}
         description={
           <>
-            {t('page.description.before')}{' '}
-            <code className="font-mono text-xs">app_settings</code>{' '}
+            {t('page.description.before')} <code className="font-mono text-xs">app_settings</code>{' '}
             {t('page.description.after')}
           </>
         }
@@ -54,8 +53,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
         <div className="flex min-w-0 flex-col gap-5">
           {auth.can('settings:manage') ? null : (
             <Alert>
-              {t('page.readonly.before')}{' '}
-              <code className="font-mono text-xs">settings:manage</code>{' '}
+              {t('page.readonly.before')} <code className="font-mono text-xs">settings:manage</code>{' '}
               {t('page.readonly.after')}
             </Alert>
           )}

@@ -111,8 +111,12 @@ export default async function MonitorPage({ params }: { params: Promise<{ id: st
             <Badge variant={view.enabled ? 'ok' : 'secondary'}>
               {view.enabled ? t('detail.badge.active') : t('detail.badge.paused')}
             </Badge>
-            <Badge variant="outline">{t('detail.badge.day', { label: view.uptime24h.label })}</Badge>
-            <Badge variant="outline">{t('detail.badge.week', { label: view.uptime7d.label })}</Badge>
+            <Badge variant="outline">
+              {t('detail.badge.day', { label: view.uptime24h.label })}
+            </Badge>
+            <Badge variant="outline">
+              {t('detail.badge.week', { label: view.uptime7d.label })}
+            </Badge>
             <Button asChild size="sm" variant="outline">
               <Link href="/monitors">{t('detail.back')}</Link>
             </Button>

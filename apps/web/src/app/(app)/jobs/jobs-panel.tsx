@@ -287,194 +287,191 @@ export function JobsPanel({
       ) : (
         <Card className="py-4">
           <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('column.job')}</TableHead>
-              <TableHead>{t('column.cadence')}</TableHead>
-              <TableHead>{t('column.lastRun')}</TableHead>
-              <TableHead>{t('column.nextRun')}</TableHead>
-              <TableHead>{tc('column.state')}</TableHead>
-              <TableActionsHead>{tc('column.actions')}</TableActionsHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {jobs.map((job) => (
-              <Fragment key={job.id}>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell>
-                    <div className="text-[0.8125rem] font-medium text-text">{job.label}</div>
-                    <div className="font-mono text-[0.6875rem] text-text-3">{job.key}</div>
-                    <div className="mt-1 max-w-md text-xs text-text-2">{job.neverDoes}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-[0.8125rem] text-text">{job.cronDescription}</div>
-                    <code className="font-mono text-[0.6875rem] text-text-3">{job.cron}</code>
-                    <div className="text-[0.6875rem] text-text-3">{job.timeZone}</div>
-                    {job.schedule === null ? (
-                      <div className="text-[0.6875rem] text-text-3">
-                        {t('row.noSimpleForm')}
-                      </div>
-                    ) : null}
-                    {job.enabled &&
-                    job.installed &&
-                    job.schedulerTimeZone !== null &&
-                    job.schedulerTimeZone !== job.timeZone ? (
-                      <div className="text-[0.6875rem] text-warn-text">
-                        {t('row.zoneDrift', { zone: job.schedulerTimeZone })}
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-mono text-xs text-text-2 tabular-nums">
-                      {formatDate(job.lastRunAt, format, tc('none'))}
-                    </div>
-                    {job.lastRun ? (
-                      <Badge variant={STATUS_VARIANT[job.lastRun.status] ?? 'outline'}>
-                        {job.lastRun.status}
-                        {job.lastRun.manual ? t('row.manualSuffix') : ''}
-                      </Badge>
-                    ) : null}
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-text-2 tabular-nums">
-                    {job.enabled
-                      ? formatDate(job.nextRunAt, format, tc('none'), job.timeZone)
-                      : tc('none')}
-                    {job.enabled && job.nextRunAt ? (
-                      <div className="text-[0.6875rem] text-text-3">
-                        {job.timeZone}
-                        {' · '}
-                        {t('row.yourClock', {
-                          clock: formatDate(job.nextRunAt, format, tc('none')),
-                        })}
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={job.enabled ? 'ok' : 'outline'}>
-                      {job.enabled ? t('row.active') : t('row.disabled')}
-                    </Badge>
-                    {job.enabled && !job.installed ? (
-                      <div className="mt-1 text-xs text-warn-text">
-                        {t('row.missingFromBullmq')}
-                      </div>
-                    ) : null}
-                  </TableCell>
-                  <TableActions>
-                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setExpanded(expanded === job.id ? null : job.id)}
-                    >
-                      {expanded === job.id ? t('row.hideHistory') : t('row.showHistory')}
-                    </Button>
-                    {canManage ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy !== null}
-                          onClick={() => setEditing(job)}
-                        >
-                          {t('row.editCadence')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={busy !== null}
-                          onClick={() =>
-                            void call(
-                              `/api/jobs/${job.id}/run`,
-                              { method: 'POST' },
-                              () => t('notice.triggered', { key: job.key }),
-                            )
-                          }
-                        >
-                          Lancer
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={busy !== null}
-                          onClick={() =>
-                            void call(
-                              `/api/jobs/${job.id}`,
-                              {
-                                method: 'PATCH',
-                                headers: { 'content-type': 'application/json' },
-                                body: JSON.stringify({ enabled: !job.enabled }),
-                              },
-                              () =>
-                                job.enabled
-                                  ? t('notice.disabled', { key: job.key })
-                                  : t('notice.enabled', { key: job.key }),
-                            )
-                          }
-                        >
-                          {job.enabled ? tc('disable') : tc('enable')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-danger-text hover:bg-danger-soft/60 hover:text-danger-text"
-                          disabled={busy !== null}
-                          onClick={() =>
-                            void call(
-                              `/api/jobs/${job.id}`,
-                              { method: 'DELETE' },
-                              () => t('notice.deleted', { key: job.key }),
-                            )
-                          }
-                        >
-                          {tc('delete')}
-                        </Button>
-                      </>
-                    ) : null}
-                    </div>
-                  </TableActions>
+                  <TableHead>{t('column.job')}</TableHead>
+                  <TableHead>{t('column.cadence')}</TableHead>
+                  <TableHead>{t('column.lastRun')}</TableHead>
+                  <TableHead>{t('column.nextRun')}</TableHead>
+                  <TableHead>{tc('column.state')}</TableHead>
+                  <TableActionsHead>{tc('column.actions')}</TableActionsHead>
                 </TableRow>
-
-                {expanded === job.id ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="bg-surface-2/60">
-                      {job.runs.length === 0 ? (
-                        <p className="text-xs text-text-2">
-                          {t('history.empty')}
-                        </p>
-                      ) : (
-                        <ul className="space-y-2">
-                          {job.runs.map((run) => (
-                            <li key={run.id} className="flex flex-wrap items-start gap-3 text-xs">
-                              <Badge variant={STATUS_VARIANT[run.status] ?? 'outline'}>
-                                {run.status}
-                              </Badge>
-                              <span className="font-mono text-text-2 tabular-nums">
-                                {formatDate(run.startedAt, format, tc('none'))}
-                              </span>
-                              <span className="text-text-3">
-                                {formatDuration(run.durationMs, tc('none'))}
-                              </span>
-                              {run.manual ? <span>{t('history.manual')}</span> : null}
-                              <span
-                                className={cn(
-                                  'max-w-2xl truncate font-mono text-text-3',
-                                  run.error && 'text-danger-text',
-                                )}
+              </TableHeader>
+              <TableBody>
+                {jobs.map((job) => (
+                  <Fragment key={job.id}>
+                    <TableRow>
+                      <TableCell>
+                        <div className="text-[0.8125rem] font-medium text-text">{job.label}</div>
+                        <div className="font-mono text-[0.6875rem] text-text-3">{job.key}</div>
+                        <div className="mt-1 max-w-md text-xs text-text-2">{job.neverDoes}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-[0.8125rem] text-text">{job.cronDescription}</div>
+                        <code className="font-mono text-[0.6875rem] text-text-3">{job.cron}</code>
+                        <div className="text-[0.6875rem] text-text-3">{job.timeZone}</div>
+                        {job.schedule === null ? (
+                          <div className="text-[0.6875rem] text-text-3">
+                            {t('row.noSimpleForm')}
+                          </div>
+                        ) : null}
+                        {job.enabled &&
+                        job.installed &&
+                        job.schedulerTimeZone !== null &&
+                        job.schedulerTimeZone !== job.timeZone ? (
+                          <div className="text-[0.6875rem] text-warn-text">
+                            {t('row.zoneDrift', { zone: job.schedulerTimeZone })}
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono text-xs text-text-2 tabular-nums">
+                          {formatDate(job.lastRunAt, format, tc('none'))}
+                        </div>
+                        {job.lastRun ? (
+                          <Badge variant={STATUS_VARIANT[job.lastRun.status] ?? 'outline'}>
+                            {job.lastRun.status}
+                            {job.lastRun.manual ? t('row.manualSuffix') : ''}
+                          </Badge>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-text-2 tabular-nums">
+                        {job.enabled
+                          ? formatDate(job.nextRunAt, format, tc('none'), job.timeZone)
+                          : tc('none')}
+                        {job.enabled && job.nextRunAt ? (
+                          <div className="text-[0.6875rem] text-text-3">
+                            {job.timeZone}
+                            {' · '}
+                            {t('row.yourClock', {
+                              clock: formatDate(job.nextRunAt, format, tc('none')),
+                            })}
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={job.enabled ? 'ok' : 'outline'}>
+                          {job.enabled ? t('row.active') : t('row.disabled')}
+                        </Badge>
+                        {job.enabled && !job.installed ? (
+                          <div className="mt-1 text-xs text-warn-text">
+                            {t('row.missingFromBullmq')}
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableActions>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setExpanded(expanded === job.id ? null : job.id)}
+                          >
+                            {expanded === job.id ? t('row.hideHistory') : t('row.showHistory')}
+                          </Button>
+                          {canManage ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy !== null}
+                                onClick={() => setEditing(job)}
                               >
-                                {run.error ?? summarize(run.summary)}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </Fragment>
-            ))}
-          </TableBody>
-        </Table>
+                                {t('row.editCadence')}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy !== null}
+                                onClick={() =>
+                                  void call(`/api/jobs/${job.id}/run`, { method: 'POST' }, () =>
+                                    t('notice.triggered', { key: job.key }),
+                                  )
+                                }
+                              >
+                                Lancer
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={busy !== null}
+                                onClick={() =>
+                                  void call(
+                                    `/api/jobs/${job.id}`,
+                                    {
+                                      method: 'PATCH',
+                                      headers: { 'content-type': 'application/json' },
+                                      body: JSON.stringify({ enabled: !job.enabled }),
+                                    },
+                                    () =>
+                                      job.enabled
+                                        ? t('notice.disabled', { key: job.key })
+                                        : t('notice.enabled', { key: job.key }),
+                                  )
+                                }
+                              >
+                                {job.enabled ? tc('disable') : tc('enable')}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-danger-text hover:bg-danger-soft/60 hover:text-danger-text"
+                                disabled={busy !== null}
+                                onClick={() =>
+                                  void call(`/api/jobs/${job.id}`, { method: 'DELETE' }, () =>
+                                    t('notice.deleted', { key: job.key }),
+                                  )
+                                }
+                              >
+                                {tc('delete')}
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                      </TableActions>
+                    </TableRow>
+
+                    {expanded === job.id ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-surface-2/60">
+                          {job.runs.length === 0 ? (
+                            <p className="text-xs text-text-2">{t('history.empty')}</p>
+                          ) : (
+                            <ul className="space-y-2">
+                              {job.runs.map((run) => (
+                                <li
+                                  key={run.id}
+                                  className="flex flex-wrap items-start gap-3 text-xs"
+                                >
+                                  <Badge variant={STATUS_VARIANT[run.status] ?? 'outline'}>
+                                    {run.status}
+                                  </Badge>
+                                  <span className="font-mono text-text-2 tabular-nums">
+                                    {formatDate(run.startedAt, format, tc('none'))}
+                                  </span>
+                                  <span className="text-text-3">
+                                    {formatDuration(run.durationMs, tc('none'))}
+                                  </span>
+                                  {run.manual ? <span>{t('history.manual')}</span> : null}
+                                  <span
+                                    className={cn(
+                                      'max-w-2xl truncate font-mono text-text-3',
+                                      run.error && 'text-danger-text',
+                                    )}
+                                  >
+                                    {run.error ?? summarize(run.summary)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
@@ -528,9 +525,7 @@ function CadenceDialog({
   const t = useT(messages);
   const tc = useT(common);
   const language = useLanguage();
-  const [draft, setDraft] = useState<ScheduleDraft>(() =>
-    draftFromCron(job.cron, job.timeZone),
-  );
+  const [draft, setDraft] = useState<ScheduleDraft>(() => draftFromCron(job.cron, job.timeZone));
   const invalid = cronError(draftCron(draft), language) !== null;
 
   return (
@@ -569,7 +564,11 @@ function CadenceDialog({
               {tc('cancel')}
             </Button>
           </DialogClose>
-          <Button type="button" disabled={busy || invalid} onClick={() => onSubmit(draftBody(draft))}>
+          <Button
+            type="button"
+            disabled={busy || invalid}
+            onClick={() => onSubmit(draftBody(draft))}
+          >
             {tc('save')}
           </Button>
         </DialogFooter>
@@ -582,7 +581,10 @@ function CadenceDialog({
 function summarize(summary: unknown): string {
   if (summary === null || typeof summary !== 'object') return '';
   const entries = Object.entries(summary as Record<string, unknown>)
-    .filter(([field, value]) => field !== 'log' && (typeof value === 'number' || typeof value === 'string'))
+    .filter(
+      ([field, value]) =>
+        field !== 'log' && (typeof value === 'number' || typeof value === 'string'),
+    )
     .map(([field, value]) => `${field}=${String(value)}`);
   return entries.join(' · ');
 }

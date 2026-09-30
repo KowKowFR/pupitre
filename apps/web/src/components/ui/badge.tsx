@@ -73,7 +73,11 @@ function SeverityBadge({
   ...props
 }: React.ComponentProps<'span'> & { severity: Severity }) {
   return (
-    <span data-slot="severity" className={cn('sev', SEVERITY_CLASS[severity], className)} {...props}>
+    <span
+      data-slot="severity"
+      className={cn('sev', SEVERITY_CLASS[severity], className)}
+      {...props}
+    >
       {children}
     </span>
   );

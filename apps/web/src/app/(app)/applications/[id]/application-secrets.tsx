@@ -100,9 +100,7 @@ export function ApplicationSecrets({
       <CardContent className="space-y-3">
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        {secrets.length === 0 ? (
-          <p className="text-sm text-text-2">{t('secrets.none')}</p>
-        ) : null}
+        {secrets.length === 0 ? <p className="text-sm text-text-2">{t('secrets.none')}</p> : null}
 
         <ul className="divide-y divide-border">
           {secrets.map((secret) => (

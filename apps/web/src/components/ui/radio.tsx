@@ -10,7 +10,9 @@ import { cn } from '@/lib/utils';
  * Un segment sélectionné n'est pas un état React, c'est l'état du champ.
  */
 function RadioGroup({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div role="radiogroup" data-slot="radio-group" className={cn('seg', className)} {...props} />;
+  return (
+    <div role="radiogroup" data-slot="radio-group" className={cn('seg', className)} {...props} />
+  );
 }
 
 export type RadioOptionProps = Omit<React.ComponentProps<'input'>, 'type'> & {
@@ -32,7 +34,10 @@ function Radio({
   help,
   className,
   ...props
-}: Omit<React.ComponentProps<'input'>, 'type'> & { label: React.ReactNode; help?: React.ReactNode }) {
+}: Omit<React.ComponentProps<'input'>, 'type'> & {
+  label: React.ReactNode;
+  help?: React.ReactNode;
+}) {
   return (
     <label className={cn('check', className)}>
       <input type="radio" className="rd" {...props} />

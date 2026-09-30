@@ -172,11 +172,25 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="host">{t('field.host')}</Label>
-          <Input id="host" name="host" defaultValue={values.host} placeholder="10.0.0.12" required />
+          <Input
+            id="host"
+            name="host"
+            defaultValue={values.host}
+            placeholder="10.0.0.12"
+            required
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="port">{t('field.port')}</Label>
-          <Input id="port" name="port" type="number" min={1} max={65535} defaultValue={values.port} required />
+          <Input
+            id="port"
+            name="port"
+            type="number"
+            min={1}
+            max={65535}
+            defaultValue={values.port}
+            required
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="authMethod">{t('field.authMethod')}</Label>
@@ -294,16 +308,13 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         {/* Coupée autour du `clé=valeur` que le JSX rend en chasse fixe : une clé
             par fragment, dans l'ordre où la phrase les enchaîne. */}
         <p className="text-xs text-text-2">
-          {t('labels.help.before')} <code>{t('labels.help.pair')}</code>{' '}
-          {t('labels.help.after')}
+          {t('labels.help.before')} <code>{t('labels.help.pair')}</code> {t('labels.help.after')}
         </p>
       </div>
 
       <div className="flex gap-2">
         <Button type="submit" disabled={pending}>
-          {pending
-            ? tc('saving')
-            : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
+          {pending ? tc('saving') : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
         </Button>
         {onCancel === null ? null : (
           <Button type="button" variant="ghost" onClick={onCancel ?? (() => router.back())}>

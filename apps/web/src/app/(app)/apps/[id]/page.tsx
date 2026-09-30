@@ -129,7 +129,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
   // par l'application, jamais par le déploiement : une sonde survit aux
   // versions.
   const monitor = monitors.find((row) => row.applicationId === deployment.applicationId) ?? null;
-  const uptime = monitor ? (await uptimeWindows([monitor.id], 24)).get(monitor.id) ?? null : null;
+  const uptime = monitor ? ((await uptimeWindows([monitor.id], 24)).get(monitor.id) ?? null) : null;
 
   // Le passé de la machine vient de la base, pas de la machine : il s'affiche
   // même quand elle ne répond plus, ce qui est précisément le moment où on le
@@ -235,7 +235,9 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                 <Field label="Mise en ligne">
                   {formatDate(deployment.finishedAt ?? deployment.createdAt)}
                 </Field>
-                <Field label="Durée">{deployDuration(deployment.startedAt, deployment.finishedAt)}</Field>
+                <Field label="Durée">
+                  {deployDuration(deployment.startedAt, deployment.finishedAt)}
+                </Field>
                 <Field label="Déclenchée par" wide>
                   {deployment.triggeredByEmail ?? 'origine inconnue'}
                 </Field>
@@ -264,7 +266,15 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                   </span>
                 ) : (
                   <>
-                    <Badge variant={scan.verdict === 'fail' ? 'destructive' : scan.verdict === 'pass' ? 'ok' : 'secondary'}>
+                    <Badge
+                      variant={
+                        scan.verdict === 'fail'
+                          ? 'destructive'
+                          : scan.verdict === 'pass'
+                            ? 'ok'
+                            : 'secondary'
+                      }
+                    >
                       {scan.verdict === 'fail'
                         ? 'seuil dépassé'
                         : scan.verdict === 'pass'
@@ -313,7 +323,8 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                           history.summary.load.worst ?? 0,
                         )}
                         tone={
-                          (history.summary.load.worst ?? 0) >= (thresholds?.load.limitPercent ?? 100)
+                          (history.summary.load.worst ?? 0) >=
+                          (thresholds?.load.limitPercent ?? 100)
                             ? 'var(--warn)'
                             : 'var(--accent)'
                         }
@@ -378,9 +389,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
             >
               <div className="space-y-1.5 px-5 py-3.5 text-[0.8125rem]">
                 {!canReadMonitors ? (
-                  <p className="text-text-3">
-                    Lire les sondes demande la permission monitor:read.
-                  </p>
+                  <p className="text-text-3">Lire les sondes demande la permission monitor:read.</p>
                 ) : !monitor ? (
                   <p className="text-text-3">
                     Aucune sonde ne surveille cette application depuis l’extérieur.{' '}

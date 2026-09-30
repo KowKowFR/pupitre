@@ -59,10 +59,7 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('users.title')}
-        description={t('users.description')}
-      />
+      <PageHeader title={t('users.title')} description={t('users.description')} />
 
       <Card>
         <CardHeader>

@@ -4,7 +4,12 @@ import { useRouter } from 'next/navigation';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
-import { deploymentStepLabel, type DeployLogLine, type DeploymentStatus, type StepStatus } from '@pupitre/core';
+import {
+  deploymentStepLabel,
+  type DeployLogLine,
+  type DeploymentStatus,
+  type StepStatus,
+} from '@pupitre/core';
 import { Led } from '@/components/instrument';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -146,8 +151,7 @@ export function DeploymentDetail({
                   error: payload.status === 'failed' ? payload.detail : step.error,
                   startedAt:
                     payload.status === 'running' ? new Date().toISOString() : step.startedAt,
-                  finishedAt:
-                    payload.status === 'running' ? null : new Date().toISOString(),
+                  finishedAt: payload.status === 'running' ? null : new Date().toISOString(),
                 }
               : step,
           ),
@@ -290,11 +294,7 @@ export function DeploymentDetail({
             <CardContent className="px-3 py-3">
               <ol className="relative">
                 {steps.map((step, index) => (
-                  <StepRow
-                    key={step.key}
-                    step={step}
-                    last={index === steps.length - 1}
-                  />
+                  <StepRow key={step.key} step={step} last={index === steps.length - 1} />
                 ))}
               </ol>
             </CardContent>
@@ -647,7 +647,9 @@ function StatusBanner({
         </div>
       </CardContent>
 
-      {deployment.error || rolledBack || (failed && deployment.autoRollback && !deployment.hasPrevious) ? (
+      {deployment.error ||
+      rolledBack ||
+      (failed && deployment.autoRollback && !deployment.hasPrevious) ? (
         <div className="flex flex-col gap-2 border-t border-border px-5 py-3">
           {deployment.error ? (
             <p

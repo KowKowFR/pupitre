@@ -40,10 +40,16 @@ function DropdownMenuItem({
   meta,
   children,
   ...props
-}: React.ComponentProps<typeof MenuPrimitive.Item> & { destructive?: boolean; meta?: React.ReactNode }) {
+}: React.ComponentProps<typeof MenuPrimitive.Item> & {
+  destructive?: boolean;
+  meta?: React.ReactNode;
+}) {
   // Avec `asChild`, l'enfant doit rester unique : la méta n'a pas sa place.
   return (
-    <MenuPrimitive.Item className={cn('menu-item', destructive && 'is-danger', className)} {...props}>
+    <MenuPrimitive.Item
+      className={cn('menu-item', destructive && 'is-danger', className)}
+      {...props}
+    >
       {props.asChild ? (
         children
       ) : (
@@ -71,11 +77,17 @@ function DropdownMenuRadioItem({
   );
 }
 
-function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typeof MenuPrimitive.Separator>) {
+function DropdownMenuSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof MenuPrimitive.Separator>) {
   return <MenuPrimitive.Separator className={cn('menu-sep', className)} {...props} />;
 }
 
-function DropdownMenuLabel({ className, ...props }: React.ComponentProps<typeof MenuPrimitive.Label>) {
+function DropdownMenuLabel({
+  className,
+  ...props
+}: React.ComponentProps<typeof MenuPrimitive.Label>) {
   return <MenuPrimitive.Label className={cn('menu-label', className)} {...props} />;
 }
 
@@ -95,10 +107,18 @@ function DropdownMenuSubTrigger({
   );
 }
 
-function DropdownMenuSubContent({ className, ...props }: React.ComponentProps<typeof MenuPrimitive.SubContent>) {
+function DropdownMenuSubContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof MenuPrimitive.SubContent>) {
   return (
     <MenuPrimitive.Portal>
-      <MenuPrimitive.SubContent sideOffset={6} collisionPadding={8} className={cn('menu', className)} {...props} />
+      <MenuPrimitive.SubContent
+        sideOffset={6}
+        collisionPadding={8}
+        className={cn('menu', className)}
+        {...props}
+      />
     </MenuPrimitive.Portal>
   );
 }

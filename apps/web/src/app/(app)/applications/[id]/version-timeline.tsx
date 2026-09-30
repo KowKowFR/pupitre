@@ -196,9 +196,7 @@ export function VersionTimeline({
                       disabled={busy !== null}
                       onClick={() => void redeploy(version)}
                     >
-                      {busy === version.deploymentId
-                        ? t('action.sending')
-                        : t('redeploy.action')}
+                      {busy === version.deploymentId ? t('action.sending') : t('redeploy.action')}
                     </Button>
                   </div>
                 ) : null}

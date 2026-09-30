@@ -182,10 +182,7 @@ export default async function AppsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={t('page.title')}
-        description={t('page.description')}
-      />
+      <PageHeader title={t('page.title')} description={t('page.description')} />
 
       {rows.length === 0 ? (
         <EmptyState

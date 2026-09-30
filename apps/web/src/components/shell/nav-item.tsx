@@ -44,7 +44,10 @@ export function NavItem({
       {meta && !compact ? (
         meta.kind === 'count' ? (
           <>
-            <span className={cn('meta', meta.alert && 'is-alert')} aria-hidden={meta.label ? true : undefined}>
+            <span
+              className={cn('meta', meta.alert && 'is-alert')}
+              aria-hidden={meta.label ? true : undefined}
+            >
               {meta.value}
             </span>
             {meta.label ? <span className="sr-only">{meta.label}</span> : null}

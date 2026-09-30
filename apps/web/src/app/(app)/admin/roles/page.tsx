@@ -50,8 +50,7 @@ export default async function RolesPage() {
         title={t('roles.title')}
         description={
           <>
-            {t('roles.description.before')}{' '}
-            <code className="font-mono text-xs">{LOCKED_ROLE}</code>{' '}
+            {t('roles.description.before')} <code className="font-mono text-xs">{LOCKED_ROLE}</code>{' '}
             {t('roles.description.after')}
           </>
         }

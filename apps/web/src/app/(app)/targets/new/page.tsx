@@ -14,10 +14,7 @@ export default async function NewTargetPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('page.add')}
-        description={t('new.description')}
-      />
+      <PageHeader title={t('page.add')} description={t('new.description')} />
 
       {/* Le formulaire demande une machine, un compte, une clé, une plage de
           ports — sans jamais dire ce qu'il faut avoir préparé en face. La
