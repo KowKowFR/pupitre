@@ -6,7 +6,7 @@ import {
 } from '../monitors/catalog.js';
 import type { Cidr } from '../monitors/ssrf.js';
 import type { CheckResult } from '../monitors/state.js';
-import { decodeBody, guardedFetch } from './fetch.js';
+import { certificateMetrics, decodeBody, guardedFetch } from './fetch.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
@@ -178,6 +178,7 @@ async function runKeyword(config: KeywordConfig, allowlist: readonly Cidr[]): Pr
     redirects: result.redirects,
     address: result.address,
     finalUrl: result.finalUrl,
+    ...certificateMetrics(result.certificate),
   };
 
   const verdict = (outcome: 'healthy' | 'unhealthy', detail: string | null): CheckResult => ({
