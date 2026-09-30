@@ -33,8 +33,11 @@ async function requestFromHeaders(pathname: string): Promise<Request> {
  * sans fin.
  */
 export async function redirectToLogin(pathname?: string): Promise<never> {
-  const query = pathname ? `?next=${encodeURIComponent(pathname)}` : '';
-  const stale = getSessionCookie(await headers()) !== null;
+  const incoming = await headers();
+  // Sans chemin explicite (un layout), celui que le proxy a transmis.
+  const target = pathname ?? incoming.get('x-pupitre-path') ?? null;
+  const query = target && target !== '/' ? `?next=${encodeURIComponent(target)}` : '';
+  const stale = getSessionCookie(incoming) !== null;
   redirect(`${stale ? '/logout' : '/login'}${query}`);
 }
 
