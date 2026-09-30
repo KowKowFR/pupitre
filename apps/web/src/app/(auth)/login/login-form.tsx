@@ -9,9 +9,9 @@ import { common } from '@/i18n/messages/common';
 import { signIn, twoFactor } from '@/lib/auth-client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, OtpInput } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { AuthCard } from '../auth-card';
 
 /**
  * Quand un compte porte un second facteur, Better Auth ne pose pas de session
@@ -46,6 +46,7 @@ export function LoginForm({
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [reveal, setReveal] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,107 +98,124 @@ export function LoginForm({
 
   if (challenge) {
     return (
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg">{t('twoFactor.title')}</CardTitle>
-          <CardDescription>
-            {useBackupCode ? t('twoFactor.description.backup') : t('twoFactor.description.totp')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onVerify} className="flex flex-col gap-4">
-            {error ? <Alert variant="destructive">{error}</Alert> : null}
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="code">
-                {useBackupCode ? t('twoFactor.field.backupCode') : t('twoFactor.field.code')}
-              </Label>
+      <AuthCard
+        title={t('twoFactor.title')}
+        description={
+          useBackupCode ? t('twoFactor.description.backup') : t('twoFactor.description.totp')
+        }
+      >
+        <form onSubmit={onVerify} className="flex flex-col gap-4">
+          {error ? <Alert variant="destructive">{error}</Alert> : null}
+          {useBackupCode ? (
+            <Field label={t('twoFactor.field.backupCode')}>
               <Input
-                id="code"
                 name="code"
-                inputMode={useBackupCode ? 'text' : 'numeric'}
                 autoComplete="one-time-code"
                 autoFocus
                 required
-                placeholder={useBackupCode ? '' : '000000'}
-                className="font-mono"
+                className="mono"
                 value={code}
                 onChange={(event) => setCode(event.target.value.trim())}
               />
-            </div>
-            <Button type="submit" className="mt-1 w-full" disabled={pending}>
-              {pending ? tc('checking') : t('twoFactor.submit')}
-            </Button>
-            <button
-              type="button"
-              className="text-center text-xs text-text-2 underline-offset-4 hover:underline"
-              onClick={() => {
-                setUseBackupCode(!useBackupCode);
-                setCode('');
-                setError(null);
-              }}
-            >
-              {useBackupCode ? t('twoFactor.useApp') : t('twoFactor.useBackup')}
-            </button>
-          </form>
-        </CardContent>
-      </Card>
+            </Field>
+          ) : (
+            <>
+              <OtpInput
+                value={code}
+                onChange={setCode}
+                autoFocus
+                className="is-lg justify-center"
+              />
+              <p className="help text-center">{t('twoFactor.clock')}</p>
+            </>
+          )}
+          <Button
+            type="submit"
+            size="lg"
+            className="btn-block"
+            loading={pending}
+            disabled={!useBackupCode && code.length !== 6}
+          >
+            {pending ? tc('checking') : t('twoFactor.submit')}
+          </Button>
+          {!useBackupCode && code.length !== 6 ? (
+            <p className="t-cap text-center text-text-3">{t('twoFactor.sixth')}</p>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn-link t-sm self-center"
+            onClick={() => {
+              setUseBackupCode(!useBackupCode);
+              setCode('');
+              setError(null);
+            }}
+          >
+            {useBackupCode ? t('twoFactor.useApp') : t('twoFactor.useBackup')}
+          </button>
+        </form>
+      </AuthCard>
     );
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-lg">{t('login.title')}</CardTitle>
-        <CardDescription>{t('login.description')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {error ? <Alert variant="destructive">{error}</Alert> : null}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">{t('field.email')}</Label>
-            <Input id="email" name="email" type="email" autoComplete="email" required autoFocus />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">{t('field.password')}</Label>
+    <AuthCard title={t('login.title')} description={t('login.description')}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        {error ? <Alert variant="destructive">{error}</Alert> : null}
+        <Field label={t('field.email')}>
+          <Input name="email" type="email" autoComplete="email" required autoFocus />
+        </Field>
+        <div className="field">
+          <span className="flex items-center">
+            <label htmlFor="password" className="label">
+              {t('field.password')}
+            </label>
+            {canRecoverPassword ? (
+              <Link href="/forgot-password" className="link t-cap ml-auto">
+                {t('login.forgot')}
+              </Link>
+            ) : null}
+          </span>
+          <span className="affix has-end">
             <Input
               id="password"
               name="password"
-              type="password"
+              type={reveal ? 'text' : 'password'}
               autoComplete="current-password"
               required
+              aria-invalid={error ? true : undefined}
+              className="!pl-3"
             />
-          </div>
-          <Button type="submit" className="mt-1 w-full" disabled={pending}>
-            {pending ? t('login.pending') : t('login.submit')}
-          </Button>
-          {canRecoverPassword ? (
-            <p className="text-center text-xs text-text-2">
-              <Link
-                href="/forgot-password"
-                className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
+            <span className="affix-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                aria-pressed={reveal}
+                onClick={() => setReveal((current) => !current)}
               >
-                {t('login.forgot')}
+                {reveal ? t('field.password.hide') : t('field.password.show')}
+              </Button>
+            </span>
+          </span>
+        </div>
+        <Button type="submit" size="lg" className="btn-block" loading={pending}>
+          {pending ? t('login.pending') : t('login.submit')}
+        </Button>
+        <hr className="sep" />
+        <p className="t-cap text-center text-text-3">
+          {signupOpen ? (
+            <>
+              {t('login.signup.prompt')}{' '}
+              <Link href="/signup" className="link">
+                {t('login.signup.link')}
               </Link>
-            </p>
-          ) : null}
-          <p className="text-center text-xs text-text-2">
-            {signupOpen ? (
-              <>
-                {t('login.signup.prompt')}{' '}
-                <Link
-                  href="/signup"
-                  className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
-                >
-                  {t('login.signup.link')}
-                </Link>
-                {t('login.signup.note')}
-              </>
-            ) : (
-              <>{t('login.signup.closed')}</>
-            )}
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+              {t('login.signup.note')}
+            </>
+          ) : (
+            <>{t('login.signup.closed')}</>
+          )}
+        </p>
+      </form>
+    </AuthCard>
   );
 }

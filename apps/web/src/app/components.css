@@ -132,6 +132,7 @@
   .otp { display: flex; align-items: center; gap: 8px; }
   .otp .input { width: 44px; height: 48px; padding: 0; text-align: center; font-family: var(--font-mono); font-size: 20px; }
   .otp .otp-gap { width: 8px; }
+  .otp.is-lg .input { width: 48px; height: 56px; font-size: 24px; }
 
   .cb, .rd {
     appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0; flex-shrink: 0; border: 1.5px solid var(--n400);

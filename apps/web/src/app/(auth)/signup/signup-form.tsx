@@ -10,9 +10,9 @@ import { signUp } from '@/lib/auth-client';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { AuthCard } from '../auth-card';
 
 export function SignupForm() {
   const t = useT(messages);
@@ -52,50 +52,34 @@ export function SignupForm() {
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-lg">{t('signup.title')}</CardTitle>
-        <CardDescription>{t('signup.description')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {error ? <Alert variant="destructive">{error}</Alert> : null}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="name">{t('field.name')}</Label>
-            <Input id="name" name="name" autoComplete="name" required autoFocus />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">{t('field.email')}</Label>
-            <Input id="email" name="email" type="email" autoComplete="email" required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">{t('field.password')}</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              minLength={PASSWORD_MIN_LENGTH}
-              required
-            />
-            <p className="text-xs text-text-3">
-              {t('password.min', { count: PASSWORD_MIN_LENGTH })}
-            </p>
-          </div>
-          <Button type="submit" className="mt-1 w-full" disabled={pending}>
-            {pending ? tc('creating') : t('signup.submit')}
-          </Button>
-          <p className="text-center text-xs text-text-2">
-            {t('signup.haveAccount')}{' '}
-            <Link
-              href="/login"
-              className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
-            >
-              {t('login.submit')}
-            </Link>
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+    <AuthCard title={t('signup.title')} description={t('signup.description')}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        {error ? <Alert variant="destructive">{error}</Alert> : null}
+        <Field label={t('field.name')}>
+          <Input name="name" autoComplete="name" required autoFocus />
+        </Field>
+        <Field label={t('field.email')}>
+          <Input name="email" type="email" autoComplete="email" required />
+        </Field>
+        <Field label={t('field.password')} help={t('password.min', { count: PASSWORD_MIN_LENGTH })}>
+          <Input
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            minLength={PASSWORD_MIN_LENGTH}
+            required
+          />
+        </Field>
+        <Button type="submit" className="btn-block" loading={pending}>
+          {pending ? tc('creating') : t('signup.submit')}
+        </Button>
+        <p className="t-cap text-center text-text-3">
+          {t('signup.haveAccount')}{' '}
+          <Link href="/login" className="link">
+            {t('login.submit')}
+          </Link>
+        </p>
+      </form>
+    </AuthCard>
   );
 }

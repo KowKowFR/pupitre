@@ -4,7 +4,8 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { getT } from '@/i18n/server';
 import { isSignupOpen } from '@/lib/auth';
 import { Alert } from '@/components/ui/alert';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { AuthCard } from '../auth-card';
 import { SignupForm } from './signup-form';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -18,23 +19,14 @@ export default async function SignupPage() {
     const t = await getT(messages);
 
     return (
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg">{t('signup.closed.title')}</CardTitle>
-          <CardDescription>{t('signup.closed.description')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert variant="info">
-            {t('signup.closed.hint')} <code className="font-mono text-xs">ALLOW_SIGNUP=true</code>.
-          </Alert>
-          <Link
-            href="/login"
-            className="text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
-          >
-            {t('link.backToLogin')}
-          </Link>
-        </CardContent>
-      </Card>
+      <AuthCard title={t('signup.closed.title')} description={t('signup.closed.description')}>
+        <Alert variant="info">
+          {t('signup.closed.hint')} <code className="mono">ALLOW_SIGNUP=true</code>.
+        </Alert>
+        <Button asChild variant="secondary" className="btn-block">
+          <Link href="/login">{t('link.backToLogin')}</Link>
+        </Button>
+      </AuthCard>
     );
   }
 

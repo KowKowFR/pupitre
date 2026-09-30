@@ -35,6 +35,8 @@ const fr = {
   'field.email': 'Adresse e-mail',
   'field.password': 'Mot de passe',
   'field.confirmation': 'Confirmation',
+  'field.password.show': 'Afficher',
+  'field.password.hide': 'Masquer',
 
   /**
    * La longueur minimale est une constante (`PASSWORD_MIN_LENGTH`), pas une
@@ -54,7 +56,7 @@ const fr = {
 
   // ── Connexion ───────────────────────────────────────────────────────────
   'login.title': 'Connexion',
-  'login.description': 'Accès réservé aux opérateurs déclarés.',
+  'login.description': "Avec l'adresse et le mot de passe de votre compte.",
   'login.submit': 'Se connecter',
   'login.pending': 'Connexion…',
   /** Volontairement générique : ne pas révéler si le compte existe. */
@@ -75,6 +77,9 @@ const fr = {
   'twoFactor.field.code': 'Code',
   'twoFactor.field.backupCode': 'Code de secours',
   'twoFactor.submit': 'Valider',
+  'twoFactor.clock':
+    "Le code change toutes les 30 s. S'il est refusé, vérifiez l'horloge de votre téléphone.",
+  'twoFactor.sixth': "Le bouton s'active au 6ᵉ chiffre.",
   'twoFactor.error.backup': 'Code de secours invalide ou déjà utilisé.',
   'twoFactor.error.totp': "Code invalide. Vérifiez l'horloge de votre téléphone, puis réessayez.",
   'twoFactor.useApp': 'Utiliser le code de mon application',
@@ -199,6 +204,8 @@ const en: Translated<typeof fr> = {
   'field.email': 'Email address',
   'field.password': 'Password',
   'field.confirmation': 'Confirmation',
+  'field.password.show': 'Show',
+  'field.password.hide': 'Hide',
 
   'password.min': { one: '{count} character minimum.', other: '{count} characters minimum.' },
   'password.tooShort': {
@@ -210,7 +217,7 @@ const en: Translated<typeof fr> = {
   'link.backToDashboard': 'Back to the dashboard',
 
   'login.title': 'Sign in',
-  'login.description': 'Declared operators only.',
+  'login.description': 'With the address and password of your account.',
   'login.submit': 'Sign in',
   'login.pending': 'Signing in…',
   'login.rejected': 'Invalid credentials.',
@@ -227,6 +234,9 @@ const en: Translated<typeof fr> = {
   'twoFactor.field.code': 'Code',
   'twoFactor.field.backupCode': 'Recovery code',
   'twoFactor.submit': 'Verify',
+  'twoFactor.clock':
+    'The code changes every 30 s. If it is refused, check the clock of your phone.',
+  'twoFactor.sixth': 'The button unlocks at the 6th digit.',
   'twoFactor.error.backup': 'Recovery code invalid, or already used.',
   'twoFactor.error.totp': 'Invalid code. Check your phone’s clock, then try again.',
   'twoFactor.useApp': 'Use my app’s code',
