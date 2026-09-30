@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { RotateCw, ScrollText } from 'lucide-react';
 import { translator, type DeploymentStatus, type Translate } from '@pupitre/core';
-import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { State, type Tone } from '@/components/ui/led';
 import {
   Table,
   TableActions,
@@ -20,7 +22,7 @@ import {
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { servers } from '@/i18n/messages/servers';
-import { cn } from '@/lib/utils';
+import { toast } from '@/lib/toast';
 
 export type HealthStatus = 'unknown' | 'healthy' | 'unhealthy' | 'unreachable';
 
@@ -68,6 +70,13 @@ const HEALTH_KEY: Record<HealthStatus, keyof typeof servers.fr> = {
   unknown: 'health.unknown',
 };
 
+const HEALTH_TONE: Record<HealthStatus, Tone> = {
+  healthy: 'ok',
+  unhealthy: 'warn',
+  unreachable: 'danger',
+  unknown: 'idle',
+};
+
 /**
  * Voyant de lien : la forme porte l'information autant que la couleur.
  *
@@ -76,20 +85,20 @@ const HEALTH_KEY: Record<HealthStatus, keyof typeof servers.fr> = {
  * plutôt que « en marche ». Un seul voyant dans tout l'écran de supervision,
  * donc une seule convention de lecture à apprendre.
  */
-export function HealthDot({ health, label }: { health: HealthStatus; label?: string }) {
+export function HealthDot({
+  health,
+  label,
+  meta,
+}: {
+  health: HealthStatus;
+  label?: string;
+  meta?: ReactNode;
+}) {
   const t = useT(servers);
-  const tone = {
-    healthy: 'bg-ok',
-    unhealthy: 'bg-warn',
-    unreachable: 'bg-danger',
-    unknown: 'bg-text-3',
-  }[health];
-
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className={cn('inline-block size-2 shrink-0 rounded-full', tone)} aria-hidden="true" />
-      <span className="text-xs">{label ?? t(HEALTH_KEY[health])}</span>
-    </span>
+    <State tone={HEALTH_TONE[health]} meta={meta}>
+      {label ?? t(HEALTH_KEY[health])}
+    </State>
   );
 }
 
@@ -113,137 +122,152 @@ export function formatSince(iso: string | null, t: T = sinceInFrench): string {
 /**
  * Les applications supervisées d'**un** serveur.
  *
- * La colonne « Cible » a disparu : elle répétait à chaque ligne ce que le
- * dépliant qui contient la table annonce déjà une fois. La table ne s'enveloppe
- * plus d'une `Card` non plus — c'est le panneau du serveur qui porte la
- * surface, sinon on empile deux cadres pour une seule information.
+ * La colonne « Cible » a disparu : elle répétait à chaque ligne ce que la carte
+ * qui contient la table annonce déjà une fois. La table ne s'enveloppe plus
+ * d'une carte non plus — c'est la carte du serveur qui porte la surface, sinon
+ * on empile deux cadres pour une seule information.
  */
 export function AppsTable({ items, canRestart }: { items: SupervisedRow[]; canRestart: boolean }) {
   const t = useT(servers);
   const shared = useT(common);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [restarting, setRestarting] = useState<SupervisedRow | null>(null);
 
   async function restart(app: SupervisedRow) {
-    if (
-      !window.confirm(
-        `${t('restart.confirm', {
-          app: app.applicationSlug,
-          target: app.targetName,
-        })}\n\n${t('restart.confirm.detail')}`,
-      )
-    ) {
-      return;
-    }
-
-    setBusy(app.id);
+    setBusy(true);
     setError(null);
 
     const response = await fetch(`/api/apps/${app.id}/restart`, { method: 'POST' });
+    setBusy(false);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       setError(body.error?.message ?? shared('http.failure', { status: response.status }));
-      setBusy(null);
       return;
     }
 
+    setRestarting(null);
+    toast({ title: t('restart.toast', { app: app.applicationSlug }), tone: 'accent' });
     // Le redémarrage publie sa progression sur le flux de l'application :
     // on y emmène l'utilisateur plutôt que de le laisser deviner.
     router.push(`/apps/${app.id}`);
   }
 
   return (
-    <div className="space-y-3">
-      {error ? <Alert variant="destructive">{error}</Alert> : null}
-
-      <Table>
+    <>
+      <Table dense label={t('column.application')}>
         <TableHeader>
           <TableRow>
             <TableHead>{t('column.application')}</TableHead>
             <TableHead>{shared('column.state')}</TableHead>
             <TableHead>{t('column.uptime')}</TableHead>
-            <TableHead>{t('column.address')}</TableHead>
-            <TableActionsHead>{shared('column.actions')}</TableActionsHead>
+            <TableActionsHead>
+              <span className="sr-only">{shared('column.actions')}</span>
+            </TableActionsHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((app) => (
             <TableRow key={app.id}>
               <TableCell>
-                <Link
-                  href={`/apps/${app.id}`}
-                  className="text-sm font-medium underline-offset-4 hover:underline"
-                >
-                  {app.applicationSlug}
-                </Link>
-                <div className="text-text-3 font-mono text-xs">
-                  v{app.version} · {t('row.services', { count: app.services.length })} ·{' '}
-                  {app.runtime}
-                </div>
+                <span className="flex min-w-0 flex-col">
+                  <Link href={`/apps/${app.id}`} className="cellname w-fit hover:underline">
+                    {app.applicationSlug}
+                  </Link>
+                  <span className="mono t-cap truncate text-text-3">
+                    {app.url ? (
+                      <a
+                        href={app.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:underline"
+                      >
+                        {app.url.replace(/^https?:\/\//, '')}
+                      </a>
+                    ) : app.publishedPort ? (
+                      `${app.targetHost}:${app.publishedPort}`
+                    ) : (
+                      `v${app.version} · ${app.runtime}`
+                    )}
+                  </span>
+                </span>
               </TableCell>
 
               <TableCell>
-                <HealthDot health={app.healthStatus} />
-                {app.status === 'rolled_back' ? (
-                  <Badge variant="warn" className="mt-1 text-[10px]">
-                    {t('row.restored')}
-                  </Badge>
-                ) : null}
-                {app.lastFailedUpdate ? (
-                  <div className="mt-1">
-                    <Link href={`/deployments/${app.lastFailedUpdate.deploymentId}`}>
-                      <Badge variant="destructive" className="text-[10px]">
-                        {t('row.updateFailed')}
-                      </Badge>
+                <span className="flex flex-col items-start gap-1">
+                  <HealthDot health={app.healthStatus} />
+                  {app.status === 'rolled_back' ? (
+                    <Badge variant="warn">{t('row.restored')}</Badge>
+                  ) : null}
+                  {app.lastFailedUpdate ? (
+                    <span className="flex flex-col items-start gap-0.5">
+                      <Link href={`/deployments/${app.lastFailedUpdate.deploymentId}`}>
+                        <Badge variant="danger" dot>
+                          {t('row.updateFailed')}
+                        </Badge>
+                      </Link>
+                      <span className="t-cap text-text-3">
+                        v{app.lastFailedUpdate.version}
+                        {app.lastFailedUpdate.failedStep
+                          ? t('row.failedStep', { step: app.lastFailedUpdate.failedStep })
+                          : ''}
+                        {app.lastFailedUpdate.mayHaveReplacedServices ? t('row.replaced') : ''}
+                      </span>
+                    </span>
+                  ) : null}
+                </span>
+              </TableCell>
+
+              <TableCell className="num text-text-3">{formatSince(app.startedAt, t)}</TableCell>
+
+              <TableActions>
+                <span className="inline-flex items-center gap-1.5">
+                  <Button asChild size="sm" variant="secondary">
+                    <Link href={`/apps/${app.id}`}>
+                      <ScrollText aria-hidden />
+                      {t('action.logs')}
                     </Link>
-                    <div className="text-text-3 mt-1 text-[10px]">
-                      v{app.lastFailedUpdate.version}
-                      {app.lastFailedUpdate.failedStep
-                        ? t('row.failedStep', { step: app.lastFailedUpdate.failedStep })
-                        : ''}
-                      {app.lastFailedUpdate.mayHaveReplacedServices ? t('row.replaced') : ''}
-                    </div>
-                  </div>
-                ) : null}
-              </TableCell>
-
-              <TableCell className="font-mono text-xs">{formatSince(app.startedAt, t)}</TableCell>
-
-              <TableCell className="font-mono text-xs">
-                {app.url ? (
-                  <a
-                    href={app.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="underline underline-offset-4"
-                  >
-                    {app.url.replace(/^https?:\/\//, '')}
-                  </a>
-                ) : (
-                  <span className="text-text-3">—</span>
-                )}
-              </TableCell>
-
-              <TableActions className="space-x-2 whitespace-nowrap">
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/apps/${app.id}`}>{t('action.logs')}</Link>
-                </Button>
-                {canRestart ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy === app.id}
-                    onClick={() => void restart(app)}
-                  >
-                    {busy === app.id ? t('action.restart.busy') : t('action.restart')}
                   </Button>
-                ) : null}
+                  {canRestart ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setError(null);
+                        setRestarting(app);
+                      }}
+                    >
+                      {t('action.restart')}
+                    </Button>
+                  ) : null}
+                </span>
               </TableActions>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-    </div>
+
+      <ConfirmDialog
+        open={restarting !== null}
+        onOpenChange={(open) => (open ? undefined : setRestarting(null))}
+        level="reversible"
+        icon={<RotateCw />}
+        title={
+          restarting
+            ? t('restart.dialog.title', {
+                app: restarting.applicationSlug,
+                target: restarting.targetName,
+              })
+            : ''
+        }
+        consequences={[t('restart.consequence.images'), t('restart.consequence.downtime')]}
+        confirmLabel={t('action.restart')}
+        pendingLabel={t('action.restart.busy')}
+        pending={busy}
+        error={error}
+        onConfirm={() => (restarting ? restart(restarting) : undefined)}
+      />
+    </>
   );
 }

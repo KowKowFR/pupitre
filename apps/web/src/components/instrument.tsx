@@ -55,15 +55,18 @@ export function Readout({
 export function ReadoutBar({
   children,
   bare = false,
+  compact = false,
   className,
 }: {
   children: ReactNode;
   bare?: boolean;
+  /** Cases resserrées et chiffres plus petits, pour une bande logée dans une carte. */
+  compact?: boolean;
   className?: string;
 }) {
   const bar = (
     <div className="@container">
-      <div className="readouts">{children}</div>
+      <div className={cn('readouts', compact && 'is-compact')}>{children}</div>
     </div>
   );
   if (bare) return <div className={className}>{bar}</div>;

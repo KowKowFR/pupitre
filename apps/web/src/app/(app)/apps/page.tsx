@@ -6,6 +6,7 @@ import {
   resolveThresholds,
   targetHistories,
 } from '@pupitre/db';
+import { Server } from 'lucide-react';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { getT } from '@/i18n/server';
@@ -180,25 +181,29 @@ export default async function AppsPage() {
     };
   });
 
-  return (
-    <div className="space-y-6">
-      <PageHeader title={t('page.title')} description={t('page.description')} />
-
-      {rows.length === 0 ? (
+  // L'en-tête vit dans la liste quand il y a des serveurs : son bouton « Tout
+  // relever » pilote les relevés, qui sont un état client.
+  if (rows.length === 0) {
+    return (
+      <>
+        <PageHeader title={t('page.title')} description={t('page.description')} />
         <EmptyState
+          icon={Server}
           title={t('page.empty')}
           hint={canReadTargets ? t('page.empty.hint') : t('page.empty.restricted')}
         />
-      ) : (
-        <ServersList
-          servers={rows}
-          history={history}
-          canRestart={auth.can('deployment:restart')}
-          canReadTargets={canReadTargets}
-          canTune={auth.can('target:update')}
-          format={formatSettingsOf(settings)}
-        />
-      )}
-    </div>
+      </>
+    );
+  }
+
+  return (
+    <ServersList
+      servers={rows}
+      history={history}
+      canRestart={auth.can('deployment:restart')}
+      canReadTargets={canReadTargets}
+      canTune={auth.can('target:update')}
+      format={formatSettingsOf(settings)}
+    />
   );
 }

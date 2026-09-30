@@ -2,11 +2,18 @@
 
 import type { ReactNode } from 'react';
 import type { HostMetrics, Translate } from '@pupitre/core';
-import { Led, type Tone } from '@/components/instrument';
+import { Led, Readout, ReadoutBar, type Tone } from '@/components/instrument';
+import { Alert } from '@/components/ui/alert';
 import { useT } from '@/i18n/client';
 import { servers } from '@/i18n/messages/servers';
-import { cn } from '@/lib/utils';
-import { toneFor, type HistoryMetric, type ThresholdView } from './host-history';
+import { withSlot } from '@/lib/rich';
+import {
+  toneFor,
+  trendText,
+  type HistoryMetric,
+  type MetricSummaryView,
+  type ThresholdView,
+} from './host-history';
 import type { MetricsEntry } from './use-host-metrics';
 
 /**
@@ -16,14 +23,14 @@ import type { MetricsEntry } from './use-host-metrics';
  *
  * 1. **Rien en octets bruts seuls.** « 3,2 Gio libres » ne dit rien sans le
  *    total ; une charge de 4 ne dit rien sans le nombre de cœurs. Chaque relevé
- *    est donc rendu en proportion — une jauge — et le chiffre absolu vient en
- *    dessous, pour qui veut le détail.
- * 2. **Inconnu n'est pas zéro.** Une métrique absente affiche « inconnu » et
- *    aucune jauge. Un zéro laisserait croire à un disque vide ou à une machine
- *    au repos, ce qui est exactement l'inverse d'une information.
- * 3. **L'état se lit à la forme.** La jauge porte la proportion par sa
- *    longueur, le voyant par son halo : la lecture survit au daltonisme et à
- *    une capture en niveaux de gris.
+ *    est donc rendu en proportion — un pourcentage — et le chiffre absolu vient
+ *    en dessous, pour qui veut le détail.
+ * 2. **Inconnu n'est pas zéro.** Une métrique absente affiche « inconnu ». Un
+ *    zéro laisserait croire à un disque vide ou à une machine au repos, ce qui
+ *    est exactement l'inverse d'une information.
+ * 3. **L'état se lit à la forme.** Le voyant d'une case porte son ton par son
+ *    halo, et la tendance est écrite en toutes lettres : la lecture survit au
+ *    daltonisme et à une capture en niveaux de gris.
  */
 
 type T = Translate<typeof servers.fr>;
@@ -58,81 +65,37 @@ const FALLBACK_THRESHOLDS: Record<HistoryMetric, ThresholdView> = {
   load: { limitPercent: 100, enabled: true, origin: 'default' },
 };
 
-/**
- * Jauge de proportion. La longueur porte l'information ; la couleur ne fait que
- * la confirmer. `aria-hidden` parce que le chiffre est écrit juste à côté :
- * l'annoncer deux fois n'aide personne.
- */
-function Gauge({ ratio, tone }: { ratio: number; tone: Tone }) {
-  const fill = Math.min(100, Math.max(2, Math.round(ratio * 100)));
-  const bar: Record<Tone, string> = {
-    ok: 'bg-ok',
-    warn: 'bg-warn',
-    danger: 'bg-danger',
-    accent: 'bg-accent',
-    idle: 'bg-text-3',
-    hollow: 'bg-surface-3',
-  };
-
-  return (
-    <span aria-hidden className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-surface-3">
-      <span className={cn('block h-full rounded-full', bar[tone])} style={{ width: `${fill}%` }} />
-    </span>
-  );
+/** La bande, sur le fond en retrait de la carte, juste sous son en-tête. */
+function Band({ children }: { children: ReactNode }) {
+  return <div className="bg-bg-subtle">{children}</div>;
 }
 
-function Metric({
-  label,
-  value,
-  hint,
-  ratio,
-  tone,
-  unknown = false,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  /** `null` : pas de jauge — soit la mesure manque, soit elle n'a pas de plafond. */
-  ratio: number | null;
-  tone: Tone;
-  /** La mesure n'a pas pu être prise. Grise la valeur, qui dit « inconnu ». */
-  unknown?: boolean;
-}) {
+/** Une valeur manquante : écrite, en gris — jamais un zéro. */
+function Unknown({ t }: { t: T }) {
+  return <span className="text-text-3">{t('unknown')}</span>;
+}
+
+/** Les quatre cases pendant le relevé : la silhouette exacte de ce qui arrive. */
+function Pending({ t }: { t: T }) {
+  const labels = [t('metric.load'), t('metric.memory'), t('metric.disk'), t('metric.uptime')];
   return (
-    <div className="flex min-w-0 flex-col justify-start px-3 py-2">
-      <span className="eyebrow flex items-center gap-1.5 truncate text-text-3">
-        <Led tone={tone} className="size-2" />
-        {label}
+    <>
+      <span role="status" className="sr-only">
+        {t('readout.pending')}
       </span>
-      <span
-        className={cn(
-          'mt-1 truncate font-mono text-[0.9375rem] leading-none font-medium tabular-nums',
-          unknown ? 'text-text-3' : 'text-text',
-        )}
-      >
-        {value}
-      </span>
-      {ratio === null ? null : <Gauge ratio={ratio} tone={tone} />}
-      <span className="mt-1 truncate text-[0.6875rem] leading-tight text-text-3">{hint}</span>
-    </div>
-  );
-}
-
-/** Quatre cases de la même taille, quelle que soit la métrique manquante. */
-function Strip({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1 divide-border sm:grid-cols-4 sm:divide-x">
-      {children}
-    </div>
-  );
-}
-
-function Placeholder({ message, tone }: { message: string; tone: Tone }) {
-  return (
-    <div className="flex items-center gap-2 px-3 py-3 text-[0.75rem] text-text-2">
-      <Led tone={tone} pulse={tone === 'accent'} />
-      <span className="min-w-0 truncate">{message}</span>
-    </div>
+      <ReadoutBar bare compact>
+        {labels.map((label) => (
+          <Readout
+            key={label}
+            label={label}
+            tone="accent"
+            pulse
+            value={<span aria-hidden className="sk inline-block h-[22px] w-14 align-middle" />}
+            hint={<span aria-hidden className="sk sk-t inline-block w-28" />}
+          />
+        ))}
+      </ReadoutBar>
+    </>
   );
 }
 
@@ -140,6 +103,7 @@ export function HostReadouts({
   entry,
   enabled,
   thresholds = FALLBACK_THRESHOLDS,
+  summary,
 }: {
   entry: MetricsEntry | undefined;
   enabled: boolean;
@@ -149,111 +113,135 @@ export function HostReadouts({
    * pour la couleur et pour le journal, au lieu de deux qui pouvaient diverger.
    */
   thresholds?: Record<HistoryMetric, ThresholdView>;
+  /** La fenêtre d'historique, d'où vient la tendance affichée à droite de chaque case. */
+  summary?: Record<HistoryMetric, MetricSummaryView>;
 }) {
   const t = useT(servers);
 
   if (!enabled) {
-    return <Placeholder tone="idle" message={t('readout.restricted')} />;
+    return (
+      <Band>
+        <p className="t-sm flex items-center gap-2 px-4 py-3 text-text-2">
+          <Led tone="idle" />
+          <span className="min-w-0">{t('readout.restricted')}</span>
+        </p>
+      </Band>
+    );
   }
 
   if (entry === undefined || entry.state === 'loading') {
-    return <Placeholder tone="accent" message={t('readout.pending')} />;
+    return (
+      <Band>
+        <Pending t={t} />
+      </Band>
+    );
   }
 
   if (entry.state === 'error') {
-    return <Placeholder tone="danger" message={t('readout.failed', { message: entry.message })} />;
+    return (
+      <Band>
+        <div className="px-4 py-3">
+          <Alert variant="destructive">{t('readout.failed', { message: entry.message })}</Alert>
+        </div>
+      </Band>
+    );
   }
 
   const metrics: HostMetrics = entry.metrics;
 
   if (!metrics.reachable) {
     return (
-      <Placeholder
-        tone="danger"
-        message={t('readout.unreachable', {
-          reason: metrics.error ?? t('readout.unreachable.reason'),
-        })}
-      />
+      <Band>
+        <div className="px-4 py-3">
+          <Alert variant="destructive">
+            {withSlot(
+              (reason) => t('readout.unreachable', { reason }),
+              <span className="mono">{metrics.error ?? t('readout.unreachable.reason')}</span>,
+            )}
+          </Alert>
+        </div>
+      </Band>
     );
   }
 
   const { load, memory, disk } = metrics;
+  const trend = (metric: HistoryMetric) =>
+    summary ? trendText(summary[metric].trend, t) : undefined;
+  const tone = (metric: HistoryMetric, value: number | null): Tone =>
+    toneFor(value, thresholds[metric].limitPercent, thresholds[metric].enabled);
 
-  const loadTone: Tone = toneFor(
-    load?.perCore === null || load?.perCore === undefined ? null : load.perCore * 100,
-    thresholds.load.limitPercent,
-    thresholds.load.enabled,
-  );
+  // La charge n'a de sens que rapportée aux cœurs : sans `nproc`, on affiche le
+  // nombre brut et on dit franchement qu'on ne sait pas diviser.
+  const perCore = load?.perCore === null || load?.perCore === undefined ? null : load.perCore * 100;
 
   return (
-    <Strip>
-      <Metric
-        label={t('metric.load')}
-        tone={loadTone}
-        value={load === null ? t('unknown') : load.one.toFixed(2)}
-        unknown={load === null}
-        // La charge n'a de sens que rapportée aux cœurs : sans `nproc`, on
-        // affiche le nombre brut et on dit franchement qu'on ne sait pas diviser.
-        ratio={load?.perCore ?? null}
-        hint={
-          load === null
-            ? t('load.noSource')
-            : load.cores === null
-              ? t('load.noCores', {
-                  five: load.five.toFixed(2),
-                  fifteen: load.fifteen.toFixed(2),
-                })
-              : t('load.perCore', {
-                  percent: Math.round((load.perCore ?? 0) * 100),
-                  count: load.cores,
-                })
-        }
-      />
+    <Band>
+      <ReadoutBar bare compact>
+        <Readout
+          label={t('metric.load')}
+          tone={tone('load', perCore)}
+          aside={trend('load')}
+          value={
+            load === null ? (
+              <Unknown t={t} />
+            ) : perCore === null ? (
+              load.one.toFixed(2)
+            ) : (
+              Math.round(perCore)
+            )
+          }
+          unit={perCore === null ? undefined : '%'}
+          hint={
+            load === null
+              ? t('load.noSource')
+              : load.cores === null
+                ? t('load.noCores', {
+                    five: load.five.toFixed(2),
+                    fifteen: load.fifteen.toFixed(2),
+                  })
+                : t('load.perCore', { percent: Math.round(perCore ?? 0), count: load.cores })
+          }
+        />
 
-      <Metric
-        label={t('metric.memory')}
-        tone={toneFor(
-          memory?.usedPercent ?? null,
-          thresholds.memory.limitPercent,
-          thresholds.memory.enabled,
-        )}
-        value={
-          memory === null ? t('unknown') : t('percent', { value: Math.round(memory.usedPercent) })
-        }
-        unknown={memory === null}
-        ratio={memory === null ? null : memory.usedPercent / 100}
-        hint={
-          memory === null
-            ? t('memory.noSource')
-            : t('memory.used', { used: gib(memory.usedKb), total: gib(memory.totalKb) })
-        }
-      />
+        <Readout
+          label={t('metric.memory')}
+          tone={tone('memory', memory?.usedPercent ?? null)}
+          aside={trend('memory')}
+          value={memory === null ? <Unknown t={t} /> : Math.round(memory.usedPercent)}
+          unit={memory === null ? undefined : '%'}
+          hint={
+            memory === null
+              ? t('memory.noSource')
+              : t('memory.used', { used: gib(memory.usedKb), total: gib(memory.totalKb) })
+          }
+        />
 
-      <Metric
-        label={t('metric.disk')}
-        tone={toneFor(
-          disk?.usePercent ?? null,
-          thresholds.disk.limitPercent,
-          thresholds.disk.enabled,
-        )}
-        value={disk === null ? t('unknown') : t('percent', { value: disk.usePercent })}
-        unknown={disk === null}
-        ratio={disk === null ? null : disk.usePercent / 100}
-        hint={
-          disk === null
-            ? t('disk.noSource')
-            : t('disk.free', { free: gib(disk.availableKb), path: disk.path })
-        }
-      />
+        <Readout
+          label={t('metric.disk')}
+          tone={tone('disk', disk?.usePercent ?? null)}
+          aside={trend('disk')}
+          value={disk === null ? <Unknown t={t} /> : disk.usePercent}
+          unit={disk === null ? undefined : '%'}
+          hint={
+            disk === null
+              ? t('disk.noSource')
+              : t('disk.free', { free: gib(disk.availableKb), path: disk.path })
+          }
+        />
 
-      <Metric
-        label={t('metric.uptime')}
-        tone={metrics.uptimeSeconds === null ? 'idle' : 'ok'}
-        value={formatUptime(metrics.uptimeSeconds, t)}
-        unknown={metrics.uptimeSeconds === null}
-        ratio={null}
-        hint={metrics.os.prettyName ?? metrics.os.kernel ?? t('os.unknown')}
-      />
-    </Strip>
+        <Readout
+          label={t('metric.uptime')}
+          tone={metrics.uptimeSeconds === null ? 'idle' : 'ok'}
+          value={
+            metrics.uptimeSeconds === null ? (
+              <Unknown t={t} />
+            ) : (
+              formatUptime(metrics.uptimeSeconds, t)
+            )
+          }
+          hint={metrics.os.prettyName ?? metrics.os.kernel ?? t('os.unknown')}
+        />
+      </ReadoutBar>
+    </Band>
   );
 }

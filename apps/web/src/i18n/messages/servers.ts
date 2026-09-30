@@ -17,10 +17,9 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── En-tête de l'écran ──────────────────────────────────────────────────
-  'page.eyebrow': 'Supervision',
-  'page.title': 'Serveurs et applications',
+  'page.title': 'Supervision',
   'page.description':
-    "Une ligne par machine : comment elle se porte, et ce qu'elle porte. Dépliez un serveur pour voir ses applications. Une application dont la dernière mise à jour a échoué reste listée — elle tourne toujours, dans sa version précédente. L'historique des déploiements est ailleurs.",
+    "Une carte par machine : comment elle se porte, et ce qu'elle porte. Les relevés se renouvellent toutes les 5 minutes, ou à la demande.",
   'page.empty': 'Aucun serveur à superviser',
   'page.empty.hint':
     'Déclarez une machine cible, puis déployez-y une application : les deux apparaîtront ici.',
@@ -29,17 +28,31 @@ const fr = {
 
   // ── Liste des serveurs ──────────────────────────────────────────────────
   'list.servers': { one: '{count} serveur', other: '{count} serveurs' },
-  /**
-   * Le français écrivait déjà « application(s) supervisée(s) » avec ses
-   * parenthèses : on le reproduit tel quel, c'est la chaîne que cherchent les
-   * vérifications d'intégration. L'anglais, lui, n'a aucune raison de garder
-   * cette béquille et accorde pour de bon.
-   */
   'list.apps': {
-    one: '{count} application(s) supervisée(s)',
-    other: '{count} application(s) supervisée(s)',
+    one: '{count} application supervisée',
+    other: '{count} applications supervisées',
   },
   'list.probeAll': 'Tout relever',
+
+  'list.filter.label': 'Filtrer les serveurs',
+  'list.filter.all': 'Toutes',
+  'list.filter.watch': 'À surveiller ({count})',
+  'list.filter.none': 'Aucune machine à surveiller en ce moment.',
+  'list.probeAll.toast': {
+    one: 'Relevé lancé sur {count} machine',
+    other: 'Relevé lancé sur {count} machines',
+  },
+  'list.probeAll.toast.detail': 'Les bandes se mettent à jour au fil des réponses.',
+  'server.age': 'relevé {ago}',
+  'server.probe.tip': 'Relever maintenant',
+  'server.toggle': 'Afficher ou masquer {name}',
+  'restart.dialog.title': 'Redémarrer {app} sur {target} ?',
+  'restart.consequence.images':
+    'Les conteneurs sont relancés avec les mêmes images et les mêmes volumes.',
+  'restart.consequence.downtime': "L'application sera brièvement indisponible.",
+  'restart.toast': 'Redémarrage de {app} enfilé',
+  'thresholds.saved': 'Seuils de {name} enregistrés',
+  'thresholds.saved.detail': 'Appliqués au prochain relevé.',
 
   'server.apps': {
     zero: 'aucune application',
@@ -49,10 +62,6 @@ const fr = {
   'server.noApps':
     'Aucune application supervisée sur cette machine. Déployez-en une depuis la page Applications : elle apparaîtra ici.',
   'server.details': 'Fiche',
-  'server.probe': 'Relever',
-  'server.probe.busy': 'Relevé…',
-  'server.probe.aria': 'Relever les métriques de {name}',
-
   'status.unknown': 'jamais testée',
   'status.ok': 'opérationnelle',
   'status.degraded': 'dégradée',
@@ -72,7 +81,6 @@ const fr = {
   'column.uptime': 'En ligne depuis',
   'column.address': 'Adresse',
 
-  'row.services': { one: '{count} service', other: '{count} services' },
   'row.restored': 'version restaurée',
   'row.updateFailed': 'dernière mise à jour échouée',
   'row.failedStep': ' · étape {step}',
@@ -81,10 +89,6 @@ const fr = {
   'action.logs': 'Logs',
   'action.restart': 'Redémarrer',
   'action.restart.busy': 'Envoi…',
-  'restart.confirm': 'Redémarrer « {app} » sur {target} ?',
-  'restart.confirm.detail':
-    "Les conteneurs sont relancés avec les mêmes images et les mêmes volumes. L'application sera brièvement indisponible.",
-
   /** Âge d'un état, en abrégé : ces unités tiennent dans une colonne étroite. */
   'since.none': '—',
   'since.seconds': '{count} s',
@@ -98,7 +102,8 @@ const fr = {
   'readout.pending': 'Relevé en cours…',
   'readout.failed': 'Relevé impossible — {message}',
   'readout.failed.http': 'Relevé impossible (HTTP {status})',
-  'readout.unreachable': 'Machine injoignable — {reason}',
+  'readout.unreachable':
+    'Machine injoignable : {reason}. Les relevés reprendront au prochain balayage.',
   'readout.unreachable.reason': 'raison inconnue',
   'panel.unreachable': 'Le panel est injoignable',
 
@@ -134,6 +139,7 @@ const fr = {
     other: '{count} relevés sur la fenêtre',
   },
   'history.unanswered': ' · {count} sans réponse',
+  'history.toggle': 'Historique',
   'history.window': "Fenêtre d'historique",
   'history.window.24h': '24 h',
   'history.window.7d': '7 j',
@@ -154,9 +160,9 @@ const fr = {
   'threshold.from.global': "seuil par défaut de l'instance",
   'threshold.from.default': 'seuil livré avec le panel',
 
-  'breach.over': 'au-dessus de {limit} % {since} —',
-  'breach.values': '{last} maintenant, {peak} au pire',
-  'breach.samples': { one: '({count} relevé)', other: '({count} relevés)' },
+  'breach.line':
+    '{metric} au-dessus de {limit} % {since} : {last} maintenant, {peak} au pire {samples}.',
+  'breach.samples': { one: 'sur {count} relevé', other: 'sur {count} relevés' },
   'breach.since.minutes': 'depuis {count} min',
   'breach.since.hours': 'depuis {count} h',
   'breach.since.days': 'depuis {count} j',
@@ -166,18 +172,15 @@ const fr = {
   'thresholds.aria': 'Régler les seuils de {name}',
   'thresholds.title': 'Seuils de {name}',
   'thresholds.description':
-    "Au-delà du seuil, un dépassement s'ouvre et une entrée est écrite au journal d'activité —",
-  'thresholds.description.once': 'une seule',
-  'thresholds.description.end':
-    ', au franchissement, pas une par relevé. Elle se referme quand la machine repasse sous le seuil.',
+    "Au-delà du seuil, un dépassement s'ouvre et une seule entrée est écrite au journal, jusqu'au retour sous le seuil.",
   'thresholds.metric.load': 'Charge par cœur',
   'thresholds.hint.disk': 'partition qui porte les déploiements',
   'thresholds.hint.memory': 'utilisée = totale − disponible',
   'thresholds.hint.load': '100 % = un cœur plein par cœur',
-  'thresholds.origin.default': 'valeur livrée avec le panel',
-  'thresholds.origin.global': "défaut de l'instance",
+  'thresholds.origin.default': 'livré avec le panel',
+  'thresholds.origin.global': "seuil par défaut de l'instance",
   'thresholds.origin.target': 'propre à cette machine',
-  'thresholds.watch': 'Surveiller cette métrique',
+  'thresholds.watch.aria': 'Surveiller : {metric}',
   'thresholds.reset': 'rendre au défaut',
   'thresholds.invalid': '« {metric} » : un pourcentage entre 1 et 1000 est attendu.',
   'thresholds.refused': 'Enregistrement refusé (HTTP {status})',
@@ -185,13 +188,11 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Servers',
-  'page.title': 'Servers and applications',
+  'page.title': 'Servers',
   'page.description':
-    'One line per host: how it is doing, and what it carries. Expand a server to see its applications. An application whose last update failed stays listed — it is still running, in its previous version. Deployment history lives elsewhere.',
+    'One card per machine: how it is doing, and what it carries. Readouts renew every 5 minutes, or on demand.',
   'page.empty': 'No server to monitor',
-  'page.empty.hint':
-    'Declare a target host, then deploy an application on it: both show up here.',
+  'page.empty.hint': 'Declare a target host, then deploy an application on it: both show up here.',
   'page.empty.restricted':
     'This screen starts from the host fleet, and reading it takes the target:read permission. An administrator can add it to your role from Administration → Roles.',
 
@@ -201,6 +202,24 @@ const en: Translated<typeof fr> = {
     other: '{count} monitored applications',
   },
   'list.probeAll': 'Read all',
+  'list.filter.label': 'Filter servers',
+  'list.filter.all': 'All',
+  'list.filter.watch': 'To watch ({count})',
+  'list.filter.none': 'No host to watch right now.',
+  'list.probeAll.toast': {
+    one: 'Readout started on {count} machine',
+    other: 'Readout started on {count} machines',
+  },
+  'list.probeAll.toast.detail': 'Bands update as answers come in.',
+  'server.age': 'read {ago}',
+  'server.probe.tip': 'Read now',
+  'server.toggle': 'Show or hide {name}',
+  'restart.dialog.title': 'Restart {app} on {target}?',
+  'restart.consequence.images': 'Containers restart with the same images and the same volumes.',
+  'restart.consequence.downtime': 'The application will be briefly unavailable.',
+  'restart.toast': 'Restart of {app} queued',
+  'thresholds.saved': 'Thresholds of {name} saved',
+  'thresholds.saved.detail': 'Applied at the next readout.',
 
   'server.apps': {
     zero: 'no application',
@@ -210,10 +229,6 @@ const en: Translated<typeof fr> = {
   'server.noApps':
     'No monitored application on this host. Deploy one from the Applications page: it shows up here.',
   'server.details': 'Details',
-  'server.probe': 'Read',
-  'server.probe.busy': 'Reading…',
-  'server.probe.aria': 'Read the metrics of {name}',
-
   'status.unknown': 'never tested',
   'status.ok': 'operational',
   'status.degraded': 'degraded',
@@ -232,7 +247,6 @@ const en: Translated<typeof fr> = {
   'column.uptime': 'Live since',
   'column.address': 'Address',
 
-  'row.services': { one: '{count} service', other: '{count} services' },
   'row.restored': 'version restored',
   'row.updateFailed': 'last update failed',
   'row.failedStep': ' · step {step}',
@@ -241,10 +255,6 @@ const en: Translated<typeof fr> = {
   'action.logs': 'Logs',
   'action.restart': 'Restart',
   'action.restart.busy': 'Sending…',
-  'restart.confirm': 'Restart “{app}” on {target}?',
-  'restart.confirm.detail':
-    'Containers are relaunched with the same images and the same volumes. The application will be briefly unavailable.',
-
   'since.none': '—',
   'since.seconds': '{count} s',
   'since.minutes': '{count} min',
@@ -256,7 +266,7 @@ const en: Translated<typeof fr> = {
   'readout.pending': 'Reading…',
   'readout.failed': 'Readout failed — {message}',
   'readout.failed.http': 'Readout failed (HTTP {status})',
-  'readout.unreachable': 'Host unreachable — {reason}',
+  'readout.unreachable': 'Host unreachable: {reason}. Readouts resume at the next sweep.',
   'readout.unreachable.reason': 'reason unknown',
   'panel.unreachable': 'The panel is unreachable',
 
@@ -291,6 +301,7 @@ const en: Translated<typeof fr> = {
     other: '{count} readouts over the window',
   },
   'history.unanswered': ' · {count} with no answer',
+  'history.toggle': 'History',
   'history.window': 'History window',
   'history.window.24h': '24 h',
   'history.window.7d': '7 d',
@@ -311,9 +322,8 @@ const en: Translated<typeof fr> = {
   'threshold.from.global': 'instance default threshold',
   'threshold.from.default': 'threshold shipped with the panel',
 
-  'breach.over': 'above {limit}% {since} —',
-  'breach.values': '{last} now, {peak} at worst',
-  'breach.samples': { one: '({count} readout)', other: '({count} readouts)' },
+  'breach.line': '{metric} above {limit}% {since}: {last} now, {peak} at worst {samples}.',
+  'breach.samples': { one: 'over {count} readout', other: 'over {count} readouts' },
   'breach.since.minutes': 'for {count} min',
   'breach.since.hours': 'for {count} h',
   'breach.since.days': 'for {count} d',
@@ -322,18 +332,15 @@ const en: Translated<typeof fr> = {
   'thresholds.aria': 'Set the thresholds of {name}',
   'thresholds.title': 'Thresholds for {name}',
   'thresholds.description':
-    'Past the threshold a breach opens and one line is written to the activity log —',
-  'thresholds.description.once': 'one only',
-  'thresholds.description.end':
-    ', at the crossing, not one per readout. It closes when the host drops back under the threshold.',
+    'Past the threshold a breach opens and a single entry is written to the log, until the host drops back under it.',
   'thresholds.metric.load': 'Load per core',
   'thresholds.hint.disk': 'partition that carries the deployments',
   'thresholds.hint.memory': 'used = total − available',
   'thresholds.hint.load': '100% = one full core per core',
-  'thresholds.origin.default': 'value shipped with the panel',
-  'thresholds.origin.global': 'instance default',
+  'thresholds.origin.default': 'shipped with the panel',
+  'thresholds.origin.global': 'instance default threshold',
   'thresholds.origin.target': 'set on this host',
-  'thresholds.watch': 'Watch this metric',
+  'thresholds.watch.aria': 'Watch: {metric}',
   'thresholds.reset': 'back to default',
   'thresholds.invalid': '“{metric}”: a percentage between 1 and 1000 is expected.',
   'thresholds.refused': 'Save refused (HTTP {status})',
