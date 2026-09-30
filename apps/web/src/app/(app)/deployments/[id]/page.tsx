@@ -1,9 +1,17 @@
 import { notFound } from 'next/navigation';
-import { getDeploymentForRun, getDeploymentSummary, listSteps } from '@pupitre/db';
+import {
+  getAppSettings,
+  getDeploymentForRun,
+  getDeploymentSummary,
+  listSteps,
+  scanDigestForDeployments,
+} from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { getT } from '@/i18n/server';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { DeploymentDetail, type StepView } from './deployment-view';
 
@@ -17,10 +25,16 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
 
   const auth = await requirePagePermission(`/deployments/${parsed.data.id}`, 'deployment:read');
   const t = await getT(messages);
+  const canReadScans = auth.can('scan:read');
 
-  const [deployment, steps] = await Promise.all([
+  const [deployment, steps, run, digest, { settings }] = await Promise.all([
     getDeploymentSummary(parsed.data.id),
     listSteps(parsed.data.id),
+    // L'AppSpec figée du run : ce qui est réellement parti, pas la spec
+    // courante de l'application.
+    getDeploymentForRun(parsed.data.id),
+    canReadScans ? scanDigestForDeployments([parsed.data.id]) : Promise.resolve(null),
+    getAppSettings(),
   ]);
   if (!deployment) notFound();
 
@@ -29,6 +43,12 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
   const restored =
     deployment.status === 'rolled_back' && deployment.previousDeploymentId
       ? ((await getDeploymentForRun(deployment.previousDeploymentId))?.deployment ?? null)
+      : null;
+
+  const spec = run?.deployment.appSpec ?? null;
+  const specVersion =
+    spec && typeof spec === 'object' && 'version' in spec && typeof spec.version === 'string'
+      ? spec.version
       : null;
 
   const stepViews: StepView[] = steps.map((step) => ({
@@ -42,13 +62,14 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
   }));
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
+      <Crumb label={`#${deployment.version}`} />
       <PageHeader
         title={
           <>
             {deployment.applicationSlug}{' '}
-            <span className="font-mono text-[1.375rem] font-normal text-text-3">
-              v{deployment.version}
+            <span className="mono text-[18px] font-normal text-text-3">
+              {specVersion ? `${specVersion} · ` : ''}#{deployment.version}
             </span>
           </>
         }
@@ -73,17 +94,22 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
           applicationSlug: deployment.applicationSlug,
           targetName: deployment.targetName,
           targetHost: deployment.targetHost,
+          triggeredByEmail: deployment.triggeredByEmail,
           startedAt: deployment.startedAt?.toISOString() ?? null,
           finishedAt: deployment.finishedAt?.toISOString() ?? null,
           canRollback: auth.can('deployment:rollback'),
           canDestroy: auth.can('deployment:destroy'),
           canUnblock: auth.can('deployment:purge'),
+          canReadScans,
           hasPrevious: deployment.previousDeploymentId !== null,
           autoRollback: deployment.autoRollback,
           restoredVersion: restored?.appSpec?.version ?? null,
+          spec: spec ? JSON.stringify(spec, null, 2) : null,
+          scan: digest?.get(deployment.id) ?? null,
         }}
         steps={stepViews}
+        format={formatSettingsOf(settings)}
       />
-    </div>
+    </>
   );
 }
