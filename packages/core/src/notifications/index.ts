@@ -14,6 +14,7 @@ export * from './types.js';
 export { escapeMarkdownV2, TelegramChannel } from './telegram.js';
 export { DiscordChannel } from './discord.js';
 export { WebhookChannel } from './webhook.js';
+export { BRAND_MARK, EMAIL_COLORS, type InlineImage } from './brand.js';
 export { SmtpChannel, nodemailerTransport, smtpOptionsFrom, smtpSenderFrom } from './smtp.js';
 
 /**

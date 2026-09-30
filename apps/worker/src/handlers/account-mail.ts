@@ -137,6 +137,7 @@ export async function handleAccountMail(
       subject: envelope.subject,
       text: envelope.text,
       html: envelope.html,
+      inlineImages: envelope.inlineImages,
       headers: {
         // Le type, pas le contenu : il permet un filtre côté client d'e-mail et
         // il ne dit rien qui ne soit déjà dans le sujet.

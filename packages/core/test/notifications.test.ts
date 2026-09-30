@@ -320,6 +320,11 @@ describe('notifications — les canaux', () => {
     assert.ok(envelope.html.includes('<html'));
     assert.ok(!envelope.text.includes('<'));
     assert.equal(envelope.headers['X-Control-Plane-Event'], 'deployment.scan_blocked');
+    // La tuile voyage avec le message : le HTML la cite par `cid:`, jamais par URL.
+    const [mark] = envelope.inlineImages ?? [];
+    assert.ok(mark, 'la tuile Pupitre n’est pas jointe');
+    assert.ok(envelope.html.includes(`src="cid:${mark.cid}"`));
+    assert.ok(!/<img[^>]+src="https?:/.test(envelope.html), 'une image distante a été glissée');
   });
 
   it('smtp : STARTTLS est exigé, jamais opportuniste', async () => {
