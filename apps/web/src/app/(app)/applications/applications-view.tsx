@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Boxes, Ellipsis, Plus, Rocket, Trash2 } from 'lucide-react';
-import { AppSpecHelpDialog } from '@/components/appspec-help';
+import { AppSpecHelp } from '@/components/appspec-help';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { Badge, CodeBadge } from '@/components/ui/badge';
@@ -173,7 +173,7 @@ export function ApplicationsView({
         description={t('page.description')}
         actions={
           <>
-            <AppSpecHelpDialog />
+            <AppSpecHelp />
             {canCreate ? (
               <Button onClick={() => adding.open('new')}>
                 <Plus aria-hidden />

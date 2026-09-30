@@ -15,7 +15,7 @@ import type {
 } from '@pupitre/core';
 import { Led } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
-import { TargetHelpDialog } from '@/components/target-help';
+import { TargetHelp } from '@/components/target-help';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -594,7 +594,7 @@ function TargetStep({
       <p className="t-sm text-text-2">{t('target.intro')}</p>
 
       <div>
-        <TargetHelpDialog label={t('target.help')} />
+        <TargetHelp label={t('target.help')} />
       </div>
 
       {existing !== null && existing > 0 ? (

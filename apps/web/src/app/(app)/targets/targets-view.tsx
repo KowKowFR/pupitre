@@ -8,7 +8,7 @@ import type { RuntimesAvailable, TargetHealth } from '@pupitre/core';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { MicroSpark } from '@/components/spark';
-import { TargetHelpDialog } from '@/components/target-help';
+import { TargetHelp } from '@/components/target-help';
 import { TargetLabelChip, TargetLabelList, sortedLabelEntries } from '@/components/target-label';
 import { Alert } from '@/components/ui/alert';
 import { RuntimePill } from '@/components/ui/badge';
@@ -304,7 +304,7 @@ export function TargetsView({
         description={t('page.description')}
         actions={
           <>
-            <TargetHelpDialog />
+            <TargetHelp />
             {canRunPreflight && targets.length > 0 ? (
               <Button variant="secondary" onClick={testAll}>
                 <RefreshCw aria-hidden />

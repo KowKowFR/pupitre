@@ -46,7 +46,7 @@ import { jobs as messages } from '@/i18n/messages/jobs';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import { JobsHelpDialog } from './jobs-help';
+import { JobsHelp } from './jobs-help';
 import {
   ScheduleField,
   draftBody,
@@ -230,7 +230,7 @@ export function JobsPanel({
         description={t('page.description')}
         actions={
           <>
-            <JobsHelpDialog defaultTimeZone={defaultTimeZone} />
+            <JobsHelp defaultTimeZone={defaultTimeZone} />
             {canManage ? (
               <Button
                 onClick={() => {

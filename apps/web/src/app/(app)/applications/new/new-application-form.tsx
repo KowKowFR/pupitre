@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { AppSpecHelpDialog } from '@/components/appspec-help';
+import { AppSpecHelp } from '@/components/appspec-help';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Rocket, Sparkles } from 'lucide-react';
@@ -663,7 +663,7 @@ export function NewApplicationForm({
       ) : (
         <div className="flex flex-col items-start gap-3">
           <p className="t-sm text-text-2">{t('new.json.tab.hint')}</p>
-          <AppSpecHelpDialog />
+          <AppSpecHelp />
         </div>
       )}
     </>

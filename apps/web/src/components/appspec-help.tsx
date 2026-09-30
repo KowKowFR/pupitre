@@ -1,28 +1,22 @@
 'use client';
 
-import * as React from 'react';
-import { CircleHelp } from 'lucide-react';
+import { ArrowLeftRight, Braces, FileCode, Lightbulb, ShieldCheck } from 'lucide-react';
 import {
-  Dialog,
-  DialogBody,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+  HelpBlock,
+  HelpCallout,
+  HelpDrawer,
+  HelpSection,
+  HelpSteps,
+  HelpTable,
+  rich,
+} from '@/components/help-drawer';
 import { useT } from '@/i18n/client';
-import { common } from '@/i18n/messages/common';
 import { appspecHelp as messages } from '@/i18n/messages/appspec-help';
-import { cn } from '@/lib/utils';
 
 /**
  * Aide sur l'AppSpec — contenu statique, aucune donnée serveur.
  *
- * Le composant `ui/dialog.tsx` reste neutre et réutilisable ; tout ce qui parle
+ * Un tiroir du kit d'aide (`components/help-drawer.tsx`) ; tout ce qui parle
  * d'AppSpec vit ici. Le contenu suit `packages/core/src/spec/app-spec.ts` et les
  * deux rendus `drivers/docker/render.ts` et `drivers/k3s/render.ts` : chaque
  * contrainte citée est celle du schéma Zod, pas une approximation.
@@ -33,64 +27,6 @@ type Props = {
   label?: string;
   className?: string;
 };
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-2">
-      <h3 className="text-text text-sm font-semibold">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Code({ children }: { children: React.ReactNode }) {
-  return (
-    <code className="bg-surface-3 text-text rounded px-1 py-0.5 mono text-[0.8em]">{children}</code>
-  );
-}
-
-const MARKUP = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
-
-/**
- * Rend une phrase du dictionnaire qui alterne prose et identifiants.
- *
- * Les accents graves encadrent un nom de champ ou une valeur du format, `**` un
- * passage appuyé, `*` une insistance. Sans ce petit rendu, chaque phrase de
- * cette page devrait être coupée en trois ou quatre clés autour de ses
- * `<Code>` — un dictionnaire de fragments, illisible et intraduisible. Le
- * balisage ne sort jamais du dictionnaire : il n'atteint ni la base ni l'API.
- */
-function Rich({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(MARKUP).map((part, index) => {
-        if (part.startsWith('`') && part.endsWith('`')) {
-          return <Code key={index}>{part.slice(1, -1)}</Code>;
-        }
-        if (part.startsWith('**') && part.endsWith('**')) {
-          return (
-            <strong key={index} className="text-text font-medium">
-              {part.slice(2, -2)}
-            </strong>
-          );
-        }
-        if (part.startsWith('*') && part.endsWith('*')) {
-          return <em key={index}>{part.slice(1, -1)}</em>;
-        }
-        return <React.Fragment key={index}>{part}</React.Fragment>;
-      })}
-    </>
-  );
-}
-
-/** Un tableau large ne doit jamais élargir la modale : il défile chez lui. */
-function ScrollableTable({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full min-w-[34rem] border-collapse text-left text-xs">{children}</table>
-    </div>
-  );
-}
 
 /**
  * Les champs du format. Le **nom** est une clé JSON, il n'est pas traduit ; les
@@ -134,145 +70,87 @@ const MAPPING = [
   'ingress',
 ] as const;
 
-export function AppSpecHelpDialog({ label, className }: Props) {
+export function AppSpecHelp({ label, className }: Props) {
   const t = useT(messages);
-  const tc = useT(common);
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button type="button" className={cn('btn btn-ghost', className)}>
-          <CircleHelp aria-hidden />
-          {label ?? t('trigger')}
-        </button>
-      </DialogTrigger>
+    <HelpDrawer
+      triggerLabel={label ?? t('trigger')}
+      title={t('dialog.title')}
+      description={rich(t('dialog.description'))}
+      className={className}
+    >
+      <HelpSection icon={Lightbulb} title={t('section.idea')}>
+        <p>{rich(t('idea.p1'))}</p>
+        <HelpCallout tone="accent">{rich(t('idea.p2'))}</HelpCallout>
+      </HelpSection>
 
-      <DialogContent size="xwide">
-        <DialogHeader>
-          <DialogTitle>{t('dialog.title')}</DialogTitle>
-          <DialogDescription>
-            <Rich text={t('dialog.description')} />
-          </DialogDescription>
-        </DialogHeader>
+      <HelpSection icon={Braces} title={t('section.fields')}>
+        <HelpTable
+          columns={[
+            { key: 'name', label: t('fields.column.name'), nowrap: true },
+            { key: 'role', label: t('fields.column.role') },
+            { key: 'constraint', label: t('fields.column.constraint'), tone: 'warn' },
+          ]}
+          rows={FIELDS.map((field) => ({
+            key: field.name,
+            cells: [
+              <code key="name" className="mono text-[12px]">
+                {field.name}
+              </code>,
+              rich(t(`field.${field.key}.role`)),
+              rich(t(`field.${field.key}.constraint`)),
+            ],
+          }))}
+        />
+        <HelpCallout tone="neutral">{t('fields.note')}</HelpCallout>
+      </HelpSection>
 
-        <DialogBody className="space-y-6 text-sm">
-          <Section title={t('section.idea')}>
-            <p className="text-text-2">
-              <Rich text={t('idea.p1')} />
-            </p>
-            <p className="text-text-2">
-              <Rich text={t('idea.p2')} />
-            </p>
-          </Section>
+      <HelpSection icon={ShieldCheck} tone="ok" title={t('section.guards')}>
+        <p>{t('guards.intro')}</p>
+        {/*
+          Texte brut, sans `rich()` : ces énoncés portent déjà des accents
+          graves, affichés tels quels — c'est leur ponctuation, pas du balisage.
+        */}
+        <HelpSteps
+          tone="ok"
+          steps={GUARDS.map((guard) => ({
+            key: guard,
+            title: t(`guard.${guard}.rule`),
+            body: t(`guard.${guard}.why`),
+          }))}
+        />
+      </HelpSection>
 
-          <Section title={t('section.fields')}>
-            <ScrollableTable>
-              <thead className="bg-surface-2 text-text-2">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t('fields.column.name')}</th>
-                  <th className="px-3 py-2 font-medium">{t('fields.column.role')}</th>
-                  <th className="px-3 py-2 font-medium">{t('fields.column.constraint')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {FIELDS.map((field) => (
-                  <tr key={field.name} className="border-t align-top">
-                    <td className="px-3 py-2 mono whitespace-nowrap">{field.name}</td>
-                    <td className="text-text-2 px-3 py-2">
-                      <Rich text={t(`field.${field.key}.role`)} />
-                    </td>
-                    <td className="text-text-2 px-3 py-2">
-                      <Rich text={t(`field.${field.key}.constraint`)} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ScrollableTable>
-            <p className="text-text-2 text-xs">{t('fields.note')}</p>
-          </Section>
+      <HelpSection icon={ArrowLeftRight} title={t('section.mapping')}>
+        <HelpTable
+          columns={[
+            { key: 'spec', label: t('mapping.column.spec'), nowrap: true },
+            { key: 'docker', label: t('mapping.column.docker'), tone: 'accent' },
+            { key: 'k3s', label: t('mapping.column.k3s'), tone: 'ok' },
+          ]}
+          rows={MAPPING.map((row) => ({
+            key: row,
+            cells: [
+              rich(t(`mapping.${row}.field`)),
+              rich(t(`mapping.${row}.docker`)),
+              rich(t(`mapping.${row}.k3s`)),
+            ],
+          }))}
+        />
+        <HelpCallout tone="accent">{rich(t('mapping.note'))}</HelpCallout>
+      </HelpSection>
 
-          <Section title={t('section.guards')}>
-            <p className="text-text-2">{t('guards.intro')}</p>
-            <ol className="space-y-2">
-              {/*
-                Texte brut, sans `<Rich>` : ces énoncés portent déjà des accents
-                graves, affichés tels quels — c'est leur ponctuation, pas du
-                balisage.
-              */}
-              {GUARDS.map((guard, index) => (
-                <li key={guard} className="flex gap-3">
-                  <span className="bg-surface-3 text-text-2 mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                    {index + 1}
-                  </span>
-                  <div className="space-y-0.5">
-                    <div className="text-text font-medium">{t(`guard.${guard}.rule`)}</div>
-                    <p className="text-text-2 text-xs">{t(`guard.${guard}.why`)}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Section>
+      <HelpSection icon={FileCode} title={t('section.simple')}>
+        <p>{rich(t('simple.intro'))}</p>
+        <HelpBlock>{t('example.simple')}</HelpBlock>
+      </HelpSection>
 
-          <Section title={t('section.mapping')}>
-            <ScrollableTable>
-              <thead className="bg-surface-2 text-text-2">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t('mapping.column.spec')}</th>
-                  <th className="px-3 py-2 font-medium">{t('mapping.column.docker')}</th>
-                  <th className="px-3 py-2 font-medium">{t('mapping.column.k3s')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MAPPING.map((row) => (
-                  <tr key={row} className="border-t align-top">
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <Rich text={t(`mapping.${row}.field`)} />
-                    </td>
-                    <td className="text-text-2 px-3 py-2">
-                      <Rich text={t(`mapping.${row}.docker`)} />
-                    </td>
-                    <td className="text-text-2 px-3 py-2">
-                      <Rich text={t(`mapping.${row}.k3s`)} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ScrollableTable>
-            <div className="bg-surface-2 rounded-md border px-3 py-2">
-              <p className="text-text-2 text-xs">
-                <Rich text={t('mapping.note')} />
-              </p>
-            </div>
-          </Section>
-
-          <Section title={t('section.simple')}>
-            <p className="text-text-2">
-              <Rich text={t('simple.intro')} />
-            </p>
-            <pre className="codeblock">
-              <code>{t('example.simple')}</code>
-            </pre>
-          </Section>
-
-          <Section title={t('section.full')}>
-            <p className="text-text-2">{t('full.intro')}</p>
-            <pre className="codeblock">
-              <code>{t('example.full')}</code>
-            </pre>
-            <p className="text-text-2 text-xs">
-              <Rich text={t('full.note')} />
-            </p>
-          </Section>
-        </DialogBody>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="secondary" type="button">
-              {tc('close')}
-            </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <HelpSection icon={FileCode} title={t('section.full')}>
+        <p>{t('full.intro')}</p>
+        <HelpBlock>{t('example.full')}</HelpBlock>
+        <HelpCallout tone="accent">{rich(t('full.note'))}</HelpCallout>
+      </HelpSection>
+    </HelpDrawer>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { Server } from 'lucide-react';
-import { TargetHelpDialog } from '@/components/target-help';
+import { TargetHelp } from '@/components/target-help';
 import { Drawer, DrawerHeader } from '@/components/ui/drawer';
 import { useT } from '@/i18n/client';
 import { targets as messages } from '@/i18n/messages/targets';
@@ -44,7 +44,7 @@ export function AddTargetDrawer({
               <div className="flex flex-col items-start gap-2">
                 <p className="t-sm text-text-2">{t('new.description')}</p>
                 <p className="t-cap text-text-3">{t('new.card.description')}</p>
-                <TargetHelpDialog />
+                <TargetHelp />
               </div>
             }
           />
