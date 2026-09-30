@@ -26,6 +26,11 @@ export const auditLogs = pgTable(
     before: jsonb('before'),
     after: jsonb('after'),
     ip: text('ip'),
+    /**
+     * Le navigateur ou le client qui a émis la requête, tel qu'il s'annonce.
+     * `null` pour une action du worker, qui n'a pas de requête derrière elle.
+     */
+    userAgent: text('user_agent'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

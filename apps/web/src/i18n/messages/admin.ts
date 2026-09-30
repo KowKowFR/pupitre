@@ -222,6 +222,7 @@ const fr = {
   'logs.column.action': 'Action',
   'logs.column.resource': 'Ressource',
   'logs.column.ip': 'IP',
+  'logs.column.agent': 'Agent',
   /** Une action sans acteur : le worker, le scheduler, ou un visiteur non connecté. */
   'logs.anonymous': 'système / anonyme',
   'logs.denial': 'refus',
@@ -445,6 +446,7 @@ const en: Translated<typeof fr> = {
   'logs.column.action': 'Action',
   'logs.column.resource': 'Resource',
   'logs.column.ip': 'IP',
+  'logs.column.agent': 'Agent',
   'logs.anonymous': 'system / anonymous',
   'logs.denial': 'denial',
   'logs.row.open': 'Open the entry {action}',

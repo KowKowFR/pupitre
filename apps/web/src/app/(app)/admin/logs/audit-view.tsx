@@ -31,6 +31,7 @@ import { admin } from '@/i18n/messages/admin';
 import { common } from '@/i18n/messages/common';
 import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
+import { describeUserAgent } from '@/lib/user-agent';
 
 /** Une entrée du journal, telle que la page la sérialise. */
 export type AuditEntry = {
@@ -42,6 +43,8 @@ export type AuditEntry = {
   resourceType: string;
   resourceId: string | null;
   ip: string | null;
+  /** Le navigateur de la requête, tel qu'il s'annonce ; `null` pour le worker. */
+  userAgent: string | null;
   before: unknown;
   after: unknown;
 };
@@ -377,6 +380,18 @@ function EntryDrawer({
               {
                 term: t('logs.column.ip'),
                 value: <span className="mono">{entry.ip ?? c('none')}</span>,
+              },
+              {
+                term: t('logs.column.agent'),
+                // L'en-tête complet reste lisible au survol : le résumé suffit
+                // à reconnaître un appareil, pas à enquêter.
+                value: entry.userAgent ? (
+                  <span className="t-sm" title={entry.userAgent}>
+                    {describeUserAgent(entry.userAgent)}
+                  </span>
+                ) : (
+                  c('none')
+                ),
               },
             ]}
           />

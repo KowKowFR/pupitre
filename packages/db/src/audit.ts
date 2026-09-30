@@ -23,6 +23,16 @@ export const auditEntrySchema = z.object({
   before: z.unknown().nullable().default(null),
   after: z.unknown().nullable().default(null),
   ip: z.string().min(1).max(64).nullable().default(null),
+  /**
+   * Absent : lu dans la requête en cours par le fournisseur de contexte (voir
+   * `setAuditContextProvider`). Coupé plutôt que refusé au-delà de 512
+   * caractères — un en-tête trop long ne doit pas coûter la ligne d'audit.
+   */
+  userAgent: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((value) => (value ? value.slice(0, 512) : value)),
 });
 
 export type AuditEntryInput = z.input<typeof auditEntrySchema>;
@@ -73,6 +83,37 @@ declare global {
   var __tpAuditObserver: AuditObserver | undefined;
 }
 
+/**
+ * Ce que la requête en cours dit d'elle-même, pour les entrées qui ne le
+ * précisent pas : aujourd'hui, le `User-Agent`.
+ *
+ * Un fournisseur plutôt qu'un champ ajouté à chaque appel : `logAudit()` est
+ * appelé depuis une centaine d'endroits, et un navigateur oublié à l'un d'eux
+ * serait un trou silencieux dans le journal. Le panel installe le sien au
+ * démarrage (il lit les en-têtes de la requête) ; le worker n'en installe pas
+ * — ses actions n'ont pas de requête derrière elles. Même rangement que
+ * l'observateur, sur `globalThis`, et pour la même raison.
+ */
+export type AuditContextProvider = () => Promise<{ userAgent: string | null }>;
+
+declare global {
+  var __tpAuditContext: AuditContextProvider | undefined;
+}
+
+export function setAuditContextProvider(provider: AuditContextProvider | null): void {
+  globalThis.__tpAuditContext = provider ?? undefined;
+}
+
+async function contextUserAgent(): Promise<string | null> {
+  const provider = globalThis.__tpAuditContext;
+  if (!provider) return null;
+  try {
+    return (await provider()).userAgent;
+  } catch {
+    return null;
+  }
+}
+
 export function setAuditObserver(observer: AuditObserver | null): void {
   globalThis.__tpAuditObserver = observer ?? undefined;
 }
@@ -97,6 +138,8 @@ export async function logAudit(
 ): Promise<AuditLogRow | null> {
   try {
     const parsed = auditEntrySchema.parse(entry);
+    const userAgent =
+      parsed.userAgent !== undefined ? parsed.userAgent : (await contextUserAgent())?.slice(0, 512);
     const [row] = await db
       .insert(auditLogs)
       .values({
@@ -107,6 +150,7 @@ export async function logAudit(
         before: parsed.before ?? null,
         after: parsed.after ?? null,
         ip: parsed.ip,
+        userAgent: userAgent ?? null,
       })
       .returning();
     // `notifyObserver` n'échoue jamais : le placer ici plutôt qu'après le
@@ -263,4 +307,31 @@ export async function listAuditActors(
     .from(users)
     .where(sql`exists (select 1 from ${auditLogs} where ${auditLogs.actorId} = ${users.id})`)
     .orderBy(asc(users.email));
+}
+
+/** Comment une connexion a été achevée : le mot de passe seul, ou un second facteur. */
+export type SignInMethod = 'password' | 'totp' | 'backup_code';
+
+/**
+ * La dernière connexion réussie d'un utilisateur, lue dans le journal — le
+ * seul endroit où la méthode est gardée : `auth.login.succeeded` porte
+ * `method` quand un second facteur a conclu, rien quand le mot de passe a suffi.
+ */
+export async function lastSignIn(
+  userId: string,
+  db: Database = getDb(),
+): Promise<{ at: Date; method: SignInMethod; ip: string | null } | null> {
+  const [row] = await db
+    .select({ at: auditLogs.createdAt, after: auditLogs.after, ip: auditLogs.ip })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.actorId, userId), eq(auditLogs.action, 'auth.login.succeeded')))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(1);
+  if (!row) return null;
+  const method = (row.after as { method?: unknown } | null)?.method;
+  return {
+    at: row.at,
+    method: method === 'totp' || method === 'backup_code' ? method : 'password',
+    ip: row.ip,
+  };
 }
