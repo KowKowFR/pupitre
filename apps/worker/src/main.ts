@@ -68,6 +68,7 @@ import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
 import { logger } from './logger.js';
 import { closeOpsQueue, getOpsQueue, getSupervisionQueue } from './queue.js';
 import { reconcileSchedulers } from './schedule/reconcile.js';
+import { installRealtimeAudit, installRealtimeJobEvents } from './realtime.js';
 import {
   HOST_SWEEP_JOB,
   HOST_SWEEP_SCHEDULER_KEY,
@@ -369,6 +370,7 @@ async function main(): Promise<void> {
    * seconde qui suit le démarrage doit déjà déclencher son alerte.
    */
   installAuditNotifications();
+  installRealtimeAudit();
 
   const supervision = new Worker(
     SUPERVISION_QUEUE,
@@ -408,6 +410,10 @@ async function main(): Promise<void> {
       removeOnFail: { age: 7 * 24 * 3600 },
     },
   );
+
+  // Les écrans ouverts apprennent qu'un déploiement part ou finit, qu'une
+  // sonde a tourné : ils se relisent d'eux-mêmes.
+  installRealtimeJobEvents([worker, supervision]);
 
   for (const [instance, queue, concurrency] of [
     [worker, OPS_QUEUE, env.WORKER_CONCURRENCY],
