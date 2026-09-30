@@ -1,0 +1,348 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { Boxes, Ellipsis, Plus, Rocket, Trash2 } from 'lucide-react';
+import { AppSpecHelpDialog } from '@/components/appspec-help';
+import { EmptyState } from '@/components/empty-state';
+import { PageHeader } from '@/components/page-header';
+import { Badge, CodeBadge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useDrawerSelection } from '@/components/ui/drawer';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { SwitchField } from '@/components/ui/switch';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { IconButton } from '@/components/ui/tooltip';
+import { useT } from '@/i18n/client';
+import { common } from '@/i18n/messages/common';
+import { applications as messages } from '@/i18n/messages/applications';
+import { toast } from '@/lib/toast';
+import { ApplicationDrawer } from './application-drawer';
+import { DeleteApplicationDialog } from './delete-dialog';
+
+export type ServiceRow = {
+  name: string;
+  port: number;
+  exposed: boolean;
+  replicas: number;
+  health: { path: string; interval: number; retries: number } | null;
+  dependsOn: string[];
+  volumes: string[];
+  secrets: string[];
+};
+
+export type ApplicationRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  version: string;
+  services: ServiceRow[];
+  ingress: { host: string | null; service: string; tls: boolean } | null;
+  /** `null` : la session ne lit pas les déploiements. */
+  live: Array<{ id: string; targetName: string; health: string; ago: string | null }> | null;
+};
+
+export type DeployTarget = {
+  id: string;
+  name: string;
+  host: string;
+  runtimes: Array<'docker' | 'k3s'>;
+  dockerVersion: string | null;
+  k3sVersion: string | null;
+  healthy: boolean;
+};
+
+type ApiError = { error?: { message?: string } };
+
+/**
+ * Le catalogue. Une ligne par application ; un clic ouvre son aperçu, où l'on
+ * relit ce qui va tourner et d'où l'on déploie. La fiche reste le lieu de
+ * l'historique des versions et des secrets.
+ */
+export function ApplicationsView({
+  items,
+  targets,
+  canCreate,
+  canDeploy,
+  canDelete,
+}: {
+  items: ApplicationRow[];
+  targets: DeployTarget[];
+  canCreate: boolean;
+  canDeploy: boolean;
+  canDelete: boolean;
+}) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const router = useRouter();
+  const search = useSearchParams();
+  // Cochée par défaut : perdre une version qui marchait parce qu'on a oublié
+  // une case est le mauvais défaut.
+  const [autoRollback, setAutoRollback] = useState(true);
+  const [deleting, setDeleting] = useState<ApplicationRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const drawer = useDrawerSelection(
+    'app',
+    items.map((item) => item.slug),
+  );
+  const current = items.find((item) => item.slug === drawer.selected) ?? null;
+  // La palette arrive ici avec `?app=…&deploy=1` : l'aperçu s'ouvre sur le
+  // déploiement.
+  const focusDeploy = search.get('deploy') === '1';
+
+  async function deploy(application: ApplicationRow, targetId: string, runtime: 'docker' | 'k3s') {
+    setBusy(true);
+    setError(null);
+    const response = await fetch('/api/deployments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        applicationId: application.id,
+        targetId,
+        runtime,
+        proxy: 'traefik',
+        autoRollback,
+      }),
+    });
+    setBusy(false);
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as ApiError;
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
+      return;
+    }
+    // La route répond 202 sans attendre : le run est enfilé, on le dit, et on
+    // donne le lien pour le suivre.
+    const { id } = (await response.json()) as { id: string };
+    toast({
+      title: t('toast.deployed', { slug: application.slug, version: application.version }),
+      description: t('toast.deployed.detail'),
+      tone: 'accent',
+      action: { label: t('toast.follow'), href: `/deployments/${id}` },
+    });
+    drawer.close();
+    router.refresh();
+  }
+
+  return (
+    <>
+      <PageHeader
+        title={t('page.title')}
+        description={t('page.description')}
+        actions={
+          <>
+            <AppSpecHelpDialog />
+            {canCreate ? (
+              <Button asChild>
+                <Link href="/applications/new">
+                  <Plus aria-hidden />
+                  {t('action.new')}
+                </Link>
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+
+      {canDeploy && items.length > 0 ? (
+        <div className="card flex flex-wrap items-center gap-4 px-4 py-3">
+          <SwitchField
+            label={t('lifecycle.autoRollback')}
+            help={t('lifecycle.scope')}
+            checked={autoRollback}
+            onChange={(event) => setAutoRollback(event.target.checked)}
+            className="min-w-[280px] flex-1"
+          />
+          <span className="vsep max-md:hidden" />
+          <span className="t-cap max-w-[420px] text-text-3">{t('lifecycle.note')}</span>
+        </div>
+      ) : null}
+
+      {items.length === 0 ? (
+        <EmptyState
+          icon={Boxes}
+          title={t('empty.title')}
+          hint={t('empty.hint')}
+          action={
+            canCreate ? (
+              <Button asChild>
+                <Link href="/applications/new">
+                  <Plus aria-hidden />
+                  {t('action.new')}
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <section className="card overflow-hidden">
+          <Table label={t('page.title')}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('column.application')}</TableHead>
+                <TableHead>{t('column.services')}</TableHead>
+                <TableHead>{t('column.exposure')}</TableHead>
+                <TableHead>{t('column.inService')}</TableHead>
+                <TableHead>
+                  <span className="sr-only">{tc('column.actions')}</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((application) => (
+                <TableRow
+                  key={application.id}
+                  interactive
+                  selected={drawer.selected === application.slug}
+                  onClick={() => drawer.open(application.slug)}
+                >
+                  <TableCell>
+                    <span className="flex flex-col">
+                      <button
+                        type="button"
+                        className="cellname w-fit text-left hover:underline"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          drawer.open(application.slug);
+                        }}
+                      >
+                        {application.slug}
+                      </button>
+                      <span className="mono text-[11.5px] text-text-3">{application.version}</span>
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <ServiceChips services={application.services} />
+                  </TableCell>
+                  <TableCell>
+                    {application.ingress?.host ? (
+                      <span className="mono text-[12px] text-text-2">{application.ingress.host}</span>
+                    ) : (
+                      <span className="text-text-3">{t('exposure.allocatedPort')}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {application.live === null ? (
+                      <span className="text-text-3">{tc('none')}</span>
+                    ) : application.live.length > 0 ? (
+                      <span className="mono text-[12px] text-text-2">
+                        {application.live.map((entry) => entry.targetName).join(', ')}
+                      </span>
+                    ) : (
+                      <span className="text-text-3">{t('inService.never')}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="r" onClick={(event) => event.stopPropagation()}>
+                    <span className="inline-flex items-center gap-0.5">
+                      {canDeploy ? (
+                        <IconButton
+                          label={t('row.deploy')}
+                          size="icon-sm"
+                          onClick={() => drawer.open(application.slug)}
+                        >
+                          <Rocket />
+                        </IconButton>
+                      ) : null}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <IconButton label={t('row.more')} size="icon-sm">
+                            <Ellipsis />
+                          </IconButton>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/applications/${application.id}`}>{t('row.open')}</Link>
+                          </DropdownMenuItem>
+                          {canDelete ? (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem destructive onSelect={() => setDeleting(application)}>
+                                <Trash2 aria-hidden />
+                                {t('row.delete')}
+                              </DropdownMenuItem>
+                            </>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </span>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="pager">
+            {t('table.count', { count: items.length })}
+            <span className="ml-auto max-sm:hidden">{t('table.legend')}</span>
+          </div>
+        </section>
+      )}
+
+      <ApplicationDrawer
+        application={current}
+        onOpenChange={(open) => (open ? undefined : drawer.close())}
+        onPrevious={drawer.onPrevious}
+        onNext={drawer.onNext}
+        targets={targets}
+        canDeploy={canDeploy}
+        canDelete={canDelete}
+        autoRollback={autoRollback}
+        onAutoRollbackChange={setAutoRollback}
+        focusDeploy={focusDeploy}
+        busy={busy}
+        error={error}
+        onDeploy={(targetId, runtime) => (current ? deploy(current, targetId, runtime) : undefined)}
+        onDelete={() => setDeleting(current)}
+      />
+
+      {/* La confirmation NOMME ce qui disparaît — cible, projet, port — plutôt
+          que de demander « êtes-vous sûr ? ». */}
+      {deleting !== null ? (
+        <DeleteApplicationDialog
+          application={deleting}
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeleting(null);
+          }}
+          onDeleted={() => {
+            toast({ title: t('toast.deleted', { slug: deleting.slug }), tone: 'ok' });
+            setDeleting(null);
+            drawer.close();
+            router.refresh();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** Les services d'une application ; l'exposé en badge plein, les autres en code. */
+export function ServiceChips({ services }: { services: ServiceRow[] }) {
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {services.map((service) =>
+        service.exposed ? (
+          <Badge key={service.name} variant="accent" className="mono">
+            {service.name}
+          </Badge>
+        ) : (
+          <CodeBadge key={service.name}>{service.name}</CodeBadge>
+        ),
+      )}
+    </span>
+  );
+}

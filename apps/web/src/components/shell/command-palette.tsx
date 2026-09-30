@@ -167,7 +167,7 @@ export function CommandPalette({
         verb: 'open',
         words: `${hit.title} ${hit.slug}`,
         isCommand: false,
-        perform: () => go(`/applications?app=${hit.id}&deploy=1`),
+        perform: () => go(`/applications?app=${encodeURIComponent(hit.slug)}&deploy=1`),
       });
     }
   } else {

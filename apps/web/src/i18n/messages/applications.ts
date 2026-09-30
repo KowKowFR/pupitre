@@ -21,10 +21,81 @@ const fr = {
   // ── Liste ───────────────────────────────────────────────────────────────
   'page.eyebrow': 'Catalogue',
   'page.title': 'Applications',
-  'page.description.before': 'Une application est une ',
-  'page.description.after':
-    " — une description neutre, qui ne connaît ni Docker ni Kubernetes. C'est le driver qui la traduit au moment du déploiement.",
+  'page.description':
+    'Une application est une AppSpec : une description neutre, qui ne connaît ni Docker ni Kubernetes. Le driver la traduit en compose.yml ou en manifests au moment du déploiement.',
   'action.new': 'Nouvelle application',
+
+  'column.inService': 'En service sur',
+  'inService.never': 'jamais déployée',
+  'row.deploy': 'Déployer',
+  'row.more': "Plus d'actions",
+  'row.open': 'Ouvrir la fiche',
+  'row.delete': 'Supprimer…',
+
+  'new.left.sub': "Décrivez ou collez, puis relisez avant d'enregistrer.",
+  'new.review.sub.proposal': 'Proposition du modèle, à valider',
+  'new.review.sub.manual': 'Relecture de la spec saisie',
+  'new.review.empty': 'La relecture apparaît dès que la spec est un JSON lisible.',
+  'new.json.sub.generated': 'générée, éditable',
+  'new.json.sub.manual': 'à coller ou à écrire',
+  'new.json.tab.hint':
+    'Collez ou écrivez la spec dans le bloc JSON ; la relecture se met à jour à chaque frappe.',
+  'new.deploy.title': 'Déployer dans la foulée',
+  'new.deploy.note': 'La spec est validée, puis un run est enfilé.',
+  'new.deploy.noteSave': 'La spec est validée, puis enregistrée au catalogue.',
+  'generate.again': 'Régénérer',
+  'generate.done': 'Spec générée.',
+
+  'detail.more': "Plus d'actions",
+  'redeploy.dialog.title': 'Redéployer {slug} {version} sur {target} ?',
+  'redeploy.consequence.frozen': "L'AppSpec figée à l'époque est rejouée telle quelle.",
+  'redeploy.consequence.current': "L'application actuelle n'est pas utilisée.",
+  'redeploy.consequence.run': 'Un nouveau run est enfilé ; il se suit dans Déploiements.',
+  'redeploy.toast': 'Redéploiement de {slug} {version} enfilé',
+  'secrets.regenerate.dialog.title': 'Régénérer {name} ?',
+  'secrets.regenerate.consequence.draw': 'Une nouvelle valeur est tirée au sort et chiffrée en base.',
+  'secrets.regenerate.consequence.next': "Elle ne prend effet qu'au prochain déploiement.",
+  'secrets.regenerate.consequence.data':
+    "Les données déjà écrites avec l'ancienne valeur (le volume d'une base, par exemple) ne la connaîtront pas.",
+  'secrets.regenerate.action': 'Régénérer',
+  'secrets.delete.dialog.title': 'Supprimer la valeur de {name} ?',
+  'secrets.delete.consequence.gone': 'La valeur chiffrée est effacée définitivement.',
+  'secrets.delete.consequence.orphan': "Aucun service de l'AppSpec courante ne la réclame.",
+  'table.count': {
+    one: '{count} application au catalogue',
+    other: '{count} applications au catalogue',
+  },
+  'table.legend': 'Service exposé en badge plein',
+  'drawer.kind': 'Application',
+  'drawer.run': 'Ce qui va tourner',
+  'drawer.exposed': 'exposé',
+  'drawer.service.port': 'port {port}',
+  'drawer.service.internal': 'port {port} interne',
+  'drawer.service.health': 'santé GET {path} toutes les {interval} s, {retries} essais',
+  'drawer.service.depends': 'dépend de : {list}',
+  'drawer.service.volumes': 'volumes : {list}',
+  'drawer.service.secrets': 'secrets : {list}',
+  'drawer.service.replicas': '{count} réplicas',
+  'drawer.ingress': 'ingress : {host} → {service}',
+  'drawer.inService': 'En service',
+  'drawer.inService.since': '{state} · déployée {ago}',
+  'drawer.deploy': 'Déployer',
+  'drawer.deploy.target': 'Cible',
+  'drawer.deploy.runtime': 'Runtime',
+  'drawer.deploy.runtime.help': 'Seuls les runtimes vus par le preflight de la cible sont proposés.',
+  'drawer.deploy.noTarget':
+    'Aucune cible prête : lancez un preflight depuis Cibles pour savoir ce que chaque machine sait faire.',
+  'drawer.deploy.action': 'Déployer {version}',
+  'runtime.docker': 'Docker Compose',
+  'runtime.k3s': 'K3s',
+  'health.healthy': 'en marche',
+  'health.unhealthy': 'répond mal',
+  'health.unreachable': 'injoignable',
+  'health.unknown': 'état inconnu',
+  'toast.deployed': 'Déploiement de {slug} v{version} enfilé',
+  'toast.deployed.detail': 'Suivez-le dans Déploiements.',
+  'toast.follow': 'Suivre',
+  'toast.deleted': 'Application {slug} supprimée',
 
   'empty.title': 'Aucune application',
   'empty.hint':
@@ -36,7 +107,9 @@ const fr = {
     'Un healthcheck raté ramène la version précédente, si elle existe.',
   'lifecycle.autoRollback.off': 'Un healthcheck raté laisse le déploiement en échec, en l’état.',
   'lifecycle.note':
-    'Le bouton « Déployer » de cette page part en Docker Compose, derrière Traefik, et ne propose que les cibles où le preflight a vu Docker. Le runtime ne se choisit qu’à la création, sur « Nouvelle application » — l’AppSpec, elle, est la même dans les deux cas.',
+    'Le runtime se choisit par cible : une cible Docker reçoit un compose.yml, une cible K3s des manifests. L’AppSpec, elle, est la même.',
+  'lifecycle.scope':
+    'Un healthcheck raté ramène la version précédente, si elle existe. Vaut pour les déploiements lancés depuis cet écran.',
 
   'column.application': 'Application',
   'column.services': 'Services',
@@ -54,7 +127,9 @@ const fr = {
   'warn.noDockerTarget.after': ' dit ce que chaque machine sait faire.',
 
   // ── Suppression ─────────────────────────────────────────────────────────
-  'delete.title': 'Supprimer « {slug} »',
+  'delete.title': 'Supprimer « {slug} » ?',
+  'delete.title.cascade': 'Détruire et supprimer « {slug} » ?',
+  'delete.live': 'Déploiements vivants',
   'delete.description.abandoned':
     'Une cible n’a pas pu être nettoyée. Lisez ce qui va rester dessus.',
   'delete.description.blockers':
@@ -160,7 +235,7 @@ const fr = {
 
   // ── Création ────────────────────────────────────────────────────────────
   'new.description':
-    "Cet écran produit une AppSpec et l'enregistre au catalogue — il ne touche à aucune machine tant que vous ne choisissez pas une cible plus bas. Le runtime n'entre pas dans la spec : c'est ici, au moment de déployer, qu'on tranche entre Docker Compose et K3s.",
+    "Rien n'est touché sur une machine tant qu'aucune cible n'est choisie. Le prompt et la spec générée sont conservés avec l'application.",
   'new.card.title': 'AppSpec',
   'new.card.description':
     "Décrivez l'application et laissez le modèle proposer une spec, ou collez directement un JSON. Dans les deux cas, la proposition s'affiche avant enregistrement, et Zod valide avant que quoi que ce soit n'atteigne la base.",
@@ -177,9 +252,9 @@ const fr = {
   'form.prompt.placeholder': 'Génère une application GLPI avec sa base de données',
   'form.prompt.help':
     "Le modèle produit du JSON validé par Zod — jamais une commande. Rien n'est enregistré ni déployé : la spec s'affiche ci-dessous, à relire et à corriger.",
-  'form.hint.language': 'Langage (facultatif)',
-  'form.hint.database': 'Base de données (facultatif)',
-  'form.hint.runtime': 'Runtime visé (facultatif)',
+  'form.hint.language': 'Langage',
+  'form.hint.database': 'Base de données',
+  'form.hint.runtime': 'Runtime visé',
   'form.hint.runtime.any': 'indifférent',
   'form.hint.note':
     "Le runtime n'entre jamais dans l'AppSpec — elle ne connaît ni Docker ni Kubernetes. Il ne sert qu'à dimensionner.",
@@ -298,10 +373,80 @@ const fr = {
 const en: Translated<typeof fr> = {
   'page.eyebrow': 'Catalog',
   'page.title': 'Applications',
-  'page.description.before': 'An application is an ',
-  'page.description.after':
-    ' — a neutral description that knows neither Docker nor Kubernetes. The driver translates it at deploy time.',
+  'page.description':
+    'An application is an AppSpec: a neutral description that knows neither Docker nor Kubernetes. The driver turns it into a compose.yml or manifests at deploy time.',
   'action.new': 'New application',
+
+  'column.inService': 'In service on',
+  'inService.never': 'never deployed',
+  'row.deploy': 'Deploy',
+  'row.more': 'More actions',
+  'row.open': 'Open record',
+  'row.delete': 'Delete…',
+
+  'new.left.sub': 'Describe or paste, then review before saving.',
+  'new.review.sub.proposal': 'Model proposal, to be validated',
+  'new.review.sub.manual': 'Review of the entered spec',
+  'new.review.empty': 'The review shows up as soon as the spec is readable JSON.',
+  'new.json.sub.generated': 'generated, editable',
+  'new.json.sub.manual': 'to paste or write',
+  'new.json.tab.hint': 'Paste or write the spec in the JSON block; the review updates on every keystroke.',
+  'new.deploy.title': 'Deploy right away',
+  'new.deploy.note': 'The spec is validated, then a run is queued.',
+  'new.deploy.noteSave': 'The spec is validated, then saved to the catalog.',
+  'generate.again': 'Regenerate',
+  'generate.done': 'Spec generated.',
+
+  'detail.more': 'More actions',
+  'redeploy.dialog.title': 'Redeploy {slug} {version} on {target}?',
+  'redeploy.consequence.frozen': 'The AppSpec frozen at the time is replayed as is.',
+  'redeploy.consequence.current': 'The current application is not used.',
+  'redeploy.consequence.run': 'A new run is queued; follow it in Deployments.',
+  'redeploy.toast': 'Redeployment of {slug} {version} queued',
+  'secrets.regenerate.dialog.title': 'Regenerate {name}?',
+  'secrets.regenerate.consequence.draw': 'A new value is drawn at random and encrypted in the database.',
+  'secrets.regenerate.consequence.next': 'It only takes effect at the next deployment.',
+  'secrets.regenerate.consequence.data':
+    'Data already written with the old value (a database volume, for instance) will not know it.',
+  'secrets.regenerate.action': 'Regenerate',
+  'secrets.delete.dialog.title': 'Delete the value of {name}?',
+  'secrets.delete.consequence.gone': 'The encrypted value is erased for good.',
+  'secrets.delete.consequence.orphan': 'No service of the current AppSpec claims it.',
+  'table.count': {
+    one: '{count} application in the catalog',
+    other: '{count} applications in the catalog',
+  },
+  'table.legend': 'Exposed service as a solid badge',
+  'drawer.kind': 'Application',
+  'drawer.run': 'What will run',
+  'drawer.exposed': 'exposed',
+  'drawer.service.port': 'port {port}',
+  'drawer.service.internal': 'internal port {port}',
+  'drawer.service.health': 'health GET {path} every {interval} s, {retries} tries',
+  'drawer.service.depends': 'depends on: {list}',
+  'drawer.service.volumes': 'volumes: {list}',
+  'drawer.service.secrets': 'secrets: {list}',
+  'drawer.service.replicas': '{count} replicas',
+  'drawer.ingress': 'ingress: {host} → {service}',
+  'drawer.inService': 'In service',
+  'drawer.inService.since': '{state} · deployed {ago}',
+  'drawer.deploy': 'Deploy',
+  'drawer.deploy.target': 'Target',
+  'drawer.deploy.runtime': 'Runtime',
+  'drawer.deploy.runtime.help': "Only the runtimes seen by the target's preflight are offered.",
+  'drawer.deploy.noTarget':
+    'No target is ready: run a preflight from Targets to learn what each machine can do.',
+  'drawer.deploy.action': 'Deploy {version}',
+  'runtime.docker': 'Docker Compose',
+  'runtime.k3s': 'K3s',
+  'health.healthy': 'running',
+  'health.unhealthy': 'answers badly',
+  'health.unreachable': 'unreachable',
+  'health.unknown': 'state unknown',
+  'toast.deployed': 'Deployment of {slug} v{version} queued',
+  'toast.deployed.detail': 'Follow it in Deployments.',
+  'toast.follow': 'Follow',
+  'toast.deleted': 'Application {slug} deleted',
 
   'empty.title': 'No application',
   'empty.hint':
@@ -313,7 +458,9 @@ const en: Translated<typeof fr> = {
     'A failed healthcheck brings back the previous version, if there is one.',
   'lifecycle.autoRollback.off': 'A failed healthcheck leaves the deployment failed, as it stands.',
   'lifecycle.note':
-    'The “Deploy” button on this page goes out on Docker Compose, behind Traefik, and only offers targets where the preflight saw Docker. The runtime is picked at creation only, on “New application” — the AppSpec is the same either way.',
+    'The runtime is picked per target: a Docker target gets a compose.yml, a K3s target manifests. The AppSpec stays the same.',
+  'lifecycle.scope':
+    'A failed healthcheck brings back the previous version, if there is one. Applies to deployments started from this screen.',
 
   'column.application': 'Application',
   'column.services': 'Services',
@@ -328,7 +475,9 @@ const en: Translated<typeof fr> = {
     'No Docker target is ready. This screen deploys on Docker Compose; for a K3s machine, go through “New application”, which lets you pick the runtime. A preflight from ',
   'warn.noDockerTarget.after': ' says what each machine can do.',
 
-  'delete.title': 'Delete “{slug}”',
+  'delete.title': 'Delete “{slug}”?',
+  'delete.title.cascade': 'Destroy and delete “{slug}”?',
+  'delete.live': 'Live deployments',
   'delete.description.abandoned':
     'One target could not be cleaned up. Read what will stay on it.',
   'delete.description.blockers':
@@ -430,7 +579,7 @@ const en: Translated<typeof fr> = {
   'secrets.delete.confirm': 'Delete the value of “{name}” for good?',
 
   'new.description':
-    'This screen produces an AppSpec and saves it to the catalog — it touches no machine until you pick a target below. The runtime is not part of the spec: Docker Compose or K3s is settled here, at deploy time.',
+    'Nothing is touched on a machine until a target is chosen. The prompt and the generated spec are kept with the application.',
   'new.card.title': 'AppSpec',
   'new.card.description':
     'Describe the application and let the model propose a spec, or paste JSON straight in. Either way the proposal shows before it is saved, and Zod validates before anything reaches the database.',
@@ -447,9 +596,9 @@ const en: Translated<typeof fr> = {
   'form.prompt.placeholder': 'Generate a GLPI application with its database',
   'form.prompt.help':
     'The model produces JSON validated by Zod — never a command. Nothing is saved or deployed: the spec shows below, to read and fix.',
-  'form.hint.language': 'Language (optional)',
-  'form.hint.database': 'Database (optional)',
-  'form.hint.runtime': 'Target runtime (optional)',
+  'form.hint.language': 'Language',
+  'form.hint.database': 'Database',
+  'form.hint.runtime': 'Target runtime',
   'form.hint.runtime.any': 'no preference',
   'form.hint.note':
     'The runtime never enters the AppSpec — it knows neither Docker nor Kubernetes. It only helps with sizing.',

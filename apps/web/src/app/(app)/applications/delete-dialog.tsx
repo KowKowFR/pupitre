@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
-import { CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,6 +17,9 @@ import { Input } from '@/components/ui/input';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { applications as messages } from '@/i18n/messages/applications';
+import { chrome } from '@/i18n/messages/chrome';
+import { confirmMatches } from '@/lib/confirm';
+import { withSlot } from '@/lib/rich';
 
 /**
  * Confirmation de suppression d'une application.
@@ -100,6 +103,7 @@ export function DeleteApplicationDialog({
 }) {
   const t = useT(messages);
   const tc = useT(common);
+  const tChrome = useT(chrome);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [outcome, setOutcome] = useState<CascadeResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -198,13 +202,23 @@ export function DeleteApplicationDialog({
 
   const blockers = preview?.blockers ?? [];
   const abandoned = outcome?.abandoned ?? [];
-  const forceArmed = confirm.trim() === application.slug;
+  // Détruire (cascade) et forcer l'effacement font retaper le nom : ce sont
+  // les deux gestes qui perdent des données sur une machine.
+  const needsName = abandoned.length > 0 || blockers.length > 0;
+  const armed = !needsName || confirmMatches(confirm, application.slug);
+  const inputId = `delete-${application.id}`;
 
   return (
     <Dialog open={open} onOpenChange={pending ? () => {} : onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('delete.title', { slug: application.slug })}</DialogTitle>
+      <DialogContent size="wide" role="alertdialog">
+        <DialogHeader icon={<Trash2 />}>
+          <DialogTitle>
+            {blockers.length > 0 || abandoned.length > 0
+              ? t('delete.title.cascade', { slug: application.slug })
+              : t('delete.title', { slug: application.slug })}
+          </DialogTitle>
+        </DialogHeader>
+        <DialogBody>
           <DialogDescription>
             {abandoned.length > 0
               ? t('delete.description.abandoned')
@@ -212,72 +226,61 @@ export function DeleteApplicationDialog({
                 ? t('delete.description.blockers')
                 : t('delete.description.history')}
           </DialogDescription>
-        </DialogHeader>
 
-        <DialogBody className="space-y-3 text-[0.8125rem]">
           {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-          {preview === null && error === null ? (
-            <p className="text-text-2">{t('delete.loading')}</p>
-          ) : null}
+          {preview === null && error === null ? <p>{t('delete.loading')}</p> : null}
 
           {preview !== null && abandoned.length === 0 ? (
             <>
-              {blockers.length === 0 ? (
-                <p className="text-text">
-                  {t('delete.historyOnly', { count: preview.historyCount })}
-                </p>
-              ) : (
-                <>
-                  <p className="text-text">
-                    {t('delete.blockers', {
-                      count: blockers.length,
-                      lines: t('delete.blockers.lines', { count: preview.historyCount }),
-                    })}
-                  </p>
-                  <ul className="space-y-1.5">
+              {blockers.length > 0 ? (
+                <div className="well flex flex-col gap-1.5">
+                  <span className="t-cap font-semibold text-text">{t('delete.live')}</span>
+                  <ul className="bul t-sm flex flex-col gap-1">
                     {blockers.map((blocker) => (
-                      <li
-                        key={blocker.deploymentId}
-                        className="rounded-md border border-border bg-surface-2/50 px-2.5 py-1.5"
-                      >
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <CodeBadge>{blocker.workspace}</CodeBadge>
-                          <span className="text-text">
-                            {t('delete.blocker.on', { target: blocker.targetName })}
-                          </span>
-                          <span className="font-mono text-[0.6875rem] text-text-3">
-                            {blocker.targetHost}
-                            {blocker.publishedPort === null
-                              ? ''
-                              : t('delete.blocker.port', { port: blocker.publishedPort })}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-[0.75rem] text-text-2">{blocker.message}</p>
+                      <li key={blocker.deploymentId}>
+                        <span className="mono">v{blocker.version}</span>{' '}
+                        {t('delete.blocker.on', { target: blocker.targetName })}
+                        <span className="mono text-text-3">
+                          {' '}
+                          {blocker.targetHost}
+                          {blocker.publishedPort === null
+                            ? ''
+                            : t('delete.blocker.port', { port: blocker.publishedPort })}
+                        </span>
+                        <span className="t-cap block text-text-3">{blocker.message}</span>
                       </li>
                     ))}
                   </ul>
-                </>
-              )}
-
-              {preview.reservedPorts.length > 0 ? (
-                <Alert variant="info">
-                  {t('delete.releasedPorts', {
-                    count: preview.reservedPorts.length,
-                    list: preview.reservedPorts
-                      .map((entry) => `${entry.port} (${entry.targetName})`)
-                      .join(', '),
-                  })}
-                </Alert>
+                </div>
               ) : null}
-
+              <ul className="bul t-sm flex flex-col gap-1">
+                <li>
+                  {blockers.length === 0
+                    ? t('delete.historyOnly', { count: preview.historyCount })
+                    : t('delete.blockers', {
+                        count: blockers.length,
+                        lines: t('delete.blockers.lines', { count: preview.historyCount }),
+                      })}
+                </li>
+                {preview.reservedPorts.length > 0 ? (
+                  <li>
+                    {t('delete.releasedPorts', {
+                      count: preview.reservedPorts.length,
+                      list: preview.reservedPorts
+                        .map((entry) => `${entry.port} (${entry.targetName})`)
+                        .join(', '),
+                    })}
+                  </li>
+                ) : null}
+              </ul>
               {blockers.length > 0 && !preview.canCascade ? (
                 <Alert variant="warn">
                   {t('delete.cascadePermissions.before')}
                   {preview.missingPermissions.map((permission, index) => (
                     <span key={permission}>
                       {index > 0 ? ', ' : ''}
-                      <code className="font-mono">{permission}</code>
+                      <code className="mono">{permission}</code>
                     </span>
                   ))}
                   {t('delete.cascadePermissions.after')}
@@ -288,76 +291,81 @@ export function DeleteApplicationDialog({
 
           {abandoned.length > 0 ? (
             <>
-              <Alert variant="destructive">
-                <p className="font-medium">{t('delete.abandoned', { count: abandoned.length })}</p>
-                <ul className="mt-1.5 space-y-1.5">
+              <Alert variant="destructive" title={t('delete.abandoned', { count: abandoned.length })}>
+                <ul className="bul mt-1.5 flex flex-col gap-1">
                   {abandoned.map((residue) => (
                     <li key={residue.deploymentId}>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <CodeBadge>{residue.workspace}</CodeBadge>
-                        <span>{t('delete.blocker.on', { target: residue.targetName })}</span>
-                        <span className="font-mono text-[0.6875rem]">
-                          {residue.targetHost}
-                          {residue.publishedPort === null
-                            ? ''
-                            : t('delete.blocker.port', { port: residue.publishedPort })}
-                        </span>
-                      </div>
-                      <p className="text-[0.75rem] opacity-80">{residue.error}</p>
+                      <span className="mono">{residue.workspace}</span>{' '}
+                      {t('delete.blocker.on', { target: residue.targetName })}{' '}
+                      <span className="mono">
+                        {residue.targetHost}
+                        {residue.publishedPort === null
+                          ? ''
+                          : t('delete.blocker.port', { port: residue.publishedPort })}
+                      </span>
+                      <span className="t-cap block opacity-80">{residue.error}</span>
                     </li>
                   ))}
                 </ul>
               </Alert>
-
               {outcome !== null && outcome.destroyed.length > 0 ? (
-                <p className="text-text-2">
+                <p>
                   {t('delete.destroyed', {
                     list: outcome.destroyed
                       .map((entry) =>
-                        t('delete.destroyed.entry', {
-                          version: entry.version,
-                          target: entry.targetName,
-                        }),
+                        t('delete.destroyed.entry', { version: entry.version, target: entry.targetName }),
                       )
                       .join(', '),
                   })}
                 </p>
               ) : null}
-
-              <p className="text-text">{t('delete.auditNote')}</p>
-
-              <label className="block space-y-1">
-                <span className="text-text-2">
-                  {t('delete.retype.before')}
-                  <code className="font-mono text-text">{application.slug}</code>
-                  {t('delete.retype.after')}
-                </span>
-                <Input
-                  value={confirm}
-                  autoComplete="off"
-                  spellCheck={false}
-                  onChange={(event) => setConfirm(event.target.value)}
-                />
-              </label>
+              <p className="t-cap text-text-3">{t('delete.auditNote')}</p>
             </>
           ) : null}
 
-          {progress !== null ? <p className="text-text-2">{progress}</p> : null}
-        </DialogBody>
+          {needsName && preview !== null ? (
+            <div className="field">
+              <label htmlFor={inputId} className="label">
+                {withSlot(
+                  (slot) =>
+                    abandoned.length > 0
+                      ? `${t('delete.retype.before')}${slot}${t('delete.retype.after')}`
+                      : tChrome('confirm.retype', { name: slot }),
+                  <span className="mono">{application.slug}</span>,
+                )}
+              </label>
+              <Input
+                id={inputId}
+                className="mono"
+                value={confirm}
+                autoComplete="off"
+                spellCheck={false}
+                autoFocus
+                onChange={(event) => setConfirm(event.target.value)}
+              />
+              <span className="help">{tChrome('confirm.retypeHelp')}</span>
+            </div>
+          ) : null}
 
+          {progress !== null ? (
+            <p className="inline-flex items-center gap-2 text-accent-text">
+              <span className="spinner" aria-hidden />
+              {progress}
+            </p>
+          ) : null}
+        </DialogBody>
         <DialogFooter>
-          <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" disabled={pending} onClick={() => onOpenChange(false)}>
             {tc('cancel')}
           </Button>
-
           {abandoned.length > 0 ? (
             <>
-              <Button variant="outline" disabled={pending} onClick={() => void cascade(false)}>
+              <Button variant="secondary" disabled={pending} onClick={() => void cascade(false)}>
                 {tc('retry')}
               </Button>
               <Button
-                variant="destructive"
-                disabled={pending || !forceArmed}
+                variant="destructive-solid"
+                disabled={pending || !armed}
                 onClick={() => void cascade(true)}
               >
                 {t('delete.action.force')}
@@ -365,8 +373,9 @@ export function DeleteApplicationDialog({
             </>
           ) : blockers.length > 0 ? (
             <Button
-              variant="destructive"
-              disabled={pending || preview === null || !preview.canCascade}
+              variant="destructive-solid"
+              disabled={pending || preview === null || !preview.canCascade || !armed}
+              loading={pending}
               onClick={() => void cascade(false)}
             >
               {pending ? tc('deleting') : t('delete.action.cascade')}
@@ -375,6 +384,7 @@ export function DeleteApplicationDialog({
             <Button
               variant="destructive"
               disabled={pending || preview === null}
+              loading={pending}
               onClick={() => void eraseHistory()}
             >
               {pending ? tc('deleting') : tc('delete')}
@@ -385,6 +395,7 @@ export function DeleteApplicationDialog({
     </Dialog>
   );
 }
+
 
 /**
  * Suit la tâche jusqu'à son verdict.

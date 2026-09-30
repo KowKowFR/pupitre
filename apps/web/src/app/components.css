@@ -430,8 +430,11 @@
   }
   .pop[data-state="closed"] { animation: pp-pop-out 120ms var(--ease-in) both; }
 
-  .scrim { position: fixed; inset: 0; z-index: 60; background: var(--scrim); animation: pp-fade var(--d-3) var(--ease-std) both; }
-  .scrim.soft { background: var(--scrim-soft); }
+  .scrim { position: fixed; inset: 0; z-index: 70; background: var(--scrim); animation: pp-fade var(--d-3) var(--ease-std) both; }
+  /* Couches, de bas en haut : drawer (60/65), dialogue (70/75), menus (85),
+     info-bulles (90), palette (94/95), toasts (100). Un dialogue ouvert depuis
+     un drawer passe donc au-dessus, voile compris. */
+  .scrim.soft { background: var(--scrim-soft); z-index: 60; }
   .scrim.blur { backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
   .scrim[data-state="closed"] { animation: pp-fade-out var(--d-2) var(--ease-in) both; }
   @media (min-width: 1024px) {
@@ -440,7 +443,7 @@
   }
 
   .dialog {
-    position: fixed; z-index: 70; left: 0; right: 0; top: min(180px, 14vh); margin: 0 auto; width: min(460px, calc(100vw - 32px));
+    position: fixed; z-index: 75; left: 0; right: 0; top: min(180px, 14vh); margin: 0 auto; width: min(460px, calc(100vw - 32px));
     max-height: calc(100dvh - min(180px, 14vh) - 24px); display: flex; flex-direction: column; background: var(--surface);
     border-radius: 14px; box-shadow: var(--sh-lg); border: 1px solid var(--border); animation: pp-dialog var(--d-3) var(--ease-out) both;
   }
@@ -462,7 +465,7 @@
   .bul > li::before { content: ""; position: absolute; left: 3px; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--n300); }
 
   .drawer {
-    position: fixed; z-index: 70; top: 8px; right: 8px; bottom: 8px; width: min(540px, calc(100vw - 16px)); display: flex; flex-direction: column;
+    position: fixed; z-index: 65; top: 8px; right: 8px; bottom: 8px; width: min(540px, calc(100vw - 16px)); display: flex; flex-direction: column;
     background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--sh-lg); overflow: hidden;
     animation: pp-drawer-in var(--d-4) var(--ease-out) both;
   }
@@ -576,13 +579,13 @@
   .step::before { content: ""; position: absolute; left: 10px; top: 24px; bottom: 2px; width: 1.5px; background: var(--border); }
   .step:last-child::before { display: none; }
   .step.done::before { background: var(--ok-line); }
-  .step .dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text-3); z-index: 1; }
-  .step.done .dot { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
-  .step.run .dot { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-  .step.fail .dot { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
-  .step.skip .dot { border-style: dashed; color: var(--text-dis); }
-  .step .dot svg { width: 12px; height: 12px; stroke-width: 2.4; }
-  .step .dot .spinner { width: 10px; height: 10px; border-width: 1.5px; }
+  .step > .dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text-3); z-index: 1; }
+  .step.done > .dot { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
+  .step.run > .dot { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .step.fail > .dot { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
+  .step.skip > .dot { border-style: dashed; color: var(--text-dis); }
+  .step > .dot svg { width: 12px; height: 12px; stroke-width: 2.4; }
+  .step > .dot .spinner { width: 10px; height: 10px; border-width: 1.5px; }
   .step .body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 1px; }
   .step .ttl { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 20px; font-weight: 500; }
   .step.skip .ttl { color: var(--text-dis); }

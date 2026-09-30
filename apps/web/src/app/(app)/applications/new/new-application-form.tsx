@@ -5,12 +5,24 @@ import { useState } from 'react';
 import { AppSpecHelpDialog } from '@/components/appspec-help';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Rocket, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
+import { Input, Textarea } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Tab, Tabs } from '@/components/ui/tabs';
 import { useT } from '@/i18n/client';
+import { chrome } from '@/i18n/messages/chrome';
 import { common } from '@/i18n/messages/common';
 import { applications as messages } from '@/i18n/messages/applications';
-import { cn } from '@/lib/utils';
 
 /**
  * Création d'une application, par deux chemins qui aboutissent au même endroit.
@@ -263,100 +275,78 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
   const floating = images.filter((image) => floatingTag(image));
 
   return (
-    <div className="space-y-3 rounded-md border p-4 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono font-medium">{spec.name}</span>
-        <Badge variant="outline" className="font-mono">
-          {spec.version}
-        </Badge>
-        <span className="text-muted-foreground text-xs">
-          {t('review.services', { count: spec.services.length })}
-        </span>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className="t-h mono">{spec.name}</span>
+        <span className="mono t-cap text-text-3">{spec.version}</span>
+        <span className="t-sm text-text-3">{t('review.services', { count: spec.services.length })}</span>
       </div>
 
-      <ul className="space-y-3">
-        {spec.services.map((service) => (
-          <li key={service.name} className="space-y-1 border-l-2 pl-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono font-medium">{service.name}</span>
-              {service.exposed ? <Badge variant="ok">{t('review.exposed')}</Badge> : null}
-              {service.port !== null ? (
-                <span className="text-muted-foreground text-xs">
-                  {t('review.port', { port: service.port })}
+      <div className="card card-flat overflow-hidden">
+        <ul className="list">
+          {spec.services.map((service) => {
+            const parts = [
+              service.port !== null ? t('review.port', { port: service.port }) : null,
+              service.replicas !== null && service.replicas > 1 ? `×${service.replicas}` : null,
+              service.health ? t('review.health', { value: service.health }) : null,
+              service.dependsOn.length > 0 ? t('review.dependsOn', { list: service.dependsOn.join(', ') }) : null,
+              service.secrets.length > 0 ? t('review.secrets', { list: service.secrets.join(', ') }) : null,
+              service.volumes.length > 0
+                ? `${t('review.volumes')} ${service.volumes
+                    .map((volume) => `${volume.name} → ${volume.mountPath}${volume.size ? ` (${volume.size})` : ''}`)
+                    .join(', ')}`
+                : null,
+            ].filter(Boolean);
+            return (
+              <li key={service.name} className="flex-col !items-start gap-0.5 py-2.5">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="mono text-[12.5px] font-semibold">{service.name}</span>
+                  {service.exposed ? <Badge variant="accent">{t('review.exposed')}</Badge> : null}
+                  <span className="mono t-cap text-text-3">{service.image}</span>
                 </span>
-              ) : null}
-              {service.replicas !== null && service.replicas > 1 ? (
-                <span className="text-muted-foreground text-xs">×{service.replicas}</span>
-              ) : null}
-            </div>
-            <div className="text-muted-foreground font-mono text-xs">{service.image}</div>
-            {service.health ? (
-              <div className="text-muted-foreground text-xs">
-                {t('review.health', { value: service.health })}
-              </div>
-            ) : null}
-            {service.dependsOn.length > 0 ? (
-              <div className="text-muted-foreground text-xs">
-                {t('review.dependsOn', { list: service.dependsOn.join(', ') })}
-              </div>
-            ) : null}
-            {service.env.length > 0 ? (
-              <div className="text-muted-foreground font-mono text-xs">
-                {service.env.map(([key, value]) => `${key}=${value}`).join('  ')}
-              </div>
-            ) : null}
-            {service.secrets.length > 0 ? (
-              <div className="text-muted-foreground font-mono text-xs">
-                {t('review.secrets', { list: service.secrets.join(', ') })}
-              </div>
-            ) : null}
-            {service.volumes.length > 0 ? (
-              <div className="text-muted-foreground text-xs">
-                {t('review.volumes')}{' '}
-                {service.volumes
-                  .map(
-                    (volume) =>
-                      `${volume.name} → ${volume.mountPath}${volume.size ? ` (${volume.size})` : ''}`,
-                  )
-                  .join(', ')}
-              </div>
-            ) : null}
-          </li>
-        ))}
-      </ul>
+                {parts.length > 0 ? <span className="t-cap text-text-3">{parts.join(' · ')}</span> : null}
+                {service.env.length > 0 ? (
+                  <span className="mono t-cap text-text-3">
+                    {service.env.map(([key, value]) => `${key}=${value}`).join('  ')}
+                  </span>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
       {spec.ingress ? (
-        <div className="text-muted-foreground text-xs">
+        <span className="t-cap text-text-3">
           {t('review.ingress', {
             host: spec.ingress.host ?? t('review.ingress.noHost'),
             service: spec.ingress.targetService,
             tls: spec.ingress.tls ? ' (TLS)' : '',
           })}
-        </div>
+        </span>
       ) : null}
 
       {thirdParty.length > 0 ? (
-        <Alert className="text-xs">
+        <Alert variant="warn">
           {t('review.thirdParty.lead', { count: thirdParty.length })}{' '}
-          <span className="font-mono">{thirdParty.join(', ')}</span>
+          <span className="mono">{thirdParty.join(', ')}</span>
           {t('review.thirdParty.tail')}
         </Alert>
       ) : null}
 
       {floating.length > 0 ? (
-        <Alert className="text-xs">
+        <Alert variant="warn">
           {t('review.floating.lead')}
-          <span className="font-mono">{floating.join(', ')}</span>
+          <span className="mono">{floating.join(', ')}</span>
           {t('review.floating.tail')}
         </Alert>
       ) : null}
 
       {secrets.length > 0 ? (
-        <Alert className="text-xs">
+        <Alert variant="info">
           {t('review.declaredSecrets.lead', { count: secrets.length })}{' '}
-          <span className="font-mono">{secrets.join(', ')}</span>
-          {t('review.declaredSecrets.mid')}{' '}
-          <strong>{t('review.declaredSecrets.names')}</strong>
+          <span className="mono">{secrets.join(', ')}</span>
+          {t('review.declaredSecrets.mid')} <strong>{t('review.declaredSecrets.names')}</strong>
           {t('review.declaredSecrets.tail')}
         </Alert>
       ) : null}
@@ -376,6 +366,7 @@ export function NewApplicationForm({
 }: Props) {
   const t = useT(messages);
   const tc = useT(common);
+  const tChrome = useT(chrome);
   const router = useRouter();
   const [tab, setTab] = useState<Tab>(aiEnabled ? 'prompt' : 'json');
 
@@ -560,246 +551,250 @@ export function NewApplicationForm({
     router.refresh();
   }
 
-  const tabs: Array<{ id: Tab; label: string; disabled: boolean }> = [
-    { id: 'prompt', label: t('tab.fromPrompt'), disabled: !aiEnabled },
-    { id: 'json', label: t('tab.fromJson'), disabled: false },
-  ];
-
   return (
-    <div className="space-y-6">
-      <div role="tablist" className="flex gap-1 border-b">
-        {tabs.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === entry.id}
-            disabled={entry.disabled}
-            onClick={() => setTab(entry.id)}
-            className={cn(
-              '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
-              tab === entry.id
-                ? 'border-primary text-foreground'
-                : 'text-muted-foreground hover:text-foreground border-transparent',
-              entry.disabled && 'cursor-not-allowed opacity-40',
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <div className="flex min-w-0 flex-col gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('new.card.title')}</CardTitle>
+            <CardDescription>{t('new.left.sub')}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            <Tabs label={t('new.card.title')}>
+              <Tab selected={tab === 'prompt'} disabled={!aiEnabled} onClick={() => setTab('prompt')}>
+                {t('tab.fromPrompt')}
+              </Tab>
+              <Tab selected={tab === 'json'} onClick={() => setTab('json')}>
+                {t('tab.fromJson')}
+              </Tab>
+            </Tabs>
+
+            {tab === 'prompt' ? (
+              <form onSubmit={onGenerate} className="flex flex-col gap-4">
+                {!aiEnabled ? (
+                  <Alert>
+                    {t('ai.disabled.lead', { provider })}
+                    {missingKeyVar ? (
+                      <>
+                        {' '}
+                        {t('ai.disabled.envVar')} <code className="code">{missingKeyVar}</code>)
+                      </>
+                    ) : null}
+                    {t('ai.disabled.tail')}
+                  </Alert>
+                ) : null}
+
+                {aiEnabled && modelWarning ? <Alert variant="destructive">{modelWarning}</Alert> : null}
+
+                <Field label={t('form.prompt.label')} help={t('form.prompt.help')}>
+                  <Textarea
+                    name="prompt"
+                    rows={3}
+                    value={prompt}
+                    disabled={!aiEnabled}
+                    onChange={(event) => setPrompt(event.target.value)}
+                    placeholder={t('form.prompt.placeholder')}
+                  />
+                </Field>
+
+                <div className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+                  <Field label={t('form.hint.language')} optional>
+                    <Input
+                      value={language}
+                      disabled={!aiEnabled}
+                      onChange={(event) => setLanguage(event.target.value)}
+                      placeholder="Node.js"
+                    />
+                  </Field>
+                  <Field label={t('form.hint.database')} optional>
+                    <Input
+                      value={database}
+                      disabled={!aiEnabled}
+                      onChange={(event) => setDatabase(event.target.value)}
+                      placeholder="PostgreSQL"
+                    />
+                  </Field>
+                  <Field label={t('form.hint.runtime')} optional>
+                    <Select
+                      value={runtimeHint}
+                      disabled={!aiEnabled}
+                      onChange={(event) => setRuntimeHint(event.target.value)}
+                    >
+                      <option value="">{t('form.hint.runtime.any')}</option>
+                      <option value="docker">Docker</option>
+                      <option value="k3s">K3s</option>
+                    </Select>
+                  </Field>
+                  <Button
+                    type="submit"
+                    variant={origin ? 'secondary' : 'default'}
+                    loading={generating}
+                    disabled={!aiEnabled || prompt.trim().length < 8}
+                  >
+                    {generating ? null : <Sparkles aria-hidden />}
+                    {generating ? t('generate.pending') : origin ? t('generate.again') : t('generate.action')}
+                  </Button>
+                </div>
+                <p className="help">
+                  {t('form.hint.note')}{' '}
+                  <span className="mono">
+                    {provider} · {model}
+                  </span>
+                </p>
+
+                {generationInfo ? (
+                  <Alert variant="success" title={t('generate.done')}>
+                    <span className="mono text-[12px]">{generationInfo}</span>
+                  </Alert>
+                ) : null}
+              </form>
+            ) : (
+              <div className="flex flex-col items-start gap-3">
+                <p className="t-sm text-text-2">{t('new.json.tab.hint')}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <AppSpecHelpDialog />
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setValue(EXAMPLE);
+                      setOrigin(null);
+                    }}
+                  >
+                    {t('form.insertExample')}
+                  </Button>
+                </div>
+              </div>
             )}
-          >
-            {entry.label}
-          </button>
-        ))}
+          </CardContent>
+        </Card>
+
+        <form onSubmit={onSave}>
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('new.deploy.title')}</CardTitle>
+              <CardDescription>{tChrome('field.optional')}</CardDescription>
+            </CardHeader>
+            {targets.length > 0 ? (
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <Field label={t('drawer.deploy.target')}>
+                  <Select
+                    value={targetId}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setTargetId(next);
+                      const target = targets.find((candidate) => candidate.id === next);
+                      const first = target?.runtimes[0];
+                      if (first) setDeployRuntime(first);
+                    }}
+                  >
+                    <option value="">{t('form.deployTarget.none')}</option>
+                    {targets.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.name} ({target.host})
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={t('form.runtime.label')} help={t('drawer.deploy.runtime.help')}>
+                  <Select
+                    value={deployRuntime}
+                    disabled={!selectedTarget}
+                    onChange={(event) => setDeployRuntime(event.target.value === 'k3s' ? 'k3s' : 'docker')}
+                  >
+                    {(selectedTarget?.runtimes ?? ['docker' as const]).map((entry) => (
+                      <option key={entry} value={entry}>
+                        {t(`runtime.${entry}`)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </CardContent>
+            ) : null}
+            <CardFooter className="flex-wrap">
+              <span className="t-cap text-text-3">
+                {selectedTarget ? t('new.deploy.note') : t('new.deploy.noteSave')}
+              </span>
+              <span className="ml-auto flex items-center gap-2">
+                <Button variant="ghost" type="button" onClick={() => router.back()}>
+                  {tc('cancel')}
+                </Button>
+                <Button type="submit" loading={saving} disabled={value.trim().length === 0}>
+                  {saving ? null : selectedTarget ? <Rocket aria-hidden /> : null}
+                  {saving
+                    ? t('form.submit.pending')
+                    : selectedTarget
+                      ? t('form.submit.saveAndDeploy')
+                      : t('form.submit.save')}
+                </Button>
+              </span>
+            </CardFooter>
+          </Card>
+        </form>
       </div>
 
-      {tab === 'prompt' ? (
-        <form onSubmit={onGenerate} className="space-y-3">
-          {!aiEnabled ? (
-            <Alert>
-              {t('ai.disabled.lead', { provider })}
-              {missingKeyVar ? (
-                <>
-                  {' '}
-                  {t('ai.disabled.envVar')}{' '}
-                  <code className="font-mono text-xs">{missingKeyVar}</code>)
-                </>
-              ) : null}
-              {t('ai.disabled.tail')}
-            </Alert>
-          ) : null}
-
-          {aiEnabled && modelWarning ? <Alert variant="destructive">{modelWarning}</Alert> : null}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="prompt">{t('form.prompt.label')}</Label>
-            <textarea
-              id="prompt"
-              name="prompt"
-              rows={4}
-              value={prompt}
-              disabled={!aiEnabled}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder={t('form.prompt.placeholder')}
-              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] disabled:opacity-50"
-            />
-            <p className="text-muted-foreground text-xs">{t('form.prompt.help')}</p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="hint-language">{t('form.hint.language')}</Label>
-              <input
-                id="hint-language"
-                value={language}
-                disabled={!aiEnabled}
-                onChange={(event) => setLanguage(event.target.value)}
-                placeholder="Node.js"
-                className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs disabled:opacity-50"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="hint-database">{t('form.hint.database')}</Label>
-              <input
-                id="hint-database"
-                value={database}
-                disabled={!aiEnabled}
-                onChange={(event) => setDatabase(event.target.value)}
-                placeholder="PostgreSQL"
-                className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs disabled:opacity-50"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="hint-runtime">{t('form.hint.runtime')}</Label>
-              <select
-                id="hint-runtime"
-                value={runtimeHint}
-                disabled={!aiEnabled}
-                onChange={(event) => setRuntimeHint(event.target.value)}
-                className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs disabled:opacity-50"
-              >
-                <option value="">{t('form.hint.runtime.any')}</option>
-                <option value="docker">Docker</option>
-                <option value="k3s">K3s</option>
-              </select>
-            </div>
-          </div>
-          <p className="text-muted-foreground text-xs">{t('form.hint.note')}</p>
-
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={!aiEnabled || generating || prompt.trim().length < 8}>
-              {generating ? t('generate.pending') : t('generate.action')}
-            </Button>
-            {generating ? (
-              <span
-                aria-label={t('generate.busy')}
-                className="border-muted-foreground/30 border-t-foreground size-4 animate-spin rounded-full border-2"
-              />
+      <div className="flex min-w-0 flex-col gap-6">
+        {error ? (
+          <Alert variant="destructive">
+            <div>{error}</div>
+            {issues.length > 0 ? (
+              <ul className="bul mono mt-1 flex flex-col gap-0.5 text-[12px]">
+                {issues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
             ) : null}
-            <Badge variant="outline">{provider}</Badge>
-            <Badge variant="outline" className="font-mono">
-              {model}
-            </Badge>
-          </div>
-
-          {generationInfo ? (
-            <Alert variant="success" className="text-xs">
-              {generationInfo}
-            </Alert>
-          ) : null}
-        </form>
-      ) : null}
-
-      {error ? (
-        <Alert variant="destructive" className="space-y-1">
-          <div>{error}</div>
-          {issues.length > 0 ? (
-            <ul className="ml-4 list-disc font-mono text-xs">
-              {issues.map((issue) => (
-                <li key={issue}>{issue}</li>
-              ))}
-            </ul>
-          ) : null}
-        </Alert>
-      ) : null}
-
-      <form onSubmit={onSave} className="space-y-4">
-        {review ? (
-          <div className="space-y-1.5">
-            <Label>
-              {t('review.label')}
-              {origin ? t('review.label.proposal') : ''}
-            </Label>
-            <SpecReview spec={review} />
-          </div>
+          </Alert>
         ) : null}
 
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="appSpec">
-              {t('form.appSpec.label')}
-              {origin ? t('form.appSpec.label.generated') : ''}
-            </Label>
-            <div className="flex items-center gap-4">
-              <AppSpecHelpDialog />
-              <button
-                type="button"
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('review.label')}</CardTitle>
+            <CardDescription>
+              {origin ? t('new.review.sub.proposal') : t('new.review.sub.manual')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {review ? <SpecReview spec={review} /> : <p className="t-sm text-text-3">{t('new.review.empty')}</p>}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader
+            actions={
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setValue(EXAMPLE);
                   setOrigin(null);
                 }}
-                className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
               >
                 {t('form.insertExample')}
-              </button>
-            </div>
-          </div>
-          <textarea
-            id="appSpec"
-            name="appSpec"
-            rows={20}
-            spellCheck={false}
-            required
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder={EXAMPLE}
-            className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 font-mono text-xs shadow-xs outline-none focus-visible:ring-[3px]"
-          />
-          {origin ? (
-            <p className="text-muted-foreground text-xs">{t('form.origin.note')}</p>
-          ) : null}
-        </div>
-
-        {targets.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="deploy-target">{t('form.deployTarget.label')}</Label>
-              <select
-                id="deploy-target"
-                value={targetId}
-                onChange={(event) => {
-                  const next = event.target.value;
-                  setTargetId(next);
-                  const target = targets.find((candidate) => candidate.id === next);
-                  const first = target?.runtimes[0];
-                  if (first) setDeployRuntime(first);
-                }}
-                className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs"
-              >
-                <option value="">{t('form.deployTarget.none')}</option>
-                {targets.map((target) => (
-                  <option key={target.id} value={target.id}>
-                    {target.name} ({target.host})
-                  </option>
-                ))}
-              </select>
-            </div>
-            {selectedTarget ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="deploy-runtime">{t('form.runtime.label')}</Label>
-                <select
-                  id="deploy-runtime"
-                  value={deployRuntime}
-                  onChange={(event) =>
-                    setDeployRuntime(event.target.value === 'k3s' ? 'k3s' : 'docker')
-                  }
-                  className="border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs"
-                >
-                  {selectedTarget.runtimes.map((entry) => (
-                    <option key={entry} value={entry}>
-                      {entry === 'docker' ? 'Docker Compose' : 'K3s'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        <Button type="submit" disabled={saving || value.trim().length === 0}>
-          {saving
-            ? t('form.submit.pending')
-            : selectedTarget
-              ? t('form.submit.saveAndDeploy')
-              : t('form.submit.save')}
-        </Button>
-      </form>
+              </Button>
+            }
+          >
+            <CardTitle>{t('form.appSpec.label')}</CardTitle>
+            <CardDescription>
+              {origin ? t('new.json.sub.generated') : t('new.json.sub.manual')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Textarea
+              id="appSpec"
+              name="appSpec"
+              rows={18}
+              wrap="off"
+              spellCheck={false}
+              aria-label={t('form.appSpec.label')}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder={EXAMPLE}
+              className="mono bg-surface-2"
+            />
+            {origin ? <p className="help">{t('form.origin.note')}</p> : null}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

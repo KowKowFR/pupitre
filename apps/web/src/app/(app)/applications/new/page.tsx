@@ -2,7 +2,7 @@ import { aiModelMismatch, aiProviderDescriptor, resolveAiConfig } from '@pupitre
 import { usableRuntimes } from '@pupitre/core';
 import { getAiApiKey, getAppSettings, listTargets } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { currentLanguage, getT } from '@/i18n/server';
 import { applications as messages } from '@/i18n/messages/applications';
 import { getEnv } from '@/lib/env';
@@ -49,25 +49,17 @@ export default async function NewApplicationPage() {
     }));
 
   return (
-    <div className="space-y-6">
+    <>
+      <Crumb label={t('action.new')} />
       <PageHeader title={t('action.new')} description={t('new.description')} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('new.card.title')}</CardTitle>
-          <CardDescription>{t('new.card.description')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <NewApplicationForm
-            aiEnabled={ai.enabled}
-            provider={descriptor.label}
-            model={ai.model}
-            modelWarning={modelWarning}
-            missingKeyVar={descriptor.envApiKeyVar}
-            targets={deployTargets}
-          />
-        </CardContent>
-      </Card>
-    </div>
+      <NewApplicationForm
+        aiEnabled={ai.enabled}
+        provider={descriptor.label}
+        model={ai.model}
+        modelWarning={modelWarning}
+        missingKeyVar={descriptor.envApiKeyVar}
+        targets={deployTargets}
+      />
+    </>
   );
 }

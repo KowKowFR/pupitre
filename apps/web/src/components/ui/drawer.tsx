@@ -230,16 +230,19 @@ export function DrawerDanger({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Pied : l'action primaire d'abord, la secondaire ensuite, et le lien
- * « Ouvrir la fiche » poussé à droite.
+ * Pied : l'action primaire d'abord, la secondaire ensuite. À droite, le lien
+ * « Ouvrir la fiche » — ou, quand la fiche est déjà une action du pied, ce que
+ * l'appelant y pose (`end`, typiquement une suppression).
  */
-export function DrawerFooter({ children }: { children?: React.ReactNode }) {
+export function DrawerFooter({ children, end }: { children?: React.ReactNode; end?: React.ReactNode }) {
   const t = useT(chrome);
   const { recordHref } = React.useContext(DrawerContext);
   return (
     <div className="dr-f">
       {children}
-      {recordHref ? (
+      {end !== undefined ? (
+        <span className="ml-auto flex items-center gap-2">{end}</span>
+      ) : recordHref ? (
         <Link href={recordHref as never} className="btn btn-ghost ml-auto">
           {t('drawer.record')}
           <ArrowUpRight aria-hidden />
