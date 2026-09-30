@@ -147,7 +147,7 @@ export async function createDeploymentWithSteps(
     appSpec: AppSpec;
     triggeredBy: string | null;
     /** L'origine du code, quand le run vient d'un dépôt lié. */
-    source?: { sourceId: string; repository: string; ref: string; sha: string };
+    source?: { sourceId: string | null; repository: string; ref: string | null; sha: string };
   },
   db: Database = getDb(),
 ): Promise<{ deployment: Deployment; steps: DeploymentStep[] }> {
@@ -550,6 +550,9 @@ export type ApplicationVersion = {
   targetId: string;
   targetName: string;
   triggeredByEmail: string | null;
+  sourceRepository: string | null;
+  sourceRef: string | null;
+  sourceSha: string | null;
   createdAt: Date;
   finishedAt: Date | null;
   /** Une version sans AppSpec n'est pas redéployable : il n'y a rien à rejouer. */
@@ -580,6 +583,9 @@ export async function listApplicationVersions(
       targetId: deployments.targetId,
       targetName: targets.name,
       triggeredByEmail: users.email,
+      sourceRepository: deployments.sourceRepository,
+      sourceRef: deployments.sourceRef,
+      sourceSha: deployments.sourceSha,
       createdAt: deployments.createdAt,
       finishedAt: deployments.finishedAt,
     })

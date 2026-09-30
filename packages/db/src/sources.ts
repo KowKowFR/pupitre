@@ -482,3 +482,9 @@ export async function supersedePendingProposals(
       ),
     );
 }
+
+/** Le nombre de liaisons, toutes applications confondues. */
+export async function countApplicationSources(db: Database = getDb()): Promise<number> {
+  const [row] = await db.select({ value: sql<number>`count(*)::int` }).from(applicationSources);
+  return row?.value ?? 0;
+}
