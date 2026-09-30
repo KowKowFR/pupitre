@@ -81,6 +81,7 @@ export type AuditObserver = (row: AuditLogRow) => void;
 
 declare global {
   var __tpAuditObserver: AuditObserver | undefined;
+  var __tpAuditObservers: Map<string, AuditObserver> | undefined;
 }
 
 /**
@@ -118,13 +119,30 @@ export function setAuditObserver(observer: AuditObserver | null): void {
   globalThis.__tpAuditObserver = observer ?? undefined;
 }
 
+/**
+ * Un observateur de plus, sous un nom — le temps réel, à côté des
+ * notifications. Mêmes trois précautions : appelé après l'écriture, jamais
+ * bloquant, jamais capable de faire échouer l'audit. Réinstaller sous le même
+ * nom remplace (le HMR de `next dev` réexécute l'installation).
+ */
+export function setNamedAuditObserver(name: string, observer: AuditObserver | null): void {
+  globalThis.__tpAuditObservers ??= new Map();
+  if (observer) globalThis.__tpAuditObservers.set(name, observer);
+  else globalThis.__tpAuditObservers.delete(name);
+}
+
 function notifyObserver(row: AuditLogRow): void {
-  const observer = globalThis.__tpAuditObserver;
-  if (!observer) return;
-  try {
-    observer(row);
-  } catch (error) {
-    reportFailure(error, { action: `observer:${row.action}`, resourceType: row.resourceType });
+  const observers = [
+    globalThis.__tpAuditObserver,
+    ...(globalThis.__tpAuditObservers?.values() ?? []),
+  ];
+  for (const observer of observers) {
+    if (!observer) continue;
+    try {
+      observer(row);
+    } catch (error) {
+      reportFailure(error, { action: `observer:${row.action}`, resourceType: row.resourceType });
+    }
   }
 }
 
