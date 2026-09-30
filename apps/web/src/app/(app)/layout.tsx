@@ -21,15 +21,15 @@ import {
   loadRecentDeployments,
   loadTargets,
 } from '@/lib/overview';
-import { currentAuth } from '@/lib/page-auth';
+import { currentAuth, redirectToLogin } from '@/lib/page-auth';
 import { parseTheme, THEME_COOKIE } from '@/lib/theme';
 import { workerStatus } from '@/lib/worker-status';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const auth = await currentAuth();
-  if (!auth) redirect('/login');
+  // Pas de session valide : direction la connexion (par `/logout` si un cookie périmé traîne).
+  const auth = (await currentAuth()) ?? (await redirectToLogin());
 
   const { settings } = await getAppSettings();
 

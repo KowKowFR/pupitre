@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { currentAuth } from '@/lib/page-auth';
+import { currentAuth, redirectToLogin } from '@/lib/page-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,8 +21,8 @@ export const dynamic = 'force-dynamic';
  * L'en-tête, lui, est posé par la page : sa partie droite dépend de l'étape.
  */
 export default async function OnboardingLayout({ children }: { children: ReactNode }) {
-  const auth = await currentAuth();
-  if (!auth) redirect('/login');
+  // Pas de session valide : direction la connexion (par `/logout` si un cookie périmé traîne).
+  if (!(await currentAuth())) await redirectToLogin();
 
   return <div className="min-h-dvh bg-bg">{children}</div>;
 }

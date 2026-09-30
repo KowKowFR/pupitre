@@ -6,7 +6,7 @@ import { useT } from '@/i18n/client';
 import { auth as messages } from '@/i18n/messages/auth';
 import { signOut } from '@/lib/auth-client';
 
-export function LogoutRunner() {
+export function LogoutRunner({ next }: { next: string | null }) {
   const t = useT(messages);
   const router = useRouter();
 
@@ -14,13 +14,13 @@ export function LogoutRunner() {
     let cancelled = false;
     void signOut().finally(() => {
       if (cancelled) return;
-      router.replace('/login');
+      router.replace(next ? `/login?next=${encodeURIComponent(next)}` : '/login');
       router.refresh();
     });
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, next]);
 
   return (
     <p className="flex items-center gap-2.5 text-sm text-text-2">
