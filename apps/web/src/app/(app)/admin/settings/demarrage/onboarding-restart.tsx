@@ -94,7 +94,7 @@ export function OnboardingRestart({
       <CardContent className="flex flex-col gap-3">
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        <dl className="grid gap-x-6 gap-y-1.5 text-[0.8125rem] sm:grid-cols-2">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-[0.8125rem] sm:grid-cols-2">
           <div className="flex justify-between gap-3 border-b border-border pb-1.5">
             <dt className="text-text-2">{t('onboarding.term.completed')}</dt>
             <dd className="mono text-text tabular-nums">{state.completed.length}</dd>

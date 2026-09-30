@@ -167,7 +167,7 @@ export function SecurityPanel({
 
   if (loading && runs.length === 0) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy>
         {[0, 1, 2].map((slot) => (
           <section key={slot} className="card">
             <div className="card-h">
@@ -212,7 +212,7 @@ export function SecurityPanel({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {runs.map((run) => (
           <ScanRunCard
             key={run.id}

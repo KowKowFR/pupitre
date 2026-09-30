@@ -49,7 +49,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
         }
       />
 
-      <div className="grid gap-x-8 gap-y-4 lg:grid-cols-[216px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-4 lg:grid-cols-[216px_minmax(0,1fr)]">
         <SettingsNav />
         <div className="flex min-w-0 flex-col gap-4">
           {auth.can('settings:manage') ? null : (

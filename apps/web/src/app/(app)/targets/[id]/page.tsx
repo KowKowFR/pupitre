@@ -239,7 +239,7 @@ export default async function TargetDetailPage({
       ) : null}
 
       {tab === 'overview' || tab === 'ports' ? (
-        <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
           {tab === 'overview' ? (
             <section className="card">
               <div className="card-h">

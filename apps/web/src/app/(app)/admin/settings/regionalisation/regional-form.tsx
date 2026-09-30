@@ -85,7 +85,7 @@ export function RegionalForm({
       onReset={reset}
       onSubmit={() => void patch.save({ timezone, locale, dateStyle, timeStyle })}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="field">
           <Label htmlFor="timezone">{t('regional.timezone.label')}</Label>
           <Select

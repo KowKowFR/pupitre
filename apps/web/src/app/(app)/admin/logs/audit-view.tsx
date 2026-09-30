@@ -111,7 +111,7 @@ export function AuditView({
     <section className="card overflow-hidden">
       <form
         onSubmit={onSubmit}
-        className="grid items-end gap-x-3 gap-y-3 border-b border-border-subtle px-4 py-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1.2fr_1.2fr_1fr_1fr_auto]"
+        className="grid grid-cols-1 items-end gap-x-3 gap-y-3 border-b border-border-subtle px-4 py-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1.2fr_1.2fr_1fr_1fr_auto]"
       >
         <div className="field">
           <Label htmlFor="action">{t('logs.filter.action')}</Label>

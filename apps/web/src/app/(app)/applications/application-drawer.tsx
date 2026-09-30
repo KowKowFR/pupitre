@@ -136,7 +136,7 @@ export function ApplicationDrawer({
               <p className="t-sm text-text-3">{t('drawer.deploy.noTarget')}</p>
             ) : (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label={t('drawer.deploy.target')}>
                     <Select
                       value={target?.id ?? ''}

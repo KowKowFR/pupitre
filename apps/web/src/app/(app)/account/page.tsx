@@ -37,7 +37,7 @@ export default async function AccountPage() {
         actions={<span className="mono t-cap text-text-3">{auth.email}</span>}
       />
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
         <PasswordForm />
         <TwoFactorPanel enabled={row?.twoFactorEnabled ?? false} />
       </div>

@@ -88,7 +88,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         </div>
       </PageHeader>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <Card>
           <CardHeader>
             <CardTitle>{t('detail.spec.title')}</CardTitle>

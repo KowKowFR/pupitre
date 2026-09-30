@@ -468,7 +468,7 @@ function ChannelForm({
       />
       <DrawerBody>
         {error ? <Alert variant="destructive">{error}</Alert> : null}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="field">
             <Label htmlFor="channel-kind">{t('form.kind')}</Label>
             <Select
@@ -512,7 +512,7 @@ function ChannelForm({
           </p>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {(descriptor?.fields ?? []).map((field) => (
             <FieldInput key={field.name} field={field} draft={draft} onChange={onChange} />
           ))}
@@ -526,7 +526,7 @@ function ChannelForm({
             </span>
           </legend>
           <p className="help">{t('form.events.help')}</p>
-          <div className="grid gap-x-4 gap-y-2 pt-1 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-x-4 gap-y-2 pt-1 sm:grid-cols-2">
             {events.map((entry) => {
               const checked = draft.events.includes(entry.key as NotificationEventKey);
               return (

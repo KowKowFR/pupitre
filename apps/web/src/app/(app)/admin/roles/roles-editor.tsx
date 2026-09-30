@@ -308,7 +308,7 @@ function RoleCard({
             {role.locked ? <Alert>{t('roles.locked.notice')}</Alert> : null}
 
             {editable ? (
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
                 <Field label={t('roles.field.label')}>
                   <Input
                     value={label}
@@ -351,7 +351,7 @@ function RoleCard({
                     ) : null}
                   </legend>
 
-                  <div className="grid gap-1 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
                     {group.permissions.map((permission) => {
                       const checked = selected.has(permission.key);
                       return (

@@ -162,7 +162,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
     <form onSubmit={onSubmit} className="flex flex-col gap-5">
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="field">
           <Label htmlFor="name">{t('field.name')}</Label>
           <Input id="name" name="name" defaultValue={values.name} required minLength={2} />

@@ -47,7 +47,7 @@ export default function DeploymentLoading() {
         <Skeleton className="my-2.5 h-4 w-24" />
       </div>
 
-      <div className="grid items-stretch gap-5 lg:grid-cols-[336px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-[336px_minmax(0,1fr)]">
         <section className="card">
           <div className="card-h">
             <Skeleton className="sk-t w-20" />

@@ -298,7 +298,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
     .join(' · ');
 
   return (
-    <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[352px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 min-w-0 items-start gap-5 xl:grid-cols-[352px_minmax(0,1fr)]">
       <div className="flex min-w-0 flex-col gap-4 xl:col-start-1 xl:row-start-1">
         {notice !== null ? (
           <Alert variant="info">

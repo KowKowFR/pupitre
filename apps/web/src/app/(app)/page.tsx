@@ -275,7 +275,7 @@ export default async function HomePage({
         grand vide.
       */}
       {canReadDeployments ? (
-        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[1fr_1.25fr]">
+        <div className="grid grid-cols-1 min-w-0 items-start gap-6 lg:grid-cols-[1fr_1.25fr]">
           <Panel
             title={t('running.title')}
             aside={

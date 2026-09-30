@@ -150,7 +150,7 @@ export default async function SettingsOverviewPage() {
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {SETTINGS_SECTIONS.map((section) => {
         const Icon = section.icon;
         return (

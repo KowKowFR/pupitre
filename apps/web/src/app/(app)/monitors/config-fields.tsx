@@ -117,7 +117,7 @@ export function ConfigFields({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {plain.map((field) => (
           <FieldControl
             key={field.key}
@@ -134,7 +134,7 @@ export function ConfigFields({
           <CollapsibleTrigger className="t-sm font-medium text-text-2 hover:text-text">
             {t('config.advanced')}
           </CollapsibleTrigger>
-          <CollapsiblePanel className="grid gap-4 pt-3 sm:grid-cols-2">
+          <CollapsiblePanel className="grid grid-cols-1 gap-4 pt-3 sm:grid-cols-2">
             {advanced.map((field) => (
               <FieldControl
                 key={field.key}

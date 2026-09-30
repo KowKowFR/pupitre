@@ -102,7 +102,7 @@ export function IdentityStep({
     <div className="flex flex-col gap-4">
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="field">
           <Label htmlFor="ob-name">{t('identity.name.label')}</Label>
           <Input

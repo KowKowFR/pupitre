@@ -36,7 +36,7 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
         </Alert>
       ) : null}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
         <section className="card">
           <div className="card-h">
             <h2>{t('report.machine')}</h2>

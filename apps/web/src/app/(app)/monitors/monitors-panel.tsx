@@ -809,7 +809,7 @@ function CreateForm({
       <DrawerBody>
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label={t('create.name.label')}>
             <Input
               value={name}
@@ -839,7 +839,7 @@ function CreateForm({
           />
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field
             label={t('create.interval.label')}
             help={
