@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Ellipsis, Plus, RefreshCw, Search, Server } from 'lucide-react';
 import type { RuntimesAvailable, TargetHealth } from '@pupitre/core';
@@ -37,8 +37,11 @@ import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
+import { hrefWithSelection } from '@/lib/drawer-url';
 import { toast } from '@/lib/toast';
+import { AddTargetDrawer } from './add-target-drawer';
 import { STATUS_TONE } from './status';
+import type { CreatedTarget } from './target-form';
 import { TargetDrawer } from './target-drawer';
 import { usePreflight } from './use-preflight';
 
@@ -74,8 +77,8 @@ export type TargetRow = {
   deployments: { live: number; history: number } | null;
 };
 
-export type Limits = { load: number; memory: number; disk: number };
 
+export type Limits = { load: number; memory: number; disk: number };
 
 const STATUSES: TargetHealth[] = ['ok', 'degraded', 'unreachable', 'unknown'];
 
@@ -223,6 +226,27 @@ export function TargetsView({
     visible.map((target) => target.name),
   );
   const current = targets.find((target) => target.name === drawer.selected) ?? null;
+  // « Ajouter une cible » vit dans l'URL comme l'aperçu : `?add=new` l'ouvre
+  // depuis un lien, la palette ou l'ancienne adresse `/targets/new`.
+  const adding = useDrawerSelection('add');
+  const pathname = usePathname();
+
+  /** La cible créée : le tiroir d'ajout se ferme, son aperçu s'ouvre, prêt à tester. */
+  function created(target: CreatedTarget) {
+    const withoutAdd = hrefWithSelection(pathname, window.location.search, 'add', null);
+    const search = withoutAdd.includes('?') ? withoutAdd.slice(withoutAdd.indexOf('?')) : '';
+    window.history.replaceState(
+      null,
+      '',
+      hrefWithSelection(pathname, search, 'target', target.name),
+    );
+    toast({
+      title: t('toast.created', { name: target.name }),
+      description: t('toast.created.detail'),
+      tone: 'ok',
+    });
+    router.refresh();
+  }
 
   function toggleLabel(pair: string) {
     setSelectedLabels((list) =>
@@ -288,11 +312,9 @@ export function TargetsView({
               </Button>
             ) : null}
             {canCreate ? (
-              <Button asChild>
-                <Link href="/targets/new">
-                  <Plus aria-hidden />
-                  {t('page.add')}
-                </Link>
+              <Button onClick={() => adding.open('new')}>
+                <Plus aria-hidden />
+                {t('page.add')}
               </Button>
             ) : null}
           </>
@@ -300,7 +322,19 @@ export function TargetsView({
       />
 
       {targets.length === 0 ? (
-        <EmptyState icon={Server} title={t('empty.title')} hint={t('empty.hint')} />
+        <EmptyState
+          icon={Server}
+          title={t('empty.title')}
+          hint={t('empty.hint')}
+          action={
+            canCreate ? (
+              <Button onClick={() => adding.open('new')}>
+                <Plus aria-hidden />
+                {t('page.add')}
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <>
           <div role="group" aria-label={t('chips.label')} className="flex flex-wrap gap-2">
@@ -510,6 +544,14 @@ export function TargetsView({
           </section>
         </>
       )}
+
+      {canCreate ? (
+        <AddTargetDrawer
+          open={adding.selected !== null}
+          onClose={adding.close}
+          onCreated={created}
+        />
+      ) : null}
 
       <TargetDrawer
         target={current}

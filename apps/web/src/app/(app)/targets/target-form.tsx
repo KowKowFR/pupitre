@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { TargetLabelList } from '@/components/target-label';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { DrawerBody, DrawerFooter } from '@/components/ui/drawer';
 import { SecretInput } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -85,9 +86,20 @@ export type TargetFormProps = {
   /** `null` retire le bouton « Annuler » — un parcours guidé a sa propre sortie. */
   onCancel?: (() => void) | null;
   submitLabel?: string;
+  /**
+   * `drawer` : les champs dans le corps défilant d'un tiroir, les boutons dans
+   * son pied — l'en-tête reste à l'appelant. `page` (défaut) : tout empilé.
+   */
+  frame?: 'page' | 'drawer';
 };
 
-export function TargetForm({ initial, onCreated, onCancel, submitLabel }: TargetFormProps) {
+export function TargetForm({
+  initial,
+  onCreated,
+  onCancel,
+  submitLabel,
+  frame = 'page',
+}: TargetFormProps) {
   const router = useRouter();
   const t = useT(messages);
   const tc = useT(common);
@@ -158,8 +170,8 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
     router.refresh();
   }
 
-  return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+  const fields = (
+    <>
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -320,17 +332,35 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           {t('labels.help.before')} <code>{t('labels.help.pair')}</code> {t('labels.help.after')}
         </p>
       </div>
+    </>
+  );
 
-      <div className="flex gap-2">
-        <Button type="submit" loading={pending}>
-          {pending ? tc('saving') : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
+  const buttons = (
+    <>
+      <Button type="submit" loading={pending}>
+        {pending ? tc('saving') : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
+      </Button>
+      {onCancel === null ? null : (
+        <Button type="button" variant="ghost" onClick={onCancel ?? (() => router.back())}>
+          {tc('cancel')}
         </Button>
-        {onCancel === null ? null : (
-          <Button type="button" variant="ghost" onClick={onCancel ?? (() => router.back())}>
-            {tc('cancel')}
-          </Button>
-        )}
-      </div>
+      )}
+    </>
+  );
+
+  if (frame === 'drawer') {
+    return (
+      <form onSubmit={onSubmit} className="contents">
+        <DrawerBody>{fields}</DrawerBody>
+        <DrawerFooter end={null}>{buttons}</DrawerFooter>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      {fields}
+      <div className="flex gap-2">{buttons}</div>
     </form>
   );
 }

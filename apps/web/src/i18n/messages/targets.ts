@@ -57,6 +57,8 @@ const fr = {
   },
   'toast.preflightAll.detail': 'Les statuts se mettent à jour au fil des réponses.',
   'toast.deleted': 'Cible {name} supprimée',
+  'toast.created': 'Cible {name} ajoutée',
+  'toast.created.detail': 'Testez la connexion pour savoir ce que la machine sait faire.',
 
   'drawer.kind': 'Cible',
   'drawer.tested': 'testée {ago}',
@@ -424,6 +426,8 @@ const en: Translated<typeof fr> = {
   },
   'toast.preflightAll.detail': 'States update as answers come in.',
   'toast.deleted': 'Target {name} deleted',
+  'toast.created': 'Target {name} added',
+  'toast.created.detail': 'Test the connection to learn what the machine can do.',
 
   'drawer.kind': 'Target',
   'drawer.tested': 'checked {ago}',
