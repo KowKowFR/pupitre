@@ -5,14 +5,13 @@ import { useState } from 'react';
 import type { RoleKey } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';
 import { admin } from '@/i18n/messages/admin';
 import { common } from '@/i18n/messages/common';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
-import { cn } from '@/lib/utils';
 
 type ApiErrorBody = { error?: { message?: string } };
 
@@ -118,53 +117,40 @@ export function CreateUserForm({
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className={cn('grid gap-4 sm:grid-cols-2', canInvite ? 'lg:grid-cols-4' : 'lg:grid-cols-5')}
-    >
-      {error ? (
-        <Alert variant="destructive" className="sm:col-span-2 lg:col-span-full">
-          {error}
-        </Alert>
-      ) : null}
-      {notice ? (
-        <Alert variant="success" className="sm:col-span-2 lg:col-span-full">
-          {notice}
-        </Alert>
-      ) : null}
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
+      {notice ? <Alert variant="success">{notice}</Alert> : null}
 
-      <div className="space-y-1.5">
-        <Label htmlFor="new-name">{t('users.form.name')}</Label>
-        <Input id="new-name" name="name" required />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={t('users.form.name')}>
+          <Input name="name" required />
+        </Field>
+        <Field label={t('users.form.email')}>
+          <Input name="email" type="email" required />
+        </Field>
+        {canInvite ? null : (
+          <Field label={t('users.form.password')}>
+            <Input
+              name="password"
+              type="password"
+              minLength={PASSWORD_MIN_LENGTH}
+              autoComplete="new-password"
+              required
+            />
+          </Field>
+        )}
+        <Field label={t('users.form.role')}>
+          <Select name="role" defaultValue="viewer">
+            {roles.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </Select>
+        </Field>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="new-email">{t('users.form.email')}</Label>
-        <Input id="new-email" name="email" type="email" required />
-      </div>
-      {canInvite ? null : (
-        <div className="space-y-1.5">
-          <Label htmlFor="new-password">{t('users.form.password')}</Label>
-          <Input
-            id="new-password"
-            name="password"
-            type="password"
-            minLength={PASSWORD_MIN_LENGTH}
-            required
-          />
-        </div>
-      )}
-      <div className="space-y-1.5">
-        <Label htmlFor="new-role">{t('users.form.role')}</Label>
-        <Select id="new-role" name="role" defaultValue="viewer">
-          {roles.map((role) => (
-            <option key={role} value={role}>
-              {role}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <div className="flex items-end">
-        <Button type="submit" disabled={pending} className="w-full">
+      <div className="flex justify-end">
+        <Button type="submit" loading={pending}>
           {pending
             ? canInvite
               ? t('users.form.sending')

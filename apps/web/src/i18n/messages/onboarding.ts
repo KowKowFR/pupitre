@@ -60,6 +60,8 @@ const fr = {
   'outcome.skipped': 'passée',
   'outcome.todo': 'à faire',
   'stepper.label': 'Étapes',
+  'stepper.current': 'en cours',
+  'progress.label': '{done} étapes faites sur {total}',
 
   // Le « : » et l'espace finale appartiennent à la phrase : le prix suit.
   'cost.inlineLead': 'Si vous la passez : ',
@@ -144,7 +146,8 @@ const fr = {
   },
   'target.haveOne': "J'en ai déjà une",
   'target.submit': 'Déclarer et tester',
-  'target.noPreflight': '« {name} » déclarée. Preflight non lancé : permission target:update requise.',
+  'target.noPreflight':
+    '« {name} » déclarée. Preflight non lancé : permission target:update requise.',
   'target.running': '« {name} » déclarée — preflight en cours…',
   'target.tested': '« {name} » déclarée et testée.',
 
@@ -187,7 +190,7 @@ const fr = {
     'Plus aucune image ne sera analysée. Les vulnérabilités connues des dépendances de vos applications passeront sans être signalées.',
   'security.ai.label': "Autoriser la génération d'AppSpec par IA",
   'security.ai.help':
-    "Le modèle ne produit jamais de shell : il rend du JSON, validé par Zod avant que quoi que ce soit ne soit exécuté.",
+    'Le modèle ne produit jamais de shell : il rend du JSON, validé par Zod avant que quoi que ce soit ne soit exécuté.',
   'security.apiKey.label': "Clé d'API du modèle",
   'security.apiKey.placeholder.stored': 'Clé déjà enregistrée, laisser vide pour la conserver',
   'security.apiKey.placeholder.storedLast4':
@@ -274,6 +277,8 @@ const en: Translated<typeof fr> = {
   'outcome.skipped': 'skipped',
   'outcome.todo': 'to do',
   'stepper.label': 'Steps',
+  'stepper.current': 'in progress',
+  'progress.label': '{done} of {total} steps done',
 
   'cost.inlineLead': 'If you skip it: ',
   'cost.alertTitle': 'If you skip this step',
@@ -388,8 +393,7 @@ const en: Translated<typeof fr> = {
     'The model never produces shell: it returns JSON, validated by Zod before anything runs.',
   'security.apiKey.label': 'Model API key',
   'security.apiKey.placeholder.stored': 'Key already saved, leave empty to keep it',
-  'security.apiKey.placeholder.storedLast4':
-    'Key already saved — …{last4}, leave empty to keep it',
+  'security.apiKey.placeholder.storedLast4': 'Key already saved — …{last4}, leave empty to keep it',
   'security.apiKey.placeholder.none': 'Leave empty to set none',
   'security.apiKey.help.before': 'Encrypted with AES-256-GCM under',
   'security.apiKey.help.after':

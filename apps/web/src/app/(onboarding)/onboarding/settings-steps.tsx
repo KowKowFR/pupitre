@@ -103,7 +103,7 @@ export function IdentityStep({
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-name">{t('identity.name.label')}</Label>
           <Input
             id="ob-name"
@@ -112,7 +112,7 @@ export function IdentityStep({
             onChange={(event) => setInstanceName(event.target.value)}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-tagline">{t('identity.tagline.label')}</Label>
           <Input
             id="ob-tagline"
@@ -122,7 +122,7 @@ export function IdentityStep({
             onChange={(event) => setInstanceTagline(event.target.value)}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-timezone">{t('identity.timezone.label')}</Label>
           <Select
             id="ob-timezone"
@@ -136,7 +136,7 @@ export function IdentityStep({
             ))}
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-locale">{t('identity.locale.label')}</Label>
           {/*
             Même sélecteur qu'à la section Régionalisation, et pas un réglage
@@ -156,9 +156,9 @@ export function IdentityStep({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-text-3">{t('identity.locale.help')}</p>
+          <p className="help">{t('identity.locale.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-date-style">{t('identity.dateStyle.label')}</Label>
           <Select
             id="ob-date-style"
@@ -172,7 +172,7 @@ export function IdentityStep({
             ))}
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-time-style">{t('identity.timeStyle.label')}</Label>
           <Select
             id="ob-time-style"
@@ -188,10 +188,10 @@ export function IdentityStep({
         </div>
       </div>
 
-      <div className="rounded-md border border-border bg-surface-2 px-3.5 py-3">
-        <div className="eyebrow text-text-3">{t('preview.title')}</div>
-        <div className="mt-1 font-mono text-sm text-text tabular-nums">{preview}</div>
-        <div className="mt-1 text-xs text-text-3">{t('preview.help')}</div>
+      <div className="well">
+        <div className="t-cap font-medium text-text-3">{t('preview.title')}</div>
+        <div className="mt-1 mono text-sm text-text tabular-nums">{preview}</div>
+        <div className="help mt-1">{t('preview.help')}</div>
       </div>
 
       <div>
@@ -260,7 +260,7 @@ export function SecurityStep({
         />
         <span className="min-w-0">
           <span className="block text-text">{t('security.scan.label')}</span>
-          <span className="block text-xs text-text-3">{t('security.scan.help')}</span>
+          <span className="help block">{t('security.scan.help')}</span>
         </span>
       </label>
 
@@ -273,7 +273,7 @@ export function SecurityStep({
               return (
                 <label
                   key={key}
-                  className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs"
+                  className="t-cap flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5"
                 >
                   <input
                     type="checkbox"
@@ -307,11 +307,11 @@ export function SecurityStep({
         />
         <span className="min-w-0">
           <span className="block text-text">{t('security.ai.label')}</span>
-          <span className="block text-xs text-text-3">{t('security.ai.help')}</span>
+          <span className="help block">{t('security.ai.help')}</span>
         </span>
       </label>
 
-      <div className="space-y-1.5">
+      <div className="field">
         <Label htmlFor="ob-api-key">{t('security.apiKey.label')}</Label>
         <Input
           id="ob-api-key"
@@ -332,8 +332,8 @@ export function SecurityStep({
           }
           onChange={(event) => setApiKeyInput(event.target.value)}
         />
-        <p className="text-xs text-text-3">
-          {t('security.apiKey.help.before')} <code className="font-mono">MASTER_KEY</code>
+        <p className="help">
+          {t('security.apiKey.help.before')} <code className="mono">MASTER_KEY</code>
           {t('security.apiKey.help.after')}
         </p>
       </div>

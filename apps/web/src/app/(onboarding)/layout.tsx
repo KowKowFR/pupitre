@@ -1,10 +1,6 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { getAppSettings } from '@pupitre/db';
-import { getT } from '@/i18n/server';
-import { onboarding } from '@/i18n/messages/onboarding';
 import { currentAuth } from '@/lib/page-auth';
-import { BrandMark } from '@/components/brand-mark';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,29 +19,11 @@ export const dynamic = 'force-dynamic';
  * supprime les deux problèmes d'un coup.
  *
  * Le prix : l'authentification est refaite ici. C'est peu, et c'est explicite.
+ * L'en-tête, lui, est posé par la page : sa partie droite dépend de l'étape.
  */
 export default async function OnboardingLayout({ children }: { children: ReactNode }) {
   const auth = await currentAuth();
   if (!auth) redirect('/login');
 
-  const { settings } = await getAppSettings();
-  const t = await getT(onboarding);
-
-  return (
-    <div className="bg-canvas min-h-dvh">
-      <header className="border-border border-b">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-2.5 px-4 py-4 sm:px-6">
-          <BrandMark size={28} />
-          <span className="flex flex-col leading-none">
-            <span className="text-text text-[0.9375rem] font-semibold tracking-[0.01em]">
-              {settings.instanceName}
-            </span>
-            <span className="eyebrow text-text-3 pt-1">{t('shell.eyebrow')}</span>
-          </span>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:py-12">{children}</main>
-    </div>
-  );
+  return <div className="min-h-dvh bg-bg">{children}</div>;
 }
