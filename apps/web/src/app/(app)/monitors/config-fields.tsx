@@ -60,7 +60,7 @@ function FieldControl({
       <Label htmlFor={id}>
         {field.label}
         {field.optional ? (
-          <span className="text-ink-faint normal-case">{t('config.optional')}</span>
+          <span className="text-text-3 normal-case">{t('config.optional')}</span>
         ) : null}
       </Label>
 
@@ -85,7 +85,7 @@ function FieldControl({
             onChange={(event) => handle(event.target.value)}
           />
           {field.unit ? (
-            <span className="shrink-0 text-xs text-ink-faint">{field.unit}</span>
+            <span className="shrink-0 text-xs text-text-3">{field.unit}</span>
           ) : null}
         </div>
       ) : (
@@ -99,7 +99,7 @@ function FieldControl({
         />
       )}
 
-      {field.hint ? <p className="text-[0.6875rem] text-ink-faint">{field.hint}</p> : null}
+      {field.hint ? <p className="text-[0.6875rem] text-text-3">{field.hint}</p> : null}
     </div>
   );
 }
@@ -135,7 +135,7 @@ export function ConfigFields({
 
       {advanced.length > 0 ? (
         <Collapsible>
-          <CollapsibleTrigger className="eyebrow text-ink-muted hover:text-ink">
+          <CollapsibleTrigger className="eyebrow text-text-2 hover:text-text">
             {t('config.advanced')}
           </CollapsibleTrigger>
           <CollapsiblePanel className="grid gap-4 pt-3 sm:grid-cols-2">

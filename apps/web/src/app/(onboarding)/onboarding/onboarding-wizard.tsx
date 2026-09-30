@@ -225,7 +225,7 @@ export function OnboardingWizard(props: Props) {
         description={t('page.description')}
         actions={
           <>
-            <span className="font-mono text-xs text-ink-faint tabular-nums">
+            <span className="font-mono text-xs text-text-3 tabular-nums">
               {doneCount}/{actionable.length}
             </span>
             <Button
@@ -265,12 +265,12 @@ export function OnboardingWizard(props: Props) {
               </CardHeader>
 
               <CardContent className="pb-0">
-                <p className="text-ink-muted border-line border-l-2 pl-3 text-sm leading-relaxed">
+                <p className="text-text-2 border-border border-l-2 pl-3 text-sm leading-relaxed">
                   {t(`step.${current.id}.detail`)}
                 </p>
                 {currentCost ? (
-                  <p className="text-ink-faint pt-3 pl-3 text-xs leading-relaxed">
-                    <span className="text-ink">{t('cost.inlineLead')}</span>
+                  <p className="text-text-3 pt-3 pl-3 text-xs leading-relaxed">
+                    <span className="text-text">{t('cost.inlineLead')}</span>
                     {currentCost}
                   </p>
                 ) : null}
@@ -329,8 +329,8 @@ export function OnboardingWizard(props: Props) {
 
           {currentCost ? (
             <Alert variant="warn">
-              <span className="block font-medium text-ink">{t('cost.alertTitle')}</span>
-              <span className="block text-ink-muted">{currentCost}</span>
+              <span className="block font-medium text-text">{t('cost.alertTitle')}</span>
+              <span className="block text-text-2">{currentCost}</span>
             </Alert>
           ) : null}
 
@@ -390,11 +390,11 @@ export function OnboardingWizard(props: Props) {
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-3 text-sm">
-            <p className="text-ink-muted leading-relaxed">{t('leave.body')}</p>
+            <p className="text-text-2 leading-relaxed">{t('leave.body')}</p>
             {remaining.length > 0 ? (
-              <div className="border-line rounded-md border p-3">
-                <span className="text-ink text-xs">{t('leave.remaining')}</span>
-                <ul className="text-ink-muted mt-1.5 flex flex-col gap-1 text-xs">
+              <div className="border-border rounded-md border p-3">
+                <span className="text-text text-xs">{t('leave.remaining')}</span>
+                <ul className="text-text-2 mt-1.5 flex flex-col gap-1 text-xs">
                   {remaining.map((step) => (
                     <li key={step.id}>· {t(`step.${step.id}.title`)}</li>
                   ))}
@@ -428,8 +428,8 @@ export function OnboardingWizard(props: Props) {
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="flex flex-col gap-3 text-sm">
-            {currentCost ? <p className="text-ink-muted leading-relaxed">{currentCost}</p> : null}
-            <p className="text-ink-faint text-xs leading-relaxed">{t('skip.note')}</p>
+            {currentCost ? <p className="text-text-2 leading-relaxed">{currentCost}</p> : null}
+            <p className="text-text-3 text-xs leading-relaxed">{t('skip.note')}</p>
           </DialogBody>
           <DialogFooter>
             <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
@@ -478,7 +478,7 @@ function Stepper({
               'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[0.8125rem]',
               'transition-colors duration-100 ease-out disabled:opacity-60',
               'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-              active ? 'bg-surface-2 text-ink' : 'text-ink-muted hover:bg-surface-2/60 hover:text-ink',
+              active ? 'bg-surface-2 text-text' : 'text-text-2 hover:bg-surface-2/60 hover:text-text',
             )}
             aria-current={active ? 'step' : undefined}
           >
@@ -486,12 +486,12 @@ function Stepper({
               className={cn(
                 'flex size-5 shrink-0 items-center justify-center rounded-full border text-[0.6875rem] tabular-nums',
                 step.outcome === 'done'
-                  ? 'border-ok-edge bg-ok-soft text-ok'
+                  ? 'border-ok-line bg-ok-soft text-ok-text'
                   : step.outcome === 'skipped'
-                    ? 'border-warn-edge bg-warn-soft text-warn'
+                    ? 'border-warn-line bg-warn-soft text-warn-text'
                     : active
-                      ? 'border-signal bg-signal text-signal-ink'
-                      : 'border-line text-ink-faint',
+                      ? 'border-accent bg-accent text-accent-fg'
+                      : 'border-border text-text-3',
               )}
             >
               {step.outcome === 'done' ? (
@@ -514,29 +514,29 @@ function Welcome() {
   const t = useT(onboarding);
 
   return (
-    <div className="flex flex-col gap-4 text-[0.8125rem] leading-relaxed text-ink-muted">
+    <div className="flex flex-col gap-4 text-[0.8125rem] leading-relaxed text-text-2">
       <p>
         {rich(t('welcome.p1'), {
-          controlPlane: <strong className="text-ink">{t('welcome.p1.controlPlane')}</strong>,
+          controlPlane: <strong className="text-text">{t('welcome.p1.controlPlane')}</strong>,
           your: <em>{t('welcome.p1.your')}</em>,
         })}
       </p>
       <p>
         {rich(t('welcome.p2'), {
-          keepRunning: <strong className="text-ink">{t('welcome.p2.keepRunning')}</strong>,
+          keepRunning: <strong className="text-text">{t('welcome.p2.keepRunning')}</strong>,
         })}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-          <div className="eyebrow text-ink-faint">{t('welcome.does.title')}</div>
+        <div className="rounded-md border border-border bg-surface-2 px-3.5 py-3">
+          <div className="eyebrow text-text-3">{t('welcome.does.title')}</div>
           <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs">
             <li>{t('welcome.does.ssh')}</li>
             <li>{t('welcome.does.render')}</li>
             <li>{t('welcome.does.scan')}</li>
           </ul>
         </div>
-        <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-          <div className="eyebrow text-ink-faint">{t('welcome.doesNot.title')}</div>
+        <div className="rounded-md border border-border bg-surface-2 px-3.5 py-3">
+          <div className="eyebrow text-text-3">{t('welcome.doesNot.title')}</div>
           <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs">
             <li>{t('welcome.doesNot.run')}</li>
             <li>{t('welcome.doesNot.install')}</li>
@@ -583,7 +583,7 @@ function TargetStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">{t('target.intro')}</p>
+      <p className="text-[0.8125rem] leading-relaxed text-text-2">{t('target.intro')}</p>
 
       <div>
         <TargetHelpDialog label={t('target.help')} />
@@ -630,16 +630,16 @@ function RoleStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
+      <p className="text-[0.8125rem] leading-relaxed text-text-2">
         {rich(t('role.intro'), {
           admin: <code className="font-mono text-xs">admin</code>,
           operator: <code className="font-mono text-xs">operator</code>,
           viewer: <code className="font-mono text-xs">viewer</code>,
           noPermission: (
-            <strong className="text-ink">{t('role.intro.noPermission')}</strong>
+            <strong className="text-text">{t('role.intro.noPermission')}</strong>
           ),
           rolesLink: (
-            <Link href="/admin/roles" className="text-signal underline underline-offset-4">
+            <Link href="/admin/roles" className="text-accent underline underline-offset-4">
               {t('role.intro.link')}
             </Link>
           ),
@@ -665,7 +665,7 @@ function UserStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
+      <p className="text-[0.8125rem] leading-relaxed text-text-2">
         {t('user.intro')}
         {existing !== null ? ` ${t('user.existing', { count: existing })}` : ''}
       </p>
@@ -696,14 +696,14 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto rounded-md border border-line">
+      <div className="overflow-x-auto rounded-md border border-border">
         <table className="w-full min-w-0 border-collapse text-left text-[0.8125rem]">
           <tbody>
             {actionable.map((step) => {
               const link = links[step.id];
               return (
-              <tr key={step.id} className="border-b border-line last:border-b-0">
-                <td className="px-3 py-2 font-medium text-ink">
+              <tr key={step.id} className="border-b border-border last:border-b-0">
+                <td className="px-3 py-2 font-medium text-text">
                   {t(`step.${step.id}.title`)}
                 </td>
                 <td className="px-3 py-2">
@@ -721,7 +721,7 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
                 </td>
                 <td className="px-3 py-2 text-right">
                   {link ? (
-                    <Link href={link.href} className="text-signal underline underline-offset-4">
+                    <Link href={link.href} className="text-accent underline underline-offset-4">
                       {link.label}
                     </Link>
                   ) : null}
@@ -742,7 +742,7 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
             }),
             {
               settings: (
-                <Link href="/admin/settings" className="text-signal underline underline-offset-4">
+                <Link href="/admin/settings" className="text-accent underline underline-offset-4">
                   {t('summary.skipped.settings')}
                 </Link>
               ),
@@ -751,7 +751,7 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
         </Alert>
       ) : null}
 
-      <p className="text-xs text-ink-faint">
+      <p className="text-xs text-text-3">
         {t('summary.finishNote')}
         {state.runs > 0 ? ` ${t('summary.run', { n: state.runs + 1 })}` : ''}
       </p>

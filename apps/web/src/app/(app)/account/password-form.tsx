@@ -91,7 +91,7 @@ export function PasswordForm() {
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
             />
-            <p className="text-xs text-ink-faint">
+            <p className="text-xs text-text-3">
               {t('password.min', { count: PASSWORD_MIN_LENGTH })}
             </p>
           </div>

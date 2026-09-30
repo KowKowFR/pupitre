@@ -181,7 +181,7 @@ export function DigestPolicy({
         </Button>
       </div>
 
-      <p className="text-xs text-ink-faint">
+      <p className="text-xs text-text-3">
         {t('digest.window.help', {
           min: formatDigestDuration(vocabulary.minWindowMs),
           max: formatDigestDuration(vocabulary.maxWindowMs),
@@ -192,21 +192,21 @@ export function DigestPolicy({
       {saved ? <Alert variant="success">{t('digest.saved')}</Alert> : null}
 
       <div className="space-y-2">
-        <p className="eyebrow text-ink-muted">{t('digest.open.title')}</p>
+        <p className="eyebrow text-text-2">{t('digest.open.title')}</p>
         {states.length === 0 ? (
-          <p className="text-sm text-ink-faint">{t('digest.open.none')}</p>
+          <p className="text-sm text-text-3">{t('digest.open.none')}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {states.map((state) => (
               <li
                 key={state.groupKey}
-                className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2/40 px-3 py-2 text-sm"
+                className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-2/40 px-3 py-2 text-sm"
               >
-                <span className="text-ink">{labelOf(state.event)}</span>
+                <span className="text-text">{labelOf(state.event)}</span>
                 <Badge variant={state.heldCount > 0 ? 'warn' : 'secondary'}>
                   {t('digest.held', { count: state.heldCount })}
                 </Badge>
-                <span className="text-xs text-ink-faint">
+                <span className="text-xs text-text-3">
                   {t('digest.state.window', { window: formatDigestDuration(state.windowMs) })}
                   {state.escalation > 0
                     ? ` ${t('digest.state.widened', { times: state.escalation })}`

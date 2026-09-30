@@ -1,0 +1,614 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-09-30T14:32:00Z"
+ },
+ "title": "Pupitre · Design system",
+ "launch": {
+  "view": "canvas",
+  "page": "sommaire"
+ },
+ "pages": [
+  {
+   "id": "sommaire",
+   "name": "00 · Sommaire"
+  },
+  {
+   "id": "marque",
+   "name": "01 · Marque"
+  },
+  {
+   "id": "fondations",
+   "name": "02 · Fondations"
+  },
+  {
+   "id": "composants",
+   "name": "03 · Composants"
+  },
+  {
+   "id": "patterns",
+   "name": "04 · Patterns"
+  },
+  {
+   "id": "acces",
+   "name": "05 · Accès & démarrage"
+  },
+  {
+   "id": "exploitation",
+   "name": "06 · Exploitation"
+  },
+  {
+   "id": "admin",
+   "name": "07 · Administration"
+  },
+  {
+   "id": "etats",
+   "name": "08 · États & mobile"
+  }
+ ],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1534,
+   "title": "Sommaire",
+   "page": "sommaire"
+  },
+  "BrandLogo.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 2502,
+   "title": "Marque · logo",
+   "page": "marque"
+  },
+  "BrandVoice.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1549,
+   "title": "Marque · voix et glossaire",
+   "page": "marque"
+  },
+  "FoundColor.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 2242,
+   "title": "Fondations · couleurs",
+   "page": "fondations"
+  },
+  "FoundType.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1596,
+   "title": "Fondations · typographie",
+   "page": "fondations"
+  },
+  "FoundLayout.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1655,
+   "title": "Fondations · espacement et grille",
+   "page": "fondations"
+  },
+  "FoundMotion.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1605,
+   "title": "Fondations · élévation et mouvement",
+   "page": "fondations",
+   "is_interactive": true
+  },
+  "FoundIcons.dc.html": {
+   "x": 6080,
+   "y": 0,
+   "w": 1440,
+   "h": 1251,
+   "title": "Fondations · icônes",
+   "page": "fondations"
+  },
+  "CompButtons.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1888,
+   "title": "Composants · boutons",
+   "page": "composants"
+  },
+  "CompForms.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1617,
+   "title": "Composants · champs",
+   "page": "composants"
+  },
+  "CompSelection.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1163,
+   "title": "Composants · sélection",
+   "page": "composants"
+  },
+  "CompBadges.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1346,
+   "title": "Composants · badges et voyants",
+   "page": "composants"
+  },
+  "CompData.dc.html": {
+   "x": 6080,
+   "y": 0,
+   "w": 1440,
+   "h": 1351,
+   "title": "Composants · données",
+   "page": "composants"
+  },
+  "CompNav.dc.html": {
+   "x": 7600,
+   "y": 0,
+   "w": 1440,
+   "h": 1649,
+   "title": "Composants · navigation",
+   "page": "composants"
+  },
+  "CompOverlays.dc.html": {
+   "x": 9120,
+   "y": 0,
+   "w": 1440,
+   "h": 1810,
+   "title": "Composants · info-bulles, menus, dialogues",
+   "page": "composants",
+   "is_interactive": true
+  },
+  "CompDrawer.dc.html": {
+   "x": 10640,
+   "y": 0,
+   "w": 1440,
+   "h": 1102,
+   "title": "Composants · drawer",
+   "page": "composants",
+   "is_interactive": true
+  },
+  "CompPalette.dc.html": {
+   "x": 12160,
+   "y": 0,
+   "w": 1440,
+   "h": 1773,
+   "title": "Composants · palette ⌘K",
+   "page": "composants",
+   "is_interactive": true
+  },
+  "CompFeedback.dc.html": {
+   "x": 13680,
+   "y": 0,
+   "w": 1440,
+   "h": 1537,
+   "title": "Composants · retours et chargements",
+   "page": "composants",
+   "is_interactive": true
+  },
+  "CompCharts.dc.html": {
+   "x": 15200,
+   "y": 0,
+   "w": 1440,
+   "h": 987,
+   "title": "Composants · graphiques",
+   "page": "composants"
+  },
+  "CompTerminal.dc.html": {
+   "x": 16720,
+   "y": 0,
+   "w": 1440,
+   "h": 865,
+   "title": "Composants · terminal et code",
+   "page": "composants"
+  },
+  "PatPrinciples.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 899,
+   "title": "Patterns · principes",
+   "page": "patterns"
+  },
+  "PatPermissions.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1234,
+   "title": "Patterns · permissions",
+   "page": "patterns"
+  },
+  "PatDestructive.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1095,
+   "title": "Patterns · actions destructives",
+   "page": "patterns"
+  },
+  "AuthSignIn.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Accès · connexion",
+   "page": "acces"
+  },
+  "AuthTotp.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Accès · second facteur",
+   "page": "acces"
+  },
+  "AuthFlows.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1510,
+   "title": "Accès · tous les parcours",
+   "page": "acces"
+  },
+  "AppOnboarding.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1012,
+   "title": "Assistant de démarrage",
+   "page": "acces",
+   "is_interactive": true
+  },
+  "AppDashboard.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1859,
+   "title": "Vue d’ensemble",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppDashboardDark.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1859,
+   "title": "Vue d’ensemble · thème sombre",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppTargets.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 903,
+   "title": "Cibles · liste et aperçu",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppTarget.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1660,
+   "title": "Cible · fiche",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppApplications.dc.html": {
+   "x": 6080,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Applications · catalogue",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppAppNew.dc.html": {
+   "x": 7600,
+   "y": 0,
+   "w": 1440,
+   "h": 1153,
+   "title": "Applications · nouvelle (IA)",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppSupervision.dc.html": {
+   "x": 9120,
+   "y": 0,
+   "w": 1440,
+   "h": 1475,
+   "title": "Supervision · serveurs",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppConsole.dc.html": {
+   "x": 10640,
+   "y": 0,
+   "w": 1440,
+   "h": 1470,
+   "title": "Supervision · console d’app",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppDeployments.dc.html": {
+   "x": 12160,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Déploiements · journal des runs",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppDeployment.dc.html": {
+   "x": 13680,
+   "y": 0,
+   "w": 1440,
+   "h": 1453,
+   "title": "Déploiements · run en direct",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppMonitors.dc.html": {
+   "x": 15200,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Sondes · liste",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppMonitor.dc.html": {
+   "x": 16720,
+   "y": 0,
+   "w": 1440,
+   "h": 1089,
+   "title": "Sondes · fiche et incident",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppJobs.dc.html": {
+   "x": 18240,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Tâches planifiées",
+   "page": "exploitation",
+   "is_interactive": true
+  },
+  "AppLogs.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Journal d’activité",
+   "page": "admin",
+   "is_interactive": true
+  },
+  "AppUsers.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Utilisateurs",
+   "page": "admin",
+   "is_interactive": true
+  },
+  "AppRoles.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1187,
+   "title": "Rôles et permissions",
+   "page": "admin",
+   "is_interactive": true
+  },
+  "SetOverview.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 978,
+   "title": "Paramètres · sommaire",
+   "page": "admin",
+   "is_interactive": true
+  },
+  "SetNotifications.dc.html": {
+   "x": 6080,
+   "y": 0,
+   "w": 1440,
+   "h": 966,
+   "title": "Paramètres · notifications",
+   "page": "admin",
+   "is_interactive": true
+  },
+  "AppAccount.dc.html": {
+   "x": 7600,
+   "y": 0,
+   "w": 1440,
+   "h": 1030,
+   "title": "Mon compte · sécurité",
+   "page": "admin",
+   "is_interactive": true
+  },
+  "StateLoading.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "États · chargement",
+   "page": "etats",
+   "is_interactive": true
+  },
+  "StateEmpty.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 1323,
+   "title": "États · vides",
+   "page": "etats"
+  },
+  "StateErrors.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 978,
+   "title": "États · erreurs",
+   "page": "etats"
+  },
+  "MobScreens.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 1190,
+   "title": "Mobile · écrans",
+   "page": "etats"
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "BrandLogo.dc.html",
+  "BrandVoice.dc.html",
+  "FoundColor.dc.html",
+  "FoundType.dc.html",
+  "FoundLayout.dc.html",
+  "FoundMotion.dc.html",
+  "FoundIcons.dc.html",
+  "CompButtons.dc.html",
+  "CompForms.dc.html",
+  "CompSelection.dc.html",
+  "CompBadges.dc.html",
+  "CompData.dc.html",
+  "CompNav.dc.html",
+  "CompOverlays.dc.html",
+  "CompDrawer.dc.html",
+  "CompPalette.dc.html",
+  "CompFeedback.dc.html",
+  "CompCharts.dc.html",
+  "CompTerminal.dc.html",
+  "PatPrinciples.dc.html",
+  "PatPermissions.dc.html",
+  "PatDestructive.dc.html",
+  "AuthSignIn.dc.html",
+  "AuthTotp.dc.html",
+  "AuthFlows.dc.html",
+  "AppOnboarding.dc.html",
+  "AppDashboard.dc.html",
+  "AppDashboardDark.dc.html",
+  "AppTargets.dc.html",
+  "AppTarget.dc.html",
+  "AppApplications.dc.html",
+  "AppAppNew.dc.html",
+  "AppSupervision.dc.html",
+  "AppConsole.dc.html",
+  "AppDeployments.dc.html",
+  "AppDeployment.dc.html",
+  "AppMonitors.dc.html",
+  "AppMonitor.dc.html",
+  "AppJobs.dc.html",
+  "AppLogs.dc.html",
+  "AppUsers.dc.html",
+  "AppRoles.dc.html",
+  "SetOverview.dc.html",
+  "SetNotifications.dc.html",
+  "AppAccount.dc.html",
+  "StateLoading.dc.html",
+  "StateEmpty.dc.html",
+  "StateErrors.dc.html",
+  "MobScreens.dc.html"
+ ],
+ "notes": {
+  "t_sommaire": {
+   "kind": "title1",
+   "page": "sommaire",
+   "text": "Sommaire",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 1520
+  },
+  "t_marque": {
+   "kind": "title1",
+   "page": "marque",
+   "text": "Marque",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 3040
+  },
+  "t_fondations": {
+   "kind": "title1",
+   "page": "fondations",
+   "text": "Fondations",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 7600
+  },
+  "t_composants": {
+   "kind": "title1",
+   "page": "composants",
+   "text": "Composants",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 18240
+  },
+  "t_patterns": {
+   "kind": "title1",
+   "page": "patterns",
+   "text": "Patterns",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 4560
+  },
+  "t_acces": {
+   "kind": "title1",
+   "page": "acces",
+   "text": "Accès & démarrage",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 6080
+  },
+  "t_exploitation": {
+   "kind": "title1",
+   "page": "exploitation",
+   "text": "Exploitation",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 19760
+  },
+  "t_admin": {
+   "kind": "title1",
+   "page": "admin",
+   "text": "Administration",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 9120
+  },
+  "t_etats": {
+   "kind": "title1",
+   "page": "etats",
+   "text": "États & mobile",
+   "x": 0,
+   "y": -320,
+   "w": 240,
+   "maxW": 6080
+  }
+ },
+ "designSystems": []
+}

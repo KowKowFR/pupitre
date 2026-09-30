@@ -62,7 +62,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         eyebrow={
           <Link
             href="/applications"
-            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+            className="inline-flex items-center gap-1 transition-colors hover:text-text"
           >
             <ChevronLeft className="size-3" />
             {t('page.title')}
@@ -71,7 +71,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         title={
           <>
             {application.slug}{' '}
-            <span className="font-mono text-[1.375rem] font-normal text-ink-faint">
+            <span className="font-mono text-[1.375rem] font-normal text-text-3">
               v{spec.version}
             </span>
           </>
@@ -94,7 +94,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
               <CodeBadge key={service.name}>{service.name}</CodeBadge>
             ),
           )}
-          <span className="font-mono text-xs text-ink-faint">
+          <span className="font-mono text-xs text-text-3">
             {spec.ingress?.host ?? t('detail.spec.byPort')}
           </span>
         </CardContent>
@@ -107,10 +107,10 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       />
 
       <div className="flex flex-col gap-1 pt-1">
-        <h2 className="font-condensed text-lg leading-none font-semibold tracking-[0.005em] text-ink">
+        <h2 className="text-lg leading-none font-semibold tracking-[0.005em] text-text">
           {t('versions.title')}
         </h2>
-        <p className="text-[0.8125rem] text-ink-muted">
+        <p className="text-[0.8125rem] text-text-2">
           {rows.length === 0
             ? t('versions.empty')
             : t('versions.count', { count: rows.length })}

@@ -230,7 +230,7 @@ export function TargetsTable({
           pagination qu'il faudra, et le filtre suivra côté serveur avec elle.
         */}
         {showFilters ? (
-          <div className="flex flex-col gap-2 border-b border-line pb-3">
+          <div className="flex flex-col gap-2 border-b border-border pb-3">
             <div className="flex flex-wrap items-center gap-2">
               {showSearch ? (
                 <Input
@@ -270,7 +270,7 @@ export function TargetsTable({
               ) : null}
             </div>
             {filtering ? (
-              <p className="text-xs text-ink-muted" role="status">
+              <p className="text-xs text-text-2" role="status">
                 {t('filter.count', { count: visible.length, total: targets.length })}
               </p>
             ) : null}
@@ -278,7 +278,7 @@ export function TargetsTable({
         ) : null}
 
         {visible.length === 0 ? (
-          <p className="py-6 text-center text-sm text-ink-muted">{t('filter.none')}</p>
+          <p className="py-6 text-center text-sm text-text-2">{t('filter.none')}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -298,11 +298,11 @@ export function TargetsTable({
                     <TableCell className="max-w-[24rem] align-top">
                       <Link
                         href={`/targets/${target.id}`}
-                        className="text-[0.8125rem] font-medium text-ink underline decoration-transparent underline-offset-4 transition-colors hover:decoration-signal-edge"
+                        className="text-[0.8125rem] font-medium text-text underline decoration-transparent underline-offset-4 transition-colors hover:decoration-accent-line"
                       >
                         {target.name}
                       </Link>
-                      <div className="font-mono text-[0.6875rem] text-ink-faint">
+                      <div className="font-mono text-[0.6875rem] text-text-3">
                         {target.sshUser}@{target.host}:{target.port}
                       </div>
                       {/*
@@ -312,7 +312,7 @@ export function TargetsTable({
                       */}
                       {target.description ? (
                         <p
-                          className="mt-1 line-clamp-1 text-xs text-ink-muted"
+                          className="mt-1 line-clamp-1 text-xs text-text-2"
                           title={target.description}
                         >
                           {target.description}
@@ -333,10 +333,10 @@ export function TargetsTable({
                     <TableCell className="align-top">
                       <StatusBadge status={target.status} label={t(`status.${target.status}`)} />
                     </TableCell>
-                    <TableCell className="align-top font-mono text-xs text-ink-muted tabular-nums">
+                    <TableCell className="align-top font-mono text-xs text-text-2 tabular-nums">
                       {phase ? (
-                        <span className="flex items-center gap-1.5 text-signal">
-                          <span className="size-1.5 animate-signal-pulse rounded-full bg-signal" />
+                        <span className="flex items-center gap-1.5 text-accent">
+                          <span className="size-1.5 animate-soft-pulse rounded-full bg-accent" />
                           {phase}
                         </span>
                       ) : (
@@ -373,7 +373,7 @@ export function TargetsTable({
           qui suffisait à repousser la colonne d'actions hors de l'écran sur un
           portable. L'information est la même, elle ne coûte plus une colonne.
         */}
-        <p className="text-ink-faint text-xs">
+        <p className="text-text-3 text-xs">
           {t('table.timestamps', { timezone: format.timezone })}
         </p>
       </CardContent>

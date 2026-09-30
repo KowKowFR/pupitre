@@ -22,7 +22,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   return (
     <thead
       data-slot="table-header"
-      className={cn('[&_tr]:border-b [&_tr]:border-line-strong', className)}
+      className={cn('[&_tr]:border-b [&_tr]:border-border-strong', className)}
       {...props}
     />
   );
@@ -45,7 +45,7 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
       className={cn(
         // `group/row` sert aux cellules épinglées, qui doivent suivre le survol
         // de leur ligne alors qu'elles ne sont pas survolées elles-mêmes.
-        'group/row border-b border-line transition-colors duration-100 hover:bg-row-hover',
+        'group/row border-b border-border transition-colors duration-100 hover:bg-surface-2',
         className,
       )}
       {...props}
@@ -58,7 +58,7 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot="table-head"
       className={cn(
-        'eyebrow h-8 px-3 text-left align-middle whitespace-nowrap text-ink-faint',
+        'eyebrow h-8 px-3 text-left align-middle whitespace-nowrap text-text-3',
         className,
       )}
       {...props}
@@ -81,7 +81,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
  * écran large, la cellule se comporte exactement comme une `TableCell`.
  *
  * Le fond est peint explicitement, sans quoi les colonnes défileraient
- * visiblement dessous. `--row-hover` est un mélange et non une transparence :
+ * visiblement dessous. `--surface-2` est un mélange et non une transparence :
  * la cellule recouvre le fond de survol de sa propre ligne et doit en peindre
  * la couleur exacte, ce qu'une superposition d'alpha ne donnerait pas.
  *
@@ -94,13 +94,13 @@ function TableActions({ className, ...props }: React.ComponentProps<'td'>) {
       data-slot="table-actions"
       className={cn(
         'sticky right-0 z-10 bg-card px-3 py-2.5 text-right align-middle',
-        'group-hover/row:bg-row-hover',
+        'group-hover/row:bg-surface-2',
         // Repli visuel du bord épinglé, uniquement quand il masque du contenu.
         'transition-shadow duration-150',
         '[[data-more-right]_&]:shadow-[-10px_0_10px_-10px_oklch(0_0_0/0.45)]',
         '[[data-more-right]_&]:before:absolute [[data-more-right]_&]:before:inset-y-0',
         '[[data-more-right]_&]:before:left-0 [[data-more-right]_&]:before:w-px',
-        '[[data-more-right]_&]:before:bg-line',
+        '[[data-more-right]_&]:before:bg-border',
         className,
       )}
       {...props}
@@ -117,12 +117,12 @@ function TableActionsHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot="table-actions-head"
       className={cn(
-        'eyebrow sticky right-0 z-10 h-8 bg-card px-3 text-right align-middle whitespace-nowrap text-ink-faint',
+        'eyebrow sticky right-0 z-10 h-8 bg-card px-3 text-right align-middle whitespace-nowrap text-text-3',
         // Le filet du bord épinglé traverse aussi l'en-tête : interrompu à la
         // première ligne, il ressemblerait à une bordure de tableau ratée.
         '[[data-more-right]_&]:before:absolute [[data-more-right]_&]:before:inset-y-0',
         '[[data-more-right]_&]:before:left-0 [[data-more-right]_&]:before:w-px',
-        '[[data-more-right]_&]:before:bg-line',
+        '[[data-more-right]_&]:before:bg-border',
         className,
       )}
       {...props}

@@ -184,7 +184,7 @@ export function ThresholdsDialog({
               <div className="flex items-end gap-3">
                 <div className="flex-1">
                   <Label htmlFor={`threshold-${metric}`}>{t(METRIC_KEY[metric])}</Label>
-                  <p className="text-[0.6875rem] text-ink-faint">
+                  <p className="text-[0.6875rem] text-text-3">
                     {t(METRIC_HINT_KEY[metric])}
                   </p>
                 </div>
@@ -203,10 +203,10 @@ export function ThresholdsDialog({
                     }))
                   }
                 />
-                <span className="pb-2 text-[0.75rem] text-ink-faint">%</span>
+                <span className="pb-2 text-[0.75rem] text-text-3">%</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center gap-2 text-[0.75rem] text-ink-muted">
+                <label className="flex items-center gap-2 text-[0.75rem] text-text-2">
                   <Checkbox
                     checked={draft[metric].enabled}
                     onChange={(event) =>
@@ -218,14 +218,14 @@ export function ThresholdsDialog({
                   />
                   {t('thresholds.watch')}
                 </label>
-                <span className="text-[0.6875rem] text-ink-faint">
+                <span className="text-[0.6875rem] text-text-3">
                   {t(ORIGIN_KEY[thresholds[metric].origin])}
                   {thresholds[metric].origin === 'target' ? (
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void reset(metric)}
-                      className="ml-2 underline underline-offset-2 hover:text-ink"
+                      className="ml-2 underline underline-offset-2 hover:text-text"
                     >
                       {t('thresholds.reset')}
                     </button>

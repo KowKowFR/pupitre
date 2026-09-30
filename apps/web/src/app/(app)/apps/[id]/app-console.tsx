@@ -285,14 +285,14 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
             href={app.url}
             target="_blank"
             rel="noreferrer"
-            className="text-signal truncate underline-offset-4 hover:underline"
+            className="text-accent truncate underline-offset-4 hover:underline"
           >
             {app.url}
           </a>
         ) : (
-          <span className="text-ink-faint">aucune URL publiée</span>
+          <span className="text-text-3">aucune URL publiée</span>
         )}
-        <span className="text-ink-faint truncate">
+        <span className="text-text-3 truncate">
           {app.targetName} · {app.targetHost}
           {app.publishedPort ? ` · port ${app.publishedPort}` : ''} · {app.runtime}
         </span>
@@ -372,19 +372,19 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
       */}
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-6 xl:col-start-1 xl:row-start-1">
-          <section className="border-line bg-card shadow-panel min-w-0 rounded-lg border">
+          <section className="border-border bg-card shadow-xs min-w-0 rounded-lg border">
             {/*
               Deux verdicts distincts, et il faut qu'ils le restent : en tête,
               ce que **le panel** a conclu de sa dernière sonde ; en pied, l'âge
               du relevé que **la machine** vient de donner. Les mélanger ferait
               croire qu'une sonde vieille de dix minutes décrit l'instant.
             */}
-            <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-              <h2 className="text-ink font-condensed text-[0.9375rem] font-semibold">Services</h2>
-              <span className="text-ink-muted flex items-center gap-1.5 text-xs">
+            <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
+              <h2 className="text-text text-[0.9375rem] font-semibold">Services</h2>
+              <span className="text-text-2 flex items-center gap-1.5 text-xs">
                 <Led tone={HEALTH_TONE[app.healthStatus]} />
                 {HEALTH_LABEL[app.healthStatus]}
-                <span className="text-ink-faint">
+                <span className="text-text-3">
                   {!app.lastHealthAt
                     ? '· jamais sondée'
                     : now === null
@@ -401,7 +401,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
               il est dans le premier.
             */}
             {rows.length === 0 ? (
-              <p className="text-ink-faint px-5 py-3.5 text-[0.8125rem]">
+              <p className="text-text-3 px-5 py-3.5 text-[0.8125rem]">
                 {status === null
                   ? connection === 'live'
                     ? 'Premier relevé en attente — la machine est en train de répondre.'
@@ -409,7 +409,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
                   : 'La cible ne rapporte aucun conteneur pour ce projet, et la spec n’en déclare aucun.'}
               </p>
             ) : (
-              <ul className="divide-line divide-y">
+              <ul className="divide-border divide-y">
                 {rows.map((row) => (
                   <ServiceRow
                     key={row.name}
@@ -422,7 +422,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
               </ul>
             )}
 
-            <div className="border-line text-ink-faint border-t px-5 py-2 text-[0.6875rem]">
+            <div className="border-border text-text-3 border-t px-5 py-2 text-[0.6875rem]">
               {status === null
                 ? connection === 'closed' || connection === 'error'
                   ? 'aucun relevé — le flux est interrompu'
@@ -432,12 +432,12 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
           </section>
         </div>
 
-        <section className="border-line bg-card shadow-panel flex min-h-0 min-w-0 flex-col self-stretch rounded-lg border xl:col-start-2 xl:row-span-2 xl:row-start-1">
-          <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-            <h2 className="text-ink font-condensed text-[0.9375rem] font-semibold">
+        <section className="border-border bg-card shadow-xs flex min-h-0 min-w-0 flex-col self-stretch rounded-lg border xl:col-start-2 xl:row-span-2 xl:row-start-1">
+          <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
+            <h2 className="text-text text-[0.9375rem] font-semibold">
               Logs applicatifs
             </h2>
-            <span className="text-ink-faint text-xs">
+            <span className="text-text-3 text-xs">
               {filtering
                 ? `${visible.length} sur ${lines.length} ligne${lines.length > 1 ? 's' : ''}`
                 : `${lines.length} ligne${lines.length > 1 ? 's' : ''}`}
@@ -447,10 +447,10 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
           </div>
 
           {/* Deux rangées : ce qui restreint ce qu'on lit, puis ce qui commande le flux. */}
-          <div className="border-line flex flex-wrap items-center gap-2 border-b px-5 py-2.5">
+          <div className="border-border flex flex-wrap items-center gap-2 border-b px-5 py-2.5">
             <label className="relative min-w-0 flex-1">
               <Search
-                className="text-ink-faint pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+                className="text-text-3 pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
                 aria-hidden
               />
               <Input
@@ -486,7 +486,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
             />
           </div>
 
-          <div className="border-line flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-5 py-2.5">
+          <div className="border-border flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-5 py-2.5">
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
@@ -507,7 +507,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
                 )}
               </Button>
               {freeze !== null ? (
-                <span className="text-warn text-[0.6875rem]">
+                <span className="text-warn-text text-[0.6875rem]">
                   {held === 0
                     ? 'affichage figé — aucune ligne depuis'
                     : `affichage figé — ${held} ligne${held > 1 ? 's' : ''} retenue${held > 1 ? 's' : ''}`}
@@ -557,10 +557,10 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
               au minimum, davantage quand le contexte de gauche est plus long.
               C'est la hauteur de lecture qui commande, pas une valeur fixe.
             */
-            className="bg-terminal text-terminal-fg min-h-[34rem] flex-1 overflow-y-auto rounded-b-lg px-4 py-3 font-mono text-[0.6875rem] leading-[1.65]"
+            className="bg-term-bg text-term-fg min-h-[34rem] flex-1 overflow-y-auto rounded-b-lg px-4 py-3 font-mono text-[0.6875rem] leading-[1.65]"
           >
             {visible.length === 0 ? (
-              <p className="text-terminal-dim">
+              <p className="text-term-dim">
                 {lines.length > 0
                   ? 'Aucune ligne du tampon ne passe les filtres.'
                   : connection === 'live'
@@ -575,15 +575,15 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
                     key={line.seq}
                     className={cn(
                       'flex gap-3 break-words whitespace-pre-wrap',
-                      level === 'error' && 'text-terminal-danger',
-                      level === 'warn' && 'text-warn',
+                      level === 'error' && 'text-term-err',
+                      level === 'warn' && 'text-warn-text',
                     )}
                   >
-                    <span className="text-terminal-dim shrink-0 tabular-nums select-none">
+                    <span className="text-term-dim shrink-0 tabular-nums select-none">
                       {line.ts.slice(11, 19)}
                     </span>
                     {line.service ? (
-                      <span className="text-terminal-dim w-24 shrink-0 truncate select-none">
+                      <span className="text-term-dim w-24 shrink-0 truncate select-none">
                         {line.service}
                       </span>
                     ) : null}
@@ -644,14 +644,14 @@ function ServiceRow({
     <li className="flex flex-col gap-1 px-5 py-3">
       <div className="flex items-center gap-2">
         <Led tone={tone} pulse={live?.state === 'restarting'} />
-        <span className="text-ink min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
+        <span className="text-text min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
         {spec?.exposed ? (
-          <span className="text-ink-faint text-[0.6875rem]">exposé</span>
+          <span className="text-text-3 text-[0.6875rem]">exposé</span>
         ) : null}
         <span
           className={cn(
             'shrink-0 text-[0.6875rem]',
-            tone === 'danger' ? 'text-danger' : tone === 'warn' ? 'text-warn' : 'text-ink-muted',
+            tone === 'danger' ? 'text-danger-text' : tone === 'warn' ? 'text-warn-text' : 'text-text-2',
           )}
         >
           {live
@@ -668,11 +668,11 @@ function ServiceRow({
         Le texte passe donc à la ligne, et seul le nom de l'image, qui peut être
         arbitrairement long, casse au caractère près.
       */}
-      <div className="text-ink-faint pl-[1.125rem] font-mono text-[0.6875rem] break-all">
+      <div className="text-text-3 pl-[1.125rem] font-mono text-[0.6875rem] break-all">
         {[image, ports].filter(Boolean).join(' · ') || '—'}
       </div>
 
-      <div className="text-ink-faint pl-[1.125rem] text-[0.6875rem]">
+      <div className="text-text-3 pl-[1.125rem] text-[0.6875rem]">
         {[
           live?.since,
           health,
@@ -714,8 +714,8 @@ function Toggle({
     <label
       title={title}
       className={cn(
-        'border-line flex shrink-0 cursor-pointer items-center gap-1.5 rounded-sm border px-2 py-1 text-[0.6875rem]',
-        active ? 'border-signal-edge bg-signal-soft/60 text-signal' : 'text-ink-muted',
+        'border-border flex shrink-0 cursor-pointer items-center gap-1.5 rounded-sm border px-2 py-1 text-[0.6875rem]',
+        active ? 'border-accent-line bg-accent-soft/60 text-accent' : 'text-text-2',
       )}
     >
       <input
@@ -726,7 +726,7 @@ function Toggle({
       />
       <span
         aria-hidden
-        className={cn('size-1.5 rounded-full', active ? 'bg-signal' : 'bg-ink-faint/50')}
+        className={cn('size-1.5 rounded-full', active ? 'bg-accent' : 'bg-text-3/50')}
       />
       {label}
     </label>
@@ -880,5 +880,5 @@ function ConnectionLabel({ state }: { state: Connection }) {
     error: 'reconnexion…',
   }[state];
 
-  return <span className={cn(state === 'error' && 'text-warn')}>{label}</span>;
+  return <span className={cn(state === 'error' && 'text-warn-text')}>{label}</span>;
 }

@@ -22,17 +22,17 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        'flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-line pb-5',
+        'flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border pb-5',
         className,
       )}
     >
       <div className="min-w-0 space-y-1.5">
-        {eyebrow ? <div className="eyebrow text-ink-faint">{eyebrow}</div> : null}
-        <h1 className="font-condensed text-[1.625rem] leading-none font-semibold tracking-[-0.005em] text-ink">
+        {eyebrow ? <div className="eyebrow text-text-3">{eyebrow}</div> : null}
+        <h1 className="text-[1.625rem] leading-none font-semibold tracking-[-0.005em] text-text">
           {title}
         </h1>
         {description ? (
-          <p className="max-w-[62ch] text-[0.8125rem] leading-relaxed text-ink-muted">
+          <p className="max-w-[62ch] text-[0.8125rem] leading-relaxed text-text-2">
             {description}
           </p>
         ) : null}

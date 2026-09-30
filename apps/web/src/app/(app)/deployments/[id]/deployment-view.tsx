@@ -264,7 +264,7 @@ export function DeploymentDetail({
 
       {actionError ? <Alert variant="destructive">{actionError}</Alert> : null}
 
-      <div className="flex gap-1 border-b border-line">
+      <div className="flex gap-1 border-b border-border">
         <TabButton active={tab === 'pipeline'} onClick={() => setTab('pipeline')}>
           {t('tab.pipeline')}
         </TabButton>
@@ -281,9 +281,9 @@ export function DeploymentDetail({
       ) : (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
           <Card className="h-fit gap-0 py-0">
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-              <span className="eyebrow text-ink-faint">{t('pipeline.title')}</span>
-              <span className="font-mono text-[0.6875rem] text-ink-muted tabular-nums">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+              <span className="eyebrow text-text-3">{t('pipeline.title')}</span>
+              <span className="font-mono text-[0.6875rem] text-text-2 tabular-nums">
                 {t('pipeline.succeeded', { done: succeeded, total: steps.length })}
               </span>
             </div>
@@ -301,10 +301,10 @@ export function DeploymentDetail({
           </Card>
 
           <Card className="flex min-h-0 flex-col gap-0 overflow-hidden py-0">
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line px-5 py-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-3.5">
               <div className="flex items-center gap-2">
-                <span className="eyebrow text-ink-faint">{t('logs.title')}</span>
-                <span className="font-mono text-[0.6875rem] text-ink-muted tabular-nums">
+                <span className="eyebrow text-text-3">{t('logs.title')}</span>
+                <span className="font-mono text-[0.6875rem] text-text-2 tabular-nums">
                   {t('logs.lines', { count: lines.length })}
                 </span>
               </div>
@@ -315,8 +315,8 @@ export function DeploymentDetail({
                   className={cn(
                     'flex cursor-pointer items-center gap-1.5 rounded-sm border px-2 py-1 text-[0.6875rem] transition-colors',
                     autoScroll
-                      ? 'border-signal-edge bg-signal-soft/60 text-signal'
-                      : 'border-line text-ink-faint hover:text-ink-muted',
+                      ? 'border-accent-line bg-accent-soft/60 text-accent'
+                      : 'border-border text-text-3 hover:text-text-2',
                   )}
                 >
                   <input
@@ -329,7 +329,7 @@ export function DeploymentDetail({
                     aria-hidden
                     className={cn(
                       'size-1.5 rounded-full transition-colors',
-                      autoScroll ? 'bg-signal' : 'bg-ink-faint/50',
+                      autoScroll ? 'bg-accent' : 'bg-text-3/50',
                     )}
                   />
                   {t('logs.autoScroll')}
@@ -344,10 +344,10 @@ export function DeploymentDetail({
                   element.scrollHeight - element.scrollTop - element.clientHeight < 40;
                 setAutoScroll(atBottom);
               }}
-              className="h-[30rem] overflow-y-auto bg-terminal px-4 py-3 font-mono text-[0.6875rem] leading-[1.65] text-terminal-fg"
+              className="h-[30rem] overflow-y-auto bg-term-bg px-4 py-3 font-mono text-[0.6875rem] leading-[1.65] text-term-fg"
             >
               {lines.length === 0 ? (
-                <p className="text-terminal-dim">
+                <p className="text-term-dim">
                   {isTerminal ? t('logs.empty.settled') : t('logs.empty.waiting')}
                 </p>
               ) : (
@@ -356,13 +356,13 @@ export function DeploymentDetail({
                     key={`${line.ts}-${index}`}
                     className={cn(
                       'flex gap-3 break-words whitespace-pre-wrap',
-                      line.stream === 'stderr' && 'text-terminal-danger',
+                      line.stream === 'stderr' && 'text-term-err',
                     )}
                   >
-                    <span className="shrink-0 tabular-nums text-terminal-dim select-none">
+                    <span className="shrink-0 tabular-nums text-term-dim select-none">
                       {line.ts.slice(11, 19)}
                     </span>
-                    <span className="w-24 shrink-0 truncate text-terminal-dim select-none">
+                    <span className="w-24 shrink-0 truncate text-term-dim select-none">
                       {line.step}
                     </span>
                     <span className="min-w-0">{line.line}</span>
@@ -394,13 +394,13 @@ function StepRow({ step, last }: { step: StepView; last: boolean }) {
     <li
       className={cn(
         'relative flex items-start gap-3 rounded-md py-2 pr-2 pl-2.5 transition-colors duration-200',
-        running && 'bg-signal-soft/45',
+        running && 'bg-accent-soft/45',
       )}
     >
       {running ? (
         <span
           aria-hidden
-          className="absolute top-1.5 bottom-1.5 left-0 w-[2px] rounded-full bg-signal"
+          className="absolute top-1.5 bottom-1.5 left-0 w-[2px] rounded-full bg-accent"
         />
       ) : null}
 
@@ -414,7 +414,7 @@ function StepRow({ step, last }: { step: StepView; last: boolean }) {
           aria-hidden
           className={cn(
             'absolute top-[1.75rem] -bottom-2 left-[1.125rem] w-[2px] rounded-full transition-colors duration-300',
-            done ? 'bg-ok/50' : 'bg-line-strong/70',
+            done ? 'bg-ok/50' : 'bg-border-strong/70',
           )}
         />
       )}
@@ -427,24 +427,24 @@ function StepRow({ step, last }: { step: StepView; last: boolean }) {
         <div
           className={cn(
             'text-[0.8125rem] leading-5 transition-colors duration-200',
-            step.status === 'pending' && 'text-ink-faint',
-            step.status === 'skipped' && 'text-ink-faint line-through',
-            step.status === 'success' && 'text-ink',
-            step.status === 'failed' && 'font-medium text-ink',
-            running && 'font-medium text-ink',
+            step.status === 'pending' && 'text-text-3',
+            step.status === 'skipped' && 'text-text-3 line-through',
+            step.status === 'success' && 'text-text',
+            step.status === 'failed' && 'font-medium text-text',
+            running && 'font-medium text-text',
           )}
         >
           {deploymentStepLabel(step.key, language, step.label)}
         </div>
         {step.error ? (
-          <div className="mt-1 rounded-sm border border-danger-edge bg-danger-soft/50 px-2 py-1 font-mono text-[0.6875rem] leading-relaxed break-words text-danger">
+          <div className="mt-1 rounded-sm border border-danger-line bg-danger-soft/50 px-2 py-1 font-mono text-[0.6875rem] leading-relaxed break-words text-danger-text">
             {step.error}
           </div>
         ) : null}
       </div>
 
       {step.startedAt && step.status !== 'pending' ? (
-        <span className="shrink-0 pt-0.5 font-mono text-[0.625rem] text-ink-faint tabular-nums">
+        <span className="shrink-0 pt-0.5 font-mono text-[0.625rem] text-text-3 tabular-nums">
           {formatDuration(step.startedAt, step.finishedAt)}
         </span>
       ) : null}
@@ -467,7 +467,7 @@ function TabButton({
       onClick={onClick}
       className={cn(
         'relative flex items-center gap-2 px-4 py-2 text-[0.8125rem] transition-colors duration-100',
-        active ? 'font-medium text-ink' : 'text-ink-muted hover:text-ink',
+        active ? 'font-medium text-text' : 'text-text-2 hover:text-text',
       )}
     >
       {children}
@@ -475,7 +475,7 @@ function TabButton({
         aria-hidden
         className={cn(
           'absolute inset-x-2 -bottom-px h-[2px] rounded-full transition-colors duration-200',
-          active ? 'bg-signal' : 'bg-transparent',
+          active ? 'bg-accent' : 'bg-transparent',
         )}
       />
     </button>
@@ -500,13 +500,13 @@ function ExportLinks({ deploymentId }: { deploymentId: string }) {
 
   return (
     <div className="flex items-center gap-1.5 text-[0.6875rem]">
-      <span className="text-ink-faint">{t('logs.export')}</span>
+      <span className="text-text-3">{t('logs.export')}</span>
       {formats.map((format) => (
         <a
           key={format.value}
           href={`/api/deployments/${deploymentId}/logs/export?format=${format.value}`}
           title={t('logs.export.title', { hint: format.hint })}
-          className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-ink-muted transition-colors hover:border-signal-edge hover:text-ink"
+          className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-text-2 transition-colors hover:border-accent-line hover:text-text"
         >
           {format.label}
         </a>
@@ -530,7 +530,7 @@ function ConnectionLabel({ state }: { state: 'connecting' | 'live' | 'closed' | 
     <span
       className={cn(
         'flex items-center gap-1.5 text-[0.6875rem]',
-        state === 'error' ? 'text-danger' : 'text-ink-muted',
+        state === 'error' ? 'text-danger-text' : 'text-text-2',
       )}
     >
       <Led tone={tone} pulse={state === 'live'} className="size-2" />
@@ -575,20 +575,20 @@ function StatusBanner({
     <Card
       className={cn(
         'gap-0 overflow-hidden py-0',
-        failed && 'border-danger-edge',
-        rolledBack && 'border-warn-edge',
-        deployment.status === 'success' && 'border-ok-edge',
+        failed && 'border-danger-line',
+        rolledBack && 'border-warn-line',
+        deployment.status === 'success' && 'border-ok-line',
       )}
     >
       <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-4 px-5 py-4">
         <div className="flex min-w-0 items-center gap-3">
           <DeploymentStatusBadge status={deployment.status} />
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-ink">
+            <div className="truncate text-sm font-medium text-text">
               {deployment.applicationSlug}{' '}
-              <span className="font-mono font-normal text-ink-faint">v{deployment.version}</span>
+              <span className="font-mono font-normal text-text-3">v{deployment.version}</span>
             </div>
-            <div className="truncate font-mono text-[0.6875rem] text-ink-faint">
+            <div className="truncate font-mono text-[0.6875rem] text-text-3">
               {deployment.targetName} · {deployment.runtime} · {deployment.proxy}
             </div>
           </div>
@@ -602,7 +602,7 @@ function StatusBanner({
           </Field>
           {runningStep ? (
             <Field label={t('field.step')}>
-              <span className="text-signal">{runningStep}…</span>
+              <span className="text-accent">{runningStep}…</span>
             </Field>
           ) : null}
           {deployment.url ? (
@@ -611,7 +611,7 @@ function StatusBanner({
                 href={deployment.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+                className="inline-flex items-center gap-1 text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
               >
                 {deployment.url}
                 <ExternalLink className="size-3" />
@@ -648,12 +648,12 @@ function StatusBanner({
       </CardContent>
 
       {deployment.error || rolledBack || (failed && deployment.autoRollback && !deployment.hasPrevious) ? (
-        <div className="flex flex-col gap-2 border-t border-line px-5 py-3">
+        <div className="flex flex-col gap-2 border-t border-border px-5 py-3">
           {deployment.error ? (
             <p
               className={cn(
                 'font-mono text-[0.6875rem] leading-relaxed break-words',
-                rolledBack ? 'text-warn' : 'text-danger',
+                rolledBack ? 'text-warn-text' : 'text-danger-text',
               )}
             >
               {deployment.failedStep ? `${deployment.failedStep} : ` : ''}
@@ -661,14 +661,14 @@ function StatusBanner({
             </p>
           ) : null}
           {rolledBack ? (
-            <p className="text-xs text-warn">
+            <p className="text-xs text-warn-text">
               {deployment.restoredVersion
                 ? t('banner.restored.version', { version: deployment.restoredVersion })
                 : t('banner.restored')}
             </p>
           ) : null}
           {failed && deployment.autoRollback && !deployment.hasPrevious ? (
-            <p className="text-xs text-ink-muted">{t('banner.noFallback')}</p>
+            <p className="text-xs text-text-2">{t('banner.noFallback')}</p>
           ) : null}
         </div>
       ) : null}
@@ -682,14 +682,14 @@ function StatusBanner({
         <div
           className={cn(
             'h-full transition-[width] duration-500 ease-out',
-            running && 'animate-signal-sweep',
+            running && 'animate-sweep',
             failed
               ? 'bg-danger'
               : rolledBack
                 ? 'bg-warn'
                 : deployment.status === 'success'
                   ? 'bg-ok'
-                  : 'bg-[linear-gradient(90deg,var(--signal-edge),var(--signal),var(--signal-edge))]',
+                  : 'bg-[linear-gradient(90deg,var(--accent-line),var(--accent),var(--accent-line))]',
           )}
           style={{ width: `${Math.max(ratio, running ? 4 : 0)}%` }}
         />
@@ -701,8 +701,8 @@ function StatusBanner({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="eyebrow text-ink-faint">{label}</dt>
-      <dd className="font-mono text-xs text-ink-muted">{children}</dd>
+      <dt className="eyebrow text-text-3">{label}</dt>
+      <dd className="font-mono text-xs text-text-2">{children}</dd>
     </div>
   );
 }

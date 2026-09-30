@@ -36,7 +36,7 @@ const OUTCOME_TONE: Record<string, string> = {
   healthy: 'var(--ok)',
   unhealthy: 'var(--warn)',
   unreachable: 'var(--danger)',
-  unknown: 'var(--ink-faint)',
+  unknown: 'var(--text-3)',
 };
 
 /**
@@ -135,7 +135,7 @@ export function OutcomeLegend({ className }: { className?: string }) {
   return (
     <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', className)}>
       {(['healthy', 'unhealthy', 'unreachable'] as const).map((outcome) => (
-        <span key={outcome} className="inline-flex items-center gap-1.5 text-[0.6875rem] text-ink-faint">
+        <span key={outcome} className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-3">
           <span
             aria-hidden
             className="inline-block h-2.5 w-1.5 rounded-[1px]"
@@ -244,7 +244,7 @@ export function LatencySparkline({
           key={run[0]?.point.at ?? 'run'}
           d={run.map((entry, index) => `${index === 0 ? 'M' : 'L'}${entry.x} ${entry.y}`).join(' ')}
           fill="none"
-          stroke="var(--signal)"
+          stroke="var(--accent)"
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -266,7 +266,7 @@ export function LatencySparkline({
           cx={last.x}
           cy={last.y}
           r={2.5}
-          fill="var(--signal)"
+          fill="var(--accent)"
           stroke="var(--surface)"
           strokeWidth={2}
         />
@@ -349,14 +349,14 @@ export function LatencyChart({
               x2={width - 8}
               y1={tick.y}
               y2={tick.y}
-              stroke="var(--line)"
+              stroke="var(--border)"
               strokeWidth={1}
             />
             <text
               x={padLeft - 8}
               y={tick.y + 4}
               textAnchor="end"
-              className="fill-ink-faint text-[10px] [font-variant-numeric:tabular-nums]"
+              className="fill-text-3 text-[10px] [font-variant-numeric:tabular-nums]"
             >
               {tick.value}
             </text>
@@ -371,7 +371,7 @@ export function LatencyChart({
                 .map((entry, index) => `${index === 0 ? 'M' : 'L'}${entry.x} ${entry.y}`)
                 .join(' ')}
               fill="none"
-              stroke="var(--signal)"
+              stroke="var(--accent)"
               strokeWidth={2}
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -396,14 +396,14 @@ export function LatencyChart({
                 x2={active.x}
                 y1={padTop}
                 y2={height - padBottom}
-                stroke="var(--line-strong)"
+                stroke="var(--border-strong)"
                 strokeWidth={1}
               />
               <circle
                 cx={active.x}
                 cy={active.y}
                 r={4}
-                fill="var(--signal)"
+                fill="var(--accent)"
                 stroke="var(--surface)"
                 strokeWidth={2}
               />
@@ -414,7 +414,7 @@ export function LatencyChart({
         <text
           x={padLeft}
           y={height - 6}
-          className="fill-ink-faint text-[10px] [font-variant-numeric:tabular-nums]"
+          className="fill-text-3 text-[10px] [font-variant-numeric:tabular-nums]"
         >
           {points[0] ? formatClock(points[0].at, format) : ''}
         </text>
@@ -422,16 +422,16 @@ export function LatencyChart({
           x={width - 8}
           y={height - 6}
           textAnchor="end"
-          className="fill-ink-faint text-[10px] [font-variant-numeric:tabular-nums]"
+          className="fill-text-3 text-[10px] [font-variant-numeric:tabular-nums]"
         >
           {points.at(-1) ? formatClock(points.at(-1)!.at, format) : ''}
         </text>
       </svg>
 
       {active ? (
-        <div className="pointer-events-none absolute top-0 right-0 rounded-md border border-line bg-surface px-2 py-1 text-[0.6875rem] shadow-raised">
-          <div className="font-mono text-ink">{active.point.latencyMs} ms</div>
-          <div className="text-ink-faint">{formatClock(active.point.at, format)}</div>
+        <div className="pointer-events-none absolute top-0 right-0 rounded-md border border-border bg-surface px-2 py-1 text-[0.6875rem] shadow-sm">
+          <div className="font-mono text-text">{active.point.latencyMs} ms</div>
+          <div className="text-text-3">{formatClock(active.point.at, format)}</div>
         </div>
       ) : null}
     </div>

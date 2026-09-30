@@ -18,3 +18,8 @@ coverage/
 
 # Arbres de travail isolés des agents — jamais versionnés.
 .claude/worktrees/
+
+# Design system : les planches PNG (15 Mo) et le générateur Python restent
+# hors dépôt. Les sources lisibles (canvas/, tokens/, brand/) sont versionnées.
+design/pupitre-design-system/png/
+design/pupitre-design-system/generator/

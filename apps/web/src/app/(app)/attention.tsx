@@ -55,34 +55,34 @@ export async function AttentionPanel({ items }: { items: AttentionItem[] }) {
   return (
     <section
       aria-labelledby="attention-title"
-      className="border-line bg-card shadow-panel relative overflow-hidden rounded-lg border"
+      className="border-border bg-card shadow-xs relative overflow-hidden rounded-lg border"
     >
       <span aria-hidden className={cn('absolute inset-y-0 left-0 w-[3px]', RAIL[worst])} />
 
-      <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-3.5 pr-5 pl-6">
-        <h2 id="attention-title" className="text-ink font-condensed text-[0.9375rem] font-semibold">
+      <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b py-3.5 pr-5 pl-6">
+        <h2 id="attention-title" className="text-text text-[0.9375rem] font-semibold">
           {t('attention.title', { count: sorted.length })}
         </h2>
-        <span className="text-ink-faint text-xs">{t('attention.aside')}</span>
+        <span className="text-text-3 text-xs">{t('attention.aside')}</span>
       </div>
 
-      <ul className="divide-line divide-y">
+      <ul className="divide-border divide-y">
         {sorted.map((item) => (
           <li key={`${item.href}-${item.subject}-${item.detail}`}>
             <Link
               href={item.href}
-              className="hover:bg-surface-2/60 focus-visible:ring-signal group flex items-start gap-3 py-3 pr-5 pl-6 transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:-outline-offset-2"
+              className="hover:bg-surface-2/60 focus-visible:ring-accent group flex items-start gap-3 py-3 pr-5 pl-6 transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:-outline-offset-2"
             >
               <Led tone={TONE[item.severity]} className="mt-1" />
               <span className="min-w-0 flex-1">
-                <span className="text-ink block truncate font-mono text-[0.8125rem]">
+                <span className="text-text block truncate font-mono text-[0.8125rem]">
                   {item.subject}
                 </span>
-                <span className="text-ink-muted block text-[0.8125rem] leading-snug">
+                <span className="text-text-2 block text-[0.8125rem] leading-snug">
                   {item.detail}
                 </span>
               </span>
-              <span className="text-ink-faint group-hover:text-signal shrink-0 self-center text-xs whitespace-nowrap transition-colors">
+              <span className="text-text-3 group-hover:text-accent shrink-0 self-center text-xs whitespace-nowrap transition-colors">
                 {item.action}
               </span>
             </Link>
@@ -102,11 +102,11 @@ export async function AttentionPanel({ items }: { items: AttentionItem[] }) {
 async function AllClear() {
   const t = await getT(dashboard);
   return (
-    <section className="border-line bg-card shadow-panel flex items-center gap-3 rounded-lg border px-5 py-4">
+    <section className="border-border bg-card shadow-xs flex items-center gap-3 rounded-lg border px-5 py-4">
       <Led tone="ok" />
-      <p className="text-ink text-sm">
+      <p className="text-text text-sm">
         {t('attention.clear')}{' '}
-        <span className="text-ink-faint">{t('attention.clear.detail')}</span>
+        <span className="text-text-3">{t('attention.clear.detail')}</span>
       </p>
     </section>
   );
@@ -127,18 +127,18 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="border-line bg-card shadow-panel flex min-w-0 flex-col rounded-lg border">
-      <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-        <h2 className="text-ink font-condensed text-[0.9375rem] font-semibold">{title}</h2>
+    <section className="border-border bg-card shadow-xs flex min-w-0 flex-col rounded-lg border">
+      <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
+        <h2 className="text-text text-[0.9375rem] font-semibold">{title}</h2>
         {href && linkLabel ? (
           <Link
             href={href}
-            className="text-ink-faint hover:text-signal text-xs underline-offset-4 transition-colors hover:underline"
+            className="text-text-3 hover:text-accent text-xs underline-offset-4 transition-colors hover:underline"
           >
             {linkLabel}
           </Link>
         ) : hint ? (
-          <span className="text-ink-faint text-xs">{hint}</span>
+          <span className="text-text-3 text-xs">{hint}</span>
         ) : null}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
@@ -148,5 +148,5 @@ export function Panel({
 
 /** Ligne vide d'un bloc — une invitation, jamais un tiret. */
 export function PanelEmpty({ children }: { children: ReactNode }) {
-  return <p className="text-ink-faint px-5 py-6 text-sm">{children}</p>;
+  return <p className="text-text-3 px-5 py-6 text-sm">{children}</p>;
 }

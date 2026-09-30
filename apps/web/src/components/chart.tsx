@@ -143,7 +143,7 @@ function Plot({
         {ticks.map((tick) => (
           <span
             key={tick.ratio}
-            className="text-ink-faint absolute right-2 font-mono text-[0.625rem] tabular-nums"
+            className="text-text-3 absolute right-2 font-mono text-[0.625rem] tabular-nums"
             style={{ top: padTop + usable * (1 - tick.ratio), transform: 'translateY(-50%)' }}
           >
             {tick.label}
@@ -174,7 +174,7 @@ function Grid({
           x2={VIEW}
           y1={padTop + usable * (1 - tick.ratio)}
           y2={padTop + usable * (1 - tick.ratio)}
-          stroke="var(--line)"
+          stroke="var(--border)"
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
         />
@@ -283,7 +283,7 @@ export async function RatioBars({
                 y={padTop + usable - 2}
                 width={barWidth}
                 height={2}
-                fill="var(--ink-faint)"
+                fill="var(--text-3)"
                 opacity={0.35}
               >
                 <title>{t('chart.bars.empty', { clock: clock(bucket.at, format) })}</title>
@@ -341,7 +341,7 @@ export async function SeriesLine({
   label,
   max,
   unit = '',
-  tone = 'var(--signal)',
+  tone = 'var(--accent)',
   format,
 }: {
   buckets: readonly SeriesBucket[];
@@ -410,7 +410,7 @@ export async function SeriesLine({
               y={padTop}
               width={band}
               height={usable}
-              fill="var(--ink-faint)"
+              fill="var(--text-3)"
               opacity={0.09}
             >
               <title>{t('chart.series.void', { clock: clock(bucket.at, format) })}</title>
@@ -486,8 +486,8 @@ const EVENT_COLOR: Record<TimelineEvent['tone'], string> = {
   ok: 'var(--ok)',
   warn: 'var(--warn)',
   danger: 'var(--danger)',
-  signal: 'var(--signal)',
-  idle: 'var(--ink-faint)',
+  signal: 'var(--accent)',
+  idle: 'var(--text-3)',
 };
 
 /** Du plus anodin au plus grave — sert à colorer un amas par son pire élément. */
@@ -563,7 +563,7 @@ export async function EventRail({
         role="img"
         aria-label={t('chart.rail.summary', { label, count: events.length })}
       >
-        <span aria-hidden className="bg-line absolute inset-x-0 top-1/2 h-px" />
+        <span aria-hidden className="bg-border absolute inset-x-0 top-1/2 h-px" />
         {clusters.map((cluster) => {
           const worst = cluster.members.reduce(
             (acc, member) => (TONE_RANK[member.tone] > TONE_RANK[acc] ? member.tone : acc),
@@ -642,7 +642,7 @@ export async function TimeAxis({
         {marks.map((mark, index) => (
           <span
             key={mark.at}
-            className="text-ink-faint absolute top-0 font-mono text-[0.625rem] whitespace-nowrap"
+            className="text-text-3 absolute top-0 font-mono text-[0.625rem] whitespace-nowrap"
             style={{
               left: `${mark.ratio * 100}%`,
               transform:
@@ -694,9 +694,9 @@ export async function NotEnoughHistory({
 }) {
   const t = await getT(chrome);
   return (
-    <div className="border-line bg-surface-2/40 flex flex-col gap-1 rounded-md border border-dashed px-4 py-3">
-      <p className="text-ink text-[0.8125rem]">{t('chart.history.title')}</p>
-      <p className="text-ink-faint text-xs">
+    <div className="border-border bg-surface-2/40 flex flex-col gap-1 rounded-md border border-dashed px-4 py-3">
+      <p className="text-text text-[0.8125rem]">{t('chart.history.title')}</p>
+      <p className="text-text-3 text-xs">
         {covered === 0
           ? t('chart.history.nothing', { nothing })
           : t('chart.history.covered', { count: covered, buckets }) +
@@ -747,7 +747,7 @@ export async function CoverageNote({
     parts.push(t('chart.coverage.thin', { count: thin, min: THIN_SAMPLES }));
   }
   if (covered < buckets) parts.push(t('chart.coverage.missing', { count: buckets - covered }));
-  return <p className={cn('text-ink-faint text-[0.6875rem]', className)}>{parts.join(' · ')}</p>;
+  return <p className={cn('text-text-3 text-[0.6875rem]', className)}>{parts.join(' · ')}</p>;
 }
 
 /** Légende nommant les teintes. La couleur seule ne porte jamais l'information. */
@@ -763,7 +763,7 @@ export function ChartLegend({
       {items.map((item) => (
         <span
           key={item.label}
-          className="text-ink-faint inline-flex items-center gap-1.5 text-[0.6875rem]"
+          className="text-text-3 inline-flex items-center gap-1.5 text-[0.6875rem]"
         >
           <span
             aria-hidden
@@ -793,7 +793,7 @@ export function ChartLegend({
 export async function MiniGauge({
   value,
   label,
-  tone = 'var(--signal)',
+  tone = 'var(--accent)',
 }: {
   value: number | null;
   label: string;
@@ -806,7 +806,7 @@ export async function MiniGauge({
       : t('chart.gauge.percent', { value: Math.round(value) });
   return (
     <span className="flex min-w-0 items-center gap-1.5" title={`${label} — ${measure}`}>
-      <span className="eyebrow text-ink-faint shrink-0">{label}</span>
+      <span className="eyebrow text-text-3 shrink-0">{label}</span>
       <span className="bg-surface-3 relative h-1.5 w-9 shrink-0 overflow-hidden rounded-full">
         {value === null ? null : (
           <span
@@ -815,7 +815,7 @@ export async function MiniGauge({
           />
         )}
       </span>
-      <span className="text-ink-muted shrink-0 font-mono text-[0.6875rem] tabular-nums">
+      <span className="text-text-2 shrink-0 font-mono text-[0.6875rem] tabular-nums">
         {value === null ? '—' : `${Math.round(value)}%`}
       </span>
     </span>
@@ -833,7 +833,7 @@ export function MicroSpark({
   values,
   width = 56,
   height = 16,
-  tone = 'var(--signal)',
+  tone = 'var(--accent)',
   max,
 }: {
   values: readonly (number | null)[];

@@ -69,8 +69,8 @@ function Gauge({ ratio, tone }: { ratio: number; tone: Tone }) {
     ok: 'bg-ok',
     warn: 'bg-warn',
     danger: 'bg-danger',
-    signal: 'bg-signal',
-    idle: 'bg-ink-faint',
+    signal: 'bg-accent',
+    idle: 'bg-text-3',
   };
 
   return (
@@ -99,20 +99,20 @@ function Metric({
 }) {
   return (
     <div className="flex min-w-0 flex-col justify-start px-3 py-2">
-      <span className="eyebrow flex items-center gap-1.5 truncate text-ink-faint">
+      <span className="eyebrow flex items-center gap-1.5 truncate text-text-3">
         <Led tone={tone} className="size-2" />
         {label}
       </span>
       <span
         className={cn(
           'mt-1 truncate font-mono text-[0.9375rem] leading-none font-medium tabular-nums',
-          unknown ? 'text-ink-faint' : 'text-ink',
+          unknown ? 'text-text-3' : 'text-text',
         )}
       >
         {value}
       </span>
       {ratio === null ? null : <Gauge ratio={ratio} tone={tone} />}
-      <span className="mt-1 truncate text-[0.6875rem] leading-tight text-ink-faint">{hint}</span>
+      <span className="mt-1 truncate text-[0.6875rem] leading-tight text-text-3">{hint}</span>
     </div>
   );
 }
@@ -120,7 +120,7 @@ function Metric({
 /** Quatre cases de la même taille, quelle que soit la métrique manquante. */
 function Strip({ children }: { children: ReactNode }) {
   return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1 divide-line sm:grid-cols-4 sm:divide-x">
+    <div className="grid grid-cols-2 gap-x-2 gap-y-1 divide-border sm:grid-cols-4 sm:divide-x">
       {children}
     </div>
   );
@@ -128,7 +128,7 @@ function Strip({ children }: { children: ReactNode }) {
 
 function Placeholder({ message, tone }: { message: string; tone: Tone }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-3 text-[0.75rem] text-ink-muted">
+    <div className="flex items-center gap-2 px-3 py-3 text-[0.75rem] text-text-2">
       <Led tone={tone} pulse={tone === 'signal'} />
       <span className="min-w-0 truncate">{message}</span>
     </div>

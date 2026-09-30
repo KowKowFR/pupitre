@@ -209,7 +209,7 @@ export function JobsPanel({
 
       {canManage ? (
         <form
-          className="flex flex-col gap-4 rounded-lg border border-line bg-card p-4 shadow-panel"
+          className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 shadow-xs"
           onSubmit={(event) => {
             event.preventDefault();
             void call(
@@ -248,7 +248,7 @@ export function JobsPanel({
                   </option>
                 ))}
               </Select>
-              <p className="text-xs text-ink-muted">
+              <p className="text-xs text-text-2">
                 {types.find((entry) => entry.type === type)?.description}
               </p>
             </div>
@@ -261,7 +261,7 @@ export function JobsPanel({
                 onChange={(event) => setKey(event.target.value)}
                 className="font-mono text-xs md:text-xs"
               />
-              <p className="text-xs text-ink-muted">{t('create.key.hint')}</p>
+              <p className="text-xs text-text-2">{t('create.key.hint')}</p>
             </div>
           </div>
 
@@ -303,16 +303,16 @@ export function JobsPanel({
               <Fragment key={job.id}>
                 <TableRow>
                   <TableCell>
-                    <div className="text-[0.8125rem] font-medium text-ink">{job.label}</div>
-                    <div className="font-mono text-[0.6875rem] text-ink-faint">{job.key}</div>
-                    <div className="mt-1 max-w-md text-xs text-ink-muted">{job.neverDoes}</div>
+                    <div className="text-[0.8125rem] font-medium text-text">{job.label}</div>
+                    <div className="font-mono text-[0.6875rem] text-text-3">{job.key}</div>
+                    <div className="mt-1 max-w-md text-xs text-text-2">{job.neverDoes}</div>
                   </TableCell>
                   <TableCell>
-                    <div className="text-[0.8125rem] text-ink">{job.cronDescription}</div>
-                    <code className="font-mono text-[0.6875rem] text-ink-faint">{job.cron}</code>
-                    <div className="text-[0.6875rem] text-ink-faint">{job.timeZone}</div>
+                    <div className="text-[0.8125rem] text-text">{job.cronDescription}</div>
+                    <code className="font-mono text-[0.6875rem] text-text-3">{job.cron}</code>
+                    <div className="text-[0.6875rem] text-text-3">{job.timeZone}</div>
                     {job.schedule === null ? (
-                      <div className="text-[0.6875rem] text-ink-faint">
+                      <div className="text-[0.6875rem] text-text-3">
                         {t('row.noSimpleForm')}
                       </div>
                     ) : null}
@@ -320,13 +320,13 @@ export function JobsPanel({
                     job.installed &&
                     job.schedulerTimeZone !== null &&
                     job.schedulerTimeZone !== job.timeZone ? (
-                      <div className="text-[0.6875rem] text-warn">
+                      <div className="text-[0.6875rem] text-warn-text">
                         {t('row.zoneDrift', { zone: job.schedulerTimeZone })}
                       </div>
                     ) : null}
                   </TableCell>
                   <TableCell>
-                    <div className="font-mono text-xs text-ink-muted tabular-nums">
+                    <div className="font-mono text-xs text-text-2 tabular-nums">
                       {formatDate(job.lastRunAt, format, tc('none'))}
                     </div>
                     {job.lastRun ? (
@@ -336,12 +336,12 @@ export function JobsPanel({
                       </Badge>
                     ) : null}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-ink-muted tabular-nums">
+                  <TableCell className="font-mono text-xs text-text-2 tabular-nums">
                     {job.enabled
                       ? formatDate(job.nextRunAt, format, tc('none'), job.timeZone)
                       : tc('none')}
                     {job.enabled && job.nextRunAt ? (
-                      <div className="text-[0.6875rem] text-ink-faint">
+                      <div className="text-[0.6875rem] text-text-3">
                         {job.timeZone}
                         {' · '}
                         {t('row.yourClock', {
@@ -355,7 +355,7 @@ export function JobsPanel({
                       {job.enabled ? t('row.active') : t('row.disabled')}
                     </Badge>
                     {job.enabled && !job.installed ? (
-                      <div className="mt-1 text-xs text-warn">
+                      <div className="mt-1 text-xs text-warn-text">
                         {t('row.missingFromBullmq')}
                       </div>
                     ) : null}
@@ -417,7 +417,7 @@ export function JobsPanel({
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-danger hover:bg-danger-soft/60 hover:text-danger"
+                          className="text-danger-text hover:bg-danger-soft/60 hover:text-danger-text"
                           disabled={busy !== null}
                           onClick={() =>
                             void call(
@@ -439,7 +439,7 @@ export function JobsPanel({
                   <TableRow>
                     <TableCell colSpan={6} className="bg-surface-2/60">
                       {job.runs.length === 0 ? (
-                        <p className="text-xs text-ink-muted">
+                        <p className="text-xs text-text-2">
                           {t('history.empty')}
                         </p>
                       ) : (
@@ -449,17 +449,17 @@ export function JobsPanel({
                               <Badge variant={STATUS_VARIANT[run.status] ?? 'outline'}>
                                 {run.status}
                               </Badge>
-                              <span className="font-mono text-ink-muted tabular-nums">
+                              <span className="font-mono text-text-2 tabular-nums">
                                 {formatDate(run.startedAt, format, tc('none'))}
                               </span>
-                              <span className="text-ink-faint">
+                              <span className="text-text-3">
                                 {formatDuration(run.durationMs, tc('none'))}
                               </span>
                               {run.manual ? <span>{t('history.manual')}</span> : null}
                               <span
                                 className={cn(
-                                  'max-w-2xl truncate font-mono text-ink-faint',
-                                  run.error && 'text-danger',
+                                  'max-w-2xl truncate font-mono text-text-3',
+                                  run.error && 'text-danger-text',
                                 )}
                               >
                                 {run.error ?? summarize(run.summary)}
@@ -550,7 +550,7 @@ function CadenceDialog({
 
         <DialogBody className="space-y-3">
           {job.schedule === null ? (
-            <p className="text-xs text-ink-faint">{t('dialog.expertOnly')}</p>
+            <p className="text-xs text-text-3">{t('dialog.expertOnly')}</p>
           ) : null}
 
           <ScheduleField

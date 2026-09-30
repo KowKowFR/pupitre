@@ -183,7 +183,7 @@ export function DeploymentsTable({
 
         {canPurge ? (
           <div className="flex min-h-8 items-center justify-between gap-3">
-            <span className="font-mono text-xs text-ink-faint tabular-nums">
+            <span className="font-mono text-xs text-text-3 tabular-nums">
               {selected.size === 0
                 ? t('table.selectHint')
                 : t('table.selected', { count: selected.size })}
@@ -257,13 +257,13 @@ export function DeploymentsTable({
                 <TableCell>
                   <Link
                     href={`/deployments/${item.id}`}
-                    className="text-[0.8125rem] font-medium text-ink underline decoration-transparent underline-offset-4 transition-colors hover:decoration-signal-edge"
+                    className="text-[0.8125rem] font-medium text-text underline decoration-transparent underline-offset-4 transition-colors hover:decoration-accent-line"
                   >
                     {item.applicationSlug}
                   </Link>
-                  <div className="font-mono text-[0.6875rem] text-ink-faint">v{item.version}</div>
+                  <div className="font-mono text-[0.6875rem] text-text-3">v{item.version}</div>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-ink-muted">{item.targetName}</TableCell>
+                <TableCell className="font-mono text-xs text-text-2">{item.targetName}</TableCell>
                 <TableCell>
                   <CodeBadge>{item.runtime}</CodeBadge>
                 </TableCell>
@@ -273,13 +273,13 @@ export function DeploymentsTable({
                 <TableCell>
                   <DeploymentStatusBadge status={item.status} />
                 </TableCell>
-                <TableCell className="font-mono text-xs text-ink-muted tabular-nums">
+                <TableCell className="font-mono text-xs text-text-2 tabular-nums">
                   {formatDuration(item.startedAt, item.finishedAt)}
                 </TableCell>
-                <TableCell className="font-mono text-xs whitespace-nowrap text-ink-muted tabular-nums">
+                <TableCell className="font-mono text-xs whitespace-nowrap text-text-2 tabular-nums">
                   {formatDate(item.createdAt, format)}
                 </TableCell>
-                <TableCell className="text-xs text-ink-faint">
+                <TableCell className="text-xs text-text-3">
                   {item.triggeredByEmail ?? tc('none')}
                 </TableCell>
               </TableRow>
@@ -291,14 +291,14 @@ export function DeploymentsTable({
 
       {page.totalPages > 1 ? (
         <CardFooter className="flex items-center justify-between text-xs">
-          <span className="font-mono text-ink-faint tabular-nums">
+          <span className="font-mono text-text-3 tabular-nums">
             {tc('page.position', { page: page.page, total: page.totalPages })}
           </span>
           <div className="flex gap-4">
             {page.page > 1 ? (
               <Link
                 href={`/deployments?page=${page.page - 1}&pageSize=${page.pageSize}`}
-                className="text-ink-muted transition-colors hover:text-signal"
+                className="text-text-2 transition-colors hover:text-accent"
               >
                 {tc('page.previous')}
               </Link>
@@ -306,7 +306,7 @@ export function DeploymentsTable({
             {page.page < page.totalPages ? (
               <Link
                 href={`/deployments?page=${page.page + 1}&pageSize=${page.pageSize}`}
-                className="text-ink-muted transition-colors hover:text-signal"
+                className="text-text-2 transition-colors hover:text-accent"
               >
                 {tc('page.next')}
               </Link>
@@ -361,10 +361,10 @@ function PurgeDialog({
 
         <DialogBody className="space-y-3 text-[0.8125rem]">
           {preview === null ? (
-            <p className="text-ink-muted">{t('purge.computing')}</p>
+            <p className="text-text-2">{t('purge.computing')}</p>
           ) : (
             <>
-              <p className="text-ink">
+              <p className="text-text">
                 <strong className="font-mono tabular-nums">{preview.purgedCount}</strong>{' '}
                 {t('purge.erased', {
                   count: preview.purgedCount,
@@ -417,7 +417,7 @@ function PurgeDialog({
                 <Alert variant="warn">{t('purge.truncated', { limit: preview.limit })}</Alert>
               ) : null}
 
-              <p className="text-ink-faint">{t('purge.auditNote')}</p>
+              <p className="text-text-3">{t('purge.auditNote')}</p>
             </>
           )}
         </DialogBody>
@@ -471,7 +471,7 @@ function ScanCell({ scan }: { scan: DeploymentRow['scan'] }) {
   const tc = useT(common);
 
   if (!scan || scan.scanners.length === 0) {
-    return <span className="text-xs text-ink-faint">{tc('none')}</span>;
+    return <span className="text-xs text-text-3">{tc('none')}</span>;
   }
 
   const worst = SEVERITY_ORDER.find((severity) => scan.counts[severity] > 0) ?? null;
@@ -489,7 +489,7 @@ function ScanCell({ scan }: { scan: DeploymentRow['scan'] }) {
         <CodeBadge key={key}>{SCANNERS[key].label}</CodeBadge>
       ))}
       {worst ? (
-        <span className="font-mono text-[0.6875rem] text-ink-faint tabular-nums">
+        <span className="font-mono text-[0.6875rem] text-text-3 tabular-nums">
           {worst} ×{scan.counts[worst]}
         </span>
       ) : null}

@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { NavLink } from '@/components/nav-link';
 import { getT } from '@/i18n/server';
 import { chrome } from '@/i18n/messages/chrome';
+import { BrandMark } from '@/components/brand-mark';
 
 type Props = {
   email: string;
@@ -105,13 +106,13 @@ export async function AppHeader({
   return (
     <>
       {/* Rail — écrans larges */}
-      <aside className="sticky top-0 hidden h-dvh flex-col gap-6 overflow-y-auto border-r border-line bg-ground-deep px-3 py-5 lg:flex">
+      <aside className="sticky top-0 hidden h-dvh flex-col gap-6 overflow-y-auto border-r border-border bg-bg-subtle px-3 py-5 lg:flex">
         <Wordmark name={instanceName} tagline={instanceTagline} />
 
         <nav className="flex flex-1 flex-col gap-5" aria-label={t('nav.landmark')}>
           {groups.map((group) => (
             <div key={group.key} className="flex flex-col gap-1">
-              <span className="eyebrow px-3 pb-1 text-ink-faint">{group.label}</span>
+              <span className="eyebrow px-3 pb-1 text-text-3">{group.label}</span>
               {group.items.map((item) => (
                 <NavLink key={item.href} href={item.href} icon={item.icon}>
                   {item.label}
@@ -131,22 +132,22 @@ export async function AppHeader({
       </aside>
 
       {/* Barre haute — écrans étroits */}
-      <header className="sticky top-0 z-20 border-b border-line bg-ground/85 backdrop-blur-md lg:hidden">
+      <header className="sticky top-0 z-20 border-b border-border bg-bg/85 backdrop-blur-md lg:hidden">
         <div className="flex items-center gap-4 px-4 py-3">
           <Wordmark name={instanceName} tagline={instanceTagline} compact />
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden font-mono text-xs text-ink-muted sm:inline">{email}</span>
+            <span className="hidden font-mono text-xs text-text-2 sm:inline">{email}</span>
             <Link
               href="/account"
               aria-label={t('nav.account')}
-              className="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
+              className="rounded-md p-1.5 text-text-3 transition-colors hover:bg-surface-2 hover:text-text"
             >
               <ShieldCheck className="size-4" />
             </Link>
             <Link
               href="/logout"
               aria-label={t('nav.signOut')}
-              className="rounded-md p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
+              className="rounded-md p-1.5 text-text-3 transition-colors hover:bg-surface-2 hover:text-text"
             >
               <LogOut className="size-4" />
             </Link>
@@ -186,18 +187,13 @@ function Wordmark({
       href="/"
       className="flex shrink-0 items-center gap-2.5 rounded-md px-1 py-1 transition-opacity hover:opacity-80"
     >
-      <span
-        aria-hidden
-        className="flex size-7 shrink-0 items-center justify-center rounded-[5px] bg-signal shadow-panel"
-      >
-        <span className="size-2 rounded-[1px] bg-signal-ink" />
-      </span>
+      <BrandMark size={28} />
       <span className="flex flex-col leading-none">
-        <span className="font-condensed text-[0.9375rem] font-semibold tracking-[0.01em] text-ink">
+        <span className="text-[0.9375rem] font-semibold tracking-[0.01em] text-text">
           {name}
         </span>
         {compact || tagline === '' ? null : (
-          <span className="eyebrow pt-1 text-ink-faint">{tagline}</span>
+          <span className="eyebrow pt-1 text-text-3">{tagline}</span>
         )}
       </span>
     </Link>
@@ -219,10 +215,10 @@ function Operator({
   signOutLabel: string;
 }) {
   return (
-    <div className="flex shrink-0 flex-col gap-2 rounded-lg border border-line bg-surface p-3 shadow-panel">
+    <div className="flex shrink-0 flex-col gap-2 rounded-lg border border-border bg-surface p-3 shadow-xs">
       <div className="min-w-0">
-        <div className="truncate text-[0.8125rem] font-medium text-ink">{name}</div>
-        <div className="truncate font-mono text-[0.6875rem] text-ink-faint">{email}</div>
+        <div className="truncate text-[0.8125rem] font-medium text-text">{name}</div>
+        <div className="truncate font-mono text-[0.6875rem] text-text-3">{email}</div>
       </div>
       {roles.length > 0 ? (
         <div className="flex flex-wrap gap-1">
@@ -238,14 +234,14 @@ function Operator({
             l'identité de l'opérateur, pas dans la navigation métier. */}
         <Link
           href="/account"
-          className="flex items-center gap-1.5 text-xs text-ink-muted transition-colors hover:text-ink"
+          className="flex items-center gap-1.5 text-xs text-text-2 transition-colors hover:text-text"
         >
           <ShieldCheck className="size-3.5" />
           {accountLabel}
         </Link>
         <Link
           href="/logout"
-          className="flex items-center gap-1.5 text-xs text-ink-muted transition-colors hover:text-ink"
+          className="flex items-center gap-1.5 text-xs text-text-2 transition-colors hover:text-text"
         >
           <LogOut className="size-3.5" />
           {signOutLabel}

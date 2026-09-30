@@ -196,7 +196,7 @@ export function MonitorsPanel({
               onRemove={() => void remove(monitor)}
             />
           ))}
-          <p className="text-[0.6875rem] text-ink-faint">
+          <p className="text-[0.6875rem] text-text-3">
             {t('retention.note', { count: retentionDays })}
           </p>
         </div>
@@ -312,9 +312,9 @@ function MonitorCard({
           <div className="space-y-1">
             <HealthDot health={monitor.status} label={t(`health.${monitor.status}`)} />
             {monitor.neverRan ? (
-              <p className="text-[0.6875rem] text-ink-faint">{t('card.neverRan')}</p>
+              <p className="text-[0.6875rem] text-text-3">{t('card.neverRan')}</p>
             ) : (
-              <p className="text-[0.6875rem] text-ink-faint">
+              <p className="text-[0.6875rem] text-text-3">
                 {t('card.measured', {
                   since: formatSince(monitor.lastCheckedAt, tSince),
                   cadence: formatCadence(monitor.intervalSeconds, language),
@@ -338,12 +338,12 @@ function MonitorCard({
 
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs">
-              <span className="text-ink">
-                <span className="eyebrow text-ink-faint">{t('card.window.day')} </span>
+              <span className="text-text">
+                <span className="eyebrow text-text-3">{t('card.window.day')} </span>
                 {monitor.uptime24h.label}
               </span>
-              <span className="text-ink-muted">
-                <span className="eyebrow text-ink-faint">{t('card.window.week')} </span>
+              <span className="text-text-2">
+                <span className="eyebrow text-text-3">{t('card.window.week')} </span>
                 {monitor.uptime7d.label}
               </span>
             </div>
@@ -353,14 +353,14 @@ function MonitorCard({
 
           <div className="flex flex-col items-end justify-center gap-1">
             <LatencySparkline points={monitor.recent} />
-            <span className="font-mono text-[0.6875rem] text-ink-muted">
+            <span className="font-mono text-[0.6875rem] text-text-2">
               {monitor.lastLatencyMs === null ? tc('none') : `${monitor.lastLatencyMs} ms`}
             </span>
           </div>
         </div>
 
         {monitor.lastDetail ? (
-          <p className="font-mono text-[0.6875rem] break-all text-ink-muted">
+          <p className="font-mono text-[0.6875rem] break-all text-text-2">
             {monitor.lastDetail}
           </p>
         ) : null}
@@ -561,7 +561,7 @@ function CreateMonitor({
                     ))}
                   </Select>
                   {definition ? (
-                    <p className="text-[0.6875rem] text-ink-faint">
+                    <p className="text-[0.6875rem] text-text-3">
                       {t('create.interval.floor', {
                         cadence: formatCadence(definition.minIntervalSeconds, language),
                       })}
@@ -579,7 +579,7 @@ function CreateMonitor({
                     value={failureThreshold}
                     onChange={(event) => setFailureThreshold(Number(event.target.value))}
                   />
-                  <p className="text-[0.6875rem] text-ink-faint">{t('create.failure.hint')}</p>
+                  <p className="text-[0.6875rem] text-text-3">{t('create.failure.hint')}</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -592,7 +592,7 @@ function CreateMonitor({
                     value={recoveryThreshold}
                     onChange={(event) => setRecoveryThreshold(Number(event.target.value))}
                   />
-                  <p className="text-[0.6875rem] text-ink-faint">{t('create.recovery.hint')}</p>
+                  <p className="text-[0.6875rem] text-text-3">{t('create.recovery.hint')}</p>
                 </div>
               </div>
 
@@ -605,7 +605,7 @@ function CreateMonitor({
                   placeholder={t('create.webhook.placeholder')}
                   onChange={(event) => setWebhookUrl(event.target.value)}
                 />
-                <p className="text-[0.6875rem] text-ink-faint">
+                <p className="text-[0.6875rem] text-text-3">
                   {t('create.webhook.payload.a')}
                   <strong>{t('create.webhook.payload.and')}</strong>
                   {t('create.webhook.payload.b')}
@@ -620,7 +620,7 @@ function CreateMonitor({
                   arrive à temps : sinon l'opérateur découvre le doublon en le
                   recevant, et conclut à un bug.
                 */}
-                <p className="text-[0.6875rem] text-ink-faint">
+                <p className="text-[0.6875rem] text-text-3">
                   {t('create.webhook.scope.a')}
                   <strong>{t('create.webhook.scope.only')}</strong>
                   {t('create.webhook.scope.b')}

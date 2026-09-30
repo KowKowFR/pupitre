@@ -24,12 +24,12 @@ import { cn } from '@/lib/utils';
  * La teinte seule ne suffirait pas — un violet reste une couleur vive posée à
  * côté d'un état. Les deux objets sont donc de familles différentes :
  *
- * - une pastille d'**état** a le *texte* coloré (`text-ok`, `text-danger`) ;
+ * - une pastille d'**état** a le *texte* coloré (`text-ok-text`, `text-danger-text`) ;
  * - une pastille d'**étiquette** a le texte en encre neutre, et la couleur
  *   n'occupe que le fond, le liseré et un point de 5 px.
  *
  * On peut poser les deux côte à côte sans que l'œil les mélange. Bénéfice
- * secondaire : le texte étant toujours en `--ink`, sa lisibilité est acquise
+ * secondaire : le texte étant toujours en `--text`, sa lisibilité est acquise
  * dans les deux thèmes sans calcul de contraste par teinte.
  */
 
@@ -77,8 +77,8 @@ function ChipContent({ labelKey, value }: ChipContentProps) {
     <>
       <span aria-hidden className="tag-chip-dot size-[5px] shrink-0 rounded-full" />
       <span className="truncate">
-        <span className="text-ink-muted">{labelKey}</span>
-        <span className="text-ink-faint">=</span>
+        <span className="text-text-2">{labelKey}</span>
+        <span className="text-text-3">=</span>
         <span className="font-medium">{value}</span>
       </span>
     </>
@@ -138,7 +138,7 @@ export function TargetLabelChip({
       style={style}
     >
       <ChipContent labelKey={labelKey} value={value} />
-      {active ? <span className="text-ink-muted">✕</span> : null}
+      {active ? <span className="text-text-2">✕</span> : null}
     </button>
   );
 }
@@ -204,7 +204,7 @@ export function TargetLabelList({
       })}
       {hidden > 0 ? (
         <span
-          className="font-mono text-[0.6875rem] leading-4 text-ink-faint"
+          className="font-mono text-[0.6875rem] leading-4 text-text-3"
           // Le survol donne le détail : masquer n'est acceptable que si
           // l'information reste atteignable sans changer de page.
           title={entries

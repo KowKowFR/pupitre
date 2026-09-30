@@ -4,6 +4,7 @@ import { getAppSettings } from '@pupitre/db';
 import { getT } from '@/i18n/server';
 import { onboarding } from '@/i18n/messages/onboarding';
 import { currentAuth } from '@/lib/page-auth';
+import { BrandMark } from '@/components/brand-mark';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,19 +33,14 @@ export default async function OnboardingLayout({ children }: { children: ReactNo
 
   return (
     <div className="bg-canvas min-h-dvh">
-      <header className="border-line border-b">
+      <header className="border-border border-b">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-2.5 px-4 py-4 sm:px-6">
-          <span
-            aria-hidden
-            className="bg-signal shadow-panel flex size-7 shrink-0 items-center justify-center rounded-[5px]"
-          >
-            <span className="bg-signal-ink size-2 rounded-[1px]" />
-          </span>
+          <BrandMark size={28} />
           <span className="flex flex-col leading-none">
-            <span className="font-condensed text-ink text-[0.9375rem] font-semibold tracking-[0.01em]">
+            <span className="text-text text-[0.9375rem] font-semibold tracking-[0.01em]">
               {settings.instanceName}
             </span>
-            <span className="eyebrow text-ink-faint pt-1">{t('shell.eyebrow')}</span>
+            <span className="eyebrow text-text-3 pt-1">{t('shell.eyebrow')}</span>
           </span>
         </div>
       </header>

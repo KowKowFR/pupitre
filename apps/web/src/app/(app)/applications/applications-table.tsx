@@ -116,9 +116,9 @@ export function ApplicationsTable({
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
         {canDeploy ? (
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-line bg-surface-2/50 px-3 py-2.5">
-            <span className="eyebrow text-ink-faint">{t('lifecycle.title')}</span>
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-border bg-surface-2/50 px-3 py-2.5">
+            <span className="eyebrow text-text-3">{t('lifecycle.title')}</span>
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-text">
               <input
                 type="checkbox"
                 name="auto-rollback"
@@ -127,10 +127,10 @@ export function ApplicationsTable({
               />
               {t('lifecycle.autoRollback')}
             </label>
-            <span className="text-xs text-ink-faint">
+            <span className="text-xs text-text-3">
               {autoRollback ? t('lifecycle.autoRollback.on') : t('lifecycle.autoRollback.off')}
             </span>
-            <span className="w-full text-xs text-ink-faint">{t('lifecycle.note')}</span>
+            <span className="w-full text-xs text-text-3">{t('lifecycle.note')}</span>
           </div>
         ) : null}
 
@@ -149,11 +149,11 @@ export function ApplicationsTable({
                 <TableCell>
                   <Link
                     href={`/applications/${application.id}`}
-                    className="text-[0.8125rem] font-medium text-ink underline decoration-transparent underline-offset-4 transition-colors hover:decoration-signal-edge"
+                    className="text-[0.8125rem] font-medium text-text underline decoration-transparent underline-offset-4 transition-colors hover:decoration-accent-line"
                   >
                     {application.slug}
                   </Link>
-                  <div className="font-mono text-[0.6875rem] text-ink-faint">
+                  <div className="font-mono text-[0.6875rem] text-text-3">
                     v{application.version}
                   </div>
                 </TableCell>
@@ -170,9 +170,9 @@ export function ApplicationsTable({
                     ))}
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs text-ink-muted">
+                <TableCell className="font-mono text-xs text-text-2">
                   {application.ingressHost ?? (
-                    <span className="text-ink-faint">{t('exposure.allocatedPort')}</span>
+                    <span className="text-text-3">{t('exposure.allocatedPort')}</span>
                   )}
                 </TableCell>
                 <TableActions className="space-x-2 whitespace-nowrap">
@@ -220,7 +220,7 @@ export function ApplicationsTable({
         </Table>
 
         {canDeploy && targets.length === 0 ? (
-          <p className="text-xs text-warn">
+          <p className="text-xs text-warn-text">
             {t('warn.noDockerTarget.before')}
             <code className="font-mono">/targets</code>
             {t('warn.noDockerTarget.after')}

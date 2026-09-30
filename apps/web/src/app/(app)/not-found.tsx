@@ -24,10 +24,10 @@ export default async function AppNotFound() {
       />
       <Card>
         <CardContent className="space-y-3">
-          <p className="text-[0.8125rem] text-ink-muted">{t('appNotFound.body')}</p>
+          <p className="text-[0.8125rem] text-text-2">{t('appNotFound.body')}</p>
           <Link
             href="/"
-            className="inline-block text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+            className="inline-block text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
           >
             {t('link.backToDashboard')}
           </Link>

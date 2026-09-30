@@ -87,8 +87,8 @@ export function StepIcon({ status, className }: { status: StepStatus; className?
   if (status === 'running') {
     return (
       <span aria-label={t('step.running')} className={cn(base, 'relative', className)}>
-        <span className="absolute inset-0 rounded-full border-2 border-signal/25" />
-        <span className="absolute inset-0 animate-spin rounded-full border-2 border-signal border-t-transparent border-r-transparent" />
+        <span className="absolute inset-0 rounded-full border-2 border-accent/25" />
+        <span className="absolute inset-0 animate-spin rounded-full border-2 border-accent border-t-transparent border-r-transparent" />
       </span>
     );
   }
@@ -113,7 +113,7 @@ export function StepIcon({ status, className }: { status: StepStatus; className?
     return (
       <span
         aria-label={t('step.skipped')}
-        className={cn(base, 'border border-dashed border-line-strong text-ink-faint', className)}
+        className={cn(base, 'border border-dashed border-border-strong text-text-3', className)}
       >
         <Minus className="size-3" strokeWidth={3} />
       </span>
@@ -123,7 +123,7 @@ export function StepIcon({ status, className }: { status: StepStatus; className?
   return (
     <span
       aria-label={t('step.pending')}
-      className={cn(base, 'border-2 border-line-strong bg-transparent', className)}
+      className={cn(base, 'border-2 border-border-strong bg-transparent', className)}
     />
   );
 }

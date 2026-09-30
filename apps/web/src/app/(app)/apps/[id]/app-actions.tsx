@@ -329,7 +329,7 @@ export function AppActions({
         {visible
           .filter((gesture) => gesture.disabledReason !== null)
           .map((gesture) => (
-            <p key={gesture.key} className="text-[0.8125rem] text-ink-muted">
+            <p key={gesture.key} className="text-[0.8125rem] text-text-2">
               <span className="font-medium">{gesture.label}</span> — {gesture.disabledReason}
             </p>
           ))}

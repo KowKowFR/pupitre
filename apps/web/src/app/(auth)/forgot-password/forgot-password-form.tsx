@@ -59,7 +59,7 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <Card className="shadow-raised">
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">{t('forgot.sent.title')}</CardTitle>
           <CardDescription>{t('forgot.sent.description')}</CardDescription>
@@ -72,7 +72,7 @@ export function ForgotPasswordForm() {
           )}
           <Link
             href="/login"
-            className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+            className="text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
           >
             {t('link.backToLogin')}
           </Link>
@@ -82,7 +82,7 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <Card className="shadow-raised">
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg">{t('forgot.title')}</CardTitle>
         <CardDescription>{t('forgot.description')}</CardDescription>
@@ -96,10 +96,10 @@ export function ForgotPasswordForm() {
           <Button type="submit" className="mt-1 w-full" disabled={pending}>
             {pending ? t('forgot.pending') : t('forgot.submit')}
           </Button>
-          <p className="text-center text-xs text-ink-muted">
+          <p className="text-center text-xs text-text-2">
             <Link
               href="/login"
-              className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+              className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
             >
               {t('link.backToLogin')}
             </Link>

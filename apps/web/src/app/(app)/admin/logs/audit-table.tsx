@@ -56,12 +56,12 @@ export async function AuditTable({
           <TableBody>
             {page.items.map((item) => (
               <TableRow key={item.id}>
-                <TableCell className="font-mono text-xs whitespace-nowrap text-ink-muted tabular-nums">
+                <TableCell className="font-mono text-xs whitespace-nowrap text-text-2 tabular-nums">
                   {formatDate(item.createdAt)}
                 </TableCell>
-                <TableCell className="text-xs text-ink">
+                <TableCell className="text-xs text-text">
                   {item.actorEmail ?? (
-                    <span className="text-ink-faint italic">{t('logs.anonymous')}</span>
+                    <span className="text-text-3 italic">{t('logs.anonymous')}</span>
                   )}
                 </TableCell>
                 <TableCell>
@@ -74,15 +74,15 @@ export async function AuditTable({
                   )}
                 </TableCell>
                 <TableCell className="text-xs">
-                  <span className="text-ink-muted">{item.resourceType}</span>
+                  <span className="text-text-2">{item.resourceType}</span>
                   {item.resourceId ? (
-                    <span className="font-mono text-ink-faint"> · {item.resourceId}</span>
+                    <span className="font-mono text-text-3"> · {item.resourceId}</span>
                   ) : null}
                 </TableCell>
-                <TableCell className="font-mono text-xs text-ink-faint">
+                <TableCell className="font-mono text-xs text-text-3">
                   {item.ip ?? c('none')}
                 </TableCell>
-                <TableCell className="max-w-xs truncate font-mono text-[0.6875rem] text-ink-faint">
+                <TableCell className="max-w-xs truncate font-mono text-[0.6875rem] text-text-3">
                   {item.after ? JSON.stringify(item.after) : c('none')}
                 </TableCell>
               </TableRow>
@@ -90,7 +90,7 @@ export async function AuditTable({
           </TableBody>
         </Table>
 
-        <p className="text-ink-faint text-xs">
+        <p className="text-text-3 text-xs">
           {t('logs.timezone', { timezone: format.timezone })}
         </p>
       </CardContent>
@@ -113,14 +113,14 @@ function Pagination({
 
   return (
     <CardFooter className="flex items-center justify-between text-xs">
-      <span className="font-mono text-ink-faint tabular-nums">
+      <span className="font-mono text-text-3 tabular-nums">
         {c('page.position', { page: page.page, total: page.totalPages })}
       </span>
       <div className="flex gap-4">
         {page.page > 1 ? (
           <Link
             href={link(page.page - 1)}
-            className="text-ink-muted transition-colors hover:text-signal"
+            className="text-text-2 transition-colors hover:text-accent"
           >
             {c('page.previous')}
           </Link>
@@ -128,7 +128,7 @@ function Pagination({
         {page.page < page.totalPages ? (
           <Link
             href={link(page.page + 1)}
-            className="text-ink-muted transition-colors hover:text-signal"
+            className="text-text-2 transition-colors hover:text-accent"
           >
             {c('page.next')}
           </Link>

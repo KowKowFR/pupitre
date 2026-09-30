@@ -19,7 +19,7 @@ function RadioGroup({ className, ...props }: React.ComponentProps<'div'>) {
       role="radiogroup"
       data-slot="radio-group"
       className={cn(
-        'inline-flex w-fit gap-0.5 rounded-md border border-line-strong bg-surface-2 p-0.5',
+        'inline-flex w-fit gap-0.5 rounded-md border border-border-strong bg-surface-2 p-0.5',
         className,
       )}
       {...props}
@@ -36,11 +36,11 @@ function RadioOption({ className, label, ...props }: RadioOptionProps) {
     <label
       className={cn(
         'flex cursor-pointer items-center justify-center rounded-[5px] px-3 py-1',
-        'text-[0.8125rem] font-medium text-ink-muted select-none',
+        'text-[0.8125rem] font-medium text-text-2 select-none',
         'transition-[background-color,color] duration-100 ease-out',
-        'hover:text-ink',
-        'has-[:checked]:bg-surface has-[:checked]:text-ink has-[:checked]:shadow-panel',
-        'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-45 has-[:disabled]:hover:text-ink-muted',
+        'hover:text-text',
+        'has-[:checked]:bg-surface has-[:checked]:text-text has-[:checked]:shadow-xs',
+        'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-45 has-[:disabled]:hover:text-text-2',
         'has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring',
         className,
       )}

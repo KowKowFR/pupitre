@@ -57,8 +57,8 @@ export function SettingsNav() {
                   'whitespace-nowrap transition-colors duration-100 ease-out',
                   'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                   active
-                    ? 'bg-surface-2 font-medium text-ink'
-                    : 'text-ink-muted hover:bg-surface-2/60 hover:text-ink',
+                    ? 'bg-surface-2 font-medium text-text'
+                    : 'text-text-2 hover:bg-surface-2/60 hover:text-text',
                 )}
               >
                 <span
@@ -66,8 +66,8 @@ export function SettingsNav() {
                   className={cn(
                     'absolute top-1/2 left-0 w-[3px] -translate-y-1/2 rounded-full transition-all duration-200 ease-out',
                     active
-                      ? 'h-4 bg-signal'
-                      : 'h-0 bg-transparent group-hover:h-2 group-hover:bg-line-strong',
+                      ? 'h-4 bg-accent'
+                      : 'h-0 bg-transparent group-hover:h-2 group-hover:bg-border-strong',
                   )}
                 />
                 {Icon ? (
@@ -75,7 +75,7 @@ export function SettingsNav() {
                     aria-hidden
                     className={cn(
                       'flex size-4 shrink-0 items-center justify-center transition-colors duration-100',
-                      active ? 'text-signal' : 'text-ink-faint group-hover:text-ink-muted',
+                      active ? 'text-accent' : 'text-text-3 group-hover:text-text-2',
                     )}
                   >
                     <Icon className="size-4" />

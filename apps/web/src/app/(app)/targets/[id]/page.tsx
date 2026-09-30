@@ -46,7 +46,7 @@ export default async function TargetDetailPage({
         eyebrow={
           <Link
             href="/targets"
-            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+            className="inline-flex items-center gap-1 transition-colors hover:text-text"
           >
             <ChevronLeft className="size-3" />
             {t('nav.back')}
@@ -71,7 +71,7 @@ export default async function TargetDetailPage({
       {target.description || labels.length > 0 ? (
         <div className="-mt-2 flex flex-col gap-2.5">
           {target.description ? (
-            <p className="max-w-3xl text-sm leading-relaxed text-ink-muted">
+            <p className="max-w-3xl text-sm leading-relaxed text-text-2">
               {target.description}
             </p>
           ) : null}
@@ -138,7 +138,7 @@ export default async function TargetDetailPage({
               : t('value.sudo.password')}
           </Field>
           <Field label={t('field.credential')}>
-            <span className="text-ink-faint">{t('value.credential')}</span>
+            <span className="text-text-3">{t('value.credential')}</span>
           </Field>
           <Field label={t('field.portRangeShort')}>
             {target.portRangeStart}–{target.portRangeEnd}
@@ -162,8 +162,8 @@ export default async function TargetDetailPage({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="eyebrow text-ink-faint">{label}</div>
-      <div className="font-mono text-xs text-ink">{children}</div>
+      <div className="eyebrow text-text-3">{label}</div>
+      <div className="font-mono text-xs text-text">{children}</div>
     </div>
   );
 }

@@ -259,13 +259,13 @@ export default async function HomePage() {
           {running.length === 0 ? (
             <PanelEmpty>
               {t('running.empty')}{' '}
-              <Link href="/applications" className="text-signal underline underline-offset-4">
+              <Link href="/applications" className="text-accent underline underline-offset-4">
                 {t('link.applications')}
               </Link>
               .
             </PanelEmpty>
           ) : (
-            <ul className="divide-line divide-y">
+            <ul className="divide-border divide-y">
               {running.slice(0, 6).map((app) => (
                 <li
                   key={app.id}
@@ -274,12 +274,12 @@ export default async function HomePage() {
                   <Led tone={HEALTH_TONE[app.healthStatus] ?? 'idle'} />
                   <Link
                     href={`/apps/${app.id}`}
-                    className="text-ink min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
+                    className="text-text min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
                   >
                     {app.applicationSlug}
-                    <span className="text-ink-faint">@{app.targetName}</span>
+                    <span className="text-text-3">@{app.targetName}</span>
                   </Link>
-                  <span className="text-ink-muted shrink-0">
+                  <span className="text-text-2 shrink-0">
                     {labelOf(HEALTH_KEY, app.healthStatus, t)}
                   </span>
                 </li>
@@ -398,12 +398,12 @@ async function PulseBand({
     : 0;
 
   return (
-    <section className="border-line bg-card shadow-panel min-w-0 rounded-lg border">
-      <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-        <h2 className="text-ink font-condensed text-[0.9375rem] font-semibold">
+    <section className="border-border bg-card shadow-xs min-w-0 rounded-lg border">
+      <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
+        <h2 className="text-text text-[0.9375rem] font-semibold">
           {t('band.title')}
         </h2>
-        <span className="text-ink-faint text-xs">{t('band.aside')}</span>
+        <span className="text-text-3 text-xs">{t('band.aside')}</span>
       </div>
 
       {/*
@@ -418,7 +418,7 @@ async function PulseBand({
         ne dépende pas de la largeur du rail de navigation.
       */}
       <div className="@container">
-        <div className="divide-line border-line grid grid-cols-2 divide-x divide-y border-b @3xl:grid-cols-4 @3xl:divide-y-0">
+        <div className="divide-border border-border grid grid-cols-2 divide-x divide-y border-b @3xl:grid-cols-4 @3xl:divide-y-0">
           <Readout
             label={t('band.availability')}
             value={
@@ -590,11 +590,11 @@ function Lane({
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
         <Link
           href={href}
-          className="eyebrow text-ink-muted hover:text-signal underline-offset-4 transition-colors hover:underline"
+          className="eyebrow text-text-2 hover:text-accent underline-offset-4 transition-colors hover:underline"
         >
           {title}
         </Link>
-        {aside ? <span className="text-ink-faint text-[0.6875rem]">{aside}</span> : null}
+        {aside ? <span className="text-text-3 text-[0.6875rem]">{aside}</span> : null}
       </div>
       {children}
     </div>
@@ -625,9 +625,9 @@ async function MonitorLane({
         since={pulse.coverage.firstAt}
         format={format}
       >
-        <p className="text-ink-faint text-xs">
+        <p className="text-text-3 text-xs">
           {t('lane.monitor.help')}{' '}
-          <Link href="/monitors" className="text-signal underline underline-offset-4">
+          <Link href="/monitors" className="text-accent underline underline-offset-4">
             {t('link.monitors')}
           </Link>
           .
@@ -665,7 +665,7 @@ async function MonitorLane({
           { color: 'var(--warn)', label: t('legend.partlyHealthy') },
           { color: 'var(--danger)', label: t('legend.noneHealthy') },
           { color: 'var(--ok)', label: t('legend.thin'), hatched: true },
-          { color: 'var(--ink-faint)', label: t('legend.noSample') },
+          { color: 'var(--text-3)', label: t('legend.noSample') },
         ]}
       />
     </>
@@ -757,7 +757,7 @@ async function FleetLane({ fleet, format }: { fleet: FleetPulse; format: FormatS
         since={fleet.coverage.firstAt}
         format={format}
       >
-        <p className="text-ink-faint text-xs">{t('lane.fleet.help')}</p>
+        <p className="text-text-3 text-xs">{t('lane.fleet.help')}</p>
       </NotEnoughHistory>
     );
   }
@@ -780,7 +780,7 @@ async function FleetLane({ fleet, format }: { fleet: FleetPulse; format: FormatS
         className="mt-0.5"
       />
       {density.verdict === 'sparse' ? (
-        <p className="text-warn mt-0.5 text-[0.6875rem]">{t('lane.fleet.sparse')}</p>
+        <p className="text-warn-text mt-0.5 text-[0.6875rem]">{t('lane.fleet.sparse')}</p>
       ) : null}
     </>
   );
@@ -825,9 +825,9 @@ async function ChronicleLane({
 
   if (events.length === 0) {
     return (
-      <div className="border-line bg-surface-2/40 rounded-md border border-dashed px-4 py-3">
-        <p className="text-ink text-[0.8125rem]">{t('chronicle.empty')}</p>
-        <p className="text-ink-faint text-xs">
+      <div className="border-border bg-surface-2/40 rounded-md border border-dashed px-4 py-3">
+        <p className="text-text text-[0.8125rem]">{t('chronicle.empty')}</p>
+        <p className="text-text-3 text-xs">
           {older === 0
             ? t('chronicle.empty.none', { days: CHRONICLE_DAYS })
             : t('chronicle.empty.older', { count: older, days: CHRONICLE_DAYS })}
@@ -844,7 +844,7 @@ async function ChronicleLane({
         to={window.to}
         label={t('lane.chronicle.title')}
       />
-      <p className="text-ink-faint mt-0.5 text-[0.6875rem]">
+      <p className="text-text-3 mt-0.5 text-[0.6875rem]">
         {t('chronicle.inWindow', { count: events.length })}
         {older > 0 ? t('chronicle.offAxis', { count: older }) : ''}
         {chronicle.medianDurationSeconds === null
@@ -889,7 +889,7 @@ async function FleetPanel({
       <Panel title={t('fleet.title')} href="/targets" linkLabel={t('link.targets')}>
         <PanelEmpty>
           {t('fleet.empty')}{' '}
-          <Link href="/targets" className="text-signal underline underline-offset-4">
+          <Link href="/targets" className="text-accent underline underline-offset-4">
             {t('link.targets')}
           </Link>
           .
@@ -905,7 +905,7 @@ async function FleetPanel({
   return (
     <Panel title={t('fleet.title')} href="/apps" linkLabel={t('link.servers')}>
       <div className="@container">
-        <ul className="divide-line grid divide-y @3xl:grid-cols-2 @3xl:[&>li:nth-child(2n)]:border-l">
+        <ul className="divide-border grid divide-y @3xl:grid-cols-2 @3xl:[&>li:nth-child(2n)]:border-l">
           {targets.map((target) => {
             const history = histories.get(target.id);
             const points = history?.points ?? [];
@@ -913,7 +913,7 @@ async function FleetPanel({
             const measured = (history?.samples ?? 0) > 0;
 
             return (
-              <li key={target.id} className="border-line flex items-center gap-3 px-5 py-2.5">
+              <li key={target.id} className="border-border flex items-center gap-3 px-5 py-2.5">
                 <Led
                   tone={
                     target.status === 'ok'
@@ -927,10 +927,10 @@ async function FleetPanel({
                 />
                 <Link
                   href={`/targets/${target.id}`}
-                  className="text-ink min-w-0 flex-1 truncate font-mono text-[0.8125rem] underline-offset-4 hover:underline"
+                  className="text-text min-w-0 flex-1 truncate font-mono text-[0.8125rem] underline-offset-4 hover:underline"
                 >
                   {target.name}
-                  <span className="text-ink-faint"> {target.host}</span>
+                  <span className="text-text-3"> {target.host}</span>
                 </Link>
 
                 {measured ? (
@@ -939,7 +939,7 @@ async function FleetPanel({
                       values={points.map((point) => point.loadPercent)}
                       max={Math.max(load, summary?.load.worst ?? 0)}
                       tone={
-                        (summary?.load.worst ?? 0) >= load ? 'var(--warn)' : 'var(--signal)'
+                        (summary?.load.worst ?? 0) >= load ? 'var(--warn)' : 'var(--accent)'
                       }
                     />
                     <span className="hidden shrink-0 items-center gap-2.5 @xl:flex">
@@ -947,18 +947,18 @@ async function FleetPanel({
                         label={t('fleet.gauge.memory')}
                         value={summary?.memory.last ?? null}
                         tone={
-                          (summary?.memory.last ?? 0) >= memory ? 'var(--warn)' : 'var(--signal)'
+                          (summary?.memory.last ?? 0) >= memory ? 'var(--warn)' : 'var(--accent)'
                         }
                       />
                       <MiniGauge
                         label={t('fleet.gauge.disk')}
                         value={summary?.disk.last ?? null}
-                        tone={(summary?.disk.last ?? 0) >= disk ? 'var(--warn)' : 'var(--signal)'}
+                        tone={(summary?.disk.last ?? 0) >= disk ? 'var(--warn)' : 'var(--accent)'}
                       />
                     </span>
                   </>
                 ) : (
-                  <span className="text-ink-faint shrink-0 text-[0.6875rem]">
+                  <span className="text-text-3 shrink-0 text-[0.6875rem]">
                     {t('fleet.noReadout')}
                   </span>
                 )}
@@ -1024,7 +1024,7 @@ async function DeploymentsPanel({
           de bord, il est seulement plus haut.
         */
         <div className="@container">
-          <ul className="divide-line divide-y">
+          <ul className="divide-border divide-y">
             {recent.map((item) => {
               const duration = durations.get(item.id) ?? null;
               return (
@@ -1036,10 +1036,10 @@ async function DeploymentsPanel({
                     <Led tone={DEPLOYMENT_TONE[item.status] ?? 'idle'} />
                     <Link
                       href={`/deployments/${item.id}`}
-                      className="text-ink min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
+                      className="text-text min-w-0 flex-1 truncate font-mono underline-offset-4 hover:underline"
                     >
                       {item.applicationSlug}
-                      <span className="text-ink-faint"> v{item.version}</span>
+                      <span className="text-text-3"> v{item.version}</span>
                     </Link>
                   </span>
 
@@ -1057,18 +1057,18 @@ async function DeploymentsPanel({
                       <span className="bg-surface-3 relative h-1 w-10 overflow-hidden rounded-full">
                         {duration === null ? null : (
                           <span
-                            className="bg-signal absolute inset-y-0 left-0 rounded-full"
+                            className="bg-accent absolute inset-y-0 left-0 rounded-full"
                             style={{ width: `${Math.max(4, (duration / longest) * 100)}%` }}
                           />
                         )}
                       </span>
-                      <span className="text-ink-faint w-9 text-right font-mono text-[0.6875rem] tabular-nums">
+                      <span className="text-text-3 w-9 text-right font-mono text-[0.6875rem] tabular-nums">
                         {duration === null ? '—' : `${duration}s`}
                       </span>
                     </span>
 
                     <DeploymentStatusBadge status={item.status} />
-                    <span className="text-ink-faint shrink-0 text-xs whitespace-nowrap tabular-nums @md:w-20 @md:text-right">
+                    <span className="text-text-3 shrink-0 text-xs whitespace-nowrap tabular-nums @md:w-20 @md:text-right">
                       {since(item.finishedAt ?? item.createdAt, t) ?? ''}
                     </span>
                   </span>
@@ -1078,13 +1078,13 @@ async function DeploymentsPanel({
           </ul>
 
           {chronicle && chronicle.weaknesses.length > 0 ? (
-            <div className="border-line border-t px-5 py-2.5">
-              <p className="text-ink-faint text-[0.6875rem]">
+            <div className="border-border border-t px-5 py-2.5">
+              <p className="text-text-3 text-[0.6875rem]">
                 {t('deployments.weakness', { days: CHRONICLE_DAYS })}{' '}
                 {chronicle.weaknesses.map((weakness, index) => (
                   <span key={weakness.key}>
                     {index > 0 ? ', ' : ''}
-                    <span className="text-ink-muted">
+                    <span className="text-text-2">
                       {t('deployments.weakness.name', {
                         name: deploymentStepLabel(weakness.key, language, weakness.label),
                       })}

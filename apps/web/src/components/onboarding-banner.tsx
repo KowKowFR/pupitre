@@ -49,18 +49,18 @@ export function OnboardingBanner({
   }
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-signal-edge border-l-[3px] border-l-signal bg-signal-soft/50 px-3.5 py-2.5">
-      <Compass className="size-4 shrink-0 text-signal" aria-hidden />
+    <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-accent-line border-l-[3px] border-l-accent bg-accent-soft/50 px-3.5 py-2.5">
+      <Compass className="size-4 shrink-0 text-accent" aria-hidden />
       <div className="min-w-0 flex-1">
         {/*
           Le titre de l'étape est mis en avant : la phrase du dictionnaire
           s'arrête donc aux deux-points, et le point final suit la mise en
           avant. C'est de la ponctuation, pas du texte à traduire.
         */}
-        <span className="text-[0.8125rem] leading-relaxed text-ink">
+        <span className="text-[0.8125rem] leading-relaxed text-text">
           {t('banner.next')} <strong>{stepTitle}</strong>.
         </span>{' '}
-        <span className="font-mono text-xs text-ink-muted tabular-nums">
+        <span className="font-mono text-xs text-text-2 tabular-nums">
           {t('banner.count', { done, count: total })}
         </span>
       </div>

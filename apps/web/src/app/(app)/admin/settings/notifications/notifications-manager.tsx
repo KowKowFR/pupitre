@@ -240,9 +240,9 @@ export function NotificationsManager({
           {initialChannels.map((channel) => {
             const descriptor = descriptorOf(channel.kind);
             return (
-              <li key={channel.id} className="rounded-md border border-line p-3.5">
+              <li key={channel.id} className="rounded-md border border-border p-3.5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-ink">{channel.name}</span>
+                  <span className="font-medium text-text">{channel.name}</span>
                   <Badge variant="secondary">{descriptor?.label ?? channel.kind}</Badge>
                   <Badge variant={channel.enabled ? 'ok' : 'outline'}>
                     {channel.enabled ? t('channel.on') : t('channel.off')}
@@ -254,27 +254,27 @@ export function NotificationsManager({
                   ) : null}
                 </div>
 
-                <p className="mt-1.5 text-xs text-ink-faint">
+                <p className="mt-1.5 text-xs text-text-3">
                   {channel.events.length === 0
                     ? t('channel.noEvents')
                     : t('channel.events', { list: channel.events.map(eventLabel).join(', ') })}
                 </p>
 
                 {channel.configuredSecrets.length > 0 ? (
-                  <p className="mt-1 text-xs text-ink-faint">
+                  <p className="mt-1 text-xs text-text-3">
                     {t('channel.secrets', { list: channel.configuredSecrets.join(', ') })}
                   </p>
                 ) : null}
 
                 {channel.lastError ? (
-                  <p className="mt-1.5 font-mono text-xs text-danger">
+                  <p className="mt-1.5 font-mono text-xs text-danger-text">
                     {t('channel.lastError', {
                       at: channel.lastFailureAt ?? '?',
                       error: channel.lastError,
                     })}
                   </p>
                 ) : channel.lastSuccessAt ? (
-                  <p className="mt-1.5 text-xs text-ink-faint">
+                  <p className="mt-1.5 text-xs text-text-3">
                     {t('channel.lastSuccess', { at: channel.lastSuccessAt })}
                   </p>
                 ) : null}
@@ -363,7 +363,7 @@ function ChannelForm({
 
   return (
     <form
-      className="flex flex-col gap-4 rounded-md border border-line-strong bg-surface-2/40 p-4"
+      className="flex flex-col gap-4 rounded-md border border-border-strong bg-surface-2/40 p-4"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
@@ -408,8 +408,8 @@ function ChannelForm({
       </div>
 
       {descriptor ? (
-        <p className="text-xs text-ink-faint">
-          {descriptor.description} <span className="text-ink-muted">{descriptor.prerequisite}</span>
+        <p className="text-xs text-text-3">
+          {descriptor.description} <span className="text-text-2">{descriptor.prerequisite}</span>
         </p>
       ) : null}
 
@@ -425,8 +425,8 @@ function ChannelForm({
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="eyebrow text-ink-muted">{t('form.events.legend')}</legend>
-        <p className="text-xs text-ink-faint">{t('form.events.help')}</p>
+        <legend className="eyebrow text-text-2">{t('form.events.legend')}</legend>
+        <p className="text-xs text-text-3">{t('form.events.help')}</p>
         <div className="flex flex-col gap-1.5 pt-1">
           {events.map((entry) => {
             const checked = draft.events.includes(entry.key as NotificationEventKey);
@@ -445,13 +445,13 @@ function ChannelForm({
                   }
                 />
                 <span className="min-w-0">
-                  <span className="block text-ink">
+                  <span className="block text-text">
                     {entry.label}{' '}
-                    <span className="text-xs text-ink-faint">
+                    <span className="text-xs text-text-3">
                       ({notificationSeverityLabel(entry.severity, language).toLowerCase()})
                     </span>
                   </span>
-                  <span className="block text-xs text-ink-faint">{entry.rationale}</span>
+                  <span className="block text-xs text-text-3">{entry.rationale}</span>
                 </span>
               </label>
             );
@@ -464,7 +464,7 @@ function ChannelForm({
           checked={draft.enabled}
           onChange={(event) => onChange({ ...draft, enabled: event.target.checked })}
         />
-        <span className="text-ink">{t('form.enabled')}</span>
+        <span className="text-text">{t('form.enabled')}</span>
       </label>
 
       <div className="flex flex-wrap gap-2">
@@ -494,7 +494,7 @@ function FieldInput({
 
   if (field.kind === 'boolean') {
     return (
-      <label className="flex items-start gap-2.5 self-end rounded-md border border-line px-3 py-2 text-sm">
+      <label className="flex items-start gap-2.5 self-end rounded-md border border-border px-3 py-2 text-sm">
         <Checkbox
           className="mt-0.5"
           checked={draft.booleans[field.name] ?? false}
@@ -506,8 +506,8 @@ function FieldInput({
           }
         />
         <span className="min-w-0">
-          <span className="block text-ink">{field.label}</span>
-          {field.help ? <span className="block text-xs text-ink-faint">{field.help}</span> : null}
+          <span className="block text-text">{field.label}</span>
+          {field.help ? <span className="block text-xs text-text-3">{field.help}</span> : null}
         </span>
       </label>
     );
@@ -521,7 +521,7 @@ function FieldInput({
     <div className="space-y-1.5">
       <Label htmlFor={id}>
         {field.label}
-        {field.required ? null : <span className="text-ink-faint">{t('field.optional')}</span>}
+        {field.required ? null : <span className="text-text-3">{t('field.optional')}</span>}
       </Label>
 
       {field.kind === 'select' ? (
@@ -543,17 +543,17 @@ function FieldInput({
         />
       )}
 
-      {field.help ? <p className="text-xs text-ink-faint">{field.help}</p> : null}
+      {field.help ? <p className="text-xs text-text-3">{field.help}</p> : null}
 
       {field.secret && draft.id !== null ? (
-        <p className="text-xs text-ink-faint">
+        <p className="text-xs text-text-3">
           {t('field.secret.keep')}
           {field.required ? null : (
             <>
               {' '}
               <button
                 type="button"
-                className="text-signal underline-offset-4 hover:underline"
+                className="text-accent underline-offset-4 hover:underline"
                 onClick={() =>
                   onChange({
                     ...draft,

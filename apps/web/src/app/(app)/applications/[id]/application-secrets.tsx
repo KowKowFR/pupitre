@@ -92,7 +92,7 @@ export function ApplicationSecrets({
           {t('secrets.description.1')}
           <code className="mx-1 font-mono text-xs">MASTER_KEY</code>
           {t('secrets.description.2')}{' '}
-          <strong className="font-medium text-ink">{t('secrets.description.3')}</strong>{' '}
+          <strong className="font-medium text-text">{t('secrets.description.3')}</strong>{' '}
           {t('secrets.description.4')}
         </CardDescription>
       </CardHeader>
@@ -101,21 +101,21 @@ export function ApplicationSecrets({
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
         {secrets.length === 0 ? (
-          <p className="text-sm text-ink-muted">{t('secrets.none')}</p>
+          <p className="text-sm text-text-2">{t('secrets.none')}</p>
         ) : null}
 
-        <ul className="divide-y divide-line">
+        <ul className="divide-y divide-border">
           {secrets.map((secret) => (
             <li key={secret.name} className="flex flex-wrap items-center gap-3 py-3">
               {secret.aliasOf ? (
-                <Link2 className="size-4 shrink-0 text-ink-faint" />
+                <Link2 className="size-4 shrink-0 text-text-3" />
               ) : (
-                <KeyRound className="size-4 shrink-0 text-ink-faint" />
+                <KeyRound className="size-4 shrink-0 text-text-3" />
               )}
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[0.8125rem] text-ink">{secret.name}</span>
+                  <span className="font-mono text-[0.8125rem] text-text">{secret.name}</span>
 
                   {secret.aliasOf ? (
                     <Badge variant="secondary">{t('secrets.badge.alias')}</Badge>
@@ -141,7 +141,7 @@ export function ApplicationSecrets({
                   )}
                 </div>
 
-                <p className="mt-0.5 text-xs text-ink-faint">
+                <p className="mt-0.5 text-xs text-text-3">
                   {secret.declared ? (
                     <>
                       {t('secrets.claimedBy')}
@@ -160,7 +160,7 @@ export function ApplicationSecrets({
                     ligne, deux noms portant le même mot de passe se lisent
                     comme deux secrets indépendants. */}
                 {secret.aliasOf ? (
-                  <p className="mt-0.5 text-xs text-ink-faint">
+                  <p className="mt-0.5 text-xs text-text-3">
                     {t('secrets.aliasOf.before')}
                     <CodeBadge>{secret.aliasOf}</CodeBadge>
                     {t('secrets.aliasOf.after')}
@@ -168,7 +168,7 @@ export function ApplicationSecrets({
                 ) : null}
 
                 {secret.readAs.length > 0 ? (
-                  <p className="mt-0.5 text-xs text-ink-faint">
+                  <p className="mt-0.5 text-xs text-text-3">
                     {t('secrets.readAs')}{' '}
                     {secret.readAs.map((alias) => (
                       <CodeBadge key={alias} className="mr-1">
@@ -180,7 +180,7 @@ export function ApplicationSecrets({
               </div>
 
               {canEdit && secret.aliasOf ? (
-                <span className="text-xs text-ink-faint">
+                <span className="text-xs text-text-3">
                   {t('secrets.editOnRoot', { name: secret.aliasOf })}
                 </span>
               ) : null}
@@ -251,7 +251,7 @@ export function ApplicationSecrets({
                       disabled={busy === secret.name}
                       onClick={() => remove(secret.name)}
                     >
-                      <Trash2 className="size-4 text-danger" />
+                      <Trash2 className="size-4 text-danger-text" />
                     </Button>
                   )}
                 </div>

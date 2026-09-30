@@ -52,7 +52,7 @@ export function SignupForm() {
   }
 
   return (
-    <Card className="shadow-raised">
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg">{t('signup.title')}</CardTitle>
         <CardDescription>{t('signup.description')}</CardDescription>
@@ -78,18 +78,18 @@ export function SignupForm() {
               minLength={PASSWORD_MIN_LENGTH}
               required
             />
-            <p className="text-xs text-ink-faint">
+            <p className="text-xs text-text-3">
               {t('password.min', { count: PASSWORD_MIN_LENGTH })}
             </p>
           </div>
           <Button type="submit" className="mt-1 w-full" disabled={pending}>
             {pending ? tc('creating') : t('signup.submit')}
           </Button>
-          <p className="text-center text-xs text-ink-muted">
+          <p className="text-center text-xs text-text-2">
             {t('signup.haveAccount')}{' '}
             <Link
               href="/login"
-              className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+              className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
             >
               {t('login.submit')}
             </Link>

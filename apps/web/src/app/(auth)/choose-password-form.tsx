@@ -108,7 +108,7 @@ export function ChoosePasswordForm({
 
   if (done) {
     return (
-      <Card className="shadow-raised">
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">{copy.doneTitle}</CardTitle>
           <CardDescription>{copy.doneBody}</CardDescription>
@@ -132,7 +132,7 @@ export function ChoosePasswordForm({
   // à la soumission parce qu'il venait de servir.
   if (consumed || linkError || !token) {
     return (
-      <Card className="shadow-raised">
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">{copy.deadTitle}</CardTitle>
           <CardDescription>{copy.deadBody}</CardDescription>
@@ -142,11 +142,11 @@ export function ChoosePasswordForm({
           <div className="flex flex-col gap-2 text-sm">
             <Link
               href="/forgot-password"
-              className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+              className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
             >
               {t('choose.newLink')}
             </Link>
-            <Link href="/login" className="text-ink-muted underline-offset-4 hover:underline">
+            <Link href="/login" className="text-text-2 underline-offset-4 hover:underline">
               {t('link.backToLogin')}
             </Link>
           </div>
@@ -156,7 +156,7 @@ export function ChoosePasswordForm({
   }
 
   return (
-    <Card className="shadow-raised">
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg">{copy.title}</CardTitle>
         <CardDescription>{copy.description}</CardDescription>
@@ -175,7 +175,7 @@ export function ChoosePasswordForm({
               required
               autoFocus
             />
-            <p className="text-xs text-ink-faint">
+            <p className="text-xs text-text-3">
               {t('password.min', { count: PASSWORD_MIN_LENGTH })}
             </p>
           </div>

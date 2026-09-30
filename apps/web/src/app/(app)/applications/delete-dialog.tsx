@@ -218,18 +218,18 @@ export function DeleteApplicationDialog({
           {error ? <Alert variant="destructive">{error}</Alert> : null}
 
           {preview === null && error === null ? (
-            <p className="text-ink-muted">{t('delete.loading')}</p>
+            <p className="text-text-2">{t('delete.loading')}</p>
           ) : null}
 
           {preview !== null && abandoned.length === 0 ? (
             <>
               {blockers.length === 0 ? (
-                <p className="text-ink">
+                <p className="text-text">
                   {t('delete.historyOnly', { count: preview.historyCount })}
                 </p>
               ) : (
                 <>
-                  <p className="text-ink">
+                  <p className="text-text">
                     {t('delete.blockers', {
                       count: blockers.length,
                       lines: t('delete.blockers.lines', { count: preview.historyCount }),
@@ -239,21 +239,21 @@ export function DeleteApplicationDialog({
                     {blockers.map((blocker) => (
                       <li
                         key={blocker.deploymentId}
-                        className="rounded-md border border-line bg-surface-2/50 px-2.5 py-1.5"
+                        className="rounded-md border border-border bg-surface-2/50 px-2.5 py-1.5"
                       >
                         <div className="flex flex-wrap items-center gap-1.5">
                           <CodeBadge>{blocker.workspace}</CodeBadge>
-                          <span className="text-ink">
+                          <span className="text-text">
                             {t('delete.blocker.on', { target: blocker.targetName })}
                           </span>
-                          <span className="font-mono text-[0.6875rem] text-ink-faint">
+                          <span className="font-mono text-[0.6875rem] text-text-3">
                             {blocker.targetHost}
                             {blocker.publishedPort === null
                               ? ''
                               : t('delete.blocker.port', { port: blocker.publishedPort })}
                           </span>
                         </div>
-                        <p className="mt-0.5 text-[0.75rem] text-ink-muted">{blocker.message}</p>
+                        <p className="mt-0.5 text-[0.75rem] text-text-2">{blocker.message}</p>
                       </li>
                     ))}
                   </ul>
@@ -312,7 +312,7 @@ export function DeleteApplicationDialog({
               </Alert>
 
               {outcome !== null && outcome.destroyed.length > 0 ? (
-                <p className="text-ink-muted">
+                <p className="text-text-2">
                   {t('delete.destroyed', {
                     list: outcome.destroyed
                       .map((entry) =>
@@ -326,12 +326,12 @@ export function DeleteApplicationDialog({
                 </p>
               ) : null}
 
-              <p className="text-ink">{t('delete.auditNote')}</p>
+              <p className="text-text">{t('delete.auditNote')}</p>
 
               <label className="block space-y-1">
-                <span className="text-ink-muted">
+                <span className="text-text-2">
                   {t('delete.retype.before')}
-                  <code className="font-mono text-ink">{application.slug}</code>
+                  <code className="font-mono text-text">{application.slug}</code>
                   {t('delete.retype.after')}
                 </span>
                 <Input
@@ -344,7 +344,7 @@ export function DeleteApplicationDialog({
             </>
           ) : null}
 
-          {progress !== null ? <p className="text-ink-muted">{progress}</p> : null}
+          {progress !== null ? <p className="text-text-2">{progress}</p> : null}
         </DialogBody>
 
         <DialogFooter>

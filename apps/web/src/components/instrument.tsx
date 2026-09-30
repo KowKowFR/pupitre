@@ -7,15 +7,15 @@ const DOT: Record<Tone, string> = {
   ok: 'bg-ok',
   warn: 'bg-warn',
   danger: 'bg-danger',
-  signal: 'bg-signal',
-  idle: 'bg-ink-faint/60',
+  signal: 'bg-accent',
+  idle: 'bg-text-3/60',
 };
 
 const HALO: Record<Tone, string> = {
   ok: 'bg-ok/25',
   warn: 'bg-warn/25',
   danger: 'bg-danger/25',
-  signal: 'bg-signal/25',
+  signal: 'bg-accent/25',
   idle: 'bg-transparent',
 };
 
@@ -43,7 +43,7 @@ export function Led({
         className={cn(
           'absolute inset-0 rounded-full',
           HALO[tone],
-          pulse && 'animate-signal-pulse',
+          pulse && 'animate-soft-pulse',
         )}
       />
       <span aria-hidden className={cn('relative size-1.5 rounded-full', DOT[tone])} />
@@ -74,15 +74,15 @@ export function Readout({
     <div className="flex min-w-0 flex-col gap-1.5 px-4 py-3.5 first:pl-5 last:pr-5">
       <div className="flex items-center gap-1.5">
         <Led tone={tone} pulse={pulse} />
-        <span className="eyebrow truncate text-ink-faint">{label}</span>
+        <span className="eyebrow truncate text-text-3">{label}</span>
       </div>
       <div className="flex items-baseline gap-1.5">
-        <span className="font-mono text-[1.375rem] leading-none font-medium text-ink tabular-nums">
+        <span className="font-mono text-[1.375rem] leading-none font-medium text-text tabular-nums">
           {value}
         </span>
-        {unit ? <span className="font-mono text-xs text-ink-faint">{unit}</span> : null}
+        {unit ? <span className="font-mono text-xs text-text-3">{unit}</span> : null}
       </div>
-      {hint ? <span className="truncate text-[0.6875rem] text-ink-faint">{hint}</span> : null}
+      {hint ? <span className="truncate text-[0.6875rem] text-text-3">{hint}</span> : null}
     </div>
   );
 }
@@ -103,7 +103,7 @@ export function ReadoutBar({ children }: { children: ReactNode }) {
       retouche de la navigation.
     */
     <div className="@container">
-      <div className="grid grid-cols-2 divide-x divide-y divide-line rounded-lg border border-line bg-card shadow-panel @3xl:grid-cols-4 @3xl:divide-y-0">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border rounded-lg border border-border bg-card shadow-xs @3xl:grid-cols-4 @3xl:divide-y-0">
         {children}
       </div>
     </div>

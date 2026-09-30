@@ -210,7 +210,7 @@ function Spark({
               <span
                 key={point.at}
                 title={t('spark.empty', { clock: formatClock(point.at, format) })}
-                className="min-w-[2px] flex-1 self-end bg-ink-faint/25"
+                className="min-w-[2px] flex-1 self-end bg-text-3/25"
                 style={{ height: 2 }}
               />
             );
@@ -226,7 +226,7 @@ function Spark({
               })}
               className={cn(
                 'min-w-[2px] flex-1 rounded-t-[1px]',
-                over ? 'bg-danger' : 'bg-signal/55',
+                over ? 'bg-danger' : 'bg-accent/55',
               )}
               style={{ height: Math.max(2, (value / ceiling) * height) }}
             />
@@ -251,7 +251,7 @@ function Trend({ metric, trend }: { metric: HistoryMetric; trend: number | null 
   // a du bruit. Annoncer « +0,3 pt » ferait croire à un mouvement.
   if (trend === null || Math.abs(trend) < 1) {
     return (
-      <span className="inline-flex items-center gap-1 text-ink-faint">
+      <span className="inline-flex items-center gap-1 text-text-3">
         <ArrowRight className="size-3" aria-hidden />
         {t('trend.stable')}
       </span>
@@ -260,7 +260,7 @@ function Trend({ metric, trend }: { metric: HistoryMetric; trend: number | null 
   const up = trend > 0;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={cn('inline-flex items-center gap-1', up ? 'text-warn' : 'text-ok')}>
+    <span className={cn('inline-flex items-center gap-1', up ? 'text-warn-text' : 'text-ok-text')}>
       <Icon className="size-3" aria-hidden />
       {up ? '+' : '−'}
       {metric === 'load'
@@ -286,7 +286,7 @@ function MetricLine({
 
   return (
     <div className="flex items-center gap-3 px-3 py-1.5">
-      <span className="eyebrow flex w-20 shrink-0 items-center gap-1.5 text-ink-faint">
+      <span className="eyebrow flex w-20 shrink-0 items-center gap-1.5 text-text-3">
         <Led tone={tone} className="size-2" />
         {metricLabel(metric, t)}
       </span>
@@ -300,15 +300,15 @@ function MetricLine({
       />
 
       <span className="flex w-[13.5rem] shrink-0 items-center justify-end gap-3 font-mono text-[0.6875rem] tabular-nums">
-        <span className="text-ink-faint">
+        <span className="text-text-3">
           {t('metric.worst')}{' '}
-          <span className={cn(tone === 'danger' ? 'text-danger' : 'text-ink')}>
+          <span className={cn(tone === 'danger' ? 'text-danger-text' : 'text-text')}>
             {formatValue(metric, summary.worst, t)}
           </span>
         </span>
         <Trend metric={metric} trend={summary.trend} />
         <span
-          className="text-ink-faint"
+          className="text-text-3"
           title={
             threshold.origin === 'target'
               ? t('threshold.from.target')
@@ -336,8 +336,8 @@ function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) {
   return (
     <div className="flex flex-col gap-1 border-t border-danger/30 bg-danger/5 px-3 py-2">
       {breaches.map((breach) => (
-        <p key={breach.id} className="flex items-center gap-2 text-[0.75rem] text-ink">
-          <TriangleAlert className="size-3.5 shrink-0 text-danger" aria-hidden />
+        <p key={breach.id} className="flex items-center gap-2 text-[0.75rem] text-text">
+          <TriangleAlert className="size-3.5 shrink-0 text-danger-text" aria-hidden />
           <span className="min-w-0">
             <strong className="font-medium">{metricLabel(breach.metric, t)}</strong>{' '}
             {t('breach.over', {
@@ -350,7 +350,7 @@ function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) {
                 peak: formatPercent(breach.peakValue, t),
               })}
             </span>{' '}
-            <span className="text-ink-faint">
+            <span className="text-text-3">
               {t('breach.samples', { count: breach.samples })}
             </span>
           </span>
@@ -404,14 +404,14 @@ export function HostHistory({
 
   if (data.samples === 0) {
     return (
-      <p className="px-3 py-2 text-[0.75rem] text-ink-faint">{t('history.empty')}</p>
+      <p className="px-3 py-2 text-[0.75rem] text-text-3">{t('history.empty')}</p>
     );
   }
 
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between gap-2 px-3 pt-2">
-        <span className="text-[0.6875rem] text-ink-faint">
+        <span className="text-[0.6875rem] text-text-3">
           {t('history.samples', { count: data.samples })}
           {data.reachable === data.samples
             ? ''
@@ -428,8 +428,8 @@ export function HostHistory({
               className={cn(
                 'rounded px-1.5 py-0.5 text-[0.6875rem] transition-colors',
                 data.hours === window.hours
-                  ? 'bg-surface-3 text-ink'
-                  : 'text-ink-faint hover:text-ink',
+                  ? 'bg-surface-3 text-text'
+                  : 'text-text-3 hover:text-text',
               )}
             >
               {t(window.key)}

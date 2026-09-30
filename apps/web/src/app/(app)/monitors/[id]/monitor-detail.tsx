@@ -169,12 +169,12 @@ export function MonitorDetail({
           <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {readable.map(({ descriptor, value }) => (
               <div key={descriptor.key} className="space-y-0.5">
-                <div className="eyebrow text-ink-faint">{descriptor.label}</div>
+                <div className="eyebrow text-text-3">{descriptor.label}</div>
                 <div
                   className={
                     descriptor.primary
-                      ? 'font-mono text-sm text-ink'
-                      : 'font-mono text-xs break-all text-ink-muted'
+                      ? 'font-mono text-sm text-text'
+                      : 'font-mono text-xs break-all text-text-2'
                   }
                 >
                   {value}
@@ -192,7 +192,7 @@ export function MonitorDetail({
         </CardHeader>
         <CardContent className="space-y-3">
           {points.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t('detail.latency.empty')}</p>
+            <p className="text-sm text-text-2">{t('detail.latency.empty')}</p>
           ) : (
             <>
               <LatencyChart points={points} format={format} />
@@ -214,7 +214,7 @@ export function MonitorDetail({
         </CardHeader>
         <CardContent>
           {incidents.length === 0 ? (
-            <p className="text-sm text-ink-muted">{t('detail.incidents.empty')}</p>
+            <p className="text-sm text-text-2">{t('detail.incidents.empty')}</p>
           ) : (
             <ol className="space-y-3">
               {incidents.map((incident) => (
@@ -222,7 +222,7 @@ export function MonitorDetail({
                   key={incident.id}
                   className="flex flex-col gap-1 border-l-2 pl-3"
                   style={{
-                    borderColor: incident.resolvedAt ? 'var(--line-strong)' : 'var(--danger)',
+                    borderColor: incident.resolvedAt ? 'var(--border-strong)' : 'var(--danger)',
                   }}
                 >
                   <div className="flex flex-wrap items-center gap-2">
@@ -234,7 +234,7 @@ export function MonitorDetail({
                           : t('detail.incident.open')
                       }
                     />
-                    <span className="font-mono text-xs text-ink-muted">
+                    <span className="font-mono text-xs text-text-2">
                       {formatClock(incident.startedAt, format)}
                     </span>
                     <Badge variant={incident.resolvedAt ? 'secondary' : 'destructive'}>
@@ -251,7 +251,7 @@ export function MonitorDetail({
                     </Badge>
                   </div>
                   {incident.detail ? (
-                    <p className="font-mono text-[0.6875rem] break-all text-ink-muted">
+                    <p className="font-mono text-[0.6875rem] break-all text-text-2">
                       {incident.detail}
                     </p>
                   ) : null}
@@ -299,7 +299,7 @@ export function MonitorDetail({
         </CardHeader>
         <CardContent>
           <Collapsible defaultOpen={false}>
-            <CollapsibleTrigger className="eyebrow text-ink-muted hover:text-ink">
+            <CollapsibleTrigger className="eyebrow text-text-2 hover:text-text">
               {t('detail.checks.toggle', { count: checks.length })}
             </CollapsibleTrigger>
             <CollapsiblePanel className="pt-3">
@@ -344,7 +344,7 @@ export function MonitorDetail({
                                   tc('none')}
                               </TableCell>
                             ))}
-                          <TableCell className="text-xs text-ink-muted">
+                          <TableCell className="text-xs text-text-2">
                             {check.detail ?? tc('none')}
                           </TableCell>
                         </TableRow>

@@ -17,9 +17,9 @@ export function EmptyState({
   return (
     <Card className="items-center gap-3 border-dashed py-12 text-center">
       <div className="space-y-1.5 px-6">
-        <p className="font-condensed text-base font-semibold text-ink">{title}</p>
+        <p className="text-base font-semibold text-text">{title}</p>
         {hint ? (
-          <p className="mx-auto max-w-[48ch] text-[0.8125rem] leading-relaxed text-ink-muted">
+          <p className="mx-auto max-w-[48ch] text-[0.8125rem] leading-relaxed text-text-2">
             {hint}
           </p>
         ) : null}

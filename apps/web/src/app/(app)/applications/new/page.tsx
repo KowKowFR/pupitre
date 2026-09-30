@@ -56,7 +56,7 @@ export default async function NewApplicationPage() {
         eyebrow={
           <Link
             href="/applications"
-            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+            className="inline-flex items-center gap-1 transition-colors hover:text-text"
           >
             <ChevronLeft className="size-3" />
             {t('page.title')}

@@ -82,7 +82,7 @@ export function HealthDot({ health, label }: { health: HealthStatus; label?: str
     healthy: 'bg-ok',
     unhealthy: 'bg-warn',
     unreachable: 'bg-danger',
-    unknown: 'bg-ink-faint',
+    unknown: 'bg-text-3',
   }[health];
 
   return (
@@ -183,7 +183,7 @@ export function AppsTable({
                 >
                   {app.applicationSlug}
                 </Link>
-                <div className="text-ink-faint font-mono text-xs">
+                <div className="text-text-3 font-mono text-xs">
                   v{app.version} · {t('row.services', { count: app.services.length })} ·{' '}
                   {app.runtime}
                 </div>
@@ -203,7 +203,7 @@ export function AppsTable({
                         {t('row.updateFailed')}
                       </Badge>
                     </Link>
-                    <div className="text-ink-faint mt-1 text-[10px]">
+                    <div className="text-text-3 mt-1 text-[10px]">
                       v{app.lastFailedUpdate.version}
                       {app.lastFailedUpdate.failedStep
                         ? t('row.failedStep', { step: app.lastFailedUpdate.failedStep })
@@ -224,7 +224,7 @@ export function AppsTable({
                     {app.url.replace(/^https?:\/\//, '')}
                   </a>
                 ) : (
-                  <span className="text-ink-faint">—</span>
+                  <span className="text-text-3">—</span>
                 )}
               </TableCell>
 

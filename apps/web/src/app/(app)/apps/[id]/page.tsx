@@ -175,7 +175,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
         eyebrow={
           <Link
             href="/apps"
-            className="hover:text-ink inline-flex items-center gap-1 transition-colors"
+            className="hover:text-text inline-flex items-center gap-1 transition-colors"
           >
             <ChevronLeft className="size-3" />
             Supervision
@@ -229,7 +229,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
               aside={
                 <Link
                   href={`/deployments/${deployment.id}`}
-                  className="hover:text-signal text-ink-faint text-xs underline-offset-4 hover:underline"
+                  className="hover:text-accent text-text-3 text-xs underline-offset-4 hover:underline"
                 >
                   Voir la trace
                 </Link>
@@ -239,7 +239,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                 <Field label="Version">
                   #{deployment.version}
                   {view.specVersion ? (
-                    <span className="text-ink-faint"> · spec {view.specVersion}</span>
+                    <span className="text-text-3"> · spec {view.specVersion}</span>
                   ) : null}
                 </Field>
                 <Field label="Runtime">{deployment.runtime}</Field>
@@ -252,7 +252,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                 </Field>
                 {failedStep ? (
                   <Field label="Étape en échec" wide>
-                    <span className="text-danger">{failedStep.label}</span>
+                    <span className="text-danger-text">{failedStep.label}</span>
                   </Field>
                 ) : null}
               </dl>
@@ -264,13 +264,13 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                 continue — il est donc en pied de la mise en ligne, là où le
                 lecteur vient de lire la date.
               */}
-              <div className="border-line flex flex-wrap items-center gap-2 border-t px-5 py-3">
+              <div className="border-border flex flex-wrap items-center gap-2 border-t px-5 py-3">
                 {!canReadScans ? (
-                  <span className="text-ink-faint text-[0.8125rem]">
+                  <span className="text-text-3 text-[0.8125rem]">
                     Lire les scans demande la permission scan:read.
                   </span>
                 ) : !scan || scan.scanners.length === 0 ? (
-                  <span className="text-ink-faint text-[0.8125rem]">
+                  <span className="text-text-3 text-[0.8125rem]">
                     Aucun scan n’a tourné pour cette version.
                   </span>
                 ) : (
@@ -282,11 +282,11 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                           ? 'sous le seuil'
                           : 'sans verdict'}
                     </Badge>
-                    <span className="text-ink-muted font-mono text-xs">
+                    <span className="text-text-2 font-mono text-xs">
                       {scan.counts.CRITICAL} critique{scan.counts.CRITICAL > 1 ? 's' : ''} ·{' '}
                       {scan.counts.HIGH} élevée{scan.counts.HIGH > 1 ? 's' : ''}
                     </span>
-                    <span className="text-ink-faint w-full text-[0.6875rem]">
+                    <span className="text-text-3 w-full text-[0.6875rem]">
                       {scan.scanners.join(' · ')} — au moment de la mise en ligne, pas maintenant
                     </span>
                   </>
@@ -300,18 +300,18 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                 canReadTargets ? (
                   <Link
                     href={`/targets/${deployment.targetId}`}
-                    className="hover:text-signal text-ink-faint text-xs underline-offset-4 hover:underline"
+                    className="hover:text-accent text-text-3 text-xs underline-offset-4 hover:underline"
                   >
                     {deployment.targetName}
                   </Link>
                 ) : (
-                  <span className="text-ink-faint text-xs">{deployment.targetName}</span>
+                  <span className="text-text-3 text-xs">{deployment.targetName}</span>
                 )
               }
             >
               <div className="space-y-2.5 px-5 py-3.5">
                 {!canReadTargets ? (
-                  <p className="text-ink-faint text-[0.8125rem]">
+                  <p className="text-text-3 text-[0.8125rem]">
                     Lire les relevés machine demande la permission target:read.
                   </p>
                 ) : history && history.samples > 0 ? (
@@ -326,7 +326,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                         tone={
                           (history.summary.load.worst ?? 0) >= (thresholds?.load.limitPercent ?? 100)
                             ? 'var(--warn)'
-                            : 'var(--signal)'
+                            : 'var(--accent)'
                         }
                         width={72}
                       />
@@ -336,7 +336,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                         tone={
                           (history.summary.load.last ?? 0) >= (thresholds?.load.limitPercent ?? 100)
                             ? 'var(--warn)'
-                            : 'var(--signal)'
+                            : 'var(--accent)'
                         }
                       />
                     </div>
@@ -348,7 +348,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                           (history.summary.memory.last ?? 0) >=
                           (thresholds?.memory.limitPercent ?? 100)
                             ? 'var(--warn)'
-                            : 'var(--signal)'
+                            : 'var(--accent)'
                         }
                       />
                       <MiniGauge
@@ -357,17 +357,17 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                         tone={
                           (history.summary.disk.last ?? 0) >= (thresholds?.disk.limitPercent ?? 100)
                             ? 'var(--warn)'
-                            : 'var(--signal)'
+                            : 'var(--accent)'
                         }
                       />
                     </div>
-                    <p className="text-ink-faint text-[0.6875rem]">
+                    <p className="text-text-3 text-[0.6875rem]">
                       la machine entière sur {HISTORY_HOURS} h, pas cette application — la
                       consommation par conteneur n’est pas relevée.
                     </p>
                   </>
                 ) : (
-                  <p className="text-ink-faint text-[0.8125rem]">
+                  <p className="text-text-3 text-[0.8125rem]">
                     Aucun relevé sur {HISTORY_HOURS} h pour cette machine.
                   </p>
                 )}
@@ -380,7 +380,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                 monitor ? (
                   <Link
                     href="/monitors"
-                    className="hover:text-signal text-ink-faint text-xs underline-offset-4 hover:underline"
+                    className="hover:text-accent text-text-3 text-xs underline-offset-4 hover:underline"
                   >
                     {monitor.name}
                   </Link>
@@ -389,11 +389,11 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
             >
               <div className="space-y-1.5 px-5 py-3.5 text-[0.8125rem]">
                 {!canReadMonitors ? (
-                  <p className="text-ink-faint">
+                  <p className="text-text-3">
                     Lire les sondes demande la permission monitor:read.
                   </p>
                 ) : !monitor ? (
-                  <p className="text-ink-faint">
+                  <p className="text-text-3">
                     Aucune sonde ne surveille cette application depuis l’extérieur.{' '}
                     <Link href="/monitors" className="underline underline-offset-4">
                       En poser une
@@ -402,12 +402,12 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
                   </p>
                 ) : (
                   <>
-                    <div className="text-ink-muted">
+                    <div className="text-text-2">
                       Dernier passage : {formatDate(monitor.lastCheckedAt)}
                       {monitor.lastLatencyMs === null ? '' : ` · ${monitor.lastLatencyMs} ms`}
                     </div>
                     {monitor.lastDetail ? (
-                      <div className="text-ink-faint font-mono text-[0.6875rem]">
+                      <div className="text-text-3 font-mono text-[0.6875rem]">
                         {monitor.lastDetail}
                       </div>
                     ) : null}
@@ -439,9 +439,9 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-line bg-card shadow-panel min-w-0 rounded-lg border">
-      <div className="border-line flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-        <h2 className="text-ink font-condensed text-[0.9375rem] font-semibold">{title}</h2>
+    <section className="border-border bg-card shadow-xs min-w-0 rounded-lg border">
+      <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
+        <h2 className="text-text text-[0.9375rem] font-semibold">{title}</h2>
         {aside}
       </div>
       {children}
@@ -460,8 +460,8 @@ function Field({
 }) {
   return (
     <div className={wide ? 'col-span-2 min-w-0' : 'min-w-0'}>
-      <dt className="eyebrow text-ink-faint">{label}</dt>
-      <dd className="text-ink truncate font-mono text-xs">{children}</dd>
+      <dt className="eyebrow text-text-3">{label}</dt>
+      <dd className="text-text truncate font-mono text-xs">{children}</dd>
     </div>
   );
 }

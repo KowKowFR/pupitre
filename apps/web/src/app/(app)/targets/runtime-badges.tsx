@@ -22,12 +22,12 @@ function RuntimePill({
     <span
       className={cn(
         'inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 font-mono text-[0.6875rem] leading-4',
-        available ? 'border-ok-edge bg-ok-soft/60 text-ink' : 'border-line text-ink-faint',
+        available ? 'border-ok-line bg-ok-soft/60 text-text' : 'border-border text-text-3',
       )}
     >
       <Led tone={available ? 'ok' : 'idle'} className="size-2" />
       {name}
-      {available && version ? <span className="text-ink-muted">{version}</span> : null}
+      {available && version ? <span className="text-text-2">{version}</span> : null}
     </span>
   );
 }

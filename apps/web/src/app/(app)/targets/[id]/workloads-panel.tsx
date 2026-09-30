@@ -61,10 +61,10 @@ type Progress = { ref: string; name: string; lines: string[]; done: boolean; fai
 const STATE_TONE: Record<ServiceState, string> = {
   running: 'bg-ok',
   restarting: 'bg-warn',
-  exited: 'bg-ink-faint',
+  exited: 'bg-text-3',
   paused: 'bg-warn',
   created: 'bg-warn',
-  unknown: 'bg-ink-faint',
+  unknown: 'bg-text-3',
 };
 
 /**
@@ -334,7 +334,7 @@ export function WorkloadsPanel({
                 <TableRow key={workload.ref}>
                   <TableCell>
                     <div className="font-mono text-xs">{workload.name}</div>
-                    <div className="text-ink-faint text-[10px]">
+                    <div className="text-text-3 text-[10px]">
                       {kindLabel(workload.kind, t)}
                       {workload.scope ? ` · ${workload.scope}` : ''}
                     </div>
@@ -368,7 +368,7 @@ export function WorkloadsPanel({
                       <span className="text-xs">{t(`state.${workload.state}`)}</span>
                     </span>
                     {workload.since ? (
-                      <div className="text-ink-faint text-[10px]">{workload.since}</div>
+                      <div className="text-text-3 text-[10px]">{workload.since}</div>
                     ) : null}
                   </TableCell>
 
@@ -385,7 +385,7 @@ export function WorkloadsPanel({
                       {workload.managed ? (
                         // Dire pourquoi le geste est absent vaut mieux que de
                         // laisser croire à un oubli.
-                        <span className="text-ink-faint text-[11px]">
+                        <span className="text-text-3 text-[11px]">
                           {t('workloads.managedNotice')}
                         </span>
                       ) : (

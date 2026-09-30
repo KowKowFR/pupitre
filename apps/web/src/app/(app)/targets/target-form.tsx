@@ -213,14 +213,14 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder={t('description.placeholder')}
-          className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
+          className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 text-sm text-text outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-text-3 focus-visible:border-accent focus-visible:ring-[3px] focus-visible:ring-accent/25"
         />
-        <p className="flex justify-between gap-4 text-xs text-ink-muted">
+        <p className="flex justify-between gap-4 text-xs text-text-2">
           <span>{t('description.help')}</span>
           <span
             className={cn(
               'shrink-0 font-mono tabular-nums',
-              description.length > DESCRIPTION_MAX - 40 ? 'text-warn' : 'text-ink-faint',
+              description.length > DESCRIPTION_MAX - 40 ? 'text-warn-text' : 'text-text-3',
             )}
           >
             {description.length}/{DESCRIPTION_MAX}
@@ -240,12 +240,12 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             spellCheck={false}
             autoComplete="off"
             placeholder={'-----BEGIN OPENSSH PRIVATE KEY-----\n…'}
-            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-xs text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
+            className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs text-text outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-text-3 focus-visible:border-accent focus-visible:ring-[3px] focus-visible:ring-accent/25"
           />
         ) : (
           <Input id="credential" name="credential" type="password" autoComplete="new-password" />
         )}
-        <p className="text-xs text-ink-muted">
+        <p className="text-xs text-text-2">
           {t('credential.help')}
           {isEdit ? t('credential.help.edit') : ''}
         </p>
@@ -264,7 +264,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             required
             className="w-32"
           />
-          <span className="text-sm text-ink-faint">→</span>
+          <span className="text-sm text-text-3">→</span>
           <Input
             id="portRangeEnd"
             name="portRangeEnd"
@@ -276,7 +276,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             className="w-32"
           />
         </div>
-        <p className="text-xs text-ink-muted">{t('portRange.help')}</p>
+        <p className="text-xs text-text-2">{t('portRange.help')}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -288,12 +288,12 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           value={labelsText}
           onChange={(event) => setLabelsText(event.target.value)}
           placeholder={'env=prod\nzone=eu-west'}
-          className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-xs text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
+          className="w-full rounded-md border border-border-strong bg-surface px-3 py-2 font-mono text-xs text-text outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-text-3 focus-visible:border-accent focus-visible:ring-[3px] focus-visible:ring-accent/25"
         />
         <TargetLabelList labels={textToLabels(labelsText)} className="pt-0.5" />
         {/* Coupée autour du `clé=valeur` que le JSX rend en chasse fixe : une clé
             par fragment, dans l'ordre où la phrase les enchaîne. */}
-        <p className="text-xs text-ink-muted">
+        <p className="text-xs text-text-2">
           {t('labels.help.before')} <code>{t('labels.help.pair')}</code>{' '}
           {t('labels.help.after')}
         </p>

@@ -44,7 +44,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
           </>
         }
         actions={
-          <span className="font-mono text-xs text-ink-faint">
+          <span className="font-mono text-xs text-text-3">
             {record.updatedAt ? t('page.state.customized') : t('page.state.defaults')}
           </span>
         }

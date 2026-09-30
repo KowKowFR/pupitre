@@ -16,7 +16,7 @@ export default async function ForbiddenPage({
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md items-center p-6">
-      <Card className="w-full border-danger-edge shadow-raised">
+      <Card className="w-full border-danger-line shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">{t('forbidden.title')}</CardTitle>
           <CardDescription>{t('forbidden.description')}</CardDescription>
@@ -27,10 +27,10 @@ export default async function ForbiddenPage({
               {t('forbidden.permission')} <code className="font-mono text-xs">{permission}</code>
             </Alert>
           ) : null}
-          <p className="text-[0.8125rem] text-ink-muted">{t('forbidden.body')}</p>
+          <p className="text-[0.8125rem] text-text-2">{t('forbidden.body')}</p>
           <Link
             href="/"
-            className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+            className="text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
           >
             {t('link.backToDashboard')}
           </Link>

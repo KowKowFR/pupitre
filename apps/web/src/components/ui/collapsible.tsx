@@ -115,7 +115,7 @@ export function CollapsibleTrigger({
       <ChevronRight
         aria-hidden
         className={cn(
-          'size-4 shrink-0 text-ink-faint transition-transform duration-150 ease-out',
+          'size-4 shrink-0 text-text-3 transition-transform duration-150 ease-out',
           'motion-reduce:transition-none',
           open && 'rotate-90',
         )}

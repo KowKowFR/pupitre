@@ -11,13 +11,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function AppLoading() {
   return (
     <div className="flex flex-col gap-7" aria-busy="true" aria-label="Chargement">
-      <div className="flex flex-col gap-2.5 border-b border-line pb-5">
+      <div className="flex flex-col gap-2.5 border-b border-border pb-5">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-7 w-64" />
         <Skeleton className="h-3.5 w-[28rem] max-w-full" />
       </div>
 
-      <div className="grid grid-cols-2 divide-x divide-y divide-line rounded-lg border border-line bg-card sm:grid-cols-4 sm:divide-y-0">
+      <div className="grid grid-cols-2 divide-x divide-y divide-border rounded-lg border border-border bg-card sm:grid-cols-4 sm:divide-y-0">
         {[0, 1, 2, 3].map((slot) => (
           <div key={slot} className="flex flex-col gap-2 px-4 py-3.5">
             <Skeleton className="h-3 w-20" />
@@ -27,7 +27,7 @@ export default function AppLoading() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-line bg-card p-5">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5">
         {[0, 1, 2, 3, 4].map((slot) => (
           <div key={slot} className="flex items-center gap-4">
             <Skeleton className="h-4 flex-1" />

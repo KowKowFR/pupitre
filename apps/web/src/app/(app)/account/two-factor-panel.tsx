@@ -143,7 +143,7 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
 
         {enabled ? (
           <form onSubmit={disable} className="flex flex-col gap-4">
-            <p className="text-[0.8125rem] text-ink-muted">{t('twoFactor.armed.body')}</p>
+            <p className="text-[0.8125rem] text-text-2">{t('twoFactor.armed.body')}</p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="disable-password">{t('twoFactor.field.password')}</Label>
               <Input
@@ -215,14 +215,14 @@ function SetupSteps({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
-        <div className="w-fit shrink-0 rounded-md border border-line bg-white p-3">
+        <div className="w-fit shrink-0 rounded-md border border-border bg-white p-3">
           <QRCodeSVG value={setup.totpURI} size={148} level="M" marginSize={0} />
         </div>
         <div className="flex min-w-0 flex-col gap-2">
-          <p className="text-[0.8125rem] leading-relaxed text-ink-muted">{t('setup.scan')}</p>
+          <p className="text-[0.8125rem] leading-relaxed text-text-2">{t('setup.scan')}</p>
           <div className="flex flex-col gap-1">
             <Label>{t('setup.key')}</Label>
-            <code className="rounded-sm border border-line bg-surface-2 px-2 py-1.5 font-mono text-xs break-all text-ink">
+            <code className="rounded-sm border border-border bg-surface-2 px-2 py-1.5 font-mono text-xs break-all text-text">
               {groupSecret(setup.secret)}
             </code>
           </div>
@@ -237,7 +237,7 @@ function SetupSteps({
         {setup.backupCodes.map((backupCode) => (
           <li
             key={backupCode}
-            className="rounded-sm border border-line bg-surface-2 px-2 py-1 text-center font-mono text-xs text-ink"
+            className="rounded-sm border border-border bg-surface-2 px-2 py-1 text-center font-mono text-xs text-text"
           >
             {backupCode}
           </li>
@@ -260,7 +260,7 @@ function SetupSteps({
             value={code}
             onChange={(event) => onCodeChange(event.target.value.replace(/\D/g, ''))}
           />
-          <p className="text-xs text-ink-faint">{t('setup.code.hint')}</p>
+          <p className="text-xs text-text-3">{t('setup.code.hint')}</p>
         </div>
         <div className="flex gap-2">
           <Button type="submit" disabled={pending}>

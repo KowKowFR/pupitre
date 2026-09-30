@@ -29,7 +29,7 @@ export default async function ForgotPasswordPage() {
     const t = await getT(messages);
 
     return (
-      <Card className="shadow-raised">
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">{t('forgot.unavailable.title')}</CardTitle>
           <CardDescription>{t('forgot.unavailable.description')}</CardDescription>
@@ -42,7 +42,7 @@ export default async function ForgotPasswordPage() {
           </Alert>
           <Link
             href="/login"
-            className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+            className="text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
           >
             {t('link.backToLogin')}
           </Link>

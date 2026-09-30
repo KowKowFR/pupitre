@@ -97,7 +97,7 @@ export function LoginForm({
 
   if (challenge) {
     return (
-      <Card className="shadow-raised">
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">{t('twoFactor.title')}</CardTitle>
           <CardDescription>
@@ -131,7 +131,7 @@ export function LoginForm({
             </Button>
             <button
               type="button"
-              className="text-center text-xs text-ink-muted underline-offset-4 hover:underline"
+              className="text-center text-xs text-text-2 underline-offset-4 hover:underline"
               onClick={() => {
                 setUseBackupCode(!useBackupCode);
                 setCode('');
@@ -147,7 +147,7 @@ export function LoginForm({
   }
 
   return (
-    <Card className="shadow-raised">
+    <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="text-lg">{t('login.title')}</CardTitle>
         <CardDescription>{t('login.description')}</CardDescription>
@@ -173,22 +173,22 @@ export function LoginForm({
             {pending ? t('login.pending') : t('login.submit')}
           </Button>
           {canRecoverPassword ? (
-            <p className="text-center text-xs text-ink-muted">
+            <p className="text-center text-xs text-text-2">
               <Link
                 href="/forgot-password"
-                className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+                className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
               >
                 {t('login.forgot')}
               </Link>
             </p>
           ) : null}
-          <p className="text-center text-xs text-ink-muted">
+          <p className="text-center text-xs text-text-2">
             {signupOpen ? (
               <>
                 {t('login.signup.prompt')}{' '}
                 <Link
                   href="/signup"
-                  className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+                  className="text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
                 >
                   {t('login.signup.link')}
                 </Link>

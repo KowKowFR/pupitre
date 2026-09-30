@@ -33,7 +33,7 @@ export default async function AccountPage() {
         eyebrow={t('page.eyebrow')}
         title={t('page.title')}
         description={t('page.description')}
-        actions={<span className="font-mono text-xs text-ink-faint">{auth.email}</span>}
+        actions={<span className="font-mono text-xs text-text-3">{auth.email}</span>}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">

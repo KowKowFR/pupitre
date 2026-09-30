@@ -16,13 +16,13 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: 'border-signal-edge bg-signal-soft text-signal',
-        secondary: 'border-line bg-surface-2 text-ink-muted',
-        outline: 'border-line-strong bg-transparent text-ink-muted',
-        solid: 'border-transparent bg-signal text-signal-ink',
-        ok: 'border-ok-edge bg-ok-soft text-ok',
-        warn: 'border-warn-edge bg-warn-soft text-warn',
-        destructive: 'border-danger-edge bg-danger-soft text-danger',
+        default: 'border-accent-line bg-accent-soft text-accent',
+        secondary: 'border-border bg-surface-2 text-text-2',
+        outline: 'border-border-strong bg-transparent text-text-2',
+        solid: 'border-transparent bg-accent text-accent-fg',
+        ok: 'border-ok-line bg-ok-soft text-ok-text',
+        warn: 'border-warn-line bg-warn-soft text-warn-text',
+        destructive: 'border-danger-line bg-danger-soft text-danger-text',
       },
     },
     defaultVariants: {
@@ -43,8 +43,8 @@ function CodeBadge({ className, ...props }: React.ComponentProps<'span'>) {
     <span
       data-slot="code-badge"
       className={cn(
-        'inline-flex w-fit items-center rounded-sm border border-line bg-surface-2 px-1.5 py-0.5',
-        'font-mono text-[0.6875rem] leading-4 text-ink-muted',
+        'inline-flex w-fit items-center rounded-sm border border-border bg-surface-2 px-1.5 py-0.5',
+        'font-mono text-[0.6875rem] leading-4 text-text-2',
         className,
       )}
       {...props}

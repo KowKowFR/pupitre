@@ -40,7 +40,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           </>
         }
         actions={
-          <span className="font-mono text-xs text-ink-faint tabular-nums">
+          <span className="font-mono text-xs text-text-3 tabular-nums">
             {t('logs.summary', {
               count: page.total,
               page: page.page,

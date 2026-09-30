@@ -198,26 +198,26 @@ function SchedulePreview({
   const differentZone = viewerZone !== null && viewerZone !== timeZone;
 
   return (
-    <div className="mt-1 rounded-md border border-line bg-surface-2 px-3 py-2 text-xs">
-      <p className="text-ink">{describeCron(cron, { locale: language, timeZone })}</p>
-      <p className="mt-1 font-mono text-[0.6875rem] text-ink-faint">{cron}</p>
+    <div className="mt-1 rounded-md border border-border bg-surface-2 px-3 py-2 text-xs">
+      <p className="text-text">{describeCron(cron, { locale: language, timeZone })}</p>
+      <p className="mt-1 font-mono text-[0.6875rem] text-text-3">{cron}</p>
 
       <dl className="mt-2 space-y-0.5">
         {now === null ? (
-          <div className="text-ink-faint">{t('preview.computing')}</div>
+          <div className="text-text-3">{t('preview.computing')}</div>
         ) : runs.length === 0 ? (
-          <div className="text-ink-faint">{t('preview.noRun')}</div>
+          <div className="text-text-3">{t('preview.noRun')}</div>
         ) : (
           runs.map((run, index) => (
-            <div key={run.toISOString()} className="flex flex-wrap gap-x-2 text-ink-muted">
-              <dt className="text-ink-faint">
+            <div key={run.toISOString()} className="flex flex-wrap gap-x-2 text-text-2">
+              <dt className="text-text-3">
                 {index === 0 ? t('preview.next') : t('preview.then', { rank: index + 1 })}
               </dt>
               <dd className="font-mono tabular-nums">
                 {formatIn(run, timeZone, format)}{' '}
-                <span className="text-ink-faint">{timeZone}</span>
+                <span className="text-text-3">{timeZone}</span>
                 {differentZone && viewerZone ? (
-                  <span className="text-ink-faint">
+                  <span className="text-text-3">
                     {' · '}
                     {t('row.yourClock', { clock: formatIn(run, viewerZone, format) })}
                   </span>
@@ -305,7 +305,7 @@ export function ScheduleField({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor={`${idPrefix}-tz`} className="text-xs font-normal text-ink-muted">
+        <Label htmlFor={`${idPrefix}-tz`} className="text-xs font-normal text-text-2">
           {t('field.timeZone.label')}
         </Label>
         <Select
@@ -327,7 +327,7 @@ export function ScheduleField({
           ))}
         </Select>
         {dependsOnTimeZone(value) ? null : (
-          <span className="text-xs text-ink-faint">{t('field.timeZone.irrelevant')}</span>
+          <span className="text-xs text-text-3">{t('field.timeZone.irrelevant')}</span>
         )}
       </div>
 
@@ -371,7 +371,7 @@ export function ScheduleField({
           ) : null}
 
           {simple.kind === 'hourly' ? (
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
+            <label className="flex items-center gap-2 text-xs text-text-2">
               {t('field.hourly.atMinute')}
               <Input
                 type="number"
@@ -388,7 +388,7 @@ export function ScheduleField({
           ) : null}
 
           {simple.kind === 'monthly' ? (
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
+            <label className="flex items-center gap-2 text-xs text-text-2">
               {t('field.monthly.onDay')}
               <Input
                 type="number"
@@ -429,7 +429,7 @@ export function ScheduleField({
           ) : null}
 
           {simple.kind !== 'interval' && simple.kind !== 'hourly' ? (
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
+            <label className="flex items-center gap-2 text-xs text-text-2">
               {t('field.time.at')}
               <Input
                 type="time"
@@ -442,7 +442,7 @@ export function ScheduleField({
                   setSimple({ ...simple, hour: clamp(hour, 0, 23), minute: clamp(minute, 0, 59) });
                 }}
               />
-              <span className="text-ink-faint">{timeZone}</span>
+              <span className="text-text-3">{timeZone}</span>
             </label>
           ) : null}
         </div>
@@ -459,11 +459,11 @@ export function ScheduleField({
       )}
 
       {value.mode === 'expert' && !expertHasSimpleForm && cronError(value.cron.trim(), language) === null ? (
-        <p className="text-xs text-ink-faint">{t('field.expertNoSimple')}</p>
+        <p className="text-xs text-text-3">{t('field.expertNoSimple')}</p>
       ) : null}
 
       {simple.kind === 'monthly' && value.mode === 'simple' && simple.day > 28 ? (
-        <p className="text-xs text-warn">{t('field.shortMonths', { day: simple.day })}</p>
+        <p className="text-xs text-warn-text">{t('field.shortMonths', { day: simple.day })}</p>
       ) : null}
 
       <SchedulePreview cron={cron} timeZone={timeZone} format={format} />

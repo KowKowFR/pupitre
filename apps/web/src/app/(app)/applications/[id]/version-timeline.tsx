@@ -124,7 +124,7 @@ export function VersionTimeline({
                   qui continue dans le vide laisse croire qu'il manque quelque
                   chose. */}
               {index < versions.length - 1 ? (
-                <span className="absolute top-4 left-[7px] h-full w-px bg-line-strong/70" />
+                <span className="absolute top-4 left-[7px] h-full w-px bg-border-strong/70" />
               ) : null}
 
               <span
@@ -136,7 +136,7 @@ export function VersionTimeline({
                       ? 'border-danger bg-danger'
                       : version.status === 'rolled_back'
                         ? 'border-warn bg-warn'
-                        : 'border-line-strong bg-ground',
+                        : 'border-border-strong bg-bg',
                 )}
               />
 
@@ -144,7 +144,7 @@ export function VersionTimeline({
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <Link
                     href={`/deployments/${version.deploymentId}`}
-                    className="text-[0.8125rem] font-medium text-ink underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+                    className="text-[0.8125rem] font-medium text-text underline decoration-accent-line underline-offset-4 hover:decoration-accent"
                   >
                     #{version.version}
                   </Link>

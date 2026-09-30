@@ -32,7 +32,7 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
         <Card>
           <CardHeader>
             <CardTitle>{t('report.unreachable')}</CardTitle>
-            <CardDescription className="font-mono text-xs text-danger">
+            <CardDescription className="font-mono text-xs text-danger-text">
               {report.error}
             </CardDescription>
           </CardHeader>
@@ -146,10 +146,10 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
                       {check.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-ink-muted tabular-nums">
+                  <TableCell className="font-mono text-xs text-text-2 tabular-nums">
                     {check.durationMs} ms
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-ink-faint">
+                  <TableCell className="font-mono text-xs text-text-3">
                     {check.error ?? check.detail ?? tc('none')}
                   </TableCell>
                 </TableRow>
@@ -164,9 +164,9 @@ export async function ReportDetails({ report }: { report: PreflightReport | null
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2 last:border-0">
-      <span className="text-xs text-ink-muted">{label}</span>
-      <span className="font-mono text-xs text-ink">{children}</span>
+    <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-2 last:border-0">
+      <span className="text-xs text-text-2">{label}</span>
+      <span className="font-mono text-xs text-text">{children}</span>
     </div>
   );
 }

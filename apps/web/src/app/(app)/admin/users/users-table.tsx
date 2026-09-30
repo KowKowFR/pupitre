@@ -401,7 +401,7 @@ function ResetTwoFactorDialog({
 
         <DialogBody className="space-y-3 text-[0.8125rem]">
           <p>{t('users.2fa.dialog.intro')}</p>
-          <ul className="text-ink-muted list-disc space-y-1 pl-5">
+          <ul className="text-text-2 list-disc space-y-1 pl-5">
             <li>{t('users.2fa.dialog.totp')}</li>
             <li>{t('users.2fa.dialog.backup')}</li>
             <li>

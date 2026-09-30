@@ -10,7 +10,7 @@ export function Skeleton({ className }: { className?: string }) {
     <div
       aria-hidden
       className={cn(
-        'animate-signal-sweep rounded-sm bg-surface-2',
+        'animate-sweep rounded-sm bg-surface-2',
         'bg-[linear-gradient(90deg,var(--surface-2)_0%,var(--surface-3)_50%,var(--surface-2)_100%)]',
         className,
       )}

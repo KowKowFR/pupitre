@@ -39,8 +39,8 @@ export function PreflightPanel({
       ) : null}
 
       {phase ? (
-        <p className="flex items-center gap-1.5 text-xs text-signal">
-          <span className="size-1.5 animate-signal-pulse rounded-full bg-signal" />
+        <p className="flex items-center gap-1.5 text-xs text-accent">
+          <span className="size-1.5 animate-soft-pulse rounded-full bg-accent" />
           {phase}
         </p>
       ) : null}

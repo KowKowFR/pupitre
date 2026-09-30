@@ -47,14 +47,14 @@ export default function AppError({
         description={t('appError.description')}
       />
 
-      <Card className="border-danger-edge">
+      <Card className="border-danger-line">
         <CardContent className="space-y-4">
           <Alert variant="destructive">{error.message || t('appError.fallback')}</Alert>
 
           {error.digest ? (
-            <p className="text-xs text-ink-faint">
+            <p className="text-xs text-text-3">
               {t('appError.digest.before')}{' '}
-              <code className="font-mono text-ink-muted">{error.digest}</code>{' '}
+              <code className="font-mono text-text-2">{error.digest}</code>{' '}
               {t('appError.digest.after')}
             </p>
           ) : null}
@@ -68,7 +68,7 @@ export default function AppError({
             <Button onClick={reset}>{tc('retry')}</Button>
             <Link
               href="/"
-              className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+              className="text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
             >
               {t('link.backToDashboard')}
             </Link>

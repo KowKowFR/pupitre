@@ -23,10 +23,10 @@ export function LogoutRunner() {
   }, [router]);
 
   return (
-    <p className="flex items-center gap-2.5 text-sm text-ink-muted">
+    <p className="flex items-center gap-2.5 text-sm text-text-2">
       <span
         aria-hidden
-        className="inline-block size-4 animate-spin rounded-full border-2 border-signal border-t-transparent"
+        className="inline-block size-4 animate-spin rounded-full border-2 border-accent border-t-transparent"
       />
       {t('logout.pending')}
     </p>

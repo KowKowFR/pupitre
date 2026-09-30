@@ -145,7 +145,7 @@ export default async function SettingsOverviewPage() {
           <Card key={section.href} className="gap-4">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <span aria-hidden className="text-ink-faint">
+                <span aria-hidden className="text-text-3">
                   <Icon className="size-4" />
                 </span>
                 {t(`section.${section.id}.title`)}
@@ -158,16 +158,16 @@ export default async function SettingsOverviewPage() {
                 {(readouts[section.href] ?? []).map((row) => (
                   <div
                     key={row.term}
-                    className="flex justify-between gap-3 border-b border-line pb-1.5"
+                    className="flex justify-between gap-3 border-b border-border pb-1.5"
                   >
-                    <dt className="shrink-0 text-ink-muted">{row.term}</dt>
-                    <dd className="min-w-0 truncate text-right font-mono text-ink">{row.value}</dd>
+                    <dt className="shrink-0 text-text-2">{row.term}</dt>
+                    <dd className="min-w-0 truncate text-right font-mono text-text">{row.value}</dd>
                   </div>
                 ))}
               </dl>
               <Link
                 href={section.href}
-                className="inline-flex w-fit items-center gap-1.5 rounded-md text-[0.8125rem] font-medium text-signal underline-offset-4 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="inline-flex w-fit items-center gap-1.5 rounded-md text-[0.8125rem] font-medium text-accent underline-offset-4 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {t('overview.open', {
                   label: t(`section.${section.id}.label`).toLowerCase(),

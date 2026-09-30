@@ -78,7 +78,7 @@ export function TableScroller({
         // `focus-visible` seulement : cliquer dans le tableau ne doit pas
         // entourer la zone entière d'un anneau.
         className={cn(
-          'overflow-x-auto px-1 focus-visible:ring-2 focus-visible:ring-signal focus-visible:outline-none',
+          'overflow-x-auto px-1 focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none',
           className,
         )}
         tabIndex={scrollable ? 0 : undefined}

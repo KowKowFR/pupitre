@@ -20,11 +20,11 @@ function CheckboxChip({ className, label, ...props }: CheckboxChipProps) {
     <label
       className={cn(
         'flex h-8 min-w-9 cursor-pointer items-center justify-center rounded-md px-2',
-        'border border-line-strong bg-surface',
-        'text-[0.8125rem] font-medium text-ink-muted select-none',
+        'border border-border-strong bg-surface',
+        'text-[0.8125rem] font-medium text-text-2 select-none',
         'transition-[background-color,border-color,color] duration-100 ease-out',
-        'hover:border-ink-faint/60',
-        'has-[:checked]:border-signal-edge has-[:checked]:bg-signal-soft has-[:checked]:text-ink',
+        'hover:border-text-3/60',
+        'has-[:checked]:border-accent-line has-[:checked]:bg-accent-soft has-[:checked]:text-text',
         'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-45',
         'has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ring',
         className,
@@ -71,14 +71,14 @@ function Checkbox({ className, indeterminate = false, ref, ...props }: CheckboxP
       }}
       aria-checked={indeterminate ? 'mixed' : undefined}
       className={cn(
-        'size-4 shrink-0 cursor-pointer appearance-none rounded-[0.25rem] border border-line-strong bg-surface',
+        'size-4 shrink-0 cursor-pointer appearance-none rounded-[0.25rem] border border-border-strong bg-surface',
         'transition-[background-color,border-color] duration-100 ease-out',
-        'hover:border-signal-edge',
+        'hover:border-accent-line',
         'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
         'disabled:cursor-not-allowed disabled:opacity-45',
-        'checked:border-signal checked:bg-signal checked:bg-center checked:bg-no-repeat',
+        'checked:border-accent checked:bg-accent checked:bg-center checked:bg-no-repeat',
         "checked:bg-[url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-6'/%3E%3C/svg%3E\")]",
-        'indeterminate:border-signal indeterminate:bg-signal indeterminate:bg-center indeterminate:bg-no-repeat',
+        'indeterminate:border-accent indeterminate:bg-accent indeterminate:bg-center indeterminate:bg-no-repeat',
         "indeterminate:bg-[url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M4 8h8'/%3E%3C/svg%3E\")]",
         className,
       )}

@@ -23,13 +23,13 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-signal text-signal-ink shadow-panel hover:bg-signal-hover',
-        destructive: 'bg-danger text-white shadow-panel hover:brightness-110',
+        default: 'bg-accent text-accent-fg shadow-xs hover:bg-accent-hover',
+        destructive: 'bg-danger text-white shadow-xs hover:brightness-110',
         outline:
-          'border border-line-strong bg-surface text-ink shadow-panel hover:border-signal-edge hover:bg-signal-soft/60',
-        secondary: 'bg-surface-2 text-ink hover:bg-surface-3',
-        ghost: 'text-ink-muted hover:bg-surface-2 hover:text-ink',
-        link: 'text-signal underline-offset-4 hover:underline',
+          'border border-border-strong bg-surface text-text shadow-xs hover:border-accent-line hover:bg-accent-soft/60',
+        secondary: 'bg-surface-2 text-text hover:bg-surface-3',
+        ghost: 'text-text-2 hover:bg-surface-2 hover:text-text',
+        link: 'text-accent underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-9 px-4 has-[>svg]:px-3.5',

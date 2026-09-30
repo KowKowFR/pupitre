@@ -48,7 +48,7 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
         title={t('page.title')}
         description={t('page.description')}
         actions={
-          <span className="font-mono text-xs text-ink-faint tabular-nums">
+          <span className="font-mono text-xs text-text-3 tabular-nums">
             {t('page.counter', {
               count: page.total,
               page: page.page,

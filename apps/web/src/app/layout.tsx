@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import { getAppSettings } from '@pupitre/db';
-import { IBM_Plex_Sans, IBM_Plex_Sans_Condensed, JetBrains_Mono } from 'next/font/google';
+import { Geist_Mono, Instrument_Sans } from 'next/font/google';
+import { cookies } from 'next/headers';
 import type { ReactNode } from 'react';
 import { LanguageProvider } from '@/i18n/client';
 import { currentLanguage } from '@/i18n/server';
+import { THEME_COOKIE, parseTheme, themeClass } from '@/lib/theme';
+import { cn } from '@/lib/utils';
 import './globals.css';
 
 /**
@@ -15,31 +18,27 @@ import './globals.css';
 export const dynamic = 'force-dynamic';
 
 /**
- * Trois faces, trois rôles — chargées par `next/font` pour être auto-hébergées
+ * Deux faces, deux rôles — chargées par `next/font` pour être auto-hébergées
  * et préchargées : pas d'appel à un tiers au rendu, pas de saut de police.
  *
- * IBM Plex Sans porte le texte, sa version condensée les étiquettes
- * d'instrument, JetBrains Mono tout ce qui est identifiant, port, version,
- * durée ou ligne de log.
+ * Instrument Sans porte l'interface. Elle est chargée en police variable avec
+ * son axe de largeur : les titres se condensent à 88–96 % (`font-stretch`)
+ * sans une seconde famille. `wght` est implicite pour une police variable, on
+ * ne déclare que l'axe en plus.
+ *
+ * Geist Mono porte tout ce qui est identifiant : slug, hôte, port, version,
+ * date, clé de permission, ligne de log.
  */
-const plexSans = IBM_Plex_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-plex-sans',
+const instrumentSans = Instrument_Sans({
+  subsets: ['latin', 'latin-ext'],
+  axes: ['wdth'],
+  variable: '--font-instrument-sans',
   display: 'swap',
 });
 
-const plexCondensed = IBM_Plex_Sans_Condensed({
-  subsets: ['latin'],
-  weight: ['500', '600'],
-  variable: '--font-plex-condensed',
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '700'],
-  variable: '--font-jetbrains-mono',
+const geistMono = Geist_Mono({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-geist-mono',
   display: 'swap',
 });
 
@@ -75,14 +74,22 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-/** Les deux thèmes sont tenus : le navigateur peut peindre l'UI en conséquence. */
-export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
-    { media: '(prefers-color-scheme: dark)', color: '#1b1e24' },
-  ],
-};
+/**
+ * Les deux thèmes sont tenus : le navigateur peut peindre son cadre en
+ * conséquence. Un choix forcé dans le menu utilisateur l'emporte sur le média.
+ */
+export async function generateViewport(): Promise<Viewport> {
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
+  if (theme === 'light') return { colorScheme: 'light', themeColor: '#f7f8fa' };
+  if (theme === 'dark') return { colorScheme: 'dark', themeColor: '#0e1014' };
+  return {
+    colorScheme: 'light dark',
+    themeColor: [
+      { media: '(prefers-color-scheme: light)', color: '#f7f8fa' },
+      { media: '(prefers-color-scheme: dark)', color: '#0e1014' },
+    ],
+  };
+}
 
 /**
  * La langue se pose ici, une fois, pour les trois groupes de routes — le panel,
@@ -92,12 +99,14 @@ export const viewport: Viewport = {
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const language = await currentLanguage();
+  // Le thème est posé par le serveur : la première image est la bonne.
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
 
   return (
     <html
       lang={language}
       suppressHydrationWarning
-      className={`${plexSans.variable} ${plexCondensed.variable} ${jetbrainsMono.variable}`}
+      className={cn(instrumentSans.variable, geistMono.variable, themeClass(theme))}
     >
       <body className="min-h-dvh antialiased">
         <LanguageProvider language={language}>{children}</LanguageProvider>

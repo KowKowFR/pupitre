@@ -120,8 +120,8 @@ function ServerCard({
 
   const identity = (
     <span className="flex min-w-0 flex-col">
-      <span className="truncate text-[0.8125rem] font-medium text-ink">{server.name}</span>
-      <span className="truncate font-mono text-[0.6875rem] text-ink-faint">
+      <span className="truncate text-[0.8125rem] font-medium text-text">{server.name}</span>
+      <span className="truncate font-mono text-[0.6875rem] text-text-3">
         {server.sshUser ? `${server.sshUser}@` : ''}
         {server.host}
         {server.port === null ? '' : `:${server.port}`}
@@ -137,7 +137,7 @@ function ServerCard({
       <Collapsible defaultOpen={hasApps && needsAttention}>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
           {hasApps ? (
-            <CollapsibleTrigger className="min-w-0 flex-1 basis-56 hover:[&_span:first-of-type]:text-signal">
+            <CollapsibleTrigger className="min-w-0 flex-1 basis-56 hover:[&_span:first-of-type]:text-accent">
               {identity}
             </CollapsibleTrigger>
           ) : (
@@ -157,7 +157,7 @@ function ServerCard({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {age ? <span className="text-[0.6875rem] text-ink-faint">{age}</span> : null}
+            {age ? <span className="text-[0.6875rem] text-text-3">{age}</span> : null}
             {canProbe ? (
               <Button
                 size="sm"
@@ -185,22 +185,22 @@ function ServerCard({
           </div>
         </div>
 
-        <div className="border-t border-line bg-ground-deep/40 px-1 py-1">
+        <div className="border-t border-border bg-bg-subtle/40 px-1 py-1">
           <HostReadouts entry={entry} enabled={canProbe} thresholds={history?.thresholds} />
         </div>
 
         {history ? (
-          <div className="border-t border-line bg-ground-deep/20">
+          <div className="border-t border-border bg-bg-subtle/20">
             <HostHistory targetId={server.id} initial={history} format={format} />
           </div>
         ) : null}
 
         {hasApps ? (
-          <CollapsiblePanel className="border-t border-line px-4 py-3">
+          <CollapsiblePanel className="border-t border-border px-4 py-3">
             <AppsTable items={server.apps} canRestart={canRestart} />
           </CollapsiblePanel>
         ) : (
-          <p className="border-t border-line px-4 py-3 text-[0.8125rem] text-ink-muted">
+          <p className="border-t border-border px-4 py-3 text-[0.8125rem] text-text-2">
             {t('server.noApps')}
           </p>
         )}
@@ -242,7 +242,7 @@ export function ServersList({
     <div className="flex flex-col gap-4">
       {canReadTargets && probeIds.length > 0 ? (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[0.75rem] text-ink-faint">
+          <p className="text-[0.75rem] text-text-3">
             {`${t('list.servers', { count: servers.length })} · ${t('list.apps', {
               count: servers.reduce((total, server) => total + server.apps.length, 0),
             })}`}

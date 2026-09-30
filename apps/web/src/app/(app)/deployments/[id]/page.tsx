@@ -49,7 +49,7 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
         eyebrow={
           <Link
             href="/deployments"
-            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+            className="inline-flex items-center gap-1 transition-colors hover:text-text"
           >
             <ChevronLeft className="size-3" />
             {t('page.title')}
@@ -58,7 +58,7 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
         title={
           <>
             {deployment.applicationSlug}{' '}
-            <span className="font-mono text-[1.375rem] font-normal text-ink-faint">
+            <span className="font-mono text-[1.375rem] font-normal text-text-3">
               v{deployment.version}
             </span>
           </>

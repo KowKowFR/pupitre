@@ -18,7 +18,7 @@ export default async function SignupPage() {
     const t = await getT(messages);
 
     return (
-      <Card className="shadow-raised">
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg">{t('signup.closed.title')}</CardTitle>
           <CardDescription>{t('signup.closed.description')}</CardDescription>
@@ -30,7 +30,7 @@ export default async function SignupPage() {
           </Alert>
           <Link
             href="/login"
-            className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
+            className="text-sm text-accent underline decoration-accent-line underline-offset-4 hover:decoration-accent"
           >
             {t('link.backToLogin')}
           </Link>

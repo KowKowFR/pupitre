@@ -106,7 +106,7 @@ function href(monitorId: string, capture: CaptureView): string {
 function CaptureFacts({ capture, format }: { capture: CaptureView; format: FormatSettings }) {
   const t = useT(messages);
   return (
-    <div className="flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-ink-muted">
+    <div className="flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-text-2">
       <span className="font-mono">{formatClock(capture.takenAt, format)}</span>
       {capture.httpStatus === null ? null : (
         <Badge variant="outline">{t('capture.status', { status: capture.httpStatus })}</Badge>
@@ -135,14 +135,14 @@ function CaptureThumb({
   const t = useT(messages);
   return (
     <figure className="min-w-0 space-y-1.5">
-      <figcaption className="eyebrow text-ink-faint">{kindLabel(capture.kind, t)}</figcaption>
+      <figcaption className="eyebrow text-text-3">{kindLabel(capture.kind, t)}</figcaption>
       {capture.hasImage ? (
         <a
           href={href(monitorId, capture)}
           target="_blank"
           rel="noreferrer"
           className="block overflow-hidden rounded border"
-          style={{ borderColor: 'var(--line)' }}
+          style={{ borderColor: 'var(--border)' }}
           title={t('capture.openFull')}
         >
           {/* Cadrée en haut : le diagnostic d'une page cassée est en haut. */}
@@ -158,8 +158,8 @@ function CaptureThumb({
         </a>
       ) : (
         <div
-          className="flex h-40 items-center justify-center rounded border px-3 text-center text-xs text-ink-muted"
-          style={{ borderColor: 'var(--line)' }}
+          className="flex h-40 items-center justify-center rounded border px-3 text-center text-xs text-text-2"
+          style={{ borderColor: 'var(--border)' }}
         >
           {t('capture.purged', {
             when: capture.purgedAt
@@ -200,7 +200,7 @@ function CaptureSlider({
     <div className="space-y-2">
       <div
         className="relative w-full overflow-hidden rounded border bg-white"
-        style={{ borderColor: 'var(--line)', aspectRatio: `${before.width} / ${height}` }}
+        style={{ borderColor: 'var(--border)', aspectRatio: `${before.width} / ${height}` }}
       >
         <img
           src={href(monitorId, after)}
@@ -224,7 +224,7 @@ function CaptureSlider({
           {t('slider.during.badge', { clock: formatClock(after.takenAt, format) })}
         </span>
       </div>
-      <label className="flex items-center gap-3 text-xs text-ink-muted">
+      <label className="flex items-center gap-3 text-xs text-text-2">
         <span className="shrink-0">{t('slider.reveal')}</span>
         <input
           type="range"
@@ -263,10 +263,10 @@ export function LiveReferenceCard({
   const t = useT(messages);
   if (capture === null) return null;
   return (
-    <div className="rounded border p-3" style={{ borderColor: 'var(--line)' }}>
+    <div className="rounded border p-3" style={{ borderColor: 'var(--border)' }}>
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="eyebrow text-ink-faint">{t('reference.title')}</span>
-        <span className="text-xs text-ink-muted">{t('reference.description')}</span>
+        <span className="eyebrow text-text-3">{t('reference.title')}</span>
+        <span className="text-xs text-text-2">{t('reference.description')}</span>
       </div>
       <div className="max-w-md">
         <CaptureThumb monitorId={monitorId} capture={capture} format={format} />
@@ -302,13 +302,13 @@ export function IncidentCaptures({
   const comparable = before !== null && during !== null && before.hasImage && during.hasImage;
 
   return (
-    <div className="mt-2 space-y-3 rounded border p-3" style={{ borderColor: 'var(--line)' }}>
-      <div className="eyebrow text-ink-faint">{t('captures.title')}</div>
+    <div className="mt-2 space-y-3 rounded border p-3" style={{ borderColor: 'var(--border)' }}>
+      <div className="eyebrow text-text-3">{t('captures.title')}</div>
 
       {comparable ? (
         <CaptureSlider monitorId={monitorId} before={before} after={during} format={format} />
       ) : (
-        <p className="text-xs text-ink-muted">
+        <p className="text-xs text-text-2">
           {before === null ? t('captures.noReference') : t('captures.incomplete')}
         </p>
       )}

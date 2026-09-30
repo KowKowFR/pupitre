@@ -29,7 +29,7 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
         eyebrow={
           <Link
             href={`/targets/${target.id}`}
-            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
+            className="inline-flex items-center gap-1 transition-colors hover:text-text"
           >
             <ChevronLeft className="size-3" />
             {target.name}

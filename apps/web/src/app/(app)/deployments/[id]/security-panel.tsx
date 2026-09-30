@@ -77,7 +77,7 @@ const SEVERITY_STYLE: Record<Severity, string> = {
   HIGH: 'border-transparent bg-sev-high text-sev-high-ink',
   MEDIUM: 'border-transparent bg-sev-medium text-sev-medium-ink',
   LOW: 'border-transparent bg-sev-low text-sev-low-ink',
-  UNKNOWN: 'border-line bg-surface-2 text-ink-faint',
+  UNKNOWN: 'border-border bg-surface-2 text-text-3',
 };
 
 export function SecurityPanel({
@@ -242,9 +242,9 @@ export function SecurityPanel({
           </CardHeader>
           <CardContent>
             {current.kind === 'sbom' ? (
-              <p className="text-[0.8125rem] text-ink-muted">{t('scans.sbom.hint')}</p>
+              <p className="text-[0.8125rem] text-text-2">{t('scans.sbom.hint')}</p>
             ) : rows.length === 0 ? (
-              <p className="text-[0.8125rem] text-ink-muted">{t('scans.findings.empty')}</p>
+              <p className="text-[0.8125rem] text-text-2">{t('scans.findings.empty')}</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -283,9 +283,9 @@ export function SecurityPanel({
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         {finding.fixedVersion ? (
-                          <span className="text-ok">{finding.fixedVersion}</span>
+                          <span className="text-ok-text">{finding.fixedVersion}</span>
                         ) : (
-                          <span className="text-ink-faint">{t('findings.noFix')}</span>
+                          <span className="text-text-3">{t('findings.noFix')}</span>
                         )}
                       </TableCell>
                       <TableCell className="max-w-md truncate text-xs" title={finding.title ?? ''}>
@@ -320,9 +320,9 @@ function ScanRunCard({
   return (
     <Card
       className={cn(
-        'cursor-pointer transition-colors duration-100 hover:border-line-strong',
-        active && 'border-signal shadow-raised',
-        run.verdict === 'fail' && 'border-danger-edge',
+        'cursor-pointer transition-colors duration-100 hover:border-border-strong',
+        active && 'border-accent shadow-sm',
+        run.verdict === 'fail' && 'border-danger-line',
       )}
       onClick={onSelect}
     >
@@ -341,7 +341,7 @@ function ScanRunCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {run.error ? (
-          <p className="font-mono text-[0.6875rem] break-words text-danger">{run.error}</p>
+          <p className="font-mono text-[0.6875rem] break-words text-danger-text">{run.error}</p>
         ) : null}
 
         {run.kind === 'vulnerability' ? (
@@ -352,11 +352,11 @@ function ScanRunCard({
               ) : null,
             )}
             {run.total === 0 && run.status === 'success' ? (
-              <span className="text-xs text-ok">{t('scans.run.clean')}</span>
+              <span className="text-xs text-ok-text">{t('scans.run.clean')}</span>
             ) : null}
           </div>
         ) : (
-          <p className="text-xs text-ink-muted">{scannerDescription(run.scanner, language)}</p>
+          <p className="text-xs text-text-2">{scannerDescription(run.scanner, language)}</p>
         )}
 
         {run.hasSbom ? (
