@@ -1,5 +1,3 @@
-import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { TargetHelpDialog } from '@/components/target-help';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,15 +15,6 @@ export default async function NewTargetPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={
-          <Link
-            href="/targets"
-            className="inline-flex items-center gap-1 transition-colors hover:text-text"
-          >
-            <ChevronLeft className="size-3" />
-            {t('nav.back')}
-          </Link>
-        }
         title={t('page.add')}
         description={t('new.description')}
       />

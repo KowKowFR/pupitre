@@ -220,7 +220,6 @@ export function OnboardingWizard(props: Props) {
   return (
     <>
       <PageHeader
-        eyebrow={t('page.eyebrow')}
         title={t('page.title')}
         description={t('page.description')}
         actions={

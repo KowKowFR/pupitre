@@ -93,11 +93,6 @@ export default async function MonitorPage({ params }: { params: Promise<{ id: st
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={
-          <Link href="/monitors" className="underline-offset-4 hover:underline">
-            {t('page.title')}
-          </Link>
-        }
         title={view.name}
         description={
           <>

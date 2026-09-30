@@ -99,7 +99,7 @@ const fr = {
   // ── Palette ⌘K ──────────────────────────────────────────────────────────
   'palette.open': 'Rechercher, lancer…',
   'palette.label': 'Palette de commandes',
-  'palette.placeholder': 'Rechercher une cible, une app, un déploiement… ou tapez › pour une commande',
+  'palette.placeholder': 'Rechercher une cible, une app, un run… ou tapez › pour une commande',
   'palette.group.suggestions': 'Suggestions',
   'palette.group.goto': 'Aller à',
   'palette.group.objects': 'Objets',
@@ -278,7 +278,7 @@ const en: Translated<typeof fr> = {
 
   'palette.open': 'Search, run…',
   'palette.label': 'Command palette',
-  'palette.placeholder': 'Search a target, an app, a deployment… or type › for a command',
+  'palette.placeholder': 'Search a target, an app, a run… or type › for a command',
   'palette.group.suggestions': 'Suggestions',
   'palette.group.goto': 'Go to',
   'palette.group.objects': 'Objects',

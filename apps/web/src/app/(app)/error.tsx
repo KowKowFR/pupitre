@@ -42,7 +42,6 @@ export default function AppError({
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={t('appError.eyebrow')}
         title={t('appError.title')}
         description={t('appError.description')}
       />

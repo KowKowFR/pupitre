@@ -18,18 +18,9 @@ import { cn } from '@/lib/utils';
  * il repousse plus bas la seule information qui justifiait de l'ouvrir.
  */
 
-export type AttentionSeverity = 'danger' | 'warn';
+import type { AttentionItem, AttentionSeverity } from '@/lib/overview';
 
-export type AttentionItem = {
-  /** Le sujet : l'objet en cause, pas la catégorie du problème. */
-  subject: string;
-  /** Ce qui se passe, en une phrase qui se lit seule. */
-  detail: string;
-  severity: AttentionSeverity;
-  href: string;
-  /** Ce qu'on ira faire en cliquant — un verbe, pas « voir ». */
-  action: string;
-};
+export type { AttentionItem, AttentionSeverity };
 
 const RAIL: Record<AttentionSeverity, string> = {
   danger: 'bg-danger',

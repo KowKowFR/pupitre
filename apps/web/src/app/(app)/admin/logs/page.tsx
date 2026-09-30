@@ -30,7 +30,6 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={t('logs.eyebrow')}
         title={t('logs.title')}
         description={
           <>

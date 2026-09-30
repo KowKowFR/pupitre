@@ -18,7 +18,6 @@ export default async function AppNotFound() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={t('appNotFound.eyebrow')}
         title={t('appNotFound.title')}
         description={t('appNotFound.description')}
       />

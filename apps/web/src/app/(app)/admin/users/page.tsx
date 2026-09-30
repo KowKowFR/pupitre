@@ -60,7 +60,6 @@ export default async function UsersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={t('eyebrow')}
         title={t('users.title')}
         description={t('users.description')}
       />

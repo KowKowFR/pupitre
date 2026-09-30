@@ -1,6 +1,4 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
 import { getDeploymentForRun, getDeploymentSummary, listSteps } from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
@@ -46,15 +44,6 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={
-          <Link
-            href="/deployments"
-            className="inline-flex items-center gap-1 transition-colors hover:text-text"
-          >
-            <ChevronLeft className="size-3" />
-            {t('page.title')}
-          </Link>
-        }
         title={
           <>
             {deployment.applicationSlug}{' '}

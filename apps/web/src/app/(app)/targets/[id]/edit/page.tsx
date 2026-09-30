@@ -1,6 +1,4 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
 import { getTarget } from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
@@ -26,15 +24,6 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={
-          <Link
-            href={`/targets/${target.id}`}
-            className="inline-flex items-center gap-1 transition-colors hover:text-text"
-          >
-            <ChevronLeft className="size-3" />
-            {target.name}
-          </Link>
-        }
         title={t('edit.title', { name: target.name })}
         description={t('edit.description')}
       />

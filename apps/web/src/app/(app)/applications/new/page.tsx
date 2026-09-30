@@ -1,8 +1,6 @@
-import Link from 'next/link';
 import { aiModelMismatch, aiProviderDescriptor, resolveAiConfig } from '@pupitre/core/ai';
 import { usableRuntimes } from '@pupitre/core';
 import { getAiApiKey, getAppSettings, listTargets } from '@pupitre/db';
-import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { currentLanguage, getT } from '@/i18n/server';
@@ -53,15 +51,6 @@ export default async function NewApplicationPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={
-          <Link
-            href="/applications"
-            className="inline-flex items-center gap-1 transition-colors hover:text-text"
-          >
-            <ChevronLeft className="size-3" />
-            {t('page.title')}
-          </Link>
-        }
         title={t('action.new')}
         description={t('new.description')}
       />

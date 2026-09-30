@@ -183,7 +183,6 @@ export default async function AppsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={t('page.eyebrow')}
         title={t('page.title')}
         description={t('page.description')}
       />

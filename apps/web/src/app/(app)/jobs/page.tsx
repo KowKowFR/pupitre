@@ -121,7 +121,6 @@ export default async function JobsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={t('page.eyebrow')}
         title={t('page.title')}
         description={t('page.description')}
       />

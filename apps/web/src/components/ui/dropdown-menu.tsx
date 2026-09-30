@@ -41,10 +41,17 @@ function DropdownMenuItem({
   children,
   ...props
 }: React.ComponentProps<typeof MenuPrimitive.Item> & { destructive?: boolean; meta?: React.ReactNode }) {
+  // Avec `asChild`, l'enfant doit rester unique : la méta n'a pas sa place.
   return (
     <MenuPrimitive.Item className={cn('menu-item', destructive && 'is-danger', className)} {...props}>
-      {children}
-      {meta ? <span className="meta">{meta}</span> : null}
+      {props.asChild ? (
+        children
+      ) : (
+        <>
+          {children}
+          {meta ? <span className="meta">{meta}</span> : null}
+        </>
+      )}
     </MenuPrimitive.Item>
   );
 }

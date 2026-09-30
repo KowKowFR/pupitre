@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
 import { isSupervisable, parseAppSpec } from '@pupitre/core';
 import {
   getAppSettings,
@@ -64,7 +63,6 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
     return (
       <div className="flex flex-col gap-6">
         <PageHeader
-          eyebrow="Supervision"
           title={deployment.applicationSlug}
           description="Ce déploiement ne tourne plus."
         />
@@ -172,15 +170,6 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={
-          <Link
-            href="/apps"
-            className="hover:text-text inline-flex items-center gap-1 transition-colors"
-          >
-            <ChevronLeft className="size-3" />
-            Supervision
-          </Link>
-        }
         title={deployment.applicationSlug}
         description="Ce que la machine dit d’elle-même, relu en direct. La colonne de gauche vient de la base du panel — elle répond même quand la machine se tait."
         actions={

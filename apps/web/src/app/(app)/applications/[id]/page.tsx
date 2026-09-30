@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   getApplication,
@@ -8,7 +7,6 @@ import {
   listTargets,
 } from '@pupitre/db';
 import { z } from 'zod';
-import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,15 +57,6 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={
-          <Link
-            href="/applications"
-            className="inline-flex items-center gap-1 transition-colors hover:text-text"
-          >
-            <ChevronLeft className="size-3" />
-            {t('page.title')}
-          </Link>
-        }
         title={
           <>
             {application.slug}{' '}

@@ -47,7 +47,6 @@ export default async function RolesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow={t('eyebrow')}
         title={t('roles.title')}
         description={
           <>
