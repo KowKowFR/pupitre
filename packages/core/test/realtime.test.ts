@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   chatPlainText,
+  isChatEmoji,
   keepMentions,
   mentionToken,
   mentionedIn,
@@ -115,6 +116,20 @@ describe('messages', () => {
     assert.deepEqual(parseChatBody('<@disk:x> et <@user:>'), [
       { type: 'text', text: '<@disk:x> et <@user:>' },
     ]);
+  });
+});
+
+describe('réactions', () => {
+  it('accepte un emoji, avec ses variantes', () => {
+    for (const emoji of ['👍', '❤️', '👍🏽', '🧑‍💻', '🇫🇷', '✅', '🚀', '#️⃣']) {
+      assert.equal(isChatEmoji(emoji), true, emoji);
+    }
+  });
+
+  it('refuse le texte, même mêlé à un emoji', () => {
+    for (const value of ['', 'ok', '👍 bien', 'a👍', '<script>', '1', ' 👍']) {
+      assert.equal(isChatEmoji(value), false, JSON.stringify(value));
+    }
   });
 });
 

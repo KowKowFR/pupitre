@@ -136,6 +136,24 @@ export const chatMentionSchema = z.object({
 });
 export type ChatMention = z.infer<typeof chatMentionSchema>;
 
+/** Ce qu'une réponse montre de l'original : assez pour le reconnaître, pas plus. */
+export const chatQuoteSchema = z.object({
+  id: z.string().uuid(),
+  authorId: z.string().nullable(),
+  authorName: z.string().nullable(),
+  /** Le début du texte, jetons de mention remplacés par leur libellé. */
+  excerpt: z.string().max(200),
+  deleted: z.boolean(),
+});
+export type ChatQuote = z.infer<typeof chatQuoteSchema>;
+
+/** Un emoji et qui l'a posé. L'ordre est celui de la première réaction. */
+export const chatReactionSchema = z.object({
+  emoji: z.string().min(1).max(32),
+  userIds: z.array(z.string()),
+});
+export type ChatReaction = z.infer<typeof chatReactionSchema>;
+
 export const chatMessageSchema = z.object({
   id: z.string().uuid(),
   channel: z.string().min(1).max(40),
@@ -143,6 +161,8 @@ export const chatMessageSchema = z.object({
   authorName: z.string().nullable(),
   body: z.string(),
   mentions: z.array(chatMentionSchema),
+  replyTo: chatQuoteSchema.nullable(),
+  reactions: z.array(chatReactionSchema),
   createdAt: z.string(),
 });
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
@@ -156,6 +176,13 @@ export const realtimeEventSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('chat.message'), message: chatMessageSchema }),
   z.object({ type: z.literal('chat.deleted'), id: z.string().uuid(), channel: z.string() }),
+  /** L'état complet des réactions d'un message : rejouer deux fois ne change rien. */
+  z.object({
+    type: z.literal('chat.reactions'),
+    messageId: z.string().uuid(),
+    channel: z.string(),
+    reactions: z.array(chatReactionSchema),
+  }),
   z.object({
     type: z.literal('live'),
     topic: z.enum(LIVE_TOPICS),
