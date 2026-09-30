@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { CircleHelp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -100,7 +101,7 @@ function ScrollableTable({ children }: { children: React.ReactNode }) {
 
 function Shell({ children }: { children: string }) {
   return (
-    <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed">
+    <pre className="codeblock">
       <code>{children}</code>
     </pre>
   );
@@ -122,7 +123,17 @@ const FIELDS = [
 ] as const;
 
 /** Dans l'ordre où `runPreflight()` les exécute. 15 s de délai par contrôle. */
-const CHECKS = ['ssh', 'os', 'sudo', 'tools', 'firewall', 'docker', 'k3s', 'disk', 'memory'] as const;
+const CHECKS = [
+  'ssh',
+  'os',
+  'sudo',
+  'tools',
+  'firewall',
+  'docker',
+  'k3s',
+  'disk',
+  'memory',
+] as const;
 
 const FAILURES = [
   'publickey',
@@ -160,18 +171,13 @@ export function TargetHelpDialog({ label, className }: Props) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 rounded-sm text-xs underline underline-offset-4 outline-none focus-visible:ring-[3px]',
-            className,
-          )}
-        >
+        <button type="button" className={cn('btn btn-ghost', className)}>
+          <CircleHelp aria-hidden />
           {label ?? t('trigger.label')}
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-3xl">
+      <DialogContent size="xwide">
         <DialogHeader>
           <DialogTitle>{t('dialog.title')}</DialogTitle>
           <DialogDescription>{t('dialog.description')}</DialogDescription>
@@ -337,7 +343,7 @@ export function TargetHelpDialog({ label, className }: Props) {
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" type="button">
+            <Button variant="secondary" type="button">
               {tc('close')}
             </Button>
           </DialogClose>

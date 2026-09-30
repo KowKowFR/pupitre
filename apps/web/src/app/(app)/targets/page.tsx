@@ -1,80 +1,134 @@
-import Link from 'next/link';
-import { getAppSettings, listTargets } from '@pupitre/db';
-import { Plus } from 'lucide-react';
-import { PageHeader } from '@/components/page-header';
-import { TargetHelpDialog } from '@/components/target-help';
-import { Button } from '@/components/ui/button';
+import {
+  countDeploymentsOnTarget,
+  getAppSettings,
+  getTargetPortReport,
+  HOST_METRIC_CATALOG,
+  listSupervisedApps,
+  listTargets,
+  targetHistories,
+} from '@pupitre/db';
 import { getT } from '@/i18n/server';
-import { targets as messages } from '@/i18n/messages/targets';
-import { formatSettingsOf } from '@/lib/format';
+import { common } from '@/i18n/messages/common';
+import { formatDateTimeWith, formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
-import { TargetsTable } from './targets-table';
+import { relativeTime } from '@/lib/relative-time';
+import { TargetsView, type TargetRow } from './targets-view';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Les filtres sont lus ici, côté serveur, et non par `useSearchParams` dans la
- * table : le premier rendu doit déjà être filtré. Une fiche de cible pointe
- * vers `/targets?label=env%3Dprod` ; sans cette lecture, ce lien afficherait
- * tout le parc l'espace d'une frame avant de le réduire.
- */
 function readFilters(params: Record<string, string | string[] | undefined>) {
   const raw = params.label;
+  const status = typeof params.status === 'string' ? params.status : '';
   return {
     query: typeof params.q === 'string' ? params.q : '',
     labels: (Array.isArray(raw) ? raw : raw ? [raw] : []).filter((pair) => pair.includes('=')),
+    status: ['ok', 'degraded', 'unreachable', 'unknown'].includes(status) ? status : '',
   };
 }
 
+/**
+ * Les cibles : la liste, et l'aperçu de chacune dans un drawer.
+ *
+ * Tout ce que le drawer affiche est lu ici, en une fois : un parc compte des
+ * dizaines de machines, pas des milliers, et un aperçu qui s'ouvre sans
+ * attendre vaut les quelques lectures de plus. Chaque lecture est celle d'un
+ * écran existant — l'historique machine, les applications supervisées, le
+ * rapport de ports, le décompte qui conditionne la suppression.
+ */
 export default async function TargetsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const auth = await requirePagePermission('/targets', 'target:read');
-  const [targets, { settings }, params, t] = await Promise.all([
+  const canDelete = auth.can('target:delete');
+  const [targets, { settings }, params, tc] = await Promise.all([
     listTargets(),
     getAppSettings(),
     searchParams,
-    getT(messages),
+    getT(common),
   ]);
+  const format = formatSettingsOf(settings);
   const filters = readFilters(params);
+  const ids = targets.map((target) => target.id);
+
+  const [histories, running, ports, counts] = await Promise.all([
+    targetHistories(ids, 24, 24),
+    auth.can('deployment:read') ? listSupervisedApps() : Promise.resolve(null),
+    Promise.all(ids.map((id) => getTargetPortReport(id))),
+    canDelete ? Promise.all(ids.map((id) => countDeploymentsOnTarget(id))) : Promise.resolve(null),
+  ]);
+
+  const shortDate = (value: Date | null) =>
+    value === null
+      ? null
+      : formatDateTimeWith(value.toISOString(), format, {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+  const clock = (value: Date | null) =>
+    value === null
+      ? null
+      : formatDateTimeWith(value.toISOString(), format, { hour: '2-digit', minute: '2-digit' });
+
+  const rows: TargetRow[] = targets.map((target, index) => {
+    const history = histories.get(target.id);
+    const report = target.preflightReport;
+    return {
+      id: target.id,
+      name: target.name,
+      description: target.description,
+      host: target.host,
+      port: target.port,
+      sshUser: target.sshUser,
+      authMethod: target.authMethod,
+      sudoMethod: target.sudoMethod,
+      labels: target.labels,
+      runtimesAvailable: target.runtimesAvailable,
+      status: target.status,
+      lastCheck: shortDate(target.lastPreflightAt),
+      lastCheckClock: clock(target.lastPreflightAt),
+      testedAgo: relativeTime(target.lastPreflightAt, tc),
+      measured: (history?.samples ?? 0) > 0,
+      load: (history?.points ?? []).map((point) => point.loadPercent),
+      loadLast: history?.summary.load.last ?? null,
+      loadWorst: history?.summary.load.worst ?? null,
+      memory: history?.summary.memory.last ?? null,
+      disk: history?.summary.disk.last ?? null,
+      failedChecks: (report?.checks ?? [])
+        .filter((check) => check.status === 'failed')
+        .map((check) => (check.detail ? `${check.label} (${check.detail})` : check.label)),
+      error: report?.error ?? null,
+      portRange: { start: target.portRangeStart, end: target.portRangeEnd },
+      portsUsed: ports[index]?.used ?? null,
+      apps:
+        running === null
+          ? null
+          : running
+              .filter((app) => app.targetId === target.id)
+              .map((app) => ({ id: app.id, slug: app.applicationSlug, health: app.healthStatus })),
+      deployments: counts?.[index] ?? null,
+    };
+  });
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title={t('page.title')}
-        description={t('page.description')}
-        actions={
-          auth.can('target:create') ? (
-            <Button asChild size="sm">
-              <Link href="/targets/new">
-                <Plus />
-                {t('page.add')}
-              </Link>
-            </Button>
-          ) : null
-        }
-      />
-
-      {/* Même place que l'aide AppSpec sur /applications : sous le bandeau, au
-          contact de la table dont elle explique le vocabulaire — et visible
-          aussi quand la table est vide, cas de celui qui découvre le panel. */}
-      <TargetHelpDialog />
-
-      <TargetsTable
-        targets={targets.map((target) => ({
-          ...target,
-          lastPreflightAt: target.lastPreflightAt?.toISOString() ?? null,
-          createdAt: target.createdAt.toISOString(),
-          updatedAt: target.updatedAt.toISOString(),
-        }))}
-        canRunPreflight={auth.can('target:update')}
-        canDelete={auth.can('target:delete')}
-        format={formatSettingsOf(settings)}
-        initialQuery={filters.query}
-        initialLabels={filters.labels}
-      />
-    </div>
+    <TargetsView
+      targets={rows}
+      canCreate={auth.can('target:create')}
+      canRunPreflight={auth.can('target:update')}
+      canEdit={auth.can('target:update')}
+      canDelete={canDelete}
+      timezone={format.timezone}
+      limits={{
+        load: HOST_METRIC_CATALOG.load.defaultLimitPercent,
+        memory: HOST_METRIC_CATALOG.memory.defaultLimitPercent,
+        disk: HOST_METRIC_CATALOG.disk.defaultLimitPercent,
+      }}
+      initialQuery={filters.query}
+      initialLabels={filters.labels}
+      initialStatus={filters.status}
+    />
   );
 }

@@ -57,6 +57,16 @@ const fr = {
 
   /** Valeur absente dans un tableau. Un tiret cadratin, pas un trait d'union. */
   none: '—',
+
+  /**
+   * Durée écoulée, « il y a 27 min ». Cibles, déploiements, sondes et journal
+   * la disent tous — voir `lib/relative-time.ts`.
+   */
+  'ago.now': "à l'instant",
+  'ago.seconds': 'il y a {count} s',
+  'ago.minutes': 'il y a {count} min',
+  'ago.hours': 'il y a {count} h',
+  'ago.days': 'il y a {count} j',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -95,6 +105,12 @@ const en: Translated<typeof fr> = {
   'http.failure': 'Failed (HTTP {status})',
 
   none: '—',
+
+  'ago.now': 'just now',
+  'ago.seconds': '{count} s ago',
+  'ago.minutes': '{count} min ago',
+  'ago.hours': '{count} h ago',
+  'ago.days': '{count} d ago',
 };
 
 export const common = { fr, en };

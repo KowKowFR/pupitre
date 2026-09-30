@@ -94,8 +94,16 @@ export function Drawer({
           aria-modal="true"
           aria-label={label}
           aria-describedby={undefined}
-          className={cn('drawer', wide && 'is-wide')}
+          tabIndex={-1}
+          className={cn('drawer outline-none focus-visible:shadow-lg', wide && 'is-wide')}
           onKeyDown={onKeyDown}
+          // Le focus va au panneau, pas à son premier bouton : sinon l'info-bulle
+          // de « Précédent » s'ouvrirait à chaque aperçu, et un lecteur d'écran
+          // annoncerait un bouton au lieu de la cible.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            (event.currentTarget as HTMLElement | null)?.focus();
+          }}
         >
           <DrawerContext.Provider value={nav}>{children}</DrawerContext.Provider>
         </DialogPrimitive.Content>

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { CircleHelp } from 'lucide-react';
 import {
   Dialog,
   DialogBody,
@@ -33,13 +34,7 @@ type Props = {
   className?: string;
 };
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
       <h3 className="text-foreground text-sm font-semibold">{title}</h3>
@@ -121,14 +116,7 @@ const FIELDS = [
   { name: 'ingress', key: 'ingress' },
 ] as const;
 
-const GUARDS = [
-  'exposed',
-  'uniqueNames',
-  'dependsOn',
-  'cycle',
-  'ingress',
-  'envSecret',
-] as const;
+const GUARDS = ['exposed', 'uniqueNames', 'dependsOn', 'cycle', 'ingress', 'envSecret'] as const;
 
 const MAPPING = [
   'name',
@@ -155,18 +143,13 @@ export function AppSpecHelpDialog({ label, className }: Props) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 rounded-sm text-xs underline underline-offset-4 outline-none focus-visible:ring-[3px]',
-            className,
-          )}
-        >
+        <button type="button" className={cn('btn btn-ghost', className)}>
+          <CircleHelp aria-hidden />
           {label ?? t('trigger')}
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-3xl">
+      <DialogContent size="xwide">
         <DialogHeader>
           <DialogTitle>{t('dialog.title')}</DialogTitle>
           <DialogDescription>
@@ -268,14 +251,14 @@ export function AppSpecHelpDialog({ label, className }: Props) {
             <p className="text-muted-foreground">
               <Rich text={t('simple.intro')} />
             </p>
-            <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed">
+            <pre className="codeblock">
               <code>{t('example.simple')}</code>
             </pre>
           </Section>
 
           <Section title={t('section.full')}>
             <p className="text-muted-foreground">{t('full.intro')}</p>
-            <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed">
+            <pre className="codeblock">
               <code>{t('example.full')}</code>
             </pre>
             <p className="text-muted-foreground text-xs">
@@ -286,7 +269,7 @@ export function AppSpecHelpDialog({ label, className }: Props) {
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" type="button">
+            <Button variant="secondary" type="button">
               {tc('close')}
             </Button>
           </DialogClose>
@@ -295,4 +278,3 @@ export function AppSpecHelpDialog({ label, className }: Props) {
     </Dialog>
   );
 }
-
