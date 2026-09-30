@@ -134,8 +134,8 @@ const DEPLOYMENT_TONE: Record<string, Tone> = {
   failed: 'danger',
   rolled_back: 'warn',
   destroyed: 'idle',
-  running: 'signal',
-  pending: 'signal',
+  running: 'accent',
+  pending: 'accent',
 };
 
 /** « il y a 3 min ». Rend `null` plutôt qu'un tiret : l'appelant décide. */
@@ -333,7 +333,7 @@ export default async function HomePage() {
         <Readout
           label={t('readout.inFlight')}
           value={inFlight}
-          tone={inFlight > 0 ? 'signal' : 'idle'}
+          tone={inFlight > 0 ? 'accent' : 'idle'}
           pulse={inFlight > 0}
           hint={inFlight > 0 ? t('readout.inFlight.on') : t('readout.inFlight.off')}
         />
@@ -468,7 +468,7 @@ async function PulseBand({
             label={t('band.latency')}
             value={latencyMedian === null ? '—' : latencyMedian}
             unit={latencyMedian === null ? undefined : 'ms'}
-            tone={latencyMedian === null ? 'idle' : 'signal'}
+            tone={latencyMedian === null ? 'idle' : 'accent'}
             hint={latencyMedian === null ? t('band.latency.none') : t('band.latency.over')}
           />
           <Readout

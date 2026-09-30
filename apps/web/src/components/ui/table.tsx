@@ -2,74 +2,55 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { TableScroller } from './table-scroller';
 
+/**
+ * Tableau du kit : en-tête de 36 px sur `surface-2`, lignes de 48 px (40 en
+ * `dense`), texte à 13 px. Une ligne cliquable (`interactive`) prend le fond
+ * `surface-2` au survol ; une ligne sélectionnée prend l'outremer doux et un
+ * liseré gauche de 2 px.
+ */
 function Table({
   className,
   label,
+  dense = false,
   ...props
-}: React.ComponentProps<'table'> & { label?: string }) {
+}: React.ComponentProps<'table'> & { label?: string; dense?: boolean }) {
   return (
     <TableScroller label={label}>
-      <table
-        data-slot="table"
-        className={cn('w-full caption-bottom border-collapse text-sm', className)}
-        {...props}
-      />
+      <table data-slot="table" className={cn('tbl', dense && 'dense', className)} {...props} />
     </TableScroller>
   );
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
-  return (
-    <thead
-      data-slot="table-header"
-      className={cn('[&_tr]:border-b [&_tr]:border-border-strong', className)}
-      {...props}
-    />
-  );
+  return <thead data-slot="table-header" className={className} {...props} />;
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<'tbody'>) {
-  return (
-    <tbody
-      data-slot="table-body"
-      className={cn('[&_tr:last-child]:border-0', className)}
-      {...props}
-    />
-  );
+  return <tbody data-slot="table-body" className={className} {...props} />;
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
+function TableRow({
+  className,
+  interactive = false,
+  selected = false,
+  ...props
+}: React.ComponentProps<'tr'> & { interactive?: boolean; selected?: boolean }) {
   return (
     <tr
       data-slot="table-row"
-      className={cn(
-        // `group/row` sert aux cellules épinglées, qui doivent suivre le survol
-        // de leur ligne alors qu'elles ne sont pas survolées elles-mêmes.
-        'group/row border-b border-border transition-colors duration-100 hover:bg-surface-2',
-        className,
-      )}
+      aria-selected={selected || undefined}
+      className={cn('group/row', interactive && 'is-link', selected && 'is-sel', className)}
       {...props}
     />
   );
 }
 
 function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
-  return (
-    <th
-      data-slot="table-head"
-      className={cn(
-        'eyebrow h-8 px-3 text-left align-middle whitespace-nowrap text-text-3',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <th data-slot="table-head" className={className} {...props} />;
 }
 
 function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
-  return (
-    <td data-slot="table-cell" className={cn('px-3 py-2.5 align-middle', className)} {...props} />
-  );
+  return <td data-slot="table-cell" className={className} {...props} />;
 }
 
 /**
@@ -77,15 +58,11 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
  *
  * Une colonne d'actions est la seule dont on ne peut pas se passer : on peut
  * lire un tableau sans voir la date, on ne peut pas cliquer un bouton qu'on ne
- * voit pas. `position: sticky` est inerte tant que rien ne déborde — sur un
- * écran large, la cellule se comporte exactement comme une `TableCell`.
+ * voit pas. `position: sticky` est inerte tant que rien ne déborde.
  *
  * Le fond est peint explicitement, sans quoi les colonnes défileraient
- * visiblement dessous. `--surface-2` est un mélange et non une transparence :
- * la cellule recouvre le fond de survol de sa propre ligne et doit en peindre
- * la couleur exacte, ce qu'une superposition d'alpha ne donnerait pas.
- *
- * Le filet et l'ombre n'apparaissent que si quelque chose est réellement caché
+ * visiblement dessous ; il suit le survol et la sélection de sa ligne. Le
+ * filet et l'ombre n'apparaissent que si quelque chose est réellement caché
  * dessous — d'où la lecture de `data-more-right`, posé par `TableScroller`.
  */
 function TableActions({ className, ...props }: React.ComponentProps<'td'>) {
@@ -93,11 +70,10 @@ function TableActions({ className, ...props }: React.ComponentProps<'td'>) {
     <td
       data-slot="table-actions"
       className={cn(
-        'sticky right-0 z-10 bg-card px-3 py-2.5 text-right align-middle',
-        'group-hover/row:bg-surface-2',
-        // Repli visuel du bord épinglé, uniquement quand il masque du contenu.
+        'sticky right-0 z-10 bg-surface text-right',
+        '[tr.is-link:hover_&]:bg-surface-2 [tr.is-sel_&]:bg-accent-soft',
         'transition-shadow duration-150',
-        '[[data-more-right]_&]:shadow-[-10px_0_10px_-10px_oklch(0_0_0/0.45)]',
+        '[[data-more-right]_&]:shadow-[-10px_0_10px_-10px_rgba(0,0,0,0.35)]',
         '[[data-more-right]_&]:before:absolute [[data-more-right]_&]:before:inset-y-0',
         '[[data-more-right]_&]:before:left-0 [[data-more-right]_&]:before:w-px',
         '[[data-more-right]_&]:before:bg-border',
@@ -108,18 +84,13 @@ function TableActions({ className, ...props }: React.ComponentProps<'td'>) {
   );
 }
 
-/**
- * Son en-tête. Épinglé pour la même raison, et pour que le titre reste
- * au-dessus de sa colonne quand on fait défiler.
- */
+/** Son en-tête. Épinglé pour la même raison, et pour rester au-dessus de sa colonne. */
 function TableActionsHead({ className, ...props }: React.ComponentProps<'th'>) {
   return (
     <th
       data-slot="table-actions-head"
       className={cn(
-        'eyebrow sticky right-0 z-10 h-8 bg-card px-3 text-right align-middle whitespace-nowrap text-text-3',
-        // Le filet du bord épinglé traverse aussi l'en-tête : interrompu à la
-        // première ligne, il ressemblerait à une bordure de tableau ratée.
+        'r sticky right-0 z-10',
         '[[data-more-right]_&]:before:absolute [[data-more-right]_&]:before:inset-y-0',
         '[[data-more-right]_&]:before:left-0 [[data-more-right]_&]:before:w-px',
         '[[data-more-right]_&]:before:bg-border',

@@ -524,7 +524,7 @@ function ConnectionLabel({ state }: { state: 'connecting' | 'live' | 'closed' | 
     error: t('connection.error'),
   }[state];
 
-  const tone = state === 'live' ? 'signal' : state === 'error' ? 'danger' : 'idle';
+  const tone = state === 'live' ? 'accent' : state === 'error' ? 'danger' : 'idle';
 
   return (
     <span

@@ -61,7 +61,7 @@ export function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) 
               : status === 'rolled_back'
                 ? 'warn'
                 : status === 'running'
-                  ? 'signal'
+                  ? 'accent'
                   : 'idle'
         }
         pulse={status === 'running'}

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./components.css";
 
 /*
  * Système visuel du panel — le design system Pupitre.
@@ -572,26 +573,6 @@ html.dark {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23676D7A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 9px center;
-  }
-
-  /*
-   * Pastille d'étiquette `clé=valeur`. `--tag` est posé en style inline par le
-   * composant ; fond, liseré et encre en sont dérivés, et le dosage du mélange
-   * change avec le thème (jetons `--tag-*-mix`).
-   */
-  .tag-chip {
-    background-color: color-mix(in srgb, var(--tag) var(--tag-bg-mix), var(--surface));
-    border-color: color-mix(in srgb, var(--tag) var(--tag-line-mix), var(--surface));
-    color: color-mix(in srgb, var(--tag) var(--tag-fg-mix), var(--tag-fg-base));
-  }
-
-  .tag-chip-dot {
-    background-color: var(--tag);
-  }
-
-  button.tag-chip:hover,
-  .tag-chip[aria-pressed="true"] {
-    border-color: var(--tag);
   }
 
   .hairline {

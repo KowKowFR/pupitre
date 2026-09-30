@@ -1,37 +1,72 @@
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Encadré d'information. Le liseré gauche épais porte la sémantique : on sait
- * de quoi il s'agit avant d'avoir lu la première ligne.
+ * Encadré — une icône de ton, un texte, une action facultative à droite. Le
+ * ton se lit à l'icône autant qu'à la couleur. Un encadré de danger est
+ * annoncé (`role="alert"`), les autres sont des états (`role="status"`).
  */
-const alertVariants = cva(
-  'rounded-md border border-l-[3px] px-3.5 py-2.5 text-[0.8125rem] leading-relaxed',
-  {
-    variants: {
-      variant: {
-        default: 'border-border border-l-border-strong bg-surface-2 text-text',
-        info: 'border-accent-line border-l-accent bg-accent-soft/50 text-text',
-        destructive: 'border-danger-line border-l-danger bg-danger-soft/60 text-text',
-        warn: 'border-warn-line border-l-warn bg-warn-soft/60 text-text',
-        success: 'border-ok-line border-l-ok bg-ok-soft/60 text-text',
-      },
+const alertVariants = cva('alert', {
+  variants: {
+    variant: {
+      default: '',
+      info: 'alert-info',
+      success: 'alert-ok',
+      warn: 'alert-warn',
+      destructive: 'alert-danger',
     },
-    defaultVariants: { variant: 'default' },
   },
-);
+  defaultVariants: { variant: 'default' },
+});
 
-export type AlertProps = React.ComponentProps<'div'> & VariantProps<typeof alertVariants>;
+type Variant = NonNullable<VariantProps<typeof alertVariants>['variant']>;
 
-function Alert({ className, variant, ...props }: AlertProps) {
+const ICON: Record<Variant, React.ComponentType<{ 'aria-hidden'?: boolean }>> = {
+  default: Info,
+  info: Info,
+  success: CircleCheck,
+  warn: TriangleAlert,
+  destructive: CircleAlert,
+};
+
+export type AlertProps = React.ComponentProps<'div'> &
+  VariantProps<typeof alertVariants> & {
+    /** Titre en gras, en tête du texte. */
+    title?: React.ReactNode;
+    /** Action à droite (un bouton, un lien). */
+    action?: React.ReactNode;
+    /** `false` pour un encadré sans icône. */
+    icon?: boolean;
+  };
+
+function Alert({
+  className,
+  variant,
+  title,
+  action,
+  icon = true,
+  children,
+  ...props
+}: AlertProps) {
+  const tone: Variant = variant ?? 'default';
+  const Icon = ICON[tone];
   return (
     <div
       data-slot="alert"
-      role="alert"
+      role={tone === 'destructive' ? 'alert' : 'status'}
       className={cn(alertVariants({ variant }), className)}
       {...props}
-    />
+    >
+      {icon ? <Icon aria-hidden /> : null}
+      <div className="min-w-0 flex-1">
+        {title ? <strong>{title}</strong> : null}
+        {title && children ? ' ' : null}
+        {children}
+      </div>
+      {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
+    </div>
   );
 }
 

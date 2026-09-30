@@ -107,7 +107,7 @@ export function CollapsibleTrigger({
       onClick={toggle}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md text-left',
-        'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        'outline-none focus-visible:shadow-focus',
         'disabled:pointer-events-none disabled:opacity-45',
         className,
       )}

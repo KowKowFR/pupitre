@@ -69,8 +69,9 @@ function Gauge({ ratio, tone }: { ratio: number; tone: Tone }) {
     ok: 'bg-ok',
     warn: 'bg-warn',
     danger: 'bg-danger',
-    signal: 'bg-accent',
+    accent: 'bg-accent',
     idle: 'bg-text-3',
+    hollow: 'bg-surface-3',
   };
 
   return (
@@ -129,7 +130,7 @@ function Strip({ children }: { children: ReactNode }) {
 function Placeholder({ message, tone }: { message: string; tone: Tone }) {
   return (
     <div className="flex items-center gap-2 px-3 py-3 text-[0.75rem] text-text-2">
-      <Led tone={tone} pulse={tone === 'signal'} />
+      <Led tone={tone} pulse={tone === 'accent'} />
       <span className="min-w-0 truncate">{message}</span>
     </div>
   );
@@ -156,7 +157,7 @@ export function HostReadouts({
   }
 
   if (entry === undefined || entry.state === 'loading') {
-    return <Placeholder tone="signal" message={t('readout.pending')} />;
+    return <Placeholder tone="accent" message={t('readout.pending')} />;
   }
 
   if (entry.state === 'error') {

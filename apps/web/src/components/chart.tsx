@@ -478,7 +478,7 @@ export async function SeriesLine({
 export type TimelineEvent = {
   key: string;
   at: string;
-  tone: 'ok' | 'warn' | 'danger' | 'signal' | 'idle';
+  tone: 'ok' | 'warn' | 'danger' | 'accent' | 'idle' | 'hollow';
   title: string;
 };
 
@@ -486,15 +486,17 @@ const EVENT_COLOR: Record<TimelineEvent['tone'], string> = {
   ok: 'var(--ok)',
   warn: 'var(--warn)',
   danger: 'var(--danger)',
-  signal: 'var(--accent)',
+  accent: 'var(--accent)',
   idle: 'var(--text-3)',
+  hollow: 'var(--n400)',
 };
 
 /** Du plus anodin au plus grave — sert à colorer un amas par son pire élément. */
 const TONE_RANK: Record<TimelineEvent['tone'], number> = {
+  hollow: 0,
   idle: 0,
   ok: 1,
-  signal: 2,
+  accent: 2,
   warn: 3,
   danger: 4,
 };
