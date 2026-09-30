@@ -136,7 +136,7 @@ const fr = {
   'create.failure.hint': "Échecs consécutifs avant l'incident. Un rebond isolé n'alerte pas.",
   'create.recovery.label': 'Seuil de rétablissement',
   'create.recovery.hint': "Succès consécutifs avant de refermer l'incident.",
-  'create.webhook.label': "Webhook d'alerte — facultatif",
+  'create.webhook.label': "Webhook d'alerte",
   'create.webhook.placeholder': 'https://hooks.slack.com/services/…',
   'create.webhook.payload.a': 'Un POST JSON à la panne ',
   'create.webhook.payload.and': 'et',
@@ -152,6 +152,18 @@ const fr = {
   'create.webhook.scope.c':
     " les sondes s'ils y sont abonnés — avec regroupement des rafales. Renseigner les deux fait donc partir deux messages pour une même panne : à réserver au cas où cette sonde doit alerter ailleurs que les autres.",
   'create.submit': 'Créer la sonde',
+  'edit.action': 'Modifier',
+  'edit.title': 'Modifier « {name} »',
+  'edit.type.fixed': "Le type ne se modifie pas : changer de type, c'est déclarer une autre sonde.",
+  'edit.webhook.kept':
+    'Un webhook est enregistré. Son URL reste masquée ; laissez le champ vide pour la conserver.',
+  'edit.webhook.removing': "Le webhook sera retiré à l'enregistrement.",
+  'edit.webhook.remove': 'Retirer',
+  'edit.webhook.keep': 'Conserver',
+  'edit.webhook.placeholder': "Nouvelle URL, pour remplacer l'actuelle",
+  'edit.submit': 'Enregistrer',
+  'edit.unchanged': 'Aucune modification à enregistrer.',
+  'toast.updated': 'Sonde {name} enregistrée',
 
   // ── Champs de configuration, rendus depuis le catalogue ─────────────────
   'config.optional': 'facultatif',
@@ -363,7 +375,7 @@ const en: Translated<typeof fr> = {
   'create.failure.hint': 'Consecutive failures before the incident. A single blip raises nothing.',
   'create.recovery.label': 'Recovery threshold',
   'create.recovery.hint': 'Consecutive successes before the incident closes.',
-  'create.webhook.label': 'Alert webhook — optional',
+  'create.webhook.label': 'Alert webhook',
   'create.webhook.placeholder': 'https://hooks.slack.com/services/…',
   'create.webhook.payload.a': 'One JSON POST on the outage ',
   'create.webhook.payload.and': 'and',
@@ -379,6 +391,18 @@ const en: Translated<typeof fr> = {
   'create.webhook.scope.c':
     ' probe they subscribe to — bursts grouped. Filling in both therefore sends two messages for one outage: keep it for a probe that must alert somewhere the others do not.',
   'create.submit': 'Create the probe',
+  'edit.action': 'Edit',
+  'edit.title': 'Edit “{name}”',
+  'edit.type.fixed': 'The type cannot change: another type means declaring another probe.',
+  'edit.webhook.kept':
+    'A webhook is saved. Its URL stays hidden; leave the field empty to keep it.',
+  'edit.webhook.removing': 'The webhook will be removed on save.',
+  'edit.webhook.remove': 'Remove',
+  'edit.webhook.keep': 'Keep',
+  'edit.webhook.placeholder': 'New URL, to replace the current one',
+  'edit.submit': 'Save',
+  'edit.unchanged': 'No change to save.',
+  'toast.updated': 'Monitor {name} saved',
 
   'config.optional': 'optional',
   'config.advanced': 'Advanced options',

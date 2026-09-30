@@ -36,10 +36,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Field } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { State, type Tone } from '@/components/ui/led';
-import { Select } from '@/components/ui/select';
 import { IconButton } from '@/components/ui/tooltip';
 import { useLanguage, useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
@@ -48,7 +45,7 @@ import { servers } from '@/i18n/messages/servers';
 import { formatSince } from '@/app/(app)/apps/apps-table';
 import { formatNumber, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
-import { cleanConfig, ConfigFields, defaultsOf, type ConfigValues } from './config-fields';
+import { MonitorForm, type AdoptableApp, type TypeOption } from './monitor-form';
 import { LatencySparkline, OutcomeStrip, StripAxis } from './monitor-charts';
 
 /**
@@ -93,31 +90,11 @@ export type MonitorRow = {
   openIncidentSince: string | null;
 };
 
-export type TypeOption = {
-  type: MonitorType;
-  label: string;
-  description: string;
-  neverDoes: string;
-  fields: Parameters<typeof ConfigFields>[0]['fields'];
-  minIntervalSeconds: number;
-  defaultIntervalSeconds: number;
-  defaults: unknown;
-  uptimeMeans: string;
-};
-
-export type AdoptableApp = {
-  applicationId: string;
-  slug: string;
-  name: string;
-  url: string;
-};
+export type { AdoptableApp, TypeOption };
 
 type ApiError = { error?: { message?: string } };
 
 type Messages = Translate<(typeof messages)['fr']>;
-
-/** Les cadences proposées. Filtrées par le minimum que le type déclare. */
-const INTERVAL_CHOICES = [30, 60, 300, 900, 3_600, 6 * 3_600, 12 * 3_600, 86_400];
 
 const STATUS_TONE: Record<MonitorRow['status'], Tone> = {
   healthy: 'ok',
@@ -714,213 +691,8 @@ function CreateDrawer({
     <Drawer open={seed !== null} onOpenChange={onOpenChange} wide label={t('create.title')}>
       {seed ? (
         // Une clé par ouverture : « Superviser » repart d'un formulaire pré-rempli.
-        <CreateForm key={seed.key} app={seed.app} types={types} onCreated={onCreated} />
+        <MonitorForm key={seed.key} mode="create" app={seed.app} types={types} onDone={onCreated} />
       ) : null}
     </Drawer>
-  );
-}
-
-function CreateForm({
-  app,
-  types,
-  onCreated,
-}: {
-  app: AdoptableApp | null;
-  types: TypeOption[];
-  onCreated: (name: string) => void;
-}) {
-  const t = useT(messages);
-  const tc = useT(common);
-  const language = useLanguage();
-  const http = types.find((entry) => entry.type === 'http');
-  const first = app && http ? http : types[0];
-  const [type, setType] = React.useState<MonitorType>(first?.type ?? 'http');
-  const [name, setName] = React.useState(app?.name ?? '');
-  const [config, setConfig] = React.useState<ConfigValues>(
-    app ? { ...defaultsOf(http?.defaults), url: app.url } : defaultsOf(first?.defaults),
-  );
-  const [intervalSeconds, setIntervalSeconds] = React.useState(first?.defaultIntervalSeconds ?? 60);
-  const [failureThreshold, setFailureThreshold] = React.useState(3);
-  const [recoveryThreshold, setRecoveryThreshold] = React.useState(2);
-  const [webhookUrl, setWebhookUrl] = React.useState('');
-  const [applicationId, setApplicationId] = React.useState<string | null>(
-    app?.applicationId ?? null,
-  );
-  const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const definition = types.find((option) => option.type === type) ?? first;
-
-  function pickType(next: MonitorType): void {
-    const option = types.find((entry) => entry.type === next);
-    setType(next);
-    setConfig(defaultsOf(option?.defaults));
-    setIntervalSeconds(option?.defaultIntervalSeconds ?? 60);
-    setApplicationId(null);
-  }
-
-  async function submit(event: React.FormEvent): Promise<void> {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-
-    const response = await fetch('/api/monitors', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        type,
-        config: cleanConfig(config),
-        intervalSeconds,
-        failureThreshold,
-        recoveryThreshold,
-        applicationId,
-        webhookUrl: webhookUrl.trim() === '' ? null : webhookUrl.trim(),
-      }),
-    });
-
-    setSubmitting(false);
-    if (!response.ok) {
-      const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
-      return;
-    }
-    onCreated(name);
-  }
-
-  const intervals = INTERVAL_CHOICES.filter(
-    (seconds) => seconds >= (definition?.minIntervalSeconds ?? 30),
-  );
-
-  return (
-    <form className="contents" onSubmit={(event) => void submit(event)}>
-      <DrawerHeader
-        icon={<Radar />}
-        kind={t('drawer.kind')}
-        title={t('create.title')}
-        extra={
-          definition ? (
-            <p className="t-sm text-text-2">
-              {definition.description} {definition.neverDoes}
-            </p>
-          ) : null
-        }
-      />
-      <DrawerBody>
-        {error ? <Alert variant="destructive">{error}</Alert> : null}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label={t('create.name.label')}>
-            <Input
-              value={name}
-              required
-              maxLength={120}
-              placeholder={t('create.name.placeholder')}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </Field>
-          <Field label={t('create.type.label')}>
-            <Select value={type} onChange={(event) => pickType(event.target.value as MonitorType)}>
-              {types.map((option) => (
-                <option key={option.type} value={option.type}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
-
-        {definition ? (
-          <ConfigFields
-            fields={definition.fields}
-            values={config}
-            idPrefix="monitor-config"
-            onChange={(key, value) => setConfig((previous) => ({ ...previous, [key]: value }))}
-          />
-        ) : null}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field
-            label={t('create.interval.label')}
-            help={
-              definition
-                ? t('create.interval.floor', {
-                    cadence: formatCadence(definition.minIntervalSeconds, language),
-                  })
-                : undefined
-            }
-          >
-            <Select
-              value={String(intervalSeconds)}
-              onChange={(event) => setIntervalSeconds(Number(event.target.value))}
-            >
-              {intervals.map((seconds) => (
-                <option key={seconds} value={seconds}>
-                  {formatCadence(seconds, language)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={t('create.failure.label')} help={t('create.failure.hint')}>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              className="mono"
-              value={failureThreshold}
-              onChange={(event) => setFailureThreshold(Number(event.target.value))}
-            />
-          </Field>
-          <Field label={t('create.recovery.label')} help={t('create.recovery.hint')}>
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              className="mono"
-              value={recoveryThreshold}
-              onChange={(event) => setRecoveryThreshold(Number(event.target.value))}
-            />
-          </Field>
-        </div>
-
-        <Field
-          label={t('create.webhook.label')}
-          optional
-          help={
-            <>
-              {t('create.webhook.payload.a')}
-              <strong>{t('create.webhook.payload.and')}</strong>
-              {t('create.webhook.payload.b')}
-              <code className="mono">text</code>
-              {t('create.webhook.payload.c')} <code className="mono">content</code>
-              {t('create.webhook.payload.d')}{' '}
-              {/*
-                Deux sorties existent pour la même panne. Le dire ici, au moment
-                de saisir l'URL, est le seul endroit où l'information arrive à
-                temps : sinon l'opérateur découvre le doublon en le recevant.
-              */}
-              {t('create.webhook.scope.a')}
-              <strong>{t('create.webhook.scope.only')}</strong>
-              {t('create.webhook.scope.b')}
-              <strong>{t('create.webhook.scope.all')}</strong>
-              {t('create.webhook.scope.c')}
-            </>
-          }
-        >
-          <Input
-            type="url"
-            className="mono"
-            value={webhookUrl}
-            placeholder={t('create.webhook.placeholder')}
-            onChange={(event) => setWebhookUrl(event.target.value)}
-          />
-        </Field>
-      </DrawerBody>
-      <DrawerFooter end={null}>
-        <Button type="submit" loading={submitting}>
-          {submitting ? tc('creating') : t('create.submit')}
-        </Button>
-      </DrawerFooter>
-    </form>
   );
 }
