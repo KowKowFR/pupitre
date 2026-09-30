@@ -366,15 +366,18 @@ function pausedReasonLabel(raw: string, t: Messages): string {
   return pause.text;
 }
 
-/** Un taux en pourcentage, sans le décompte : celui-ci est dans l'infobulle. */
+/**
+ * Un taux en pourcentage, sans le décompte : celui-ci est dans l'infobulle.
+ * `Intl` place le signe selon la langue — « 98,84 % » en français, « 98.84% »
+ * en anglais — et 100 s'écrit sans décimale.
+ */
 function percentOf(ratio: number | null, format: FormatSettings): string {
   if (ratio === null) return '—';
-  const percent = ratio * 100;
-  return `${
-    percent === 100
-      ? '100'
-      : formatNumber(percent, format, { minimumFractionDigits: 1, maximumFractionDigits: 2 })
-  } %`;
+  return formatNumber(ratio, format, {
+    style: 'percent',
+    minimumFractionDigits: ratio === 1 ? 0 : 1,
+    maximumFractionDigits: 2,
+  });
 }
 
 function MonitorCard({
