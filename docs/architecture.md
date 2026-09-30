@@ -197,6 +197,39 @@ Redis dédiée par flux, relâchée à la déconnexion du client.
 Le même mécanisme sert ailleurs : `workload:{targetId}` pour la progression des
 actions sur les charges d'une cible, et le flux d'état de services de `/apps`.
 
+## Temps réel : présence, discussion, écrans vivants
+
+Un canal Redis unique, `pupitre:realtime`, porte des événements typés et validés
+(`@pupitre/core` → `realtime.ts`) : présence, messages de la discussion,
+signaux d'écran (`live`), activité du journal. `GET /api/realtime` les relaie en
+SSE — **un abonné Redis par processus**, pas par onglet, qui distribue en
+mémoire aux flux ouverts.
+
+Côté navigateur, **un seul flux pour tous les onglets** : ils élisent un meneur
+(Web Locks) qui ouvre le flux et relaie aux autres (BroadcastChannel). En
+HTTP/1.1, un flux par onglet épuiserait les six connexions par origine.
+
+**Les écrans ne reçoivent jamais de données par ce canal.** Un signal dit
+« les déploiements ont bougé » ; la page qui l'écoute (`<LiveRefresh>`) se
+relit auprès du serveur, avec les permissions de la session. Signaux venus du
+worker (début et fin des tâches BullMQ) et du journal d'audit (un observateur
+nommé, à côté de celui des notifications). Au plus un rafraîchissement toutes
+les 4 s, rien tant que l'onglet est caché. L'activité du journal ne part qu'aux
+sessions qui ont `audit:read`.
+
+**Présence** — dans Redis, pas en base : nombre d'onglets ouverts, dernier
+signe de vie du flux, dernière interaction, choix de la personne (absent, ne
+pas déranger). L'état affiché se déduit (`effectivePresence`) : hors ligne sans
+onglet ou après 75 s de silence (processus tué), absent après 5 min sans
+interaction. Un balayage toutes les 20 s, sous verrou Redis, annonce ce que le
+temps seul fait changer.
+
+**Discussion** — en base (`chat_messages`, `chat_reads`). Une mention est un
+jeton `<@user|target|app:id>` posé par le compositeur, avec son libellé du
+moment ; la route ne garde que celles que l'auteur a le droit d'ouvrir. Texte
+brut, jamais de HTML. Un message effacé garde sa ligne, vidée ; effacer celui
+d'un autre demande `user:manage` et passe par `logAudit()`.
+
 ## Ports : la base tranche, la cible vérifie
 
 L'anti-collision **entre applications du panel** est la contrainte unique

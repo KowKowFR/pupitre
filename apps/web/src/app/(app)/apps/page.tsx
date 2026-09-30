@@ -7,6 +7,7 @@ import {
   targetHistories,
 } from '@pupitre/db';
 import { Server } from 'lucide-react';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { getT } from '@/i18n/server';
@@ -197,13 +198,16 @@ export default async function AppsPage() {
   }
 
   return (
-    <ServersList
-      servers={rows}
-      history={history}
-      canRestart={auth.can('deployment:restart')}
-      canReadTargets={canReadTargets}
-      canTune={auth.can('target:update')}
-      format={formatSettingsOf(settings)}
-    />
+    <>
+      <LiveRefresh topics={['deployments', 'targets']} />
+      <ServersList
+        servers={rows}
+        history={history}
+        canRestart={auth.can('deployment:restart')}
+        canReadTargets={canReadTargets}
+        canTune={auth.can('target:update')}
+        format={formatSettingsOf(settings)}
+      />
+    </>
   );
 }

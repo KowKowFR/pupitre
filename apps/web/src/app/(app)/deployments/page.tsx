@@ -6,6 +6,7 @@ import {
   scanDigestForDeployments,
 } from '@pupitre/db';
 import { Download, Rocket } from 'lucide-react';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { EmptyState } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
@@ -92,6 +93,7 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
 
   return (
     <>
+      <LiveRefresh topics={['deployments']} />
       {header}
       <DeploymentsTable
         items={page.items.map((item) => ({

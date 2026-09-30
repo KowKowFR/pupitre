@@ -71,15 +71,24 @@ describe('masquage par permission', () => {
   it("le rail d'un observateur n'a ni tâches, ni journal, ni utilisateurs, ni rôles", () => {
     const groups = visibleNavigation(VIEWER);
     const keys = groups.flatMap((group) => group.sections.map((section) => section.key));
-    assert.deepEqual(keys, ['dashboard', 'targets', 'applications', 'servers', 'deployments', 'monitoring']);
+    assert.deepEqual(keys, [
+      'dashboard',
+      'targets',
+      'applications',
+      'servers',
+      'deployments',
+      'monitoring',
+      'chat',
+    ]);
     // Un groupe vide disparaît : pas d'« Administration » sans section.
     assert.deepEqual(groups.map((group) => group.key), ['operations']);
   });
 
-  it("le rail d'un administrateur montre les douze sections, catalogue compris", () => {
+  it("le rail d'un administrateur montre les treize sections, catalogue et discussion compris", () => {
     const keys = visibleNavigation(ADMIN).flatMap((group) => group.sections.map((section) => section.key));
-    assert.equal(keys.length, 12);
+    assert.equal(keys.length, 13);
     assert.ok(keys.includes('catalog'));
+    assert.ok(keys.includes('chat'));
   });
 
   it('la palette ne propose pas une commande interdite', () => {

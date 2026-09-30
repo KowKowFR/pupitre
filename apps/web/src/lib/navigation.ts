@@ -17,6 +17,7 @@ export type SectionKey =
   | 'targets'
   | 'applications'
   | 'catalog'
+  | 'chat'
   | 'servers'
   | 'deployments'
   | 'monitoring'
@@ -50,6 +51,8 @@ export const NAVIGATION: readonly NavGroup[] = [
       { key: 'deployments', href: '/deployments', permission: 'deployment:read', shortcut: 'P' },
       { key: 'monitoring', href: '/monitors', permission: 'monitor:read', shortcut: 'S' },
       { key: 'jobs', href: '/jobs', permission: 'job:read' },
+      // L'équipe entière s'y parle : aucune permission, comme la vue d'ensemble.
+      { key: 'chat', href: '/chat', permission: null },
     ],
   },
   {

@@ -89,6 +89,8 @@ Conséquence : la même app se redéploie sur l'autre runtime en changeant un ch
 - Permissions : chaînes `ressource:action` (`deployment:create`, `target:delete`)
 - Statuts de step : `pending | running | success | failed | skipped`
 - Migrations : jamais éditer une migration appliquée, toujours en créer une nouvelle
+- Temps réel : un canal Redis `pupitre:realtime` relayé en SSE. Un écran reçoit un
+  signal, jamais des données — il se relit (`<LiveRefresh>`) avec ses permissions
 
 ## Décisions déjà tranchées — ne pas rouvrir
 

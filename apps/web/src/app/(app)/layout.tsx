@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getAppSettings, listRoles } from '@pupitre/db';
+import { CHAT_DEFAULT_CHANNEL } from '@pupitre/core';
+import { countUnreadChat, getAppSettings, listChatMembers, listRoles } from '@pupitre/db';
+import { RealtimeProvider } from '@/components/realtime/realtime-provider';
 import { CrumbProvider } from '@/components/shell/breadcrumb';
 import type { NavMeta } from '@/components/shell/nav-item';
 import { Rail } from '@/components/shell/rail';
@@ -64,17 +66,29 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   // Les métas du rail lisent ce que lit la vue d'ensemble, avec les mêmes
   // chargeurs mis en cache : sur `/`, rien n'est lu deux fois.
-  const [attention, targets, applications, recent, monitors, worker, roles, cookieStore] =
-    await Promise.all([
-      attentionFor(auth),
-      auth.can('target:read') ? loadTargets() : Promise.resolve(null),
-      auth.can('application:read') ? loadApplications() : Promise.resolve(null),
-      auth.can('deployment:read') ? loadRecentDeployments() : Promise.resolve(null),
-      auth.can('monitor:read') ? loadMonitors() : Promise.resolve(null),
-      workerStatus(),
-      listRoles(),
-      cookies(),
-    ]);
+  const [
+    attention,
+    targets,
+    applications,
+    recent,
+    monitors,
+    worker,
+    roles,
+    cookieStore,
+    chatMembers,
+    chatUnread,
+  ] = await Promise.all([
+    attentionFor(auth),
+    auth.can('target:read') ? loadTargets() : Promise.resolve(null),
+    auth.can('application:read') ? loadApplications() : Promise.resolve(null),
+    auth.can('deployment:read') ? loadRecentDeployments() : Promise.resolve(null),
+    auth.can('monitor:read') ? loadMonitors() : Promise.resolve(null),
+    workerStatus(),
+    listRoles(),
+    cookies(),
+    listChatMembers(),
+    countUnreadChat(auth.userId, CHAT_DEFAULT_CHANNEL),
+  ]);
 
   const metas: Partial<Record<string, NavMeta>> = {};
   if (attention.length > 0) {
@@ -113,36 +127,42 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <TooltipProvider>
-      <ShellProvider sections={sections} commands={visibleCommands(auth.can)}>
-        <CrumbProvider>
-          <div className="shell">
-            <Rail
-              instance={{ name: settings.instanceName, tagline: settings.instanceTagline }}
-              groups={groups}
-              metas={metas}
-              onboarding={railOnboarding}
-              user={user}
-              canOpenSettings={auth.can('settings:read')}
-            />
-            <div className="main">
-              <MobileHeader
-                instanceName={settings.instanceName}
-                sections={sections.map((section) => ({
-                  ...section,
-                  label: t(`nav.${section.key}`),
-                }))}
+      <RealtimeProvider
+        me={auth.userId}
+        members={chatMembers.map((member) => ({ id: member.id, name: member.name }))}
+        initialUnread={chatUnread}
+      >
+        <ShellProvider sections={sections} commands={visibleCommands(auth.can)}>
+          <CrumbProvider>
+            <div className="shell">
+              <Rail
+                instance={{ name: settings.instanceName, tagline: settings.instanceTagline }}
+                groups={groups}
                 metas={metas}
+                onboarding={railOnboarding}
                 user={user}
+                canOpenSettings={auth.can('settings:read')}
               />
-              <Topbar instanceName={settings.instanceName} sections={sections} worker={worker} />
-              <main id="contenu" className="page">
-                {children}
-              </main>
+              <div className="main">
+                <MobileHeader
+                  instanceName={settings.instanceName}
+                  sections={sections.map((section) => ({
+                    ...section,
+                    label: t(`nav.${section.key}`),
+                  }))}
+                  metas={metas}
+                  user={user}
+                />
+                <Topbar instanceName={settings.instanceName} sections={sections} worker={worker} />
+                <main id="contenu" className="page">
+                  {children}
+                </main>
+              </div>
             </div>
-          </div>
-          <Toaster />
-        </CrumbProvider>
-      </ShellProvider>
+            <Toaster />
+          </CrumbProvider>
+        </ShellProvider>
+      </RealtimeProvider>
     </TooltipProvider>
   );
 }
