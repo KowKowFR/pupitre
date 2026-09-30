@@ -72,10 +72,13 @@ function Button({
   const blocked = Boolean(disabled) || loading || Boolean(disabledReason);
 
   if (asChild) {
+    // Tout passe à l'enfant — libellé accessible, gestionnaires d'une
+    // info-bulle, `ref` — et non la seule classe.
     const child = React.Children.only(children) as React.ReactElement<{
       className?: string;
     }>;
     return React.cloneElement(child, {
+      ...props,
       className: cn(classes, child.props.className),
     });
   }
