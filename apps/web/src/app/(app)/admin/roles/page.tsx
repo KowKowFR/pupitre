@@ -6,19 +6,14 @@ import {
   translator,
 } from '@pupitre/core';
 import { listRolesWithPermissions } from '@pupitre/db';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { admin } from '@/i18n/messages/admin';
-import { currentLanguage, getT } from '@/i18n/server';
+import { currentLanguage } from '@/i18n/server';
 import { requirePagePermission } from '@/lib/page-auth';
-import { CreateRoleForm } from './create-role-form';
 import { RolesEditor, type RoleRow } from './roles-editor';
-import { PageHeader } from '@/components/page-header';
 
 export const dynamic = 'force-dynamic';
 
 export default async function RolesPage() {
   const auth = await requirePagePermission('/admin/roles', 'role:read');
-  const t = await getT(admin);
   const language = await currentLanguage();
 
   const roles = await listRolesWithPermissions();
@@ -42,33 +37,12 @@ export default async function RolesPage() {
     }),
   );
 
-  const canManage = auth.can('role:manage');
-
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t('roles.title')}
-        description={
-          <>
-            {t('roles.description.before')} <code className="font-mono text-xs">{LOCKED_ROLE}</code>{' '}
-            {t('roles.description.after')}
-          </>
-        }
-      />
-
-      {canManage ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('roles.new.title')}</CardTitle>
-            <CardDescription>{t('roles.new.help')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CreateRoleForm existingKeys={items.map((item) => item.key)} />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <RolesEditor roles={items} groups={groups} canManage={canManage} />
-    </div>
+    <RolesEditor
+      roles={items}
+      groups={groups}
+      canManage={auth.can('role:manage')}
+      lockedRole={LOCKED_ROLE}
+    />
   );
 }
