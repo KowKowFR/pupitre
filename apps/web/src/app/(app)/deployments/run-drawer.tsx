@@ -168,7 +168,7 @@ function RunDrawerContent({
             <DeploymentStatusBadge status={status} />
             <span className="text-text-2">
               <span className="mono">{row.targetName}</span> · {row.runtime} ·{' '}
-              {formatDuration(row.startedAt, row.finishedAt)}
+              <span suppressHydrationWarning>{formatDuration(row.startedAt, row.finishedAt)}</span>
             </span>
             <span className="t-cap mono ml-auto text-text-3">
               {formatDate(row.createdAt, format)}
@@ -228,7 +228,14 @@ function RunDrawerContent({
                 term: t('field.by'),
                 value: <span className="mono">{row.triggeredByEmail ?? tc('none')}</span>,
               },
-              { term: t('field.duration'), value: formatDuration(row.startedAt, row.finishedAt) },
+              {
+                term: t('field.duration'),
+                value: (
+                  <span suppressHydrationWarning>
+                    {formatDuration(row.startedAt, row.finishedAt)}
+                  </span>
+                ),
+              },
               {
                 term: t('drawer.date'),
                 value: <span className="mono">{formatDate(row.createdAt, format)}</span>,

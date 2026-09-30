@@ -400,7 +400,7 @@ export function DeploymentsTable({
                 <TableCell>
                   <DeploymentStatusBadge status={item.status} />
                 </TableCell>
-                <TableCell className="r num">
+                <TableCell className="r num" suppressHydrationWarning>
                   {formatDuration(item.startedAt, item.finishedAt)}
                 </TableCell>
                 <TableCell className="mono whitespace-nowrap text-text-2">

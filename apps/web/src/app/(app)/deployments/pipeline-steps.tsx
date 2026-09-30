@@ -79,7 +79,11 @@ export function PipelineSteps({
                   {deploymentStepLabel(step.key, language, step.label)}
                 </span>
                 {step.startedAt && step.status !== 'pending' && step.status !== 'skipped' ? (
-                  <span className="tm" title={formatDuration(step.startedAt, step.finishedAt)}>
+                  <span
+                    className="tm"
+                    title={formatDuration(step.startedAt, step.finishedAt)}
+                    suppressHydrationWarning
+                  >
                     {/* UTC, comme les dates du journal : elles se comparent aux logs du worker. */}
                     {formatDateTimeWith(step.startedAt, format, {
                       hour: '2-digit',

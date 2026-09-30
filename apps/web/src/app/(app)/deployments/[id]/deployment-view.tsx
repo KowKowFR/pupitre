@@ -587,7 +587,9 @@ function Summary({
         </div>
         <span className="vsep max-md:hidden" />
         <FieldValue label={t('field.duration')}>
-          <span className="num">{formatDuration(deployment.startedAt, deployment.finishedAt)}</span>
+          <span className="num" suppressHydrationWarning>
+            {formatDuration(deployment.startedAt, deployment.finishedAt)}
+          </span>
         </FieldValue>
         {step ? (
           <FieldValue label={t('field.step')}>
