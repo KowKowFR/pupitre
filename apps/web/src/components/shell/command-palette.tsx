@@ -437,10 +437,10 @@ function objectItem(
         id: `deployment-${hit.id}`,
         group: 'objects',
         icon: Rocket,
-        title: `${hit.title} v${hit.version}`,
+        title: `#${hit.number} ${hit.title} v${hit.version}`,
         meta: `${t('palette.kind.deployment')} · ${hit.target}`,
         verb: 'open',
-        words: hit.target,
+        words: `${hit.target} ${hit.number}`,
         isCommand: false,
         perform: () => go(`/deployments/${hit.id}`),
       };

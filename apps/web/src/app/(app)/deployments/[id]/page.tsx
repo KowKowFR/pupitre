@@ -63,13 +63,13 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <Crumb label={`#${deployment.version}`} />
+      <Crumb label={`#${deployment.number}`} />
       <PageHeader
         title={
           <>
             {deployment.applicationSlug}{' '}
             <span className="mono text-[18px] font-normal text-text-3">
-              {specVersion ? `${specVersion} · ` : ''}#{deployment.version}
+              {specVersion ? `${specVersion} · ` : ''}#{deployment.number}
             </span>
           </>
         }

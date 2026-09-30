@@ -245,11 +245,11 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
       {supervised?.lastFailedUpdate ? (
         <Alert variant="warn">
           {t('failedUpdate.text', {
-            version: supervised.lastFailedUpdate.version,
+            number: supervised.lastFailedUpdate.number,
             step: supervised.lastFailedUpdate.failedStep
               ? t('failedUpdate.step', { step: supervised.lastFailedUpdate.failedStep })
               : '',
-            current: specVersion ?? `#${deployment.version}`,
+            current: specVersion ?? `#${deployment.number}`,
           })}{' '}
           <Link href={`/deployments/${supervised.lastFailedUpdate.deploymentId}`} className="link">
             {t('failedUpdate.link')}
@@ -279,7 +279,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
               <CardContent className="grid grid-cols-2 gap-x-6 gap-y-4">
                 <FieldValue label={t('rollout.version')}>
                   <span className="mono">
-                    #{deployment.version}
+                    #{deployment.number}
                     {specVersion ? ` · ${t('rollout.spec', { version: specVersion })}` : ''}
                   </span>
                 </FieldValue>

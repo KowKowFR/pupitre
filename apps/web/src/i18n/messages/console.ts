@@ -22,7 +22,7 @@ const fr = {
     "Ce déploiement est « {status} » : il n'y a pas d'application à suivre. Consultez son {link}.",
   'gone.link': 'historique de déploiement',
   'failedUpdate.text':
-    "La dernière mise à jour a échoué (déploiement #{version}{step}). C'est la version {current} ci-dessous qui reste en service.",
+    "La dernière mise à jour a échoué (déploiement #{number}{step}). C'est la version {current} ci-dessous qui reste en service.",
   'failedUpdate.step': ', étape {step}',
   'failedUpdate.link': 'Voir le déploiement échoué',
 
@@ -30,8 +30,8 @@ const fr = {
   'ops.label': 'Exploitation',
   'ops.reading': "Lecture de l'état…",
   'ops.running': 'En marche sur {target}',
-  'ops.version': ', version #{version}',
-  'ops.version.spec': ', version #{version} ({spec})',
+  'ops.version': ', version #{number}',
+  'ops.version.spec': ', version #{number} ({spec})',
   'ops.stopped': 'Arrêtée le {date}',
   'ops.stopped.detail': ' — données et port réservé conservés.',
   'ops.none':
@@ -44,7 +44,7 @@ const fr = {
 
   'gesture.stop': 'Arrêter',
   'gesture.start': 'Démarrer',
-  'gesture.rollback': 'Revenir à #{version}',
+  'gesture.rollback': 'Revenir à #{number}',
   'gesture.rollback.none': 'Revenir en arrière',
   'gesture.redeploy': 'Redéployer',
   'gesture.destroy': 'Détruire…',
@@ -72,8 +72,8 @@ const fr = {
 
   'rollback.none':
     "Aucune version précédente sur cette cible : il n'y a nulle part où revenir. Une version antérieure se redéploie depuis la fiche de l'application.",
-  'rollback.title': 'Revenir à la version #{version} ?',
-  'rollback.lead': 'La release #{version}, déjà présente sur {target}, est remise en service.',
+  'rollback.title': 'Revenir à la version #{number} ?',
+  'rollback.lead': 'La release #{number}, déjà présente sur {target}, est remise en service.',
   'rollback.noRebuild':
     "Aucune image n'est reconstruite et aucun scan n'est rejoué : c'est la release déjà déposée qui repart.",
   'rollback.status':
@@ -273,15 +273,15 @@ const en: Translated<typeof fr> = {
   'gone.alert': 'This deployment is “{status}”: there is no application to follow. See its {link}.',
   'gone.link': 'deployment history',
   'failedUpdate.text':
-    'The last update failed (deployment #{version}{step}). Version {current} below stays in service.',
+    'The last update failed (deployment #{number}{step}). Version {current} below stays in service.',
   'failedUpdate.step': ', step {step}',
   'failedUpdate.link': 'View the failed deployment',
 
   'ops.label': 'Operations',
   'ops.reading': 'Reading the state…',
   'ops.running': 'Running on {target}',
-  'ops.version': ', version #{version}',
-  'ops.version.spec': ', version #{version} ({spec})',
+  'ops.version': ', version #{number}',
+  'ops.version.spec': ', version #{number} ({spec})',
   'ops.stopped': 'Stopped on {date}',
   'ops.stopped.detail': ' — data and reserved port kept.',
   'ops.none': 'Your role allows no gesture on this application. The logs stay readable.',
@@ -293,7 +293,7 @@ const en: Translated<typeof fr> = {
 
   'gesture.stop': 'Stop',
   'gesture.start': 'Start',
-  'gesture.rollback': 'Back to #{version}',
+  'gesture.rollback': 'Back to #{number}',
   'gesture.rollback.none': 'Roll back',
   'gesture.redeploy': 'Redeploy',
   'gesture.destroy': 'Destroy…',
@@ -320,8 +320,8 @@ const en: Translated<typeof fr> = {
 
   'rollback.none':
     'No previous version on this target: there is nowhere to go back to. An older version is redeployed from the application page.',
-  'rollback.title': 'Go back to version #{version}?',
-  'rollback.lead': 'Release #{version}, already on {target}, is put back in service.',
+  'rollback.title': 'Go back to version #{number}?',
+  'rollback.lead': 'Release #{number}, already on {target}, is put back in service.',
   'rollback.noRebuild':
     'No image is rebuilt and no scan is replayed: the release already on the host starts again.',
   'rollback.status': 'The current deployment becomes “rolled back”; it stays in the history.',

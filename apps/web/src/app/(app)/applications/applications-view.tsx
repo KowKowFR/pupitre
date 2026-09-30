@@ -128,10 +128,10 @@ export function ApplicationsView({
     }
     // La route répond 202 sans attendre : le run est enfilé, on le dit, et on
     // donne le lien pour le suivre.
-    const { id } = (await response.json()) as { id: string };
+    const { id, number } = (await response.json()) as { id: string; number: number };
     toast({
       title: t('toast.deployed', { slug: application.slug, version: application.version }),
-      description: t('toast.deployed.detail'),
+      description: t('toast.deployed.detail', { number }),
       tone: 'accent',
       action: { label: t('toast.follow'), href: `/deployments/${id}` },
     });

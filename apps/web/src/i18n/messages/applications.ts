@@ -92,7 +92,7 @@ const fr = {
   'health.unreachable': 'injoignable',
   'health.unknown': 'état inconnu',
   'toast.deployed': 'Déploiement de {slug} v{version} enfilé',
-  'toast.deployed.detail': 'Suivez-le dans Déploiements.',
+  'toast.deployed.detail': 'Run #{number} · suivez-le dans Déploiements.',
   'toast.follow': 'Suivre',
   'toast.deleted': 'Application {slug} supprimée',
 
@@ -424,7 +424,7 @@ const en: Translated<typeof fr> = {
   'health.unreachable': 'unreachable',
   'health.unknown': 'state unknown',
   'toast.deployed': 'Deployment of {slug} v{version} queued',
-  'toast.deployed.detail': 'Follow it in Deployments.',
+  'toast.deployed.detail': 'Run #{number} · follow it in Deployments.',
   'toast.follow': 'Follow',
   'toast.deleted': 'Application {slug} deleted',
 

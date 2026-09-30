@@ -49,6 +49,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     status: deployment.status,
     supervisable: isSupervisable(deployment.status),
     stoppedAt: deployment.stoppedAt?.toISOString() ?? null,
+    number: deployment.number,
     version: deployment.version,
     url: deployment.url,
     publishedPort: deployment.publishedPort,
@@ -58,6 +59,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
     targetName: deployment.targetName,
     runtime: deployment.runtime,
     workspace: workspaceNameFor(deployment.applicationSlug),
-    previous: previous ? { id: previous.id, version: previous.version } : null,
+    previous: previous
+      ? { id: previous.id, number: previous.number, version: previous.version }
+      : null,
   });
 });

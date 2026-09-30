@@ -5,15 +5,17 @@ import {
   listLiveDeploymentIds,
   scanDigestForDeployments,
 } from '@pupitre/db';
-import { Rocket } from 'lucide-react';
+import { Download, Rocket } from 'lucide-react';
 import { EmptyState } from '@/components/empty-state';
+import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/page-header';
 import { DeployButton } from '@/components/shell/deploy-button';
 import { getT } from '@/i18n/server';
 import { deployments as messages } from '@/i18n/messages/deployments';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
-import { DeploymentsTable, type StatusFilter } from './deployments-table';
+import { DeploymentsTable } from './deployments-table';
+import { filterParams, type StatusFilter } from './filters';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +38,13 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
   // Les filtres proposés sont ceux que la requête de liste sait appliquer ;
   // un autre statut passé à la main filtre quand même, sans puce allumée.
   const filter: StatusFilter =
-    query.status === 'running' || query.status === 'failed' || query.status === 'rolled_back'
-      ? query.status
-      : null;
+    query.blocked === 'scan'
+      ? 'scan_blocked'
+      : query.status === 'running' || query.status === 'failed' || query.status === 'rolled_back'
+        ? query.status
+        : null;
+  const search = query.q ?? '';
+  const filtered = Boolean(query.status || query.blocked || search);
 
   // Une seule requête pour toute la page : la colonne « Scans » ne doit pas
   // coûter un aller-retour par ligne.
@@ -50,17 +56,31 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
   const live = await listLiveDeploymentIds();
   const { settings } = await getAppSettings();
 
+  // L'export reprend les filtres affichés : ce qu'on télécharge est ce qu'on voit,
+  // toutes pages confondues.
+  const exportQuery = filterParams(filter, search).toString();
+
   const header = (
     <PageHeader
       title={t('page.title')}
       description={t('page.description')}
       actions={
-        auth.can('deployment:create') ? <DeployButton label={t('page.deploy')} /> : undefined
+        <>
+          {page.total > 0 ? (
+            <Button asChild variant="secondary">
+              <a href={`/api/deployments/export${exportQuery ? `?${exportQuery}` : ''}`} download>
+                <Download aria-hidden />
+                {t('page.export')}
+              </a>
+            </Button>
+          ) : null}
+          {auth.can('deployment:create') ? <DeployButton label={t('page.deploy')} /> : null}
+        </>
       }
     />
   );
 
-  if (page.total === 0 && !query.status) {
+  if (page.total === 0 && !filtered) {
     return (
       <>
         {header}
@@ -75,6 +95,7 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
       <DeploymentsTable
         items={page.items.map((item) => ({
           id: item.id,
+          number: item.number,
           status: item.status,
           runtime: item.runtime,
           version: item.version,
@@ -95,6 +116,7 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
           total: page.total,
         }}
         filter={filter}
+        search={search}
         canPurge={auth.can('deployment:purge')}
         canRollback={auth.can('deployment:rollback')}
         format={formatSettingsOf(settings)}

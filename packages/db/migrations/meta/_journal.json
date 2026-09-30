@@ -127,6 +127,13 @@
       "when": 1789286117327,
       "tag": "0018_app_stopped_at",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790781471305,
+      "tag": "0019_deployment_number",
+      "breakpoints": true
     }
   ]
 }

@@ -129,6 +129,7 @@ export const POST = apiRoute(async (request) => {
       targetName: target.name,
       runtime: input.runtime,
       proxy: input.proxy,
+      number: deployment.number,
       version: deployment.version,
       scanners: scanConfig.scanners,
       failOn: scanConfig.failOn,
@@ -136,7 +137,7 @@ export const POST = apiRoute(async (request) => {
       // cela le journal ne garderait aucune trace de l'intention.
       ...(scanConfig.disabledBy
         ? {
-            scanRequested: requestedScan?.scanners ?? '(politique de l\'instance)',
+            scanRequested: requestedScan?.scanners ?? "(politique de l'instance)",
             scanDisabledBy: scanConfig.disabledBy,
           }
         : {}),
@@ -154,6 +155,7 @@ export const POST = apiRoute(async (request) => {
   return NextResponse.json(
     {
       id: deployment.id,
+      number: deployment.number,
       status: deployment.status,
       version: deployment.version,
       scanConfig,

@@ -68,6 +68,8 @@ type AppState = {
   status: string;
   supervisable: boolean;
   stoppedAt: string | null;
+  /** Numéro de run en service, global à l'instance. */
+  number: number;
   version: number;
   url: string | null;
   publishedPort: number | null;
@@ -77,7 +79,7 @@ type AppState = {
   runtime: 'docker' | 'k3s';
   /** Projet Compose ou namespace, selon le runtime. */
   workspace: string;
-  previous: { id: string; version: number } | null;
+  previous: { id: string; number: number; version: number } | null;
 };
 
 type ApiError = { error?: { message?: string } };
@@ -298,8 +300,8 @@ export function AppActions({
             </span>
             <span className="text-text-3">
               {specVersion
-                ? t('ops.version.spec', { version: state.version, spec: specVersion })
-                : t('ops.version', { version: state.version })}
+                ? t('ops.version.spec', { number: state.number, spec: specVersion })
+                : t('ops.version', { number: state.number })}
             </span>
           </>
         )}
@@ -455,7 +457,7 @@ function buildGestures({
   const rollback: Gesture = {
     key: 'rollback',
     label: state.previous
-      ? t('gesture.rollback', { version: state.previous.version })
+      ? t('gesture.rollback', { number: state.previous.number })
       : t('gesture.rollback.none'),
     busyLabel: t('busy.rollback'),
     icon: <Undo2 aria-hidden />,
@@ -464,9 +466,9 @@ function buildGestures({
     request: { path: `/api/deployments/${state.id}/rollback`, method: 'POST' },
     confirm: state.previous
       ? {
-          title: t('rollback.title', { version: state.previous.version }),
+          title: t('rollback.title', { number: state.previous.number }),
           lead: t('rollback.lead', {
-            version: state.previous.version,
+            number: state.previous.number,
             target: state.targetName,
           }),
           consequences: [

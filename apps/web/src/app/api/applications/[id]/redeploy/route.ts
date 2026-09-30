@@ -139,6 +139,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
       applicationSlug: application.slug,
       targetName: target.name,
       runtime: source.deployment.runtime,
+      number: deployment.number,
       version: deployment.version,
       autoRollback: deployment.autoRollback,
       jobId: job.id,
@@ -154,6 +155,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   return NextResponse.json(
     {
       id: deployment.id,
+      number: deployment.number,
       status: deployment.status,
       version: deployment.version,
       appVersion: appSpec.version,

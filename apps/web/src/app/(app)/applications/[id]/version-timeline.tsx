@@ -82,7 +82,7 @@ export function VersionTimeline({
     const chosen = selection[version.deploymentId] ?? version.targetId;
     return eligible.some((target) => target.id === chosen) ? chosen : (eligible[0]?.id ?? chosen);
   };
-  const labelOf = (version: VersionRow) => version.appVersion ?? `#${version.version}`;
+  const labelOf = (version: VersionRow) => version.appVersion ?? `v${version.version}`;
 
   async function redeploy(version: VersionRow) {
     setBusy(true);
@@ -99,10 +99,11 @@ export function VersionTimeline({
       setConfirming(null);
       return;
     }
-    const { id } = (await response.json()) as { id: string };
+    const { id, number } = (await response.json()) as { id: string; number: number };
     setConfirming(null);
     toast({
       title: t('redeploy.toast', { slug: applicationSlug, version: labelOf(version) }),
+      description: t('toast.deployed.detail', { number }),
       tone: 'accent',
       action: { label: t('toast.follow'), href: `/deployments/${id}` },
     });
@@ -150,7 +151,9 @@ export function VersionTimeline({
                 </div>
                 <div className="t-cap flex flex-wrap gap-x-3 text-text-3">
                   {version.triggeredByEmail ? <span>{version.triggeredByEmail}</span> : null}
-                  {version.imageTag ? <span className="mono truncate">{version.imageTag}</span> : null}
+                  {version.imageTag ? (
+                    <span className="mono truncate">{version.imageTag}</span>
+                  ) : null}
                   {version.url ? (
                     <a href={version.url} target="_blank" rel="noreferrer" className="link mono">
                       {version.url}

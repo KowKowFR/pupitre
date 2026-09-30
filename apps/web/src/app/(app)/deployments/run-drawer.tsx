@@ -157,7 +157,7 @@ function RunDrawerContent({
         title={
           <>
             {row.applicationSlug}{' '}
-            <span className="mono text-[16px] font-normal text-text-3">#{row.version}</span>
+            <span className="mono text-[16px] font-normal text-text-3">#{row.number}</span>
           </>
         }
         state={

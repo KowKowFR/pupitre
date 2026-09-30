@@ -19,8 +19,11 @@ export const dynamic = 'force-dynamic';
  * Les requêtes sont celles des écrans de liste, filtrées en mémoire : une
  * instance compte des dizaines d'objets, pas des millions, et réutiliser les
  * mêmes lectures garantit que la palette ne montre rien que la liste ne
- * montrerait pas. Le texte affiché (« Cible · 10.0.0.11 ») est composé par
- * le client, dans sa langue : la route ne renvoie que des champs.
+ * montrerait pas. Les runs font exception : eux se comptent par milliers, et
+ * la recherche passe par celle de la liste des déploiements, en base — c'est
+ * elle qui retrouve `#127` même s'il a six mois. Le texte affiché
+ * (« Cible · 10.0.0.11 ») est composé par le client, dans sa langue : la
+ * route ne renvoie que des champs.
  */
 const querySchema = z.object({
   q: z.string().trim().max(100).default(''),
@@ -38,6 +41,8 @@ export type SearchHit =
   | {
       kind: 'deployment';
       id: string;
+      /** Numéro de run, global à l'instance. */
+      number: number;
       title: string;
       version: number;
       status: string;
@@ -63,7 +68,7 @@ export const GET = apiRoute(async (request) => {
     wants('target') && auth.can('target:read') ? listTargets() : null,
     wants('application') && auth.can('application:read') ? listApplications() : null,
     wants('deployment') && auth.can('deployment:read')
-      ? listDeployments({ page: 1, pageSize: 100 })
+      ? listDeployments({ q: needle === '' ? undefined : needle, page: 1, pageSize: limit })
       : null,
     wants('monitor') && auth.can('monitor:read') ? listMonitors() : null,
   ]);
@@ -103,20 +108,11 @@ export const GET = apiRoute(async (request) => {
     });
   }
 
-  for (const deployment of (deployments?.items ?? [])
-    .filter((d) =>
-      matches(
-        needle,
-        d.applicationSlug,
-        d.targetName,
-        `v${d.version}`,
-        `${d.applicationSlug} v${d.version}`,
-      ),
-    )
-    .slice(0, limit)) {
+  for (const deployment of deployments?.items ?? []) {
     items.push({
       kind: 'deployment',
       id: deployment.id,
+      number: deployment.number,
       title: deployment.applicationSlug,
       version: deployment.version,
       status: deployment.status,

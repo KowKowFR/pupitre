@@ -12,8 +12,8 @@ import {
 import { z } from 'zod';
 import { deployments as messages } from '@/i18n/messages/deployments';
 import { NotFoundError, msg } from '@/lib/errors';
+import { exportResponse } from '@/lib/export';
 import { apiRoute, readSearchParams } from '@/lib/http';
-import { logger } from '@/lib/logger';
 import { requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
@@ -60,80 +60,44 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const exportedAt = new Date();
   const render = format === 'jsonl' ? renderJsonl : renderText;
 
+  // Le JSONL ne porte aucun en-tête : une ligne du fichier doit rester une
+  // ligne de log, sans quoi un `wc -l` mentirait et `jq` trébucherait.
+  const header = format === 'text' ? textHeader(deployment, exportedAt, auth.email) : null;
+
   let lines = 0;
-  const iterator = streamLogChunks(id, render, () => {
-    lines += 1;
-  });
-
-  let settled = false;
-  /** Journalise l'export une seule fois, terminé ou interrompu. */
-  const settle = async (complete: boolean): Promise<void> => {
-    if (settled) return;
-    settled = true;
-    await logAudit({
-      actorId: auth.userId,
-      action: 'deployment.logs.exported',
-      resourceType: 'deployment',
-      resourceId: id,
-      after: {
-        format,
-        lines,
-        complete,
-        applicationSlug: deployment.applicationSlug,
-        version: deployment.version,
-      },
-      ip: auth.ip,
+  async function* chunks(): AsyncGenerator<string, void, undefined> {
+    if (header) yield header;
+    yield* streamLogChunks(id, render, () => {
+      lines += 1;
     });
-  };
-
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      // Le JSONL ne porte aucun en-tête : une ligne du fichier doit rester une
-      // ligne de log, sans quoi un `wc -l` mentirait et `jq` trébucherait.
-      if (format === 'text') {
-        controller.enqueue(encoder.encode(textHeader(deployment, exportedAt, auth.email)));
-      }
-    },
-
-    async pull(controller) {
-      try {
-        const { value, done } = await iterator.next();
-        if (done) {
-          controller.close();
-          await settle(true);
-          return;
-        }
-        controller.enqueue(encoder.encode(value));
-      } catch (error) {
-        // Le corps a déjà commencé à partir : impossible de repasser en 500.
-        // On coupe le flux — un fichier tronqué vaut mieux qu'un fichier faux.
-        logger.error({ err: error, deploymentId: id }, "export du journal interrompu");
-        controller.error(error);
-        await settle(false);
-      }
-    },
-
-    async cancel() {
-      await iterator.return(undefined);
-      await settle(false);
-    },
-  });
+  }
 
   const extension = format === 'jsonl' ? 'jsonl' : 'log';
   const stamp = (deployment.finishedAt ?? deployment.createdAt).toISOString().slice(0, 10);
-  const filename = `${deployment.applicationSlug}-v${deployment.version}-${stamp}.${extension}`;
 
-  return new Response(stream, {
-    headers: {
-      'content-type':
-        format === 'jsonl'
-          ? 'application/x-ndjson; charset=utf-8'
-          : 'text/plain; charset=utf-8',
-      'content-disposition': contentDisposition(filename),
-      'cache-control': 'no-store',
-      // nginx retiendrait le flux jusqu'à la fin sans cet en-tête.
-      'x-accel-buffering': 'no',
+  return exportResponse({
+    chunks: chunks(),
+    contentType:
+      format === 'jsonl' ? 'application/x-ndjson; charset=utf-8' : 'text/plain; charset=utf-8',
+    filename: `${deployment.applicationSlug}-v${deployment.version}-${stamp}.${extension}`,
+    fallbackName: 'journal-deploiement.log',
+    context: { deploymentId: id },
+    onSettled: async (complete) => {
+      await logAudit({
+        actorId: auth.userId,
+        action: 'deployment.logs.exported',
+        resourceType: 'deployment',
+        resourceId: id,
+        after: {
+          format,
+          lines,
+          complete,
+          applicationSlug: deployment.applicationSlug,
+          number: deployment.number,
+          version: deployment.version,
+        },
+        ip: auth.ip,
+      });
     },
   });
 });
@@ -263,7 +227,7 @@ function textHeader(
   // littéral plutôt que neuf lignes de tableau : une dispense se relit mieux
   // en un seul endroit, et le texte produit est identique.
   return `# Journal de déploiement — ${deployment.applicationSlug} v${deployment.version}
-# Déploiement : ${deployment.id}
+# Déploiement : #${deployment.number} · ${deployment.id}
 # Cible : ${deployment.targetName} (${deployment.targetHost}) · ${deployment.runtime} · ${deployment.proxy}
 # Statut : ${deployment.status}${failure}
 # Démarré : ${started} · terminé : ${finished}
@@ -271,35 +235,4 @@ function textHeader(
 # Exporté le ${exportedAt.toISOString()} par ${actorEmail}
 #
 `;
-}
-
-// ─── en-tête HTTP ─────────────────────────────────────────────────────────────
-
-/**
- * `content-disposition` conforme à la RFC 6266.
- *
- * Un slug est censé être en kebab-case ASCII, mais il vient de la base : rien
- * ne garantit qu'un enregistrement ancien le respecte, et un guillemet ou un
- * saut de ligne dans un en-tête casse la réponse entière. On produit donc les
- * deux formes : `filename` assaini en ASCII pour les clients anciens, et
- * `filename*` percent-encodé en UTF-8, que les navigateurs préfèrent.
- */
-function contentDisposition(filename: string): string {
-  const ascii = filename
-    .normalize('NFKD')
-    .replace(/[^\x20-\x7e]/g, '')
-    .replace(/["\\/:*?<>|]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^[-.\s]+|[\s.]+$/g, '');
-
-  const fallback = ascii.length > 0 ? ascii : 'journal-deploiement.log';
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeRFC5987(filename)}`;
-}
-
-/** `encodeURIComponent` laisse passer `!'()*`, que la RFC 5987 veut encodés. */
-function encodeRFC5987(value: string): string {
-  return encodeURIComponent(value).replace(
-    /['()!*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
 }

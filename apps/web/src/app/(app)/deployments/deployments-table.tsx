@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Trash2 } from 'lucide-react';
 import {
   SEVERITY_ORDER,
   type DeploymentStatus,
@@ -41,11 +41,14 @@ import { common } from '@/i18n/messages/common';
 import { deployments as messages } from '@/i18n/messages/deployments';
 import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
+import { filterParams, type StatusFilter } from './filters';
 import { RunDrawer } from './run-drawer';
 import { DeploymentStatusBadge, formatDate, formatDuration } from './status-badge';
 
 export type DeploymentRow = {
   id: string;
+  /** Numéro de run, global à l'instance. */
+  number: number;
   status: DeploymentStatus;
   runtime: 'docker' | 'k3s';
   version: number;
@@ -70,11 +73,9 @@ export type DeploymentRow = {
   } | null;
 };
 
-/** Les filtres de statut proposés, tels que la requête de liste les comprend. */
-export type StatusFilter = 'running' | 'failed' | 'rolled_back' | null;
-
 type PurgeRefusal = {
   id: string;
+  number: number;
   status: DeploymentStatus;
   version: number;
   applicationSlug: string;
@@ -102,6 +103,7 @@ const FILTERS: ReadonlyArray<{ value: StatusFilter; key: keyof typeof messages.f
   { value: 'running', key: 'filter.running' },
   { value: 'failed', key: 'filter.failed' },
   { value: 'rolled_back', key: 'filter.rolledBack' },
+  { value: 'scan_blocked', key: 'filter.scanBlocked' },
 ];
 
 /**
@@ -112,6 +114,7 @@ export function DeploymentsTable({
   items,
   page,
   filter,
+  search,
   canPurge,
   canRollback,
   format,
@@ -119,6 +122,8 @@ export function DeploymentsTable({
   items: DeploymentRow[];
   page: { page: number; totalPages: number; pageSize: number; total: number };
   filter: StatusFilter;
+  /** La recherche en cours, telle que l'URL la porte. */
+  search: string;
   canPurge: boolean;
   canRollback: boolean;
   /** Le formatage descend par props : la table est cliente, la locale non. */
@@ -201,10 +206,11 @@ export function DeploymentsTable({
     return (await response.json()) as PurgeReport;
   }
 
-  const hrefFor = (next: { status?: StatusFilter; page?: number }) => {
-    const params = new URLSearchParams();
-    const status = next.status === undefined ? filter : next.status;
-    if (status) params.set('status', status);
+  const hrefFor = (next: { status?: StatusFilter; search?: string; page?: number }) => {
+    const params = filterParams(
+      next.status === undefined ? filter : next.status,
+      next.search === undefined ? search : next.search,
+    );
     const target = next.page ?? 1;
     if (target > 1) params.set('page', String(target));
     if (page.pageSize !== 25) params.set('pageSize', String(page.pageSize));
@@ -215,6 +221,31 @@ export function DeploymentsTable({
   return (
     <section className="card overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-4 py-3">
+        <form
+          role="search"
+          className="w-full sm:w-[260px]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const value = String(new FormData(event.currentTarget).get('q') ?? '').trim();
+            router.push(hrefFor({ search: value, page: 1 }) as never, { scroll: false });
+          }}
+        >
+          <label className="affix w-full">
+            <Search aria-hidden />
+            <input
+              // Une nouvelle recherche venue de l'URL (lien, retour arrière)
+              // remplace la saisie : la clé remonte le champ.
+              key={search}
+              type="search"
+              name="q"
+              className="input input-sm"
+              defaultValue={search}
+              maxLength={100}
+              placeholder={t('search.placeholder')}
+              aria-label={t('search.label')}
+            />
+          </label>
+        </form>
         <nav aria-label={t('filter.label')} className="flex flex-wrap items-center gap-2">
           {FILTERS.map((option) => (
             <FilterChipLink
@@ -321,7 +352,7 @@ export function DeploymentsTable({
                           <Checkbox
                             aria-label={t('row.select', {
                               slug: item.applicationSlug,
-                              version: item.version,
+                              number: item.number,
                             })}
                             disabled
                           />
@@ -331,7 +362,7 @@ export function DeploymentsTable({
                       <Checkbox
                         aria-label={t('row.select', {
                           slug: item.applicationSlug,
-                          version: item.version,
+                          number: item.number,
                         })}
                         checked={selected.has(item.id)}
                         onChange={() => toggle(item.id)}
@@ -339,14 +370,14 @@ export function DeploymentsTable({
                     )}
                   </TableCell>
                 ) : null}
-                <TableCell className="mono text-text-3">#{item.version}</TableCell>
+                <TableCell className="mono text-text-3">#{item.number}</TableCell>
                 <TableCell>
                   <button
                     type="button"
                     className="cellname text-left hover:underline"
                     aria-label={t('row.open', {
                       slug: item.applicationSlug,
-                      version: item.version,
+                      number: item.number,
                     })}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -489,7 +520,7 @@ function PurgeDialog({
                   <span className="text-text-3">
                     {rows
                       .slice(0, 6)
-                      .map((row) => `#${row.version} ${row.applicationSlug}`)
+                      .map((row) => `#${row.number} ${row.applicationSlug}`)
                       .join(', ')}
                     {rows.length > 6 ? '…' : ''}
                   </span>
