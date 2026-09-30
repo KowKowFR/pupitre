@@ -371,7 +371,7 @@
   .crumbs a:hover { color: var(--text); }
   .crumbs .cur { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .crumbs svg { width: 14px; height: 14px; color: var(--n300); }
-  .page { padding: 28px 32px 56px; display: flex; flex-direction: column; gap: 24px; width: 100%; max-width: 1264px; }
+  .page { padding: 28px 32px 56px; display: flex; flex-direction: column; gap: 24px; width: 100%; min-width: 0; }
   .ph { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
   .ph-t { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1 1 320px; }
   .ph-d { font-size: 14px; line-height: 21px; color: var(--text-2); max-width: 68ch; }
