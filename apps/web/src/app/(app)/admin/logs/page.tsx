@@ -1,5 +1,7 @@
-import { auditQuerySchema, getAppSettings, listAuditLogs } from '@pupitre/db';
+import { auditQuerySchema, getAppSettings, listAuditActors, listAuditLogs } from '@pupitre/db';
+import { Download } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
+import { Button } from '@/components/ui/button';
 import { admin } from '@/i18n/messages/admin';
 import { getT } from '@/i18n/server';
 import { formatSettingsOf } from '@/lib/format';
@@ -23,7 +25,18 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
 
   const parsed = auditQuerySchema.safeParse(flat);
   const query = parsed.success ? parsed.data : auditQuerySchema.parse({});
-  const [page, { settings }] = await Promise.all([listAuditLogs(query), getAppSettings()]);
+  const [page, actors, { settings }] = await Promise.all([
+    listAuditLogs(query),
+    listAuditActors(),
+    getAppSettings(),
+  ]);
+
+  // L'export reprend les filtres affichés, toutes pages confondues.
+  const exportParams = new URLSearchParams();
+  for (const key of ['action', 'resourceType', 'actorId', 'from', 'to'] as const) {
+    if (flat[key]) exportParams.set(key, flat[key]);
+  }
+  const exportQuery = exportParams.toString();
 
   return (
     <>
@@ -36,13 +49,23 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           </>
         }
         actions={
-          <span className="mono t-cap text-text-3">
-            {t('logs.summary', {
-              count: page.total,
-              page: page.page,
-              total: page.totalPages,
-            })}
-          </span>
+          <>
+            <span className="mono t-cap text-text-3">
+              {t('logs.summary', {
+                count: page.total,
+                page: page.page,
+                total: page.totalPages,
+              })}
+            </span>
+            {page.total > 0 ? (
+              <Button asChild variant="secondary">
+                <a href={`/api/audit-logs/export${exportQuery ? `?${exportQuery}` : ''}`} download>
+                  <Download aria-hidden />
+                  {t('logs.export')}
+                </a>
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -60,6 +83,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           after: item.after,
         }))}
         page={{ page: page.page, totalPages: page.totalPages, pageSize: page.pageSize }}
+        actors={actors.map((actor) => ({ id: actor.id, email: actor.email }))}
         filters={{
           actorId: flat.actorId ?? '',
           action: flat.action ?? '',

@@ -207,7 +207,9 @@ const fr = {
 
   'logs.filter.action': 'Action',
   'logs.filter.resourceType': 'Type de ressource',
-  'logs.filter.actor': 'Acteur (id)',
+  'logs.filter.actor': 'Acteur',
+  'logs.filter.actor.all': 'Tous',
+  'logs.export': 'Exporter .jsonl',
   'logs.filter.from': 'Du',
   'logs.filter.to': 'Au',
   'logs.filter.submit': 'Filtrer',
@@ -265,8 +267,8 @@ const fr = {
   'mail.sendFailed': 'envoi impossible',
 } as const;
 
-const en: Translated<typeof fr> = {
 
+const en: Translated<typeof fr> = {
   'users.title': 'Users',
   'users.description':
     'A user carries a role; the role carries the permissions. Disabling an account cuts its sessions: it is never deleted, so the log stays readable.',
@@ -428,7 +430,9 @@ const en: Translated<typeof fr> = {
 
   'logs.filter.action': 'Action',
   'logs.filter.resourceType': 'Resource type',
-  'logs.filter.actor': 'Actor (id)',
+  'logs.filter.actor': 'Actor',
+  'logs.filter.actor.all': 'Everyone',
+  'logs.export': 'Export .jsonl',
   'logs.filter.from': 'From',
   'logs.filter.to': 'To',
   'logs.filter.submit': 'Filter',

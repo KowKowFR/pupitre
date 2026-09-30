@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -68,11 +69,14 @@ const DENIAL_ACTIONS = new Set(['permission.denied', 'auth.login.failed', 'auth.
 export function AuditView({
   items,
   page,
+  actors,
   filters,
   format,
 }: {
   items: AuditEntry[];
   page: { page: number; totalPages: number; pageSize: number };
+  /** Les personnes présentes au journal, pour le filtre « Acteur ». */
+  actors: Array<{ id: string; email: string }>;
   filters: Filters;
   format: FormatSettings;
 }) {
@@ -136,12 +140,27 @@ export function AuditView({
         </div>
         <div className="field">
           <Label htmlFor="actorId">{t('logs.filter.actor')}</Label>
-          <Input
+          <Select
             id="actorId"
             name="actorId"
-            className="input-sm mono"
+            className="input-sm"
+            // La clé remonte le champ quand l'URL change de filtre (lien
+            // « Filtrer sur cet acteur », retour arrière).
+            key={filters.actorId}
             defaultValue={filters.actorId}
-          />
+          >
+            <option value="">{t('logs.filter.actor.all')}</option>
+            {actors.map((actor) => (
+              <option key={actor.id} value={actor.id}>
+                {actor.email}
+              </option>
+            ))}
+            {filters.actorId && !actors.some((actor) => actor.id === filters.actorId) ? (
+              // Un identifiant passé à la main qui n'a rien au journal : on le
+              // montre tel quel plutôt que de faire croire à « Tous ».
+              <option value={filters.actorId}>{filters.actorId}</option>
+            ) : null}
+          </Select>
         </div>
         <div className="field">
           <Label htmlFor="from">{t('logs.filter.from')}</Label>

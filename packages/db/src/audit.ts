@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { and, asc, count, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import { auditLogs } from './schema/ops.js';
 import { users } from './schema/auth.js';
@@ -135,6 +135,21 @@ export const auditQuerySchema = z.object({
 
 export type AuditQuery = z.infer<typeof auditQuerySchema>;
 
+/** Les filtres seuls, sans pagination ni ordre : ce que l'export reprend de la liste. */
+export type AuditFilter = Pick<AuditQuery, 'actorId' | 'action' | 'resourceType' | 'from' | 'to'>;
+
+function auditWhere(filter: AuditFilter) {
+  const filters = [
+    filter.actorId ? eq(auditLogs.actorId, filter.actorId) : undefined,
+    filter.action ? eq(auditLogs.action, filter.action) : undefined,
+    filter.resourceType ? eq(auditLogs.resourceType, filter.resourceType) : undefined,
+    filter.from ? gte(auditLogs.createdAt, filter.from) : undefined,
+    filter.to ? lte(auditLogs.createdAt, filter.to) : undefined,
+  ].filter((f) => f !== undefined);
+
+  return filters.length > 0 ? and(...filters) : undefined;
+}
+
 export type AuditLogPage = {
   items: Array<AuditLogRow & { actorEmail: string | null; actorName: string | null }>;
   page: number;
@@ -147,18 +162,10 @@ export async function listAuditLogs(
   query: AuditQuery,
   db: Database = getDb(),
 ): Promise<AuditLogPage> {
-  const filters = [
-    query.actorId ? eq(auditLogs.actorId, query.actorId) : undefined,
-    query.action ? eq(auditLogs.action, query.action) : undefined,
-    query.resourceType ? eq(auditLogs.resourceType, query.resourceType) : undefined,
-    query.from ? gte(auditLogs.createdAt, query.from) : undefined,
-    query.to ? lte(auditLogs.createdAt, query.to) : undefined,
-  ].filter((f) => f !== undefined);
-
-  const where = filters.length > 0 ? and(...filters) : undefined;
+  const where = auditWhere(query);
   const orderBy = query.order === 'asc' ? asc(auditLogs.createdAt) : desc(auditLogs.createdAt);
 
-  const [rows, [totalRow]] = await Promise.all([
+  const [rows, total] = await Promise.all([
     db
       .select({
         auditLog: auditLogs,
@@ -171,10 +178,8 @@ export async function listAuditLogs(
       .orderBy(orderBy)
       .limit(query.pageSize)
       .offset((query.page - 1) * query.pageSize),
-    db.select({ value: count() }).from(auditLogs).where(where),
+    countAuditLogs(query, db),
   ]);
-
-  const total = totalRow?.value ?? 0;
 
   return {
     items: rows.map((row) => ({
@@ -187,4 +192,75 @@ export async function listAuditLogs(
     total,
     totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
   };
+}
+
+/** Nombre d'entrées qui répondent aux filtres. */
+export async function countAuditLogs(filter: AuditFilter, db: Database = getDb()): Promise<number> {
+  const [row] = await db.select({ value: count() }).from(auditLogs).where(auditWhere(filter));
+  return row?.value ?? 0;
+}
+
+export type AuditExportRow = AuditLogRow & { actorEmail: string | null };
+
+/**
+ * Toutes les entrées qui répondent aux filtres, par lots, de la plus récente à
+ * la plus ancienne : c'est la lecture de l'export.
+ *
+ * Pagination par curseur `(created_at, id)` et non par décalage : le journal
+ * grossit pendant qu'on le lit — l'export lui-même y écrit une ligne — et un
+ * décalage ferait alors glisser les pages. `limit` borne le total.
+ */
+export async function* iterateAuditLogs(
+  filter: AuditFilter,
+  options: { limit: number; batchSize?: number },
+  db: Database = getDb(),
+): AsyncGenerator<AuditExportRow[]> {
+  const batchSize = options.batchSize ?? 500;
+  let remaining = options.limit;
+  let cursor: { createdAt: Date; id: string } | null = null;
+
+  while (remaining > 0) {
+    const where = auditWhere(filter);
+    const rows: Array<{ auditLog: AuditLogRow; actorEmail: string | null }> = await db
+      .select({ auditLog: auditLogs, actorEmail: users.email })
+      .from(auditLogs)
+      .leftJoin(users, eq(users.id, auditLogs.actorId))
+      .where(
+        cursor === null
+          ? where
+          : and(
+              where,
+              or(
+                lt(auditLogs.createdAt, cursor.createdAt),
+                and(eq(auditLogs.createdAt, cursor.createdAt), lt(auditLogs.id, cursor.id)),
+              ),
+            ),
+      )
+      .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+      .limit(Math.min(batchSize, remaining));
+
+    if (rows.length === 0) return;
+    yield rows.map((row) => ({ ...row.auditLog, actorEmail: row.actorEmail }));
+    remaining -= rows.length;
+    const last = rows[rows.length - 1]!.auditLog;
+    cursor = { createdAt: last.createdAt, id: last.id };
+    if (rows.length < batchSize) return;
+  }
+}
+
+/**
+ * Les personnes qui apparaissent au journal, pour le filtre « Acteur ».
+ *
+ * Tirées du journal et non de la table des utilisateurs : proposer quelqu'un
+ * qui n'a jamais rien fait donnerait une liste vide à chaque fois. Un compte
+ * supprimé n'y figure plus — ses entrées ont perdu leur acteur (`set null`).
+ */
+export async function listAuditActors(
+  db: Database = getDb(),
+): Promise<Array<{ id: string; email: string; name: string }>> {
+  return db
+    .select({ id: users.id, email: users.email, name: users.name })
+    .from(users)
+    .where(sql`exists (select 1 from ${auditLogs} where ${auditLogs.actorId} = ${users.id})`)
+    .orderBy(asc(users.email));
 }
