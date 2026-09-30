@@ -1,3 +1,4 @@
+export * from './catalog/index.js';
 export * from './crypto.js';
 export * from './host-metrics.js';
 export * from './i18n.js';

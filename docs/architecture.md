@@ -125,6 +125,28 @@ Pour voir les deux rendus côte à côte sans rien déployer :
 pnpm tsx scripts/render-both.ts packages/core/src/spec/__fixtures__/simple.json
 ```
 
+## Catalogue — des AppSpec toutes faites
+
+`packages/core/src/catalog/`. Un modèle est une **fonction qui rend une AppSpec**
+à partir de quatre paramètres (nom, domaine, TLS, e-mail de la personne qui
+installe) — jamais un `compose.yml` recopié d'un README. Il passe par le même
+`appSpecSchema` que le reste, se déploie donc sur les deux runtimes, et un test
+instancie chaque modèle avec et sans domaine.
+
+Ce que l'AppSpec ne sait pas dire, le catalogue ne le dit pas : une image qui
+exige une commande de démarrage (MinIO, Keycloak), une URL de base de données
+avec le mot de passe dedans (Umami, Outline) ou la socket Docker (Portainer)
+n'y entre pas. Les mots de passe partagés entre une application et sa base
+passent par les alias de secrets `{ name, from }`.
+
+Les secrets qui servent à **se connecter** sont saisis à l'installation
+(`askedSecrets`) : un secret généré ne se relit jamais, un mot de passe
+d'administration généré serait perdu. Les autres sont générés.
+
+Installer (`POST /api/catalog/{id}`) crée l'application, sans la déployer. Le
+choix de la cible reste le geste habituel, avec son pipeline et ses scans.
+Ajouter un modèle : une entrée dans `templates.ts`, rien d'autre.
+
 ## Pipeline de déploiement
 
 `POST /api/deployments` **crée les dix étapes en base, toutes en `pending`**,
