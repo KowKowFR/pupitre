@@ -29,7 +29,7 @@ const fr = {
   // ═══ Utilisateurs ═══════════════════════════════════════════════════════
   'users.title': 'Utilisateurs',
   'users.description':
-    "Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions en cours — il n'est pas supprimé, et son passage reste dans les logs.",
+    "Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions : il n'est jamais supprimé, pour garder le journal lisible.",
 
   'users.invite.title': 'Inviter un utilisateur',
   'users.create.title': 'Créer un utilisateur',
@@ -61,6 +61,22 @@ const fr = {
   'users.reason.unknown': 'raison inconnue',
 
   // ── Table des utilisateurs ──────────────────────────────────────────────
+  'users.drawer.invite': "L'invitation part par e-mail dès l'envoi.",
+  'users.drawer.create': 'Le compte est créé avec le mot de passe saisi ici.',
+  'users.preview.title': 'Ce que reçoit {name}',
+  'users.preview.someone': 'la personne invitée',
+  'users.preview.subject': 'Objet :',
+  'users.preview.subjectText': '{inviter} vous invite sur Pupitre · {instance}',
+  'users.preview.body':
+    'Un lien à usage unique, valable 72 h, pour choisir son mot de passe. Aucun administrateur ne connaît jamais ce mot de passe.',
+  'users.channel.info':
+    'Canal e-mail actif ({channel}). Sans canal e-mail, le formulaire demande un mot de passe à transmettre hors bande.',
+  'users.form.send': "Envoyer l'invitation",
+  'users.footnote':
+    'Le dernier administrateur ne peut ni changer de rôle ni être désactivé, et votre propre compte ne se désactive pas d’ici.',
+  'users.more': 'Désactiver, annuler le lien',
+  'users.role.aria': 'Rôle de {name}',
+  'users.2fa.dialog.titleFor': 'Réinitialiser le second facteur de {name} ?',
   'users.column.user': 'Utilisateur',
   'users.column.role': 'Rôle',
   'users.column.twoFactor': 'Second facteur',
@@ -251,7 +267,7 @@ const en: Translated<typeof fr> = {
 
   'users.title': 'Users',
   'users.description':
-    'A user carries a role; the role carries the permissions. Disabling an account cuts its open sessions — the account is not deleted, and its trail stays in the activity log.',
+    'A user carries a role; the role carries the permissions. Disabling an account cuts its sessions: it is never deleted, so the log stays readable.',
 
   'users.invite.title': 'Invite a user',
   'users.create.title': 'Create a user',
@@ -278,6 +294,22 @@ const en: Translated<typeof fr> = {
     'The account for {email} exists, but the invitation did not go out: {reason}. Send it again from the list.',
   'users.reason.unknown': 'reason unknown',
 
+  'users.drawer.invite': 'The invitation leaves by e-mail as soon as it is sent.',
+  'users.drawer.create': 'The account is created with the password typed here.',
+  'users.preview.title': 'What {name} receives',
+  'users.preview.someone': 'the invitee',
+  'users.preview.subject': 'Subject:',
+  'users.preview.subjectText': '{inviter} invites you to Pupitre · {instance}',
+  'users.preview.body':
+    'A single-use link, valid for 72 h, to choose a password. No administrator ever knows that password.',
+  'users.channel.info':
+    'E-mail channel active ({channel}). Without an e-mail channel, the form asks for a password to hand over out of band.',
+  'users.form.send': 'Send the invitation',
+  'users.footnote':
+    'The last administrator can neither change role nor be disabled, and your own account cannot be disabled from here.',
+  'users.more': 'Disable, cancel the link',
+  'users.role.aria': 'Role of {name}',
+  'users.2fa.dialog.titleFor': 'Reset the second factor of {name}?',
   'users.column.user': 'User',
   'users.column.role': 'Role',
   'users.column.twoFactor': 'Second factor',
@@ -377,7 +409,8 @@ const en: Translated<typeof fr> = {
 
   'logs.eyebrow': 'Traceability',
   'logs.title': 'Activity log',
-  'logs.description.before': 'Who did what, when, and from which IP. Every panel action goes through',
+  'logs.description.before':
+    'Who did what, when, and from which IP. Every panel action goes through',
   'logs.description.after':
     "; these are neither a deployment's logs nor an application's. Denials are recorded just like completed actions.",
   'logs.summary': {
