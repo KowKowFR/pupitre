@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { admin } from '@/i18n/messages/admin';
 import { getT } from '@/i18n/server';
+import { expandDayRange } from '@/lib/day-range';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { AuditView } from './audit-view';
@@ -23,13 +24,11 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
     if (single !== undefined && single !== '') flat[key] = single;
   }
 
-  const parsed = auditQuerySchema.safeParse(flat);
+  // Les jours du filtre se lisent dans le fuseau de l'instance, « Au » compris.
+  const { settings } = await getAppSettings();
+  const parsed = auditQuerySchema.safeParse(expandDayRange(flat, settings.timezone));
   const query = parsed.success ? parsed.data : auditQuerySchema.parse({});
-  const [page, actors, { settings }] = await Promise.all([
-    listAuditLogs(query),
-    listAuditActors(),
-    getAppSettings(),
-  ]);
+  const [page, actors] = await Promise.all([listAuditLogs(query), listAuditActors()]);
 
   // L'export reprend les filtres affichés, toutes pages confondues.
   const exportParams = new URLSearchParams();
@@ -79,6 +78,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           resourceType: item.resourceType,
           resourceId: item.resourceId,
           ip: item.ip,
+          userAgent: item.userAgent,
           before: item.before,
           after: item.after,
         }))}

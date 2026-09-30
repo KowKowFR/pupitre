@@ -1,6 +1,7 @@
-import { auditQuerySchema, iterateAuditLogs, logAudit } from '@pupitre/db';
+import { auditQuerySchema, getAppSettings, iterateAuditLogs, logAudit } from '@pupitre/db';
+import { expandDayRange } from '@/lib/day-range';
 import { exportResponse } from '@/lib/export';
-import { apiRoute, readSearchParams } from '@/lib/http';
+import { apiRoute, searchParamsOf } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
@@ -33,7 +34,9 @@ const EXPORT_MAX_ROWS = 100_000;
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'audit:read');
-  const filter = readSearchParams(request, querySchema);
+  // Mêmes jours que la liste : lus dans le fuseau de l'instance, « Au » compris.
+  const { settings } = await getAppSettings();
+  const filter = querySchema.parse(expandDayRange(searchParamsOf(request), settings.timezone));
 
   let rows = 0;
   async function* chunks(): AsyncGenerator<string, void, undefined> {
@@ -49,6 +52,7 @@ export const GET = apiRoute(async (request) => {
           resourceType: entry.resourceType,
           resourceId: entry.resourceId,
           ip: entry.ip,
+          userAgent: entry.userAgent,
           before: entry.before,
           after: entry.after,
         })}\n`;

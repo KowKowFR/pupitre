@@ -93,3 +93,31 @@ describe('adresse d’une session', () => {
     assert.equal(compactIp(null), null);
   });
 });
+
+const { expandDayRange, zonedDayStart } = await import('../src/lib/day-range.ts');
+
+describe('jours du filtre du journal', () => {
+  it('lit un jour dans le fuseau de l’instance, pas en UTC', () => {
+    assert.equal(zonedDayStart('2026-09-30', 'Europe/Paris')?.toISOString(), '2026-09-29T22:00:00.000Z');
+    assert.equal(zonedDayStart('2026-09-30', 'UTC')?.toISOString(), '2026-09-30T00:00:00.000Z');
+  });
+
+  it('tient compte du changement d’heure', () => {
+    // Heure d'été le 29 mars 2026 à 2 h : minuit est encore en UTC+1.
+    assert.equal(zonedDayStart('2026-03-29', 'Europe/Paris')?.toISOString(), '2026-03-28T23:00:00.000Z');
+    assert.equal(zonedDayStart('2026-03-30', 'Europe/Paris')?.toISOString(), '2026-03-29T22:00:00.000Z');
+  });
+
+  it('fait couvrir à « Au » la journée entière', () => {
+    const range = expandDayRange({ from: '2026-09-29', to: '2026-09-30', action: 'x' }, 'Europe/Paris');
+    assert.equal(range.from, '2026-09-28T22:00:00.000Z');
+    assert.equal(range.to, '2026-09-30T21:59:59.999Z');
+    assert.equal(range.action, 'x');
+  });
+
+  it('laisse un instant ISO tel quel, et retombe sur UTC pour un fuseau inconnu', () => {
+    const iso = '2026-09-30T08:30:00.000Z';
+    assert.equal(expandDayRange({ to: iso }, 'Europe/Paris').to, iso);
+    assert.equal(zonedDayStart('2026-09-30', 'Nulle/Part')?.toISOString(), '2026-09-30T00:00:00.000Z');
+  });
+});
