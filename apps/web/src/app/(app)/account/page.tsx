@@ -1,11 +1,16 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { eq, getDb, users } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Crumb } from '@/components/shell/breadcrumb';
 import { account as messages } from '@/i18n/messages/account';
+import { common } from '@/i18n/messages/common';
 import { getT } from '@/i18n/server';
+import { listAccountSessions } from '@/lib/account-sessions';
 import { requirePageSession } from '@/lib/page-auth';
+import { relativeTime } from '@/lib/relative-time';
 import { PasswordForm } from './password-form';
+import { SessionsCard } from './sessions-card';
 import { TwoFactorPanel } from './two-factor-panel';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,11 +27,15 @@ export const dynamic = 'force-dynamic';
 export default async function AccountPage() {
   const auth = await requirePageSession('/account');
   const t = await getT(messages);
+  const tc = await getT(common);
 
-  const [row] = await getDb()
-    .select({ twoFactorEnabled: users.twoFactorEnabled })
-    .from(users)
-    .where(eq(users.id, auth.userId));
+  const [[row], { sessions }] = await Promise.all([
+    getDb()
+      .select({ twoFactorEnabled: users.twoFactorEnabled })
+      .from(users)
+      .where(eq(users.id, auth.userId)),
+    listAccountSessions(await headers()),
+  ]);
 
   return (
     <>
@@ -41,6 +50,16 @@ export default async function AccountPage() {
         <PasswordForm />
         <TwoFactorPanel enabled={row?.twoFactorEnabled ?? false} />
       </div>
+
+      <SessionsCard
+        sessions={sessions.map((session) => ({
+          id: session.id,
+          current: session.current,
+          device: session.device,
+          ipAddress: session.ipAddress,
+          lastActive: relativeTime(session.updatedAt, tc),
+        }))}
+      />
     </>
   );
 }

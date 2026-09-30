@@ -102,6 +102,40 @@ const fr = {
   'error.disableRejected': 'La désactivation a été refusée.',
   'error.setupRejected': 'La configuration du second facteur a été refusée.',
   'error.totpUriMissing': "Better Auth n'a pas renvoyé d'URI TOTP.",
+  'error.session.notFound': "Cette session n'existe plus : elle a expiré ou a déjà été fermée.",
+  'error.session.current':
+    'La session en cours ne se ferme pas ici : utilisez « Déconnexion » dans le menu du compte.',
+
+  'sessions.title': 'Sessions ouvertes',
+  'sessions.description':
+    'Les navigateurs connectés à votre compte. Une session sans activité expire au bout de sept jours.',
+  'sessions.current': 'Session actuelle',
+  'sessions.other': 'Autre session',
+  'sessions.this': 'celle-ci',
+  'sessions.unknownDevice': 'appareil inconnu',
+  'sessions.none': 'Aucune autre session ouverte.',
+  'sessions.close': 'Fermer',
+  'sessions.close.aria': 'Fermer la session {device}',
+  'sessions.closeOthers': 'Fermer les autres sessions',
+  'sessions.confirm.one.title': 'Fermer la session {device} ?',
+  'sessions.confirm.others.title': {
+    one: 'Fermer {count} autre session ?',
+    other: 'Fermer les {count} autres sessions ?',
+  },
+  'sessions.confirm.signedOut.one':
+    "Cet appareil revient à l'écran de connexion à sa prochaine action.",
+  'sessions.confirm.signedOut.others':
+    "Ces appareils reviennent à l'écran de connexion à leur prochaine action.",
+  'sessions.confirm.keep': 'La session de ce navigateur reste ouverte.',
+  'sessions.confirm.audit': "La fermeture est écrite au journal d'activité.",
+  'sessions.confirm.submit.one': 'Fermer la session',
+  'sessions.confirm.submit.others': 'Fermer les sessions',
+  'sessions.closing': 'Fermeture…',
+  'sessions.closed.one': 'Session fermée',
+  'sessions.closed.others': {
+    one: '{count} session fermée',
+    other: '{count} sessions fermées',
+  },
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -173,6 +207,40 @@ const en: Translated<typeof fr> = {
   'error.disableRejected': 'Disabling was refused.',
   'error.setupRejected': 'Setting up the second factor was refused.',
   'error.totpUriMissing': 'Better Auth returned no TOTP URI.',
+  'error.session.notFound': 'This session no longer exists: it expired or was already closed.',
+  'error.session.current':
+    'The current session is not closed here: use “Sign out” in the account menu.',
+
+  'sessions.title': 'Open sessions',
+  'sessions.description':
+    'The browsers signed in to your account. A session with no activity expires after seven days.',
+  'sessions.current': 'Current session',
+  'sessions.other': 'Other session',
+  'sessions.this': 'this one',
+  'sessions.unknownDevice': 'unknown device',
+  'sessions.none': 'No other open session.',
+  'sessions.close': 'Close',
+  'sessions.close.aria': 'Close the {device} session',
+  'sessions.closeOthers': 'Close the other sessions',
+  'sessions.confirm.one.title': 'Close the {device} session?',
+  'sessions.confirm.others.title': {
+    one: 'Close {count} other session?',
+    other: 'Close the {count} other sessions?',
+  },
+  'sessions.confirm.signedOut.one':
+    'This device goes back to the sign-in screen on its next action.',
+  'sessions.confirm.signedOut.others':
+    'These devices go back to the sign-in screen on their next action.',
+  'sessions.confirm.keep': 'This browser’s session stays open.',
+  'sessions.confirm.audit': 'The closing is written to the activity log.',
+  'sessions.confirm.submit.one': 'Close the session',
+  'sessions.confirm.submit.others': 'Close the sessions',
+  'sessions.closing': 'Closing…',
+  'sessions.closed.one': 'Session closed',
+  'sessions.closed.others': {
+    one: '{count} session closed',
+    other: '{count} sessions closed',
+  },
 };
 
 export const account = { fr, en };
