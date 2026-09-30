@@ -31,7 +31,14 @@ type Target = { kind: 'one'; session: SessionRow } | { kind: 'others' };
  * La session courante est nommée (« celle-ci ») et ne propose aucune
  * fermeture : on la quitte par « Déconnexion », qui nettoie aussi le cookie.
  */
-export function SessionsCard({ sessions }: { sessions: SessionRow[] }) {
+export function SessionsCard({
+  sessions,
+  lastSignIn,
+}: {
+  sessions: SessionRow[];
+  /** Dernière connexion réussie, déjà mise en forme : date, méthode, IP. */
+  lastSignIn: string | null;
+}) {
   const t = useT(messages);
   const router = useRouter();
   const [target, setTarget] = useState<Target | null>(null);
@@ -100,37 +107,49 @@ export function SessionsCard({ sessions }: { sessions: SessionRow[] }) {
       </CardHeader>
       <CardContent>
         <KeyValue
-          items={sessions.map((session) => ({
-            key: session.id,
-            term: session.current ? t('sessions.current') : t('sessions.other'),
-            value: (
-              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="min-w-0">
-                  {describe(session)}
-                  {session.current ? (
-                    <>
-                      {' · '}
-                      <span className="font-medium text-ok-text">{t('sessions.this')}</span>
-                    </>
-                  ) : null}
+          items={sessions
+            .map((session) => ({
+              key: session.id,
+              term: session.current ? t('sessions.current') : t('sessions.other'),
+              value: (
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="min-w-0">
+                    {describe(session)}
+                    {session.current ? (
+                      <>
+                        {' · '}
+                        <span className="font-medium text-ok-text">{t('sessions.this')}</span>
+                      </>
+                    ) : null}
+                  </span>
+                  {session.current ? null : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto"
+                      aria-label={t('sessions.close.aria', { device: deviceOf(session) })}
+                      onClick={() => {
+                        setError(null);
+                        setTarget({ kind: 'one', session });
+                      }}
+                    >
+                      {t('sessions.close')}
+                    </Button>
+                  )}
                 </span>
-                {session.current ? null : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto"
-                    aria-label={t('sessions.close.aria', { device: deviceOf(session) })}
-                    onClick={() => {
-                      setError(null);
-                      setTarget({ kind: 'one', session });
-                    }}
-                  >
-                    {t('sessions.close')}
-                  </Button>
-                )}
-              </span>
-            ),
-          }))}
+              ),
+            }))
+            .concat(
+              lastSignIn
+                ? [
+                    {
+                      key: 'last-sign-in',
+                      term: t('sessions.lastSignIn'),
+                      value: <span className="mono t-sm">{lastSignIn}</span>,
+                    },
+                  ]
+                : [],
+            )}
         />
         {others.length === 0 ? <p className="t-sm mt-3 text-text-3">{t('sessions.none')}</p> : null}
       </CardContent>

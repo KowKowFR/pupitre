@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { eq, getDb, users } from '@pupitre/db';
+import { eq, getAppSettingsValue, getDb, lastSignIn, users } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Crumb } from '@/components/shell/breadcrumb';
 import { account as messages } from '@/i18n/messages/account';
 import { common } from '@/i18n/messages/common';
 import { getT } from '@/i18n/server';
 import { listAccountSessions } from '@/lib/account-sessions';
+import { formatDateTime, formatSettingsOf } from '@/lib/format';
+import { compactIp } from '@/lib/ip';
 import { requirePageSession } from '@/lib/page-auth';
 import { relativeTime } from '@/lib/relative-time';
 import { PasswordForm } from './password-form';
@@ -29,13 +31,26 @@ export default async function AccountPage() {
   const t = await getT(messages);
   const tc = await getT(common);
 
-  const [[row], { sessions }] = await Promise.all([
+  const [[row], { sessions }, signIn, settings] = await Promise.all([
     getDb()
       .select({ twoFactorEnabled: users.twoFactorEnabled })
       .from(users)
       .where(eq(users.id, auth.userId)),
     listAccountSessions(await headers()),
+    lastSignIn(auth.userId),
+    getAppSettingsValue(),
   ]);
+
+  // « 30/09/2026 08:30 · TOTP · 192.168.10.12 » : quand, comment, d'où.
+  const lastSignInLabel = signIn
+    ? [
+        formatDateTime(signIn.at, formatSettingsOf(settings)),
+        t(`sessions.method.${signIn.method}`),
+        compactIp(signIn.ip),
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : null;
 
   return (
     <>
@@ -59,6 +74,7 @@ export default async function AccountPage() {
           ipAddress: session.ipAddress,
           lastActive: relativeTime(session.updatedAt, tc),
         }))}
+        lastSignIn={lastSignInLabel}
       />
     </>
   );
