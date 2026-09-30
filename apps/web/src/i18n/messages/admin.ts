@@ -145,8 +145,19 @@ const fr = {
     "est verrouillé : il détient toujours l'intégralité des permissions, pour qu'on ne puisse pas se retirer les droits nécessaires à se les rendre.",
 
   'roles.new.title': 'Nouveau rôle',
+  'roles.new.kind': 'Rôle',
+  'roles.new.step.identity': 'Identité',
+  'roles.new.step.permissions': 'Permissions',
+  'roles.new.progress': 'Étape {step} sur 2',
+  'roles.new.next': 'Suivant : les permissions',
+  'roles.new.back': 'Retour',
+  'roles.new.create': 'Créer le rôle',
+  'roles.new.nameMissing': "Donnez au rôle un nom d'au moins deux caractères.",
+  'roles.new.keyInvalid': 'La clé ne prend que des minuscules, des chiffres et des tirets.',
+  'roles.new.permissions.help':
+    "Cochez ce que « {label} » peut faire. Rien n'est coché d'avance : le rôle ne porte que ce que vous lui accordez, et se modifie ensuite depuis sa carte.",
   'roles.new.help':
-    "La clé sert d'identifiant et ne change plus ensuite. Les permissions se règlent juste après la création.",
+    "La clé sert d'identifiant et ne change plus ensuite. Les permissions se choisissent à l'étape suivante, avant la création.",
 
   // ── Formulaire de création ──────────────────────────────────────────────
   'roles.form.name': 'Nom',
@@ -176,7 +187,7 @@ const fr = {
   'roles.delete.audit': 'La suppression est écrite au journal, avec les permissions qu’il portait.',
   'roles.delete.confirm': 'Supprimer le rôle',
   'roles.deleted': 'Rôle « {label} » supprimé',
-  'roles.created': 'Rôle « {label} » créé : cochez ses permissions.',
+  'roles.created': 'Rôle « {label} » créé',
   'roles.delete.aria': 'Supprimer le rôle {label}',
   'roles.delete.inUse': {
     one: 'Porté par {count} utilisateur : réattribuez-le avant de supprimer ce rôle.',
@@ -372,8 +383,19 @@ const en: Translated<typeof fr> = {
     'is locked: it always holds every permission, so nobody can drop the rights needed to grant them back.',
 
   'roles.new.title': 'New role',
+  'roles.new.kind': 'Role',
+  'roles.new.step.identity': 'Identity',
+  'roles.new.step.permissions': 'Permissions',
+  'roles.new.progress': 'Step {step} of 2',
+  'roles.new.next': 'Next: permissions',
+  'roles.new.back': 'Back',
+  'roles.new.create': 'Create the role',
+  'roles.new.nameMissing': 'Give the role a name of at least two characters.',
+  'roles.new.keyInvalid': 'The key takes only lowercase letters, digits and hyphens.',
+  'roles.new.permissions.help':
+    'Tick what “{label}” may do. Nothing is ticked in advance: the role carries only what you grant it, and can be changed later from its card.',
   'roles.new.help':
-    'The key is the identifier and never changes afterwards. Permissions are set right after creation.',
+    'The key is the identifier and never changes afterwards. Permissions are chosen at the next step, before creation.',
 
   'roles.form.name': 'Name',
   'roles.form.namePlaceholder': 'Tier 1 support',
@@ -400,7 +422,7 @@ const en: Translated<typeof fr> = {
   'roles.delete.audit': 'The deletion is written to the log, with the permissions it carried.',
   'roles.delete.confirm': 'Delete the role',
   'roles.deleted': 'Role “{label}” deleted',
-  'roles.created': 'Role “{label}” created: tick its permissions.',
+  'roles.created': 'Role “{label}” created',
   'roles.delete.aria': 'Delete the role {label}',
   'roles.delete.inUse': {
     one: 'Carried by {count} user: reassign them before deleting this role.',

@@ -2,21 +2,13 @@
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { Lock, Plus, Trash2, KeyRound } from 'lucide-react';
+import { Lock, Plus, Trash2 } from 'lucide-react';
 import type { Permission } from '@pupitre/core';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { IconButton, Tooltip } from '@/components/ui/tooltip';
@@ -25,7 +17,8 @@ import { admin } from '@/i18n/messages/admin';
 import { common } from '@/i18n/messages/common';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import { CreateRoleForm } from './create-role-form';
+import { NewRoleDrawer } from './new-role-drawer';
+import { PermissionGroups } from './permission-groups';
 
 export type RoleRow = {
   key: string;
@@ -99,24 +92,17 @@ export function RolesEditor({
       </div>
 
       {canManage ? (
-        <Dialog open={creating} onOpenChange={setCreating}>
-          <DialogContent>
-            <DialogHeader icon={<KeyRound />} tone="accent">
-              <DialogTitle>{t('roles.new.title')}</DialogTitle>
-              <DialogDescription>{t('roles.new.help')}</DialogDescription>
-            </DialogHeader>
-            <DialogBody>
-              <CreateRoleForm
-                existingKeys={roles.map((role) => role.key)}
-                onCreated={(role) => {
-                  setCreating(false);
-                  setOpenKey(role.key);
-                  toast({ title: t('roles.created', { label: role.label }) });
-                }}
-              />
-            </DialogBody>
-          </DialogContent>
-        </Dialog>
+        <NewRoleDrawer
+          open={creating}
+          existingKeys={roles.map((role) => role.key)}
+          groups={groups}
+          onClose={() => setCreating(false)}
+          onCreated={(role) => {
+            setCreating(false);
+            setOpenKey(role.key);
+            toast({ title: t('roles.created', { label: role.label }), tone: 'ok' });
+          }}
+        />
       ) : null}
     </>
   );
@@ -326,63 +312,13 @@ function RoleCard({
               </div>
             ) : null}
 
-            {groups.map((group) => {
-              const held = group.permissions.filter((p) => selected.has(p.key)).length;
-              const all = held === group.permissions.length;
-
-              return (
-                <fieldset
-                  key={group.resource}
-                  className="rounded-[10px] border border-border px-3 pt-1 pb-3"
-                >
-                  <legend className="flex items-center gap-2 px-1.5 text-[13px]">
-                    <span className="font-semibold text-text">{group.label}</span>
-                    <span className="mono t-cap text-text-3">
-                      {held}/{group.permissions.length}
-                    </span>
-                    {editable ? (
-                      <button
-                        type="button"
-                        className="btn btn-link t-cap"
-                        onClick={() => toggleGroup(group, !all)}
-                      >
-                        {all ? t('roles.group.uncheckAll') : t('roles.group.checkAll')}
-                      </button>
-                    ) : null}
-                  </legend>
-
-                  <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                    {group.permissions.map((permission) => {
-                      const checked = selected.has(permission.key);
-                      return (
-                        <label
-                          key={permission.key}
-                          className={cn(
-                            'flex items-start gap-2.5 rounded-lg px-3 py-2 transition-colors',
-                            checked && 'bg-surface-2',
-                            editable ? 'cursor-pointer hover:bg-surface-2' : 'cursor-default',
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            className="cb mt-0.5"
-                            checked={checked}
-                            disabled={!editable}
-                            onChange={() => toggle(permission.key)}
-                          />
-                          <span className="flex min-w-0 flex-col">
-                            <span className="mono text-[12px] font-semibold text-text">
-                              {permission.key}
-                            </span>
-                            <span className="t-cap text-text-3">{permission.description}</span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              );
-            })}
+            <PermissionGroups
+              groups={groups}
+              selected={selected}
+              editable={editable}
+              onToggle={toggle}
+              onToggleGroup={toggleGroup}
+            />
 
             {editable && inUse ? (
               <p className="t-cap text-text-3">

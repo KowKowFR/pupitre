@@ -13,7 +13,7 @@ import { common } from '@/i18n/messages/common';
 type ApiError = { error?: { message?: string } };
 
 /** Dérive une clé kebab-case depuis le nom saisi, sans écraser une saisie manuelle. */
-function toKey(label: string): string {
+export function toKey(label: string): string {
   return label
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -90,11 +90,62 @@ export function CreateRoleForm({
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
+      <RoleIdentityFields
+        label={label}
+        onLabelChange={setLabel}
+        roleKey={effectiveKey}
+        onKeyChange={(value) => {
+          setKeyTouched(true);
+          setKey(value);
+        }}
+        taken={taken}
+        description={description}
+        onDescriptionChange={setDescription}
+      />
+
+      <div className="flex justify-end">
+        <Button
+          type="submit"
+          loading={pending}
+          disabled={taken || effectiveKey.length < 2 || label.trim().length < 2}
+        >
+          {pending ? c('creating') : t('roles.form.submit')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Nom, clé et description d'un rôle : les champs de l'assistant de démarrage
+ * et de la première étape de « Nouveau rôle ». La clé suit le nom tant qu'on
+ * ne l'a pas touchée.
+ */
+export function RoleIdentityFields({
+  label,
+  onLabelChange,
+  roleKey,
+  onKeyChange,
+  taken,
+  description,
+  onDescriptionChange,
+}: {
+  label: string;
+  onLabelChange: (value: string) => void;
+  roleKey: string;
+  onKeyChange: (value: string) => void;
+  taken: boolean;
+  description: string;
+  onDescriptionChange: (value: string) => void;
+}) {
+  const t = useT(admin);
+  return (
+    <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label={t('roles.form.name')}>
           <Input
             value={label}
-            onChange={(event) => setLabel(event.target.value)}
+            onChange={(event) => onLabelChange(event.target.value)}
             placeholder={t('roles.form.namePlaceholder')}
             required
             minLength={2}
@@ -108,11 +159,8 @@ export function CreateRoleForm({
         >
           <Input
             className="mono"
-            value={effectiveKey}
-            onChange={(event) => {
-              setKeyTouched(true);
-              setKey(event.target.value);
-            }}
+            value={roleKey}
+            onChange={(event) => onKeyChange(event.target.value)}
             placeholder={t('roles.form.keyPlaceholder')}
             pattern="[a-z0-9]+(-[a-z0-9]+)*"
             required
@@ -123,20 +171,10 @@ export function CreateRoleForm({
       <Field label={t('roles.form.description')} optional>
         <Input
           value={description}
-          onChange={(event) => setDescription(event.target.value)}
+          onChange={(event) => onDescriptionChange(event.target.value)}
           placeholder={t('roles.form.descriptionPlaceholder')}
         />
       </Field>
-
-      <div className="flex justify-end">
-        <Button
-          type="submit"
-          loading={pending}
-          disabled={taken || effectiveKey.length < 2 || label.trim().length < 2}
-        >
-          {pending ? c('creating') : t('roles.form.submit')}
-        </Button>
-      </div>
-    </form>
+    </>
   );
 }

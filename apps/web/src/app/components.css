@@ -484,6 +484,8 @@
   .dr-sec { display: flex; flex-direction: column; gap: 10px; }
   .dr-sec > h3 { font-size: 13px; line-height: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .dr-f { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--border-subtle); background: var(--surface-2); flex-shrink: 0; }
+  /* Un bouton qui dit pourquoi il est désactivé grandit vers le bas : ses voisins restent alignés sur lui, pas sur sa raison. */
+  .dr-f:has(> [data-slot='button-with-reason']) { align-items: flex-start; }
   @media (max-width: 1023.98px) {
     /* Sous lg, le drawer devient une feuille montante. */
     .drawer, .drawer.is-wide {
