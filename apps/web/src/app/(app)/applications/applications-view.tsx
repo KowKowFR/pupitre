@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { Boxes, Ellipsis, Plus, Rocket, Trash2 } from 'lucide-react';
+import { Boxes, Ellipsis, LayoutGrid, Plus, Rocket, Trash2 } from 'lucide-react';
 import { AppSpecHelp } from '@/components/appspec-help';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -175,10 +175,18 @@ export function ApplicationsView({
           <>
             <AppSpecHelp />
             {canCreate ? (
-              <Button onClick={() => adding.open('new')}>
-                <Plus aria-hidden />
-                {t('action.new')}
-              </Button>
+              <>
+                <Button asChild variant="secondary">
+                  <Link href="/catalog">
+                    <LayoutGrid aria-hidden />
+                    {t('action.catalog')}
+                  </Link>
+                </Button>
+                <Button onClick={() => adding.open('new')}>
+                  <Plus aria-hidden />
+                  {t('action.new')}
+                </Button>
+              </>
             ) : null}
           </>
         }
@@ -205,10 +213,18 @@ export function ApplicationsView({
           hint={t('empty.hint')}
           action={
             canCreate ? (
-              <Button onClick={() => adding.open('new')}>
-                <Plus aria-hidden />
-                {t('action.new')}
-              </Button>
+              <>
+                <Button onClick={() => adding.open('new')}>
+                  <Plus aria-hidden />
+                  {t('action.new')}
+                </Button>
+                <Button asChild variant="secondary">
+                  <Link href="/catalog">
+                    <LayoutGrid aria-hidden />
+                    {t('action.catalog')}
+                  </Link>
+                </Button>
+              </>
             ) : undefined
           }
         />

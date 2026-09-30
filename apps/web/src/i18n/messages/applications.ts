@@ -23,6 +23,7 @@ const fr = {
   'page.description':
     'Une application est une AppSpec : une description neutre, qui ne connaît ni Docker ni Kubernetes. Le driver la traduit en compose.yml ou en manifests au moment du déploiement.',
   'action.new': 'Nouvelle application',
+  'action.catalog': 'Depuis le catalogue',
 
   'column.inService': 'En service sur',
   'inService.never': 'jamais déployée',
@@ -359,6 +360,7 @@ const en: Translated<typeof fr> = {
   'page.description':
     'An application is an AppSpec: a neutral description that knows neither Docker nor Kubernetes. The driver turns it into a compose.yml or manifests at deploy time.',
   'action.new': 'New application',
+  'action.catalog': 'From the catalog',
 
   'column.inService': 'In service on',
   'inService.never': 'never deployed',

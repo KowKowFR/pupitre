@@ -16,6 +16,7 @@ export type SectionKey =
   | 'dashboard'
   | 'targets'
   | 'applications'
+  | 'catalog'
   | 'servers'
   | 'deployments'
   | 'monitoring'
@@ -43,6 +44,8 @@ export const NAVIGATION: readonly NavGroup[] = [
       { key: 'dashboard', href: '/', permission: null, shortcut: 'D' },
       { key: 'targets', href: '/targets', permission: 'target:read', shortcut: 'C' },
       { key: 'applications', href: '/applications', permission: 'application:read', shortcut: 'A' },
+      // Le catalogue ne sert qu'à créer : sans ce droit, il n'y a rien à y faire.
+      { key: 'catalog', href: '/catalog', permission: 'application:create' },
       { key: 'servers', href: '/apps', permission: 'deployment:read' },
       { key: 'deployments', href: '/deployments', permission: 'deployment:read', shortcut: 'P' },
       { key: 'monitoring', href: '/monitors', permission: 'monitor:read', shortcut: 'S' },
