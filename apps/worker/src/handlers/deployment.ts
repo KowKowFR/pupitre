@@ -8,6 +8,7 @@ import { openDeploymentContext } from '../deploy/context.js';
 import { DeployLogStream } from '../deploy/log-stream.js';
 import { runDeploymentPipeline } from '../deploy/pipeline.js';
 import { getPublisher } from '../redis.js';
+import { reportDeploymentStatus } from '../sources/status.js';
 
 /**
  * Verdict du pipeline → action d'audit. Une table, pas une chaîne de ternaires :
@@ -58,6 +59,9 @@ export async function handleDeploymentRun(
     });
 
     log.info({ status: outcome.status, url: outcome.url }, 'pipeline terminé');
+
+    // Un run venu d'un dépôt lié dit son issue sur le commit GitHub.
+    await reportDeploymentStatus(data.deploymentId, outcome.status, outcome.failedStep);
 
     return {
       deploymentId: data.deploymentId,

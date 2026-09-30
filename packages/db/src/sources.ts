@@ -346,6 +346,35 @@ export async function recordSourceCheck(
     .where(eq(applicationSources.id, id));
 }
 
+/**
+ * Réserve un commit pour le traiter : ne réussit que si la liaison en est
+ * toujours au commit `previous`. Deux passages de polling qui se chevauchent
+ * lisent la même nouveauté ; un seul la réserve, un seul déploie. C'est une
+ * écriture conditionnelle, pas un verrou : rien à libérer si le worker tombe.
+ */
+export async function claimSourceCommit(
+  id: string,
+  previous: string | null,
+  next: string,
+  etag: string | null,
+  db: Database = getDb(),
+): Promise<boolean> {
+  const now = new Date();
+  const rows = await db
+    .update(applicationSources)
+    .set({ lastSeenSha: next, lastEtag: etag, lastCheckedAt: now, lastChangeAt: now })
+    .where(
+      and(
+        eq(applicationSources.id, id),
+        previous === null
+          ? sql`${applicationSources.lastSeenSha} is null`
+          : eq(applicationSources.lastSeenSha, previous),
+      ),
+    )
+    .returning({ id: applicationSources.id });
+  return rows.length > 0;
+}
+
 // ─── commits en attente de validation ─────────────────────────────────────────
 
 export type SourceProposalInput = {
@@ -431,4 +460,25 @@ export async function decideSourceProposal(
     .where(and(eq(sourceProposals.id, id), eq(sourceProposals.status, 'pending')))
     .returning();
   return row ?? null;
+}
+
+/**
+ * Rend caducs les commits en attente d'une liaison — quand un commit plus
+ * récent vient d'être déployé, les précédents n'ont plus de sens.
+ */
+export async function supersedePendingProposals(
+  sourceId: string,
+  exceptId: string | null,
+  db: Database = getDb(),
+): Promise<void> {
+  await db
+    .update(sourceProposals)
+    .set({ status: 'superseded', decidedAt: new Date() })
+    .where(
+      and(
+        eq(sourceProposals.sourceId, sourceId),
+        eq(sourceProposals.status, 'pending'),
+        ...(exceptId ? [ne(sourceProposals.id, exceptId)] : []),
+      ),
+    );
 }

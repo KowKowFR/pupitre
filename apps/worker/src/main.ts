@@ -11,6 +11,9 @@ import {
   MONITOR_CAPTURE_JOB,
   MONITOR_SWEEP_EVERY_MS,
   MONITOR_SWEEP_JOB,
+  SOURCE_DEPLOY_JOB,
+  SOURCE_POLL_EVERY_MS,
+  SOURCE_POLL_JOB,
   NOTIFICATIONS_QUEUE,
   NOTIFICATION_DELIVER_JOB,
   NOTIFICATION_DIGEST_SWEEP_JOB,
@@ -60,6 +63,7 @@ import {
 import { handleAccountMail } from './handlers/account-mail.js';
 import { handleWorkloadAction, handleWorkloadList } from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
+import { handleSourceDeploy, handleSourcePoll } from './handlers/source.js';
 import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
 import { logger } from './logger.js';
 import { closeOpsQueue, getOpsQueue, getSupervisionQueue } from './queue.js';
@@ -131,6 +135,11 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // d'hôte. Même file et même raison que `target:metrics`, dont il est
   // l'horloge — une lecture SSH courte, qu'un déploiement ne doit pas retarder.
   [HOST_SWEEP_JOB]: handleTargetMetricsSweep,
+  // Dépôts liés : « quoi de neuf sur la branche ? », puis le déploiement
+  // décidé par un humain. Des appels HTTP courts vers GitHub — le déploiement
+  // lui-même part sur `ops`, comme tous les autres.
+  [SOURCE_POLL_JOB]: handleSourcePoll,
+  [SOURCE_DEPLOY_JOB]: handleSourceDeploy,
 };
 
 /**
@@ -220,6 +229,31 @@ async function installHostSweep(): Promise<void> {
   logger.info({ everyMs: HOST_SWEEP_EVERY_MS }, 'balayage des serveurs installé');
 }
 
+/**
+ * Installe l'horloge des dépôts liés : une vérification par minute.
+ *
+ * Même motif que les deux balayages ci-dessus. Le panel est privé, aucun
+ * webhook ne l'atteint : c'est le worker qui demande, et l'ETag rend la
+ * question presque gratuite quand rien n'a bougé.
+ */
+async function installSourcePoll(): Promise<void> {
+  const queue = getSupervisionQueue();
+  await queue.upsertJobScheduler(
+    'source-poll',
+    { every: SOURCE_POLL_EVERY_MS },
+    {
+      name: SOURCE_POLL_JOB,
+      data: { sourceId: null, force: false, actorId: null, ip: null },
+      opts: {
+        attempts: 1,
+        removeOnComplete: { age: 3600, count: 100 },
+        removeOnFail: { age: 24 * 3600, count: 100 },
+      },
+    },
+  );
+  logger.info({ everyMs: SOURCE_POLL_EVERY_MS }, 'vérification des dépôts liés installée');
+}
+
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -281,6 +315,14 @@ async function main(): Promise<void> {
     // seuils ne sont plus évalués. Le panel reste utilisable et le relevé à la
     // demande continue d'écrire : c'est une dégradation, pas une panne.
     logger.error({ err: error }, 'installation du balayage des serveurs impossible');
+  }
+
+  try {
+    await installSourcePoll();
+  } catch (error) {
+    // Sans horloge, les dépôts liés ne sont plus suivis d'eux-mêmes ;
+    // « Vérifier maintenant » et « Déployer ce commit » marchent toujours.
+    logger.error({ err: error }, 'installation de la vérification des dépôts impossible');
   }
 
   try {
