@@ -3,7 +3,8 @@
 [`CLAUDE.md`](../CLAUDE.md) porte les décisions. Ce document explique ce qu'elles
 impliquent quand on ouvre le code — où regarder, et ce qui va vous surprendre.
 
-- [Les trois abstractions](#les-trois-abstractions)
+- [Les quatre abstractions](#les-quatre-abstractions)
+- [Dépôts liés](#dépôts-liés)
 - [AppSpec — la spec neutre](#appspec--la-spec-neutre)
 - [Pipeline de déploiement](#pipeline-de-déploiement)
 - [Logs en direct](#logs-en-direct)
@@ -13,17 +14,18 @@ impliquent quand on ouvre le code — où regarder, et ce qui va vous surprendre
 - [Rollback automatique](#rollback-automatique)
 - [Versions et rétention](#versions-et-rétention)
 
-## Les trois abstractions
+## Les quatre abstractions
 
-Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy
-ou un scanner doit se faire en ajoutant une classe**. Ce qui suit est la
-conséquence pratique.
+Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy,
+un scanner ou un fournisseur de code doit se faire en ajoutant une classe**. Ce
+qui suit est la conséquence pratique.
 
 | Interface | Fichier | Implémentations |
 |---|---|---|
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
 | `ProxyProvider` | `packages/core/src/proxy/` | `TraefikProvider` — `BunkerWebProvider` n'existe pas |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
+| `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider` |
 
 **`DeploymentDriver`** — `preflight` `allocatePort` `render` `upload` `build`
 `deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus les
@@ -57,6 +59,33 @@ Compose » dans le message d'un déploiement abandonné. Aucun chemin d'exécuti
 n'en dépend — c'est du vocabulaire, pas une branche — mais la règle serait plus
 propre si ce mot venait du driver. À cette ligne près, le seul endroit du dépôt
 qui a le droit de savoir sur quel runtime il tourne, c'est un driver.
+
+## Dépôts liés
+
+Une application peut être liée à une branche d'un dépôt GitHub. Le dépôt porte un
+`pupitre.json` — l'AppSpec, rien d'autre — à sa racine, ou dans le dossier de
+l'application pour un monorepo.
+
+- **Le dépôt dit quoi, le panel dit où et quand.** Cibles, runtime et mode de
+  déclenchement vivent dans la liaison, sous RBAC. Le fichier ne porte ni cible,
+  ni runtime, ni script : un droit d'écriture sur le dépôt ne devient pas un
+  droit d'exécution sur les machines.
+- **Polling, jamais de webhook.** Le panel est privé. Le worker demande chaque
+  minute le dernier commit de chaque branche liée (`source:poll`, file de
+  supervision), avec un ETag : « rien de neuf » répond 304 et ne coûte rien.
+- **Trois modes.** Automatique ; automatique sauf changement d'infra (le
+  défaut) ; toujours validé. Ce qui est de l'infra est décidé par
+  `classifySpecChange()` : port, exposition, domaine, volumes, secrets, variables,
+  ressources, services ajoutés ou retirés.
+- **Le code voyage en archive.** Le worker télécharge l'archive du commit exact
+  et la passe au driver (`DriverContext.sourceArchive`), qui la décompresse à la
+  racine de la release. Le build reste sur la cible, sans registry.
+- **Tout est tracé.** Chaque déploiement garde le dépôt, la branche et le commit ;
+  son état est renvoyé sur le commit GitHub (`pupitre/{cible}`).
+
+La première vérification d'une liaison enregistre le commit en tête sans
+déployer : lier un dépôt ne doit pas redéployer ce qui tourne. « Déployer ce
+commit » le fait à la demande.
 
 ## AppSpec — la spec neutre
 

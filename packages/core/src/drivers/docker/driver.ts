@@ -5,6 +5,7 @@ import { exposedService, storedSecretNames, type AppSpec } from '../../spec/inde
 import { backoffMs } from '../backoff.js';
 import { listeningPorts } from '../listening.js';
 import { pruneReleases } from '../retention.js';
+import { extractSourceArchive } from '../source-archive.js';
 import { ufwAllow, ufwDelete } from '../ufw.js';
 import {
   DriverError,
@@ -349,6 +350,12 @@ export class DockerComposeDriver implements DeploymentDriver {
       );
     }
     await this.run(ctx, `mkdir -p ${shellQuote(release)}`, onLog, 'upload');
+
+    // Le code d'un dépôt lié d'abord : les artefacts rendus passent après, et
+    // l'emportent sur un fichier du dépôt qui porterait le même nom.
+    if (ctx.sourceArchive) {
+      await extractSourceArchive(ctx.sshSession, release, ctx.sourceArchive, onLog, this.runtime);
+    }
 
     const files: RenderedFile[] = [...(ctx.additionalFiles ?? []), ...artifacts.files];
     for (const file of files) {
