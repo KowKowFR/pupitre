@@ -3,15 +3,17 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Check, Minus, RotateCcw, X } from 'lucide-react';
 import type { DeploymentStatus } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { applications as messages } from '@/i18n/messages/applications';
 import type { FormatSettings } from '@/lib/format';
+import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 import { DeploymentStatusBadge, formatDate } from '../../deployments/status-badge';
 
@@ -32,18 +34,23 @@ export type VersionRow = {
   redeployable: boolean;
 };
 
-export type RedeployTarget = { id: string; name: string };
+export type RedeployTarget = { id: string; name: string; runtimes: string[] };
 
 type ApiError = { error?: { message?: string } };
 
+const STEP_CLASS: Partial<Record<DeploymentStatus, string>> = {
+  success: 'done',
+  failed: 'fail',
+  rolled_back: 'fail',
+  running: 'run',
+  pending: 'run',
+  destroyed: 'skip',
+};
+
 /**
- * Timeline des versions déployées.
- *
- * Chaque ligne est un déploiement — il n'y a pas d'autre notion de « version »
- * dans le modèle. Le bouton rejoue l'AppSpec figée à l'époque : ce n'est pas un
- * rollback (qui remet en service une release déjà sur la cible) mais un
- * déploiement complet, ce qui permet de rejouer une version sur une autre
- * machine, ou après une destruction.
+ * L'historique des versions, en pipeline vertical : chaque déploiement fige
+ * son AppSpec au départ, et c'est ce qui le rend rejouable — sur la même cible
+ * ou sur une autre qui sait le même runtime.
  */
 export function VersionTimeline({
   applicationId,
@@ -58,159 +65,157 @@ export function VersionTimeline({
   versions: VersionRow[];
   targets: RedeployTarget[];
   canRedeploy: boolean;
-  /** Le formatage descend par props : la timeline est cliente, la locale non. */
   format: FormatSettings;
 }) {
   const t = useT(messages);
   const tc = useT(common);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [selection, setSelection] = useState<Record<string, string>>({});
+  const [confirming, setConfirming] = useState<VersionRow | null>(null);
+
+  // La cible retenue : celle choisie dans la liste, sinon la cible d'origine —
+  // ramenée à la première cible éligible si celle-là ne sait pas le runtime.
+  const targetOf = (version: VersionRow) => {
+    const eligible = targets.filter((target) => target.runtimes.includes(version.runtime));
+    const chosen = selection[version.deploymentId] ?? version.targetId;
+    return eligible.some((target) => target.id === chosen) ? chosen : (eligible[0]?.id ?? chosen);
+  };
+  const labelOf = (version: VersionRow) => version.appVersion ?? `v${version.version}`;
 
   async function redeploy(version: VersionRow) {
-    const targetId = selection[version.deploymentId] ?? version.targetId;
-    const targetName =
-      targets.find((target) => target.id === targetId)?.name ?? t('redeploy.chosenTarget');
-
-    const confirmed = window.confirm(
-      t('redeploy.confirm', {
-        slug: applicationSlug,
-        version: version.appVersion ?? `#${version.version}`,
-        target: targetName,
-      }),
-    );
-    if (!confirmed) return;
-
-    setBusy(version.deploymentId);
+    setBusy(true);
     setError(null);
-
     const response = await fetch(`/api/applications/${applicationId}/redeploy`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ versionId: version.deploymentId, targetId }),
+      body: JSON.stringify({ versionId: version.deploymentId, targetId: targetOf(version) }),
     });
-
+    setBusy(false);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       setError(body.error?.message ?? tc('http.failure', { status: response.status }));
-      setBusy(null);
+      setConfirming(null);
       return;
     }
-
-    const { id } = (await response.json()) as { id: string };
-    router.push(`/deployments/${id}`);
+    const { id, number } = (await response.json()) as { id: string; number: number };
+    setConfirming(null);
+    toast({
+      title: t('redeploy.toast', { slug: applicationSlug, version: labelOf(version) }),
+      description: t('toast.deployed.detail', { number }),
+      tone: 'accent',
+      action: { label: t('toast.follow'), href: `/deployments/${id}` },
+    });
+    router.refresh();
   }
 
   if (versions.length === 0) {
-    return (
-      <Card>
-        <CardContent className="text-muted-foreground py-10 text-center text-sm">
-          {t('versions.never')}
-        </CardContent>
-      </Card>
-    );
+    return <p className="t-sm text-text-3">{t('versions.never')}</p>;
   }
 
   return (
-    <Card>
-      <CardContent className="space-y-4">
-        {error ? <Alert variant="destructive">{error}</Alert> : null}
+    <div className="flex flex-col gap-4">
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        <ol className="relative space-y-0">
-          {versions.map((version, index) => (
-            <li key={version.deploymentId} className="relative flex gap-4 pb-6 last:pb-0">
-              {/* Le trait ne descend pas sous le dernier point : une timeline
-                  qui continue dans le vide laisse croire qu'il manque quelque
-                  chose. */}
-              {index < versions.length - 1 ? (
-                <span className="absolute top-4 left-[7px] h-full w-px bg-line-strong/70" />
-              ) : null}
-
-              <span
-                className={cn(
-                  'relative z-10 mt-1.5 size-3.5 shrink-0 rounded-full border-2',
-                  version.status === 'success'
-                    ? 'border-ok bg-ok'
-                    : version.status === 'failed'
-                      ? 'border-danger bg-danger'
-                      : version.status === 'rolled_back'
-                        ? 'border-warn bg-warn'
-                        : 'border-line-strong bg-ground',
-                )}
-              />
-
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <Link
-                    href={`/deployments/${version.deploymentId}`}
-                    className="text-[0.8125rem] font-medium text-ink underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-                  >
-                    #{version.version}
+      <ol className="steps">
+        {versions.map((version) => {
+          const step = STEP_CLASS[version.status] ?? '';
+          // Une version ne se rejoue que sur une cible qui sait son runtime.
+          const eligible = targets.filter((target) => target.runtimes.includes(version.runtime));
+          return (
+            <li key={version.deploymentId} className={cn('step', step)}>
+              <span className="dot" aria-hidden>
+                {step === 'done' ? (
+                  <Check />
+                ) : step === 'fail' ? (
+                  <X />
+                ) : step === 'run' ? (
+                  <span className="spinner" />
+                ) : step === 'skip' ? (
+                  <Minus />
+                ) : null}
+              </span>
+              <div className="body gap-1.5 pb-1">
+                <div className="ttl flex-wrap">
+                  <Link href={`/deployments/${version.deploymentId}`} className="mono hover:underline">
+                    v{version.version}
                   </Link>
-                  <span className="font-mono text-xs">{version.appVersion ?? tc('none')}</span>
+                  <span className="mono text-text-2">{version.appVersion ?? tc('none')}</span>
                   <DeploymentStatusBadge status={version.status} />
-                  <span className="text-muted-foreground font-mono text-xs">
+                  <span className="mono t-cap text-text-3">
                     {version.targetName} · {version.runtime}
-                    {version.publishedPort ? ` · port ${version.publishedPort}` : ''}
+                    {version.publishedPort ? ` · ${version.publishedPort}` : ''}
                   </span>
+                  <span className="tm">{formatDate(version.createdAt, format)}</span>
                 </div>
-
-                <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 font-mono text-[11px]">
-                  <span>{formatDate(version.createdAt, format)}</span>
+                <div className="t-cap flex flex-wrap gap-x-3 text-text-3">
                   {version.triggeredByEmail ? <span>{version.triggeredByEmail}</span> : null}
-                  {version.imageTag ? <span className="truncate">{version.imageTag}</span> : null}
+                  {version.imageTag ? (
+                    <span className="mono truncate">{version.imageTag}</span>
+                  ) : null}
                   {version.url ? (
-                    <a
-                      href={version.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="underline underline-offset-4"
-                    >
+                    <a href={version.url} target="_blank" rel="noreferrer" className="link mono">
                       {version.url}
                     </a>
                   ) : null}
                 </div>
-
-                {canRedeploy && version.redeployable && targets.length > 0 ? (
+                {canRedeploy && version.redeployable && eligible.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-2 pt-1">
                     <Select
-                      className="inline-flex h-8 w-44"
-                      value={selection[version.deploymentId] ?? version.targetId}
+                      className="input-sm w-48"
+                      aria-label={t('drawer.deploy.target')}
+                      value={targetOf(version)}
                       onChange={(event) =>
-                        setSelection((current) => ({
-                          ...current,
-                          [version.deploymentId]: event.target.value,
-                        }))
+                        setSelection((current) => ({ ...current, [version.deploymentId]: event.target.value }))
                       }
                     >
-                      {targets.map((target) => (
+                      {eligible.map((target) => (
                         <option key={target.id} value={target.id}>
                           {target.name}
                         </option>
                       ))}
                     </Select>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy !== null}
-                      onClick={() => void redeploy(version)}
-                    >
-                      {busy === version.deploymentId
-                        ? t('action.sending')
-                        : t('redeploy.action')}
+                    <Button size="sm" variant="secondary" onClick={() => setConfirming(version)}>
+                      <RotateCcw aria-hidden />
+                      {t('redeploy.action')}
                     </Button>
                   </div>
                 ) : null}
-
                 {canRedeploy && !version.redeployable ? (
-                  <p className="text-muted-foreground text-xs">{t('redeploy.impossible')}</p>
+                  <p className="t-cap text-text-3">{t('redeploy.impossible')}</p>
                 ) : null}
               </div>
             </li>
-          ))}
-        </ol>
-      </CardContent>
-    </Card>
+          );
+        })}
+      </ol>
+
+      <ConfirmDialog
+        open={confirming !== null}
+        onOpenChange={(open) => (open ? undefined : setConfirming(null))}
+        level="reversible"
+        icon={<RotateCcw />}
+        title={
+          confirming
+            ? t('redeploy.dialog.title', {
+                slug: applicationSlug,
+                version: labelOf(confirming),
+                target: targets.find((target) => target.id === targetOf(confirming))?.name ??
+                  t('redeploy.chosenTarget'),
+              })
+            : ''
+        }
+        consequences={[
+          t('redeploy.consequence.frozen'),
+          t('redeploy.consequence.current'),
+          t('redeploy.consequence.run'),
+        ]}
+        confirmLabel={t('redeploy.action')}
+        pendingLabel={t('action.sending')}
+        pending={busy}
+        onConfirm={() => (confirming ? redeploy(confirming) : undefined)}
+      />
+    </div>
   );
 }

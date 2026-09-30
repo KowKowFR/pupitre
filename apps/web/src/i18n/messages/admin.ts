@@ -24,19 +24,14 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── Commun aux deux écrans d'administration ─────────────────────────────
-  'eyebrow': 'Administration',
 
   // ═══ Utilisateurs ═══════════════════════════════════════════════════════
   'users.title': 'Utilisateurs',
   'users.description':
-    "Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions en cours — il n'est pas supprimé, et son passage reste dans les logs.",
+    "Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions : il n'est jamais supprimé, pour garder le journal lisible.",
 
   'users.invite.title': 'Inviter un utilisateur',
   'users.create.title': 'Créer un utilisateur',
-  'users.invite.help':
-    "La personne reçoit un lien par e-mail (canal « {channel} ») et choisit elle-même son mot de passe : personne d'autre ne le connaîtra. Le lien vaut 72 heures et ne fonctionne qu'une fois. Rôles disponibles : {roles}.",
-  'users.create.help':
-    'Rôles disponibles : {roles}. Mot de passe de {min} caractères minimum.',
 
   // Coupée en trois : « Paramètres → Notifications » est mis en évidence dans
   // la phrase, et un fragment de JSX ne se range pas dans un dictionnaire.
@@ -62,6 +57,22 @@ const fr = {
   'users.reason.unknown': 'raison inconnue',
 
   // ── Table des utilisateurs ──────────────────────────────────────────────
+  'users.drawer.invite': "L'invitation part par e-mail dès l'envoi.",
+  'users.drawer.create': 'Le compte est créé avec le mot de passe saisi ici.',
+  'users.preview.title': 'Ce que reçoit {name}',
+  'users.preview.someone': 'la personne invitée',
+  'users.preview.subject': 'Objet :',
+  'users.preview.subjectText': '{inviter} vous invite sur Pupitre · {instance}',
+  'users.preview.body':
+    'Un lien à usage unique, valable 72 h, pour choisir son mot de passe. Aucun administrateur ne connaît jamais ce mot de passe.',
+  'users.channel.info':
+    'Canal e-mail actif ({channel}). Sans canal e-mail, le formulaire demande un mot de passe à transmettre hors bande.',
+  'users.form.send': "Envoyer l'invitation",
+  'users.footnote':
+    'Le dernier administrateur ne peut ni changer de rôle ni être désactivé, et votre propre compte ne se désactive pas d’ici.',
+  'users.more': 'Désactiver, annuler le lien',
+  'users.role.aria': 'Rôle de {name}',
+  'users.2fa.dialog.titleFor': 'Réinitialiser le second facteur de {name} ?',
   'users.column.user': 'Utilisateur',
   'users.column.role': 'Rôle',
   'users.column.twoFactor': 'Second facteur',
@@ -111,8 +122,6 @@ const fr = {
   'users.2fa.notice.none': 'Aucune session ouverte à fermer.',
   'users.2fa.notice.tail': 'Il se reconnecte avec son seul mot de passe.',
 
-  'users.2fa.dialog.title': 'Réinitialiser le second facteur',
-  'users.2fa.dialog.noTarget': 'Aucun utilisateur sélectionné.',
   'users.2fa.dialog.intro': 'Après validation, pour ce compte :',
   'users.2fa.dialog.totp':
     'le secret TOTP est supprimé — l’application d’authentification ne sert plus ;',
@@ -136,8 +145,19 @@ const fr = {
     "est verrouillé : il détient toujours l'intégralité des permissions, pour qu'on ne puisse pas se retirer les droits nécessaires à se les rendre.",
 
   'roles.new.title': 'Nouveau rôle',
+  'roles.new.kind': 'Rôle',
+  'roles.new.step.identity': 'Identité',
+  'roles.new.step.permissions': 'Permissions',
+  'roles.new.progress': 'Étape {step} sur 2',
+  'roles.new.next': 'Suivant : les permissions',
+  'roles.new.back': 'Retour',
+  'roles.new.create': 'Créer le rôle',
+  'roles.new.nameMissing': "Donnez au rôle un nom d'au moins deux caractères.",
+  'roles.new.keyInvalid': 'La clé ne prend que des minuscules, des chiffres et des tirets.',
+  'roles.new.permissions.help':
+    "Cochez ce que « {label} » peut faire. Rien n'est coché d'avance : le rôle ne porte que ce que vous lui accordez, et se modifie ensuite depuis sa carte.",
   'roles.new.help':
-    "La clé sert d'identifiant et ne change plus ensuite. Les permissions se règlent juste après la création.",
+    "La clé sert d'identifiant et ne change plus ensuite. Les permissions se choisissent à l'étape suivante, avant la création.",
 
   // ── Formulaire de création ──────────────────────────────────────────────
   'roles.form.name': 'Nom',
@@ -160,7 +180,20 @@ const fr = {
   'roles.userCount': { one: '{count} utilisateur', other: '{count} utilisateurs' },
   'roles.action.collapse': 'Replier',
   'roles.action.view': 'Voir',
-  'roles.confirmDelete': 'Supprimer le rôle « {key} » ? Cette action est définitive.',
+  'roles.new.action': 'Nouveau rôle',
+  'roles.delete.title': 'Supprimer le rôle « {label} » ?',
+  'roles.delete.gone':
+    'Le rôle disparaît de la liste des rôles attribuables ; aucun utilisateur ne le porte.',
+  'roles.delete.audit': 'La suppression est écrite au journal, avec les permissions qu’il portait.',
+  'roles.delete.confirm': 'Supprimer le rôle',
+  'roles.deleted': 'Rôle « {label} » supprimé',
+  'roles.created': 'Rôle « {label} » créé',
+  'roles.delete.aria': 'Supprimer le rôle {label}',
+  'roles.delete.inUse': {
+    one: 'Porté par {count} utilisateur : réattribuez-le avant de supprimer ce rôle.',
+    other: 'Porté par {count} utilisateurs : réattribuez-les avant de supprimer ce rôle.',
+  },
+  'roles.changes': { one: '{count} modification', other: '{count} modifications' },
   'roles.saved': 'Rôle enregistré.',
   'roles.locked.notice':
     "Ce rôle est verrouillé. Il détient toujours l'intégralité des permissions, y compris celles ajoutées plus tard, et ne peut être ni renommé ni supprimé.",
@@ -173,13 +206,11 @@ const fr = {
     other: '{count} / {total} sélectionnées',
   },
 
-  // ═══ Journal d'activité ═════════════════════════════════════════════════
-  'logs.eyebrow': 'Traçabilité',
-  'logs.title': 'Logs',
+  'logs.title': 'Journal d’activité',
   'logs.description.before':
-    "Qui a fait quoi, quand et depuis quelle IP — les logs d'activité du panel, à ne pas confondre avec les logs d'un déploiement ni avec ceux d'une application en marche, qui se lisent sur leurs écrans respectifs. Écrits exclusivement par",
+    'Qui a fait quoi, quand, et depuis quelle IP. Chaque action du panel passe par',
   'logs.description.after':
-    ": un point d'entrée unique, jamais un insert dispersé dans un handler. Les refus de permission y figurent au même titre que les actions abouties.",
+    "; ce ne sont ni les logs d'un déploiement ni ceux d'une application. Les refus y figurent au même titre que les actions abouties.",
   'logs.summary': {
     one: '{count} entrée · page {page}/{total}',
     other: '{count} entrées · page {page}/{total}',
@@ -187,7 +218,9 @@ const fr = {
 
   'logs.filter.action': 'Action',
   'logs.filter.resourceType': 'Type de ressource',
-  'logs.filter.actor': 'Acteur (id)',
+  'logs.filter.actor': 'Acteur',
+  'logs.filter.actor.all': 'Tous',
+  'logs.export': 'Exporter .jsonl',
   'logs.filter.from': 'Du',
   'logs.filter.to': 'Au',
   'logs.filter.submit': 'Filtrer',
@@ -200,8 +233,18 @@ const fr = {
   'logs.column.action': 'Action',
   'logs.column.resource': 'Ressource',
   'logs.column.ip': 'IP',
+  'logs.column.agent': 'Agent',
   /** Une action sans acteur : le worker, le scheduler, ou un visiteur non connecté. */
   'logs.anonymous': 'système / anonyme',
+  'logs.denial': 'refus',
+  'logs.row.open': "Ouvrir l'entrée {action}",
+  'logs.drawer.kind': 'Entrée du journal',
+  'logs.drawer.who': 'Qui, quoi, où',
+  'logs.drawer.payload': 'Charge JSON',
+  'logs.drawer.none': 'Aucune charge utile pour cette entrée.',
+  'logs.drawer.copy': 'Copier le JSON',
+  'logs.drawer.copied': 'JSON copié',
+  'logs.drawer.filterActor': 'Filtrer sur cet acteur',
   'logs.timezone': 'Horodatages en {timezone}.',
 
   // ═══ Erreurs des routes ═════════════════════════════════════════════════
@@ -236,18 +279,14 @@ const fr = {
   'mail.sendFailed': 'envoi impossible',
 } as const;
 
-const en: Translated<typeof fr> = {
-  'eyebrow': 'Administration',
 
+const en: Translated<typeof fr> = {
   'users.title': 'Users',
   'users.description':
-    'A user carries a role; the role carries the permissions. Disabling an account cuts its open sessions — the account is not deleted, and its trail stays in the activity log.',
+    'A user carries a role; the role carries the permissions. Disabling an account cuts its sessions: it is never deleted, so the log stays readable.',
 
   'users.invite.title': 'Invite a user',
   'users.create.title': 'Create a user',
-  'users.invite.help':
-    'They get a link by email (channel “{channel}”) and pick their own password: nobody else ever knows it. The link lasts 72 hours and works once. Roles available: {roles}.',
-  'users.create.help': 'Roles available: {roles}. Password of {min} characters minimum.',
 
   'users.noMail.before':
     'No active email channel (SMTP): the password has to be typed here, then passed out of band — and you will know it. Set up an SMTP server under',
@@ -268,6 +307,22 @@ const en: Translated<typeof fr> = {
     'The account for {email} exists, but the invitation did not go out: {reason}. Send it again from the list.',
   'users.reason.unknown': 'reason unknown',
 
+  'users.drawer.invite': 'The invitation leaves by e-mail as soon as it is sent.',
+  'users.drawer.create': 'The account is created with the password typed here.',
+  'users.preview.title': 'What {name} receives',
+  'users.preview.someone': 'the invitee',
+  'users.preview.subject': 'Subject:',
+  'users.preview.subjectText': '{inviter} invites you to Pupitre · {instance}',
+  'users.preview.body':
+    'A single-use link, valid for 72 h, to choose a password. No administrator ever knows that password.',
+  'users.channel.info':
+    'E-mail channel active ({channel}). Without an e-mail channel, the form asks for a password to hand over out of band.',
+  'users.form.send': 'Send the invitation',
+  'users.footnote':
+    'The last administrator can neither change role nor be disabled, and your own account cannot be disabled from here.',
+  'users.more': 'Disable, cancel the link',
+  'users.role.aria': 'Role of {name}',
+  'users.2fa.dialog.titleFor': 'Reset the second factor of {name}?',
   'users.column.user': 'User',
   'users.column.role': 'Role',
   'users.column.twoFactor': 'Second factor',
@@ -309,8 +364,6 @@ const en: Translated<typeof fr> = {
   'users.2fa.notice.none': 'No open session to close.',
   'users.2fa.notice.tail': 'They sign in again with their password alone.',
 
-  'users.2fa.dialog.title': 'Reset the second factor',
-  'users.2fa.dialog.noTarget': 'No user selected.',
   'users.2fa.dialog.intro': 'Once confirmed, for this account:',
   'users.2fa.dialog.totp': 'the TOTP secret is deleted — the authenticator app is of no more use;',
   'users.2fa.dialog.backup': 'backup codes already issued stop working immediately;',
@@ -325,14 +378,24 @@ const en: Translated<typeof fr> = {
   'users.2fa.dialog.confirm': 'Reset the 2FA of {name}',
 
   'roles.title': 'Roles',
-  'roles.description.before':
-    'A user carries a role; the role carries the permissions. The role',
+  'roles.description.before': 'A user carries a role; the role carries the permissions. The role',
   'roles.description.after':
     'is locked: it always holds every permission, so nobody can drop the rights needed to grant them back.',
 
   'roles.new.title': 'New role',
+  'roles.new.kind': 'Role',
+  'roles.new.step.identity': 'Identity',
+  'roles.new.step.permissions': 'Permissions',
+  'roles.new.progress': 'Step {step} of 2',
+  'roles.new.next': 'Next: permissions',
+  'roles.new.back': 'Back',
+  'roles.new.create': 'Create the role',
+  'roles.new.nameMissing': 'Give the role a name of at least two characters.',
+  'roles.new.keyInvalid': 'The key takes only lowercase letters, digits and hyphens.',
+  'roles.new.permissions.help':
+    'Tick what “{label}” may do. Nothing is ticked in advance: the role carries only what you grant it, and can be changed later from its card.',
   'roles.new.help':
-    'The key is the identifier and never changes afterwards. Permissions are set right after creation.',
+    'The key is the identifier and never changes afterwards. Permissions are chosen at the next step, before creation.',
 
   'roles.form.name': 'Name',
   'roles.form.namePlaceholder': 'Tier 1 support',
@@ -353,7 +416,19 @@ const en: Translated<typeof fr> = {
   'roles.userCount': { one: '{count} user', other: '{count} users' },
   'roles.action.collapse': 'Collapse',
   'roles.action.view': 'View',
-  'roles.confirmDelete': 'Delete the role “{key}”? This cannot be undone.',
+  'roles.new.action': 'New role',
+  'roles.delete.title': 'Delete the role “{label}”?',
+  'roles.delete.gone': 'The role leaves the list of assignable roles; no user carries it.',
+  'roles.delete.audit': 'The deletion is written to the log, with the permissions it carried.',
+  'roles.delete.confirm': 'Delete the role',
+  'roles.deleted': 'Role “{label}” deleted',
+  'roles.created': 'Role “{label}” created',
+  'roles.delete.aria': 'Delete the role {label}',
+  'roles.delete.inUse': {
+    one: 'Carried by {count} user: reassign them before deleting this role.',
+    other: 'Carried by {count} users: reassign them before deleting this role.',
+  },
+  'roles.changes': { one: '{count} change', other: '{count} changes' },
   'roles.saved': 'Role saved.',
   'roles.locked.notice':
     'This role is locked. It always holds every permission, including those added later, and can be neither renamed nor deleted.',
@@ -366,12 +441,11 @@ const en: Translated<typeof fr> = {
     other: '{count} / {total} selected',
   },
 
-  'logs.eyebrow': 'Traceability',
   'logs.title': 'Activity log',
   'logs.description.before':
-    'Who did what, when and from which IP — the panel’s activity log, not to be confused with a deployment’s logs or those of a running application, which are read on their own screens. Written only by',
+    'Who did what, when, and from which IP. Every panel action goes through',
   'logs.description.after':
-    ': one entry point, never an insert scattered across handlers. Permission denials appear here just like actions that went through.',
+    "; these are neither a deployment's logs nor an application's. Denials are recorded just like completed actions.",
   'logs.summary': {
     one: '{count} entry · page {page}/{total}',
     other: '{count} entries · page {page}/{total}',
@@ -379,7 +453,9 @@ const en: Translated<typeof fr> = {
 
   'logs.filter.action': 'Action',
   'logs.filter.resourceType': 'Resource type',
-  'logs.filter.actor': 'Actor (id)',
+  'logs.filter.actor': 'Actor',
+  'logs.filter.actor.all': 'Everyone',
+  'logs.export': 'Export .jsonl',
   'logs.filter.from': 'From',
   'logs.filter.to': 'To',
   'logs.filter.submit': 'Filter',
@@ -392,7 +468,17 @@ const en: Translated<typeof fr> = {
   'logs.column.action': 'Action',
   'logs.column.resource': 'Resource',
   'logs.column.ip': 'IP',
+  'logs.column.agent': 'Agent',
   'logs.anonymous': 'system / anonymous',
+  'logs.denial': 'denial',
+  'logs.row.open': 'Open the entry {action}',
+  'logs.drawer.kind': 'Log entry',
+  'logs.drawer.who': 'Who, what, where',
+  'logs.drawer.payload': 'JSON payload',
+  'logs.drawer.none': 'No payload for this entry.',
+  'logs.drawer.copy': 'Copy the JSON',
+  'logs.drawer.copied': 'JSON copied',
+  'logs.drawer.filterActor': 'Filter on this actor',
   'logs.timezone': 'Timestamps in {timezone}.',
 
   'error.role.exists': 'A role “{key}” already exists',
@@ -406,13 +492,11 @@ const en: Translated<typeof fr> = {
   'error.user.lastAdmin.delete': 'You cannot delete the last active administrator of the platform',
   'error.user.lastAdmin.disable':
     'You cannot disable the last active administrator of the platform',
-  'error.user.lastAdmin.role':
-    'You cannot remove the last active administrator of the platform',
+  'error.user.lastAdmin.role': 'You cannot remove the last active administrator of the platform',
 
   'error.mail.missing.create':
     'No active email channel (SMTP): the invitation could not go out. Set one up under Settings → Notifications, or create the account with a password.',
-  'error.mail.missing.resend':
-    'No active email channel (SMTP): the invitation could not go out.',
+  'error.mail.missing.resend': 'No active email channel (SMTP): the invitation could not go out.',
   'error.user.hasPassword':
     '{email} has already picked a password. A reset is asked for from the sign-in screen.',
   'error.user.banned':

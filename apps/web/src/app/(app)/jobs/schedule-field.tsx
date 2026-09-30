@@ -15,7 +15,6 @@ import {
 import type { Translate } from '@pupitre/core';
 import { useMemo, useSyncExternalStore } from 'react';
 import { Alert } from '@/components/ui/alert';
-import { CheckboxChip } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioOption } from '@/components/ui/radio';
@@ -69,9 +68,7 @@ export function draftBody(
   draft: ScheduleDraft,
 ): ({ schedule: SimpleSchedule } | { cron: string }) & { timezone: string } {
   const cadence =
-    draft.mode === 'simple'
-      ? { schedule: draft.simple }
-      : { cron: draft.cron.trim() };
+    draft.mode === 'simple' ? { schedule: draft.simple } : { cron: draft.cron.trim() };
   return { ...cadence, timezone: draft.timeZone };
 }
 
@@ -180,7 +177,8 @@ function SchedulePreview({
   const error = cron.length === 0 ? t('preview.emptyCron') : cronError(cron, language);
 
   const runs = useMemo(
-    () => (error || now === null ? [] : nextRuns(cron, { from: new Date(now), count: 3, timeZone })),
+    () =>
+      error || now === null ? [] : nextRuns(cron, { from: new Date(now), count: 3, timeZone }),
     [cron, error, now, timeZone],
   );
 
@@ -197,36 +195,40 @@ function SchedulePreview({
   const viewerZone = now === null ? null : browserTimeZone();
   const differentZone = viewerZone !== null && viewerZone !== timeZone;
 
-  return (
-    <div className="mt-1 rounded-md border border-line bg-surface-2 px-3 py-2 text-xs">
-      <p className="text-ink">{describeCron(cron, { locale: language, timeZone })}</p>
-      <p className="mt-1 font-mono text-[0.6875rem] text-ink-faint">{cron}</p>
+  const [first, ...rest] = runs;
 
-      <dl className="mt-2 space-y-0.5">
-        {now === null ? (
-          <div className="text-ink-faint">{t('preview.computing')}</div>
-        ) : runs.length === 0 ? (
-          <div className="text-ink-faint">{t('preview.noRun')}</div>
-        ) : (
-          runs.map((run, index) => (
-            <div key={run.toISOString()} className="flex flex-wrap gap-x-2 text-ink-muted">
-              <dt className="text-ink-faint">
-                {index === 0 ? t('preview.next') : t('preview.then', { rank: index + 1 })}
-              </dt>
-              <dd className="font-mono tabular-nums">
-                {formatIn(run, timeZone, format)}{' '}
-                <span className="text-ink-faint">{timeZone}</span>
-                {differentZone && viewerZone ? (
-                  <span className="text-ink-faint">
-                    {' · '}
-                    {t('row.yourClock', { clock: formatIn(run, viewerZone, format) })}
-                  </span>
-                ) : null}
-              </dd>
-            </div>
-          ))
-        )}
-      </dl>
+  return (
+    <div className="well flex flex-col gap-1">
+      <span className="t-cap text-text-3">{t('preview.title')}</span>
+      <span className="t-sm text-text-2">{describeCron(cron, { locale: language, timeZone })}</span>
+      {now === null ? (
+        <span className="t-sm text-text-3">{t('preview.computing')}</span>
+      ) : first === undefined ? (
+        <span className="t-sm text-text-3">{t('preview.noRun')}</span>
+      ) : (
+        <>
+          <span className="t-sm">
+            <strong>{t('preview.next')} :</strong>{' '}
+            <span className="mono">{formatIn(first, timeZone, format)}</span>{' '}
+            <span className="text-text-3">{timeZone}</span>
+            {differentZone && viewerZone ? (
+              <span className="text-text-3">
+                {' · '}
+                {t('row.yourClock', { clock: formatIn(first, viewerZone, format) })}
+              </span>
+            ) : null}
+          </span>
+          {rest.length > 0 ? (
+            <span className="t-sm">
+              <strong>{t('preview.list')} :</strong>{' '}
+              <span className="mono">
+                {rest.map((run) => formatIn(run, timeZone, format)).join(', ')}
+              </span>
+            </span>
+          ) : null}
+        </>
+      )}
+      <span className="mono t-cap text-text-3">{cron}</span>
     </div>
   );
 }
@@ -281,36 +283,182 @@ export function ScheduleField({
   const time = hourAndMinuteOf(simple);
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label htmlFor={`${idPrefix}-kind`}>{t('field.label')}</Label>
-        <RadioGroup aria-label={t('field.mode.aria')}>
-          <RadioOption
-            name={`${idPrefix}-mode`}
-            label={t('field.mode.simple')}
-            value="simple"
-            checked={value.mode === 'simple'}
-            disabled={disabled}
-            onChange={() => setMode('simple')}
-          />
-          <RadioOption
-            name={`${idPrefix}-mode`}
-            label={t('field.mode.expert')}
-            value="expert"
-            checked={value.mode === 'expert'}
-            disabled={disabled}
-            onChange={() => setMode('expert')}
-          />
-        </RadioGroup>
-      </div>
+    <div className="flex flex-col gap-3">
+      <RadioGroup aria-label={t('field.mode.aria')} className="grid w-full grid-cols-2">
+        <RadioOption
+          name={`${idPrefix}-mode`}
+          label={t('field.mode.simple')}
+          value="simple"
+          checked={value.mode === 'simple'}
+          disabled={disabled}
+          onChange={() => setMode('simple')}
+        />
+        <RadioOption
+          name={`${idPrefix}-mode`}
+          label={t('field.mode.expert')}
+          value="expert"
+          checked={value.mode === 'expert'}
+          disabled={disabled}
+          onChange={() => setMode('expert')}
+        />
+      </RadioGroup>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Label htmlFor={`${idPrefix}-tz`} className="text-xs font-normal text-ink-muted">
-          {t('field.timeZone.label')}
-        </Label>
+      {value.mode === 'simple' ? (
+        <>
+          <div className="field">
+            <Label htmlFor={`${idPrefix}-kind`}>{t('field.kind.label')}</Label>
+            <Select
+              id={`${idPrefix}-kind`}
+              value={simple.kind}
+              disabled={disabled}
+              onChange={(event) =>
+                setSimple(withKind(simple, event.target.value as SimpleScheduleKind))
+              }
+            >
+              {SIMPLE_SCHEDULE_KINDS.map((kind) => (
+                <option key={kind} value={kind}>
+                  {t(`field.kind.${kind}`)}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {simple.kind === 'interval' ? (
+              <Select
+                aria-label={t('field.interval.aria')}
+                className="w-auto"
+                value={String(simple.everyMinutes)}
+                disabled={disabled}
+                onChange={(event) =>
+                  setSimple({
+                    kind: 'interval',
+                    everyMinutes: Number(
+                      event.target.value,
+                    ) as (typeof SIMPLE_INTERVAL_MINUTES)[number],
+                  })
+                }
+              >
+                {SIMPLE_INTERVAL_MINUTES.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {t('field.interval.option', { minutes })}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+
+            {simple.kind === 'hourly' ? (
+              <label className="t-sm flex items-center gap-2 text-text-3">
+                {t('field.hourly.atMinute')}
+                <Input
+                  type="number"
+                  min={0}
+                  max={59}
+                  className="input-sm mono w-20"
+                  value={simple.minute}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    setSimple({ kind: 'hourly', minute: clamp(event.target.value, 0, 59) })
+                  }
+                />
+              </label>
+            ) : null}
+
+            {simple.kind === 'monthly' ? (
+              <label className="t-sm flex items-center gap-2 text-text-3">
+                {t('field.monthly.onDay')}
+                <Input
+                  type="number"
+                  min={1}
+                  max={31}
+                  className="input-sm mono w-20"
+                  value={simple.day}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    setSimple({ ...simple, day: clamp(event.target.value, 1, 31) })
+                  }
+                />
+              </label>
+            ) : null}
+
+            {simple.kind === 'weekly' ? (
+              <div
+                className="flex flex-wrap gap-1.5"
+                role="group"
+                aria-label={t('field.weekdays.aria')}
+              >
+                {WEEKDAY_VALUES.map((day) => (
+                  <DayToggle
+                    key={day}
+                    short={weekdayShort(day, t)}
+                    long={weekdayLong(day, t)}
+                    checked={simple.weekdays.includes(day)}
+                    // Un dernier jour décoché donnerait une semaine sans occurrence.
+                    disabled={
+                      disabled || (simple.weekdays.length === 1 && simple.weekdays[0] === day)
+                    }
+                    onChange={(checked) => {
+                      const weekdays = checked
+                        ? [...simple.weekdays, day].sort((a, b) => a - b)
+                        : simple.weekdays.filter((entry) => entry !== day);
+                      if (weekdays.length > 0) setSimple({ ...simple, weekdays });
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
+
+            {simple.kind !== 'interval' && simple.kind !== 'hourly' ? (
+              <label className="t-sm ml-1.5 flex items-center gap-2 text-text-3">
+                {t('field.time.at')}
+                <Input
+                  type="time"
+                  className="input-sm mono w-24"
+                  value={`${pad2(time.hour)}:${pad2(time.minute)}`}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    const [hour, minute] = event.target.value.split(':');
+                    if (hour === undefined || minute === undefined) return;
+                    setSimple({
+                      ...simple,
+                      hour: clamp(hour, 0, 23),
+                      minute: clamp(minute, 0, 59),
+                    });
+                  }}
+                />
+              </label>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <div className="field">
+          <Label htmlFor={`${idPrefix}-cron`}>{t('field.label')}</Label>
+          <Input
+            id={`${idPrefix}-cron`}
+            aria-label={t('field.cron.aria')}
+            className="mono"
+            placeholder="0 3 * * 1"
+            value={value.cron}
+            disabled={disabled}
+            onChange={(event) => onChange({ ...value, cron: event.target.value })}
+          />
+        </div>
+      )}
+
+      {value.mode === 'expert' &&
+      !expertHasSimpleForm &&
+      cronError(value.cron.trim(), language) === null ? (
+        <p className="help">{t('field.expertNoSimple')}</p>
+      ) : null}
+
+      {simple.kind === 'monthly' && value.mode === 'simple' && simple.day > 28 ? (
+        <p className="t-cap text-warn-text">{t('field.shortMonths', { day: simple.day })}</p>
+      ) : null}
+
+      <div className="field">
+        <Label htmlFor={`${idPrefix}-tz`}>{t('field.timeZone.label')}</Label>
         <Select
           id={`${idPrefix}-tz`}
-          className="w-auto min-w-56"
           value={timeZone}
           disabled={disabled}
           onChange={(event) => onChange({ ...value, timeZone: event.target.value })}
@@ -327,147 +475,49 @@ export function ScheduleField({
           ))}
         </Select>
         {dependsOnTimeZone(value) ? null : (
-          <span className="text-xs text-ink-faint">{t('field.timeZone.irrelevant')}</span>
+          <span className="help">{t('field.timeZone.irrelevant')}</span>
         )}
       </div>
 
-      {value.mode === 'simple' ? (
-        <div className="flex flex-wrap items-end gap-2">
-          <Select
-            id={`${idPrefix}-kind`}
-            className="w-auto min-w-56"
-            value={simple.kind}
-            disabled={disabled}
-            onChange={(event) =>
-              setSimple(withKind(simple, event.target.value as SimpleScheduleKind))
-            }
-          >
-            {SIMPLE_SCHEDULE_KINDS.map((kind) => (
-              <option key={kind} value={kind}>
-                {t(`field.kind.${kind}`)}
-              </option>
-            ))}
-          </Select>
-
-          {simple.kind === 'interval' ? (
-            <Select
-              aria-label={t('field.interval.aria')}
-              className="w-auto"
-              value={String(simple.everyMinutes)}
-              disabled={disabled}
-              onChange={(event) =>
-                setSimple({
-                  kind: 'interval',
-                  everyMinutes: Number(event.target.value) as (typeof SIMPLE_INTERVAL_MINUTES)[number],
-                })
-              }
-            >
-              {SIMPLE_INTERVAL_MINUTES.map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {t('field.interval.option', { minutes })}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-
-          {simple.kind === 'hourly' ? (
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
-              {t('field.hourly.atMinute')}
-              <Input
-                type="number"
-                min={0}
-                max={59}
-                className="w-20 tabular-nums"
-                value={simple.minute}
-                disabled={disabled}
-                onChange={(event) =>
-                  setSimple({ kind: 'hourly', minute: clamp(event.target.value, 0, 59) })
-                }
-              />
-            </label>
-          ) : null}
-
-          {simple.kind === 'monthly' ? (
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
-              {t('field.monthly.onDay')}
-              <Input
-                type="number"
-                min={1}
-                max={31}
-                className="w-20 tabular-nums"
-                value={simple.day}
-                disabled={disabled}
-                onChange={(event) =>
-                  setSimple({ ...simple, day: clamp(event.target.value, 1, 31) })
-                }
-              />
-            </label>
-          ) : null}
-
-          {simple.kind === 'weekly' ? (
-            <div className="flex flex-wrap gap-1" role="group" aria-label={t('field.weekdays.aria')}>
-              {WEEKDAY_VALUES.map((day) => (
-                <CheckboxChip
-                  key={day}
-                  label={weekdayShort(day, t)}
-                  aria-label={weekdayLong(day, t)}
-                  title={weekdayLong(day, t)}
-                  checked={simple.weekdays.includes(day)}
-                  // Un dernier jour décoché donnerait une semaine sans occurrence.
-                  disabled={
-                    disabled || (simple.weekdays.length === 1 && simple.weekdays[0] === day)
-                  }
-                  onChange={(event) => {
-                    const weekdays = event.target.checked
-                      ? [...simple.weekdays, day].sort((a, b) => a - b)
-                      : simple.weekdays.filter((value) => value !== day);
-                    if (weekdays.length > 0) setSimple({ ...simple, weekdays });
-                  }}
-                />
-              ))}
-            </div>
-          ) : null}
-
-          {simple.kind !== 'interval' && simple.kind !== 'hourly' ? (
-            <label className="flex items-center gap-2 text-xs text-ink-muted">
-              {t('field.time.at')}
-              <Input
-                type="time"
-                className="w-32 tabular-nums"
-                value={`${pad2(time.hour)}:${pad2(time.minute)}`}
-                disabled={disabled}
-                onChange={(event) => {
-                  const [hour, minute] = event.target.value.split(':');
-                  if (hour === undefined || minute === undefined) return;
-                  setSimple({ ...simple, hour: clamp(hour, 0, 23), minute: clamp(minute, 0, 59) });
-                }}
-              />
-              <span className="text-ink-faint">{timeZone}</span>
-            </label>
-          ) : null}
-        </div>
-      ) : (
-        <Input
-          id={`${idPrefix}-cron`}
-          aria-label={t('field.cron.aria')}
-          className="font-mono text-xs md:text-xs"
-          placeholder="0 3 * * 1"
-          value={value.cron}
-          disabled={disabled}
-          onChange={(event) => onChange({ ...value, cron: event.target.value })}
-        />
-      )}
-
-      {value.mode === 'expert' && !expertHasSimpleForm && cronError(value.cron.trim(), language) === null ? (
-        <p className="text-xs text-ink-faint">{t('field.expertNoSimple')}</p>
-      ) : null}
-
-      {simple.kind === 'monthly' && value.mode === 'simple' && simple.day > 28 ? (
-        <p className="text-xs text-warn">{t('field.shortMonths', { day: simple.day })}</p>
-      ) : null}
-
       <SchedulePreview cron={cron} timeZone={timeZone} format={format} />
     </div>
+  );
+}
+
+/**
+ * Un jour de la semaine, en pastille ronde : pleine quand il est retenu. Une
+ * vraie case à cocher dessous, pour le clavier et les lecteurs d'écran.
+ */
+function DayToggle({
+  short,
+  long,
+  checked,
+  disabled,
+  onChange,
+}: {
+  short: string;
+  long: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label title={long} className="relative inline-flex cursor-pointer">
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        aria-label={long}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span
+        aria-hidden
+        className="flex size-[30px] items-center justify-center rounded-full border border-border-strong bg-surface text-[12px] font-semibold text-text-2 transition-colors peer-checked:border-accent peer-checked:bg-accent peer-checked:text-white peer-focus-visible:shadow-focus peer-disabled:cursor-not-allowed motion-reduce:transition-none"
+      >
+        {short}
+      </span>
+    </label>
   );
 }
 

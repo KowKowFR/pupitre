@@ -58,7 +58,9 @@ type ApiError = { error?: { message?: string } };
  * n'a besoin d'une fenêtre de 137 secondes, et un champ libre invite à saisir
  * la plus petite valeur acceptée « pour voir ».
  */
-const PRESETS_MS = [15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000];
+const PRESETS_MS = [
+  15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000,
+];
 
 export function DigestPolicy({
   initialWindowMs,
@@ -136,9 +138,8 @@ export function DigestPolicy({
     <div className="flex flex-col gap-4">
       <Alert variant="info">
         <p>
-          {t('digest.rule.lead')} <strong>{t('digest.rule.first')}</strong>{' '}
-          {t('digest.rule.opens')} <strong>{formatDigestDuration(windowMs)}</strong>{' '}
-          {t('digest.rule.holds')}
+          {t('digest.rule.lead')} <strong>{t('digest.rule.first')}</strong> {t('digest.rule.opens')}{' '}
+          <strong>{formatDigestDuration(windowMs)}</strong> {t('digest.rule.holds')}
         </p>
         <p className="mt-1.5">
           {t('digest.close.lead')} <strong>{t('digest.close.digest')}</strong>{' '}
@@ -150,7 +151,7 @@ export function DigestPolicy({
       </Alert>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="digest-window">{t('digest.window.label')}</Label>
           <Select
             id="digest-window"
@@ -171,17 +172,28 @@ export function DigestPolicy({
         </div>
 
         {canManage ? (
-          <Button size="sm" type="button" disabled={pending || windowMs === initialWindowMs} onClick={() => void save()}>
+          <Button
+            size="sm"
+            type="button"
+            disabled={pending || windowMs === initialWindowMs}
+            onClick={() => void save()}
+          >
             {tc('save')}
           </Button>
         ) : null}
 
-        <Button size="sm" variant="ghost" type="button" disabled={pending} onClick={() => void refresh()}>
+        <Button
+          size="sm"
+          variant="ghost"
+          type="button"
+          disabled={pending}
+          onClick={() => void refresh()}
+        >
           {t('digest.refresh')}
         </Button>
       </div>
 
-      <p className="text-xs text-ink-faint">
+      <p className="help">
         {t('digest.window.help', {
           min: formatDigestDuration(vocabulary.minWindowMs),
           max: formatDigestDuration(vocabulary.maxWindowMs),
@@ -192,21 +204,21 @@ export function DigestPolicy({
       {saved ? <Alert variant="success">{t('digest.saved')}</Alert> : null}
 
       <div className="space-y-2">
-        <p className="eyebrow text-ink-muted">{t('digest.open.title')}</p>
+        <p className="t-sm font-semibold text-text">{t('digest.open.title')}</p>
         {states.length === 0 ? (
-          <p className="text-sm text-ink-faint">{t('digest.open.none')}</p>
+          <p className="text-sm text-text-3">{t('digest.open.none')}</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {states.map((state) => (
               <li
                 key={state.groupKey}
-                className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-surface-2/40 px-3 py-2 text-sm"
+                className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-2/40 px-3 py-2 text-sm"
               >
-                <span className="text-ink">{labelOf(state.event)}</span>
+                <span className="text-text">{labelOf(state.event)}</span>
                 <Badge variant={state.heldCount > 0 ? 'warn' : 'secondary'}>
                   {t('digest.held', { count: state.heldCount })}
                 </Badge>
-                <span className="text-xs text-ink-faint">
+                <span className="help">
                   {t('digest.state.window', { window: formatDigestDuration(state.windowMs) })}
                   {state.escalation > 0
                     ? ` ${t('digest.state.widened', { times: state.escalation })}`

@@ -106,18 +106,16 @@ function href(monitorId: string, capture: CaptureView): string {
 function CaptureFacts({ capture, format }: { capture: CaptureView; format: FormatSettings }) {
   const t = useT(messages);
   return (
-    <div className="flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-ink-muted">
-      <span className="font-mono">{formatClock(capture.takenAt, format)}</span>
+    <div className="t-cap flex flex-wrap items-center gap-1.5 text-text-2">
+      <span className="mono">{formatClock(capture.takenAt, format)}</span>
       {capture.httpStatus === null ? null : (
         <Badge variant="outline">{t('capture.status', { status: capture.httpStatus })}</Badge>
       )}
-      <span className="font-mono">
+      <span className="mono">
         {capture.width}×{capture.height} · {formatBytes(capture.bytes, t, format)}
       </span>
       {capture.truncated ? (
-        <Badge variant="secondary" title={t('capture.truncated.title')}>
-          {t('capture.truncated')}
-        </Badge>
+        <Badge title={t('capture.truncated.title')}>{t('capture.truncated')}</Badge>
       ) : null}
     </div>
   );
@@ -135,14 +133,15 @@ function CaptureThumb({
   const t = useT(messages);
   return (
     <figure className="min-w-0 space-y-1.5">
-      <figcaption className="eyebrow text-ink-faint">{kindLabel(capture.kind, t)}</figcaption>
+      <figcaption className="t-cap font-medium text-text-3">
+        {kindLabel(capture.kind, t)}
+      </figcaption>
       {capture.hasImage ? (
         <a
           href={href(monitorId, capture)}
           target="_blank"
           rel="noreferrer"
-          className="block overflow-hidden rounded border"
-          style={{ borderColor: 'var(--line)' }}
+          className="block overflow-hidden rounded-lg border border-border"
           title={t('capture.openFull')}
         >
           {/* Cadrée en haut : le diagnostic d'une page cassée est en haut. */}
@@ -157,10 +156,7 @@ function CaptureThumb({
           />
         </a>
       ) : (
-        <div
-          className="flex h-40 items-center justify-center rounded border px-3 text-center text-xs text-ink-muted"
-          style={{ borderColor: 'var(--line)' }}
-        >
+        <div className="t-cap flex h-40 items-center justify-center rounded-lg border border-border bg-surface-2 px-3 text-center text-text-2">
           {t('capture.purged', {
             when: capture.purgedAt
               ? t('capture.purged.on', { clock: formatClock(capture.purgedAt, format) })
@@ -199,8 +195,8 @@ function CaptureSlider({
   return (
     <div className="space-y-2">
       <div
-        className="relative w-full overflow-hidden rounded border bg-white"
-        style={{ borderColor: 'var(--line)', aspectRatio: `${before.width} / ${height}` }}
+        className="relative w-full overflow-hidden rounded-lg border border-border bg-white"
+        style={{ aspectRatio: `${before.width} / ${height}` }}
       >
         <img
           src={href(monitorId, after)}
@@ -224,7 +220,7 @@ function CaptureSlider({
           {t('slider.during.badge', { clock: formatClock(after.takenAt, format) })}
         </span>
       </div>
-      <label className="flex items-center gap-3 text-xs text-ink-muted">
+      <label className="t-cap flex items-center gap-3 text-text-2">
         <span className="shrink-0">{t('slider.reveal')}</span>
         <input
           type="range"
@@ -263,25 +259,20 @@ export function LiveReferenceCard({
   const t = useT(messages);
   if (capture === null) return null;
   return (
-    <div className="rounded border p-3" style={{ borderColor: 'var(--line)' }}>
-      <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="eyebrow text-ink-faint">{t('reference.title')}</span>
-        <span className="text-xs text-ink-muted">{t('reference.description')}</span>
+    <section className="card">
+      <div className="card-h">
+        <h2>{t('reference.title')}</h2>
+        <span className="sub">{t('reference.description')}</span>
       </div>
-      <div className="max-w-md">
-        <CaptureThumb monitorId={monitorId} capture={capture} format={format} />
+      <div className="card-b">
+        <div className="max-w-md">
+          <CaptureThumb monitorId={monitorId} capture={capture} format={format} />
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
-/**
- * Le bloc affiché sous un incident.
- *
- * Ne rend **rien** quand il n'y a aucune capture : une instance sans navigateur
- * de capture ne doit pas voir apparaître un encart vide qui l'accuse de quelque
- * chose. L'absence de capture n'est pas un défaut.
- */
 export function IncidentCaptures({
   monitorId,
   captures,
@@ -297,23 +288,25 @@ export function IncidentCaptures({
   const before = captures.find((capture) => capture.kind === 'reference') ?? null;
   const during = captures.find((capture) => capture.kind === 'incident_open') ?? null;
   const after = captures.find((capture) => capture.kind === 'incident_resolved') ?? null;
-  const ordered = [before, during, after].filter((capture): capture is CaptureView => capture !== null);
+  const ordered = [before, during, after].filter(
+    (capture): capture is CaptureView => capture !== null,
+  );
 
   const comparable = before !== null && during !== null && before.hasImage && during.hasImage;
 
   return (
-    <div className="mt-2 space-y-3 rounded border p-3" style={{ borderColor: 'var(--line)' }}>
-      <div className="eyebrow text-ink-faint">{t('captures.title')}</div>
+    <div className="well flex flex-col gap-3">
+      <div className="t-cap font-medium text-text-3">{t('captures.title')}</div>
 
       {comparable ? (
         <CaptureSlider monitorId={monitorId} before={before} after={during} format={format} />
       ) : (
-        <p className="text-xs text-ink-muted">
+        <p className="t-sm text-text-2">
           {before === null ? t('captures.noReference') : t('captures.incomplete')}
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {ordered.map((capture) => (
           <CaptureThumb key={capture.id} monitorId={monitorId} capture={capture} format={format} />
         ))}

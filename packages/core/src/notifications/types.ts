@@ -1,4 +1,5 @@
 import type { UiLanguage } from '../i18n.js';
+import type { InlineImage } from './brand.js';
 import type { ChannelConfig, NotificationChannelKind } from './catalog.js';
 import type { NotificationDigest } from './digest.js';
 import type { NotificationMessage } from './message.js';
@@ -95,6 +96,8 @@ export type SmtpEnvelope = {
   text: string;
   html: string;
   headers: Record<string, string>;
+  /** Images jointes, affichées dans le HTML par leur `cid` : la tuile Pupitre. */
+  inlineImages?: InlineImage[];
 };
 
 export type SmtpOptions = {

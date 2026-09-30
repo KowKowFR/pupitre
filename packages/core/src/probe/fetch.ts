@@ -1,5 +1,6 @@
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import type { TLSSocket } from 'node:tls';
 import type { Cidr } from '../monitors/ssrf.js';
 import { MONITOR_MAX_REDIRECTS, MONITOR_USER_AGENT } from '../monitors/state.js';
 import { SsrfBlockedError, messageOf, resolveUrlGuarded, type ResolvedTarget } from './net.js';
@@ -62,6 +63,12 @@ export type GuardedFetchInput = {
   requireHttps?: boolean;
 };
 
+/** Ce qu'on retient du certificat présenté par le dernier saut en https. */
+export type PeerCertificateSummary = {
+  /** Fin de validité, ISO 8601. */
+  validTo: string;
+};
+
 export type GuardedFetchSuccess = {
   ok: true;
   status: number;
@@ -73,6 +80,12 @@ export type GuardedFetchSuccess = {
   redirects: number;
   address: string;
   finalUrl: string;
+  /**
+   * Le certificat de la page finalement servie — `null` quand elle l'est en
+   * clair. Il a déjà été vérifié (`rejectUnauthorized`) : on n'en garde que la
+   * date de fin, pour voir venir une expiration avant qu'elle ne coupe le site.
+   */
+  certificate: PeerCertificateSummary | null;
 };
 
 export type GuardedFetchFailure = {
@@ -99,7 +112,21 @@ type HopResponse = {
   body: Buffer;
   truncated: boolean;
   headersAtMs: number;
+  certificate: PeerCertificateSummary | null;
 };
+
+/**
+ * Lit le certificat sur la socket de la réponse, tant qu'elle est ouverte.
+ * Une date illisible vaut « pas d'information » : la sonde n'invente rien.
+ */
+function certificateOf(socket: unknown): PeerCertificateSummary | null {
+  const tls = socket as Partial<TLSSocket> | null;
+  if (!tls || typeof tls.getPeerCertificate !== 'function') return null;
+  const validTo = tls.getPeerCertificate(false)?.valid_to;
+  if (!validTo) return null;
+  const date = new Date(validTo);
+  return Number.isNaN(date.getTime()) ? null : { validTo: date.toISOString() };
+}
 
 function requestOnce(input: {
   url: URL;
@@ -160,11 +187,20 @@ function requestOnce(input: {
       const headersAtMs = Math.round(performance.now() - started);
       const status = response.statusCode ?? 0;
       const headers = response.headers;
+      // À lire maintenant : une fois le corps consommé, la socket est fermée.
+      const certificate = secure ? certificateOf(response.socket) : null;
 
       if (!input.readBody) {
         response.resume();
         finish(() =>
-          resolve({ status, headers, body: Buffer.alloc(0), truncated: false, headersAtMs }),
+          resolve({
+            status,
+            headers,
+            body: Buffer.alloc(0),
+            truncated: false,
+            headersAtMs,
+            certificate,
+          }),
         );
         return;
       }
@@ -183,7 +219,14 @@ function requestOnce(input: {
           // laisser un flux sans fin nous occuper.
           response.destroy();
           finish(() =>
-            resolve({ status, headers, body: Buffer.concat(chunks), truncated: true, headersAtMs }),
+            resolve({
+              status,
+              headers,
+              body: Buffer.concat(chunks),
+              truncated: true,
+              headersAtMs,
+              certificate,
+            }),
           );
           return;
         }
@@ -193,7 +236,14 @@ function requestOnce(input: {
 
       response.on('end', () => {
         finish(() =>
-          resolve({ status, headers, body: Buffer.concat(chunks), truncated, headersAtMs }),
+          resolve({
+            status,
+            headers,
+            body: Buffer.concat(chunks),
+            truncated,
+            headersAtMs,
+            certificate,
+          }),
         );
       });
 
@@ -309,8 +359,26 @@ export async function guardedFetch(input: GuardedFetchInput): Promise<GuardedFet
       redirects,
       address: target.address,
       finalUrl: current,
+      certificate: hop.certificate,
     };
   }
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/**
+ * Les mesures de certificat d'une sonde HTTP : jours restants et date de fin.
+ * Vide quand la page est servie en clair. Informatif seulement : c'est la
+ * sonde « Certificat TLS » qui porte le préavis et en fait un incident.
+ */
+export function certificateMetrics(
+  certificate: PeerCertificateSummary | null,
+  now: number = Date.now(),
+): { certDaysRemaining?: number; certValidTo?: string } {
+  if (!certificate) return {};
+  // Arrondi vers le bas, comme la sonde TLS : « 0 jour » le jour de l'expiration.
+  const days = Math.floor((Date.parse(certificate.validTo) - now) / MS_PER_DAY);
+  return { certDaysRemaining: days, certValidTo: certificate.validTo };
 }
 
 /**

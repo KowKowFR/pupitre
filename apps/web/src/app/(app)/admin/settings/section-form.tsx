@@ -43,23 +43,16 @@ export function SectionForm({
       }}
     >
       {patch.error ? <Alert variant="destructive">{patch.error}</Alert> : null}
-      {patch.notice ? <Alert variant="success">{patch.notice}</Alert> : null}
 
       {children}
 
       {canManage ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" type="submit" disabled={patch.pending}>
+        <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-4">
+          <Button type="submit" loading={patch.pending}>
             {patch.pending ? t('saving') : t('save')}
           </Button>
-          <Button
-            size="sm"
-            type="button"
-            variant="ghost"
-            disabled={patch.pending}
-            onClick={onReset}
-          >
-            {t('cancel')}
+          <Button type="button" variant="ghost" disabled={patch.pending} onClick={onReset}>
+            {t('reset')}
           </Button>
         </div>
       ) : null}

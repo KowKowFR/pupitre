@@ -24,7 +24,6 @@ import type { Translated } from '@pupitre/core';
 const fr = {
   // ── Coquille ────────────────────────────────────────────────────────────
   'shell.eyebrow': 'Premiers pas',
-  'page.eyebrow': 'Prise en main',
   'page.title': 'Assistant de démarrage',
   'page.description':
     "Ce qu'il faut poser une fois pour que ce panel serve à quelque chose : le nommer, lui donner une machine, décider qui y accède. Le parcours n'affiche que les étapes que vos permissions autorisent, et chacune appelle exactement la même API que l'écran correspondant — rien de ce que vous faites ici n'est un raccourci, ni ne sera à refaire.",
@@ -39,11 +38,6 @@ const fr = {
   'notApplicable.back': 'Retour au tableau de bord',
 
   // ── Bandeau de reprise ──────────────────────────────────────────────────
-  // Le titre de l'étape est mis en avant juste après ces deux-points ; le
-  // point final suit la mise en avant, dans le JSX.
-  'banner.next': 'Prise en main en cours — prochaine étape :',
-  'banner.count': { one: '{done}/{count} étape', other: '{done}/{count} étapes' },
-  'banner.resume': 'Reprendre',
 
   // ── Verbes de l'assistant ───────────────────────────────────────────────
   'action.later': 'Plus tard',
@@ -60,10 +54,11 @@ const fr = {
   'outcome.skipped': 'passée',
   'outcome.todo': 'à faire',
   'stepper.label': 'Étapes',
+  'stepper.current': 'en cours',
+  'progress.label': '{done} étapes faites sur {total}',
 
   // Le « : » et l'espace finale appartiennent à la phrase : le prix suit.
   'cost.inlineLead': 'Si vous la passez : ',
-  'cost.alertTitle': 'Si vous passez cette étape',
 
   // ── Les sept étapes ─────────────────────────────────────────────────────
   'step.welcome.title': 'Bienvenue',
@@ -144,7 +139,8 @@ const fr = {
   },
   'target.haveOne': "J'en ai déjà une",
   'target.submit': 'Déclarer et tester',
-  'target.noPreflight': '« {name} » déclarée. Preflight non lancé : permission target:update requise.',
+  'target.noPreflight':
+    '« {name} » déclarée. Preflight non lancé : permission target:update requise.',
   'target.running': '« {name} » déclarée — preflight en cours…',
   'target.tested': '« {name} » déclarée et testée.',
 
@@ -187,7 +183,7 @@ const fr = {
     'Plus aucune image ne sera analysée. Les vulnérabilités connues des dépendances de vos applications passeront sans être signalées.',
   'security.ai.label': "Autoriser la génération d'AppSpec par IA",
   'security.ai.help':
-    "Le modèle ne produit jamais de shell : il rend du JSON, validé par Zod avant que quoi que ce soit ne soit exécuté.",
+    'Le modèle ne produit jamais de shell : il rend du JSON, validé par Zod avant que quoi que ce soit ne soit exécuté.',
   'security.apiKey.label': "Clé d'API du modèle",
   'security.apiKey.placeholder.stored': 'Clé déjà enregistrée, laisser vide pour la conserver',
   'security.apiKey.placeholder.storedLast4':
@@ -244,7 +240,6 @@ const fr = {
 
 const en: Translated<typeof fr> = {
   'shell.eyebrow': 'First steps',
-  'page.eyebrow': 'Getting started',
   'page.title': 'Setup guide',
   'page.description':
     'What has to be set once for this panel to be good for anything: name it, give it a machine, decide who gets in. The guide shows only the steps your permissions allow, and each one calls the same API as its own screen — nothing you do here is a shortcut, and nothing will have to be done twice.',
@@ -257,9 +252,6 @@ const en: Translated<typeof fr> = {
     'Declaring a target, creating a role or an account, setting up the instance: each of these needs a permission your role does not carry. A step that would end in a 403 is worse than a step that is missing.',
   'notApplicable.back': 'Back to the dashboard',
 
-  'banner.next': 'Setup in progress — next step:',
-  'banner.count': { one: '{done}/{count} step', other: '{done}/{count} steps' },
-  'banner.resume': 'Resume',
 
   'action.later': 'Later',
   'action.start': 'Start',
@@ -274,9 +266,10 @@ const en: Translated<typeof fr> = {
   'outcome.skipped': 'skipped',
   'outcome.todo': 'to do',
   'stepper.label': 'Steps',
+  'stepper.current': 'in progress',
+  'progress.label': '{done} of {total} steps done',
 
   'cost.inlineLead': 'If you skip it: ',
-  'cost.alertTitle': 'If you skip this step',
 
   'step.welcome.title': 'Welcome',
   'step.welcome.summary': 'What this panel does, and what it does not.',
@@ -388,8 +381,7 @@ const en: Translated<typeof fr> = {
     'The model never produces shell: it returns JSON, validated by Zod before anything runs.',
   'security.apiKey.label': 'Model API key',
   'security.apiKey.placeholder.stored': 'Key already saved, leave empty to keep it',
-  'security.apiKey.placeholder.storedLast4':
-    'Key already saved — …{last4}, leave empty to keep it',
+  'security.apiKey.placeholder.storedLast4': 'Key already saved — …{last4}, leave empty to keep it',
   'security.apiKey.placeholder.none': 'Leave empty to set none',
   'security.apiKey.help.before': 'Encrypted with AES-256-GCM under',
   'security.apiKey.help.after':

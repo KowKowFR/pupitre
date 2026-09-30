@@ -1,30 +1,34 @@
 'use client';
 
+import {
+  CalendarClock,
+  Clock,
+  Code as CodeIcon,
+  Gauge,
+  Globe,
+  Lightbulb,
+  MousePointerClick,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { SCHEDULED_JOB_TYPES_LIST, scheduledJobTypes } from '@pupitre/core/schedule';
 import type { Translate as CoreTranslate } from '@pupitre/core';
 import * as React from 'react';
-import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogBody,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  HelpBlock,
+  HelpCallout,
+  HelpCode as Code,
+  HelpDrawer,
+  HelpSection,
+  HelpTable,
+} from '@/components/help-drawer';
 import { useLanguage, useT } from '@/i18n/client';
-import { common } from '@/i18n/messages/common';
 import { jobs as messages } from '@/i18n/messages/jobs';
-import { cn } from '@/lib/utils';
 
 /**
  * Aide sur les tâches planifiées — contenu statique, aucune donnée serveur.
  *
- * Même parti pris que `components/appspec-help.tsx` : le composant `ui/dialog`
- * reste neutre, tout ce qui parle d'ordonnancement vit ici. Chaque phrase suit
+ * Un tiroir du kit d'aide (`components/help-drawer.tsx`) ; tout ce qui parle
+ * d'ordonnancement vit ici. Chaque phrase suit
  * `apps/worker/src/schedule/runners.ts` et `apps/worker/src/handlers/scheduled.ts`
  * — ce qui est décrit est ce que le code fait, pas ce qu'on aimerait qu'il fasse.
  */
@@ -37,31 +41,6 @@ type Props = {
 };
 
 type Translate = CoreTranslate<(typeof messages)['fr']>;
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-2">
-      <h3 className="text-foreground text-sm font-semibold">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Code({ children }: { children: React.ReactNode }) {
-  return (
-    <code className="bg-muted text-foreground rounded px-1 py-0.5 font-mono text-[0.8em]">
-      {children}
-    </code>
-  );
-}
-
-function ScrollableTable({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full min-w-[34rem] border-collapse text-left text-xs">{children}</table>
-    </div>
-  );
-}
 
 /**
  * Ce que fait *réellement* chaque type, lu dans les runners du worker.
@@ -162,227 +141,165 @@ function whatTheyDo(
   };
 }
 
-export function JobsHelpDialog({ label, className, defaultTimeZone }: Props) {
+export function JobsHelp({ label, className, defaultTimeZone }: Props) {
   const t = useT(messages);
-  const tc = useT(common);
   const language = useLanguage();
   const definitions = scheduledJobTypes(language);
   const detail = whatTheyDo(t);
+  const strong = (text: string) => <strong className="font-medium text-text">{text}</strong>;
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 rounded-sm text-xs underline underline-offset-4 outline-none focus-visible:ring-[3px]',
-            className,
-          )}
-        >
-          {label ?? t('help.trigger')}
-        </button>
-      </DialogTrigger>
+    <HelpDrawer
+      triggerLabel={label ?? t('help.trigger')}
+      title={t('help.title')}
+      description={t('help.subtitle')}
+      className={className}
+    >
+      <HelpSection icon={Lightbulb} title={t('help.idea.title')}>
+        <p>{t('help.idea.p1')}</p>
+        <HelpCallout tone="accent">
+          {t('help.idea.p2.a')}
+          {strong(t('help.idea.p2.strong'))}
+          {t('help.idea.p2.b')}
+        </HelpCallout>
+      </HelpSection>
 
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{t('help.title')}</DialogTitle>
-          <DialogDescription>{t('help.subtitle')}</DialogDescription>
-        </DialogHeader>
+      <HelpSection icon={CalendarClock} title={t('help.types.title')}>
+        <HelpTable
+          columns={[
+            { key: 'type', label: t('help.types.column.type') },
+            { key: 'what', label: t('help.types.column.what') },
+            { key: 'payload', label: t('help.types.column.payload') },
+          ]}
+          rows={SCHEDULED_JOB_TYPES_LIST.map((type) => {
+            const definition = definitions[type];
+            const rows = detail[type];
+            return {
+              key: type,
+              cells: [
+                <div key="type" className="flex flex-col gap-1">
+                  <span className="whitespace-nowrap">{definition.label}</span>
+                  <code className="mono text-[11px] font-normal text-text-3">
+                    {definition.jobName}
+                  </code>
+                  <span className="text-[11.5px] font-normal text-text-3">
+                    {t('help.types.default')}
+                    <Code>{definition.defaultCron}</Code>
+                  </span>
+                </div>,
+                <div key="what" className="flex flex-col gap-1.5">
+                  <span>{rows.steps}</span>
+                  <span className="rounded-md border border-warn-line bg-warn-soft px-2 py-1 text-[11.5px] text-warn-text">
+                    {definition.neverDoes}
+                  </span>
+                </div>,
+                rows.payload,
+              ],
+            };
+          })}
+        />
+      </HelpSection>
 
-        <DialogBody className="space-y-6 text-sm">
-          <Section title={t('help.idea.title')}>
-            <p className="text-muted-foreground">{t('help.idea.p1')}</p>
-            <p className="text-muted-foreground">
-              {t('help.idea.p2.a')}
-              <strong className="text-foreground font-medium">{t('help.idea.p2.strong')}</strong>
-              {t('help.idea.p2.b')}
-            </p>
-          </Section>
+      <HelpSection icon={Clock} title={t('help.when.title')}>
+        <p>
+          {t('help.when.a')}
+          {strong(t('help.when.bullmq'))}
+          {t('help.when.b')}
+          <em>{t('help.when.scheduler')}</em>
+          {t('help.when.c')}
+          <em>{t('help.when.state')}</em>
+          {t('help.when.d')}
+        </p>
+      </HelpSection>
 
-          <Section title={t('help.types.title')}>
-            <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t('help.types.column.type')}</th>
-                  <th className="px-3 py-2 font-medium">{t('help.types.column.what')}</th>
-                  <th className="px-3 py-2 font-medium">{t('help.types.column.payload')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {SCHEDULED_JOB_TYPES_LIST.map((type) => {
-                  const definition = definitions[type];
-                  const rows = detail[type];
-                  return (
-                    <tr key={type} className="border-t align-top">
-                      <td className="px-3 py-2">
-                        <div className="text-foreground font-medium whitespace-nowrap">
-                          {definition.label}
-                        </div>
-                        <code className="text-muted-foreground font-mono text-[0.7rem]">
-                          {definition.jobName}
-                        </code>
-                        <div className="text-muted-foreground mt-1 text-[0.7rem]">
-                          {t('help.types.default')}
-                          <Code>{definition.defaultCron}</Code>
-                        </div>
-                      </td>
-                      <td className="text-muted-foreground px-3 py-2">
-                        {rows.steps}
-                        <div className="text-foreground/80 mt-1.5 text-[0.7rem]">
-                          {definition.neverDoes}
-                        </div>
-                      </td>
-                      <td className="text-muted-foreground px-3 py-2">{rows.payload}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </ScrollableTable>
-          </Section>
+      <HelpSection icon={Globe} title={t('help.zone.title')}>
+        <p>
+          {strong(t('help.zone.p1.strong'))}
+          {t('help.zone.p1.a')}
+          <Code>{'{ pattern, tz }'}</Code>
+          {t('help.zone.p1.b')}
+          <Code>Europe/Paris</Code>
+          {t('help.zone.p1.c')}
+        </p>
+        <HelpCallout tone="ok">
+          {t('help.zone.p2.a')}
+          <Code>{defaultTimeZone}</Code>
+          {t('help.zone.p2.b')}
+        </HelpCallout>
+        <HelpCallout tone="warn">
+          <strong className="font-medium text-text">
+            {t('help.zone.legacy.a')}
+            <Code>UTC</Code>
+          </strong>
+          {t('help.zone.legacy.b', { zone: defaultTimeZone })}
+          <Code>tz</Code>
+          {t('help.zone.legacy.c')}
+        </HelpCallout>
+      </HelpSection>
 
-          <Section title={t('help.when.title')}>
-            <p className="text-muted-foreground">
-              {t('help.when.a')}
-              <strong className="text-foreground font-medium">{t('help.when.bullmq')}</strong>
-              {t('help.when.b')}
-              <em>{t('help.when.scheduler')}</em>
-              {t('help.when.c')}
-              <em>{t('help.when.state')}</em>
-              {t('help.when.d')}
-            </p>
-          </Section>
+      <HelpSection icon={SlidersHorizontal} title={t('help.modes.title')}>
+        <p>{t('help.modes.p1')}</p>
+        <p>
+          {t('help.modes.p2.a')}
+          <Code>*/7 2-5 * * 1,3</Code>
+          {t('help.modes.p2.b')}
+        </p>
+      </HelpSection>
 
-          <Section title={t('help.zone.title')}>
-            <p className="text-muted-foreground">
-              <strong className="text-foreground font-medium">{t('help.zone.p1.strong')}</strong>
-              {t('help.zone.p1.a')}
-              <Code>{'{ pattern, tz }'}</Code>
-              {t('help.zone.p1.b')}
-              <Code>Europe/Paris</Code>
-              {t('help.zone.p1.c')}
-            </p>
-            <p className="text-muted-foreground">
-              {t('help.zone.p2.a')}
-              <Code>{defaultTimeZone}</Code>
-              {t('help.zone.p2.b')}
-            </p>
-            <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">
-                <strong className="text-foreground font-medium">
-                  {t('help.zone.legacy.a')}
-                  <Code>UTC</Code>
-                </strong>
-                {t('help.zone.legacy.b', { zone: defaultTimeZone })}
-                <Code>tz</Code>
-                {t('help.zone.legacy.c')}
-              </p>
-            </div>
-          </Section>
+      <HelpSection icon={MousePointerClick} title={t('help.actions.title')}>
+        <HelpCallout tone="accent" title={t('help.actions.run')}>
+          {t('help.actions.run.a')}
+          <Code>{t('help.actions.run.manual')}</Code>
+          {t('help.actions.run.b')}
+        </HelpCallout>
+        <HelpCallout tone="warn" title={t('help.actions.disable')}>
+          {t('help.actions.disable.text')}
+        </HelpCallout>
+        <HelpCallout tone="danger" title={t('help.actions.delete')}>
+          {t('help.actions.delete.text')}
+        </HelpCallout>
+      </HelpSection>
 
-          <Section title={t('help.modes.title')}>
-            <p className="text-muted-foreground">{t('help.modes.p1')}</p>
-            <p className="text-muted-foreground">
-              {t('help.modes.p2.a')}
-              <Code>*/7 2-5 * * 1,3</Code>
-              {t('help.modes.p2.b')}
-            </p>
-          </Section>
+      <HelpSection icon={Gauge} title={t('help.cadence.title')}>
+        <HelpTable
+          columns={[
+            { key: 'job', label: t('help.cadence.column.job'), nowrap: true },
+            { key: 'value', label: t('help.cadence.column.value'), tone: 'accent' },
+            { key: 'why', label: t('help.cadence.column.why') },
+          ]}
+          rows={[
+            {
+              key: 'healthcheck',
+              cells: [
+                t('help.cadence.healthcheck.job'),
+                t('help.cadence.healthcheck.value'),
+                <React.Fragment key="why">
+                  {t('help.cadence.healthcheck.why.a')}
+                  <Code>MaxStartups</Code>
+                  {t('help.cadence.healthcheck.why.b')}
+                </React.Fragment>,
+              ],
+            },
+            ...(['scan', 'cleanup', 'preflight'] as const).map((job) => ({
+              key: job,
+              cells: [
+                t(`help.cadence.${job}.job`),
+                t(`help.cadence.${job}.value`),
+                t(`help.cadence.${job}.why`),
+              ],
+            })),
+          ]}
+        />
+      </HelpSection>
 
-          <Section title={t('help.actions.title')}>
-            <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
-              <li>
-                <strong className="text-foreground font-medium">{t('help.actions.run')}</strong>
-                {t('help.actions.run.a')}
-                <Code>{t('help.actions.run.manual')}</Code>
-                {t('help.actions.run.b')}
-              </li>
-              <li>
-                <strong className="text-foreground font-medium">
-                  {t('help.actions.disable')}
-                </strong>
-                {t('help.actions.disable.text')}
-              </li>
-              <li>
-                <strong className="text-foreground font-medium">{t('help.actions.delete')}</strong>
-                {t('help.actions.delete.text')}
-              </li>
-            </ul>
-          </Section>
-
-          <Section title={t('help.cadence.title')}>
-            <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t('help.cadence.column.job')}</th>
-                  <th className="px-3 py-2 font-medium">{t('help.cadence.column.value')}</th>
-                  <th className="px-3 py-2 font-medium">{t('help.cadence.column.why')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t align-top">
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {t('help.cadence.healthcheck.job')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.healthcheck.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.healthcheck.why.a')}
-                    <Code>MaxStartups</Code>
-                    {t('help.cadence.healthcheck.why.b')}
-                  </td>
-                </tr>
-                <tr className="border-t align-top">
-                  <td className="px-3 py-2 whitespace-nowrap">{t('help.cadence.scan.job')}</td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.scan.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">{t('help.cadence.scan.why')}</td>
-                </tr>
-                <tr className="border-t align-top">
-                  <td className="px-3 py-2 whitespace-nowrap">{t('help.cadence.cleanup.job')}</td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.cleanup.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.cleanup.why')}
-                  </td>
-                </tr>
-                <tr className="border-t align-top">
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {t('help.cadence.preflight.job')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.preflight.value')}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2">
-                    {t('help.cadence.preflight.why')}
-                  </td>
-                </tr>
-              </tbody>
-            </ScrollableTable>
-          </Section>
-
-          <Section title={t('help.syntax.title')}>
-            <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed">
-              <code>{t('help.cheatsheet')}</code>
-            </pre>
-            <p className="text-muted-foreground text-xs">
-              {t('help.syntax.note.a')}
-              <em>{t('help.syntax.note.before')}</em>
-              {t('help.syntax.note.b')}
-            </p>
-          </Section>
-        </DialogBody>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" type="button">
-              {tc('close')}
-            </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <HelpSection icon={CodeIcon} title={t('help.syntax.title')}>
+        <HelpBlock>{t('help.cheatsheet')}</HelpBlock>
+        <HelpCallout tone="neutral">
+          {t('help.syntax.note.a')}
+          <em>{t('help.syntax.note.before')}</em>
+          {t('help.syntax.note.b')}
+        </HelpCallout>
+      </HelpSection>
+    </HelpDrawer>
   );
 }

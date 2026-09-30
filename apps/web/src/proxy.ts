@@ -42,6 +42,12 @@ function matches(pathname: string, pages: readonly string[]): boolean {
   return pages.some((page) => pathname === page || pathname.startsWith(`${page}/`));
 }
 
+/**
+ * En-tête de requête posé par le proxy : le chemin et la requête d'origine.
+ * Toujours réécrit ici — une valeur envoyée par le client ne passe pas.
+ */
+const REQUESTED_PATH_HEADER = 'x-pupitre-path';
+
 export default function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasSessionCookie = getSessionCookie(request) !== null;
@@ -56,7 +62,12 @@ export default function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  return NextResponse.next();
+  // Le chemin demandé, transmis aux layouts : ils ne le connaissent pas, et
+  // c'est eux qui renvoient vers la connexion quand le cookie est périmé. Sans
+  // lui, on reviendrait à la vue d'ensemble au lieu de la page demandée.
+  const forwarded = new Headers(request.headers);
+  forwarded.set(REQUESTED_PATH_HEADER, `${pathname}${search}`);
+  return NextResponse.next({ request: { headers: forwarded } });
 }
 
 export const config = {

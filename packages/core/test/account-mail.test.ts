@@ -29,6 +29,20 @@ function mail(overrides: Partial<AccountMail> = {}): AccountMail {
 }
 
 describe('e-mails de cycle de vie des comptes', () => {
+  it('joint la tuile Pupitre et la cite par cid:, sans aucune image distante', () => {
+    for (const kind of ['invitation', 'password_reset'] as const) {
+      const { html, inlineImages } = renderAccountMail(mail({ kind }), 'fr');
+      assert.equal(inlineImages.length, 1);
+      const [mark] = inlineImages;
+      assert.equal(mark!.contentType, 'image/png');
+      // Les huit octets de signature d'un PNG : l'image jointe en est bien une.
+      const bytes = Buffer.from(mark!.content, 'base64');
+      assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+      assert.ok(html.includes(`src="cid:${mark!.cid}"`), `tuile absente du HTML pour ${kind}`);
+      assert.ok(!/<img[^>]+src="https?:/.test(html), 'une image distante a été glissée');
+    }
+  });
+
   it('rend toujours deux parties, et la partie texte ne porte aucune balise', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
       const { subject, text, html } = renderAccountMail(mail({ kind }), 'fr');

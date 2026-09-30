@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { LOCALE_LABELS, type AppSettings, type DateStyleName, type SupportedLocale } from '@pupitre/core';
+import {
+  LOCALE_LABELS,
+  type AppSettings,
+  type DateStyleName,
+  type SupportedLocale,
+} from '@pupitre/core';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';
@@ -80,8 +85,8 @@ export function RegionalForm({
       onReset={reset}
       onSubmit={() => void patch.save({ timezone, locale, dateStyle, timeStyle })}
     >
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="field">
           <Label htmlFor="timezone">{t('regional.timezone.label')}</Label>
           <Select
             id="timezone"
@@ -95,9 +100,9 @@ export function RegionalForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-faint">{t('regional.timezone.help')}</p>
+          <p className="help">{t('regional.timezone.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="locale">{t('regional.locale.label')}</Label>
           <Select
             id="locale"
@@ -111,9 +116,9 @@ export function RegionalForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-faint">{t('regional.locale.help')}</p>
+          <p className="help">{t('regional.locale.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="dateStyle">{t('regional.dateStyle.label')}</Label>
           <Select
             id="dateStyle"
@@ -128,7 +133,7 @@ export function RegionalForm({
             ))}
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="timeStyle">{t('regional.timeStyle.label')}</Label>
           <Select
             id="timeStyle"
@@ -145,10 +150,10 @@ export function RegionalForm({
         </div>
       </div>
 
-      <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-        <div className="eyebrow text-ink-faint">{t('regional.preview.title')}</div>
-        <div className="mt-1 font-mono text-sm text-ink tabular-nums">{preview}</div>
-        <div className="mt-1 text-xs text-ink-faint">{t('regional.preview.help')}</div>
+      <div className="well">
+        <div className="t-cap font-medium text-text-3">{t('regional.preview.title')}</div>
+        <div className="mt-1 mono text-sm text-text tabular-nums">{preview}</div>
+        <div className="help mt-1">{t('regional.preview.help')}</div>
       </div>
     </SectionForm>
   );

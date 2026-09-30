@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 import { SCANNER_KEYS, failOnLabel, scannerLabel } from '@pupitre/core';
 import { getAiApiKey, getAppSettings, listNotificationChannels } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { KeyValue } from '@/components/ui/data';
 import { currentLanguage, getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { formatDateTime, formatSettingsOf } from '@/lib/format';
@@ -61,11 +60,18 @@ export default async function SettingsOverviewPage() {
       },
     ],
     '/admin/settings/regionalisation': [
-      { term: t('overview.term.timezone'), value: settings.timezone },
+      {
+        term: t('overview.term.timezone'),
+        value: <span className="mono">{settings.timezone}</span>,
+      },
       { term: t('overview.term.locale'), value: settings.locale },
       {
         term: t('overview.term.rendering'),
-        value: formatDateTime(PREVIEW_INSTANT, formatSettingsOf(settings)),
+        value: (
+          <span className="mono">
+            {formatDateTime(PREVIEW_INSTANT, formatSettingsOf(settings))}
+          </span>
+        ),
       },
     ],
     '/admin/settings/securite': [
@@ -99,12 +105,18 @@ export default async function SettingsOverviewPage() {
       },
       {
         term: t('overview.term.failing'),
-        value: String(channels.filter((channel) => channel.consecutiveFailures > 0).length),
+        value: (() => {
+          const failing = channels.filter((channel) => channel.consecutiveFailures > 0).length;
+          return failing > 0 ? <span className="text-danger-text">{failing}</span> : '0';
+        })(),
       },
     ],
     '/admin/settings/ia': [
       { term: t('overview.term.provider'), value: settings.ai.provider },
-      { term: t('overview.term.model'), value: settings.ai.model },
+      {
+        term: t('overview.term.model'),
+        value: <span className="mono">{settings.ai.model}</span>,
+      },
       {
         term: t('overview.term.apiKey'),
         value: record.aiApiKeyConfigured
@@ -123,12 +135,12 @@ export default async function SettingsOverviewPage() {
 
   const badges: Record<string, ReactNode> = {
     '/admin/settings/securite': (
-      <Badge variant={settings.security.scanningEnabled ? 'ok' : 'destructive'}>
+      <Badge variant={settings.security.scanningEnabled ? 'ok' : 'danger'} dot>
         {settings.security.scanningEnabled ? t('security.badge.on') : t('security.badge.off')}
       </Badge>
     ),
     '/admin/settings/notifications': (
-      <Badge variant={activeChannels.length > 0 ? 'ok' : 'secondary'}>
+      <Badge variant={activeChannels.length > 0 ? 'ok' : 'idle'} dot>
         {activeChannels.length > 0
           ? t('overview.badge.channelsOn')
           : t('overview.badge.channelsOff')}
@@ -138,44 +150,45 @@ export default async function SettingsOverviewPage() {
   };
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       {SETTINGS_SECTIONS.map((section) => {
         const Icon = section.icon;
         return (
-          <Card key={section.href} className="gap-4">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span aria-hidden className="text-ink-faint">
-                  <Icon className="size-4" />
-                </span>
-                {t(`section.${section.id}.title`)}
-                {badges[section.href] ?? null}
-              </CardTitle>
-              <CardDescription>{t(`section.${section.id}.governs`)}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <dl className="grid gap-x-6 gap-y-1.5 text-[0.8125rem]">
-                {(readouts[section.href] ?? []).map((row) => (
-                  <div
-                    key={row.term}
-                    className="flex justify-between gap-3 border-b border-line pb-1.5"
-                  >
-                    <dt className="shrink-0 text-ink-muted">{row.term}</dt>
-                    <dd className="min-w-0 truncate text-right font-mono text-ink">{row.value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <Link
-                href={section.href}
-                className="inline-flex w-fit items-center gap-1.5 rounded-md text-[0.8125rem] font-medium text-signal underline-offset-4 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          <section key={section.href} className="card flex flex-col overflow-hidden">
+            <div className="card-h">
+              <span
+                aria-hidden
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-2"
               >
+                <Icon className="size-4" />
+              </span>
+              <div className="flex min-w-0 flex-col">
+                <span className="flex flex-wrap items-center gap-2">
+                  <h2>{t(`section.${section.id}.title`)}</h2>
+                  {badges[section.href] ?? null}
+                </span>
+                <span className="sub" title={t(`section.${section.id}.governs`)}>
+                  {t(`section.${section.id}.short`)}
+                </span>
+              </div>
+            </div>
+            <div className="card-b flex-1 !py-1">
+              <KeyValue
+                items={(readouts[section.href] ?? []).map((row) => ({
+                  key: row.term,
+                  term: row.term,
+                  value: row.value,
+                }))}
+              />
+            </div>
+            <div className="card-f">
+              <Link href={section.href} className="link t-cap">
                 {t('overview.open', {
                   label: t(`section.${section.id}.label`).toLowerCase(),
                 })}
-                <ArrowRight aria-hidden className="size-3.5" />
               </Link>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         );
       })}
     </div>

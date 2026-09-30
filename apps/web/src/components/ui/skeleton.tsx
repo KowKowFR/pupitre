@@ -1,17 +1,24 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Gabarit d'attente. Un balayage lent plutôt qu'un clignotement : on doit
- * pouvoir le regarder plusieurs secondes sans fatigue, et il s'immobilise sous
- * `prefers-reduced-motion`.
+ * Gabarit d'attente, à la silhouette exacte de ce qu'il remplace. Un reflet
+ * lent le traverse ; il disparaît sous `prefers-reduced-motion`, le gabarit
+ * reste.
  */
-export function Skeleton({ className }: { className?: string }) {
+export function Skeleton({
+  className,
+  variant = 'block',
+}: {
+  className?: string;
+  variant?: 'block' | 'text' | 'circle';
+}) {
   return (
     <div
       aria-hidden
       className={cn(
-        'animate-signal-sweep rounded-sm bg-surface-2',
-        'bg-[linear-gradient(90deg,var(--surface-2)_0%,var(--surface-3)_50%,var(--surface-2)_100%)]',
+        'sk',
+        variant === 'text' && 'sk-t',
+        variant === 'circle' && 'sk-circle',
         className,
       )}
     />

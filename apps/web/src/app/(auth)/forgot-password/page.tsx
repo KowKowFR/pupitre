@@ -4,7 +4,8 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { getT } from '@/i18n/server';
 import { canSendAccountMail } from '@/lib/account-mail';
 import { Alert } from '@/components/ui/alert';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { AuthCard } from '../auth-card';
 import { ForgotPasswordForm } from './forgot-password-form';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,25 +30,18 @@ export default async function ForgotPasswordPage() {
     const t = await getT(messages);
 
     return (
-      <Card className="shadow-raised">
-        <CardHeader>
-          <CardTitle className="text-lg">{t('forgot.unavailable.title')}</CardTitle>
-          <CardDescription>{t('forgot.unavailable.description')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert variant="info">
-            {t('forgot.unavailable.hint.before')}{' '}
-            <span className="font-medium">{t('forgot.unavailable.hint.path')}</span>{' '}
-            {t('forgot.unavailable.hint.after')}
-          </Alert>
-          <Link
-            href="/login"
-            className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-          >
-            {t('link.backToLogin')}
-          </Link>
-        </CardContent>
-      </Card>
+      <AuthCard
+        title={t('forgot.unavailable.title')}
+        description={t('forgot.unavailable.description')}
+      >
+        <Alert variant="warn">
+          {t('forgot.unavailable.hint.before')} <strong>{t('forgot.unavailable.hint.path')}</strong>{' '}
+          {t('forgot.unavailable.hint.after')}
+        </Alert>
+        <Button asChild variant="secondary" className="btn-block">
+          <Link href="/login">{t('link.backToLogin')}</Link>
+        </Button>
+      </AuthCard>
     );
   }
 

@@ -25,6 +25,17 @@ export const deployments = pgTable(
   'deployments',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    /**
+     * Numéro de run, global à l'instance : `#129` désigne un seul run, quelle
+     * que soit l'application. C'est lui qu'on se dit à voix haute et qu'on
+     * tape dans une recherche.
+     *
+     * À ne pas confondre avec `version`, qui compte les déploiements **d'une**
+     * application et sert de repère au rollback. Une séquence Postgres et non
+     * un `max() + 1` : deux déploiements lancés au même instant ne peuvent pas
+     * recevoir le même numéro. Un numéro purgé n'est jamais réattribué.
+     */
+    number: integer('number').notNull().generatedByDefaultAsIdentity(),
     applicationId: uuid('application_id')
       .notNull()
       .references(() => applications.id, { onDelete: 'cascade' }),
@@ -109,6 +120,7 @@ export const deployments = pgTable(
     index('deployments_target_id_idx').on(t.targetId),
     index('deployments_status_idx').on(t.status),
     uniqueIndex('deployments_application_version_idx').on(t.applicationId, t.version),
+    uniqueIndex('deployments_number_idx').on(t.number),
   ],
 );
 

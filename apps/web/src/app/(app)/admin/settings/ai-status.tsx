@@ -15,7 +15,7 @@ import { settings as messages } from '@/i18n/messages/settings';
  * l'onglet de génération, faute de clé. Deux écrans, deux réponses contraires à
  * la même question.
  *
- * Elle lit désormais exactement ce que lit `/applications/new`, par le même
+ * Elle lit désormais exactement ce que lit « Nouvelle application », par le même
  * appel. Trois états, parce qu'il y a trois situations distinctes à distinguer
  * et qu'un booléen n'en couvre que deux.
  */

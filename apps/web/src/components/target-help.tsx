@@ -1,110 +1,47 @@
 'use client';
 
-import * as React from 'react';
-import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogBody,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  ArrowLeftRight,
+  KeyRound,
+  ListChecks,
+  ListOrdered,
+  Network,
+  ShieldCheck,
+  Terminal,
+  TriangleAlert,
+} from 'lucide-react';
+import {
+  HelpBlock,
+  HelpCallout,
+  HelpDrawer,
+  HelpList,
+  HelpSection,
+  HelpSteps,
+  HelpTable,
+  rich,
+} from '@/components/help-drawer';
 import { useT } from '@/i18n/client';
-import { common } from '@/i18n/messages/common';
 import { targetHelp } from '@/i18n/messages/target-help';
-import { cn } from '@/lib/utils';
 
 /**
  * Aide sur les machines cibles — contenu statique, aucune donnée serveur.
  *
- * Même parti pris que `components/appspec-help.tsx` et `jobs/jobs-help.tsx` :
- * le composant `ui/dialog` reste neutre, tout ce qui parle de cible vit ici.
- * Chaque commande citée est celle des scripts du dépôt
- * (`scripts/setup-test-target.sh`, `scripts/test-target/`), et chaque contrôle
- * décrit est celui de `packages/core/src/ssh/preflight.ts` — dans son ordre
- * d'exécution réel. Les messages d'erreur sont recopiés depuis
+ * Un tiroir du kit d'aide (`components/help-drawer.tsx`) : il s'ouvre à côté
+ * du formulaire qu'il explique. Chaque commande citée est celle des scripts du
+ * dépôt (`scripts/setup-test-target.sh`, `scripts/test-target/`), et chaque
+ * contrôle décrit est celui de `packages/core/src/ssh/preflight.ts` — dans son
+ * ordre d'exécution réel. Les messages d'erreur sont recopiés depuis
  * `packages/core/src/ssh/{client,errors}.ts` et les `DriverError` des drivers.
  *
- * Le texte, lui, vit dans `i18n/messages/target-help.ts` : cent cinquante
- * phrases dont aucune ne s'affiche tant que la modale n'est pas ouverte. Ce
- * fichier n'en garde que la structure — les tableaux, l'ordre des sections —
- * et les deux blocs shell, qui sont du code à copier, pas de la prose.
+ * Le texte vit dans `i18n/messages/target-help.ts` ; ce fichier n'en garde que
+ * la structure, les teintes, et les deux blocs shell, qui sont du code à
+ * copier, pas de la prose.
  */
 
 type Props = {
   label?: string;
   className?: string;
 };
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-2">
-      <h3 className="text-foreground text-sm font-semibold">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Code({ children }: { children: React.ReactNode }) {
-  return (
-    <code className="bg-muted text-foreground rounded px-1 py-0.5 font-mono text-[0.8em]">
-      {children}
-    </code>
-  );
-}
-
-/**
- * Le balisage en ligne des messages, rendu.
- *
- * Une entrée de dictionnaire est une chaîne : elle ne peut pas porter de JSX.
- * Quatre marques suffisent pourtant à tout ce que cette aide met en forme —
- * `` `code` ``, `**gras**`, `__gras de tête__`, `*italique*` — et les rendre
- * ici évite de découper chaque phrase en cinq clés que le traducteur devrait
- * réassembler dans l'ordre de sa langue.
- *
- * Récursif, parce qu'un gras de tête contient parfois du code
- * (« L'anti-collision n'est pas un `if`. »). Le contenu d'un `` `…` `` ne l'est
- * pas : c'est du code, on ne le relit pas.
- */
-const INLINE = /(`[^`]+`|__[^_]+__|\*\*[^*]+\*\*|\*[^*]+\*)/;
-
-function rich(text: string): React.ReactNode {
-  return text.split(INLINE).map((part, index) => {
-    if (!part) return null;
-    if (part.startsWith('`')) return <Code key={index}>{part.slice(1, -1)}</Code>;
-    if (part.startsWith('__')) {
-      return (
-        <strong key={index} className="text-foreground font-medium">
-          {rich(part.slice(2, -2))}
-        </strong>
-      );
-    }
-    if (part.startsWith('**')) return <strong key={index}>{rich(part.slice(2, -2))}</strong>;
-    if (part.startsWith('*')) return <em key={index}>{rich(part.slice(1, -1))}</em>;
-    return part;
-  });
-}
-
-/** Un tableau large ne doit jamais élargir la modale : il défile chez lui. */
-function ScrollableTable({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full min-w-[34rem] border-collapse text-left text-xs">{children}</table>
-    </div>
-  );
-}
-
-function Shell({ children }: { children: string }) {
-  return (
-    <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs leading-relaxed">
-      <code>{children}</code>
-    </pre>
-  );
-}
 
 /** Ce que fait chaque côté. C'est la confusion la plus fréquente. */
 const ROLES = ['role', 'code', 'wire', 'reach', 'down'] as const;
@@ -122,7 +59,17 @@ const FIELDS = [
 ] as const;
 
 /** Dans l'ordre où `runPreflight()` les exécute. 15 s de délai par contrôle. */
-const CHECKS = ['ssh', 'os', 'sudo', 'tools', 'firewall', 'docker', 'k3s', 'disk', 'memory'] as const;
+const CHECKS = [
+  'ssh',
+  'os',
+  'sudo',
+  'tools',
+  'firewall',
+  'docker',
+  'k3s',
+  'disk',
+  'memory',
+] as const;
 
 const FAILURES = [
   'publickey',
@@ -153,197 +100,123 @@ const TUTORIAL = [
 /** Les puces de la section « plage de ports », dans l'ordre de lecture. */
 const PORT_NOTES = ['collision', 'blind', 'firewall', 'workerRange', 'narrow'] as const;
 
-export function TargetHelpDialog({ label, className }: Props) {
+export function TargetHelp({ label, className }: Props) {
   const t = useT(targetHelp);
-  const tc = useT(common);
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 rounded-sm text-xs underline underline-offset-4 outline-none focus-visible:ring-[3px]',
-            className,
-          )}
-        >
-          {label ?? t('trigger.label')}
-        </button>
-      </DialogTrigger>
+    <HelpDrawer
+      triggerLabel={label ?? t('trigger.label')}
+      title={t('dialog.title')}
+      description={t('dialog.description')}
+      className={className}
+    >
+      <HelpSection icon={ArrowLeftRight} title={t('roles.title')}>
+        <p>{t('roles.intro')}</p>
+        <HelpTable
+          columns={[
+            { key: 'topic', label: '' },
+            { key: 'panel', label: t('roles.column.panel'), tone: 'accent' },
+            { key: 'target', label: t('roles.column.target'), tone: 'ok' },
+          ]}
+          rows={ROLES.map((row) => ({
+            key: row,
+            cells: [
+              t(`role.${row}.topic`),
+              rich(t(`role.${row}.panel`)),
+              rich(t(`role.${row}.target`)),
+            ],
+          }))}
+        />
+        <HelpCallout tone="accent">{rich(t('roles.callout'))}</HelpCallout>
+      </HelpSection>
 
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{t('dialog.title')}</DialogTitle>
-          <DialogDescription>{t('dialog.description')}</DialogDescription>
-        </DialogHeader>
+      <HelpSection icon={Terminal} title={t('prepare.title')}>
+        <p>{rich(t('prepare.intro'))}</p>
+        <HelpBlock>{PREPARE_SCRIPT}</HelpBlock>
+        <HelpCallout tone="warn">{rich(t('prepare.traps'))}</HelpCallout>
+      </HelpSection>
 
-        <DialogBody className="space-y-6 text-sm">
-          <Section title={t('roles.title')}>
-            <p className="text-muted-foreground">{t('roles.intro')}</p>
-            <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium" />
-                  <th className="px-3 py-2 font-medium">{t('roles.column.panel')}</th>
-                  <th className="px-3 py-2 font-medium">{t('roles.column.target')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ROLES.map((row) => (
-                  <tr key={row} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 font-medium">
-                      {t(`role.${row}.topic`)}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`role.${row}.panel`))}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`role.${row}.target`))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ScrollableTable>
-            <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{rich(t('roles.callout'))}</p>
-            </div>
-          </Section>
+      <HelpSection icon={KeyRound} title={t('key.title')}>
+        <p>{rich(t('key.intro'))}</p>
+        <HelpBlock>{KEY_SCRIPT}</HelpBlock>
+        <p>{rich(t('key.paste'))}</p>
+        <HelpCallout tone="ok">{rich(t('key.crypto'))}</HelpCallout>
+      </HelpSection>
 
-          <Section title={t('prepare.title')}>
-            <p className="text-muted-foreground">{rich(t('prepare.intro'))}</p>
-            <Shell>{PREPARE_SCRIPT}</Shell>
-            <p className="text-muted-foreground text-xs">{rich(t('prepare.traps'))}</p>
-          </Section>
+      <HelpSection icon={ListChecks} title={t('fields.title')}>
+        <HelpTable
+          columns={[
+            { key: 'field', label: t('fields.column.field'), nowrap: true },
+            { key: 'role', label: t('fields.column.role') },
+            { key: 'wrong', label: t('fields.column.wrong'), tone: 'warn' },
+          ]}
+          rows={FIELDS.map((field) => ({
+            key: field,
+            cells: [
+              t(`field.${field}.name`),
+              rich(t(`field.${field}.role`)),
+              rich(t(`field.${field}.wrong`)),
+            ],
+          }))}
+        />
+      </HelpSection>
 
-          <Section title={t('key.title')}>
-            <p className="text-muted-foreground">{rich(t('key.intro'))}</p>
-            <Shell>{KEY_SCRIPT}</Shell>
-            <p className="text-muted-foreground">{rich(t('key.paste'))}</p>
-            <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{rich(t('key.crypto'))}</p>
-            </div>
-          </Section>
+      <HelpSection icon={Network} title={t('ports.title')}>
+        <p>{rich(t('ports.intro'))}</p>
+        <HelpList
+          items={PORT_NOTES.map((note) => ({ key: note, content: rich(t(`ports.${note}`)) }))}
+        />
+      </HelpSection>
 
-          <Section title={t('fields.title')}>
-            <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t('fields.column.field')}</th>
-                  <th className="px-3 py-2 font-medium">{t('fields.column.role')}</th>
-                  <th className="px-3 py-2 font-medium">{t('fields.column.wrong')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {FIELDS.map((field) => (
-                  <tr key={field} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 font-medium whitespace-nowrap">
-                      {t(`field.${field}.name`)}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`field.${field}.role`))}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`field.${field}.wrong`))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ScrollableTable>
-          </Section>
+      <HelpSection icon={ShieldCheck} tone="ok" title={t('checks.title')}>
+        <p>{rich(t('checks.intro'))}</p>
+        <HelpTable
+          columns={[
+            { key: 'check', label: t('checks.column.check'), nowrap: true },
+            { key: 'what', label: t('checks.column.what') },
+            { key: 'failure', label: t('checks.column.failure'), tone: 'danger' },
+          ]}
+          rows={CHECKS.map((check, index) => ({
+            key: check,
+            cells: [
+              <span key="check" className="inline-flex items-center gap-2">
+                <span className="grid size-5 place-items-center rounded-full border border-ok-line bg-ok-soft text-[11px] font-semibold text-ok-text tabular-nums">
+                  {index + 1}
+                </span>
+                <code className="mono text-[12px]">{check}</code>
+              </span>,
+              rich(t(`check.${check}.what`)),
+              rich(t(`check.${check}.failure`)),
+            ],
+          }))}
+        />
+        <HelpCallout tone="neutral">{rich(t('checks.status'))}</HelpCallout>
+      </HelpSection>
 
-          <Section title={t('ports.title')}>
-            <p className="text-muted-foreground">{rich(t('ports.intro'))}</p>
-            <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
-              {PORT_NOTES.map((note) => (
-                <li key={note}>{rich(t(`ports.${note}`))}</li>
-              ))}
-            </ul>
-          </Section>
+      <HelpSection icon={ListOrdered} title={t('tutorial.title')}>
+        <HelpSteps
+          steps={TUTORIAL.map((step) => ({
+            key: step,
+            title: t(`step.${step}.title`),
+            body: rich(t(`step.${step}.body`)),
+          }))}
+        />
+        <HelpCallout tone="accent">{rich(t('tutorial.shortcut'))}</HelpCallout>
+      </HelpSection>
 
-          <Section title={t('checks.title')}>
-            <p className="text-muted-foreground">{rich(t('checks.intro'))}</p>
-            <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t('checks.column.check')}</th>
-                  <th className="px-3 py-2 font-medium">{t('checks.column.what')}</th>
-                  <th className="px-3 py-2 font-medium">{t('checks.column.failure')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {CHECKS.map((check, index) => (
-                  <tr key={check} className="border-t align-top">
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="text-muted-foreground mr-1.5 text-[0.7rem] tabular-nums">
-                        {index + 1}.
-                      </span>
-                      <code className="text-foreground font-mono text-[0.75rem]">{check}</code>
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`check.${check}.what`))}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`check.${check}.failure`))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ScrollableTable>
-            <p className="text-muted-foreground text-xs">{rich(t('checks.status'))}</p>
-          </Section>
-
-          <Section title={t('tutorial.title')}>
-            <ol className="space-y-2.5">
-              {TUTORIAL.map((step, index) => (
-                <li key={step} className="flex gap-3">
-                  <span className="bg-muted text-muted-foreground mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 space-y-1">
-                    <div className="text-foreground font-medium">{t(`step.${step}.title`)}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {rich(t(`step.${step}.body`))}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="text-muted-foreground text-xs">{rich(t('tutorial.shortcut'))}</p>
-          </Section>
-
-          <Section title={t('failures.title')}>
-            <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">{t('failures.column.symptom')}</th>
-                  <th className="px-3 py-2 font-medium">{t('failures.column.cause')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {FAILURES.map((failure) => (
-                  <tr key={failure} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 md:w-2/5">
-                      {rich(t(`failure.${failure}.symptom`))}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`failure.${failure}.cause`))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </ScrollableTable>
-          </Section>
-        </DialogBody>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" type="button">
-              {tc('close')}
-            </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <HelpSection icon={TriangleAlert} tone="danger" title={t('failures.title')}>
+        <HelpTable
+          columns={[
+            { key: 'symptom', label: t('failures.column.symptom'), tone: 'danger' },
+            { key: 'cause', label: t('failures.column.cause'), tone: 'ok' },
+          ]}
+          rows={FAILURES.map((failure) => ({
+            key: failure,
+            cells: [rich(t(`failure.${failure}.symptom`)), rich(t(`failure.${failure}.cause`))],
+          }))}
+        />
+      </HelpSection>
+    </HelpDrawer>
   );
 }
 

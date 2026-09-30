@@ -3,7 +3,7 @@ import type { AppSettings, DateStyleName } from '@pupitre/core';
 /**
  * Formatage des dates **et des nombres**, à partir des paramètres d'instance.
  *
- * Pas de `'server-only'` ici : `targets-table.tsx` est un composant *client*,
+ * Pas de `'server-only'` ici : `targets-view.tsx` est un composant *client*,
  * `audit-table.tsx` un composant *serveur*, et les deux doivent afficher la
  * même chaîne pour la même date. C'est aussi pourquoi le fuseau est toujours
  * explicite et jamais celui du navigateur — un `Intl.DateTimeFormat` sans

@@ -1,19 +1,23 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { RuntimesAvailable, TargetHealth, Translate } from '@pupitre/core';
+import { PageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { State, type Tone } from '@/components/ui/led';
+import { SegmentedControl } from '@/components/ui/segmented';
+import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { servers as messages } from '@/i18n/messages/servers';
 import type { FormatSettings } from '@/lib/format';
+import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
-import { RuntimeBadges } from '../targets/runtime-badges';
-import { AppsTable, HealthDot, type HealthStatus, type SupervisedRow } from './apps-table';
-import { HostHistory, type HostHistoryData } from './host-history';
+import { AppsTable, type SupervisedRow } from './apps-table';
+import { HostHistory, OpenBreaches, type HostHistoryData } from './host-history';
 import { HostReadouts } from './host-readouts';
 import { ThresholdsDialog } from './thresholds-dialog';
 import { useHostMetrics, type MetricsEntry } from './use-host-metrics';
@@ -30,7 +34,7 @@ import { useHostMetrics, type MetricsEntry } from './use-host-metrics';
  * liste des applications vient de la base, le relevé vient de la machine : ce
  * sont deux sources, et l'échec de la seconde ne doit jamais effacer la
  * première. Un serveur éteint affiche donc « injoignable » à la place de ses
- * jauges, et garde son dépliant intact — c'est précisément le moment où on a
+ * relevés, et garde son dépliant intact — c'est précisément le moment où on a
  * besoin de savoir ce qui était censé y tourner.
  *
  * **Et il garde aussi son passé.** L'historique est une troisième source — la
@@ -62,25 +66,38 @@ const STATUS_KEY: Record<TargetHealth, keyof typeof messages.fr> = {
   unreachable: 'status.unreachable',
 };
 
-/**
- * L'état d'une machine, dit avec le même voyant que celui des applications.
- * `ok → healthy`, `degraded → unhealthy` : deux vocabulaires, une seule
- * convention de lecture.
- */
-const STATUS_HEALTH: Record<TargetHealth, HealthStatus> = {
-  unknown: 'unknown',
-  ok: 'healthy',
-  degraded: 'unhealthy',
-  unreachable: 'unreachable',
+const STATUS_TONE: Record<TargetHealth, Tone> = {
+  unknown: 'idle',
+  ok: 'ok',
+  degraded: 'warn',
+  unreachable: 'danger',
 };
+
+/**
+ * Une machine est « à surveiller » quand elle-même ne va pas bien, qu'un seuil
+ * est franchi en ce moment, ou qu'une de ses applications est en peine — elle
+ * répond mal, ou sa dernière mise à jour a échoué.
+ */
+function needsWatch(server: ServerRow, history: HostHistoryData | undefined): boolean {
+  return (
+    server.status === 'degraded' ||
+    server.status === 'unreachable' ||
+    (history?.breaches.length ?? 0) > 0 ||
+    server.apps.some((app) => app.lastFailedUpdate !== null || app.healthStatus !== 'healthy')
+  );
+}
 
 /** Depuis quand le relevé date. Un relevé sans âge affiché serait un relevé qu'on croit frais. */
 function relevanceLabel(entry: MetricsEntry | undefined, t: T): string | null {
   if (entry === undefined || entry.state === 'loading') return null;
   const seconds = Math.max(0, Math.round((Date.now() - entry.at) / 1000));
-  if (seconds < 60) return t('age.now');
-  if (seconds < 3600) return t('age.minutes', { count: Math.floor(seconds / 60) });
-  return t('age.hours', { count: Math.floor(seconds / 3600) });
+  const ago =
+    seconds < 60
+      ? t('age.now')
+      : seconds < 3600
+        ? t('age.minutes', { count: Math.floor(seconds / 60) })
+        : t('age.hours', { count: Math.floor(seconds / 3600) });
+  return t('server.age', { ago });
 }
 
 function ServerCard({
@@ -108,67 +125,51 @@ function ServerCard({
 }) {
   const t = useT(messages);
   const hasApps = server.apps.length > 0;
-
-  // Un serveur qui porte une application en peine s'ouvre de lui-même : c'est
-  // la seule ligne de l'écran qu'on voulait vraiment voir en arrivant.
-  const needsAttention = server.apps.some(
-    (app) => app.lastFailedUpdate !== null || app.healthStatus !== 'healthy',
-  );
-
   const age = relevanceLabel(entry, t);
   const probing = entry === undefined || entry.state === 'loading';
 
   const identity = (
-    <span className="flex min-w-0 flex-col">
-      <span className="truncate text-[0.8125rem] font-medium text-ink">{server.name}</span>
-      <span className="truncate font-mono text-[0.6875rem] text-ink-faint">
-        {server.sshUser ? `${server.sshUser}@` : ''}
+    <>
+      <span className="truncate font-semibold text-text">{server.name}</span>
+      <span
+        className="mono truncate text-[12px] text-text-3"
+        title={`${server.sshUser ? `${server.sshUser}@` : ''}${server.host}${
+          server.port === null ? '' : `:${server.port}`
+        }`}
+      >
         {server.host}
-        {server.port === null ? '' : `:${server.port}`}
       </span>
-    </span>
+    </>
   );
 
   return (
     // `data-server-id` : la seule façon de prouver le regroupement depuis
     // l'extérieur — le script de vérification découpe la page sur cet attribut
     // et vérifie qu'une application n'apparaît que sous sa cible.
-    <Card className="gap-0 overflow-hidden py-0" data-server-id={server.id}>
-      <Collapsible defaultOpen={hasApps && needsAttention}>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+    <section className="card overflow-hidden" aria-label={server.name} data-server-id={server.id}>
+      <Collapsible defaultOpen>
+        <div className="card-h flex-wrap gap-y-2 !px-4 !py-3">
           {hasApps ? (
-            <CollapsibleTrigger className="min-w-0 flex-1 basis-56 hover:[&_span:first-of-type]:text-signal">
-              {identity}
-            </CollapsibleTrigger>
+            <CollapsibleTrigger className="min-w-0 gap-2.5">{identity}</CollapsibleTrigger>
           ) : (
             // Pas de dépliant sur un serveur vide : ouvrir pour ne rien trouver
-            // est une promesse non tenue. Le compte, à droite, dit déjà tout.
-            <span className="flex min-w-0 flex-1 basis-56 items-center gap-1.5 pl-[1.375rem]">
-              {identity}
-            </span>
+            // est une promesse non tenue. Le badge, à côté, dit déjà tout.
+            <span className="flex min-w-0 items-center gap-2.5 pl-[26px]">{identity}</span>
           )}
+          <State tone={STATUS_TONE[server.status]}>{t(STATUS_KEY[server.status])}</State>
+          <Badge>{t('server.apps', { count: server.apps.length })}</Badge>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <HealthDot health={STATUS_HEALTH[server.status]} label={t(STATUS_KEY[server.status])} />
-            {server.runtimes ? <RuntimeBadges runtimes={server.runtimes} /> : null}
-            <Badge variant={hasApps ? 'outline' : 'secondary'} className="text-[10px]">
-              {t('server.apps', { count: server.apps.length })}
-            </Badge>
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            {age ? <span className="text-[0.6875rem] text-ink-faint">{age}</span> : null}
+          <span className="ml-auto flex items-center gap-1.5">
+            {age ? <span className="t-cap text-text-3">{age}</span> : null}
             {canProbe ? (
-              <Button
-                size="sm"
-                variant="ghost"
+              <IconButton
+                label={t('server.probe.tip')}
+                size="icon-sm"
                 disabled={probing}
                 onClick={onRefresh}
-                aria-label={t('server.probe.aria', { name: server.name })}
               >
-                <RefreshCw className={cn(probing && 'animate-spin')} />
-                {probing ? t('server.probe.busy') : t('server.probe')}
-              </Button>
+                <RefreshCw className={cn(probing && 'animate-spin motion-reduce:animate-none')} />
+              </IconButton>
             ) : null}
             {canTune && history ? (
               <ThresholdsDialog
@@ -178,34 +179,43 @@ function ServerCard({
               />
             ) : null}
             {server.registered && canReadTargets ? (
-              <Button asChild size="sm" variant="outline">
+              <Button asChild size="sm" variant="secondary">
                 <Link href={`/targets/${server.id}`}>{t('server.details')}</Link>
               </Button>
             ) : null}
-          </div>
+          </span>
         </div>
 
-        <div className="border-t border-line bg-ground-deep/40 px-1 py-1">
-          <HostReadouts entry={entry} enabled={canProbe} thresholds={history?.thresholds} />
-        </div>
+        <HostReadouts
+          entry={entry}
+          enabled={canProbe}
+          thresholds={history?.thresholds}
+          summary={history?.summary}
+        />
 
         {history ? (
-          <div className="border-t border-line bg-ground-deep/20">
-            <HostHistory targetId={server.id} initial={history} format={format} />
-          </div>
+          <>
+            <OpenBreaches breaches={history.breaches} />
+            <HostHistory
+              targetId={server.id}
+              initial={history}
+              format={format}
+              defaultOpen={server.status === 'unreachable' || history.breaches.length > 0}
+            />
+          </>
         ) : null}
 
         {hasApps ? (
-          <CollapsiblePanel className="border-t border-line px-4 py-3">
+          <CollapsiblePanel className="border-t border-border-subtle">
             <AppsTable items={server.apps} canRestart={canRestart} />
           </CollapsiblePanel>
         ) : (
-          <p className="border-t border-line px-4 py-3 text-[0.8125rem] text-ink-muted">
+          <p className="t-sm border-t border-border-subtle px-4 py-3 text-text-2">
             {t('server.noApps')}
           </p>
         )}
       </Collapsible>
-    </Card>
+    </section>
   );
 }
 
@@ -228,6 +238,7 @@ export function ServersList({
   format: FormatSettings;
 }) {
   const t = useT(messages);
+  const [filter, setFilter] = useState<'all' | 'watch'>('all');
 
   // Seules les cibles réellement enregistrées peuvent être relevées : une
   // machine connue par le seul souvenir d'un déploiement n'a plus de credential.
@@ -238,23 +249,54 @@ export function ServersList({
   const { entries, refresh, refreshAll } = useHostMetrics(probeIds, canReadTargets);
   const busy = probeIds.some((id) => entries[id] === undefined || entries[id]?.state === 'loading');
 
-  return (
-    <div className="flex flex-col gap-4">
-      {canReadTargets && probeIds.length > 0 ? (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[0.75rem] text-ink-faint">
-            {`${t('list.servers', { count: servers.length })} · ${t('list.apps', {
-              count: servers.reduce((total, server) => total + server.apps.length, 0),
-            })}`}
-          </p>
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => void refreshAll()}>
-            <RefreshCw className={cn(busy && 'animate-spin')} />
-            {busy ? t('readout.pending') : t('list.probeAll')}
-          </Button>
-        </div>
-      ) : null}
+  const watched = servers.filter((server) => needsWatch(server, history[server.id]));
+  const shown = filter === 'watch' ? watched : servers;
 
-      {servers.map((server) => (
+  return (
+    <>
+      <PageHeader
+        title={t('page.title')}
+        description={t('page.description')}
+        actions={
+          probeIds.length > 0 ? (
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() => {
+                toast({
+                  title: t('list.probeAll.toast', { count: probeIds.length }),
+                  description: t('list.probeAll.toast.detail'),
+                  tone: 'accent',
+                });
+                void refreshAll();
+              }}
+            >
+              <RefreshCw className={cn(busy && 'animate-spin motion-reduce:animate-none')} />
+              {busy ? t('readout.pending') : t('list.probeAll')}
+            </Button>
+          ) : null
+        }
+      />
+
+      <div className="t-sm flex flex-wrap items-center gap-2 text-text-3">
+        {`${t('list.servers', { count: servers.length })} · ${t('list.apps', {
+          count: servers.reduce((total, server) => total + server.apps.length, 0),
+        })}`}
+        <SegmentedControl
+          className="ml-auto"
+          label={t('list.filter.label')}
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: t('list.filter.all') },
+            { value: 'watch', label: t('list.filter.watch', { count: watched.length }) },
+          ]}
+        />
+      </div>
+
+      {shown.length === 0 ? <p className="t-sm text-text-3">{t('list.filter.none')}</p> : null}
+
+      {shown.map((server) => (
         <ServerCard
           key={server.id}
           server={server}
@@ -268,6 +310,6 @@ export function ServersList({
           onRefresh={() => void refresh(server.id)}
         />
       ))}
-    </div>
+    </>
   );
 }

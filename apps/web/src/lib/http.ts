@@ -129,12 +129,17 @@ export async function readJsonBody<T extends z.ZodTypeAny>(
 
 /** Valide les paramètres de query string. */
 export function readSearchParams<T extends z.ZodTypeAny>(request: Request, schema: T): z.infer<T> {
+  return schema.parse(searchParamsOf(request));
+}
+
+/** Les paramètres d'URL non vides, à plat — avant validation. */
+export function searchParamsOf(request: Request): Record<string, string> {
   const url = new URL(request.url);
   const entries: Record<string, string> = {};
   for (const [key, value] of url.searchParams.entries()) {
     if (value !== '') entries[key] = value;
   }
-  return schema.parse(entries);
+  return entries;
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { SlidersHorizontal } from 'lucide-react';
+import { Gauge } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,10 +17,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { servers } from '@/i18n/messages/servers';
+import { toast } from '@/lib/toast';
 import type { HistoryMetric, ThresholdView } from './host-history';
 
 /**
@@ -86,16 +86,17 @@ export function ThresholdsDialog({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Record<HistoryMetric, Draft>>(() =>
-    Object.fromEntries(
-      METRICS.map((metric) => [
-        metric,
-        {
-          limitPercent: String(thresholds[metric].limitPercent),
-          enabled: thresholds[metric].enabled,
-        },
-      ]),
-    ) as Record<HistoryMetric, Draft>,
+  const [draft, setDraft] = useState<Record<HistoryMetric, Draft>>(
+    () =>
+      Object.fromEntries(
+        METRICS.map((metric) => [
+          metric,
+          {
+            limitPercent: String(thresholds[metric].limitPercent),
+            enabled: thresholds[metric].enabled,
+          },
+        ]),
+      ) as Record<HistoryMetric, Draft>,
   );
 
   const save = useCallback(async () => {
@@ -122,14 +123,16 @@ export function ThresholdsDialog({
           const body = (await response.json().catch(() => ({}))) as {
             error?: { message?: string };
           };
-          setError(
-            body.error?.message ?? t('thresholds.refused', { status: response.status }),
-          );
+          setError(body.error?.message ?? t('thresholds.refused', { status: response.status }));
           return;
         }
       }
       setOpen(false);
-      // Les seuils décident de la couleur des jauges et du trait de la frise :
+      toast({
+        title: t('thresholds.saved', { name: targetName }),
+        description: t('thresholds.saved.detail'),
+      });
+      // Les seuils décident de la couleur des voyants et du trait de la frise :
       // la page doit se relire pour que l'écran dise la vérité tout de suite.
       router.refresh();
     } catch {
@@ -137,7 +140,7 @@ export function ThresholdsDialog({
     } finally {
       setBusy(false);
     }
-  }, [draft, router, t, targetId]);
+  }, [draft, router, t, targetId, targetName]);
 
   /** Retire la surcharge de cette machine : la couche du dessous reprend. */
   const reset = useCallback(
@@ -145,10 +148,9 @@ export function ThresholdsDialog({
       setBusy(true);
       setError(null);
       try {
-        await fetch(
-          `/api/supervision/thresholds?targetId=${targetId}&metric=${metric}`,
-          { method: 'DELETE' },
-        );
+        await fetch(`/api/supervision/thresholds?targetId=${targetId}&metric=${metric}`, {
+          method: 'DELETE',
+        });
         setOpen(false);
         router.refresh();
       } finally {
@@ -162,85 +164,87 @@ export function ThresholdsDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="ghost" aria-label={t('thresholds.aria', { name: targetName })}>
-          <SlidersHorizontal />
           {t('thresholds.button')}
         </Button>
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
+      <DialogContent size="wide">
+        <DialogHeader icon={<Gauge />} tone="accent">
           <DialogTitle>{t('thresholds.title', { name: targetName })}</DialogTitle>
-          <DialogDescription>
-            {t('thresholds.description')}{' '}
-            <strong>{t('thresholds.description.once')}</strong>
-            {t('thresholds.description.end')}
-          </DialogDescription>
         </DialogHeader>
 
-        <DialogBody className="flex flex-col gap-4">
+        <DialogBody className="flex flex-col gap-3">
+          <DialogDescription>{t('thresholds.description')}</DialogDescription>
           {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-          {METRICS.map((metric) => (
-            <div key={metric} className="flex flex-col gap-1.5">
-              <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <Label htmlFor={`threshold-${metric}`}>{t(METRIC_KEY[metric])}</Label>
-                  <p className="text-[0.6875rem] text-ink-faint">
-                    {t(METRIC_HINT_KEY[metric])}
-                  </p>
-                </div>
-                <Input
-                  id={`threshold-${metric}`}
-                  type="number"
-                  min={1}
-                  max={1000}
-                  step={1}
-                  className="w-24 font-mono tabular-nums"
-                  value={draft[metric].limitPercent}
+          <div>
+            {METRICS.map((metric) => (
+              <div
+                key={metric}
+                className="flex flex-wrap items-center gap-3 border-t border-border-subtle py-2.5"
+              >
+                <Checkbox
+                  aria-label={t('thresholds.watch.aria', { metric: t(METRIC_KEY[metric]) })}
+                  checked={draft[metric].enabled}
                   onChange={(event) =>
                     setDraft((current) => ({
                       ...current,
-                      [metric]: { ...current[metric], limitPercent: event.target.value },
+                      [metric]: { ...current[metric], enabled: event.target.checked },
                     }))
                   }
                 />
-                <span className="pb-2 text-[0.75rem] text-ink-faint">%</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center gap-2 text-[0.75rem] text-ink-muted">
-                  <Checkbox
-                    checked={draft[metric].enabled}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <label htmlFor={`threshold-${metric}`} className="t-sm font-semibold text-text">
+                    {t(METRIC_KEY[metric])}
+                  </label>
+                  <span className="t-cap text-text-3">{t(METRIC_HINT_KEY[metric])}</span>
+                </span>
+                <span className="affix w-24">
+                  <Input
+                    id={`threshold-${metric}`}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={1000}
+                    step={1}
+                    className="input-sm mono pr-[26px] tabular-nums"
+                    disabled={!draft[metric].enabled}
+                    value={draft[metric].limitPercent}
                     onChange={(event) =>
                       setDraft((current) => ({
                         ...current,
-                        [metric]: { ...current[metric], enabled: event.target.checked },
+                        [metric]: { ...current[metric], limitPercent: event.target.value },
                       }))
                     }
                   />
-                  {t('thresholds.watch')}
-                </label>
-                <span className="text-[0.6875rem] text-ink-faint">
-                  {t(ORIGIN_KEY[thresholds[metric].origin])}
+                  <span aria-hidden className="t-cap absolute right-2.5 text-text-3">
+                    %
+                  </span>
+                </span>
+                <span className="flex w-[150px] flex-col items-start">
+                  <span className="t-cap text-text-3">
+                    {t(ORIGIN_KEY[thresholds[metric].origin])}
+                  </span>
                   {thresholds[metric].origin === 'target' ? (
                     <button
                       type="button"
+                      className="btn btn-link t-cap"
                       disabled={busy}
                       onClick={() => void reset(metric)}
-                      className="ml-2 underline underline-offset-2 hover:text-ink"
                     >
                       {t('thresholds.reset')}
                     </button>
                   ) : null}
                 </span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </DialogBody>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
             {shared('cancel')}
           </Button>
-          <Button onClick={() => void save()} disabled={busy}>
+          <Button onClick={() => void save()} loading={busy}>
             {busy ? shared('saving') : shared('save')}
           </Button>
         </DialogFooter>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AccessCard, AccessShell } from '@/components/access-shell';
+import { Button } from '@/components/ui/button';
 import { auth as messages } from '@/i18n/messages/auth';
 import { getT } from '@/i18n/server';
 
@@ -17,22 +18,13 @@ export default async function NotFoundPage() {
   const t = await getT(messages);
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md items-center p-6">
-      <Card className="w-full shadow-raised">
-        <CardHeader>
-          <CardTitle className="text-lg">{t('notFound.title')}</CardTitle>
-          <CardDescription>{t('notFound.description')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-[0.8125rem] text-ink-muted">{t('notFound.body')}</p>
-          <Link
-            href="/"
-            className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-          >
-            {t('link.backToDashboard')}
-          </Link>
-        </CardContent>
-      </Card>
-    </div>
+    <AccessShell tagline={t('shell.tagline')}>
+      <AccessCard title={t('notFound.title')} description={t('notFound.description')}>
+        <p className="t-sm text-text-2">{t('notFound.body')}</p>
+        <Button asChild variant="secondary" className="btn-block">
+          <Link href="/">{t('link.backToDashboard')}</Link>
+        </Button>
+      </AccessCard>
+    </AccessShell>
   );
 }

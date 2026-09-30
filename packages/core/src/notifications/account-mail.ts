@@ -5,6 +5,7 @@ import {
   type UiLanguage,
   type Vars,
 } from '../i18n.js';
+import { BRAND_MARK, EMAIL_COLORS, brandHeaderHtml, type InlineImage } from './brand.js';
 
 /**
  * Les e-mails **transactionnels** du cycle de vie des comptes.
@@ -67,6 +68,8 @@ export type AccountMailEnvelope = {
   subject: string;
   text: string;
   html: string;
+  /** À joindre tel quel à l'envoi : le HTML y fait référence par `cid:`. */
+  inlineImages: InlineImage[];
 };
 
 /** Échappement HTML. Le nom du destinataire vient d'un formulaire : rien n'est sûr. */
@@ -271,8 +274,8 @@ const COPY: Record<AccountMailKind, Copy> = {
   },
 };
 
-/** Teinte de l'encadré. En dur, comme dans `smtp.ts` : un client d'e-mail ne lit ni variable CSS ni feuille externe. */
-const ACCENT = '#3b6fd4';
+/** Teintes du design system. En dur, comme dans `smtp.ts` : un client d'e-mail ne lit ni variable CSS ni feuille externe. */
+const C = EMAIL_COLORS;
 
 /**
  * La partie `text/plain`.
@@ -326,30 +329,30 @@ export function renderAccountMailHtml(mail: AccountMail, language: UiLanguage): 
     .body(mail)
     .map(
       (paragraph) =>
-        `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(t(paragraph.key, paragraph.vars))}</p>`,
+        `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:${C.text2}">${escapeHtml(t(paragraph.key, paragraph.vars))}</p>`,
     )
     .join('');
 
   return [
-    `<!doctype html><html lang="${language}"><body style="margin:0;background:#f5f6f8;padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#111827">`,
-    `<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:8px;border:1px solid #e5e7eb;border-left:4px solid ${ACCENT};padding:20px 24px">`,
-    `<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:${ACCENT};font-weight:600">${escapeHtml(mail.instance)}</div>`,
-    `<h1 style="margin:6px 0 12px;font-size:18px;line-height:1.3">${escapeHtml(t(copy.heading))}</h1>`,
-    `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:#374151">${escapeHtml(t('greeting', { name: mail.recipientName }))}</p>`,
+    `<!doctype html><html lang="${language}"><body style="margin:0;background:${C.bg};padding:24px;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:${C.text}">`,
+    `<div style="max-width:560px;margin:0 auto;background:${C.surface};border-radius:12px;border:1px solid ${C.border};padding:24px">`,
+    brandHeaderHtml(mail.instance),
+    `<h1 style="margin:0 0 12px;font-size:18px;line-height:1.3">${escapeHtml(t(copy.heading))}</h1>`,
+    `<p style="margin:0 0 12px;font-size:14px;line-height:1.55;color:${C.text2}">${escapeHtml(t('greeting', { name: mail.recipientName }))}</p>`,
     paragraphs,
-    `<table role="presentation" style="margin:20px 0 0;border-collapse:collapse"><tr><td style="border-radius:6px;background:${ACCENT}">`,
-    `<a href="${url}" style="display:inline-block;padding:11px 20px;font-size:14px;font-weight:600;color:#fff;text-decoration:none">${escapeHtml(t(copy.action))}</a>`,
+    `<table role="presentation" style="margin:20px 0 0;border-collapse:collapse"><tr><td style="border-radius:8px;background:${C.accent}">`,
+    `<a href="${url}" style="display:inline-block;padding:11px 20px;font-size:14px;font-weight:600;color:#FFFFFF;text-decoration:none">${escapeHtml(t(copy.action))}</a>`,
     '</td></tr></table>',
-    `<p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#6b7280">${escapeHtml(t('link.fallback'))}<br>`,
-    `<a href="${url}" style="color:${ACCENT};font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all">${url}</a></p>`,
-    `<p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#374151">${escapeHtml(
+    `<p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:${C.text3}">${escapeHtml(t('link.fallback'))}<br>`,
+    `<a href="${url}" style="color:${C.accentText};font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all">${url}</a></p>`,
+    `<p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:${C.text2}">${escapeHtml(
       t('link.validity', {
         validity: formatValidity(mail.expiresAt, t),
         expiry: formatExpiry(mail.expiresAt, t),
       }),
     )}</p>`,
-    `<p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:#6b7280">${escapeHtml(t(copy.ignore))}</p>`,
-    `<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af">${escapeHtml(t('footer', { instance: mail.instance }))}</p>`,
+    `<p style="margin:12px 0 0;font-size:13px;line-height:1.5;color:${C.text3}">${escapeHtml(t(copy.ignore))}</p>`,
+    `<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid ${C.border};font-size:12px;color:${C.text3}">${escapeHtml(t('footer', { instance: mail.instance }))}</p>`,
     '</div></body></html>',
   ].join('');
 }
@@ -367,5 +370,6 @@ export function renderAccountMail(mail: AccountMail, language: UiLanguage): Acco
     subject: messageFor(language)(COPY[mail.kind].subject, { instance: mail.instance }),
     text: renderAccountMailText(mail, language),
     html: renderAccountMailHtml(mail, language),
+    inlineImages: [BRAND_MARK],
   };
 }

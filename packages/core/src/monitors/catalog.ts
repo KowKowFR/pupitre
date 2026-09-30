@@ -198,6 +198,8 @@ const fr = {
   "metric.address": "Adresse jointe",
   "metric.daysRemaining": "Jours restants",
   "metric.expiresOn": "Expire le",
+  "metric.certDaysRemaining": "Certificat",
+  "metric.certValidTo": "Certificat valable jusqu'au",
   "unit.days": "jours",
   "unit.kib": "kio",
   /** Rendu quand la configuration ne se relit pas — voir `describeMonitorTarget`. */
@@ -396,6 +398,8 @@ const en: Translated<typeof fr> = {
   "metric.address": "Address reached",
   "metric.daysRemaining": "Days remaining",
   "metric.expiresOn": "Expires on",
+  "metric.certDaysRemaining": "Certificate",
+  "metric.certValidTo": "Certificate valid until",
   "unit.days": "days",
   "unit.kib": "KiB",
   "target.unreadable": "(unreadable configuration)",
@@ -657,6 +661,8 @@ const httpDefinition = (t: CatalogTranslate): MonitorTypeDefinition<HttpConfig> 
     },
     { key: "redirects", label: t("metric.redirects"), kind: "number" },
     { key: "address", label: t("metric.address"), kind: "text" },
+    { key: "certDaysRemaining", label: t("metric.certDaysRemaining"), kind: "days" },
+    { key: "certValidTo", label: t("metric.certValidTo"), kind: "text" },
   ],
   // Trente secondes : en dessous, une sonde coûte plus au worker qu'elle ne
   // rapporte, et la série temporelle double pour détecter une panne trois
@@ -849,6 +855,8 @@ const keywordDefinition = (
     { key: "redirects", label: t("metric.redirects"), kind: "number" },
     { key: "address", label: t("metric.address"), kind: "text" },
     { key: "finalUrl", label: t("keyword.metric.finalUrl"), kind: "text" },
+    { key: "certDaysRemaining", label: t("metric.certDaysRemaining"), kind: "days" },
+    { key: "certValidTo", label: t("metric.certValidTo"), kind: "text" },
   ],
   // Même cadence que HTTP : c'est la même requête, avec un peu de lecture en
   // plus. Ce qui coûte, c'est le nombre de requêtes, pas ce qu'on en fait.

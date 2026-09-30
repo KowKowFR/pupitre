@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { TargetLabelList } from '@/components/target-label';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { DrawerBody, DrawerFooter } from '@/components/ui/drawer';
+import { SecretInput } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -84,9 +86,20 @@ export type TargetFormProps = {
   /** `null` retire le bouton « Annuler » — un parcours guidé a sa propre sortie. */
   onCancel?: (() => void) | null;
   submitLabel?: string;
+  /**
+   * `drawer` : les champs dans le corps défilant d'un tiroir, les boutons dans
+   * son pied — l'en-tête reste à l'appelant. `page` (défaut) : tout empilé.
+   */
+  frame?: 'page' | 'drawer';
 };
 
-export function TargetForm({ initial, onCreated, onCancel, submitLabel }: TargetFormProps) {
+export function TargetForm({
+  initial,
+  onCreated,
+  onCancel,
+  submitLabel,
+  frame = 'page',
+}: TargetFormProps) {
   const router = useRouter();
   const t = useT(messages);
   const tc = useT(common);
@@ -157,28 +170,50 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
     router.refresh();
   }
 
-  return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+  const fields = (
+    <>
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="field">
           <Label htmlFor="name">{t('field.name')}</Label>
           <Input id="name" name="name" defaultValue={values.name} required minLength={2} />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="sshUser">{t('field.sshUser')}</Label>
-          <Input id="sshUser" name="sshUser" defaultValue={values.sshUser} required />
+          <Input
+            id="sshUser"
+            name="sshUser"
+            defaultValue={values.sshUser}
+            required
+            className="mono"
+          />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="host">{t('field.host')}</Label>
-          <Input id="host" name="host" defaultValue={values.host} placeholder="10.0.0.12" required />
+          <Input
+            id="host"
+            name="host"
+            defaultValue={values.host}
+            placeholder="10.0.0.12"
+            required
+            className="mono"
+          />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="port">{t('field.port')}</Label>
-          <Input id="port" name="port" type="number" min={1} max={65535} defaultValue={values.port} required />
+          <Input
+            id="port"
+            name="port"
+            type="number"
+            min={1}
+            max={65535}
+            defaultValue={values.port}
+            required
+            className="mono"
+          />
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="authMethod">{t('field.authMethod')}</Label>
           <Select
             id="authMethod"
@@ -190,7 +225,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             <option value="password">{t('auth.password')}</option>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="field">
           <Label htmlFor="sudoMethod">{t('field.sudoMethod')}</Label>
           <Select id="sudoMethod" name="sudoMethod" defaultValue={values.sudoMethod}>
             <option value="nopasswd">{t('sudo.nopasswd')}</option>
@@ -203,7 +238,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         Sous l'identité de la machine et avant ses secrets : la description
         répond à « qu'est-ce que c'est ? », pas à « comment s'y connecter ? ».
       */}
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label htmlFor="description">{t('field.description')}</Label>
         <textarea
           id="description"
@@ -213,14 +248,14 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           placeholder={t('description.placeholder')}
-          className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
+          className="textarea"
         />
-        <p className="flex justify-between gap-4 text-xs text-ink-muted">
+        <p className="help flex justify-between gap-4">
           <span>{t('description.help')}</span>
           <span
             className={cn(
               'shrink-0 font-mono tabular-nums',
-              description.length > DESCRIPTION_MAX - 40 ? 'text-warn' : 'text-ink-faint',
+              description.length > DESCRIPTION_MAX - 40 ? 'text-warn-text' : 'text-text-3',
             )}
           >
             {description.length}/{DESCRIPTION_MAX}
@@ -228,7 +263,7 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
         </p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label htmlFor="credential">
           {authMethod === 'key' ? t('field.credential.key') : t('field.credential.password')}
         </Label>
@@ -240,18 +275,18 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             spellCheck={false}
             autoComplete="off"
             placeholder={'-----BEGIN OPENSSH PRIVATE KEY-----\n…'}
-            className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-xs text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
+            className="textarea mono"
           />
         ) : (
-          <Input id="credential" name="credential" type="password" autoComplete="new-password" />
+          <SecretInput id="credential" name="credential" stored={isEdit} />
         )}
-        <p className="text-xs text-ink-muted">
+        <p className="help">
           {t('credential.help')}
           {isEdit ? t('credential.help.edit') : ''}
         </p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label>{t('field.portRange')}</Label>
         <div className="flex items-center gap-2">
           <Input
@@ -262,9 +297,9 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             max={65535}
             defaultValue={values.portRangeStart}
             required
-            className="w-32"
+            className="mono w-32"
           />
-          <span className="text-sm text-ink-faint">→</span>
+          <span className="text-sm text-text-3">→</span>
           <Input
             id="portRangeEnd"
             name="portRangeEnd"
@@ -273,13 +308,13 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
             max={65535}
             defaultValue={values.portRangeEnd}
             required
-            className="w-32"
+            className="mono w-32"
           />
         </div>
-        <p className="text-xs text-ink-muted">{t('portRange.help')}</p>
+        <p className="help">{t('portRange.help')}</p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="field">
         <Label htmlFor="labels">{t('field.labels')}</Label>
         <textarea
           id="labels"
@@ -288,29 +323,44 @@ export function TargetForm({ initial, onCreated, onCancel, submitLabel }: Target
           value={labelsText}
           onChange={(event) => setLabelsText(event.target.value)}
           placeholder={'env=prod\nzone=eu-west'}
-          className="w-full rounded-md border border-line-strong bg-surface px-3 py-2 font-mono text-xs text-ink outline-none transition-[border-color,box-shadow] duration-100 ease-out placeholder:text-ink-faint focus-visible:border-signal focus-visible:ring-[3px] focus-visible:ring-signal/25"
+          className="textarea mono"
         />
         <TargetLabelList labels={textToLabels(labelsText)} className="pt-0.5" />
         {/* Coupée autour du `clé=valeur` que le JSX rend en chasse fixe : une clé
             par fragment, dans l'ordre où la phrase les enchaîne. */}
-        <p className="text-xs text-ink-muted">
-          {t('labels.help.before')} <code>{t('labels.help.pair')}</code>{' '}
-          {t('labels.help.after')}
+        <p className="help">
+          {t('labels.help.before')} <code>{t('labels.help.pair')}</code> {t('labels.help.after')}
         </p>
       </div>
+    </>
+  );
 
-      <div className="flex gap-2">
-        <Button type="submit" disabled={pending}>
-          {pending
-            ? tc('saving')
-            : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
+  const buttons = (
+    <>
+      <Button type="submit" loading={pending}>
+        {pending ? tc('saving') : (submitLabel ?? (isEdit ? tc('save') : t('submit.create')))}
+      </Button>
+      {onCancel === null ? null : (
+        <Button type="button" variant="ghost" onClick={onCancel ?? (() => router.back())}>
+          {tc('cancel')}
         </Button>
-        {onCancel === null ? null : (
-          <Button type="button" variant="ghost" onClick={onCancel ?? (() => router.back())}>
-            {tc('cancel')}
-          </Button>
-        )}
-      </div>
+      )}
+    </>
+  );
+
+  if (frame === 'drawer') {
+    return (
+      <form onSubmit={onSubmit} className="contents">
+        <DrawerBody>{fields}</DrawerBody>
+        <DrawerFooter end={null}>{buttons}</DrawerFooter>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+      {fields}
+      <div className="flex gap-2">{buttons}</div>
     </form>
   );
 }

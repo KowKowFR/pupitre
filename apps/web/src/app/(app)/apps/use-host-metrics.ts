@@ -51,18 +51,14 @@ const CONCURRENCY = 2;
  * composant, et c'est ce qui lui permet d'être appelée depuis un effet sans
  * entrer dans ses dépendances.
  */
-async function probeOnce(
-  targetId: string,
-  t: Translate<typeof servers.fr>,
-): Promise<MetricsEntry> {
+async function probeOnce(targetId: string, t: Translate<typeof servers.fr>): Promise<MetricsEntry> {
   try {
     const response = await fetch(`/api/targets/${targetId}/metrics`, { cache: 'no-store' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       return {
         state: 'error',
-        message:
-          body.error?.message ?? t('readout.failed.http', { status: response.status }),
+        message: body.error?.message ?? t('readout.failed.http', { status: response.status }),
         at: Date.now(),
       };
     }
@@ -85,12 +81,14 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
 
-    const pending = idsKey.split(',').filter((id) => id !== '' && !requested.current.has(id));
+    const asked = requested.current;
+    const pending = idsKey.split(',').filter((id) => id !== '' && !asked.has(id));
     if (pending.length === 0) return;
-    for (const id of pending) requested.current.add(id);
+    for (const id of pending) asked.add(id);
 
     let cancelled = false;
     const queue = [...pending];
+    const landed = new Set<string>();
 
     // Aucun `setState` avant le premier `await` : le premier rendu affiche
     // « relevé en cours » par absence d'entrée, pas par un état posé ici.
@@ -101,6 +99,7 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
           if (id === undefined) return;
           const entry = await probeOnce(id, t);
           if (cancelled) return;
+          landed.add(id);
           setEntries((current) => ({ ...current, [id]: entry }));
         }
       }),
@@ -108,6 +107,10 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
 
     return () => {
       cancelled = true;
+      // Un effet annulé rend les cibles dont le relevé n'est pas arrivé : sans
+      // cela, le double montage du mode strict les marquait « demandées » puis
+      // jetait leur réponse, et la bande restait « en cours » pour toujours.
+      for (const id of pending) if (!landed.has(id)) asked.delete(id);
     };
   }, [idsKey, enabled, t]);
 

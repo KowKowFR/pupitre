@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Fragment, useState, type ReactNode } from 'react';
-import { ArrowRight, Check, ChevronLeft, Minus, SkipForward } from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, LogOut, Minus, SkipForward } from 'lucide-react';
 import type {
   AppSettings,
   DateStyleName,
@@ -13,12 +13,12 @@ import type {
   RoleKey,
   SupportedLocale,
 } from '@pupitre/core';
+import { Led } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
-import { TargetHelpDialog } from '@/components/target-help';
+import { TargetHelp } from '@/components/target-help';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogBody,
@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { onboarding } from '@/i18n/messages/onboarding';
@@ -36,6 +37,7 @@ import { CreateRoleForm } from '@/app/(app)/admin/roles/create-role-form';
 import { CreateUserForm } from '@/app/(app)/admin/users/create-user-form';
 import { TargetForm } from '@/app/(app)/targets/target-form';
 import { usePreflight } from '@/app/(app)/targets/use-preflight';
+import { OnboardingTopbar } from '../onboarding-topbar';
 import { IdentityStep, SecurityStep } from './settings-steps';
 
 /**
@@ -62,6 +64,7 @@ export type OnboardingEnvironmentView = {
 };
 
 type Props = {
+  instanceName: string;
   state: OnboardingState;
   steps: OnboardingPresentedStep[];
   environment: OnboardingEnvironmentView;
@@ -219,64 +222,53 @@ export function OnboardingWizard(props: Props) {
 
   return (
     <>
-      <PageHeader
-        eyebrow={t('page.eyebrow')}
-        title={t('page.title')}
-        description={t('page.description')}
-        actions={
-          <>
-            <span className="font-mono text-xs text-ink-faint tabular-nums">
-              {doneCount}/{actionable.length}
-            </span>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => setConfirming('abandon')}
-            >
-              {t('action.later')}
-            </Button>
-          </>
-        }
-      />
+      <OnboardingTopbar instanceName={props.instanceName} eyebrow={t('shell.eyebrow')}>
+        <span
+          className="mono t-cap text-text-3"
+          aria-label={t('progress.label', { done: doneCount, total: actionable.length })}
+        >
+          {index + 1} / {steps.length}
+        </span>
+        <Button variant="ghost" disabled={busy} onClick={() => setConfirming('abandon')}>
+          {t('action.later')}
+        </Button>
+      </OnboardingTopbar>
 
-      {error ? <Alert variant="destructive">{error}</Alert> : null}
+      <main className="mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-6 py-9">
+        <PageHeader title={t('page.title')} description={t('page.description')} />
 
-      <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <Stepper steps={steps} currentId={currentId} busy={busy} onSelect={goto} />
+        {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <Stepper steps={steps} currentId={currentId} busy={busy} onSelect={goto} />
+
           {current ? (
-            <Card>
-              <CardHeader>
-                <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle>{t(`step.${current.id}.title`)}</CardTitle>
-                  {current.optional ? (
-                    <Badge variant="secondary">{t('badge.optional')}</Badge>
-                  ) : null}
+            <section className="card min-w-0 overflow-hidden">
+              <div className="card-h flex-col !items-start gap-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <h2 className="!text-[18px] !leading-6">{t(`step.${current.id}.title`)}</h2>
+                  {current.optional ? <Badge>{t('badge.optional')}</Badge> : null}
                   {current.outcome === 'done' ? (
                     <Badge variant="ok">{t('badge.done')}</Badge>
                   ) : null}
                   {current.outcome === 'skipped' ? (
                     <Badge variant="warn">{t('badge.skipped')}</Badge>
                   ) : null}
-                </div>
-                <CardDescription>{t(`step.${current.id}.summary`)}</CardDescription>
-              </CardHeader>
+                </span>
+                <span className="sub">{t(`step.${current.id}.summary`)}</span>
+              </div>
 
-              <CardContent className="pb-0">
-                <p className="text-ink-muted border-line border-l-2 pl-3 text-sm leading-relaxed">
+              <div className="card-b flex flex-col gap-4">
+                <p className="t-sm border-l-2 border-border pl-3 text-text-2">
                   {t(`step.${current.id}.detail`)}
                 </p>
                 {currentCost ? (
-                  <p className="text-ink-faint pt-3 pl-3 text-xs leading-relaxed">
-                    <span className="text-ink">{t('cost.inlineLead')}</span>
+                  <p className="t-cap text-text-3">
+                    <span className="text-text-2">{t('cost.inlineLead')}</span>
                     {currentCost}
                   </p>
                 ) : null}
-              </CardContent>
 
-              <CardContent className="flex flex-col gap-4">
                 {currentId === 'welcome' ? <Welcome /> : null}
 
                 {currentId === 'identity' ? (
@@ -323,80 +315,66 @@ export function OnboardingWizard(props: Props) {
                 ) : null}
 
                 {currentId === 'summary' ? <Summary steps={steps} state={state} /> : null}
-              </CardContent>
-            </Card>
+              </div>
+
+              <div className="card-f flex flex-wrap items-center gap-2">
+                {previous ? (
+                  <Button variant="ghost" disabled={busy} onClick={() => goto(previous.id)}>
+                    <ChevronLeft aria-hidden />
+                    {t(`step.${previous.id}.title`)}
+                  </Button>
+                ) : null}
+
+                <span className="ml-auto flex flex-wrap items-center gap-2">
+                  {current.optional ? (
+                    <Button
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => setConfirming('skip')}
+                    >
+                      {t('action.skipStep')}
+                    </Button>
+                  ) : null}
+
+                  {currentId === 'welcome' ? (
+                    <Button disabled={busy} onClick={() => goto(steps[1]?.id ?? 'summary')}>
+                      {t('action.start')}
+                      <ArrowRight aria-hidden />
+                    </Button>
+                  ) : null}
+
+                  {currentId === 'summary' ? (
+                    <Button loading={busy} onClick={() => void leave('finish')}>
+                      {busy ? null : <Check aria-hidden />}
+                      {t('action.finish')}
+                    </Button>
+                  ) : null}
+                </span>
+              </div>
+            </section>
           ) : null}
-
-          {currentCost ? (
-            <Alert variant="warn">
-              <span className="block font-medium text-ink">{t('cost.alertTitle')}</span>
-              <span className="block text-ink-muted">{currentCost}</span>
-            </Alert>
-          ) : null}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {previous ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={busy}
-                onClick={() => goto(previous.id)}
-              >
-                <ChevronLeft />
-                {t(`step.${previous.id}.title`)}
-              </Button>
-            ) : null}
-
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              {current?.optional ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => setConfirming('skip')}
-                >
-                  <SkipForward />
-                  {t('action.skipStep')}
-                </Button>
-              ) : null}
-
-              {currentId === 'welcome' ? (
-                <Button size="sm" disabled={busy} onClick={() => goto(steps[1]?.id ?? 'summary')}>
-                  {t('action.start')}
-                  <ArrowRight />
-                </Button>
-              ) : null}
-
-              {currentId === 'summary' ? (
-                <Button size="sm" disabled={busy} onClick={() => void leave('finish')}>
-                  <Check />
-                  {t('action.finish')}
-                </Button>
-              ) : null}
-            </div>
-          </div>
         </div>
-      </div>
+      </main>
 
       <Dialog
         open={confirming === 'abandon'}
         onOpenChange={(open) => setConfirming(open ? 'abandon' : null)}
       >
         <DialogContent>
-          <DialogHeader>
+          <DialogHeader icon={<LogOut />} tone="warn">
             <DialogTitle>{t('leave.title')}</DialogTitle>
             <DialogDescription>
               {t('leave.progress', { count: doneCount, total: actionable.length })}
             </DialogDescription>
           </DialogHeader>
-          <DialogBody className="flex flex-col gap-3 text-sm">
-            <p className="text-ink-muted leading-relaxed">{t('leave.body')}</p>
+          <DialogBody>
+            <p>{t('leave.body')}</p>
             {remaining.length > 0 ? (
-              <div className="border-line rounded-md border p-3">
-                <span className="text-ink text-xs">{t('leave.remaining')}</span>
-                <ul className="text-ink-muted mt-1.5 flex flex-col gap-1 text-xs">
+              <div className="well flex flex-col gap-1.5">
+                <span className="t-cap font-medium text-text-2">{t('leave.remaining')}</span>
+                <ul className="bul flex flex-col gap-1">
                   {remaining.map((step) => (
-                    <li key={step.id}>· {t(`step.${step.id}.title`)}</li>
+                    <li key={step.id}>{t(`step.${step.id}.title`)}</li>
                   ))}
                 </ul>
               </div>
@@ -404,10 +382,10 @@ export function OnboardingWizard(props: Props) {
             {noTarget ? <Alert variant="warn">{t('leave.noTarget')}</Alert> : null}
           </DialogBody>
           <DialogFooter>
-            <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
+            <Button variant="ghost" onClick={() => setConfirming(null)}>
               {t('leave.stay')}
             </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={confirmAbandon}>
+            <Button variant="secondary" loading={busy} onClick={confirmAbandon}>
               {t('leave.confirm')}
             </Button>
           </DialogFooter>
@@ -419,35 +397,37 @@ export function OnboardingWizard(props: Props) {
         onOpenChange={(open) => setConfirming(open ? 'skip' : null)}
       >
         <DialogContent>
-          <DialogHeader>
+          <DialogHeader icon={<SkipForward />} tone="warn">
             <DialogTitle>
               {t('skip.title', { step: current ? t(`step.${current.id}.title`) : '' })}
             </DialogTitle>
-            <DialogDescription>
-              {current ? t(`step.${current.id}.summary`) : null}
-            </DialogDescription>
           </DialogHeader>
-          <DialogBody className="flex flex-col gap-3 text-sm">
-            {currentCost ? <p className="text-ink-muted leading-relaxed">{currentCost}</p> : null}
-            <p className="text-ink-faint text-xs leading-relaxed">{t('skip.note')}</p>
+          <DialogBody>
+            {currentCost ? <p>{currentCost}</p> : null}
+            <p className="t-cap text-text-3">{t('skip.note')}</p>
           </DialogBody>
           <DialogFooter>
-            <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
+            <Button variant="ghost" onClick={() => setConfirming(null)}>
               {t('skip.back')}
             </Button>
-            <Button size="sm" variant="outline" disabled={busy} onClick={confirmSkip}>
+            <Button variant="secondary" loading={busy} onClick={confirmSkip}>
               {t('action.skipStep')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </>
   );
 }
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Les étapes, en échelle verticale : la pastille dit l'issue (coche, trait,
+ * numéro), la ligne sous le titre la redit en mots, et l'étape courante est
+ * posée sur une carte blanche. Un clic y mène : on saute librement de l'une à
+ * l'autre, rien n'est perdu.
+ */
 function Stepper({
   steps,
   currentId,
@@ -462,50 +442,78 @@ function Stepper({
   const t = useT(onboarding);
 
   return (
-    <nav
-      aria-label={t('stepper.label')}
-      className="flex flex-col gap-1 lg:sticky lg:top-6 lg:self-start"
-    >
-      {steps.map((step, position) => {
-        const active = step.id === currentId;
-        return (
-          <button
-            key={step.id}
-            type="button"
-            disabled={busy}
-            onClick={() => onSelect(step.id)}
-            className={cn(
-              'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[0.8125rem]',
-              'transition-colors duration-100 ease-out disabled:opacity-60',
-              'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-              active ? 'bg-surface-2 text-ink' : 'text-ink-muted hover:bg-surface-2/60 hover:text-ink',
-            )}
-            aria-current={active ? 'step' : undefined}
-          >
-            <span
-              className={cn(
-                'flex size-5 shrink-0 items-center justify-center rounded-full border text-[0.6875rem] tabular-nums',
-                step.outcome === 'done'
-                  ? 'border-ok-edge bg-ok-soft text-ok'
-                  : step.outcome === 'skipped'
-                    ? 'border-warn-edge bg-warn-soft text-warn'
-                    : active
-                      ? 'border-signal bg-signal text-signal-ink'
-                      : 'border-line text-ink-faint',
-              )}
-            >
-              {step.outcome === 'done' ? (
-                <Check className="size-3" />
-              ) : step.outcome === 'skipped' ? (
-                <Minus className="size-3" />
-              ) : (
-                position + 1
-              )}
-            </span>
-            <span className="min-w-0 truncate">{t(`step.${step.id}.title`)}</span>
-          </button>
-        );
-      })}
+    <nav aria-label={t('stepper.label')} className="lg:sticky lg:top-20 lg:self-start">
+      <ol className="flex flex-col">
+        {steps.map((step, position) => {
+          const active = step.id === currentId;
+          const status =
+            step.outcome === 'done'
+              ? t('outcome.done')
+              : step.outcome === 'skipped'
+                ? t('outcome.skipped')
+                : active
+                  ? t('stepper.current')
+                  : step.optional
+                    ? t('badge.optional')
+                    : null;
+          return (
+            <li key={step.id} className="relative">
+              {position < steps.length - 1 ? (
+                <span
+                  aria-hidden
+                  className={cn(
+                    'absolute top-[34px] bottom-[-6px] left-[18px] w-[1.5px]',
+                    step.outcome === 'done' ? 'bg-ok-line' : 'bg-border',
+                  )}
+                />
+              ) : null}
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onSelect(step.id)}
+                aria-current={active ? 'step' : undefined}
+                className={cn(
+                  'relative flex w-full items-start gap-3 rounded-[10px] px-2 py-2 text-left outline-none',
+                  'transition-colors focus-visible:shadow-focus disabled:opacity-60 motion-reduce:transition-none',
+                  active ? 'bg-surface shadow-sm' : 'hover:bg-surface-3',
+                )}
+              >
+                <span
+                  className={cn(
+                    'mono flex size-[22px] shrink-0 items-center justify-center rounded-full border-[1.5px] bg-surface text-[11px] font-semibold',
+                    step.outcome === 'done'
+                      ? 'border-ok-line bg-ok-soft text-ok'
+                      : step.outcome === 'skipped'
+                        ? 'border-warn-line bg-warn-soft text-warn'
+                        : active
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-border-strong text-text-3',
+                  )}
+                >
+                  {step.outcome === 'done' ? (
+                    <Check aria-hidden className="size-3" strokeWidth={2.4} />
+                  ) : step.outcome === 'skipped' ? (
+                    <Minus aria-hidden className="size-3" strokeWidth={2.4} />
+                  ) : (
+                    position + 1
+                  )}
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span
+                    className={cn(
+                      'truncate text-[13px] leading-5',
+                      active ? 'font-semibold text-text' : 'font-medium text-text',
+                    )}
+                  >
+                    {t(`step.${step.id}.title`)}
+                  </span>
+                  {status ? <span className="t-cap text-text-3">{status}</span> : null}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
     </nav>
   );
 }
@@ -514,30 +522,30 @@ function Welcome() {
   const t = useT(onboarding);
 
   return (
-    <div className="flex flex-col gap-4 text-[0.8125rem] leading-relaxed text-ink-muted">
+    <div className="t-sm flex flex-col gap-4 text-text-2">
       <p>
         {rich(t('welcome.p1'), {
-          controlPlane: <strong className="text-ink">{t('welcome.p1.controlPlane')}</strong>,
+          controlPlane: <strong className="text-text">{t('welcome.p1.controlPlane')}</strong>,
           your: <em>{t('welcome.p1.your')}</em>,
         })}
       </p>
       <p>
         {rich(t('welcome.p2'), {
-          keepRunning: <strong className="text-ink">{t('welcome.p2.keepRunning')}</strong>,
+          keepRunning: <strong className="text-text">{t('welcome.p2.keepRunning')}</strong>,
         })}
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-          <div className="eyebrow text-ink-faint">{t('welcome.does.title')}</div>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="well flex flex-col gap-1.5">
+          <div className="t-cap font-medium text-text-2">{t('welcome.does.title')}</div>
+          <ul className="bul t-cap flex flex-col gap-1">
             <li>{t('welcome.does.ssh')}</li>
             <li>{t('welcome.does.render')}</li>
             <li>{t('welcome.does.scan')}</li>
           </ul>
         </div>
-        <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-          <div className="eyebrow text-ink-faint">{t('welcome.doesNot.title')}</div>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs">
+        <div className="well flex flex-col gap-1.5">
+          <div className="t-cap font-medium text-text-2">{t('welcome.doesNot.title')}</div>
+          <ul className="bul t-cap flex flex-col gap-1">
             <li>{t('welcome.doesNot.run')}</li>
             <li>{t('welcome.doesNot.install')}</li>
             <li>{t('welcome.doesNot.firewall')}</li>
@@ -583,32 +591,39 @@ function TargetStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">{t('target.intro')}</p>
+      <p className="t-sm text-text-2">{t('target.intro')}</p>
 
       <div>
-        <TargetHelpDialog label={t('target.help')} />
+        <TargetHelp label={t('target.help')} />
       </div>
 
       {existing !== null && existing > 0 ? (
-        <Alert variant="info" className="flex flex-wrap items-center gap-3">
+        <Alert variant="info">
           {/*
             `count` choisit la forme, `{n}` porte le nombre en gras. Deux noms
             pour une seule valeur : l'un est substitué par `t()`, l'autre reste
             en place pour que `rich()` y pose le nœud.
           */}
-          <span className="min-w-0 flex-1">
-            {rich(t('target.existing', { count: existing }), {
-              n: <strong>{existing}</strong>,
-            })}
+          <span className="flex flex-wrap items-center gap-3">
+            <span className="min-w-0 flex-1">
+              {rich(t('target.existing', { count: existing }), {
+                n: <strong>{existing}</strong>,
+              })}
+            </span>
+            <Button size="sm" variant="secondary" disabled={disabled} onClick={onDone}>
+              {t('target.haveOne')}
+            </Button>
           </span>
-          <Button size="sm" variant="outline" disabled={disabled} onClick={onDone}>
-            {t('target.haveOne')}
-          </Button>
         </Alert>
       ) : null}
 
       {error ? <Alert variant="destructive">{error}</Alert> : null}
-      {phase ? <Alert variant="success">{phase}</Alert> : null}
+      {phase ? (
+        <div className="well flex items-center gap-2.5">
+          <Led tone="accent" pulse />
+          <span className="t-sm font-semibold text-text">{phase}</span>
+        </div>
+      ) : null}
 
       <TargetForm
         onCreated={(target) => void afterCreate(target)}
@@ -619,27 +634,19 @@ function TargetStep({
   );
 }
 
-function RoleStep({
-  roleKeys,
-  onCreated,
-}: {
-  roleKeys: RoleKey[];
-  onCreated: () => void;
-}) {
+function RoleStep({ roleKeys, onCreated }: { roleKeys: RoleKey[]; onCreated: () => void }) {
   const t = useT(onboarding);
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
+      <p className="t-sm text-text-2">
         {rich(t('role.intro'), {
-          admin: <code className="font-mono text-xs">admin</code>,
-          operator: <code className="font-mono text-xs">operator</code>,
-          viewer: <code className="font-mono text-xs">viewer</code>,
-          noPermission: (
-            <strong className="text-ink">{t('role.intro.noPermission')}</strong>
-          ),
+          admin: <code className="mono">admin</code>,
+          operator: <code className="mono">operator</code>,
+          viewer: <code className="mono">viewer</code>,
+          noPermission: <strong className="text-text">{t('role.intro.noPermission')}</strong>,
           rolesLink: (
-            <Link href="/admin/roles" className="text-signal underline underline-offset-4">
+            <Link href="/admin/roles" className="link">
               {t('role.intro.link')}
             </Link>
           ),
@@ -665,7 +672,7 @@ function UserStep({
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[0.8125rem] leading-relaxed text-ink-muted">
+      <p className="t-sm text-text-2">
         {t('user.intro')}
         {existing !== null ? ` ${t('user.existing', { count: existing })}` : ''}
       </p>
@@ -696,42 +703,41 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="overflow-x-auto rounded-md border border-line">
-        <table className="w-full min-w-0 border-collapse text-left text-[0.8125rem]">
-          <tbody>
+      <section className="card overflow-hidden">
+        <Table dense label={t('stepper.label')}>
+          <TableBody>
             {actionable.map((step) => {
               const link = links[step.id];
               return (
-              <tr key={step.id} className="border-b border-line last:border-b-0">
-                <td className="px-3 py-2 font-medium text-ink">
-                  {t(`step.${step.id}.title`)}
-                </td>
-                <td className="px-3 py-2">
-                  <Badge
-                    variant={
-                      step.outcome === 'done'
-                        ? 'ok'
-                        : step.outcome === 'skipped'
-                          ? 'warn'
-                          : 'secondary'
-                    }
-                  >
-                    {outcomeLabel[step.outcome]}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {link ? (
-                    <Link href={link.href} className="text-signal underline underline-offset-4">
-                      {link.label}
-                    </Link>
-                  ) : null}
-                </td>
-              </tr>
+                <TableRow key={step.id}>
+                  <TableCell className="cellname">{t(`step.${step.id}.title`)}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        step.outcome === 'done'
+                          ? 'ok'
+                          : step.outcome === 'skipped'
+                            ? 'warn'
+                            : 'idle'
+                      }
+                      dot
+                    >
+                      {outcomeLabel[step.outcome]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="r">
+                    {link ? (
+                      <Link href={link.href as never} className="link">
+                        {link.label}
+                      </Link>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </section>
 
       {skipped.length > 0 ? (
         <Alert variant="warn">
@@ -742,7 +748,7 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
             }),
             {
               settings: (
-                <Link href="/admin/settings" className="text-signal underline underline-offset-4">
+                <Link href="/admin/settings" className="link">
                   {t('summary.skipped.settings')}
                 </Link>
               ),
@@ -751,7 +757,7 @@ function Summary({ steps, state }: { steps: OnboardingPresentedStep[]; state: On
         </Alert>
       ) : null}
 
-      <p className="text-xs text-ink-faint">
+      <p className="t-cap text-text-3">
         {t('summary.finishNote')}
         {state.runs > 0 ? ` ${t('summary.run', { n: state.runs + 1 })}` : ''}
       </p>

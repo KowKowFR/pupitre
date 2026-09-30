@@ -16,16 +16,12 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { currentLanguage, getT } from '@/i18n/server';
 import { notifications as notificationMessages } from '@/i18n/messages/notifications';
-import { settings as settingsMessages } from '@/i18n/messages/settings';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
-import { settingsSection } from '../sections';
 import { DigestPolicy } from './digest-policy';
 import { NotificationsManager } from './notifications-manager';
 
 export const dynamic = 'force-dynamic';
-
-const section = settingsSection('/admin/settings/notifications');
 
 /**
  * Les canaux ne vivent pas dans le JSONB des paramètres mais dans leur propre
@@ -49,29 +45,23 @@ export default async function NotificationSettingsPage() {
   // l'instance plutôt que de les laisser retomber sur leur défaut français.
   const language = await currentLanguage();
   const events = presentNotificationEvents(language);
-  const ts = await getT(settingsMessages);
   const t = await getT(notificationMessages);
 
   return (
     <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{ts(`section.${section.id}.title`)}</CardTitle>
-          <CardDescription>{ts(`section.${section.id}.governs`)}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <NotificationsManager
-            initialChannels={channels.map((channel) => ({
-              ...channel,
-              lastSuccessAt: channel.lastSuccessAt?.toISOString() ?? null,
-              lastFailureAt: channel.lastFailureAt?.toISOString() ?? null,
-            }))}
-            catalog={presentNotificationChannels(language)}
-            events={events}
-            canManage={auth.can('settings:manage')}
-          />
-        </CardContent>
-      </Card>
+      <NotificationsManager
+        title={t('channels.title')}
+        description={t('channels.description')}
+        initialChannels={channels.map((channel) => ({
+          ...channel,
+          lastSuccessAt: channel.lastSuccessAt?.toISOString() ?? null,
+          lastFailureAt: channel.lastFailureAt?.toISOString() ?? null,
+        }))}
+        catalog={presentNotificationChannels(language)}
+        events={events}
+        canManage={auth.can('settings:manage')}
+        format={formatSettingsOf(settings)}
+      />
 
       {/*
         Le regroupement est une carte à part, et non un champ de plus dans le

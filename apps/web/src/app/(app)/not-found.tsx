@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
-import { PageHeader } from '@/components/page-header';
+import { AccessCard } from '@/components/access-shell';
+import { Button } from '@/components/ui/button';
 import { auth as messages } from '@/i18n/messages/auth';
 import { getT } from '@/i18n/server';
 
@@ -16,23 +16,13 @@ export default async function AppNotFound() {
   const t = await getT(messages);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        eyebrow={t('appNotFound.eyebrow')}
-        title={t('appNotFound.title')}
-        description={t('appNotFound.description')}
-      />
-      <Card>
-        <CardContent className="space-y-3">
-          <p className="text-[0.8125rem] text-ink-muted">{t('appNotFound.body')}</p>
-          <Link
-            href="/"
-            className="inline-block text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-          >
-            {t('link.backToDashboard')}
-          </Link>
-        </CardContent>
-      </Card>
+    <div className="mx-auto mt-6 w-full max-w-[440px]">
+      <AccessCard title={t('appNotFound.title')} description={t('appNotFound.description')}>
+        <p className="t-sm text-text-2">{t('appNotFound.body')}</p>
+        <Button asChild variant="secondary" className="btn-block">
+          <Link href="/">{t('link.backToDashboard')}</Link>
+        </Button>
+      </AccessCard>
     </div>
   );
 }

@@ -561,3 +561,27 @@ test('on n’interroge pas un registre plus d’une fois par six heures', () => 
   // Le mot-clé, lui, c'est la même requête que HTTP avec un peu de lecture.
   assert.equal(MONITOR_TYPES.keyword.minIntervalSeconds, MONITOR_TYPES.http.minIntervalSeconds);
 });
+
+// ─── certificat vu par les sondes HTTP ────────────────────────────────────────
+
+test('certificat : jours restants arrondis vers le bas, et rien pour une page en clair', async () => {
+  const { certificateMetrics } = await import('../src/probe/fetch.js');
+  const now = Date.parse('2026-09-30T12:00:00Z');
+  assert.deepEqual(certificateMetrics({ validTo: '2026-12-01T11:00:00.000Z' }, now), {
+    certDaysRemaining: 61,
+    certValidTo: '2026-12-01T11:00:00.000Z',
+  });
+  assert.equal(
+    certificateMetrics({ validTo: '2026-09-30T18:00:00.000Z' }, now).certDaysRemaining,
+    0,
+  );
+  assert.deepEqual(certificateMetrics(null, now), {});
+});
+
+test('certificat : les sondes HTTP et mot-clé déclarent ses deux mesures', () => {
+  for (const type of ['http', 'keyword'] as const) {
+    const keys = MONITOR_TYPES[type].metrics.map((metric) => metric.key);
+    assert.ok(keys.includes('certDaysRemaining'), `${type} : jours restants absents`);
+    assert.ok(keys.includes('certValidTo'), `${type} : date de fin absente`);
+  }
+});

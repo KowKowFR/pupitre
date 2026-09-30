@@ -17,8 +17,8 @@ import type { Translated } from '@pupitre/core';
 const fr = {
   // ── L'écran ─────────────────────────────────────────────────────────────
   'meta.title': 'Mon compte — Pupitre',
-  'page.eyebrow': 'Compte',
-  'page.title': 'Sécurité',
+  'page.title': 'Sécurité du compte',
+  'crumb': 'Mon compte',
   'page.description':
     "Ce qui protège l'accès au panel : le mot de passe, et un second facteur qui survit à sa fuite. Les deux se gèrent ici, pour soi seul — un administrateur n'a pas le pouvoir d'activer un second facteur à votre place.",
 
@@ -41,6 +41,7 @@ const fr = {
     one: 'Le mot de passe doit faire au moins {count} caractère.',
     other: 'Le mot de passe doit faire au moins {count} caractères.',
   },
+  'password.tooShortTyped': '{count} caractères minimum ({typed} saisis).',
   'password.mismatch': 'La confirmation ne correspond pas au nouveau mot de passe.',
   'password.submit': 'Changer le mot de passe',
   'password.pending': 'Changement…',
@@ -51,13 +52,13 @@ const fr = {
   'twoFactor.title': 'Double authentification (TOTP)',
   'twoFactor.badge.on': 'active',
   'twoFactor.badge.off': 'inactive',
+  'twoFactor.badge.setup': 'configuration',
   'twoFactor.description':
     "Un code à six chiffres, renouvelé toutes les trente secondes par une application d'authentification. Le QR code est dessiné dans cette page : le secret ne part chez personne.",
   'twoFactor.field.password': 'Mot de passe',
   'twoFactor.enable': 'Activer le second facteur',
   'twoFactor.generating': 'Génération…',
-  'twoFactor.enabled':
-    'Second facteur activé. Il sera demandé à chaque connexion.',
+  'twoFactor.enabled': 'Second facteur activé. Il sera demandé à chaque connexion.',
   'twoFactor.armed.body':
     'Chaque connexion réclame un code. Pour retirer ce facteur, confirmez avec votre mot de passe.',
   'twoFactor.disabling': 'Désactivation…',
@@ -66,7 +67,7 @@ const fr = {
 
   // ── L'activation, étape par étape ───────────────────────────────────────
   'setup.scan':
-    "Scannez ce code, ou saisissez la clé à la main si votre application ne peut pas lire de QR.",
+    'Scannez ce code, ou saisissez la clé à la main si votre application ne peut pas lire de QR.',
   'setup.key': 'Clé de configuration',
   'setup.backup.title': 'Codes de secours — affichés une seule fois.',
   'setup.backup.body':
@@ -101,12 +102,67 @@ const fr = {
   'error.disableRejected': 'La désactivation a été refusée.',
   'error.setupRejected': 'La configuration du second facteur a été refusée.',
   'error.totpUriMissing': "Better Auth n'a pas renvoyé d'URI TOTP.",
+  'error.session.notFound': "Cette session n'existe plus : elle a expiré ou a déjà été fermée.",
+  'error.session.current':
+    'La session en cours ne se ferme pas ici : utilisez « Déconnexion » dans le menu du compte.',
+
+  'sessions.title': 'Sessions ouvertes',
+  'sessions.description':
+    'Les navigateurs connectés à votre compte. Une session sans activité expire au bout de sept jours.',
+  'sessions.lastSignIn': 'Dernière connexion',
+  'sessions.badge.current': 'cette session',
+  'sessions.activeNow': 'active maintenant',
+  'sessions.lastActive': 'dernière activité {when}',
+  'overview.since': 'Compte créé le {date}',
+  'overview.twoFactor': 'Second facteur',
+  'overview.twoFactor.on': 'Actif',
+  'overview.twoFactor.off': 'Inactif',
+  'overview.twoFactor.on.hint': 'un code à six chiffres à chaque connexion',
+  'overview.twoFactor.off.hint': 'le mot de passe protège seul le compte',
+  'overview.sessions': 'Sessions ouvertes',
+  'overview.sessions.hint': {
+    one: 'celle de ce navigateur seulement',
+    other: 'dont celle de ce navigateur',
+  },
+  'overview.lastSignIn.none': 'aucune connexion au journal',
+  'twoFactor.why.stolen': 'Un mot de passe volé ne suffit plus pour entrer.',
+  'twoFactor.why.code':
+    "Un code à six chiffres, renouvelé toutes les trente secondes, s'affiche sur votre téléphone.",
+  'twoFactor.why.backup':
+    'Des codes de secours, montrés une seule fois, servent si le téléphone est perdu : rangez-les hors de ce navigateur.',
+  'sessions.method.password': 'mot de passe',
+  'sessions.method.totp': 'TOTP',
+  'sessions.method.backup_code': 'code de secours',
+  'sessions.unknownDevice': 'appareil inconnu',
+  'sessions.none': 'Aucune autre session ouverte.',
+  'sessions.close': 'Fermer',
+  'sessions.close.aria': 'Fermer la session {device}',
+  'sessions.closeOthers': 'Fermer les autres sessions',
+  'sessions.confirm.one.title': 'Fermer la session {device} ?',
+  'sessions.confirm.others.title': {
+    one: 'Fermer {count} autre session ?',
+    other: 'Fermer les {count} autres sessions ?',
+  },
+  'sessions.confirm.signedOut.one':
+    "Cet appareil revient à l'écran de connexion à sa prochaine action.",
+  'sessions.confirm.signedOut.others':
+    "Ces appareils reviennent à l'écran de connexion à leur prochaine action.",
+  'sessions.confirm.keep': 'La session de ce navigateur reste ouverte.',
+  'sessions.confirm.audit': "La fermeture est écrite au journal d'activité.",
+  'sessions.confirm.submit.one': 'Fermer la session',
+  'sessions.confirm.submit.others': 'Fermer les sessions',
+  'sessions.closing': 'Fermeture…',
+  'sessions.closed.one': 'Session fermée',
+  'sessions.closed.others': {
+    one: '{count} session fermée',
+    other: '{count} sessions fermées',
+  },
 } as const;
 
 const en: Translated<typeof fr> = {
   'meta.title': 'My account — Pupitre',
-  'page.eyebrow': 'Account',
-  'page.title': 'Security',
+  'page.title': 'Account security',
+  'crumb': 'My account',
   'page.description':
     'What protects access to the panel: the password, and a second factor that outlives its leak. You manage both here, for yourself alone — an administrator cannot turn on a second factor in your place.',
 
@@ -123,6 +179,7 @@ const en: Translated<typeof fr> = {
     one: 'The password must be at least {count} character long.',
     other: 'The password must be at least {count} characters long.',
   },
+  'password.tooShortTyped': '{count} characters minimum ({typed} typed).',
   'password.mismatch': 'The confirmation does not match the new password.',
   'password.submit': 'Change the password',
   'password.pending': 'Changing…',
@@ -131,6 +188,7 @@ const en: Translated<typeof fr> = {
   'twoFactor.title': 'Two-factor authentication (TOTP)',
   'twoFactor.badge.on': 'on',
   'twoFactor.badge.off': 'off',
+  'twoFactor.badge.setup': 'setting up',
   'twoFactor.description':
     'A six-digit code, renewed every thirty seconds by an authenticator app. The QR code is drawn in this page: the secret goes to nobody.',
   'twoFactor.field.password': 'Password',
@@ -170,6 +228,60 @@ const en: Translated<typeof fr> = {
   'error.disableRejected': 'Disabling was refused.',
   'error.setupRejected': 'Setting up the second factor was refused.',
   'error.totpUriMissing': 'Better Auth returned no TOTP URI.',
+  'error.session.notFound': 'This session no longer exists: it expired or was already closed.',
+  'error.session.current':
+    'The current session is not closed here: use “Sign out” in the account menu.',
+
+  'sessions.title': 'Open sessions',
+  'sessions.description':
+    'The browsers signed in to your account. A session with no activity expires after seven days.',
+  'sessions.lastSignIn': 'Last sign-in',
+  'sessions.badge.current': 'this session',
+  'sessions.activeNow': 'active now',
+  'sessions.lastActive': 'last active {when}',
+  'overview.since': 'Account created on {date}',
+  'overview.twoFactor': 'Second factor',
+  'overview.twoFactor.on': 'On',
+  'overview.twoFactor.off': 'Off',
+  'overview.twoFactor.on.hint': 'a six-digit code at every sign-in',
+  'overview.twoFactor.off.hint': 'the password alone protects the account',
+  'overview.sessions': 'Open sessions',
+  'overview.sessions.hint': {
+    one: 'only this browser’s',
+    other: 'including this browser’s',
+  },
+  'overview.lastSignIn.none': 'no sign-in in the log',
+  'twoFactor.why.stolen': 'A stolen password is no longer enough to get in.',
+  'twoFactor.why.code': 'A six-digit code, renewed every thirty seconds, shows on your phone.',
+  'twoFactor.why.backup':
+    'Backup codes, shown only once, help if the phone is lost: keep them outside this browser.',
+  'sessions.method.password': 'password',
+  'sessions.method.totp': 'TOTP',
+  'sessions.method.backup_code': 'backup code',
+  'sessions.unknownDevice': 'unknown device',
+  'sessions.none': 'No other open session.',
+  'sessions.close': 'Close',
+  'sessions.close.aria': 'Close the {device} session',
+  'sessions.closeOthers': 'Close the other sessions',
+  'sessions.confirm.one.title': 'Close the {device} session?',
+  'sessions.confirm.others.title': {
+    one: 'Close {count} other session?',
+    other: 'Close the {count} other sessions?',
+  },
+  'sessions.confirm.signedOut.one':
+    'This device goes back to the sign-in screen on its next action.',
+  'sessions.confirm.signedOut.others':
+    'These devices go back to the sign-in screen on their next action.',
+  'sessions.confirm.keep': 'This browser’s session stays open.',
+  'sessions.confirm.audit': 'The closing is written to the activity log.',
+  'sessions.confirm.submit.one': 'Close the session',
+  'sessions.confirm.submit.others': 'Close the sessions',
+  'sessions.closing': 'Closing…',
+  'sessions.closed.one': 'Session closed',
+  'sessions.closed.others': {
+    one: '{count} session closed',
+    other: '{count} sessions closed',
+  },
 };
 
 export const account = { fr, en };

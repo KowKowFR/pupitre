@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Trash2, ArrowUpCircle, Lock } from 'lucide-react';
+import { RefreshCw, Trash2, ArrowUpCircle } from 'lucide-react';
 import type { ServiceState, Translate, Workload } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { State, type Tone } from '@/components/ui/led';
 import {
   Table,
   TableActions,
@@ -21,7 +22,6 @@ import {
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
-import { cn } from '@/lib/utils';
 
 /**
  * Ce qui tourne sur la cible, panel compris.
@@ -58,13 +58,13 @@ type ApiError = { error?: { message?: string } };
 
 type Progress = { ref: string; name: string; lines: string[]; done: boolean; failed: boolean };
 
-const STATE_TONE: Record<ServiceState, string> = {
-  running: 'bg-ok',
-  restarting: 'bg-warn',
-  exited: 'bg-ink-faint',
-  paused: 'bg-warn',
-  created: 'bg-warn',
-  unknown: 'bg-ink-faint',
+const STATE_TONE: Record<ServiceState, Tone> = {
+  running: 'ok',
+  restarting: 'warn',
+  exited: 'idle',
+  paused: 'warn',
+  created: 'accent',
+  unknown: 'idle',
 };
 
 /**
@@ -91,13 +91,7 @@ function formatDate(iso: string | null, none: string): string {
   return Number.isNaN(date.getTime()) ? none : date.toISOString().slice(0, 16).replace('T', ' ');
 }
 
-export function WorkloadsPanel({
-  targetId,
-  canManage,
-}: {
-  targetId: string;
-  canManage: boolean;
-}) {
+export function WorkloadsPanel({ targetId, canManage }: { targetId: string; canManage: boolean }) {
   const router = useRouter();
   const t = useT(messages);
   const tc = useT(common);
@@ -206,7 +200,8 @@ export function WorkloadsPanel({
                   ...current,
                   done: true,
                   failed,
-                  lines: failed && payload.detail ? [...current.lines, payload.detail] : current.lines,
+                  lines:
+                    failed && payload.detail ? [...current.lines, payload.detail] : current.lines,
                 }
               : current,
           );
@@ -221,19 +216,13 @@ export function WorkloadsPanel({
     [closeStream, reload, router, t, targetId],
   );
 
+  /** Le geste en attente de confirmation, s'il y en a un. */
+  const [pending, setPending] = useState<{ workload: WorkloadRow; action: 'remove' | 'update' } | null>(
+    null,
+  );
+
   async function act(workload: WorkloadRow, action: 'remove' | 'update') {
-    // `kind` vient du driver — `container`, `pod`, `deployment` : c'est le
-    // runtime qui nomme la chose, pas le panel. Il entre dans la phrase avec le
-    // mot de la langue courante, jamais avec la clé.
-    const vars = {
-      kind: kindLabel(workload.kind, t),
-      name: workload.name,
-      image: workload.image ?? t('image.unknown'),
-    };
-    const question = t(action === 'remove' ? 'confirm.remove' : 'confirm.update', vars);
-
-    if (!window.confirm(question)) return;
-
+    setPending(null);
     setBusy(workload.ref);
     setError(null);
     await openStream(workload.ref, workload.name);
@@ -254,15 +243,25 @@ export function WorkloadsPanel({
   }
 
   const items = inventory?.items ?? [];
+  // `kind` vient du driver — `container`, `pod`, `deployment` : c'est le
+  // runtime qui nomme la chose. Il entre dans la phrase avec le mot de la
+  // langue courante, jamais avec la clé.
+  const confirmVars = pending
+    ? {
+        kind: kindLabel(pending.workload.kind, t),
+        name: pending.workload.name,
+        image: pending.workload.image ?? t('image.unknown'),
+      }
+    : null;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div className="space-y-1.5">
-          <CardTitle>{t('workloads.title')}</CardTitle>
+    <section className="card overflow-hidden">
+      <div className="card-h">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h2>{t('workloads.title')}</h2>
           {/* Trois fragments : deux décomptes qui s'accordent chacun de leur
               côté, et la date du relevé. */}
-          <CardDescription>
+          <span className="sub">
             {inventory
               ? `${t('workloads.count', { count: inventory.total })}, ${t('workloads.managed', {
                   count: inventory.managed,
@@ -270,154 +269,177 @@ export function WorkloadsPanel({
                   date: formatDate(inventory.checkedAt, tc('none')),
                 })}`
               : t('workloads.subtitle')}
-          </CardDescription>
+          </span>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void reload()} disabled={loading}>
-          <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
+        <Button variant="secondary" size="sm" onClick={() => void reload()} loading={loading}>
+          {loading ? null : <RefreshCw aria-hidden />}
           {tc('refresh')}
         </Button>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-4">
-        {error ? <Alert variant="destructive">{error}</Alert> : null}
-
-        {inventory?.runtimes
-          .filter((report) => !report.ok)
-          .map((report) => (
-            <Alert key={report.runtime} variant="destructive">
-              {t('workloads.runtimeError', {
-                runtime: report.runtime,
-                error: report.error ?? '',
-              })}
-            </Alert>
-          ))}
-
-        {progress ? (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs">
-              <Badge variant={progress.failed ? 'destructive' : 'secondary'}>
-                {progress.done
-                  ? progress.failed
-                    ? t('progress.failed')
-                    : t('progress.done')
-                  : t('progress.running')}
-              </Badge>
-              <span className="text-muted-foreground font-mono">{progress.name}</span>
+      {error || progress || inventory?.runtimes.some((report) => !report.ok) ? (
+        <div className="card-b flex flex-col gap-3 border-b border-border-subtle">
+          {error ? <Alert variant="destructive">{error}</Alert> : null}
+          {inventory?.runtimes
+            .filter((report) => !report.ok)
+            .map((report) => (
+              <Alert key={report.runtime} variant="destructive">
+                {t('workloads.runtimeError', {
+                  runtime: report.runtime,
+                  error: report.error ?? '',
+                })}
+              </Alert>
+            ))}
+          {progress ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Badge variant={progress.failed ? 'danger' : progress.done ? 'ok' : 'accent'} dot>
+                  {progress.done
+                    ? progress.failed
+                      ? t('progress.failed')
+                      : t('progress.done')
+                    : t('progress.running')}
+                </Badge>
+                <span className="mono text-[12px] text-text-2">{progress.name}</span>
+              </div>
+              <div className="term max-h-48">
+                <div className="term-b">
+                  {(progress.lines.length > 0 ? progress.lines : [t('progress.waiting')]).map(
+                    (line, index) => (
+                      <div key={index} className="ln">
+                        {line}
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
             </div>
-            <pre className="bg-muted/40 max-h-48 overflow-auto rounded-md border p-2 font-mono text-[10px]">
-              {progress.lines.length > 0 ? progress.lines.join('\n') : t('progress.waiting')}
-            </pre>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
+      ) : null}
 
-        {loading && items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">{t('workloads.loading')}</p>
-        ) : items.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            {error ? t('workloads.unavailable') : t('workloads.empty')}
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('column.workload')}</TableHead>
-                <TableHead>{t('column.origin')}</TableHead>
-                <TableHead>{t('column.image')}</TableHead>
-                <TableHead>{tc('column.state')}</TableHead>
-                <TableHead>{t('column.ports')}</TableHead>
-                <TableHead>{t('column.createdAt')}</TableHead>
-                {canManage ? <TableActionsHead>{tc('column.actions')}</TableActionsHead> : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((workload) => (
-                <TableRow key={workload.ref}>
-                  <TableCell>
-                    <div className="font-mono text-xs">{workload.name}</div>
-                    <div className="text-ink-faint text-[10px]">
+      {loading && items.length === 0 ? (
+        <p className="t-sm px-4 py-5 text-text-3">{t('workloads.loading')}</p>
+      ) : items.length === 0 ? (
+        <p className="t-sm px-4 py-5 text-text-3">
+          {error ? t('workloads.unavailable') : t('workloads.empty')}
+        </p>
+      ) : (
+        <Table label={t('workloads.title')}>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('column.workload')}</TableHead>
+              <TableHead>{t('column.origin')}</TableHead>
+              <TableHead>{t('column.image')}</TableHead>
+              <TableHead>{tc('column.state')}</TableHead>
+              <TableHead>{t('column.ports')}</TableHead>
+              <TableHead>{t('column.createdAt')}</TableHead>
+              {canManage ? <TableActionsHead>{tc('column.actions')}</TableActionsHead> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((workload) => (
+              <TableRow key={workload.ref}>
+                <TableCell>
+                  <span className="flex flex-col">
+                    <span className="mono text-[12.5px] font-semibold">{workload.name}</span>
+                    <span className="t-cap text-text-3">
                       {kindLabel(workload.kind, t)}
                       {workload.scope ? ` · ${workload.scope}` : ''}
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    {workload.managed ? (
-                      <Badge variant="secondary" className="gap-1">
-                        <Lock className="size-3" aria-hidden="true" />
-                        {t('origin.panel')}
-                        {workload.managedApp ? ` · ${workload.managedApp}` : ''}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">{t('origin.outside')}</Badge>
-                    )}
-                  </TableCell>
-
-                  <TableCell className="font-mono text-[11px]">
-                    {workload.image ?? tc('none')}
-                  </TableCell>
-
-                  <TableCell>
-                    <span className="inline-flex items-center gap-2">
-                      <span
-                        className={cn(
-                          'inline-block size-2 shrink-0 rounded-full',
-                          STATE_TONE[workload.state],
-                        )}
-                        aria-hidden="true"
-                      />
-                      <span className="text-xs">{t(`state.${workload.state}`)}</span>
                     </span>
-                    {workload.since ? (
-                      <div className="text-ink-faint text-[10px]">{workload.since}</div>
-                    ) : null}
-                  </TableCell>
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {workload.managed ? (
+                    <Badge variant="accent">
+                      {t('origin.panel')}
+                      {workload.managedApp ? ` · ${workload.managedApp}` : ''}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">{t('origin.outside')}</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <span className="mono inline-block max-w-[240px] truncate text-[12px] text-text-2">
+                    {workload.image ?? tc('none')}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <State tone={STATE_TONE[workload.state]} pulse={workload.state === 'created'}>
+                    {t(`state.${workload.state}`)}
+                  </State>
+                  {workload.since ? <div className="t-cap text-text-3">{workload.since}</div> : null}
+                </TableCell>
+                <TableCell className="mono text-text-2">
+                  {workload.ports.length > 0 ? workload.ports.join(', ') : tc('none')}
+                </TableCell>
+                <TableCell className="mono text-text-3">
+                  {formatDate(workload.createdAt, tc('none'))}
+                </TableCell>
+                {canManage ? (
+                  <TableActions>
+                    {workload.managed ? (
+                      // Dire pourquoi le geste est absent vaut mieux que de
+                      // laisser croire à un oubli.
+                      <span className="t-cap text-text-3">{t('workloads.managedNotice')}</span>
+                    ) : (
+                      <span className="inline-flex justify-end gap-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={busy !== null}
+                          onClick={() => setPending({ workload, action: 'update' })}
+                        >
+                          <ArrowUpCircle aria-hidden />
+                          {t('action.update')}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={busy !== null}
+                          onClick={() => setPending({ workload, action: 'remove' })}
+                        >
+                          <Trash2 aria-hidden />
+                          {tc('delete')}
+                        </Button>
+                      </span>
+                    )}
+                  </TableActions>
+                ) : null}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
-                  <TableCell className="font-mono text-[11px]">
-                    {workload.ports.length > 0 ? workload.ports.join(', ') : tc('none')}
-                  </TableCell>
-
-                  <TableCell className="text-muted-foreground font-mono text-[11px]">
-                    {formatDate(workload.createdAt, tc('none'))}
-                  </TableCell>
-
-                  {canManage ? (
-                    <TableActions>
-                      {workload.managed ? (
-                        // Dire pourquoi le geste est absent vaut mieux que de
-                        // laisser croire à un oubli.
-                        <span className="text-ink-faint text-[11px]">
-                          {t('workloads.managedNotice')}
-                        </span>
-                      ) : (
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busy !== null}
-                            onClick={() => void act(workload, 'update')}
-                          >
-                            <ArrowUpCircle className="size-3.5" />
-                            {t('action.update')}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            disabled={busy !== null}
-                            onClick={() => void act(workload, 'remove')}
-                          >
-                            <Trash2 className="size-3.5" />
-                            {tc('delete')}
-                          </Button>
-                        </div>
-                      )}
-                    </TableActions>
-                  ) : null}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+      <ConfirmDialog
+        open={pending !== null}
+        onOpenChange={(open) => (open ? undefined : setPending(null))}
+        level={pending?.action === 'remove' ? 'data' : 'reversible'}
+        title={
+          confirmVars
+            ? t(pending?.action === 'remove' ? 'workload.remove.title' : 'workload.update.title', confirmVars)
+            : ''
+        }
+        consequences={
+          !confirmVars
+            ? []
+            : pending?.action === 'remove'
+              ? [
+                  t('workload.remove.image', confirmVars),
+                  t('workload.remove.final'),
+                  t('workload.remove.volumes'),
+                ]
+              : [
+                  t('workload.update.pull', confirmVars),
+                  t('workload.update.recreate'),
+                  t('workload.update.downtime'),
+                ]
+        }
+        retypeName={pending?.action === 'remove' ? pending.workload.name : undefined}
+        confirmLabel={pending?.action === 'remove' ? tc('delete') : t('action.update')}
+        onConfirm={() => (pending ? act(pending.workload, pending.action) : undefined)}
+      />
+    </section>
   );
 }

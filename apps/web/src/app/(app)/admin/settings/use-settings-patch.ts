@@ -6,6 +6,7 @@ import type { AppSettingsPatch } from '@pupitre/core';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { settings } from '@/i18n/messages/settings';
+import { toast } from '@/lib/toast';
 
 /**
  * Plomberie d'enregistrement commune aux sous-sections.
@@ -30,8 +31,7 @@ export type SettingsPatch = {
   save: (body: SettingsPatchBody) => Promise<boolean>;
   pending: boolean;
   error: string | null;
-  notice: string | null;
-  /** Efface les deux bandeaux — appelé quand la section revient à ses valeurs enregistrées. */
+  /** Efface le bandeau d'erreur — appelé quand la section revient à ses valeurs enregistrées. */
   clearFeedback: () => void;
 };
 
@@ -40,13 +40,11 @@ export function useSettingsPatch(): SettingsPatch {
   const t = useT(common);
   const ts = useT(settings);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function save(body: SettingsPatchBody): Promise<boolean> {
     setPending(true);
     setError(null);
-    setNotice(null);
 
     const response = await fetch('/api/settings', {
       method: 'PATCH',
@@ -61,7 +59,7 @@ export function useSettingsPatch(): SettingsPatch {
       return false;
     }
 
-    setNotice(ts('form.saved'));
+    toast({ title: ts('form.saved') });
     setPending(false);
     // Les paramètres irriguent le rail, le titre du document et toutes les
     // dates : c'est la page entière qu'il faut réémettre, pas ce formulaire.
@@ -71,8 +69,7 @@ export function useSettingsPatch(): SettingsPatch {
 
   function clearFeedback() {
     setError(null);
-    setNotice(null);
   }
 
-  return { save, pending, error, notice, clearFeedback };
+  return { save, pending, error, clearFeedback };
 }

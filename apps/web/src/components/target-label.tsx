@@ -22,15 +22,11 @@ import { cn } from '@/lib/utils';
  * ## La deuxième défense : la forme
  *
  * La teinte seule ne suffirait pas — un violet reste une couleur vive posée à
- * côté d'un état. Les deux objets sont donc de familles différentes :
- *
- * - une pastille d'**état** a le *texte* coloré (`text-ok`, `text-danger`) ;
- * - une pastille d'**étiquette** a le texte en encre neutre, et la couleur
- *   n'occupe que le fond, le liseré et un point de 5 px.
- *
- * On peut poser les deux côte à côte sans que l'œil les mélange. Bénéfice
- * secondaire : le texte étant toujours en `--ink`, sa lisibilité est acquise
- * dans les deux thèmes sans calcul de contraste par teinte.
+ * côté d'un état. Les deux objets sont donc de familles différentes : une
+ * pastille d'**état** est en Instrument Sans et dit un mot (« opérationnelle »),
+ * une pastille d'**étiquette** est en Geist Mono et dit une paire `clé=valeur`,
+ * la clé atténuée. Fond, liseré et encre sont dérivés de la teinte par
+ * mélange (`.tag`), dosé différemment selon le thème.
  */
 
 /** Nombre de teintes de la rampe `--tag-*`. Doit suivre `globals.css`. */
@@ -65,23 +61,16 @@ export function tagToneOf(key: string, value: string): string {
   return `var(--tag-${index})`;
 }
 
-const CHIP_BASE = [
-  'tag-chip inline-flex w-fit max-w-full shrink-0 items-center gap-1.5',
-  'rounded-sm border px-1.5 py-0.5 font-mono text-[0.6875rem] leading-4',
-] as const;
+const CHIP_BASE = 'tag';
 
 type ChipContentProps = { labelKey: string; value: string };
 
 function ChipContent({ labelKey, value }: ChipContentProps) {
   return (
-    <>
-      <span aria-hidden className="tag-chip-dot size-[5px] shrink-0 rounded-full" />
-      <span className="truncate">
-        <span className="text-ink-muted">{labelKey}</span>
-        <span className="text-ink-faint">=</span>
-        <span className="font-medium">{value}</span>
-      </span>
-    </>
+    <span className="truncate">
+      <span className="k">{labelKey}=</span>
+      {value}
+    </span>
   );
 }
 
@@ -115,8 +104,8 @@ export function TargetLabelChip({
   active,
   titleOf,
 }: TargetLabelChipProps) {
-  // Une seule variable pilote fond, liseré et point : voir `.tag-chip`.
-  const style = { '--tag': tagToneOf(labelKey, value) } as React.CSSProperties;
+  // Une seule variable pilote fond, liseré et encre : voir `.tag`.
+  const style = { '--tg': tagToneOf(labelKey, value) } as React.CSSProperties;
 
   if (!onToggle) {
     return (
@@ -134,11 +123,11 @@ export function TargetLabelChip({
       // `aria-pressed` porte l'état pour les lecteurs d'écran ; la coche le
       // porte pour l'œil. La couleur ne le porte jamais seule.
       title={titleOf?.(active ?? false)}
-      className={cn(CHIP_BASE, 'cursor-pointer transition-colors', className)}
+      className={cn(CHIP_BASE, 'gap-1', className)}
       style={style}
     >
       <ChipContent labelKey={labelKey} value={value} />
-      {active ? <span className="text-ink-muted">✕</span> : null}
+      {active ? <span aria-hidden>✕</span> : null}
     </button>
   );
 }
@@ -204,7 +193,7 @@ export function TargetLabelList({
       })}
       {hidden > 0 ? (
         <span
-          className="font-mono text-[0.6875rem] leading-4 text-ink-faint"
+          className="mono text-[11.5px] text-text-3"
           // Le survol donne le détail : masquer n'est acceptable que si
           // l'information reste atteignable sans changer de page.
           title={entries

@@ -10,9 +10,9 @@ import { resetPassword } from '@/lib/auth-client';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { AuthCard } from './auth-card';
 
 /**
  * Choisir un mot de passe à partir d'un lien.
@@ -108,23 +108,17 @@ export function ChoosePasswordForm({
 
   if (done) {
     return (
-      <Card className="shadow-raised">
-        <CardHeader>
-          <CardTitle className="text-lg">{copy.doneTitle}</CardTitle>
-          <CardDescription>{copy.doneBody}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            className="w-full"
-            onClick={() => {
-              router.push('/login');
-              router.refresh();
-            }}
-          >
-            {t('login.submit')}
-          </Button>
-        </CardContent>
-      </Card>
+      <AuthCard title={copy.doneTitle} description={copy.doneBody}>
+        <Button
+          className="btn-block"
+          onClick={() => {
+            router.push('/login');
+            router.refresh();
+          }}
+        >
+          {t('login.submit')}
+        </Button>
+      </AuthCard>
     );
   }
 
@@ -132,69 +126,47 @@ export function ChoosePasswordForm({
   // à la soumission parce qu'il venait de servir.
   if (consumed || linkError || !token) {
     return (
-      <Card className="shadow-raised">
-        <CardHeader>
-          <CardTitle className="text-lg">{copy.deadTitle}</CardTitle>
-          <CardDescription>{copy.deadBody}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Alert variant="info">{t('choose.dead.notice')}</Alert>
-          <div className="flex flex-col gap-2 text-sm">
-            <Link
-              href="/forgot-password"
-              className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-            >
-              {t('choose.newLink')}
-            </Link>
-            <Link href="/login" className="text-ink-muted underline-offset-4 hover:underline">
-              {t('link.backToLogin')}
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      <AuthCard title={copy.deadTitle} description={copy.deadBody}>
+        <p className="t-sm text-text-2">{t('choose.dead.notice')}</p>
+        <Button asChild className="btn-block">
+          <Link href="/forgot-password">{t('choose.newLink')}</Link>
+        </Button>
+        <p className="t-cap text-center">
+          <Link href="/login" className="link">
+            {t('link.backToLogin')}
+          </Link>
+        </p>
+      </AuthCard>
     );
   }
 
   return (
-    <Card className="shadow-raised">
-      <CardHeader>
-        <CardTitle className="text-lg">{copy.title}</CardTitle>
-        <CardDescription>{copy.description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {error ? <Alert variant="destructive">{error}</Alert> : null}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">{t('field.password')}</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              minLength={PASSWORD_MIN_LENGTH}
-              required
-              autoFocus
-            />
-            <p className="text-xs text-ink-faint">
-              {t('password.min', { count: PASSWORD_MIN_LENGTH })}
-            </p>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="confirmation">{t('field.confirmation')}</Label>
-            <Input
-              id="confirmation"
-              name="confirmation"
-              type="password"
-              autoComplete="new-password"
-              minLength={PASSWORD_MIN_LENGTH}
-              required
-            />
-          </div>
-          <Button type="submit" className="mt-1 w-full" disabled={pending}>
-            {pending ? tc('saving') : copy.submit}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <AuthCard title={copy.title} description={copy.description}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        {error ? <Alert variant="destructive">{error}</Alert> : null}
+        <Field label={t('field.password')} help={t('password.min', { count: PASSWORD_MIN_LENGTH })}>
+          <Input
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            minLength={PASSWORD_MIN_LENGTH}
+            required
+            autoFocus
+          />
+        </Field>
+        <Field label={t('field.confirmation')}>
+          <Input
+            name="confirmation"
+            type="password"
+            autoComplete="new-password"
+            minLength={PASSWORD_MIN_LENGTH}
+            required
+          />
+        </Field>
+        <Button type="submit" className="btn-block" loading={pending}>
+          {pending ? tc('saving') : copy.submit}
+        </Button>
+      </form>
+    </AuthCard>
   );
 }

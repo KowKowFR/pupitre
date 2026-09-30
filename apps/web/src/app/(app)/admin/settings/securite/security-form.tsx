@@ -53,11 +53,9 @@ export function SecurityForm({
       patch={patch}
       canManage={canManage}
       onReset={reset}
-      onSubmit={() =>
-        void patch.save({ security: { scanningEnabled, disabledScanners, failOn } })
-      }
+      onSubmit={() => void patch.save({ security: { scanningEnabled, disabledScanners, failOn } })}
     >
-      <label className="flex items-start gap-2.5 rounded-md border border-line px-3 py-2.5 text-sm">
+      <label className="flex items-start gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm">
         <input
           type="checkbox"
           className="mt-1"
@@ -66,8 +64,8 @@ export function SecurityForm({
           onChange={(event) => setScanningEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">{t('security.enabled.label')}</span>
-          <span className="block text-xs text-ink-faint">{t('security.enabled.help')}</span>
+          <span className="block text-text">{t('security.enabled.label')}</span>
+          <span className="help block">{t('security.enabled.help')}</span>
         </span>
       </label>
 
@@ -76,15 +74,15 @@ export function SecurityForm({
       )}
 
       <div className="space-y-2">
-        <span className="block text-sm text-ink">{t('security.skipped.title')}</span>
-        <p className="text-xs text-ink-faint">{t('security.skipped.help')}</p>
+        <span className="block text-sm text-text">{t('security.skipped.title')}</span>
+        <p className="help">{t('security.skipped.help')}</p>
         <div className="flex flex-wrap gap-2 pt-1">
           {SCANNER_KEYS.map((key) => {
             const off = disabledScanners.includes(key);
             return (
               <label
                 key={key}
-                className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 text-xs"
+                className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs"
               >
                 <input
                   type="checkbox"
@@ -98,7 +96,7 @@ export function SecurityForm({
                     );
                   }}
                 />
-                <span className={off ? 'text-ink-faint line-through' : 'text-ink'}>
+                <span className={off ? 'text-text-3 line-through' : 'text-text'}>
                   {scannerLabel(key)}
                 </span>
               </label>
@@ -107,7 +105,7 @@ export function SecurityForm({
         </div>
       </div>
 
-      <div className="space-y-1.5">
+      <div className="field">
         <Label htmlFor="failOn">{t('security.failOn.label')}</Label>
         <Select
           id="failOn"
@@ -122,10 +120,10 @@ export function SecurityForm({
             </option>
           ))}
         </Select>
-        <p className="text-xs text-ink-faint">{t('security.failOn.help')}</p>
+        <p className="help">{t('security.failOn.help')}</p>
       </div>
 
-      <p className="text-xs text-ink-faint">{t('security.frozen')}</p>
+      <p className="help">{t('security.frozen')}</p>
     </SectionForm>
   );
 }

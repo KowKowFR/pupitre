@@ -13,14 +13,21 @@ import {
   type Severity,
   type SeverityCounts,
 } from '@pupitre/core';
+import { Download, ShieldCheck } from 'lucide-react';
 import { EmptyState } from '@/components/empty-state';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { buttonVariants } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useLanguage, useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { deployments as messages } from '@/i18n/messages/deployments';
@@ -72,13 +79,16 @@ type FindingView = {
  * et perd de la saturation à chaque cran. Les valeurs viennent des jetons —
  * l'échelle tient donc dans les deux thèmes.
  */
-const SEVERITY_STYLE: Record<Severity, string> = {
-  CRITICAL: 'border-transparent bg-sev-critical text-sev-critical-ink',
-  HIGH: 'border-transparent bg-sev-high text-sev-high-ink',
-  MEDIUM: 'border-transparent bg-sev-medium text-sev-medium-ink',
-  LOW: 'border-transparent bg-sev-low text-sev-low-ink',
-  UNKNOWN: 'border-line bg-surface-2 text-ink-faint',
+const SEVERITY_CLASS: Record<Severity, string> = {
+  CRITICAL: 'sev-c',
+  HIGH: 'sev-h',
+  MEDIUM: 'sev-m',
+  LOW: 'sev-l',
+  UNKNOWN: 'sev-u',
 };
+
+/** Les sévérités affichées sur une carte, même à zéro : l'absence se lit aussi. */
+const CARD_SEVERITIES: readonly Severity[] = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
 
 export function SecurityPanel({
   deploymentId,
@@ -157,19 +167,23 @@ export function SecurityPanel({
 
   if (loading && runs.length === 0) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-busy>
         {[0, 1, 2].map((slot) => (
-          <Card key={slot} className="gap-3">
-            <CardHeader className="gap-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-48" />
-            </CardHeader>
-            <CardContent className="flex gap-1.5">
-              <Skeleton className="h-5 w-16" />
-              <Skeleton className="h-5 w-16" />
-              <Skeleton className="h-5 w-12" />
-            </CardContent>
-          </Card>
+          <section key={slot} className="card">
+            <div className="card-h">
+              <Skeleton className="sk-t w-20" />
+              <Skeleton className="ml-auto h-5 w-20" />
+            </div>
+            <div className="card-b flex flex-col gap-2.5">
+              <Skeleton className="sk-t w-56" />
+              <div className="flex gap-1.5">
+                <Skeleton className="h-5 w-16" />
+                <Skeleton className="h-5 w-14" />
+                <Skeleton className="h-5 w-16" />
+                <Skeleton className="h-5 w-12" />
+              </div>
+            </div>
+          </section>
         ))}
       </div>
     );
@@ -180,6 +194,7 @@ export function SecurityPanel({
   if (runs.length === 0) {
     return (
       <EmptyState
+        icon={ShieldCheck}
         title={t('scans.empty.title')}
         hint={
           config && config.scanners.length === 0
@@ -197,7 +212,7 @@ export function SecurityPanel({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {runs.map((run) => (
           <ScanRunCard
             key={run.id}
@@ -209,25 +224,22 @@ export function SecurityPanel({
       </div>
 
       {current ? (
-        <Card>
-          <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
-            <div>
-              <CardTitle>
-                {t('scans.vulnerabilities', { scanner: SCANNERS[current.scanner].label })}
-              </CardTitle>
-              <CardDescription>
-                {current.kind === 'sbom'
-                  ? t('scans.sbom.noVulnerability')
-                  : t('scans.findings.summary', {
-                      count: total,
-                      filter: severity ? ` ${t('scans.findings.filter', { severity })}` : '',
-                      image: current.imageRef ?? tc('none'),
-                    })}
-              </CardDescription>
-            </div>
+        <section className="card overflow-hidden">
+          <div className="card-h flex-wrap">
+            <h2>{t('scans.vulnerabilities', { scanner: SCANNERS[current.scanner].label })}</h2>
+            <span className="sub min-w-0 truncate">
+              {current.kind === 'sbom'
+                ? t('scans.sbom.noVulnerability')
+                : t('scans.findings.summary', {
+                    count: total,
+                    filter: severity ? ` ${t('scans.findings.filter', { severity })}` : '',
+                    image: current.imageRef ?? tc('none'),
+                  })}
+            </span>
             {current.kind === 'vulnerability' ? (
               <Select
-                className="h-8 w-48"
+                className="input-sm ml-auto w-48"
+                aria-label={t('column.severity')}
                 value={severity}
                 onChange={(event) => setSeverity(event.target.value as Severity | '')}
               >
@@ -239,65 +251,62 @@ export function SecurityPanel({
                 ))}
               </Select>
             ) : null}
-          </CardHeader>
-          <CardContent>
-            {current.kind === 'sbom' ? (
-              <p className="text-[0.8125rem] text-ink-muted">{t('scans.sbom.hint')}</p>
-            ) : rows.length === 0 ? (
-              <p className="text-[0.8125rem] text-ink-muted">{t('scans.findings.empty')}</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('column.severity')}</TableHead>
-                    <TableHead>{t('column.cve')}</TableHead>
-                    <TableHead>{t('column.package')}</TableHead>
-                    <TableHead>{t('column.version')}</TableHead>
-                    <TableHead>{t('column.fix')}</TableHead>
-                    <TableHead>{t('column.title')}</TableHead>
+          </div>
+          {current.kind === 'sbom' ? (
+            <p className="t-sm px-4 py-3 text-text-2">{t('scans.sbom.hint')}</p>
+          ) : rows.length === 0 ? (
+            <p className="t-sm px-4 py-3 text-text-2">{t('scans.findings.empty')}</p>
+          ) : (
+            <Table
+              dense
+              label={t('scans.vulnerabilities', { scanner: SCANNERS[current.scanner].label })}
+            >
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('column.severity')}</TableHead>
+                  <TableHead>{t('column.cve')}</TableHead>
+                  <TableHead>{t('column.package')}</TableHead>
+                  <TableHead>{t('column.version')}</TableHead>
+                  <TableHead>{t('column.fix')}</TableHead>
+                  <TableHead>{t('column.title')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((finding) => (
+                  <TableRow key={finding.id}>
+                    <TableCell>
+                      <SeverityBadge severity={finding.severity} />
+                    </TableCell>
+                    <TableCell className="mono">
+                      {finding.primaryUrl ? (
+                        <a
+                          href={finding.primaryUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="link"
+                        >
+                          {finding.cveId}
+                        </a>
+                      ) : (
+                        finding.cveId
+                      )}
+                    </TableCell>
+                    <TableCell className="mono">{finding.package}</TableCell>
+                    <TableCell className="mono">{finding.installedVersion ?? tc('none')}</TableCell>
+                    <TableCell className="mono">
+                      {finding.fixedVersion ?? (
+                        <span className="font-sans text-text-3">{t('findings.noFix')}</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-md truncate" title={finding.title ?? ''}>
+                      {finding.title ?? tc('none')}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((finding) => (
-                    <TableRow key={finding.id}>
-                      <TableCell>
-                        <SeverityBadge severity={finding.severity} />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {finding.primaryUrl ? (
-                          <a
-                            href={finding.primaryUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline underline-offset-4"
-                          >
-                            {finding.cveId}
-                          </a>
-                        ) : (
-                          finding.cveId
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{finding.package}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {finding.installedVersion ?? tc('none')}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {finding.fixedVersion ? (
-                          <span className="text-ok">{finding.fixedVersion}</span>
-                        ) : (
-                          <span className="text-ink-faint">{t('findings.noFix')}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-md truncate text-xs" title={finding.title ?? ''}>
-                        {finding.title ?? tc('none')}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </section>
       ) : null}
     </div>
   );
@@ -318,67 +327,71 @@ function ScanRunCard({
   const descriptor = SCANNERS[run.scanner];
 
   return (
-    <Card
-      className={cn(
-        'cursor-pointer transition-colors duration-100 hover:border-line-strong',
-        active && 'border-signal shadow-raised',
-        run.verdict === 'fail' && 'border-danger-edge',
-      )}
-      onClick={onSelect}
-    >
-      <CardHeader className="gap-1.5">
-        <CardTitle className="flex items-center gap-2 text-base">
-          {descriptor.label}
+    // La carte entière choisit l'exécution dont la liste s'affiche dessous : un
+    // vrai bouton, pour le clavier. Le lien de téléchargement vit à côté.
+    <section className={cn('card flex flex-col', active && 'border-accent shadow-focus')}>
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onSelect}
+        className="card-h w-full rounded-t-[inherit] text-left outline-none focus-visible:shadow-focus"
+      >
+        <h3 className="text-[14px] font-semibold">{descriptor.label}</h3>
+        <span className="ml-auto">
           <VerdictBadge verdict={run.verdict} status={run.status} />
-        </CardTitle>
-        <CardDescription className="font-mono text-[0.6875rem] break-all">
+        </span>
+      </button>
+      <div className="card-b flex flex-1 flex-col gap-2.5">
+        <span className="mono text-[11.5px] break-all text-text-3">
           {t('scans.run.meta', {
             image: run.imageRef ?? tc('none'),
             duration: formatMs(run.durationMs, tc('none')),
             failOn: run.failOn,
           })}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+        </span>
+
         {run.error ? (
-          <p className="font-mono text-[0.6875rem] break-words text-danger">{run.error}</p>
+          <p className="mono text-[11.5px] break-words text-danger-text">{run.error}</p>
         ) : null}
 
         {run.kind === 'vulnerability' ? (
-          <div className="flex flex-wrap gap-1">
-            {SEVERITY_ORDER.map((severity) =>
+          <div className="flex flex-wrap gap-1.5">
+            {CARD_SEVERITIES.map((severity) =>
               run.counts[severity] > 0 ? (
                 <SeverityBadge key={severity} severity={severity} count={run.counts[severity]} />
-              ) : null,
+              ) : (
+                <Badge key={severity} variant="outline" className="mono">
+                  {severity} 0
+                </Badge>
+              ),
             )}
-            {run.total === 0 && run.status === 'success' ? (
-              <span className="text-xs text-ok">{t('scans.run.clean')}</span>
+            {run.counts.UNKNOWN > 0 ? (
+              <SeverityBadge severity="UNKNOWN" count={run.counts.UNKNOWN} />
             ) : null}
           </div>
         ) : (
-          <p className="text-xs text-ink-muted">{scannerDescription(run.scanner, language)}</p>
+          <p className="t-cap text-text-3">{scannerDescription(run.scanner, language)}</p>
         )}
 
         {run.hasSbom ? (
-          <a
-            href={`/api/scans/${run.id}/sbom`}
-            onClick={(event) => event.stopPropagation()}
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            {t('scans.sbom.download')}
-          </a>
+          <Button asChild size="sm" variant="secondary" className="self-start">
+            <a href={`/api/scans/${run.id}/sbom`}>
+              <Download aria-hidden />
+              {t('scans.sbom.download')}
+            </a>
+          </Button>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
 
 export function SeverityBadge({ severity, count }: { severity: Severity; count?: number }) {
   return (
-    <Badge className={cn('font-mono', SEVERITY_STYLE[severity])}>
+    <span className={cn('sev', SEVERITY_CLASS[severity])}>
       {severity}
       {count === undefined ? '' : ` ${count}`}
-    </Badge>
+    </span>
   );
 }
 
@@ -387,26 +400,36 @@ function VerdictBadge({ verdict, status }: { verdict: ScanVerdict; status: ScanR
 
   if (status === 'failed') {
     return (
-      <Badge variant="destructive">{t('verdict.error')}</Badge>
+      <Badge variant="danger" dot>
+        {t('verdict.error')}
+      </Badge>
     );
   }
   if (status === 'running') {
     return (
-      <Badge variant="default">{t('verdict.running')}</Badge>
+      <Badge variant="accent" dot>
+        {t('verdict.running')}
+      </Badge>
     );
   }
   if (verdict === 'fail') {
     return (
-      <Badge variant="destructive">{t('verdict.fail')}</Badge>
+      <Badge variant="danger" dot>
+        {t('verdict.fail')}
+      </Badge>
     );
   }
   if (verdict === 'pass') {
     return (
-      <Badge variant="ok">{t('verdict.pass')}</Badge>
+      <Badge variant="ok" dot>
+        {t('verdict.pass')}
+      </Badge>
     );
   }
   return (
-    <Badge variant="warn">{t('verdict.unknown')}</Badge>
+    <Badge variant="warn" dot>
+      {t('verdict.unknown')}
+    </Badge>
   );
 }
 

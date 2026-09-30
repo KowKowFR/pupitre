@@ -2,7 +2,8 @@ import { isSupervisable, workspaceNameFor } from '@pupitre/core';
 import { getDeploymentSummary } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { NotFoundError } from '@/lib/errors';
+import { deployments } from '@/i18n/messages/deployments';
+import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -35,7 +36,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  if (!deployment) throw new NotFoundError(msg(deployments, 'error.notFound', { id }));
 
   // La version vers laquelle un rollback ramène, nommée : « revenir à la v2 »
   // se comprend, « revenir en arrière » se subit.
@@ -48,6 +49,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     status: deployment.status,
     supervisable: isSupervisable(deployment.status),
     stoppedAt: deployment.stoppedAt?.toISOString() ?? null,
+    number: deployment.number,
     version: deployment.version,
     url: deployment.url,
     publishedPort: deployment.publishedPort,
@@ -57,6 +59,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
     targetName: deployment.targetName,
     runtime: deployment.runtime,
     workspace: workspaceNameFor(deployment.applicationSlug),
-    previous: previous ? { id: previous.id, version: previous.version } : null,
+    previous: previous
+      ? { id: previous.id, number: previous.number, version: previous.version }
+      : null,
   });
 });

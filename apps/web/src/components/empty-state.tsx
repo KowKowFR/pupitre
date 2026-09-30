@@ -1,30 +1,34 @@
-import type { ReactNode } from 'react';
-import { Card } from '@/components/ui/card';
+import type { ComponentType, ReactNode } from 'react';
+import { Inbox } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 /**
- * Écran vide. Il dit ce qui manque et par où commencer — jamais « aucune
- * donnée » tout court.
+ * Écran vide. Un cartouche d'icône, ce qui manque, par où commencer — jamais
+ * « aucune donnée » tout court.
  */
 export function EmptyState({
   title,
   hint,
   action,
+  icon: Icon = Inbox,
+  className,
 }: {
   title: ReactNode;
   hint?: ReactNode;
   action?: ReactNode;
+  icon?: ComponentType<{ 'aria-hidden'?: boolean }>;
+  className?: string;
 }) {
   return (
-    <Card className="items-center gap-3 border-dashed py-12 text-center">
-      <div className="space-y-1.5 px-6">
-        <p className="font-condensed text-base font-semibold text-ink">{title}</p>
-        {hint ? (
-          <p className="mx-auto max-w-[48ch] text-[0.8125rem] leading-relaxed text-ink-muted">
-            {hint}
-          </p>
-        ) : null}
-      </div>
-      {action}
-    </Card>
+    <div className={cn('empty', className)}>
+      <span className="empty-mark">
+        <Icon aria-hidden />
+      </span>
+      <h3>{title}</h3>
+      {hint ? <p>{hint}</p> : null}
+      {action ? (
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">{action}</div>
+      ) : null}
+    </div>
   );
 }

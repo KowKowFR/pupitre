@@ -1,172 +1,165 @@
 import type { PreflightReport } from '@pupitre/core';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { KeyValue } from '@/components/ui/data';
 import { getT } from '@/i18n/server';
 import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
 
-/** L'unité voyage en argument : « Gio » n'est pas « GiB ». */
 function gib(kb: number, unit: string): string {
   return `${(kb / 1024 / 1024).toFixed(1)} ${unit}`;
 }
 
+/**
+ * Ce que le dernier preflight a lu de la machine, et le détail de ses
+ * contrôles. Chaque contrôle est indépendant : un échec n'invalide pas les
+ * autres, et la table le montre ligne par ligne.
+ */
 export async function ReportDetails({ report }: { report: PreflightReport | null }) {
   const t = await getT(messages);
   const tc = await getT(common);
 
   if (!report) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('report.title')}</CardTitle>
-          <CardDescription>{t('report.none')}</CardDescription>
-        </CardHeader>
-      </Card>
+      <section className="card card-b">
+        <h2 className="t-h">{t('report.title')}</h2>
+        <p className="t-sm mt-1 text-text-2">{t('report.none')}</p>
+      </section>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {report.error ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('report.unreachable')}</CardTitle>
-            <CardDescription className="font-mono text-xs text-danger">
-              {report.error}
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <Alert variant="destructive" title={t('report.unreachable')}>
+          <span className="mono">{report.error}</span>
+        </Alert>
       ) : null}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('report.machine')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Row label={t('row.os')}>{report.os.prettyName ?? report.os.name ?? tc('none')}</Row>
-            <Row label={t('row.kernel')}>{report.os.uname ?? tc('none')}</Row>
-            <Row label={t('row.latency')}>
-              {report.latencyMs === null ? tc('none') : `${report.latencyMs} ms`}
-            </Row>
-            <Row label={t('row.sudo')}>
-              {report.sudo.nopasswd
-                ? t('value.sudo.nopasswd')
-                : report.sudo.available
-                  ? t('sudo.passwordRequired')
-                  : t('sudo.unavailable')}
-            </Row>
-            <Row label={t('row.disk')}>
-              {report.disk
-                ? t('disk.value', {
-                    available: gib(report.disk.availableKb, t('unit.gib')),
-                    size: gib(report.disk.sizeKb, t('unit.gib')),
-                    percent: report.disk.usePercent,
-                  })
-                : tc('none')}
-            </Row>
-            <Row label={t('row.memory')}>
-              {report.memory
-                ? t('memory.value', {
-                    available: report.memory.availableMb,
-                    total: report.memory.totalMb,
-                  })
-                : tc('none')}
-            </Row>
-            <Row label={t('row.tools')}>
-              <span className="flex flex-wrap gap-1">
-                {Object.entries(report.tools).map(([tool, present]) => (
-                  <Badge key={tool} variant={present ? 'ok' : 'outline'} className="font-mono">
-                    {tool} {present ? '✓' : '✗'}
-                  </Badge>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <section className="card">
+          <div className="card-h">
+            <h2>{t('report.machine')}</h2>
+          </div>
+          <div className="card-b">
+            <KeyValue
+              items={[
+                { term: t('row.os'), value: report.os.prettyName ?? report.os.name ?? tc('none') },
+                {
+                  term: t('row.kernel'),
+                  value: <span className="mono">{report.os.uname ?? tc('none')}</span>,
+                },
+                {
+                  term: t('row.latency'),
+                  value: (
+                    <span className="mono">
+                      {report.latencyMs === null ? tc('none') : `${report.latencyMs} ms`}
+                    </span>
+                  ),
+                },
+                {
+                  term: t('row.sudo'),
+                  value: report.sudo.nopasswd
+                    ? t('value.sudo.nopasswd')
+                    : report.sudo.available
+                      ? t('sudo.passwordRequired')
+                      : t('sudo.unavailable'),
+                },
+                {
+                  term: t('row.disk'),
+                  value: report.disk
+                    ? t('disk.value', {
+                        available: gib(report.disk.availableKb, t('unit.gib')),
+                        size: gib(report.disk.sizeKb, t('unit.gib')),
+                        percent: report.disk.usePercent,
+                      })
+                    : tc('none'),
+                },
+                {
+                  term: t('row.memory'),
+                  value: report.memory
+                    ? t('memory.value', {
+                        available: report.memory.availableMb,
+                        total: report.memory.totalMb,
+                      })
+                    : tc('none'),
+                },
+                {
+                  term: t('row.tools'),
+                  value: (
+                    <span className="inline-flex flex-wrap justify-end gap-1">
+                      {Object.entries(report.tools).map(([tool, present]) => (
+                        <Badge key={tool} variant={present ? 'ok' : 'outline'} className="mono">
+                          {tool}
+                        </Badge>
+                      ))}
+                    </span>
+                  ),
+                },
+                {
+                  term: t('row.compose'),
+                  value: (
+                    <span className="mono">
+                      {report.runtimes.docker.composeVersion ?? tc('none')}
+                    </span>
+                  ),
+                },
+                {
+                  term: t('row.readyNodes'),
+                  value:
+                    report.runtimes.k3s.nodes === null
+                      ? tc('none')
+                      : `${report.runtimes.k3s.readyNodes ?? 0} / ${report.runtimes.k3s.nodes}`,
+                },
+              ]}
+            />
+          </div>
+        </section>
+
+        <section className="card overflow-hidden">
+          <div className="card-h">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <h2>{t('report.checks.title')}</h2>
+              <span className="sub">{t('report.checks.description')}</span>
+            </div>
+          </div>
+          <div className="tbl-wrap">
+            <table className="tbl dense">
+              <thead>
+                <tr>
+                  <th>{t('column.check')}</th>
+                  <th>{tc('column.status')}</th>
+                  <th>{tc('column.duration')}</th>
+                  <th>{tc('column.detail')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.checks.map((check) => (
+                  <tr key={check.key}>
+                    <td className="font-medium">{check.label}</td>
+                    <td>
+                      <Badge
+                        dot
+                        variant={
+                          check.status === 'success'
+                            ? 'ok'
+                            : check.status === 'failed'
+                              ? 'danger'
+                              : 'idle'
+                        }
+                      >
+                        {t(`check.status.${check.status}`)}
+                      </Badge>
+                    </td>
+                    <td className="mono text-text-3">{check.durationMs} ms</td>
+                    <td className="text-text-2">{check.error ?? check.detail ?? tc('none')}</td>
+                  </tr>
                 ))}
-              </span>
-            </Row>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('report.runtimes')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Row label="Docker">
-              {report.runtimes.docker.available
-                ? `✓ ${report.runtimes.docker.version ?? ''}`
-                : t('runtime.unavailable')}
-            </Row>
-            <Row label={t('row.compose')}>
-              {report.runtimes.docker.composeVersion ?? tc('none')}
-            </Row>
-            <Row label={t('row.k3s')}>
-              {report.runtimes.k3s.available
-                ? `✓ ${report.runtimes.k3s.version ?? ''}`
-                : t('runtime.unavailable')}
-            </Row>
-            <Row label={t('row.readyNodes')}>
-              {report.runtimes.k3s.nodes === null
-                ? tc('none')
-                : `${report.runtimes.k3s.readyNodes ?? 0} / ${report.runtimes.k3s.nodes}`}
-            </Row>
-          </CardContent>
-        </Card>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('report.checks.title')}</CardTitle>
-          <CardDescription>{t('report.checks.description')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('column.check')}</TableHead>
-                <TableHead>{tc('column.status')}</TableHead>
-                <TableHead>{tc('column.duration')}</TableHead>
-                <TableHead>{tc('column.detail')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {report.checks.map((check) => (
-                <TableRow key={check.key}>
-                  <TableCell className="text-sm">{check.label}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        check.status === 'success'
-                          ? 'ok'
-                          : check.status === 'failed'
-                            ? 'destructive'
-                            : 'warn'
-                      }
-                      className="font-mono"
-                    >
-                      {check.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-ink-muted tabular-nums">
-                    {check.durationMs} ms
-                  </TableCell>
-                  <TableCell className="font-mono text-xs text-ink-faint">
-                    {check.error ?? check.detail ?? tc('none')}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2 last:border-0">
-      <span className="text-xs text-ink-muted">{label}</span>
-      <span className="font-mono text-xs text-ink">{children}</span>
     </div>
   );
 }

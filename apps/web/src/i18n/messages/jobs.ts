@@ -14,10 +14,9 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── En-tête ─────────────────────────────────────────────────────────────
-  'page.eyebrow': 'Ordonnancement',
   'page.title': 'Tâches planifiées',
   'page.description':
-    "Ce que le panel refait tout seul sur ce qui est déjà déployé : ré-analyser les images, sonder la santé des applications, rafraîchir le preflight des cibles, purger les vieilles versions. Ordonnancées par BullMQ — pas par un cron Linux — et donc visibles, rejouables et traçables ici. Aucune ne redéploie, ne rollback ni ne bloque quoi que ce soit : elles constatent et alertent.",
+    'Ce que le panel refait tout seul sur ce qui est déjà déployé : ré-analyser les images, sonder la santé des applications, rafraîchir le preflight des cibles, purger les vieilles versions. Ordonnancées par BullMQ — pas par un cron Linux — et donc visibles, rejouables et traçables ici. Aucune ne redéploie, ne rollback ni ne bloque quoi que ce soit : elles constatent et alertent.',
 
   // ── Bandeau d'introduction ──────────────────────────────────────────────
   'banner.a':
@@ -26,14 +25,33 @@ const fr = {
     ", le fuseau des paramètres d'instance, puis vit sa vie. « Lancer » enfile une occurrence immédiate sans déplacer la prochaine, et fonctionne même sur une tâche désactivée — de quoi l'essayer avant de l'activer.",
 
   // ── Formulaire de création ──────────────────────────────────────────────
+  'page.schedule': 'Planifier une tâche',
+  'drawer.kind': 'Tâche planifiée',
+  'status.success': 'réussi',
+  'status.running': 'en cours',
+  'status.failed': 'échoué',
+  'status.skipped': 'ignoré',
+  'status.pending': 'en attente',
+  'row.more': 'Historique, désactiver, supprimer',
+  'row.lastRun.none': 'jamais lancée',
+  'delete.title': 'Supprimer la tâche « {key} » ?',
+  'delete.schedule': 'Son scheduler est retiré de BullMQ : plus aucune occurrence ne partira.',
+  'delete.history': "Son historique d'exécutions part avec elle.",
+  'delete.confirm': 'Supprimer la tâche',
+  'dialog.save': 'Enregistrer la cadence',
+  'preview.title': 'Aperçu',
+  'preview.list': 'Puis',
   'create.type.label': 'Type',
   'create.key.label': 'Clé BullMQ',
   'create.key.hint':
     "L'identifiant du scheduler dans Redis. Unique, et c'est ce nom qu'on retrouve dans les logs du worker.",
   'create.submit': 'Planifier',
+  'create.description':
+    "Une tâche répète un constat à la cadence choisie. Elle ne redéploie rien et ne bloque rien : elle mesure et alerte.",
+  'create.invalid': "La cadence n'est pas valide : corrigez-la ci-dessus.",
 
   // ── Table ───────────────────────────────────────────────────────────────
-  'empty':
+  empty:
     'Aucune tâche planifiée. Les scans périodiques, les healthchecks et la purge des versions ne tournent que si vous les installez ici.',
   'column.job': 'Tâche',
   'column.cadence': 'Cadence',
@@ -68,6 +86,7 @@ const fr = {
 
   // ── Champ de cadence ────────────────────────────────────────────────────
   'field.label': 'Cadence',
+  'field.kind.label': 'Périodicité',
   'field.mode.aria': 'Mode de saisie de la cadence',
   'field.mode.simple': 'Simple',
   'field.mode.expert': 'Expert',
@@ -109,11 +128,11 @@ const fr = {
 
   // ── Aperçu ──────────────────────────────────────────────────────────────
   'preview.emptyCron': 'cadence vide',
-  'preview.refused': "Expression refusée : {error}. Rien ne sera planifié tant qu'elle n'est pas valide.",
+  'preview.refused':
+    "Expression refusée : {error}. Rien ne sera planifié tant qu'elle n'est pas valide.",
   'preview.computing': 'Prochaines exécutions : calcul en cours…',
   'preview.noRun': "Aucune exécution dans les 366 prochains jours — vérifiez l'expression.",
   'preview.next': 'Prochaine',
-  'preview.then': 'Puis ({rank})',
 
   // ── Aide ────────────────────────────────────────────────────────────────
   'help.trigger': 'À quoi servent les tâches planifiées ?',
@@ -155,7 +174,8 @@ const fr = {
   'help.healthcheck.payload.a': ' / ',
   'help.healthcheck.payload.b': ' uniquement.',
 
-  'help.cleanup.steps.a': 'Demande à chaque driver de purger ses répertoires de version sur la cible, au-delà des ',
+  'help.cleanup.steps.a':
+    'Demande à chaque driver de purger ses répertoires de version sur la cible, au-delà des ',
   'help.cleanup.steps.b':
     " plus récents. La tâche ne nomme aucun chemin et ne sait pas sur quel runtime elle tourne : c'est le driver qui sait où il dépose ses releases.",
   'help.cleanup.payload.a': ' (1 à 50, défaut 5) ; ',
@@ -171,8 +191,7 @@ const fr = {
   'help.when.title': 'Quand elles tournent',
   'help.when.a': "L'ordonnanceur est ",
   'help.when.bullmq': 'BullMQ',
-  'help.when.b':
-    ", pas un cron Linux : chaque tâche active est un ",
+  'help.when.b': ', pas un cron Linux : chaque tâche active est un ',
   'help.when.scheduler': 'job scheduler',
   'help.when.c':
     " Redis, et c'est lui qui calcule la prochaine occurrence. La base reste la source de vérité — au démarrage du worker, tout est réconcilié : une tâche active absente de Redis y est réinstallée, une tâche désactivée ou supprimée en est retirée. La colonne ",
@@ -189,7 +208,8 @@ const fr = {
   'help.zone.p2.b':
     ", le fuseau des paramètres d'instance : celui que vous avez déjà déclaré une fois. Le sélecteur du formulaire permet d'en choisir un autre, tâche par tâche — utile quand une purge doit tomber la nuit d'une machine qui n'est pas dans votre fuseau. L'aperçu sous le champ montre l'heure dans le fuseau de la tâche, et sur votre horloge quand les deux diffèrent.",
   'help.zone.legacy.a': 'Les tâches antérieures à ce réglage sont en ',
-  'help.zone.legacy.b': ' — pas en {zone}. Elles ont été installées quand le motif était passé à BullMQ sans option ',
+  'help.zone.legacy.b':
+    ' — pas en {zone}. Elles ont été installées quand le motif était passé à BullMQ sans option ',
   'help.zone.legacy.c':
     ", donc interprété dans le fuseau du process, qui est UTC dans nos conteneurs. Leur appliquer d'office le fuseau d'instance aurait déplacé leur exécution de plusieurs heures sans que personne ne l'ait demandé. Changez-le explicitement si ce n'est pas ce que vous vouliez : la prochaine occurrence est aussitôt recalculée.",
 
@@ -270,7 +290,6 @@ Attention : jour du mois ET jour de semaine renseignés se combinent en OU.
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Scheduling',
   'page.title': 'Scheduled jobs',
   'page.description':
     'What the panel redoes on its own over what is already deployed: scan the images again, probe application health, refresh target preflight, purge old versions. Scheduled by BullMQ — not by a Linux cron — and therefore visible, replayable and traceable here. None of them redeploys, rolls back or blocks anything: they observe and alert.',
@@ -280,13 +299,32 @@ const en: Translated<typeof fr> = {
   'banner.b':
     ', the instance time zone, then lives its own life. “Run now” queues an immediate occurrence without moving the next one, and works even on a disabled job — enough to try it before turning it on.',
 
+  'page.schedule': 'Schedule a job',
+  'drawer.kind': 'Scheduled job',
+  'status.success': 'succeeded',
+  'status.running': 'running',
+  'status.failed': 'failed',
+  'status.skipped': 'skipped',
+  'status.pending': 'pending',
+  'row.more': 'History, disable, delete',
+  'row.lastRun.none': 'never run',
+  'delete.title': 'Delete the job “{key}”?',
+  'delete.schedule': 'Its scheduler is removed from BullMQ: no occurrence will leave anymore.',
+  'delete.history': 'Its run history goes with it.',
+  'delete.confirm': 'Delete the job',
+  'dialog.save': 'Save the cadence',
+  'preview.title': 'Preview',
+  'preview.list': 'Then',
   'create.type.label': 'Type',
   'create.key.label': 'BullMQ key',
   'create.key.hint':
     'The scheduler ID in Redis. Unique, and it is the name you find again in the worker logs.',
   'create.submit': 'Schedule',
+  'create.description':
+    'A job repeats a check at the chosen cadence. It redeploys nothing and blocks nothing: it measures and alerts.',
+  'create.invalid': 'The cadence is not valid: fix it above.',
 
-  'empty':
+  empty:
     'No scheduled job. Periodic scans, healthchecks and the version purge run only if you install them here.',
   'column.job': 'Job',
   'column.cadence': 'Cadence',
@@ -318,6 +356,7 @@ const en: Translated<typeof fr> = {
     'The saved expression has no simple form: the screen opens in expert mode rather than showing an approximate schedule.',
 
   'field.label': 'Cadence',
+  'field.kind.label': 'Frequency',
   'field.mode.aria': 'Cadence entry mode',
   'field.mode.simple': 'Simple',
   'field.mode.expert': 'Expert',
@@ -339,8 +378,7 @@ const en: Translated<typeof fr> = {
   'field.cron.aria': 'Cron expression',
   'field.expertNoSimple':
     'This expression has no simple form — ranges, hour steps or minute lists cannot be expressed there. Switching back to simple would replace it.',
-  'field.shortMonths':
-    'Day {day} does not exist every month: the shorter ones are simply skipped.',
+  'field.shortMonths': 'Day {day} does not exist every month: the shorter ones are simply skipped.',
 
   'weekday.1.short': 'M',
   'weekday.1.long': 'Monday',
@@ -362,7 +400,6 @@ const en: Translated<typeof fr> = {
   'preview.computing': 'Next runs: computing…',
   'preview.noRun': 'No run in the next 366 days — check the expression.',
   'preview.next': 'Next',
-  'preview.then': 'Then ({rank})',
 
   'help.trigger': 'What are scheduled jobs for?',
   'help.title': 'What are scheduled jobs for?',
@@ -437,7 +474,8 @@ const en: Translated<typeof fr> = {
   'help.zone.p2.b':
     ', the instance time zone: the one you declared once already. The form’s selector lets you pick another, job by job — useful when a purge must land at night on a machine outside your zone. The preview under the field shows the time in the job’s zone, and on your own clock when the two differ.',
   'help.zone.legacy.a': 'Jobs older than this setting are in ',
-  'help.zone.legacy.b': ' — not in {zone}. They were installed when the pattern went to BullMQ with no ',
+  'help.zone.legacy.b':
+    ' — not in {zone}. They were installed when the pattern went to BullMQ with no ',
   'help.zone.legacy.c':
     ' option, so it was read in the process time zone, which is UTC in our containers. Applying the instance zone to them would have moved their run by several hours with nobody asking. Change it explicitly if that is not what you wanted: the next occurrence is recomputed at once.',
 

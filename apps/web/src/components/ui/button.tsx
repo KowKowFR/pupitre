@@ -3,67 +3,131 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 /**
- * Commande. Le style par défaut porte l'accent « signal » — un seul endroit où
- * la couleur d'accent est dépensée sur une surface pleine, pour que l'action
- * principale d'un écran se repère sans lire.
+ * Commande. Une seule action primaire par zone — en-tête de page, carte, pied
+ * de drawer, dialogue : c'est elle qui dépense l'outremer plein.
  *
- * `active:translate-y-px` : un contrôle d'exploitation doit s'enfoncer quand on
- * l'actionne. C'est le seul mouvement du composant.
+ * Le destructif est **au trait** (texte rouge, liseré rouge pâle) : on le
+ * place à part, en dernier. Le rouge plein, `destructive-solid`, est réservé
+ * à la confirmation finale d'une destruction, dans son dialogue.
+ *
+ * `outline` reste accepté pour l'API shadcn : c'est `secondary`.
  */
-const buttonVariants = cva(
-  [
-    'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md',
-    'text-sm font-medium select-none',
-    'transition-[background-color,border-color,color,box-shadow,transform] duration-100 ease-out',
-    'active:translate-y-px',
-    'disabled:pointer-events-none disabled:opacity-45',
-    'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-  ],
-  {
-    variants: {
-      variant: {
-        default: 'bg-signal text-signal-ink shadow-panel hover:bg-signal-hover',
-        destructive: 'bg-danger text-white shadow-panel hover:brightness-110',
-        outline:
-          'border border-line-strong bg-surface text-ink shadow-panel hover:border-signal-edge hover:bg-signal-soft/60',
-        secondary: 'bg-surface-2 text-ink hover:bg-surface-3',
-        ghost: 'text-ink-muted hover:bg-surface-2 hover:text-ink',
-        link: 'text-signal underline-offset-4 hover:underline',
-      },
-      size: {
-        default: 'h-9 px-4 has-[>svg]:px-3.5',
-        sm: 'h-8 gap-1.5 px-3 text-[0.8125rem] has-[>svg]:px-2.5',
-        lg: 'h-10 px-6 has-[>svg]:px-5',
-        icon: 'size-9',
-      },
+const buttonVariants = cva('btn', {
+  variants: {
+    variant: {
+      default: 'btn-primary',
+      secondary: 'btn-secondary',
+      outline: 'btn-secondary',
+      ghost: 'btn-ghost',
+      destructive: 'btn-danger',
+      'destructive-solid': 'btn-danger-solid',
+      link: 'btn-link',
     },
-    defaultVariants: {
-      variant: 'default',
-      size: 'default',
+    size: {
+      default: '',
+      sm: 'btn-sm',
+      lg: 'btn-lg',
+      icon: 'btn-icon',
+      'icon-sm': 'btn-icon btn-sm',
     },
   },
-);
+  defaultVariants: {
+    variant: 'default',
+    size: 'default',
+  },
+});
 
 export type ButtonProps = React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     /** Applique le style du bouton à l'enfant direct (typiquement un `<Link>`). */
     asChild?: boolean;
+    /**
+     * Travail en cours : spinner, bouton inerte. Le libellé passé en enfant
+     * doit déjà porter son « … » (« Déploiement… ») — c'est une phrase, pas
+     * un suffixe à coller.
+     */
+    loading?: boolean;
+    /**
+     * Pourquoi ce bouton est désactivé, en clair. Le fournir **désactive** le
+     * bouton et affiche la raison sous lui, en légende : un bouton grisé sans
+     * explication visible est interdit par le système, et une info-bulle
+     * seule ne suffit pas.
+     */
+    disabledReason?: React.ReactNode;
   };
 
-function Button({ className, variant, size, asChild = false, ...props }: ButtonProps) {
-  const classes = cn(buttonVariants({ variant, size, className }));
+function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  loading = false,
+  disabledReason,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
+  const reasonId = React.useId();
+  const classes = cn(buttonVariants({ variant, size }), className);
+  const blocked = Boolean(disabled) || loading || Boolean(disabledReason);
 
   if (asChild) {
-    const child = React.Children.only(props.children) as React.ReactElement<{
+    // Tout passe à l'enfant — libellé accessible, gestionnaires d'une
+    // info-bulle, `ref` — et non la seule classe.
+    const child = React.Children.only(children) as React.ReactElement<{
       className?: string;
     }>;
     return React.cloneElement(child, {
+      ...props,
       className: cn(classes, child.props.className),
     });
   }
 
-  return <button data-slot="button" className={classes} {...props} />;
+  const button = (
+    <button
+      data-slot="button"
+      className={classes}
+      disabled={blocked}
+      aria-busy={loading || undefined}
+      aria-describedby={disabledReason ? reasonId : undefined}
+      {...props}
+    >
+      {loading ? <span className="spin" aria-hidden /> : null}
+      {children}
+    </button>
+  );
+
+  if (!disabledReason) return button;
+
+  return (
+    <span data-slot="button-with-reason" className="inline-flex flex-col items-start gap-1.5">
+      {button}
+      <span id={reasonId} className="reason">
+        {disabledReason}
+      </span>
+    </span>
+  );
 }
 
-export { Button, buttonVariants };
+/**
+ * Une rangée d'actions désactivées pour une même raison : la raison se dit
+ * une fois, sous la rangée, comme sur la planche « Désactivé avec raison ».
+ */
+function ActionRow({
+  reason,
+  className,
+  children,
+}: {
+  reason?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      {reason ? <span className="reason">{reason}</span> : null}
+    </div>
+  );
+}
+
+export { Button, ActionRow, buttonVariants };

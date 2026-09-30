@@ -1,29 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { Play, RefreshCw, Square, Trash2, Undo2 } from 'lucide-react';
+import type { Translate } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { ActionRow, Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import type { DialogTone } from '@/components/ui/dialog';
+import { useT } from '@/i18n/client';
+import { appConsole } from '@/i18n/messages/console';
+import { formatDateTime, type FormatSettings } from '@/lib/format';
+import { toast } from '@/lib/toast';
 
 /**
  * Les gestes d'exploitation d'une application en marche.
  *
  * Quatre gestes, et ils ne se ressemblent pas :
  *
- *   Arrêter / Démarrer   coupe et remet le service, sans rien démonter. Le seul
- *                        des quatre qui n'existait pas avant.
- *   Revenir à la v(n-1)  remet en service la release précédente, déjà présente
+ *   Arrêter / Démarrer   coupe et remet le service, sans rien démonter.
+ *   Revenir à #n-1       remet en service la release précédente, déjà présente
  *                        sur la machine.
  *   Redéployer           rejoue un pipeline complet depuis la même AppSpec —
  *                        utile quand une image mutable a bougé ou qu'un secret
@@ -59,6 +55,9 @@ export type AppActionsProps = {
   applicationSlug: string;
   targetName: string;
   runtime: 'docker' | 'k3s';
+  /** La version déclarée par la spec figée, quand elle en déclare une. */
+  specVersion: string | null;
+  format: FormatSettings;
   canDeploy: boolean;
   canDestroy: boolean;
 };
@@ -69,6 +68,8 @@ type AppState = {
   status: string;
   supervisable: boolean;
   stoppedAt: string | null;
+  /** Numéro de run en service, global à l'instance. */
+  number: number;
   version: number;
   url: string | null;
   publishedPort: number | null;
@@ -78,7 +79,7 @@ type AppState = {
   runtime: 'docker' | 'k3s';
   /** Projet Compose ou namespace, selon le runtime. */
   workspace: string;
-  previous: { id: string; version: number } | null;
+  previous: { id: string; number: number; version: number } | null;
 };
 
 type ApiError = { error?: { message?: string } };
@@ -90,20 +91,25 @@ type Gesture = {
   label: string;
   /** Libellé pendant que la tâche tourne. */
   busyLabel: string;
-  variant: 'default' | 'outline' | 'ghost' | 'destructive';
+  icon: ReactNode;
+  variant: 'default' | 'secondary' | 'destructive';
   /** Empêche le geste et dit pourquoi, sans le cacher. */
   disabledReason: string | null;
   request: { path: string; method: 'POST' | 'DELETE'; body?: unknown };
   confirm: {
     title: string;
-    lead: string;
+    lead?: string;
     /** Ce qui va se passer, nommément. */
     consequences: ReactNode[];
     action: string;
-    danger: boolean;
-    /** Le geste ne se débloque qu'en retapant ce mot. */
-    typeToConfirm?: string;
+    level: 'reversible' | 'data';
+    icon: ReactNode;
+    tone?: DialogTone;
+    /** Le geste ne se débloque qu'en retapant ce nom. */
+    retypeName?: string;
   } | null;
+  /** Ce que le toast dit une fois l'état basculé. */
+  done: { title: string; description?: string };
   /**
    * Le geste quitte cet écran plutôt que d'y attendre : un redéploiement crée
    * un nouveau déploiement, et c'est son pipeline qu'il faut regarder.
@@ -111,17 +117,11 @@ type Gesture = {
   navigateTo?: (response: { id?: string }) => string;
 };
 
+type T = Translate<typeof appConsole.fr>;
+
 /** Cadence et plafond de la relecture d'état après un geste. */
 const POLL_MS = 2_000;
 const POLL_MAX_MS = 3 * 60_000;
-
-/** « le 12/09/2026 à 14:03 » — une date d'arrêt se lit, elle ne se calcule pas. */
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  });
-}
 
 export function AppActions({
   deploymentId,
@@ -129,17 +129,19 @@ export function AppActions({
   applicationSlug,
   targetName,
   runtime,
+  specVersion,
+  format,
   canDeploy,
   canDestroy,
 }: AppActionsProps): ReactNode {
+  const t = useT(appConsole);
   const router = useRouter();
+  const reasonId = useId();
   const [state, setState] = useState<AppState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<GestureKey | null>(null);
   const [pending, setPending] = useState<Gesture | null>(null);
-  const [typed, setTyped] = useState('');
 
   const timer = useRef<NodeJS.Timeout | null>(null);
   const alive = useRef(true);
@@ -156,10 +158,10 @@ export function AppActions({
     const response = await fetch(`/api/apps/${deploymentId}/state`, { cache: 'no-store' });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      throw new Error(body.error?.message ?? `Lecture impossible (HTTP ${response.status})`);
+      throw new Error(body.error?.message ?? t('ops.readFailed', { status: response.status }));
     }
     return (await response.json()) as AppState;
-  }, [deploymentId]);
+  }, [deploymentId, t]);
 
   useEffect(() => {
     read().then(
@@ -168,11 +170,11 @@ export function AppActions({
       },
       (cause: unknown) => {
         if (alive.current) {
-          setLoadError(cause instanceof Error ? cause.message : 'Lecture impossible');
+          setLoadError(cause instanceof Error ? cause.message : t('ops.readFailed.generic'));
         }
       },
     );
-  }, [read]);
+  }, [read, t]);
 
   /**
    * Attend que l'état bascule.
@@ -184,7 +186,7 @@ export function AppActions({
    * de tourner en rond devant un worker arrêté.
    */
   const watch = useCallback(
-    (before: string, done: string) => {
+    (before: string, done: Gesture['done']) => {
       const started = Date.now();
 
       const tick = () => {
@@ -194,7 +196,7 @@ export function AppActions({
             if (`${result.status}|${result.stoppedAt}` !== before) {
               setState(result);
               setBusy(null);
-              setNotice(done);
+              toast({ ...done, tone: 'ok' });
               // La page serveur porte le bandeau de santé et l'en-tête : ils
               // doivent suivre le geste qu'on vient de passer.
               router.refresh();
@@ -202,10 +204,7 @@ export function AppActions({
             }
             if (Date.now() - started > POLL_MAX_MS) {
               setBusy(null);
-              setError(
-                "La tâche n'a rien changé au bout de trois minutes. Elle a pu échouer : " +
-                  "le journal d'activité et les logs de l'application le diront.",
-              );
+              toast({ title: t('ops.timeout'), tone: 'danger' });
               return;
             }
             timer.current = setTimeout(tick, POLL_MS);
@@ -219,15 +218,12 @@ export function AppActions({
 
       timer.current = setTimeout(tick, POLL_MS);
     },
-    [read, router],
+    [read, router, t],
   );
 
   const run = useCallback(
     async (gesture: Gesture, current: AppState) => {
-      setPending(null);
-      setTyped('');
       setError(null);
-      setNotice(null);
       setBusy(gesture.key);
 
       const response = await fetch(gesture.request.path, {
@@ -242,10 +238,16 @@ export function AppActions({
 
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as ApiError;
-        setError(body.error?.message ?? `Échec (HTTP ${response.status})`);
+        const message = body.error?.message ?? t('ops.failed', { status: response.status });
         setBusy(null);
+        // Le refus reste dans le dialogue quand il y en a un : c'est là qu'on
+        // regarde. Un geste sans dialogue le dit par un toast.
+        if (gesture.confirm) setError(message);
+        else toast({ title: message, tone: 'danger' });
         return;
       }
+
+      setPending(null);
 
       if (gesture.navigateTo) {
         const body = (await response.json().catch(() => ({}))) as { id?: string };
@@ -253,154 +255,134 @@ export function AppActions({
         return;
       }
 
-      watch(`${current.status}|${current.stoppedAt}`, `${gesture.label} : c'est fait.`);
+      watch(`${current.status}|${current.stoppedAt}`, gesture.done);
     },
-    [router, watch],
+    [router, t, watch],
   );
 
   if (loadError) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Exploitation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">{loadError}</Alert>
-        </CardContent>
-      </Card>
+      <div className="card w-full px-3.5 py-3 lg:w-[560px]">
+        <Alert variant="destructive">{loadError}</Alert>
+      </div>
     );
   }
 
-  const stoppedAt = state?.stoppedAt ?? null;
-  const gestures = state ? buildGestures({ state, applicationId, applicationSlug, runtime }) : [];
+  const gestures = state
+    ? buildGestures({ state, applicationId, applicationSlug, runtime, t })
+    : [];
   const visible = gestures.filter((gesture) =>
     gesture.key === 'destroy' ? canDestroy : canDeploy,
   );
+  const blocked = visible.find((gesture) => gesture.disabledReason !== null) ?? null;
+  const main = visible.filter((gesture) => gesture.key !== 'destroy');
+  const destroy = visible.find((gesture) => gesture.key === 'destroy') ?? null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Exploitation</CardTitle>
-        <CardDescription>
-          {state === null
-            ? 'Lecture de l’état…'
-            : stoppedAt !== null
-              ? `Arrêtée le ${formatDate(stoppedAt)} — les données et le port réservé sont ` +
-                'conservés, rien n’a été démonté.'
-              : `En marche sur ${targetName}, version #${state.version}.`}
-        </CardDescription>
-      </CardHeader>
+    <section
+      aria-label={t('ops.label')}
+      className="card flex w-full min-w-0 flex-col gap-2.5 px-3.5 py-3 lg:w-[560px]"
+    >
+      <p className="t-sm">
+        {state === null ? (
+          <span className="text-text-3">{t('ops.reading')}</span>
+        ) : state.stoppedAt !== null ? (
+          <>
+            <span className="font-semibold text-text">
+              {t('ops.stopped', { date: formatDateTime(state.stoppedAt, format) })}
+            </span>
+            <span className="text-text-3">{t('ops.stopped.detail')}</span>
+          </>
+        ) : (
+          <>
+            <span className="font-semibold text-text">
+              {t('ops.running', { target: targetName })}
+            </span>
+            <span className="text-text-3">
+              {specVersion
+                ? t('ops.version.spec', { number: state.number, spec: specVersion })
+                : t('ops.version', { number: state.number })}
+            </span>
+          </>
+        )}
+      </p>
 
-      <CardContent className="flex flex-col gap-3">
-        {notice ? <Alert variant="success">{notice}</Alert> : null}
-        {error ? <Alert variant="destructive">{error}</Alert> : null}
-        {visible.length === 0 && state !== null ? (
-          <Alert>
-            Votre rôle ne permet aucun geste sur cette application. La consultation des logs
-            reste ouverte.
-          </Alert>
-        ) : null}
-
-        <div className="flex flex-wrap gap-2">
-          {visible.map((gesture) => (
+      {state === null ? (
+        <div className="flex gap-1.5" aria-hidden>
+          <span className="sk h-8 w-24" />
+          <span className="sk h-8 w-32" />
+          <span className="sk h-8 w-28" />
+        </div>
+      ) : visible.length === 0 ? (
+        <p className="t-cap text-text-3">{t('ops.none')}</p>
+      ) : (
+        <ActionRow
+          reason={
+            blocked ? (
+              <span id={reasonId}>
+                <span className="font-medium">{blocked.label}</span> — {blocked.disabledReason}
+              </span>
+            ) : undefined
+          }
+        >
+          {main.map((gesture) => (
             <Button
               key={gesture.key}
               size="sm"
               variant={gesture.variant}
+              loading={busy === gesture.key}
               disabled={busy !== null || gesture.disabledReason !== null}
-              title={gesture.disabledReason ?? undefined}
+              aria-describedby={gesture.disabledReason ? reasonId : undefined}
               onClick={() => {
-                if (!state) return;
                 if (gesture.confirm) {
-                  setTyped('');
+                  setError(null);
                   setPending(gesture);
                   return;
                 }
                 void run(gesture, state);
               }}
             >
+              {busy === gesture.key ? null : gesture.icon}
               {busy === gesture.key ? gesture.busyLabel : gesture.label}
             </Button>
           ))}
-        </div>
-
-        {/* Une raison de refus ne se cache pas derrière une infobulle : un
-            bouton grisé sans explication est une impasse. */}
-        {visible
-          .filter((gesture) => gesture.disabledReason !== null)
-          .map((gesture) => (
-            <p key={gesture.key} className="text-[0.8125rem] text-ink-muted">
-              <span className="font-medium">{gesture.label}</span> — {gesture.disabledReason}
-            </p>
-          ))}
-      </CardContent>
-
-      <Dialog
-        open={pending !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPending(null);
-            setTyped('');
-          }
-        }}
-      >
-        <DialogContent>
-          {pending?.confirm ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>{pending.confirm.title}</DialogTitle>
-                <DialogDescription>{pending.confirm.lead}</DialogDescription>
-              </DialogHeader>
-              <DialogBody className="flex flex-col gap-3">
-                <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[0.8125rem] leading-relaxed">
-                  {pending.confirm.consequences.map((line, index) => (
-                    <li key={index}>{line}</li>
-                  ))}
-                </ul>
-                {pending.confirm.typeToConfirm ? (
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="app-actions-confirm" className="text-[0.8125rem]">
-                      Retapez <strong>{pending.confirm.typeToConfirm}</strong> pour confirmer.
-                    </label>
-                    <Input
-                      id="app-actions-confirm"
-                      value={typed}
-                      autoComplete="off"
-                      onChange={(event) => setTyped(event.target.value)}
-                    />
-                  </div>
-                ) : null}
-              </DialogBody>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setPending(null);
-                    setTyped('');
-                  }}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  size="sm"
-                  variant={pending.confirm.danger ? 'destructive' : 'default'}
-                  disabled={
-                    pending.confirm.typeToConfirm !== undefined &&
-                    typed.trim() !== pending.confirm.typeToConfirm
-                  }
-                  onClick={() => {
-                    if (state) void run(pending, state);
-                  }}
-                >
-                  {pending.confirm.action}
-                </Button>
-              </DialogFooter>
-            </>
+          {destroy ? (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="ml-auto"
+              loading={busy === 'destroy'}
+              disabled={busy !== null}
+              onClick={() => {
+                setError(null);
+                setPending(destroy);
+              }}
+            >
+              {busy === 'destroy' ? destroy.busyLabel : destroy.label}
+            </Button>
           ) : null}
-        </DialogContent>
-      </Dialog>
-    </Card>
+        </ActionRow>
+      )}
+
+      {pending?.confirm && state ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => (open ? undefined : setPending(null))}
+          level={pending.confirm.level}
+          icon={pending.confirm.icon}
+          tone={pending.confirm.tone}
+          title={pending.confirm.title}
+          description={pending.confirm.lead}
+          consequences={pending.confirm.consequences}
+          retypeName={pending.confirm.retypeName}
+          confirmLabel={pending.confirm.action}
+          pendingLabel={pending.busyLabel}
+          pending={busy === pending.key}
+          error={error}
+          onConfirm={() => run(pending, state)}
+        />
+      ) : null}
+    </section>
   );
 }
 
@@ -417,90 +399,99 @@ function buildGestures({
   applicationId,
   applicationSlug,
   runtime,
+  t,
 }: {
   state: AppState;
   applicationId: string;
   applicationSlug: string;
   runtime: 'docker' | 'k3s';
+  t: T;
 }): Gesture[] {
   const stopped = state.stoppedAt !== null;
   const port = state.publishedPort;
-
-  // Ce que le runtime appelle son regroupement. Le mot vient du serveur, qui le
-  // tient de la convention partagée : pas de « projet Compose » codé en dur ici.
-  const workspaceWord = runtime === 'docker' ? 'le projet Compose' : 'le namespace';
+  const mono = (value: string) => <span className="mono">{value}</span>;
 
   const lifecycle: Gesture = stopped
     ? {
         key: 'start',
-        label: 'Démarrer',
-        busyLabel: 'Démarrage…',
+        label: t('gesture.start'),
+        busyLabel: t('busy.start'),
+        icon: <Play aria-hidden />,
         variant: 'default',
         disabledReason: null,
         request: { path: `/api/apps/${state.id}/start`, method: 'POST' },
         // Remettre en marche ne détruit rien et n'interrompt rien : demander
         // confirmation pour ça, c'est apprendre à cliquer sans lire.
         confirm: null,
+        done: { title: t('toast.start', { slug: applicationSlug }) },
       }
     : {
         key: 'stop',
-        label: 'Arrêter',
-        busyLabel: 'Arrêt…',
-        variant: 'outline',
+        label: t('gesture.stop'),
+        busyLabel: t('busy.stop'),
+        icon: <Square aria-hidden />,
+        variant: 'secondary',
         disabledReason: null,
         request: { path: `/api/apps/${state.id}/stop`, method: 'POST' },
         confirm: {
-          title: `Arrêter ${applicationSlug} sur ${state.targetName} ?`,
-          lead: "Le service devient indisponible jusqu'à ce que vous le redémarriez.",
+          title: t('stop.title', { slug: applicationSlug, target: state.targetName }),
           consequences: [
-            runtime === 'docker'
-              ? 'Les conteneurs s’arrêtent. Ils ne sont pas supprimés : ils repartiront avec le même état.'
-              : 'Les pods sont retirés (répliques à zéro). Les manifests, eux, restent en place.',
-            'Les volumes et leurs données sont conservés.',
-            port === null
-              ? 'L’adresse publique cessera de répondre.'
-              : `Le port ${port} reste réservé à cette application : personne d’autre ne le prendra.`,
-            'Aucun redéploiement ne sera nécessaire : « Démarrer » remettra cette même version en service.',
-            'La sonde de santé périodique cessera de la surveiller — une application arrêtée n’est pas une panne.',
+            // Le mot vient du dictionnaire, indexé par runtime : ce que chacun
+            // appelle arrêter n'est pas la même chose.
+            t(`stop.containers.${runtime}`),
+            port === null ? t('stop.kept.noPort') : t('stop.kept', { port }),
+            t('stop.probe'),
+            t('stop.resume'),
           ],
-          action: 'Arrêter l’application',
-          danger: false,
+          action: t('stop.confirm'),
+          level: 'reversible',
+          icon: <Square />,
+          tone: 'warn',
+        },
+        done: {
+          title: t('toast.stop', { slug: applicationSlug }),
+          description: t('toast.stop.detail'),
         },
       };
 
   const rollback: Gesture = {
     key: 'rollback',
-    label: state.previous ? `Revenir à la version #${state.previous.version}` : 'Revenir en arrière',
-    busyLabel: 'Retour en arrière…',
-    variant: 'outline',
-    disabledReason: state.previous
-      ? null
-      : 'aucune version précédente sur cette cible — il n’y a nulle part où revenir. ' +
-        'Un redéploiement d’une version antérieure se lance depuis la fiche de l’application.',
+    label: state.previous
+      ? t('gesture.rollback', { number: state.previous.number })
+      : t('gesture.rollback.none'),
+    busyLabel: t('busy.rollback'),
+    icon: <Undo2 aria-hidden />,
+    variant: 'secondary',
+    disabledReason: state.previous ? null : t('rollback.none'),
     request: { path: `/api/deployments/${state.id}/rollback`, method: 'POST' },
     confirm: state.previous
       ? {
-          title: `Revenir à la version #${state.previous.version} ?`,
-          lead: `La release #${state.previous.version}, déjà présente sur ${state.targetName}, est remise en service.`,
+          title: t('rollback.title', { number: state.previous.number }),
+          lead: t('rollback.lead', {
+            number: state.previous.number,
+            target: state.targetName,
+          }),
           consequences: [
-            'Aucune image n’est reconstruite et aucun scan n’est rejoué : c’est la release déjà déposée qui repart.',
-            'Le déploiement courant passe au statut « rollback effectué » — il reste dans l’historique.',
-            'Les volumes ne sont pas touchés : une migration de base déjà passée ne sera pas défaite.',
-            ...(stopped
-              ? ['Cette application est arrêtée : le retour en arrière la remettra en marche.']
-              : []),
+            t('rollback.noRebuild'),
+            t('rollback.status'),
+            t('rollback.volumes'),
+            ...(stopped ? [t('rollback.restart')] : []),
           ],
-          action: 'Revenir en arrière',
-          danger: false,
+          action: t('rollback.confirm'),
+          level: 'reversible',
+          icon: <Undo2 />,
+          tone: 'accent',
         }
       : null,
+    done: { title: t('toast.rollback', { slug: applicationSlug }) },
   };
 
   const redeploy: Gesture = {
     key: 'redeploy',
-    label: 'Redéployer cette version',
-    busyLabel: 'Mise en file…',
-    variant: 'outline',
+    label: t('gesture.redeploy'),
+    busyLabel: t('busy.redeploy'),
+    icon: <RefreshCw aria-hidden />,
+    variant: 'secondary',
     disabledReason: null,
     request: {
       path: `/api/applications/${applicationId}/redeploy`,
@@ -508,50 +499,70 @@ function buildGestures({
       body: { versionId: state.id, targetId: state.targetId, autoRollback: true },
     },
     confirm: {
-      title: 'Redéployer la même version ?',
-      lead:
-        'Utile quand une image mutable a bougé ou qu’un secret a changé : la même AppSpec ' +
-        'est rejouée de bout en bout.',
+      title: t('redeploy.title'),
+      lead: t('redeploy.lead'),
       consequences: [
-        'Un nouveau déploiement est créé, avec son propre numéro et son propre pipeline.',
-        'Les images sont retirées ou reconstruites, et la politique de scan est appliquée à nouveau.',
-        'Les services en marche sont remplacés à la fin du pipeline, pas avant.',
-        'En cas d’échec du healthcheck, le rollback automatique ramène la version actuelle.',
+        t('redeploy.new'),
+        t('redeploy.images'),
+        t('redeploy.swap'),
+        t('redeploy.rollback'),
       ],
-      action: 'Lancer le redéploiement',
-      danger: false,
+      action: t('redeploy.confirm'),
+      level: 'reversible',
+      icon: <RefreshCw />,
+      tone: 'accent',
     },
+    done: { title: t('redeploy.confirm') },
     navigateTo: (body) => (body.id ? `/deployments/${body.id}` : `/applications/${applicationId}`),
   };
 
   const destroy: Gesture = {
     key: 'destroy',
-    label: 'Détruire',
-    busyLabel: 'Destruction…',
-    variant: 'ghost',
+    label: t('gesture.destroy'),
+    busyLabel: t('busy.destroy'),
+    icon: null,
+    variant: 'destructive',
     disabledReason: null,
     request: { path: `/api/deployments/${state.id}`, method: 'DELETE' },
     confirm: {
-      title: `Détruire ${applicationSlug} sur ${state.targetName} ?`,
-      lead: 'L’application est retirée de la machine. Ce geste ne se défait pas.',
+      title: t('destroy.title', { slug: applicationSlug, target: state.targetName }),
+      lead: t('destroy.lead'),
       consequences: [
-        <>
-          {workspaceWord} <code className="font-mono">{state.workspace}</code> est démonté sur{' '}
-          <code className="font-mono">{state.targetName}</code>.
-        </>,
-        'Les volumes et leurs données sont supprimés — base de données comprise.',
-        port === null
-          ? 'L’entrée d’Ingress est retirée : l’adresse cessera de répondre.'
-          : `Le port ${port} est libéré sur la cible et rendu à la réserve : une autre application pourra le prendre.`,
-        'Le répertoire de l’application et toutes ses releases sont effacés de la machine.',
-        'L’historique des déploiements reste en base — détruire n’est pas purger.',
-        'L’application, elle, n’est pas supprimée : vous pourrez la redéployer ici ou ailleurs.',
+        withMono(
+          t(`destroy.workspace.${runtime}`, { workspace: SLOT_A, target: SLOT_B }),
+          mono(state.workspace),
+          mono(state.targetName),
+        ),
+        t('destroy.volumes'),
+        port === null ? t('destroy.ingress') : t('destroy.port', { port }),
+        t('destroy.releases'),
+        t('destroy.kept'),
       ],
-      action: 'Détruire',
-      danger: true,
-      typeToConfirm: applicationSlug,
+      action: t('destroy.confirm'),
+      level: 'data',
+      icon: <Trash2 />,
+      retypeName: applicationSlug,
     },
+    done: { title: t('toast.destroy', { slug: applicationSlug, target: state.targetName }) },
   };
 
   return [lifecycle, rollback, redeploy, destroy];
+}
+
+const SLOT_A = '\u0001';
+const SLOT_B = '\u0002';
+
+/** Une phrase traduite dont deux valeurs gardent leur mise en forme (mono). */
+function withMono(sentence: string, first: ReactNode, second: ReactNode): ReactNode {
+  return sentence
+    .split(/(\u0001|\u0002)/)
+    .map((part, index) =>
+      part === SLOT_A ? (
+        <span key={index}>{first}</span>
+      ) : part === SLOT_B ? (
+        <span key={index}>{second}</span>
+      ) : (
+        part
+      ),
+    );
 }

@@ -1,9 +1,5 @@
-import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { getAppSettings } from '@pupitre/db';
-import { getT } from '@/i18n/server';
-import { onboarding } from '@/i18n/messages/onboarding';
-import { currentAuth } from '@/lib/page-auth';
+import { currentAuth, redirectToLogin } from '@/lib/page-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,34 +18,11 @@ export const dynamic = 'force-dynamic';
  * supprime les deux problèmes d'un coup.
  *
  * Le prix : l'authentification est refaite ici. C'est peu, et c'est explicite.
+ * L'en-tête, lui, est posé par la page : sa partie droite dépend de l'étape.
  */
 export default async function OnboardingLayout({ children }: { children: ReactNode }) {
-  const auth = await currentAuth();
-  if (!auth) redirect('/login');
+  // Pas de session valide : direction la connexion (par `/logout` si un cookie périmé traîne).
+  if (!(await currentAuth())) await redirectToLogin();
 
-  const { settings } = await getAppSettings();
-  const t = await getT(onboarding);
-
-  return (
-    <div className="bg-canvas min-h-dvh">
-      <header className="border-line border-b">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-2.5 px-4 py-4 sm:px-6">
-          <span
-            aria-hidden
-            className="bg-signal shadow-panel flex size-7 shrink-0 items-center justify-center rounded-[5px]"
-          >
-            <span className="bg-signal-ink size-2 rounded-[1px]" />
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="font-condensed text-ink text-[0.9375rem] font-semibold tracking-[0.01em]">
-              {settings.instanceName}
-            </span>
-            <span className="eyebrow text-ink-faint pt-1">{t('shell.eyebrow')}</span>
-          </span>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:py-12">{children}</main>
-    </div>
-  );
+  return <div className="min-h-dvh bg-bg">{children}</div>;
 }

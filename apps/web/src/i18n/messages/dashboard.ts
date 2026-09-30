@@ -19,13 +19,32 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── En-tête ─────────────────────────────────────────────────────────────
-  'page.eyebrow': "Poste d'exploitation",
-  'page.title': 'Tableau de bord',
+  'page.title': "Vue d'ensemble",
+  'page.deploy': 'Déployer',
+  'window.label': "Fenêtre d'observation",
+  'window.day': '24 h',
+  'window.week': '7 j',
+  'band.title.week': 'Les 7 derniers jours',
+  'band.aside.week':
+    'un intervalle toutes les 6 heures — chaque figure porte son nombre de mesures',
+  'link.all': 'Tout voir',
+  'fleet.aside': {
+    one: '{count} cible, charge sur {window}',
+    other: '{count} cibles, charge sur {window}',
+  },
+  'fleet.window.day': '24 h',
+  'fleet.window.week': '7 jours',
+  'fleet.apps': {
+    one: '{count} application',
+    other: '{count} applications',
+  },
+  'fleet.apps.none': 'aucune application',
+  'fleet.runtime.unknown': 'runtime inconnu',
+  'running.aside': '{shown} sur {total} affichées',
+
   'page.description':
     "Ce qui demande une intervention, ce qui s'est passé depuis hier, puis l'état du parc.",
 
-  /** Le même mot partout où un bloc est masqué faute de permission. */
-  restricted: 'accès restreint',
 
   // ── Libellés de lien vers une autre section ─────────────────────────────
   'link.servers': 'Supervision',
@@ -83,7 +102,7 @@ const fr = {
 
   // ── La bande des dernières 24 heures ────────────────────────────────────
   'band.title': 'Les dernières 24 heures',
-  'band.aside': 'un intervalle par heure — chaque figure porte son nombre de mesures',
+  'band.aside': 'un intervalle par heure, chaque figure indique son nombre de mesures',
   'band.locked': "Aucune des séries de cet écran n'est accessible avec vos permissions.",
 
   /**
@@ -117,11 +136,6 @@ const fr = {
   'lane.monitor.help':
     "Les sondes tournent par tâche planifiée. Vérifiez qu'au moins une sonde est active sur",
 
-  'legend.allHealthy': 'tout sain',
-  'legend.partlyHealthy': 'partiellement sain',
-  'legend.noneHealthy': 'rien de sain',
-  'legend.thin': 'moins de 3 mesures',
-  'legend.noSample': 'aucune mesure',
 
   'lane.latency.title': 'Latence des sondes',
   'lane.latency.aside': 'en millisecondes, moyenne par heure',
@@ -137,8 +151,6 @@ const fr = {
     "Trop peu d'heures couvertes pour parler de tendance — la collecte vient de commencer.",
 
   'lane.chronicle.title': 'Déploiements',
-  'lane.chronicle.aside.none': 'aucun sur {days} jours',
-  'lane.chronicle.aside.some': "{count} sur {days} jours, dont ceux d'aujourd'hui",
   'chronicle.event': '{app} v{version} sur {target} — {status}',
   'chronicle.event.step': ' · étape « {step} »',
   'chronicle.empty': 'Aucun déploiement dans les 24 dernières heures.',
@@ -206,10 +218,11 @@ const fr = {
   'readout.monitors': 'Sondes au vert',
   'readout.monitors.hint': 'supervision de sites',
   'readout.inFlight': 'En vol',
-  'readout.inFlight.on': 'déploiement en cours',
   'readout.inFlight.off': 'aucun déploiement en cours',
 
   // ── Âge d'un événement ──────────────────────────────────────────────────
+  'duration.seconds': '{seconds} s',
+  'duration.minutes': '{minutes} min {seconds} s',
   'since.seconds': 'il y a {count} s',
   'since.minutes': 'il y a {count} min',
   'since.hours': 'il y a {count} h',
@@ -217,12 +230,31 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Operations desk',
-  'page.title': 'Dashboard',
+  'page.title': 'Overview',
+  'page.deploy': 'Deploy',
+  'window.label': 'Observation window',
+  'window.day': '24 h',
+  'window.week': '7 d',
+  'band.title.week': 'The last 7 days',
+  'band.aside.week': 'one interval every 6 hours — each figure carries its sample count',
+  'link.all': 'See all',
+  'fleet.aside': {
+    one: '{count} target, load over {window}',
+    other: '{count} targets, load over {window}',
+  },
+  'fleet.window.day': '24 h',
+  'fleet.window.week': '7 days',
+  'fleet.apps': {
+    one: '{count} application',
+    other: '{count} applications',
+  },
+  'fleet.apps.none': 'no application',
+  'fleet.runtime.unknown': 'unknown runtime',
+  'running.aside': '{shown} of {total} shown',
+
   'page.description':
     'What needs action, what happened since yesterday, then the state of the fleet.',
 
-  restricted: 'restricted access',
 
   'link.servers': 'Servers',
   'link.targets': 'Targets',
@@ -305,11 +337,6 @@ const en: Translated<typeof fr> = {
   'lane.monitor.help':
     'Probes run from a scheduled job. Check that at least one probe is active in',
 
-  'legend.allHealthy': 'all healthy',
-  'legend.partlyHealthy': 'partly healthy',
-  'legend.noneHealthy': 'none healthy',
-  'legend.thin': 'fewer than 3 samples',
-  'legend.noSample': 'no sample',
 
   'lane.latency.title': 'Probe latency',
   'lane.latency.aside': 'in milliseconds, hourly average',
@@ -325,8 +352,6 @@ const en: Translated<typeof fr> = {
     'Too few hours covered to call it a trend — collection has only just started.',
 
   'lane.chronicle.title': 'Deployments',
-  'lane.chronicle.aside.none': 'none over {days} days',
-  'lane.chronicle.aside.some': '{count} over {days} days, today’s included',
   'chronicle.event': '{app} v{version} on {target} — {status}',
   'chronicle.event.step': ' · step “{step}”',
   'chronicle.empty': 'No deployment in the last 24 hours.',
@@ -389,9 +414,10 @@ const en: Translated<typeof fr> = {
   'readout.monitors': 'Probes green',
   'readout.monitors.hint': 'site monitoring',
   'readout.inFlight': 'In flight',
-  'readout.inFlight.on': 'deployment under way',
   'readout.inFlight.off': 'no deployment under way',
 
+  'duration.seconds': '{seconds} s',
+  'duration.minutes': '{minutes} min {seconds} s',
   'since.seconds': '{count} s ago',
   'since.minutes': '{count} min ago',
   'since.hours': '{count} h ago',

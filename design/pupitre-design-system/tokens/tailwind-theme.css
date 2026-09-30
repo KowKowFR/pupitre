@@ -1,0 +1,267 @@
+/* Pupitre · thème Tailwind v4 (à coller dans app/globals.css) */
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #F7F8FA;
+  --bg-subtle: #F1F2F5;
+  --surface: #FFFFFF;
+  --surface-2: #F8F9FA;
+  --surface-3: #EFF1F4;
+  --surface-inv: #1A1D24;
+  --border: #E3E5EA;
+  --border-subtle: #ECEEF1;
+  --border-strong: #CDD1D8;
+  --text: #1A1D24;
+  --text-2: #484D59;
+  --text-3: #676D7A;
+  --text-dis: #9CA1AC;
+  --text-inv: #FFFFFF;
+  --accent: #2E44D6;
+  --accent-hover: #2536B4;
+  --accent-soft: #EEF1FE;
+  --accent-line: #C3CCFB;
+  --accent-text: #2536B4;
+  --ok: #17854A;
+  --ok-soft: #EAF6EF;
+  --ok-line: #B9E0C8;
+  --ok-text: #11683A;
+  --warn: #D48A06;
+  --warn-soft: #FDF4E3;
+  --warn-line: #F1D59A;
+  --warn-text: #8A5504;
+  --danger: #CF3121;
+  --danger-soft: #FDEEEC;
+  --danger-line: #F4C3BC;
+  --danger-text: #A6251A;
+  --idle: #9CA1AC;
+  --idle-soft: #F0F1F4;
+  --idle-line: #D8DBE1;
+  --idle-text: #515765;
+  --sev-critical: #8F1D3B;
+  --sev-high: #CF4F17;
+  --sev-medium: #C8930A;
+  --sev-low: #6B7A90;
+  --term-bg: #101217;
+  --term-fg: #D7DBE3;
+  --term-dim: #6E7584;
+  --term-err: #FF8B7B;
+  --term-warn: #F2C166;
+  --term-ok: #7DD6A0;
+  --term-line: #1E2129;
+  --scrim: rgba(18,20,26,.28);
+  --scrim-soft: rgba(18,20,26,.12);
+  --sh-xs: 0 1px 2px rgba(18,20,26,.05);
+  --sh-sm: 0 1px 3px rgba(18,20,26,.07),0 1px 2px rgba(18,20,26,.04);
+  --sh-md: 0 10px 28px -6px rgba(18,20,26,.14),0 2px 6px rgba(18,20,26,.05);
+  --sh-lg: 0 28px 64px -16px rgba(18,20,26,.28),0 6px 16px rgba(18,20,26,.06);
+  --ring: 0 0 0 3px rgba(46,68,214,.22);
+  --ring-danger: 0 0 0 3px rgba(207,49,33,.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --bg: #0E1014;
+    --bg-subtle: #121419;
+    --surface: #171A20;
+    --surface-2: #1B1E25;
+    --surface-3: #23262E;
+    --surface-inv: #ECEEF2;
+    --border: #282C35;
+    --border-subtle: #1F2229;
+    --border-strong: #383D48;
+    --text: #ECEEF2;
+    --text-2: #B6BBC6;
+    --text-3: #8A909D;
+    --text-dis: #5D6370;
+    --text-inv: #12141A;
+    --accent: #7F92FF;
+    --accent-hover: #99A8FF;
+    --accent-soft: #1B2150;
+    --accent-line: #2F3A86;
+    --accent-text: #A9B5FF;
+    --ok: #43C27B;
+    --ok-soft: #10271B;
+    --ok-line: #1E4A31;
+    --ok-text: #6FD89C;
+    --warn: #F0B44C;
+    --warn-soft: #2B210F;
+    --warn-line: #57401A;
+    --warn-text: #F4C878;
+    --danger: #FF7462;
+    --danger-soft: #301614;
+    --danger-line: #5E2923;
+    --danger-text: #FF9A8C;
+    --idle: #6B7180;
+    --idle-soft: #1F2229;
+    --idle-line: #383D48;
+    --idle-text: #A9AEB9;
+    --sev-critical: #E0476B;
+    --sev-high: #F07A43;
+    --sev-medium: #E8B83E;
+    --sev-low: #8491A6;
+    --term-bg: #0A0B0E;
+    --term-line: #1A1C22;
+    --scrim: rgba(0,0,0,.55);
+    --scrim-soft: rgba(0,0,0,.35);
+    --sh-xs: 0 1px 2px rgba(0,0,0,.3);
+    --sh-sm: 0 1px 3px rgba(0,0,0,.4);
+    --sh-md: 0 12px 32px -6px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04);
+    --sh-lg: 0 30px 70px -12px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.05);
+    --ring: 0 0 0 3px rgba(127,146,255,.3);
+  }
+}
+.dark {
+  --bg: #0E1014;
+  --bg-subtle: #121419;
+  --surface: #171A20;
+  --surface-2: #1B1E25;
+  --surface-3: #23262E;
+  --surface-inv: #ECEEF2;
+  --border: #282C35;
+  --border-subtle: #1F2229;
+  --border-strong: #383D48;
+  --text: #ECEEF2;
+  --text-2: #B6BBC6;
+  --text-3: #8A909D;
+  --text-dis: #5D6370;
+  --text-inv: #12141A;
+  --accent: #7F92FF;
+  --accent-hover: #99A8FF;
+  --accent-soft: #1B2150;
+  --accent-line: #2F3A86;
+  --accent-text: #A9B5FF;
+  --ok: #43C27B;
+  --ok-soft: #10271B;
+  --ok-line: #1E4A31;
+  --ok-text: #6FD89C;
+  --warn: #F0B44C;
+  --warn-soft: #2B210F;
+  --warn-line: #57401A;
+  --warn-text: #F4C878;
+  --danger: #FF7462;
+  --danger-soft: #301614;
+  --danger-line: #5E2923;
+  --danger-text: #FF9A8C;
+  --idle: #6B7180;
+  --idle-soft: #1F2229;
+  --idle-line: #383D48;
+  --idle-text: #A9AEB9;
+  --sev-critical: #E0476B;
+  --sev-high: #F07A43;
+  --sev-medium: #E8B83E;
+  --sev-low: #8491A6;
+  --term-bg: #0A0B0E;
+  --term-line: #1A1C22;
+  --scrim: rgba(0,0,0,.55);
+  --scrim-soft: rgba(0,0,0,.35);
+  --sh-xs: 0 1px 2px rgba(0,0,0,.3);
+  --sh-sm: 0 1px 3px rgba(0,0,0,.4);
+  --sh-md: 0 12px 32px -6px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04);
+  --sh-lg: 0 30px 70px -12px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.05);
+  --ring: 0 0 0 3px rgba(127,146,255,.3);
+}
+
+@theme inline {
+  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-inv: var(--surface-inv);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-dis: var(--text-dis);
+  --color-text-inv: var(--text-inv);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-accent-text: var(--accent-text);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-line: var(--ok-line);
+  --color-ok-text: var(--ok-text);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-warn-text: var(--warn-text);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-line: var(--danger-line);
+  --color-danger-text: var(--danger-text);
+  --color-idle: var(--idle);
+  --color-idle-soft: var(--idle-soft);
+  --color-idle-line: var(--idle-line);
+  --color-idle-text: var(--idle-text);
+  --color-sev-critical: var(--sev-critical);
+  --color-sev-high: var(--sev-high);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-low: var(--sev-low);
+  --color-term-bg: var(--term-bg);
+  --color-term-fg: var(--term-fg);
+  --color-term-dim: var(--term-dim);
+  --color-term-err: var(--term-err);
+  --color-term-warn: var(--term-warn);
+  --color-term-ok: var(--term-ok);
+  --color-term-line: var(--term-line);
+  --color-scrim: var(--scrim);
+  --color-scrim-soft: var(--scrim-soft);
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --shadow-xs: var(--sh-xs);
+  --shadow-sm: var(--sh-sm);
+  --shadow-md: var(--sh-md);
+  --shadow-lg: var(--sh-lg);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-in: cubic-bezier(.5,0,.75,0);
+  --ease-std: cubic-bezier(.2,0,0,1);
+  --text-cap: 12px; --text-cap--line-height: 16px;
+  --text-sm: 13px; --text-sm--line-height: 20px;
+  --text-base: 14px; --text-base--line-height: 20px;
+  --text-h: 15px; --text-h--line-height: 22px;
+  --text-title: 18px; --text-title--line-height: 26px;
+  --text-drawer: 20px; --text-drawer--line-height: 28px;
+  --text-page: 24px; --text-page--line-height: 32px;
+  --text-stat: 26px; --text-stat--line-height: 32px;
+  --animate-drawer-in: pp-drawer-in 320ms var(--ease-out) both;
+  --animate-drawer-out: pp-drawer-out 200ms var(--ease-in) both;
+  --animate-dialog-in: pp-dialog 240ms var(--ease-out) both;
+  --animate-cmdk-in: pp-cmdk 240ms var(--ease-out) both;
+  --animate-pop: pp-pop 180ms var(--ease-out) both;
+  --animate-toast-in: pp-toast 240ms var(--ease-out) both;
+  --animate-rise: pp-rise 320ms var(--ease-out) both;
+}
+
+/* keyframes */
+@keyframes pp-fade{from{opacity:0}to{opacity:1}}
+@keyframes pp-fade-out{from{opacity:1}to{opacity:0}}
+@keyframes pp-pop{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes pp-dialog{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes pp-dialog-out{from{opacity:1;transform:none}to{opacity:0;transform:scale(.98)}}
+@keyframes pp-cmdk{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes pp-drawer-in{from{opacity:0;transform:translateX(48px)}to{opacity:1;transform:none}}
+@keyframes pp-drawer-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(48px)}}
+@keyframes pp-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes pp-toast{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes pp-toast-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(24px)}}
+@keyframes pp-timer{from{width:100%}to{width:0}}
+@keyframes pp-pulse{0%{transform:scale(.6);opacity:.9}100%{transform:scale(1.9);opacity:0}}
+@keyframes pp-shimmer{to{transform:translateX(100%)}}
+@keyframes pp-spin{to{transform:rotate(360deg)}}
+@keyframes pp-indet{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+@keyframes pp-blink{50%{opacity:0}}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}

@@ -16,6 +16,7 @@ import { onboarding } from '@/i18n/messages/onboarding';
 import { requirePageSession } from '@/lib/page-auth';
 import { canSendAccountMail } from '@/lib/account-mail';
 import { onboardingEnvironment, onboardingGate } from '@/lib/onboarding-gate';
+import { OnboardingTopbar } from '../onboarding-topbar';
 import { OnboardingWizard } from './onboarding-wizard';
 
 export const dynamic = 'force-dynamic';
@@ -38,22 +39,27 @@ export default async function OnboardingPage() {
   // écran qui ne lui était pas destiné, on lui dit ce qu'il en est et où aller.
   if (!gate.applies) {
     return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          eyebrow={t('page.eyebrow')}
-          title={t('notApplicable.title')}
-          description={t('notApplicable.description')}
+      <>
+        <OnboardingTopbar
+          instanceName={record.settings.instanceName}
+          eyebrow={t('shell.eyebrow')}
         />
-        <EmptyState
-          title={t('notApplicable.empty.title')}
-          hint={t('notApplicable.empty.hint')}
-          action={
-            <Button asChild size="sm" variant="outline">
-              <Link href="/">{t('notApplicable.back')}</Link>
-            </Button>
-          }
-        />
-      </div>
+        <main className="mx-auto flex w-full max-w-[1040px] flex-col gap-6 px-6 py-9">
+          <PageHeader
+            title={t('notApplicable.title')}
+            description={t('notApplicable.description')}
+          />
+          <EmptyState
+            title={t('notApplicable.empty.title')}
+            hint={t('notApplicable.empty.hint')}
+            action={
+              <Button asChild variant="secondary">
+                <Link href="/">{t('notApplicable.back')}</Link>
+              </Button>
+            }
+          />
+        </main>
+      </>
     );
   }
 
@@ -77,21 +83,20 @@ export default async function OnboardingPage() {
     : [record.settings.locale, ...offered];
 
   return (
-    <div className="flex flex-col gap-6">
-      <OnboardingWizard
-        state={gate.state}
-        steps={presentOnboardingSteps(gate.state, gate.steps)}
-        environment={environment}
-        settings={record.settings}
-        aiApiKeyConfigured={record.aiApiKeyConfigured}
-        aiApiKeyLast4={record.aiApiKeyLast4}
-        timezones={supportedTimeZones()}
-        locales={locales}
-        dateStyles={[...DATE_STYLES]}
-        roleKeys={roleKeys}
-        canRunPreflight={auth.can('target:update')}
-        canInvite={await canSendAccountMail()}
-      />
-    </div>
+    <OnboardingWizard
+      instanceName={record.settings.instanceName}
+      state={gate.state}
+      steps={presentOnboardingSteps(gate.state, gate.steps)}
+      environment={environment}
+      settings={record.settings}
+      aiApiKeyConfigured={record.aiApiKeyConfigured}
+      aiApiKeyLast4={record.aiApiKeyLast4}
+      timezones={supportedTimeZones()}
+      locales={locales}
+      dateStyles={[...DATE_STYLES]}
+      roleKeys={roleKeys}
+      canRunPreflight={auth.can('target:update')}
+      canInvite={await canSendAccountMail()}
+    />
   );
 }

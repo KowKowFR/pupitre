@@ -318,6 +318,8 @@ export async function activityPulse(
 
 export type DeploymentEvent = {
   id: string;
+  /** Numéro de run, global à l'instance. */
+  number: number;
   at: string;
   finishedAt: string | null;
   status: DeploymentStatus;
@@ -384,6 +386,7 @@ export async function deploymentPulse(days = 7, db: Database = getDb()): Promise
   const rows = await db
     .select({
       id: deployments.id,
+      number: deployments.number,
       at: deployments.createdAt,
       startedAt: deployments.startedAt,
       finishedAt: deployments.finishedAt,
@@ -402,6 +405,7 @@ export async function deploymentPulse(days = 7, db: Database = getDb()): Promise
 
   const events: DeploymentEvent[] = rows.map((row) => ({
     id: row.id,
+    number: row.number,
     at: row.at.toISOString(),
     finishedAt: row.finishedAt ? row.finishedAt.toISOString() : null,
     status: row.status,

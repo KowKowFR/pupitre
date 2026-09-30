@@ -17,6 +17,7 @@ const fr = {
   save: 'Enregistrer',
   cancel: 'Annuler',
   close: 'Fermer',
+  help: 'Aide',
   retry: 'Réessayer',
   delete: 'Supprimer',
   edit: 'Modifier',
@@ -35,10 +36,8 @@ const fr = {
 
   // ── En-têtes de colonne ─────────────────────────────────────────────────
   'column.date': 'Date',
-  'column.name': 'Nom',
   'column.state': 'État',
   'column.status': 'Statut',
-  'column.type': 'Type',
   'column.target': 'Cible',
   'column.detail': 'Détail',
   'column.actions': 'Actions',
@@ -57,12 +56,23 @@ const fr = {
 
   /** Valeur absente dans un tableau. Un tiret cadratin, pas un trait d'union. */
   none: '—',
+
+  /**
+   * Durée écoulée, « il y a 27 min ». Cibles, déploiements, sondes et journal
+   * la disent tous — voir `lib/relative-time.ts`.
+   */
+  'ago.now': "à l'instant",
+  'ago.seconds': 'il y a {count} s',
+  'ago.minutes': 'il y a {count} min',
+  'ago.hours': 'il y a {count} h',
+  'ago.days': 'il y a {count} j',
 } as const;
 
 const en: Translated<typeof fr> = {
   save: 'Save',
   cancel: 'Cancel',
   close: 'Close',
+  help: 'Help',
   retry: 'Try again',
   delete: 'Delete',
   edit: 'Edit',
@@ -79,10 +89,8 @@ const en: Translated<typeof fr> = {
   checking: 'Checking…',
 
   'column.date': 'Date',
-  'column.name': 'Name',
   'column.state': 'State',
   'column.status': 'Status',
-  'column.type': 'Type',
   'column.target': 'Target',
   'column.detail': 'Detail',
   'column.actions': 'Actions',
@@ -95,6 +103,12 @@ const en: Translated<typeof fr> = {
   'http.failure': 'Failed (HTTP {status})',
 
   none: '—',
+
+  'ago.now': 'just now',
+  'ago.seconds': '{count} s ago',
+  'ago.minutes': '{count} min ago',
+  'ago.hours': '{count} h ago',
+  'ago.days': '{count} d ago',
 };
 
 export const common = { fr, en };

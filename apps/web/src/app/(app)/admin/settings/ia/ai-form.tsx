@@ -138,7 +138,7 @@ export function AiForm({
 
   return (
     <SectionForm patch={patch} canManage={canManage} onReset={reset} onSubmit={() => void submit()}>
-      <label className="flex items-start gap-2.5 rounded-md border border-line px-3 py-2.5 text-sm">
+      <label className="flex items-start gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm">
         <input
           type="checkbox"
           className="mt-1"
@@ -147,13 +147,13 @@ export function AiForm({
           onChange={(event) => setEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">{t('ai.enabled.label')}</span>
-          <span className="block text-xs text-ink-faint">{t('ai.enabled.help')}</span>
+          <span className="block text-text">{t('ai.enabled.label')}</span>
+          <span className="help block">{t('ai.enabled.help')}</span>
         </span>
       </label>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="field">
           <Label htmlFor="aiProvider">{t('ai.provider.label')}</Label>
           <Select
             id="aiProvider"
@@ -167,18 +167,18 @@ export function AiForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-faint">
+          <p className="help">
             {t('ai.provider.help.before')}
             {descriptor.envApiKeyVar ? (
               <>
                 {' '}
-                (<code className="font-mono">{descriptor.envApiKeyVar}</code>)
+                (<code className="mono">{descriptor.envApiKeyVar}</code>)
               </>
             ) : null}
             {t('ai.provider.help.after')}
           </p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="aiModel">{t('ai.model.label')}</Label>
           <Select
             id="aiModel"
@@ -205,11 +205,9 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setModel(event.target.value)}
           />
-          <p className="text-xs text-ink-faint">
-            {t('ai.model.help', { hint: aiModelHint(provider, language) })}
-          </p>
+          <p className="help">{t('ai.model.help', { hint: aiModelHint(provider, language) })}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="temperature">{t('ai.temperature.label')}</Label>
           <Input
             id="temperature"
@@ -221,9 +219,9 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setTemperature(event.target.value)}
           />
-          <p className="text-xs text-ink-faint">{t('ai.temperature.help')}</p>
+          <p className="help">{t('ai.temperature.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="maxTokens">{t('ai.maxTokens.label')}</Label>
           <Input
             id="maxTokens"
@@ -235,14 +233,14 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setMaxTokens(event.target.value)}
           />
-          <p className="text-xs text-ink-faint">{t('ai.maxTokens.help')}</p>
+          <p className="help">{t('ai.maxTokens.help')}</p>
         </div>
       </div>
 
       {warning ? <Alert variant="destructive">{warning}</Alert> : null}
 
       {descriptor.supportsBaseUrl ? (
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="aiBaseUrl">{t('ai.baseUrl.label')}</Label>
           <Input
             id="aiBaseUrl"
@@ -252,11 +250,11 @@ export function AiForm({
             disabled={!canManage}
             onChange={(event) => setBaseUrl(event.target.value)}
           />
-          <p className="text-xs text-ink-faint">{t('ai.baseUrl.help')}</p>
+          <p className="help">{t('ai.baseUrl.help')}</p>
         </div>
       ) : null}
 
-      <div className="space-y-1.5 border-t border-line pt-4">
+      <div className="field border-t border-border-subtle pt-4">
         <Label htmlFor="apiKey">{t('ai.apiKey.label')}</Label>
         <Input
           id="apiKey"
@@ -273,18 +271,18 @@ export function AiForm({
           }
           onChange={(event) => setApiKeyInput(event.target.value)}
         />
-        <p className="text-xs text-ink-faint">
-          {t('ai.apiKey.help.before')} <code className="font-mono">MASTER_KEY</code>
+        <p className="help">
+          {t('ai.apiKey.help.before')} <code className="mono">MASTER_KEY</code>
           {t('ai.apiKey.help.middle')}{' '}
           {descriptor.envApiKeyVar ? (
-            <code className="font-mono">{descriptor.envApiKeyVar}</code>
+            <code className="mono">{descriptor.envApiKeyVar}</code>
           ) : (
             t('ai.apiKey.help.noEnvVar')
           )}
           {t('ai.apiKey.help.after', { provider: descriptor.label })}
         </p>
         {aiApiKeyConfigured && canManage ? (
-          <label className="flex items-center gap-2 pt-1 text-xs text-ink-muted">
+          <label className="flex items-center gap-2 pt-1 text-xs text-text-2">
             <input
               type="checkbox"
               checked={clearApiKey}

@@ -7,10 +7,17 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getT(messages))('meta.logout') };
 }
 
-export default function LogoutPage() {
+export default async function LogoutPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  // Arrivé ici parce qu'une session a été fermée ailleurs : la page demandée
+  // est transmise à `/login`, qui la valide avant de s'en servir.
+  const { next } = await searchParams;
   return (
     <div className="flex min-h-dvh items-center justify-center p-6">
-      <LogoutRunner />
+      <LogoutRunner next={next ?? null} />
     </div>
   );
 }

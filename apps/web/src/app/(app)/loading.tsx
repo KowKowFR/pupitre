@@ -1,41 +1,67 @@
+'use client';
+
 import { Skeleton } from '@/components/ui/skeleton';
+import { useT } from '@/i18n/client';
+import { chrome } from '@/i18n/messages/chrome';
 
 /**
- * Gabarit d'attente commun aux pages de l'espace connecté.
+ * Attente d'un écran du panel : la silhouette de la plupart des pages — un
+ * en-tête avec ses actions, une bande de relevés, une liste. Elle tient la
+ * place de ce qui arrive, pour que l'écran ne se réorganise pas sous les yeux.
  *
- * Toutes ces pages sont `force-dynamic` : elles interrogent PostgreSQL, parfois
- * Redis, avant de rendre quoi que ce soit. Sans ce fichier, la navigation reste
- * figée sur l'écran précédent — on ne sait pas si le clic a été pris. Le
- * gabarit reprend la silhouette réelle : bandeau, rangée de relevés, panneaux.
+ * Composant client pour son seul `aria-label` : un `loading.tsx` est le
+ * fallback d'un `Suspense`, et un fallback ne peut pas suspendre — il ne peut
+ * donc pas être `async`, donc pas appeler `getT()`.
  */
 export default function AppLoading() {
+  const t = useT(chrome);
+
   return (
-    <div className="flex flex-col gap-7" aria-busy="true" aria-label="Chargement">
-      <div className="flex flex-col gap-2.5 border-b border-line pb-5">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-7 w-64" />
-        <Skeleton className="h-3.5 w-[28rem] max-w-full" />
+    <div className="contents" aria-busy="true" aria-label={t('shell.loading')}>
+      <div className="ph">
+        <div className="ph-t">
+          <Skeleton className="h-[22px] w-[220px]" />
+          <Skeleton className="sk-t w-[520px] max-w-full" />
+        </div>
+        <div className="ph-a">
+          <Skeleton className="h-8 w-[90px] rounded-lg" />
+          <Skeleton className="h-8 w-[110px] rounded-lg" />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 divide-x divide-y divide-line rounded-lg border border-line bg-card sm:grid-cols-4 sm:divide-y-0">
-        {[0, 1, 2, 3].map((slot) => (
-          <div key={slot} className="flex flex-col gap-2 px-4 py-3.5">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-6 w-16" />
-            <Skeleton className="h-2.5 w-24" />
-          </div>
-        ))}
-      </div>
+      <section className="card @container">
+        <div className="readouts">
+          {[0, 1, 2, 3].map((slot) => (
+            <div key={slot} className="readout">
+              <Skeleton className="sk-t w-[110px]" />
+              <Skeleton className="h-6 w-[70px]" />
+              <Skeleton className="sk-t w-[150px]" />
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-line bg-card p-5">
-        {[0, 1, 2, 3, 4].map((slot) => (
-          <div key={slot} className="flex items-center gap-4">
-            <Skeleton className="h-4 flex-1" />
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-5 w-20" />
-          </div>
-        ))}
-      </div>
+      <section className="card overflow-hidden">
+        <div className="card-h">
+          <Skeleton className="sk-t w-[140px]" />
+        </div>
+        <ul className="list">
+          {[0, 1, 2, 3, 4].map((slot) => (
+            <li key={slot} className="gap-4">
+              <Skeleton className="size-2 rounded-full" />
+              <span className="flex w-[200px] flex-col gap-1.5">
+                <Skeleton className="sk-t w-[120px]" />
+                <Skeleton className="sk-t w-[80px]" />
+              </span>
+              <Skeleton className="h-5 w-[240px] max-sm:hidden" />
+              <span className="ml-auto flex gap-3">
+                <Skeleton className="sk-t w-[60px]" />
+                <Skeleton className="sk-t w-[60px]" />
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

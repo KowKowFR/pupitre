@@ -1,0 +1,48 @@
+import { logAudit } from '@pupitre/db';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { account as messages } from '@/i18n/messages/account';
+import { listAccountSessions } from '@/lib/account-sessions';
+import { getAuth } from '@/lib/auth';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
+import { apiRoute } from '@/lib/http';
+import { requireSession } from '@/lib/rbac';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const paramsSchema = z.object({ id: z.string().min(1).max(200) });
+type Context = { params: Promise<{ id: string }> };
+
+/**
+ * Ferme **une** autre session de l'appelant — l'ordinateur resté allumé au
+ * bureau, le téléphone perdu.
+ *
+ * La recherche passe par la liste de l'appelant : une session qui n'est pas
+ * la sienne est introuvable, pas interdite, et la réponse n'en dit pas plus.
+ * Sa propre session ne se ferme pas ici : c'est « Se déconnecter », qui nettoie
+ * aussi le cookie.
+ */
+export const DELETE = apiRoute<Context>(async (request, context) => {
+  const auth = await requireSession(request);
+  const { id } = paramsSchema.parse(await context.params);
+
+  const { sessions, tokens } = await listAccountSessions(request.headers);
+  const session = sessions.find((entry) => entry.id === id);
+  const token = tokens.get(id);
+  if (!session || !token) throw new NotFoundError(msg(messages, 'error.session.notFound'));
+  if (session.current) throw new ConflictError(msg(messages, 'error.session.current'));
+
+  await getAuth().api.revokeSession({ body: { token }, headers: request.headers });
+
+  await logAudit({
+    actorId: auth.userId,
+    action: 'account.session.revoked',
+    resourceType: 'session',
+    resourceId: id,
+    before: { device: session.device, ip: session.ipAddress, createdAt: session.createdAt },
+    ip: auth.ip,
+  });
+
+  return NextResponse.json({ ok: true });
+});

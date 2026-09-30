@@ -7,9 +7,9 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { requestPasswordReset } from '@/lib/auth-client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { AuthCard } from '../auth-card';
 
 /**
  * Demander un lien de réinitialisation.
@@ -59,53 +59,34 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <Card className="shadow-raised">
-        <CardHeader>
-          <CardTitle className="text-lg">{t('forgot.sent.title')}</CardTitle>
-          <CardDescription>{t('forgot.sent.description')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {throttled ? (
-            <Alert variant="destructive">{t('forgot.throttled')}</Alert>
-          ) : (
-            <Alert variant="info">{t('forgot.sent.notice')}</Alert>
-          )}
-          <Link
-            href="/login"
-            className="text-sm text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-          >
-            {t('link.backToLogin')}
-          </Link>
-        </CardContent>
-      </Card>
+      <AuthCard title={t('forgot.sent.title')} description={t('forgot.sent.description')}>
+        {throttled ? (
+          <Alert variant="destructive">{t('forgot.throttled')}</Alert>
+        ) : (
+          <Alert variant="info">{t('forgot.sent.notice')}</Alert>
+        )}
+        <Button asChild variant="secondary" className="btn-block">
+          <Link href="/login">{t('link.backToLogin')}</Link>
+        </Button>
+      </AuthCard>
     );
   }
 
   return (
-    <Card className="shadow-raised">
-      <CardHeader>
-        <CardTitle className="text-lg">{t('forgot.title')}</CardTitle>
-        <CardDescription>{t('forgot.description')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">{t('field.email')}</Label>
-            <Input id="email" name="email" type="email" autoComplete="email" required autoFocus />
-          </div>
-          <Button type="submit" className="mt-1 w-full" disabled={pending}>
-            {pending ? t('forgot.pending') : t('forgot.submit')}
-          </Button>
-          <p className="text-center text-xs text-ink-muted">
-            <Link
-              href="/login"
-              className="text-signal underline decoration-signal-edge underline-offset-4 hover:decoration-signal"
-            >
-              {t('link.backToLogin')}
-            </Link>
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+    <AuthCard title={t('forgot.title')} description={t('forgot.description')}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <Field label={t('field.email')}>
+          <Input name="email" type="email" autoComplete="email" required autoFocus />
+        </Field>
+        <Button type="submit" className="btn-block" loading={pending}>
+          {pending ? t('forgot.pending') : t('forgot.submit')}
+        </Button>
+        <p className="t-cap text-center">
+          <Link href="/login" className="link">
+            {t('link.backToLogin')}
+          </Link>
+        </p>
+      </form>
+    </AuthCard>
   );
 }

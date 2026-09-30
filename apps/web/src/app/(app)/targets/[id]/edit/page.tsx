@@ -1,9 +1,8 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
 import { getTarget } from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { targets as messages } from '@/i18n/messages/targets';
@@ -25,16 +24,8 @@ export default async function EditTargetPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="flex flex-col gap-6">
+      <Crumb label={target.name} />
       <PageHeader
-        eyebrow={
-          <Link
-            href={`/targets/${target.id}`}
-            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
-          >
-            <ChevronLeft className="size-3" />
-            {target.name}
-          </Link>
-        }
         title={t('edit.title', { name: target.name })}
         description={t('edit.description')}
       />

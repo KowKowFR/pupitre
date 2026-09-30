@@ -68,7 +68,7 @@ export function TableScroller({
   const scrollable = more.left || more.right;
 
   return (
-    <div className="relative -mx-1">
+    <div className="relative">
       <div
         ref={ref}
         onScroll={measure}
@@ -78,7 +78,7 @@ export function TableScroller({
         // `focus-visible` seulement : cliquer dans le tableau ne doit pas
         // entourer la zone entière d'un anneau.
         className={cn(
-          'overflow-x-auto px-1 focus-visible:ring-2 focus-visible:ring-signal focus-visible:outline-none',
+          'tbl-wrap rounded-[inherit] focus-visible:shadow-focus focus-visible:outline-none',
           className,
         )}
         tabIndex={scrollable ? 0 : undefined}

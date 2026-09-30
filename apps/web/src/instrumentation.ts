@@ -8,7 +8,8 @@
  *
  * On y branche l'observateur du journal d'audit sur la file des notifications.
  * Sans lui, un changement de rôle ou une réinitialisation de second facteur
- * seraient tracés — mais n'alerteraient personne.
+ * seraient tracés — mais n'alerteraient personne. Et le fournisseur qui donne
+ * au journal le navigateur de chaque requête.
  */
 export async function register(): Promise<void> {
   // `register()` est aussi appelée pour le runtime Edge, où ni `ioredis` ni
@@ -17,4 +18,8 @@ export async function register(): Promise<void> {
 
   const { installAuditNotifications } = await import('./lib/notifications');
   installAuditNotifications();
+
+  // Le navigateur de chaque action tracée, lu dans la requête qui l'a portée.
+  const { installAuditContext } = await import('./lib/audit-context');
+  installAuditContext();
 }

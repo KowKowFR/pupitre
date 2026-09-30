@@ -107,7 +107,7 @@ export function CollapsibleTrigger({
       onClick={toggle}
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md text-left',
-        'outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+        'outline-none focus-visible:shadow-focus',
         'disabled:pointer-events-none disabled:opacity-45',
         className,
       )}
@@ -115,7 +115,7 @@ export function CollapsibleTrigger({
       <ChevronRight
         aria-hidden
         className={cn(
-          'size-4 shrink-0 text-ink-faint transition-transform duration-150 ease-out',
+          'size-4 shrink-0 text-text-3 transition-transform duration-150 ease-out',
           'motion-reduce:transition-none',
           open && 'rotate-90',
         )}
@@ -126,11 +126,7 @@ export function CollapsibleTrigger({
 }
 
 /** Le panneau contrôlé par le déclencheur. Nommé par lui, pour les lecteurs d'écran. */
-export function CollapsiblePanel({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<'div'>) {
+export function CollapsiblePanel({ className, children, ...props }: React.ComponentProps<'div'>) {
   const { open, triggerId, panelId } = useCollapsibleContext('CollapsiblePanel');
 
   return (

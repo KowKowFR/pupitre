@@ -8,7 +8,9 @@ import { Alert } from '@/components/ui/alert';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { SecretInput } from '@/components/ui/field';
+import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { applications as messages } from '@/i18n/messages/applications';
@@ -69,19 +71,23 @@ export function ApplicationSecrets({
     });
   }
 
-  function regenerate(name: string) {
-    const confirmed = window.confirm(t('secrets.regenerate.confirm', { name }));
-    if (!confirmed) return;
-    void call(name, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ generate: true }),
-    });
-  }
+  /** Le geste en attente de confirmation : régénérer ou effacer une valeur. */
+  const [confirming, setConfirming] = useState<{ name: string; action: 'regenerate' | 'delete' } | null>(
+    null,
+  );
 
-  function remove(name: string) {
-    if (!window.confirm(t('secrets.delete.confirm', { name }))) return;
-    void call(name, { method: 'DELETE' });
+  async function confirmAction() {
+    if (!confirming) return;
+    const { name, action } = confirming;
+    const done =
+      action === 'regenerate'
+        ? await call(name, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ generate: true }),
+          })
+        : await call(name, { method: 'DELETE' });
+    if (done) setConfirming(null);
   }
 
   return (
@@ -90,9 +96,9 @@ export function ApplicationSecrets({
         <CardTitle>{t('secrets.title')}</CardTitle>
         <CardDescription>
           {t('secrets.description.1')}
-          <code className="mx-1 font-mono text-xs">MASTER_KEY</code>
+          <code className="code mx-1">MASTER_KEY</code>
           {t('secrets.description.2')}{' '}
-          <strong className="font-medium text-ink">{t('secrets.description.3')}</strong>{' '}
+          <strong className="font-medium text-text">{t('secrets.description.3')}</strong>{' '}
           {t('secrets.description.4')}
         </CardDescription>
       </CardHeader>
@@ -100,22 +106,20 @@ export function ApplicationSecrets({
       <CardContent className="space-y-3">
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        {secrets.length === 0 ? (
-          <p className="text-sm text-ink-muted">{t('secrets.none')}</p>
-        ) : null}
+        {secrets.length === 0 ? <p className="t-sm text-text-2">{t('secrets.none')}</p> : null}
 
-        <ul className="divide-y divide-line">
+        <ul className="flex flex-col divide-y divide-border-subtle">
           {secrets.map((secret) => (
             <li key={secret.name} className="flex flex-wrap items-center gap-3 py-3">
               {secret.aliasOf ? (
-                <Link2 className="size-4 shrink-0 text-ink-faint" />
+                <Link2 className="size-4 shrink-0 text-text-3" />
               ) : (
-                <KeyRound className="size-4 shrink-0 text-ink-faint" />
+                <KeyRound className="size-4 shrink-0 text-text-3" />
               )}
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[0.8125rem] text-ink">{secret.name}</span>
+                  <span className="mono text-[12.5px] font-semibold text-text">{secret.name}</span>
 
                   {secret.aliasOf ? (
                     <Badge variant="secondary">{t('secrets.badge.alias')}</Badge>
@@ -141,7 +145,7 @@ export function ApplicationSecrets({
                   )}
                 </div>
 
-                <p className="mt-0.5 text-xs text-ink-faint">
+                <p className="mt-0.5 text-xs text-text-3">
                   {secret.declared ? (
                     <>
                       {t('secrets.claimedBy')}
@@ -160,7 +164,7 @@ export function ApplicationSecrets({
                     ligne, deux noms portant le même mot de passe se lisent
                     comme deux secrets indépendants. */}
                 {secret.aliasOf ? (
-                  <p className="mt-0.5 text-xs text-ink-faint">
+                  <p className="mt-0.5 text-xs text-text-3">
                     {t('secrets.aliasOf.before')}
                     <CodeBadge>{secret.aliasOf}</CodeBadge>
                     {t('secrets.aliasOf.after')}
@@ -168,7 +172,7 @@ export function ApplicationSecrets({
                 ) : null}
 
                 {secret.readAs.length > 0 ? (
-                  <p className="mt-0.5 text-xs text-ink-faint">
+                  <p className="mt-0.5 text-xs text-text-3">
                     {t('secrets.readAs')}{' '}
                     {secret.readAs.map((alias) => (
                       <CodeBadge key={alias} className="mr-1">
@@ -180,42 +184,37 @@ export function ApplicationSecrets({
               </div>
 
               {canEdit && secret.aliasOf ? (
-                <span className="text-xs text-ink-faint">
+                <span className="text-xs text-text-3">
                   {t('secrets.editOnRoot', { name: secret.aliasOf })}
                 </span>
               ) : null}
 
               {canEdit && !secret.aliasOf && editing === secret.name ? (
                 <div className="flex w-full items-center gap-2 sm:w-auto">
-                  <Input
-                    autoFocus
-                    type="password"
-                    value={draft}
-                    placeholder={t('secrets.newValue')}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') submit(secret.name);
-                      if (event.key === 'Escape') setEditing(null);
-                    }}
-                    className="sm:w-64"
-                  />
-                  <Button
-                    size="icon"
+                  <span className="sm:w-72">
+                    <SecretInput
+                      autoFocus
+                      value={draft}
+                      placeholder={t('secrets.newValue')}
+                      aria-label={t('secrets.newValue')}
+                      onChange={(event) => setDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') submit(secret.name);
+                        if (event.key === 'Escape') setEditing(null);
+                      }}
+                    />
+                  </span>
+                  <IconButton
+                    label={tc('save')}
                     variant="default"
-                    aria-label={tc('save')}
                     disabled={busy === secret.name}
                     onClick={() => submit(secret.name)}
                   >
-                    <Check className="size-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={tc('cancel')}
-                    onClick={() => setEditing(null)}
-                  >
-                    <X className="size-4" />
-                  </Button>
+                    <Check />
+                  </IconButton>
+                  <IconButton label={tc('cancel')} onClick={() => setEditing(null)}>
+                    <X />
+                  </IconButton>
                 </div>
               ) : null}
 
@@ -223,7 +222,7 @@ export function ApplicationSecrets({
                 <div className="flex items-center gap-1.5">
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="secondary"
                     disabled={busy === secret.name}
                     onClick={() => {
                       setEditing(secret.name);
@@ -232,27 +231,24 @@ export function ApplicationSecrets({
                   >
                     {secret.isSet ? t('secrets.replace') : t('secrets.setNow')}
                   </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    aria-label={t('secrets.regenerate.label', { name: secret.name })}
-                    title={t('secrets.regenerate.title')}
+                  <IconButton
+                    label={t('secrets.regenerate.label', { name: secret.name })}
+                    size="icon-sm"
                     disabled={busy === secret.name}
-                    onClick={() => regenerate(secret.name)}
+                    onClick={() => setConfirming({ name: secret.name, action: 'regenerate' })}
                   >
-                    <RefreshCw className="size-4" />
-                  </Button>
+                    <RefreshCw />
+                  </IconButton>
                   {secret.declared ? null : (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={t('secrets.delete.label', { name: secret.name })}
-                      title={t('secrets.delete.title')}
+                    <IconButton
+                      label={t('secrets.delete.label', { name: secret.name })}
+                      size="icon-sm"
+                      className="text-danger-text"
                       disabled={busy === secret.name}
-                      onClick={() => remove(secret.name)}
+                      onClick={() => setConfirming({ name: secret.name, action: 'delete' })}
                     >
-                      <Trash2 className="size-4 text-danger" />
-                    </Button>
+                      <Trash2 />
+                    </IconButton>
                   )}
                 </div>
               ) : null}
@@ -260,6 +256,37 @@ export function ApplicationSecrets({
           ))}
         </ul>
       </CardContent>
+
+      <ConfirmDialog
+        open={confirming !== null}
+        onOpenChange={(open) => (open ? undefined : setConfirming(null))}
+        level={confirming?.action === 'regenerate' ? 'data' : 'trace'}
+        icon={confirming?.action === 'regenerate' ? <RefreshCw /> : undefined}
+        title={
+          confirming
+            ? t(
+                confirming.action === 'regenerate'
+                  ? 'secrets.regenerate.dialog.title'
+                  : 'secrets.delete.dialog.title',
+                { name: confirming.name },
+              )
+            : ''
+        }
+        consequences={
+          confirming?.action === 'regenerate'
+            ? [
+                t('secrets.regenerate.consequence.draw'),
+                t('secrets.regenerate.consequence.next'),
+                t('secrets.regenerate.consequence.data'),
+              ]
+            : [t('secrets.delete.consequence.gone'), t('secrets.delete.consequence.orphan')]
+        }
+        retypeName={confirming?.action === 'regenerate' ? confirming.name : undefined}
+        confirmLabel={confirming?.action === 'regenerate' ? t('secrets.regenerate.action') : tc('delete')}
+        pending={confirming !== null && busy === confirming.name}
+        error={confirming ? error : null}
+        onConfirm={confirmAction}
+      />
     </Card>
   );
 }

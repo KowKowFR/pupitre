@@ -102,8 +102,8 @@ export function IdentityStep({
     <div className="flex flex-col gap-4">
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="field">
           <Label htmlFor="ob-name">{t('identity.name.label')}</Label>
           <Input
             id="ob-name"
@@ -112,7 +112,7 @@ export function IdentityStep({
             onChange={(event) => setInstanceName(event.target.value)}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-tagline">{t('identity.tagline.label')}</Label>
           <Input
             id="ob-tagline"
@@ -122,7 +122,7 @@ export function IdentityStep({
             onChange={(event) => setInstanceTagline(event.target.value)}
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-timezone">{t('identity.timezone.label')}</Label>
           <Select
             id="ob-timezone"
@@ -136,7 +136,7 @@ export function IdentityStep({
             ))}
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-locale">{t('identity.locale.label')}</Label>
           {/*
             Même sélecteur qu'à la section Régionalisation, et pas un réglage
@@ -156,9 +156,9 @@ export function IdentityStep({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-faint">{t('identity.locale.help')}</p>
+          <p className="help">{t('identity.locale.help')}</p>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-date-style">{t('identity.dateStyle.label')}</Label>
           <Select
             id="ob-date-style"
@@ -172,7 +172,7 @@ export function IdentityStep({
             ))}
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="field">
           <Label htmlFor="ob-time-style">{t('identity.timeStyle.label')}</Label>
           <Select
             id="ob-time-style"
@@ -188,10 +188,10 @@ export function IdentityStep({
         </div>
       </div>
 
-      <div className="rounded-md border border-line bg-surface-2 px-3.5 py-3">
-        <div className="eyebrow text-ink-faint">{t('preview.title')}</div>
-        <div className="mt-1 font-mono text-sm text-ink tabular-nums">{preview}</div>
-        <div className="mt-1 text-xs text-ink-faint">{t('preview.help')}</div>
+      <div className="well">
+        <div className="t-cap font-medium text-text-3">{t('preview.title')}</div>
+        <div className="mt-1 mono text-sm text-text tabular-nums">{preview}</div>
+        <div className="help mt-1">{t('preview.help')}</div>
       </div>
 
       <div>
@@ -251,7 +251,7 @@ export function SecurityStep({
     <div className="flex flex-col gap-4">
       {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-      <label className="flex items-start gap-2.5 rounded-md border border-line px-3 py-2.5 text-sm">
+      <label className="flex items-start gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm">
         <input
           type="checkbox"
           className="mt-1"
@@ -259,21 +259,21 @@ export function SecurityStep({
           onChange={(event) => setScanningEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">{t('security.scan.label')}</span>
-          <span className="block text-xs text-ink-faint">{t('security.scan.help')}</span>
+          <span className="block text-text">{t('security.scan.label')}</span>
+          <span className="help block">{t('security.scan.help')}</span>
         </span>
       </label>
 
       {scanningEnabled ? (
         <div className="space-y-2">
-          <span className="block text-sm text-ink">{t('security.scanners.label')}</span>
+          <span className="block text-sm text-text">{t('security.scanners.label')}</span>
           <div className="flex flex-wrap gap-2">
             {SCANNER_KEYS.map((key) => {
               const off = disabledScanners.includes(key);
               return (
                 <label
                   key={key}
-                  className="flex items-center gap-2 rounded-md border border-line px-2.5 py-1.5 text-xs"
+                  className="t-cap flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5"
                 >
                   <input
                     type="checkbox"
@@ -286,7 +286,7 @@ export function SecurityStep({
                       )
                     }
                   />
-                  <span className={off ? 'text-ink-faint line-through' : 'text-ink'}>
+                  <span className={off ? 'text-text-3 line-through' : 'text-text'}>
                     {scannerLabel(key)}
                   </span>
                 </label>
@@ -298,7 +298,7 @@ export function SecurityStep({
         <Alert variant="destructive">{t('security.scan.off')}</Alert>
       )}
 
-      <label className="flex items-start gap-2.5 rounded-md border border-line px-3 py-2.5 text-sm">
+      <label className="flex items-start gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm">
         <input
           type="checkbox"
           className="mt-1"
@@ -306,12 +306,12 @@ export function SecurityStep({
           onChange={(event) => setAiEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-ink">{t('security.ai.label')}</span>
-          <span className="block text-xs text-ink-faint">{t('security.ai.help')}</span>
+          <span className="block text-text">{t('security.ai.label')}</span>
+          <span className="help block">{t('security.ai.help')}</span>
         </span>
       </label>
 
-      <div className="space-y-1.5">
+      <div className="field">
         <Label htmlFor="ob-api-key">{t('security.apiKey.label')}</Label>
         <Input
           id="ob-api-key"
@@ -332,8 +332,8 @@ export function SecurityStep({
           }
           onChange={(event) => setApiKeyInput(event.target.value)}
         />
-        <p className="text-xs text-ink-faint">
-          {t('security.apiKey.help.before')} <code className="font-mono">MASTER_KEY</code>
+        <p className="help">
+          {t('security.apiKey.help.before')} <code className="mono">MASTER_KEY</code>
           {t('security.apiKey.help.after')}
         </p>
       </div>

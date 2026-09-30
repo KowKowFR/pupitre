@@ -1,7 +1,7 @@
 import { httpConfigSchema, type HttpConfig } from '../monitors/catalog.js';
 import type { Cidr } from '../monitors/ssrf.js';
 import { MONITOR_MAX_RESPONSE_BYTES, type CheckResult } from '../monitors/state.js';
-import { decodeBody, guardedFetch } from './fetch.js';
+import { certificateMetrics, decodeBody, guardedFetch } from './fetch.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
@@ -31,6 +31,7 @@ async function runHttp(config: HttpConfig, allowlist: readonly Cidr[]): Promise<
     redirects: result.redirects,
     address: result.address,
     finalUrl: result.finalUrl,
+    ...(result.ok ? certificateMetrics(result.certificate) : {}),
   });
 
   if (!result.ok) {

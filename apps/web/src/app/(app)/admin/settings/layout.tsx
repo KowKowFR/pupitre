@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { getAppSettings } from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -34,29 +35,26 @@ export default async function SettingsLayout({ children }: { children: ReactNode
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={t('page.eyebrow')}
         title={t('page.title')}
         description={
           <>
-            {t('page.description.before')}{' '}
-            <code className="font-mono text-xs">app_settings</code>{' '}
+            {t('page.description.before')} <code className="mono">app_settings</code>{' '}
             {t('page.description.after')}
           </>
         }
         actions={
-          <span className="font-mono text-xs text-ink-faint">
+          <Badge variant="outline">
             {record.updatedAt ? t('page.state.customized') : t('page.state.defaults')}
-          </span>
+          </Badge>
         }
       />
 
-      <div className="grid gap-x-8 gap-y-4 lg:grid-cols-[13.5rem_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-x-8 gap-y-4 lg:grid-cols-[216px_minmax(0,1fr)]">
         <SettingsNav />
-        <div className="flex min-w-0 flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-4">
           {auth.can('settings:manage') ? null : (
             <Alert>
-              {t('page.readonly.before')}{' '}
-              <code className="font-mono text-xs">settings:manage</code>{' '}
+              {t('page.readonly.before')} <code className="mono">settings:manage</code>{' '}
               {t('page.readonly.after')}
             </Alert>
           )}

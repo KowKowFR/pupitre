@@ -2,17 +2,23 @@
 
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { Lock, Plus, Trash2 } from 'lucide-react';
 import type { Permission } from '@pupitre/core';
+import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { IconButton, Tooltip } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { admin } from '@/i18n/messages/admin';
 import { common } from '@/i18n/messages/common';
+import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { NewRoleDrawer } from './new-role-drawer';
+import { PermissionGroups } from './permission-groups';
 
 export type RoleRow = {
   key: string;
@@ -31,30 +37,74 @@ export type PermissionGroup = {
 
 type ApiError = { error?: { message?: string } };
 
+/**
+ * Les rôles, un par carte. Une carte se déplie pour éditer : nom, description
+ * et permissions groupées par ressource. Une seule carte ouverte à la fois —
+ * on compare deux rôles en les lisant replié, pas en éditant les deux.
+ */
 export function RolesEditor({
   roles,
   groups,
   canManage,
+  lockedRole,
 }: {
   roles: RoleRow[];
   groups: PermissionGroup[];
   canManage: boolean;
+  /** La clé du rôle verrouillé, nommée dans la description de l'écran. */
+  lockedRole: string;
 }) {
+  const t = useT(admin);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
   return (
-    <div className="space-y-4">
-      {roles.map((role) => (
-        <RoleCard
-          key={role.key}
-          role={role}
+    <>
+      <PageHeader
+        title={t('roles.title')}
+        description={
+          <>
+            {t('roles.description.before')} <code className="mono">{lockedRole}</code>{' '}
+            {t('roles.description.after')}
+          </>
+        }
+        actions={
+          canManage ? (
+            <Button onClick={() => setCreating(true)}>
+              <Plus aria-hidden />
+              {t('roles.new.action')}
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="flex flex-col gap-4">
+        {roles.map((role) => (
+          <RoleCard
+            key={role.key}
+            role={role}
+            groups={groups}
+            canManage={canManage}
+            open={openKey === role.key}
+            onToggle={() => setOpenKey((current) => (current === role.key ? null : role.key))}
+          />
+        ))}
+      </div>
+
+      {canManage ? (
+        <NewRoleDrawer
+          open={creating}
+          existingKeys={roles.map((role) => role.key)}
           groups={groups}
-          canManage={canManage}
-          open={openKey === role.key}
-          onToggle={() => setOpenKey((current) => (current === role.key ? null : role.key))}
+          onClose={() => setCreating(false)}
+          onCreated={(role) => {
+            setCreating(false);
+            setOpenKey(role.key);
+            toast({ title: t('roles.created', { label: role.label }), tone: 'ok' });
+          }}
         />
-      ))}
-    </div>
+      ) : null}
+    </>
   );
 }
 
@@ -83,16 +133,21 @@ function RoleCard({
   const [description, setDescription] = useState(role.description ?? '');
   const [selected, setSelected] = useState<Set<string>>(new Set(role.permissions));
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const editable = canManage && !role.locked;
+  const inUse = role.userCount > 0;
 
-  const dirty =
-    label !== role.label ||
-    description !== (role.description ?? '') ||
-    selected.size !== role.permissions.length ||
-    role.permissions.some((permission) => !selected.has(permission));
+  // Le décompte de ce qui change : chaque permission ajoutée ou retirée, plus
+  // le nom et la description. C'est ce que le pied de carte annonce.
+  const changes =
+    (label !== role.label ? 1 : 0) +
+    (description !== (role.description ?? '') ? 1 : 0) +
+    role.permissions.filter((permission) => !selected.has(permission)).length +
+    [...selected].filter((permission) => !role.permissions.includes(permission as Permission))
+      .length;
 
   function toggle(permission: Permission) {
     if (!editable) return;
@@ -119,7 +174,6 @@ function RoleCard({
   async function save() {
     setPending(true);
     setError(null);
-    setNotice(null);
 
     const response = await fetch(`/api/admin/roles/${role.key}`, {
       method: 'PATCH',
@@ -131,35 +185,31 @@ function RoleCard({
       }),
     });
 
+    setPending(false);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       setError(body.error?.message ?? c('http.failure', { status: response.status }));
-      setPending(false);
       return;
     }
 
-    setNotice(t('roles.saved'));
-    setPending(false);
+    toast({ title: t('roles.saved') });
     router.refresh();
   }
 
   async function remove() {
-    if (!window.confirm(t('roles.confirmDelete', { key: role.key }))) {
-      return;
-    }
-
     setPending(true);
-    setError(null);
+    setDeleteError(null);
 
     const response = await fetch(`/api/admin/roles/${role.key}`, { method: 'DELETE' });
+    setPending(false);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
-      setError(body.error?.message ?? c('http.failure', { status: response.status }));
-      setPending(false);
+      setDeleteError(body.error?.message ?? c('http.failure', { status: response.status }));
       return;
     }
 
-    setPending(false);
+    setDeleting(false);
+    toast({ title: t('roles.deleted', { label: role.label }) });
     router.refresh();
   }
 
@@ -168,141 +218,144 @@ function RoleCard({
     setDescription(role.description ?? '');
     setSelected(new Set(role.permissions));
     setError(null);
-    setNotice(null);
   }
 
   return (
-    <Card className={cn(role.locked && 'border-dashed')}>
-      <CardHeader className="flex-row flex-wrap items-start justify-between gap-4 space-y-0">
-        <div className="min-w-0 space-y-1">
-          <CardTitle className="flex flex-wrap items-center gap-2">
-            {role.label}
-            <code className="text-muted-foreground font-mono text-xs font-normal">
-              {role.key}
-            </code>
-            {role.locked ? <Badge variant="outline">{t('roles.locked')}</Badge> : null}
-          </CardTitle>
-          <CardDescription>
+    <section className={cn('card overflow-hidden', role.locked && 'border-dashed')}>
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-3 px-4 py-3.5',
+          open && 'border-b border-border-subtle',
+        )}
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex flex-wrap items-center gap-2">
+            <h2 className="text-[14px] font-semibold text-text">{role.label}</h2>
+            <CodeBadge>{role.key}</CodeBadge>
+            {role.locked ? (
+              <Badge variant="outline">
+                <Lock aria-hidden className="size-3" />
+                {t('roles.locked')}
+              </Badge>
+            ) : null}
+          </span>
+          <span className="t-cap text-text-3">
             {role.description ?? t('roles.noDescription')}
             {' · '}
             {t('roles.permissionCount', { count: role.permissions.length, total })}
             {' · '}
             {t('roles.userCount', { count: role.userCount })}
-          </CardDescription>
+          </span>
         </div>
 
-        <div className="flex shrink-0 gap-2">
-          <Button size="sm" variant="outline" onClick={onToggle}>
-            {open ? t('roles.action.collapse') : role.locked ? t('roles.action.view') : c('edit')}
+        <span className="flex shrink-0 items-center gap-1">
+          <Button size="sm" variant="secondary" aria-expanded={open} onClick={onToggle}>
+            {open ? t('roles.action.collapse') : editable ? c('edit') : t('roles.action.view')}
           </Button>
           {editable ? (
-            <Button size="sm" variant="ghost" disabled={pending} onClick={() => void remove()}>
-              {c('delete')}
-            </Button>
+            inUse ? (
+              // Un rôle porté ne se supprime pas : le bouton reste là, et dit
+              // pourquoi au survol comme au focus.
+              <Tooltip content={t('roles.delete.inUse', { count: role.userCount })} wide>
+                <span
+                  tabIndex={0}
+                  className="inline-flex rounded-md outline-none focus-visible:shadow-focus"
+                >
+                  <IconButton
+                    label={t('roles.delete.aria', { label: role.label })}
+                    size="icon-sm"
+                    disabled
+                  >
+                    <Trash2 />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            ) : (
+              <IconButton
+                label={t('roles.delete.aria', { label: role.label })}
+                size="icon-sm"
+                disabled={pending}
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleting(true);
+                }}
+              >
+                <Trash2 />
+              </IconButton>
+            )
           ) : null}
-        </div>
-      </CardHeader>
+        </span>
+      </div>
 
       {open ? (
-        <CardContent className="space-y-5 border-t pt-5">
-          {error ? <Alert variant="destructive">{error}</Alert> : null}
-          {notice ? <Alert variant="success">{notice}</Alert> : null}
+        <>
+          <div className="flex flex-col gap-5 px-4 py-4">
+            {error ? <Alert variant="destructive">{error}</Alert> : null}
+            {role.locked ? <Alert>{t('roles.locked.notice')}</Alert> : null}
 
-          {role.locked ? <Alert>{t('roles.locked.notice')}</Alert> : null}
-
-          {editable ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor={`label-${role.key}`}>{t('roles.field.label')}</Label>
-                <Input
-                  id={`label-${role.key}`}
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  minLength={2}
-                />
+            {editable ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+                <Field label={t('roles.field.label')}>
+                  <Input
+                    value={label}
+                    minLength={2}
+                    onChange={(event) => setLabel(event.target.value)}
+                  />
+                </Field>
+                <Field label={t('roles.form.description')}>
+                  <Input
+                    value={description}
+                    placeholder={t('roles.field.descriptionPlaceholder')}
+                    onChange={(event) => setDescription(event.target.value)}
+                  />
+                </Field>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor={`desc-${role.key}`}>{t('roles.form.description')}</Label>
-                <Input
-                  id={`desc-${role.key}`}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  placeholder={t('roles.field.descriptionPlaceholder')}
-                />
-              </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <div className="space-y-4">
-            {groups.map((group) => {
-              const held = group.permissions.filter((p) => selected.has(p.key)).length;
-              const all = held === group.permissions.length;
+            <PermissionGroups
+              groups={groups}
+              selected={selected}
+              editable={editable}
+              onToggle={toggle}
+              onToggleGroup={toggleGroup}
+            />
 
-              return (
-                <fieldset key={group.resource} className="space-y-2">
-                  <legend className="flex w-full items-center justify-between gap-3 pb-1">
-                    <span className="text-sm font-medium">{group.label}</span>
-                    {editable ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleGroup(group, !all)}
-                        className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-4"
-                      >
-                        {all ? t('roles.group.uncheckAll') : t('roles.group.checkAll')}
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground font-mono text-xs">
-                        {held}/{group.permissions.length}
-                      </span>
-                    )}
-                  </legend>
-
-                  <div className="grid gap-1.5 sm:grid-cols-2">
-                    {group.permissions.map((permission) => (
-                      <label
-                        key={permission.key}
-                        className={cn(
-                          'flex items-start gap-2.5 rounded-md border px-3 py-2 text-sm transition-colors',
-                          selected.has(permission.key) ? 'bg-secondary' : 'bg-transparent',
-                          editable ? 'cursor-pointer hover:border-ring' : 'cursor-default',
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-1"
-                          checked={selected.has(permission.key)}
-                          disabled={!editable}
-                          onChange={() => toggle(permission.key)}
-                        />
-                        <span className="min-w-0">
-                          <span className="block font-mono text-xs">{permission.key}</span>
-                          <span className="text-muted-foreground block text-xs">
-                            {permission.description}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </fieldset>
-              );
-            })}
+            {editable && inUse ? (
+              <p className="t-cap text-text-3">
+                {t('roles.delete.inUse', { count: role.userCount })}
+              </p>
+            ) : null}
           </div>
 
           {editable ? (
-            <div className="flex flex-wrap items-center gap-2 border-t pt-4">
-              <Button size="sm" disabled={pending || !dirty} onClick={() => void save()}>
+            <div className="card-f flex flex-wrap items-center gap-2">
+              <Button loading={pending} disabled={changes === 0} onClick={() => void save()}>
                 {pending ? c('saving') : c('save')}
               </Button>
-              <Button size="sm" variant="ghost" disabled={pending || !dirty} onClick={reset}>
-                {c('cancel')}
+              <Button variant="ghost" disabled={pending || changes === 0} onClick={reset}>
+                {c('reset')}
               </Button>
-              <span className="text-muted-foreground ml-auto font-mono text-xs">
+              <span className="t-cap ml-auto text-text-3">
                 {t('roles.selectedCount', { count: selected.size, total })}
+                {changes > 0 ? ` · ${t('roles.changes', { count: changes })}` : ''}
               </span>
             </div>
           ) : null}
-        </CardContent>
+        </>
       ) : null}
-    </Card>
+
+      <ConfirmDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        level="trace"
+        icon={<Trash2 />}
+        title={t('roles.delete.title', { label: role.label })}
+        consequences={[t('roles.delete.gone'), t('roles.delete.audit')]}
+        confirmLabel={t('roles.delete.confirm')}
+        pending={pending}
+        error={deleteError}
+        onConfirm={remove}
+      />
+    </section>
   );
 }

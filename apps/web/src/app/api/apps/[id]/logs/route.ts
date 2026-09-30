@@ -13,8 +13,11 @@ import {
 import { getDeploymentSummary } from '@pupitre/db';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
+import { getT } from '@/i18n/server';
+import { appConsole } from '@/i18n/messages/console';
+import { deployments } from '@/i18n/messages/deployments';
 import { getEnv } from '@/lib/env';
-import { ConflictError, NotFoundError } from '@/lib/errors';
+import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { requirePermission } from '@/lib/rbac';
@@ -47,11 +50,11 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  if (!deployment) throw new NotFoundError(`Déploiement « ${id} » introuvable`);
+  // Les messages du flux partent dans la langue de celui qui l'a ouvert.
+  const t = await getT(appConsole);
+  if (!deployment) throw new NotFoundError(msg(deployments, 'error.notFound', { id }));
   if (!isSupervisable(deployment.status)) {
-    throw new ConflictError(
-      `Ce déploiement est « ${deployment.status} » : il n'y a pas d'application à suivre.`,
-    );
+    throw new ConflictError(msg(appConsole, 'error.notFollowable', { status: deployment.status }));
   }
 
   const channel = appLogChannel(id);
@@ -87,9 +90,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
       const send = (event: string, data: unknown) => {
         if (closed) return;
         try {
-          controller.enqueue(
-            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-          );
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
         } catch {
           void cleanup();
         }
@@ -111,7 +112,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         await subscriber.subscribe(channel);
       } catch (error) {
         logger.error({ err: error, channel }, 'abonnement au flux applicatif impossible');
-        send('error', { message: 'flux indisponible' });
+        send('error', { message: t('stream.unavailable') });
         await cleanup();
         controller.close();
         return;
@@ -176,8 +177,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
         );
       } catch (error) {
         // Taire cette erreur laisserait le spectateur devant un flux muet.
-        logger.error({ err: error, deploymentId: id }, "ouverture du flux impossible");
-        send('error', { message: "le flux n'a pas pu être ouvert" });
+        logger.error({ err: error, deploymentId: id }, 'ouverture du flux impossible');
+        send('error', { message: t('stream.openFailed') });
       }
 
       send('ready', { deploymentId: id, url: deployment.url, status: deployment.status });

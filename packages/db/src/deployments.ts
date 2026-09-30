@@ -8,11 +8,26 @@ import {
   type ScanConfig,
   type StepStatus,
 } from '@pupitre/core';
-import { and, asc, count, desc, eq, inArray, lt, max, ne, notInArray, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  lt,
+  max,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { deploymentSteps, deployments, portAllocations } from './schema/deployments.js';
 import { applications, targets } from './schema/infra.js';
+import { scanRuns } from './schema/security.js';
 import { users } from './schema/auth.js';
 
 /**
@@ -27,6 +42,8 @@ export type DeploymentStep = typeof deploymentSteps.$inferSelect;
 
 export type DeploymentSummary = {
   id: string;
+  /** Numéro de run, global à l'instance (`#129`). */
+  number: number;
   status: DeploymentStatus;
   runtime: 'docker' | 'k3s';
   proxy: 'traefik' | 'bunkerweb';
@@ -53,6 +70,7 @@ export type DeploymentSummary = {
 
 const summaryColumns = {
   id: deployments.id,
+  number: deployments.number,
   status: deployments.status,
   runtime: deployments.runtime,
   proxy: deployments.proxy,
@@ -189,11 +207,72 @@ export const deploymentQuerySchema = z.object({
   targetId: z.string().uuid().optional(),
   status: z.enum(['pending', 'running', 'success', 'failed', 'rolled_back', 'destroyed']).optional(),
   runtime: z.enum(['docker', 'k3s']).optional(),
+  /**
+   * Recherche libre : un morceau du slug ou du nom de l'application, du nom de
+   * la cible, ou un numéro de run (`129`, `#129`).
+   */
+  q: z.string().trim().max(100).optional(),
+  /**
+   * Runs arrêtés par un verdict bloquant. `scan` est la seule valeur pour
+   * l'instance : c'est une énumération pour qu'un autre garde-fou puisse
+   * s'y ajouter sans nouveau paramètre.
+   */
+  blocked: z.enum(['scan']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
 });
 
 export type DeploymentQuery = z.infer<typeof deploymentQuerySchema>;
+
+/** Les filtres seuls, sans pagination : ce que l'export reprend de la liste. */
+export type DeploymentFilter = Omit<DeploymentQuery, 'page' | 'pageSize'>;
+
+/** `%` et `_` sont des jokers pour `ILIKE` : une saisie les cherche au pied de la lettre. */
+function likePattern(term: string): string {
+  return `%${term.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+/**
+ * Les conditions d'une liste de déploiements.
+ *
+ * Elles portent sur `applications` et `targets` : toute requête qui les
+ * utilise doit faire les mêmes jointures que `summaryQuery()`.
+ */
+function deploymentWhere(filter: DeploymentFilter) {
+  const term = filter.q?.trim() ?? '';
+  const run = /^#?(\d{1,9})$/.exec(term);
+  const search =
+    term === ''
+      ? undefined
+      : or(
+          ilike(applications.slug, likePattern(term)),
+          ilike(applications.name, likePattern(term)),
+          ilike(targets.name, likePattern(term)),
+          run ? eq(deployments.number, Number(run[1])) : undefined,
+        );
+
+  // Bloqué par un scan : le pipeline s'est arrêté sur l'étape d'analyse ET un
+  // scanner a rendu un verdict bloquant. L'étape seule ne suffit pas — un
+  // scanner qui plante ne prononce aucun verdict, et ne bloque rien.
+  const blockedByScan =
+    filter.blocked === 'scan'
+      ? and(
+          eq(deployments.failedStep, 'scan'),
+          sql`exists (select 1 from ${scanRuns} where ${scanRuns.deploymentId} = ${deployments.id} and ${scanRuns.verdict} = 'fail')`,
+        )
+      : undefined;
+
+  const conditions = [
+    filter.applicationId ? eq(deployments.applicationId, filter.applicationId) : undefined,
+    filter.targetId ? eq(deployments.targetId, filter.targetId) : undefined,
+    filter.status ? eq(deployments.status, filter.status) : undefined,
+    filter.runtime ? eq(deployments.runtime, filter.runtime) : undefined,
+    search,
+    blockedByScan,
+  ].filter((condition) => condition !== undefined);
+
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
 
 export type DeploymentPage = {
   items: DeploymentSummary[];
@@ -207,25 +286,16 @@ export async function listDeployments(
   query: DeploymentQuery,
   db: Database = getDb(),
 ): Promise<DeploymentPage> {
-  const filters = [
-    query.applicationId ? eq(deployments.applicationId, query.applicationId) : undefined,
-    query.targetId ? eq(deployments.targetId, query.targetId) : undefined,
-    query.status ? eq(deployments.status, query.status) : undefined,
-    query.runtime ? eq(deployments.runtime, query.runtime) : undefined,
-  ].filter((filter) => filter !== undefined);
+  const where = deploymentWhere(query);
 
-  const where = filters.length > 0 ? and(...filters) : undefined;
-
-  const [items, [totalRow]] = await Promise.all([
+  const [items, total] = await Promise.all([
     summaryQuery(db)
       .where(where)
-      .orderBy(desc(deployments.createdAt))
+      .orderBy(desc(deployments.createdAt), desc(deployments.number))
       .limit(query.pageSize)
       .offset((query.page - 1) * query.pageSize),
-    db.select({ value: count() }).from(deployments).where(where),
+    countDeployments(query, db),
   ]);
-
-  const total = totalRow?.value ?? 0;
 
   return {
     items,
@@ -234,6 +304,52 @@ export async function listDeployments(
     total,
     totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
   };
+}
+
+/** Nombre de runs qui répondent aux filtres. */
+export async function countDeployments(
+  filter: DeploymentFilter,
+  db: Database = getDb(),
+): Promise<number> {
+  const [row] = await db
+    .select({ value: count() })
+    .from(deployments)
+    .innerJoin(applications, eq(applications.id, deployments.applicationId))
+    .innerJoin(targets, eq(targets.id, deployments.targetId))
+    .where(deploymentWhere(filter));
+  return row?.value ?? 0;
+}
+
+/**
+ * Tous les runs qui répondent aux filtres, par lots, du plus récent au plus
+ * ancien : c'est la lecture de l'export.
+ *
+ * Pagination par curseur (`number` décroissant) et non par décalage : un run
+ * créé pendant l'export ne décale pas les pages, donc ne fait ni doublon ni
+ * trou. `limit` borne le total, lots compris.
+ */
+export async function* iterateDeployments(
+  filter: DeploymentFilter,
+  options: { limit: number; batchSize?: number },
+  db: Database = getDb(),
+): AsyncGenerator<DeploymentSummary[]> {
+  const batchSize = options.batchSize ?? 500;
+  let remaining = options.limit;
+  let before: number | null = null;
+
+  while (remaining > 0) {
+    const where = deploymentWhere(filter);
+    const batch: DeploymentSummary[] = await summaryQuery(db)
+      .where(before === null ? where : and(where, lt(deployments.number, before)))
+      .orderBy(desc(deployments.number))
+      .limit(Math.min(batchSize, remaining));
+
+    if (batch.length === 0) return;
+    yield batch;
+    remaining -= batch.length;
+    before = batch[batch.length - 1]!.number;
+    if (batch.length < batchSize) return;
+  }
 }
 
 export async function getDeploymentSummary(
@@ -728,6 +844,8 @@ export async function recordHealthStatus(
  */
 export type LastFailedUpdate = {
   deploymentId: string;
+  /** Numéro de run de la tentative ratée. */
+  number: number;
   version: number;
   failedStep: string | null;
   error: string | null;
@@ -787,6 +905,7 @@ export async function listSupervisedApps(db: Database = getDb()): Promise<Superv
         lastFailedUpdate: failed
           ? {
               deploymentId: failed.id,
+              number: failed.number,
               version: failed.version,
               failedStep: failed.failedStep,
               error: failed.error,
@@ -817,6 +936,7 @@ export type PurgeRefusalReason = 'live' | 'in_progress';
 
 export type PurgeRefusal = {
   id: string;
+  number: number;
   status: DeploymentStatus;
   version: number;
   applicationSlug: string;
@@ -954,6 +1074,7 @@ export async function listApplicationDeletionBlockers(
     db
       .select({
         id: deployments.id,
+        number: deployments.number,
         status: deployments.status,
         version: deployments.version,
         applicationId: deployments.applicationId,
@@ -990,6 +1111,7 @@ export async function listApplicationDeletionBlockers(
 
 type PurgeCandidate = {
   id: string;
+  number: number;
   status: DeploymentStatus;
   version: number;
   applicationId: string;
@@ -1032,6 +1154,7 @@ export async function purgeDeployments(
     db
       .select({
         id: deployments.id,
+        number: deployments.number,
         status: deployments.status,
         version: deployments.version,
         applicationId: deployments.applicationId,
@@ -1145,6 +1268,7 @@ function refuse(
 function refusalIdentity(candidate: PurgeCandidate): Omit<PurgeRefusal, 'reason' | 'message'> {
   return {
     id: candidate.id,
+    number: candidate.number,
     status: candidate.status,
     version: candidate.version,
     applicationSlug: candidate.applicationSlug,

@@ -1,5 +1,5 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { usableRuntimes } from '@pupitre/core';
 import {
   getApplication,
   getAppSettings,
@@ -8,15 +8,18 @@ import {
   listTargets,
 } from '@pupitre/db';
 import { z } from 'zod';
-import { ChevronLeft } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
-import { Badge, CodeBadge } from '@/components/ui/badge';
+import { Crumb } from '@/components/shell/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { applications as messages } from '@/i18n/messages/applications';
 import { buildSecretViews } from '@/lib/application-secrets';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
+import { ServiceChips } from '../applications-view';
+import { ingressOf, serviceRows } from '../rows';
+import { ServiceList } from '../service-list';
+import { ApplicationActions } from './application-actions';
 import { ApplicationSecrets } from './application-secrets';
 import { VersionTimeline, type VersionRow } from './version-timeline';
 
@@ -24,6 +27,10 @@ export const dynamic = 'force-dynamic';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 
+/**
+ * La fiche d'une application : son AppSpec courante, ses secrets, et
+ * l'historique de ses versions — chacune rejouable telle qu'elle est partie.
+ */
 export default async function ApplicationPage({ params }: { params: Promise<{ id: string }> }) {
   const parsed = paramsSchema.safeParse(await params);
   if (!parsed.success) notFound();
@@ -48,83 +55,75 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   }));
 
   // Une cible n'accueille un redéploiement que si son preflight a montré un
-  // runtime exploitable. C'est la route qui tranche, l'UI évite juste de
-  // proposer l'impossible.
+  // runtime exploitable. C'est la route qui tranche ; l'interface évite juste
+  // de proposer l'impossible.
   const deployTargets = targets
-    .filter((target) => target.runtimesAvailable.docker.available)
-    .map((target) => ({ id: target.id, name: target.name }));
+    .filter((target) => usableRuntimes(target.runtimesAvailable).length > 0)
+    .map((target) => ({
+      id: target.id,
+      name: target.name,
+      runtimes: usableRuntimes(target.runtimesAvailable),
+    }));
 
   const spec = application.appSpec;
+  const services = serviceRows(spec);
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
+      <Crumb label={application.slug} />
       <PageHeader
-        eyebrow={
-          <Link
-            href="/applications"
-            className="inline-flex items-center gap-1 transition-colors hover:text-ink"
-          >
-            <ChevronLeft className="size-3" />
-            {t('page.title')}
-          </Link>
-        }
-        title={
-          <>
-            {application.slug}{' '}
-            <span className="font-mono text-[1.375rem] font-normal text-ink-faint">
-              v{spec.version}
-            </span>
-          </>
-        }
+        title={application.slug}
+        status={<span className="mono text-[15px] text-text-3">{spec.version}</span>}
         description={application.description ?? undefined}
-      />
+        actions={
+          <ApplicationActions
+            application={{ id: application.id, slug: application.slug }}
+            canDeploy={auth.can('deployment:create')}
+            canDelete={auth.can('application:delete')}
+          />
+        }
+      >
+        <div className="mt-1">
+          <ServiceChips services={services} />
+        </div>
+      </PageHeader>
+
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('detail.spec.title')}</CardTitle>
+            <CardDescription>{t('detail.spec.description')}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2.5">
+            <ServiceList application={{ services, ingress: ingressOf(spec) }} />
+          </CardContent>
+        </Card>
+
+        <ApplicationSecrets
+          applicationId={application.id}
+          secrets={buildSecretViews(spec, storedSecrets)}
+          canEdit={auth.can('application:update')}
+        />
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('detail.spec.title')}</CardTitle>
-          <CardDescription>{t('detail.spec.description')}</CardDescription>
+          <CardTitle>{t('versions.title')}</CardTitle>
+          <CardDescription>
+            {rows.length === 0 ? t('versions.empty') : t('versions.count', { count: rows.length })}
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-2">
-          {spec.services.map((service) =>
-            service.exposed ? (
-              <Badge key={service.name} variant="default" className="font-mono">
-                {service.name}
-              </Badge>
-            ) : (
-              <CodeBadge key={service.name}>{service.name}</CodeBadge>
-            ),
-          )}
-          <span className="font-mono text-xs text-ink-faint">
-            {spec.ingress?.host ?? t('detail.spec.byPort')}
-          </span>
+        <CardContent>
+          <VersionTimeline
+            applicationId={application.id}
+            applicationSlug={application.slug}
+            versions={rows}
+            targets={deployTargets}
+            canRedeploy={auth.can('deployment:create')}
+            format={formatSettingsOf(settings)}
+          />
         </CardContent>
       </Card>
-
-      <ApplicationSecrets
-        applicationId={application.id}
-        secrets={buildSecretViews(spec, storedSecrets)}
-        canEdit={auth.can('application:update')}
-      />
-
-      <div className="flex flex-col gap-1 pt-1">
-        <h2 className="font-condensed text-lg leading-none font-semibold tracking-[0.005em] text-ink">
-          {t('versions.title')}
-        </h2>
-        <p className="text-[0.8125rem] text-ink-muted">
-          {rows.length === 0
-            ? t('versions.empty')
-            : t('versions.count', { count: rows.length })}
-        </p>
-      </div>
-
-      <VersionTimeline
-        applicationId={application.id}
-        applicationSlug={application.slug}
-        versions={rows}
-        targets={deployTargets}
-        canRedeploy={auth.can('deployment:create')}
-        format={formatSettingsOf(settings)}
-      />
-    </div>
+    </>
   );
 }

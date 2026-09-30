@@ -39,7 +39,7 @@ export function PingButton() {
         {pending ? t('ping.sending') : t('ping.enqueue')}
       </Button>
       {status ? (
-        <span className="rounded-sm border border-line bg-surface-2 px-2 py-1 font-mono text-[0.6875rem] text-ink-muted">
+        <span className="rounded-sm border border-border bg-surface-2 px-2 py-1 font-mono text-[0.6875rem] text-text-2">
           {status}
         </span>
       ) : null}

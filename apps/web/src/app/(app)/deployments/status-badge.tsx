@@ -3,7 +3,6 @@
 import { Check, Minus, X } from 'lucide-react';
 import type { DeploymentStatus, StepStatus } from '@pupitre/core';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
-import { Led } from '@/components/instrument';
 import { useT } from '@/i18n/client';
 import { deployments as messages } from '@/i18n/messages/deployments';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
@@ -38,48 +37,27 @@ export function useDeploymentLabels(): Record<DeploymentStatus, string> {
  * D'où l'ambre : quelque chose s'est mal passé, rien n'est cassé.
  */
 const DEPLOYMENT_VARIANT: Record<DeploymentStatus, BadgeProps['variant']> = {
-  pending: 'secondary',
-  running: 'default',
+  pending: 'idle',
+  running: 'accent',
   success: 'ok',
-  failed: 'destructive',
+  failed: 'danger',
   rolled_back: 'warn',
   destroyed: 'outline',
 };
 
+/**
+ * Pastille de statut d'un run : un point et un mot, dans le ton de l'état.
+ * « En cours » est en outremer — ce qui est en train de se faire.
+ */
 export function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) {
   const label = useDeploymentLabels();
-  const live = status === 'running' || status === 'pending';
-
   return (
-    <Badge variant={DEPLOYMENT_VARIANT[status]} className="gap-1.5 px-2">
-      <Led
-        tone={
-          status === 'success'
-            ? 'ok'
-            : status === 'failed'
-              ? 'danger'
-              : status === 'rolled_back'
-                ? 'warn'
-                : status === 'running'
-                  ? 'signal'
-                  : 'idle'
-        }
-        pulse={status === 'running'}
-        className="size-2"
-      />
-      <span className={cn(live && 'font-medium')}>{label[status]}</span>
+    <Badge variant={DEPLOYMENT_VARIANT[status]} dot>
+      {label[status]}
     </Badge>
   );
 }
 
-/**
- * Pastille d'état d'une étape.
- *
- * Cinq états, cinq formes distinctes — anneau vide, arc en rotation, coche,
- * croix, tiret. La couleur double la forme sans jamais la remplacer : le
- * pipeline reste lisible en niveaux de gris comme sous `prefers-reduced-motion`,
- * où l'arc s'immobilise mais reste un arc.
- */
 export function StepIcon({ status, className }: { status: StepStatus; className?: string }) {
   const t = useT(messages);
   const base = 'inline-flex size-[1.125rem] shrink-0 items-center justify-center rounded-full';
@@ -87,8 +65,8 @@ export function StepIcon({ status, className }: { status: StepStatus; className?
   if (status === 'running') {
     return (
       <span aria-label={t('step.running')} className={cn(base, 'relative', className)}>
-        <span className="absolute inset-0 rounded-full border-2 border-signal/25" />
-        <span className="absolute inset-0 animate-spin rounded-full border-2 border-signal border-t-transparent border-r-transparent" />
+        <span className="absolute inset-0 rounded-full border-2 border-accent/25" />
+        <span className="absolute inset-0 animate-spin rounded-full border-2 border-accent border-t-transparent border-r-transparent" />
       </span>
     );
   }
@@ -113,7 +91,7 @@ export function StepIcon({ status, className }: { status: StepStatus; className?
     return (
       <span
         aria-label={t('step.skipped')}
-        className={cn(base, 'border border-dashed border-line-strong text-ink-faint', className)}
+        className={cn(base, 'border border-dashed border-border-strong text-text-3', className)}
       >
         <Minus className="size-3" strokeWidth={3} />
       </span>
@@ -123,7 +101,7 @@ export function StepIcon({ status, className }: { status: StepStatus; className?
   return (
     <span
       aria-label={t('step.pending')}
-      className={cn(base, 'border-2 border-line-strong bg-transparent', className)}
+      className={cn(base, 'border-2 border-border-strong bg-transparent', className)}
     />
   );
 }

@@ -11,9 +11,7 @@ import {
   listScheduledJobRuns,
   listScheduledJobs,
 } from '@pupitre/db';
-import { PageHeader } from '@/components/page-header';
-import { currentLanguage, getT } from '@/i18n/server';
-import { jobs as messages } from '@/i18n/messages/jobs';
+import { currentLanguage } from '@/i18n/server';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { schedulerStates } from '@/lib/schedules';
@@ -30,7 +28,6 @@ export const dynamic = 'force-dynamic';
  */
 export default async function JobsPage() {
   const auth = await requirePagePermission('/jobs', 'job:read');
-  const t = await getT(messages);
   const language = await currentLanguage();
   const definitions = scheduledJobTypes(language);
 
@@ -102,9 +99,7 @@ export default async function JobsPage() {
           error: run.error,
           startedAt: run.startedAt.toISOString(),
           finishedAt: run.finishedAt?.toISOString() ?? null,
-          durationMs: run.finishedAt
-            ? run.finishedAt.getTime() - run.startedAt.getTime()
-            : null,
+          durationMs: run.finishedAt ? run.finishedAt.getTime() - run.startedAt.getTime() : null,
         })),
       };
     }),
@@ -119,21 +114,13 @@ export default async function JobsPage() {
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        eyebrow={t('page.eyebrow')}
-        title={t('page.title')}
-        description={t('page.description')}
-      />
-
-      <JobsPanel
-        jobs={jobs}
-        types={types}
-        canManage={auth.can('job:manage')}
-        defaultTimeZone={defaultTimeZone}
-        timeZones={timeZones}
-        format={formatSettingsOf(settings)}
-      />
-    </div>
+    <JobsPanel
+      jobs={jobs}
+      types={types}
+      canManage={auth.can('job:manage')}
+      defaultTimeZone={defaultTimeZone}
+      timeZones={timeZones}
+      format={formatSettingsOf(settings)}
+    />
   );
 }

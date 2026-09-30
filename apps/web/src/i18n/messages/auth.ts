@@ -35,6 +35,8 @@ const fr = {
   'field.email': 'Adresse e-mail',
   'field.password': 'Mot de passe',
   'field.confirmation': 'Confirmation',
+  'field.password.show': 'Afficher',
+  'field.password.hide': 'Masquer',
 
   /**
    * La longueur minimale est une constante (`PASSWORD_MIN_LENGTH`), pas une
@@ -50,11 +52,12 @@ const fr = {
 
   // ── Sorties de secours ──────────────────────────────────────────────────
   'link.backToLogin': 'Retour à la connexion',
-  'link.backToDashboard': 'Retour au tableau de bord',
+  'link.backToDashboard': "Retour à la vue d'ensemble",
+  'link.back': 'Retour',
 
   // ── Connexion ───────────────────────────────────────────────────────────
   'login.title': 'Connexion',
-  'login.description': 'Accès réservé aux opérateurs déclarés.',
+  'login.description': "Avec l'adresse et le mot de passe de votre compte.",
   'login.submit': 'Se connecter',
   'login.pending': 'Connexion…',
   /** Volontairement générique : ne pas révéler si le compte existe. */
@@ -72,9 +75,11 @@ const fr = {
     "Saisissez le code à six chiffres affiché par votre application d'authentification.",
   'twoFactor.description.backup':
     'Saisissez un code de secours. Chacun ne fonctionne qu’une seule fois.',
-  'twoFactor.field.code': 'Code',
   'twoFactor.field.backupCode': 'Code de secours',
   'twoFactor.submit': 'Valider',
+  'twoFactor.clock':
+    "Le code change toutes les 30 s. S'il est refusé, vérifiez l'horloge de votre téléphone.",
+  'twoFactor.sixth': "Le bouton s'active au 6ᵉ chiffre.",
   'twoFactor.error.backup': 'Code de secours invalide ou déjà utilisé.',
   'twoFactor.error.totp': "Code invalide. Vérifiez l'horloge de votre téléphone, puis réessayez.",
   'twoFactor.useApp': 'Utiliser le code de mon application',
@@ -162,16 +167,14 @@ const fr = {
     "Elle a pu être renommée, ou l'objet qu'elle désignait — un déploiement, une cible — a pu être supprimé depuis que le lien a été copié.",
 
   // ── 404 dans le panel, rail de navigation conservé ──────────────────────
-  'appNotFound.eyebrow': 'Introuvable',
   'appNotFound.title': 'Rien à cette adresse',
   'appNotFound.description': "L'objet demandé n'existe pas, ou plus.",
   'appNotFound.body':
     'Un déploiement purgé, une application supprimée ou une cible retirée laissent leurs liens derrière eux. Le rail de navigation à gauche reste utilisable.',
 
   // ── Filet de rendu d'un écran ───────────────────────────────────────────
-  'appError.eyebrow': 'Incident',
   'appError.title': "Cet écran n'a pas pu s'afficher",
-  'appError.description': 'Le reste du panel continue de fonctionner.',
+  'appError.description': 'Le rail reste utilisable ; seule cette page a échoué.',
   'appError.fallback': 'Erreur inattendue pendant le rendu de la page.',
   'appError.digest.before': 'Référence à citer dans un rapport :',
   'appError.digest.after': '— elle se retrouve dans les logs du serveur.',
@@ -199,6 +202,8 @@ const en: Translated<typeof fr> = {
   'field.email': 'Email address',
   'field.password': 'Password',
   'field.confirmation': 'Confirmation',
+  'field.password.show': 'Show',
+  'field.password.hide': 'Hide',
 
   'password.min': { one: '{count} character minimum.', other: '{count} characters minimum.' },
   'password.tooShort': {
@@ -207,10 +212,11 @@ const en: Translated<typeof fr> = {
   },
 
   'link.backToLogin': 'Back to sign-in',
-  'link.backToDashboard': 'Back to the dashboard',
+  'link.backToDashboard': 'Back to the overview',
+  'link.back': 'Back',
 
   'login.title': 'Sign in',
-  'login.description': 'Declared operators only.',
+  'login.description': 'With the address and password of your account.',
   'login.submit': 'Sign in',
   'login.pending': 'Signing in…',
   'login.rejected': 'Invalid credentials.',
@@ -224,9 +230,11 @@ const en: Translated<typeof fr> = {
   'twoFactor.title': 'Second factor',
   'twoFactor.description.totp': 'Enter the six-digit code shown by your authenticator app.',
   'twoFactor.description.backup': 'Enter a recovery code. Each one works only once.',
-  'twoFactor.field.code': 'Code',
   'twoFactor.field.backupCode': 'Recovery code',
   'twoFactor.submit': 'Verify',
+  'twoFactor.clock':
+    'The code changes every 30 s. If it is refused, check the clock of your phone.',
+  'twoFactor.sixth': 'The button unlocks at the 6th digit.',
   'twoFactor.error.backup': 'Recovery code invalid, or already used.',
   'twoFactor.error.totp': 'Invalid code. Check your phone’s clock, then try again.',
   'twoFactor.useApp': 'Use my app’s code',
@@ -300,13 +308,11 @@ const en: Translated<typeof fr> = {
   'notFound.body':
     'It may have been renamed, or the object it named — a deployment, a target — may have been deleted since the link was copied.',
 
-  'appNotFound.eyebrow': 'Not found',
   'appNotFound.title': 'Nothing at this address',
   'appNotFound.description': 'The object you asked for does not exist, or no longer does.',
   'appNotFound.body':
     'A purged deployment, a deleted app or a removed target leave their links behind. The navigation rail on the left still works.',
 
-  'appError.eyebrow': 'Incident',
   'appError.title': 'This screen could not be drawn',
   'appError.description': 'The rest of the panel keeps working.',
   'appError.fallback': 'Unexpected error while rendering the page.',
