@@ -75,7 +75,6 @@ const fr = {
     "Saisissez le code à six chiffres affiché par votre application d'authentification.",
   'twoFactor.description.backup':
     'Saisissez un code de secours. Chacun ne fonctionne qu’une seule fois.',
-  'twoFactor.field.code': 'Code',
   'twoFactor.field.backupCode': 'Code de secours',
   'twoFactor.submit': 'Valider',
   'twoFactor.clock':
@@ -168,14 +167,12 @@ const fr = {
     "Elle a pu être renommée, ou l'objet qu'elle désignait — un déploiement, une cible — a pu être supprimé depuis que le lien a été copié.",
 
   // ── 404 dans le panel, rail de navigation conservé ──────────────────────
-  'appNotFound.eyebrow': 'Introuvable',
   'appNotFound.title': 'Rien à cette adresse',
   'appNotFound.description': "L'objet demandé n'existe pas, ou plus.",
   'appNotFound.body':
     'Un déploiement purgé, une application supprimée ou une cible retirée laissent leurs liens derrière eux. Le rail de navigation à gauche reste utilisable.',
 
   // ── Filet de rendu d'un écran ───────────────────────────────────────────
-  'appError.eyebrow': 'Incident',
   'appError.title': "Cet écran n'a pas pu s'afficher",
   'appError.description': 'Le rail reste utilisable ; seule cette page a échoué.',
   'appError.fallback': 'Erreur inattendue pendant le rendu de la page.',
@@ -233,7 +230,6 @@ const en: Translated<typeof fr> = {
   'twoFactor.title': 'Second factor',
   'twoFactor.description.totp': 'Enter the six-digit code shown by your authenticator app.',
   'twoFactor.description.backup': 'Enter a recovery code. Each one works only once.',
-  'twoFactor.field.code': 'Code',
   'twoFactor.field.backupCode': 'Recovery code',
   'twoFactor.submit': 'Verify',
   'twoFactor.clock':
@@ -312,13 +308,11 @@ const en: Translated<typeof fr> = {
   'notFound.body':
     'It may have been renamed, or the object it named — a deployment, a target — may have been deleted since the link was copied.',
 
-  'appNotFound.eyebrow': 'Not found',
   'appNotFound.title': 'Nothing at this address',
   'appNotFound.description': 'The object you asked for does not exist, or no longer does.',
   'appNotFound.body':
     'A purged deployment, a deleted app or a removed target leave their links behind. The navigation rail on the left still works.',
 
-  'appError.eyebrow': 'Incident',
   'appError.title': 'This screen could not be drawn',
   'appError.description': 'The rest of the panel keeps working.',
   'appError.fallback': 'Unexpected error while rendering the page.',

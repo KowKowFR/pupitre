@@ -44,7 +44,7 @@ type Props = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h3 className="text-foreground text-sm font-semibold">{title}</h3>
+      <h3 className="text-text text-sm font-semibold">{title}</h3>
       {children}
     </section>
   );
@@ -52,9 +52,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Code({ children }: { children: React.ReactNode }) {
   return (
-    <code className="bg-muted text-foreground rounded px-1 py-0.5 font-mono text-[0.8em]">
-      {children}
-    </code>
+    <code className="bg-surface-3 text-text rounded px-1 py-0.5 mono text-[0.8em]">{children}</code>
   );
 }
 
@@ -79,7 +77,7 @@ function rich(text: string): React.ReactNode {
     if (part.startsWith('`')) return <Code key={index}>{part.slice(1, -1)}</Code>;
     if (part.startsWith('__')) {
       return (
-        <strong key={index} className="text-foreground font-medium">
+        <strong key={index} className="text-text font-medium">
           {rich(part.slice(2, -2))}
         </strong>
       );
@@ -185,9 +183,9 @@ export function TargetHelpDialog({ label, className }: Props) {
 
         <DialogBody className="space-y-6 text-sm">
           <Section title={t('roles.title')}>
-            <p className="text-muted-foreground">{t('roles.intro')}</p>
+            <p className="text-text-2">{t('roles.intro')}</p>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium" />
                   <th className="px-3 py-2 font-medium">{t('roles.column.panel')}</th>
@@ -197,42 +195,36 @@ export function TargetHelpDialog({ label, className }: Props) {
               <tbody>
                 {ROLES.map((row) => (
                   <tr key={row} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 font-medium">
-                      {t(`role.${row}.topic`)}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`role.${row}.panel`))}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`role.${row}.target`))}
-                    </td>
+                    <td className="text-text px-3 py-2 font-medium">{t(`role.${row}.topic`)}</td>
+                    <td className="text-text-2 px-3 py-2">{rich(t(`role.${row}.panel`))}</td>
+                    <td className="text-text-2 px-3 py-2">{rich(t(`role.${row}.target`))}</td>
                   </tr>
                 ))}
               </tbody>
             </ScrollableTable>
-            <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{rich(t('roles.callout'))}</p>
+            <div className="bg-surface-2 rounded-md border px-3 py-2">
+              <p className="text-text-2 text-xs">{rich(t('roles.callout'))}</p>
             </div>
           </Section>
 
           <Section title={t('prepare.title')}>
-            <p className="text-muted-foreground">{rich(t('prepare.intro'))}</p>
+            <p className="text-text-2">{rich(t('prepare.intro'))}</p>
             <Shell>{PREPARE_SCRIPT}</Shell>
-            <p className="text-muted-foreground text-xs">{rich(t('prepare.traps'))}</p>
+            <p className="text-text-2 text-xs">{rich(t('prepare.traps'))}</p>
           </Section>
 
           <Section title={t('key.title')}>
-            <p className="text-muted-foreground">{rich(t('key.intro'))}</p>
+            <p className="text-text-2">{rich(t('key.intro'))}</p>
             <Shell>{KEY_SCRIPT}</Shell>
-            <p className="text-muted-foreground">{rich(t('key.paste'))}</p>
-            <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{rich(t('key.crypto'))}</p>
+            <p className="text-text-2">{rich(t('key.paste'))}</p>
+            <div className="bg-surface-2 rounded-md border px-3 py-2">
+              <p className="text-text-2 text-xs">{rich(t('key.crypto'))}</p>
             </div>
           </Section>
 
           <Section title={t('fields.title')}>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('fields.column.field')}</th>
                   <th className="px-3 py-2 font-medium">{t('fields.column.role')}</th>
@@ -242,15 +234,11 @@ export function TargetHelpDialog({ label, className }: Props) {
               <tbody>
                 {FIELDS.map((field) => (
                   <tr key={field} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 font-medium whitespace-nowrap">
+                    <td className="text-text px-3 py-2 font-medium whitespace-nowrap">
                       {t(`field.${field}.name`)}
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`field.${field}.role`))}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`field.${field}.wrong`))}
-                    </td>
+                    <td className="text-text-2 px-3 py-2">{rich(t(`field.${field}.role`))}</td>
+                    <td className="text-text-2 px-3 py-2">{rich(t(`field.${field}.wrong`))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -258,8 +246,8 @@ export function TargetHelpDialog({ label, className }: Props) {
           </Section>
 
           <Section title={t('ports.title')}>
-            <p className="text-muted-foreground">{rich(t('ports.intro'))}</p>
-            <ul className="text-muted-foreground list-disc space-y-1.5 pl-5">
+            <p className="text-text-2">{rich(t('ports.intro'))}</p>
+            <ul className="text-text-2 list-disc space-y-1.5 pl-5">
               {PORT_NOTES.map((note) => (
                 <li key={note}>{rich(t(`ports.${note}`))}</li>
               ))}
@@ -267,9 +255,9 @@ export function TargetHelpDialog({ label, className }: Props) {
           </Section>
 
           <Section title={t('checks.title')}>
-            <p className="text-muted-foreground">{rich(t('checks.intro'))}</p>
+            <p className="text-text-2">{rich(t('checks.intro'))}</p>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('checks.column.check')}</th>
                   <th className="px-3 py-2 font-medium">{t('checks.column.what')}</th>
@@ -280,46 +268,40 @@ export function TargetHelpDialog({ label, className }: Props) {
                 {CHECKS.map((check, index) => (
                   <tr key={check} className="border-t align-top">
                     <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="text-muted-foreground mr-1.5 text-[0.7rem] tabular-nums">
+                      <span className="text-text-2 mr-1.5 text-[0.7rem] tabular-nums">
                         {index + 1}.
                       </span>
-                      <code className="text-foreground font-mono text-[0.75rem]">{check}</code>
+                      <code className="text-text mono text-[0.75rem]">{check}</code>
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`check.${check}.what`))}
-                    </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`check.${check}.failure`))}
-                    </td>
+                    <td className="text-text-2 px-3 py-2">{rich(t(`check.${check}.what`))}</td>
+                    <td className="text-text-2 px-3 py-2">{rich(t(`check.${check}.failure`))}</td>
                   </tr>
                 ))}
               </tbody>
             </ScrollableTable>
-            <p className="text-muted-foreground text-xs">{rich(t('checks.status'))}</p>
+            <p className="text-text-2 text-xs">{rich(t('checks.status'))}</p>
           </Section>
 
           <Section title={t('tutorial.title')}>
             <ol className="space-y-2.5">
               {TUTORIAL.map((step, index) => (
                 <li key={step} className="flex gap-3">
-                  <span className="bg-muted text-muted-foreground mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
+                  <span className="bg-surface-3 text-text-2 mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                     {index + 1}
                   </span>
                   <div className="min-w-0 space-y-1">
-                    <div className="text-foreground font-medium">{t(`step.${step}.title`)}</div>
-                    <div className="text-muted-foreground text-xs">
-                      {rich(t(`step.${step}.body`))}
-                    </div>
+                    <div className="text-text font-medium">{t(`step.${step}.title`)}</div>
+                    <div className="text-text-2 text-xs">{rich(t(`step.${step}.body`))}</div>
                   </div>
                 </li>
               ))}
             </ol>
-            <p className="text-muted-foreground text-xs">{rich(t('tutorial.shortcut'))}</p>
+            <p className="text-text-2 text-xs">{rich(t('tutorial.shortcut'))}</p>
           </Section>
 
           <Section title={t('failures.title')}>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('failures.column.symptom')}</th>
                   <th className="px-3 py-2 font-medium">{t('failures.column.cause')}</th>
@@ -328,12 +310,10 @@ export function TargetHelpDialog({ label, className }: Props) {
               <tbody>
                 {FAILURES.map((failure) => (
                   <tr key={failure} className="border-t align-top">
-                    <td className="text-foreground px-3 py-2 md:w-2/5">
+                    <td className="text-text px-3 py-2 md:w-2/5">
                       {rich(t(`failure.${failure}.symptom`))}
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">
-                      {rich(t(`failure.${failure}.cause`))}
-                    </td>
+                    <td className="text-text-2 px-3 py-2">{rich(t(`failure.${failure}.cause`))}</td>
                   </tr>
                 ))}
               </tbody>

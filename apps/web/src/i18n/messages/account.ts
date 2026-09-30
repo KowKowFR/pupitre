@@ -17,7 +17,6 @@ import type { Translated } from '@pupitre/core';
 const fr = {
   // ── L'écran ─────────────────────────────────────────────────────────────
   'meta.title': 'Mon compte — Pupitre',
-  'page.eyebrow': 'Compte',
   'page.title': 'Sécurité du compte',
   'crumb': 'Mon compte',
   'page.description':
@@ -107,7 +106,6 @@ const fr = {
 
 const en: Translated<typeof fr> = {
   'meta.title': 'My account — Pupitre',
-  'page.eyebrow': 'Account',
   'page.title': 'Account security',
   'crumb': 'My account',
   'page.description':

@@ -46,7 +46,6 @@ const fr = {
   'channel.deleted': 'Canal « {name} » supprimé.',
 
   // ── Canaux : l'essai ────────────────────────────────────────────────────
-  'test.send': "Envoyer un message d'essai",
   'test.sending': 'Envoi…',
   'test.probe': 'sonde : ',
   'test.probeFailed': 'sonde en échec : ',
@@ -143,7 +142,6 @@ const en: Translated<typeof fr> = {
   'channel.saved': 'Channel saved.',
   'channel.deleted': 'Channel “{name}” deleted.',
 
-  'test.send': 'Send a test message',
   'test.sending': 'Sending…',
   'test.probe': 'probe: ',
   'test.probeFailed': 'probe failed: ',

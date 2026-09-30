@@ -43,7 +43,6 @@ const fr = {
   // ── Coquille : rail, barre haute ────────────────────────────────────────
   'shell.instanceMenu': "Instance {name} — ouvrir le menu d'instance",
   'shell.instance.settings': "Paramètres de l'instance",
-  'shell.instance.health': 'État du service',
   'shell.breadcrumb': "Fil d'Ariane",
   'shell.worker.active': 'Worker actif',
   'shell.worker.idle': 'Worker silencieux',
@@ -229,7 +228,6 @@ const en: Translated<typeof fr> = {
 
   'shell.instanceMenu': 'Instance {name} — open the instance menu',
   'shell.instance.settings': 'Instance settings',
-  'shell.instance.health': 'Service health',
   'shell.breadcrumb': 'Breadcrumb',
   'shell.worker.active': 'Worker running',
   'shell.worker.idle': 'Worker silent',

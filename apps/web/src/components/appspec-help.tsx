@@ -37,7 +37,7 @@ type Props = {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h3 className="text-foreground text-sm font-semibold">{title}</h3>
+      <h3 className="text-text text-sm font-semibold">{title}</h3>
       {children}
     </section>
   );
@@ -45,9 +45,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Code({ children }: { children: React.ReactNode }) {
   return (
-    <code className="bg-muted text-foreground rounded px-1 py-0.5 font-mono text-[0.8em]">
-      {children}
-    </code>
+    <code className="bg-surface-3 text-text rounded px-1 py-0.5 mono text-[0.8em]">{children}</code>
   );
 }
 
@@ -71,7 +69,7 @@ function Rich({ text }: { text: string }) {
         }
         if (part.startsWith('**') && part.endsWith('**')) {
           return (
-            <strong key={index} className="text-foreground font-medium">
+            <strong key={index} className="text-text font-medium">
               {part.slice(2, -2)}
             </strong>
           );
@@ -159,17 +157,17 @@ export function AppSpecHelpDialog({ label, className }: Props) {
 
         <DialogBody className="space-y-6 text-sm">
           <Section title={t('section.idea')}>
-            <p className="text-muted-foreground">
+            <p className="text-text-2">
               <Rich text={t('idea.p1')} />
             </p>
-            <p className="text-muted-foreground">
+            <p className="text-text-2">
               <Rich text={t('idea.p2')} />
             </p>
           </Section>
 
           <Section title={t('section.fields')}>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('fields.column.name')}</th>
                   <th className="px-3 py-2 font-medium">{t('fields.column.role')}</th>
@@ -179,22 +177,22 @@ export function AppSpecHelpDialog({ label, className }: Props) {
               <tbody>
                 {FIELDS.map((field) => (
                   <tr key={field.name} className="border-t align-top">
-                    <td className="px-3 py-2 font-mono whitespace-nowrap">{field.name}</td>
-                    <td className="text-muted-foreground px-3 py-2">
+                    <td className="px-3 py-2 mono whitespace-nowrap">{field.name}</td>
+                    <td className="text-text-2 px-3 py-2">
                       <Rich text={t(`field.${field.key}.role`)} />
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">
+                    <td className="text-text-2 px-3 py-2">
                       <Rich text={t(`field.${field.key}.constraint`)} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </ScrollableTable>
-            <p className="text-muted-foreground text-xs">{t('fields.note')}</p>
+            <p className="text-text-2 text-xs">{t('fields.note')}</p>
           </Section>
 
           <Section title={t('section.guards')}>
-            <p className="text-muted-foreground">{t('guards.intro')}</p>
+            <p className="text-text-2">{t('guards.intro')}</p>
             <ol className="space-y-2">
               {/*
                 Texte brut, sans `<Rich>` : ces énoncés portent déjà des accents
@@ -203,12 +201,12 @@ export function AppSpecHelpDialog({ label, className }: Props) {
               */}
               {GUARDS.map((guard, index) => (
                 <li key={guard} className="flex gap-3">
-                  <span className="bg-muted text-muted-foreground mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
+                  <span className="bg-surface-3 text-text-2 mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-medium">
                     {index + 1}
                   </span>
                   <div className="space-y-0.5">
-                    <div className="text-foreground font-medium">{t(`guard.${guard}.rule`)}</div>
-                    <p className="text-muted-foreground text-xs">{t(`guard.${guard}.why`)}</p>
+                    <div className="text-text font-medium">{t(`guard.${guard}.rule`)}</div>
+                    <p className="text-text-2 text-xs">{t(`guard.${guard}.why`)}</p>
                   </div>
                 </li>
               ))}
@@ -217,7 +215,7 @@ export function AppSpecHelpDialog({ label, className }: Props) {
 
           <Section title={t('section.mapping')}>
             <ScrollableTable>
-              <thead className="bg-muted/50 text-muted-foreground">
+              <thead className="bg-surface-2 text-text-2">
                 <tr>
                   <th className="px-3 py-2 font-medium">{t('mapping.column.spec')}</th>
                   <th className="px-3 py-2 font-medium">{t('mapping.column.docker')}</th>
@@ -230,25 +228,25 @@ export function AppSpecHelpDialog({ label, className }: Props) {
                     <td className="px-3 py-2 whitespace-nowrap">
                       <Rich text={t(`mapping.${row}.field`)} />
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">
+                    <td className="text-text-2 px-3 py-2">
                       <Rich text={t(`mapping.${row}.docker`)} />
                     </td>
-                    <td className="text-muted-foreground px-3 py-2">
+                    <td className="text-text-2 px-3 py-2">
                       <Rich text={t(`mapping.${row}.k3s`)} />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </ScrollableTable>
-            <div className="bg-muted/40 rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">
+            <div className="bg-surface-2 rounded-md border px-3 py-2">
+              <p className="text-text-2 text-xs">
                 <Rich text={t('mapping.note')} />
               </p>
             </div>
           </Section>
 
           <Section title={t('section.simple')}>
-            <p className="text-muted-foreground">
+            <p className="text-text-2">
               <Rich text={t('simple.intro')} />
             </p>
             <pre className="codeblock">
@@ -257,11 +255,11 @@ export function AppSpecHelpDialog({ label, className }: Props) {
           </Section>
 
           <Section title={t('section.full')}>
-            <p className="text-muted-foreground">{t('full.intro')}</p>
+            <p className="text-text-2">{t('full.intro')}</p>
             <pre className="codeblock">
               <code>{t('example.full')}</code>
             </pre>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-text-2 text-xs">
               <Rich text={t('full.note')} />
             </p>
           </Section>

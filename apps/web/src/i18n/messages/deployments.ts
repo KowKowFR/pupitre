@@ -21,7 +21,6 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── Journal des runs ────────────────────────────────────────────────────
-  'page.eyebrow': 'Journal des runs',
   'page.title': 'Déploiements',
   'page.description':
     'Chaque ligne est un run : une AppSpec figée, poussée sur une cible, avec ses scans et son verdict. Ouvrez-en un pour revoir ses étapes et ses logs.',
@@ -57,7 +56,6 @@ const fr = {
   'step.skipped': 'sans objet',
 
   // ── Tableau ─────────────────────────────────────────────────────────────
-  'table.selectHint': 'Cochez des runs pour les effacer de l’historique.',
   'table.selected': {
     one: '{count} run sélectionné',
     other: '{count} runs sélectionnés',
@@ -80,7 +78,6 @@ const fr = {
   'row.purgeBlocked': 'En service ou en cours : détruisez-le avant de le purger.',
 
   // ── Purge ───────────────────────────────────────────────────────────────
-  'purge.title': 'Purger l’historique',
   'purge.dialogTitle': {
     one: 'Purger {count} run de l’historique ?',
     other: 'Purger {count} runs de l’historique ?',
@@ -204,7 +201,6 @@ const fr = {
   'scans.severity.all': 'Toutes sévérités',
   'scans.sbom.hint': 'Le document est téléchargeable depuis la carte ci-dessus.',
   'scans.run.meta': '{image} · {duration} · seuil {failOn}',
-  'scans.run.clean': 'aucune vulnérabilité',
   'scans.sbom.download': 'Télécharger le SBOM',
   'column.severity': 'Sévérité',
   'column.cve': 'CVE',
@@ -261,7 +257,6 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Run log',
   'page.title': 'Deployments',
   'page.description':
     'Each row is a run: a frozen AppSpec pushed to a target, with its scans and its verdict. Open one to review its steps and its logs.',
@@ -294,7 +289,6 @@ const en: Translated<typeof fr> = {
   'step.failed': 'failed',
   'step.skipped': 'not applicable',
 
-  'table.selectHint': 'Check runs to erase them from the history.',
   'table.selected': {
     one: '{count} run selected',
     other: '{count} runs selected',
@@ -316,7 +310,6 @@ const en: Translated<typeof fr> = {
   'row.select': 'Select {slug} v{version}',
   'row.purgeBlocked': 'Live or still running: destroy it before purging.',
 
-  'purge.title': 'Purge the history',
   'purge.dialogTitle': {
     one: 'Purge {count} run from the history?',
     other: 'Purge {count} runs from the history?',
@@ -436,7 +429,6 @@ const en: Translated<typeof fr> = {
   'scans.severity.all': 'All severities',
   'scans.sbom.hint': 'The document downloads from the card above.',
   'scans.run.meta': '{image} · {duration} · threshold {failOn}',
-  'scans.run.clean': 'no vulnerability',
   'scans.sbom.download': 'Download the SBOM',
   'column.severity': 'Severity',
   'column.cve': 'CVE',

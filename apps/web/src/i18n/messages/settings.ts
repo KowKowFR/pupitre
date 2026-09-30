@@ -61,7 +61,6 @@ const fr = {
     "Le parcours de prise en main proposé à l'arrivée sur une instance vierge. On le relance d'ici quand il a été terminé ou abandonné — c'est un raccourci vers un parcours, pas un réglage de plus.",
 
   // ── Coquille : bandeau de page, rail, mention de lecture seule ──────────
-  'page.eyebrow': 'Administration',
   'page.title': 'Paramètres',
   'page.description.before':
     "Réglages de l'instance, appliqués à chaud. Ils vivent dans une ligne unique de",
@@ -254,7 +253,6 @@ const en: Translated<typeof fr> = {
   'section.onboarding.governs':
     'The walkthrough offered on arrival at a blank instance. You run it again from here once it has been finished or dismissed — a shortcut to a walkthrough, not one more setting.',
 
-  'page.eyebrow': 'Administration',
   'page.title': 'Settings',
   'page.description.before': 'Instance settings, applied live. They live in a single row of',
   'page.description.after':

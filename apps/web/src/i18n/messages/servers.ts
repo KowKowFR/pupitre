@@ -45,7 +45,6 @@ const fr = {
   'list.probeAll.toast.detail': 'Les bandes se mettent à jour au fil des réponses.',
   'server.age': 'relevé {ago}',
   'server.probe.tip': 'Relever maintenant',
-  'server.toggle': 'Afficher ou masquer {name}',
   'restart.dialog.title': 'Redémarrer {app} sur {target} ?',
   'restart.consequence.images':
     'Les conteneurs sont relancés avec les mêmes images et les mêmes volumes.',
@@ -79,7 +78,6 @@ const fr = {
 
   'column.application': 'Application',
   'column.uptime': 'En ligne depuis',
-  'column.address': 'Adresse',
 
   'row.restored': 'version restaurée',
   'row.updateFailed': 'dernière mise à jour échouée',
@@ -213,7 +211,6 @@ const en: Translated<typeof fr> = {
   'list.probeAll.toast.detail': 'Bands update as answers come in.',
   'server.age': 'read {ago}',
   'server.probe.tip': 'Read now',
-  'server.toggle': 'Show or hide {name}',
   'restart.dialog.title': 'Restart {app} on {target}?',
   'restart.consequence.images': 'Containers restart with the same images and the same volumes.',
   'restart.consequence.downtime': 'The application will be briefly unavailable.',
@@ -245,7 +242,6 @@ const en: Translated<typeof fr> = {
 
   'column.application': 'Application',
   'column.uptime': 'Live since',
-  'column.address': 'Address',
 
   'row.restored': 'version restored',
   'row.updateFailed': 'last update failed',

@@ -16,7 +16,6 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── En-tête de l'écran ──────────────────────────────────────────────────
-  'page.eyebrow': 'Supervision de sites',
   'page.title': 'Sondes',
   'page.description':
     "Une sonde part du worker vers l'adresse publique d'un service. Elle voit ce que le healthcheck SSH ne voit pas : le pare-feu, le proxy, le certificat.",
@@ -50,14 +49,9 @@ const fr = {
       "Les mesures sont conservées {count} jours, puis purgées. Les incidents, eux, ne sont jamais purgés — ce sont eux qui racontent l'histoire.",
   },
 
-  'confirm.delete':
-    "Supprimer la sonde « {name} » ?\n\nSon historique de mesures et sa chronologie d'incidents partent avec elle.",
 
   // ── Carte d'une sonde ───────────────────────────────────────────────────
-  'card.badge.alert': 'alerte',
-  'card.badge.application': 'application',
   'card.action.probe': 'Sonder',
-  'card.action.probing': 'Envoi…',
   'card.action.pause': 'Suspendre',
   'card.action.resume': 'Reprendre',
   'card.action.detail': 'Détail',
@@ -101,7 +95,6 @@ const fr = {
   'chart.point.titleWithLatency': '{clock} — {outcome} · {latency} ms',
 
   // ── Adoption ────────────────────────────────────────────────────────────
-  'adopt.title': 'Applications déployées, pas encore supervisées',
   'adopt.count': {
     one: '{count} application déployée n’est pas encore supervisée',
     other: '{count} applications déployées ne sont pas encore supervisées',
@@ -130,8 +123,6 @@ const fr = {
   'drawer.open': 'Ouvrir la fiche',
   'drawer.summary':
     '{typeLabel}, {cadence}. Panne confirmée après {failures}, rétablissement après {recovery} succès.',
-  'adopt.description':
-    "Le panel connaît déjà leur adresse. Il ne crée pas la sonde tout seul — une sonde émet du trafic sortant à la minute, ce n'est pas un effet de bord qu'un déploiement doit produire sans qu'on l'ait demandé. Un clic suffit.",
   'adopt.action': 'Superviser {slug}',
 
   // ── Formulaire de création ──────────────────────────────────────────────
@@ -167,8 +158,6 @@ const fr = {
   'config.advanced': 'Options avancées',
 
   // ── Détail ──────────────────────────────────────────────────────────────
-  'detail.summary':
-    '— {typeLabel}, {cadence}. Panne confirmée après {failures}, rétablissement après {recovery} succès.',
   'detail.failures': {
     one: '{count} échec consécutif',
     other: '{count} échecs consécutifs',
@@ -178,12 +167,8 @@ const fr = {
   'detail.badge.paused': 'suspendue',
   'detail.badge.day': '24 h : {label}',
   'detail.badge.week': '7 j : {label}',
-  'detail.back': 'Retour',
-  'detail.uptimeMeans.fallback': 'part du temps où la sonde était saine',
 
   'detail.readout.title': 'Dernier relevé',
-  'detail.readout.description':
-    'Les mesures que ce type de sonde rapporte. Le taux de disponibilité affiché en tête se lit : {uptimeMeans}.',
   /**
    * `count` porte la valeur absolue — un certificat expiré rend « -3 jours » —
    * et `value` la valeur signée, celle qui s'affiche.
@@ -191,8 +176,6 @@ const fr = {
   'detail.metric.days': { one: '{value} jour', other: '{value} jours' },
 
   'detail.latency.title': 'Latence mesurée',
-  'detail.latency.description':
-    "Temps jusqu'aux en-têtes de la réponse, pas jusqu'à la fin du téléchargement : ce qu'on veut savoir est la réactivité du service, pas le débit du lien. Les bandes rouges sont les mesures où rien n'a répondu — le trait est coupé plutôt que de raconter une continuité qui n'a pas eu lieu.",
   'detail.latency.sub': {
     one: '{count} dernière mesure, {cadence}',
     other: '{count} dernières mesures, {cadence}',
@@ -202,10 +185,6 @@ const fr = {
   'detail.latency.empty': "Aucune mesure pour l'instant. La sonde n'a pas encore tourné.",
 
   'detail.incidents.title': 'Chronologie des incidents',
-  'detail.incidents.description.a': 'Un incident naît à la ',
-  'detail.incidents.description.transition': 'transition',
-  'detail.incidents.description.b':
-    " — quand le seuil d'échecs consécutifs est atteint — et se referme au rétablissement. Un rebond isolé n'en crée aucun. Les incidents ne sont jamais purgés, contrairement aux mesures.",
   'detail.incidents.sub': 'du plus récent au plus ancien',
   'detail.incident.since': 'depuis {clock}',
   'detail.incidents.empty': "Aucun incident. Cette sonde n'est jamais passée en panne confirmée.",
@@ -228,10 +207,6 @@ const fr = {
     one: "L'équivalent lisible sans couleur de la courbe et de la frise. Conservées {count} jour.",
     other:
       "L'équivalent lisible sans couleur de la courbe et de la frise. Conservées {count} jours.",
-  },
-  'detail.checks.toggle': {
-    one: '{count} mesure — afficher la table',
-    other: '{count} mesures — afficher la table',
   },
   'detail.checks.count': { one: '{count} mesure', other: '{count} mesures' },
   'detail.checks.hint': 'afficher la table (équivalent lisible sans couleur)',
@@ -288,7 +263,6 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Site monitoring',
   'page.title': 'Probes',
   'page.description':
     "A monitor goes from the worker to a service's public address. It sees what the SSH healthcheck cannot: the firewall, the proxy, the certificate.",
@@ -315,13 +289,8 @@ const en: Translated<typeof fr> = {
       'Readouts are kept {count} days, then purged. Incidents are never purged — they are what tells the story.',
   },
 
-  'confirm.delete':
-    'Delete the probe “{name}”?\n\nIts readout history and its incident timeline go with it.',
 
-  'card.badge.alert': 'alert',
-  'card.badge.application': 'application',
   'card.action.probe': 'Probe now',
-  'card.action.probing': 'Sending…',
   'card.action.pause': 'Pause',
   'card.action.resume': 'Resume',
   'card.action.detail': 'Details',
@@ -354,7 +323,6 @@ const en: Translated<typeof fr> = {
   'chart.point.title': '{clock} — {outcome}',
   'chart.point.titleWithLatency': '{clock} — {outcome} · {latency} ms',
 
-  'adopt.title': 'Deployed applications, not watched yet',
   'adopt.count': {
     one: '{count} deployed application is not monitored yet',
     other: '{count} deployed applications are not monitored yet',
@@ -383,8 +351,6 @@ const en: Translated<typeof fr> = {
   'drawer.open': 'Open the page',
   'drawer.summary':
     '{typeLabel}, {cadence}. Outage confirmed after {failures}, recovery after {recovery} successes.',
-  'adopt.description':
-    'The panel already knows their address. It does not create the probe on its own — a probe sends outbound traffic every minute, and that is not a side effect a deployment should produce unasked. One click is enough.',
   'adopt.action': 'Watch {slug}',
 
   'create.title': 'New probe',
@@ -417,8 +383,6 @@ const en: Translated<typeof fr> = {
   'config.optional': 'optional',
   'config.advanced': 'Advanced options',
 
-  'detail.summary':
-    '— {typeLabel}, {cadence}. Outage confirmed after {failures}, recovery after {recovery} successes.',
   'detail.failures': {
     one: '{count} consecutive failure',
     other: '{count} consecutive failures',
@@ -428,17 +392,11 @@ const en: Translated<typeof fr> = {
   'detail.badge.paused': 'paused',
   'detail.badge.day': '24 h: {label}',
   'detail.badge.week': '7 d: {label}',
-  'detail.back': 'Back',
-  'detail.uptimeMeans.fallback': 'share of the time the probe was healthy',
 
   'detail.readout.title': 'Latest readout',
-  'detail.readout.description':
-    'What this type of probe reports. The uptime shown at the top reads: {uptimeMeans}.',
   'detail.metric.days': { one: '{value} day', other: '{value} days' },
 
   'detail.latency.title': 'Latency measured',
-  'detail.latency.description':
-    'Time to the response headers, not to the end of the download: what you want to know is how responsive the service is, not how fast the link is. Red bands are the readouts where nothing answered — the line breaks rather than telling of a continuity that never happened.',
   'detail.latency.sub': {
     one: 'last {count} sample, {cadence}',
     other: 'last {count} samples, {cadence}',
@@ -448,10 +406,6 @@ const en: Translated<typeof fr> = {
   'detail.latency.empty': 'No readout yet. The probe has not run.',
 
   'detail.incidents.title': 'Incident timeline',
-  'detail.incidents.description.a': 'An incident is born at the ',
-  'detail.incidents.description.transition': 'transition',
-  'detail.incidents.description.b':
-    ' — when the consecutive-failure threshold is reached — and closes on recovery. A single blip creates none. Incidents are never purged, unlike readouts.',
   'detail.incidents.sub': 'most recent first',
   'detail.incident.since': 'since {clock}',
   'detail.incidents.empty': 'No incident. This probe has never gone to a confirmed outage.',
@@ -473,10 +427,6 @@ const en: Translated<typeof fr> = {
   'detail.checks.description': {
     one: 'The colorless equivalent of the chart and the strip. Kept {count} day.',
     other: 'The colorless equivalent of the chart and the strip. Kept {count} days.',
-  },
-  'detail.checks.toggle': {
-    one: '{count} readout — show the table',
-    other: '{count} readouts — show the table',
   },
   'detail.checks.count': { one: '{count} sample', other: '{count} samples' },
   'detail.checks.hint': 'show the table (readable without colour)',

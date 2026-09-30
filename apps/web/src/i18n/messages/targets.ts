@@ -23,7 +23,6 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── La liste ────────────────────────────────────────────────────────────
-  'page.eyebrow': 'Parc',
   'page.title': 'Cibles',
   'page.description':
     "Les machines sur lesquelles Pupitre déploie, joignables en SSH. Le preflight détermine ce qu'on peut y lancer : Docker, K3s, ou ni l'un ni l'autre.",
@@ -61,7 +60,6 @@ const fr = {
 
   'drawer.kind': 'Cible',
   'drawer.tested': 'testée {ago}',
-  'drawer.lastSuccess': 'dernier succès à {time}',
   'drawer.never': 'aucun preflight lancé',
   'drawer.alert.unreachable.title': 'Injoignable.',
   'drawer.alert.unreachable': 'La machine ne répond plus en SSH depuis {time}.',
@@ -114,7 +112,6 @@ const fr = {
   'column.lastCheck': 'Dernier test',
   'table.timestamps': 'Horodatages en {timezone}.',
 
-  'confirm.delete': 'Supprimer la cible « {name} » ({host}) ?',
 
   // ── Preflight : le bouton, ses phases, ses échecs ───────────────────────
   'action.test': 'Tester la connexion',
@@ -220,7 +217,6 @@ const fr = {
   'check.status.success': 'réussi',
   'check.status.failed': 'échoué',
   'check.status.skipped': 'ignoré',
-  'toast.preflight.phase': 'Phase actuelle : {phase}',
   'workload.remove.title': 'Supprimer le {kind} {name} de cette machine ?',
   'workload.remove.image': 'Image : {image}.',
   'workload.remove.final': 'La suppression est définitive : la charge ne pourra pas être relancée.',
@@ -231,8 +227,6 @@ const fr = {
   'workload.update.downtime': 'Elle sera brièvement indisponible.',
   'label.link.title': 'Voir les cibles portant {pair}',
   'detail.runtimes.title': 'Runtimes disponibles',
-  'detail.runtimes.description': 'Dernier preflight : {date} ({timezone})',
-  'detail.connection.description': 'Vérifier ce que la machine sait faire.',
   'detail.config.title': 'Configuration',
   'value.auth.key': 'clé privée',
   'value.auth.password': 'mot de passe',
@@ -277,7 +271,6 @@ const fr = {
   'report.none': "Aucun preflight n'a encore été lancé sur cette cible.",
   'report.unreachable': 'Cible injoignable',
   'report.machine': 'Machine',
-  'report.runtimes': 'Runtimes',
   'row.os': 'Système',
   'row.kernel': 'Noyau',
   'row.latency': 'Latence SSH',
@@ -291,7 +284,6 @@ const fr = {
   'memory.value': '{available} Mio disponibles sur {total}',
   'row.tools': 'Outils',
   'row.compose': 'Docker Compose',
-  'row.k3s': 'K3s / Kubernetes',
   'row.readyNodes': 'Nodes prêts',
   'runtime.unavailable': '✗ indisponible',
   'report.checks.title': 'Contrôles',
@@ -354,10 +346,6 @@ const fr = {
   'workload.kind.statefulset': 'statefulset',
   'workload.kind.daemonset': 'daemonset',
 
-  'confirm.remove':
-    'Supprimer le {kind} « {name} » de cette machine ?\n\nImage : {image}\nCette suppression est définitive. Les volumes nommés, eux, sont conservés.',
-  'confirm.update':
-    "Mettre à jour le {kind} « {name} » ?\n\nL'image {image} est retirée à sa version la plus récente, puis la charge est recréée avec la même configuration. Elle sera brièvement indisponible.",
 
   // ── Les refus de l'API ──────────────────────────────────────────────────
   'error.notFound': 'Cible « {id} » introuvable',
@@ -402,7 +390,6 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Fleet',
   'page.title': 'Targets',
   'page.description':
     'The machines the panel deploys to, reachable over SSH. Preflight decides what can run there — Docker, K3s, or neither.',
@@ -440,7 +427,6 @@ const en: Translated<typeof fr> = {
 
   'drawer.kind': 'Target',
   'drawer.tested': 'checked {ago}',
-  'drawer.lastSuccess': 'last success at {time}',
   'drawer.never': 'no preflight run yet',
   'drawer.alert.unreachable.title': 'Unreachable.',
   'drawer.alert.unreachable': 'The machine has not answered over SSH since {time}.',
@@ -490,7 +476,6 @@ const en: Translated<typeof fr> = {
   'column.lastCheck': 'Last check',
   'table.timestamps': 'Timestamps in {timezone}.',
 
-  'confirm.delete': 'Delete target “{name}” ({host})?',
 
   'action.test': 'Test the connection',
   'action.testing': 'Testing…',
@@ -586,7 +571,6 @@ const en: Translated<typeof fr> = {
   'check.status.success': 'passed',
   'check.status.failed': 'failed',
   'check.status.skipped': 'skipped',
-  'toast.preflight.phase': 'Current phase: {phase}',
   'workload.remove.title': 'Remove {kind} {name} from this machine?',
   'workload.remove.image': 'Image: {image}.',
   'workload.remove.final': 'Removal is final: the workload cannot be restarted.',
@@ -597,8 +581,6 @@ const en: Translated<typeof fr> = {
   'workload.update.downtime': 'It will be briefly unavailable.',
   'label.link.title': 'Show targets carrying {pair}',
   'detail.runtimes.title': 'Available runtimes',
-  'detail.runtimes.description': 'Last preflight: {date} ({timezone})',
-  'detail.connection.description': 'Check what the machine can do.',
   'detail.config.title': 'Configuration',
   'value.auth.key': 'private key',
   'value.auth.password': 'password',
@@ -640,7 +622,6 @@ const en: Translated<typeof fr> = {
   'report.none': 'No preflight has run on this target yet.',
   'report.unreachable': 'Target unreachable',
   'report.machine': 'Machine',
-  'report.runtimes': 'Runtimes',
   'row.os': 'System',
   'row.kernel': 'Kernel',
   'row.latency': 'SSH latency',
@@ -654,7 +635,6 @@ const en: Translated<typeof fr> = {
   'memory.value': '{available} MiB available of {total}',
   'row.tools': 'Tools',
   'row.compose': 'Docker Compose',
-  'row.k3s': 'K3s / Kubernetes',
   'row.readyNodes': 'Ready nodes',
   'runtime.unavailable': '✗ unavailable',
   'report.checks.title': 'Checks',
@@ -708,10 +688,6 @@ const en: Translated<typeof fr> = {
   'workload.kind.statefulset': 'statefulset',
   'workload.kind.daemonset': 'daemonset',
 
-  'confirm.remove':
-    'Delete the {kind} “{name}” from this machine?\n\nImage: {image}\nThe deletion is permanent. Named volumes are kept.',
-  'confirm.update':
-    'Update the {kind} “{name}”?\n\nImage {image} is pulled again at its latest version, then the workload is recreated with the same configuration. It will be briefly unavailable.',
 
   'error.notFound': 'Target “{id}” not found',
   'error.nameTaken': 'A target is already named “{name}”',

@@ -14,7 +14,6 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── En-tête ─────────────────────────────────────────────────────────────
-  'page.eyebrow': 'Ordonnancement',
   'page.title': 'Tâches planifiées',
   'page.description':
     'Ce que le panel refait tout seul sur ce qui est déjà déployé : ré-analyser les images, sonder la santé des applications, rafraîchir le preflight des cibles, purger les vieilles versions. Ordonnancées par BullMQ — pas par un cron Linux — et donc visibles, rejouables et traçables ici. Aucune ne redéploie, ne rollback ni ne bloque quoi que ce soit : elles constatent et alertent.',
@@ -130,7 +129,6 @@ const fr = {
   'preview.computing': 'Prochaines exécutions : calcul en cours…',
   'preview.noRun': "Aucune exécution dans les 366 prochains jours — vérifiez l'expression.",
   'preview.next': 'Prochaine',
-  'preview.then': 'Puis ({rank})',
 
   // ── Aide ────────────────────────────────────────────────────────────────
   'help.trigger': 'À quoi servent les tâches planifiées ?',
@@ -288,7 +286,6 @@ Attention : jour du mois ET jour de semaine renseignés se combinent en OU.
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Scheduling',
   'page.title': 'Scheduled jobs',
   'page.description':
     'What the panel redoes on its own over what is already deployed: scan the images again, probe application health, refresh target preflight, purge old versions. Scheduled by BullMQ — not by a Linux cron — and therefore visible, replayable and traceable here. None of them redeploys, rolls back or blocks anything: they observe and alert.',
@@ -395,7 +392,6 @@ const en: Translated<typeof fr> = {
   'preview.computing': 'Next runs: computing…',
   'preview.noRun': 'No run in the next 366 days — check the expression.',
   'preview.next': 'Next',
-  'preview.then': 'Then ({rank})',
 
   'help.trigger': 'What are scheduled jobs for?',
   'help.title': 'What are scheduled jobs for?',

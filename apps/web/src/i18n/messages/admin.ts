@@ -24,7 +24,6 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── Commun aux deux écrans d'administration ─────────────────────────────
-  eyebrow: 'Administration',
 
   // ═══ Utilisateurs ═══════════════════════════════════════════════════════
   'users.title': 'Utilisateurs',
@@ -33,9 +32,6 @@ const fr = {
 
   'users.invite.title': 'Inviter un utilisateur',
   'users.create.title': 'Créer un utilisateur',
-  'users.invite.help':
-    "La personne reçoit un lien par e-mail (canal « {channel} ») et choisit elle-même son mot de passe : personne d'autre ne le connaîtra. Le lien vaut 72 heures et ne fonctionne qu'une fois. Rôles disponibles : {roles}.",
-  'users.create.help': 'Rôles disponibles : {roles}. Mot de passe de {min} caractères minimum.',
 
   // Coupée en trois : « Paramètres → Notifications » est mis en évidence dans
   // la phrase, et un fragment de JSX ne se range pas dans un dictionnaire.
@@ -126,8 +122,6 @@ const fr = {
   'users.2fa.notice.none': 'Aucune session ouverte à fermer.',
   'users.2fa.notice.tail': 'Il se reconnecte avec son seul mot de passe.',
 
-  'users.2fa.dialog.title': 'Réinitialiser le second facteur',
-  'users.2fa.dialog.noTarget': 'Aucun utilisateur sélectionné.',
   'users.2fa.dialog.intro': 'Après validation, pour ce compte :',
   'users.2fa.dialog.totp':
     'le secret TOTP est supprimé — l’application d’authentification ne sert plus ;',
@@ -189,7 +183,6 @@ const fr = {
     other: 'Porté par {count} utilisateurs : réattribuez-les avant de supprimer ce rôle.',
   },
   'roles.changes': { one: '{count} modification', other: '{count} modifications' },
-  'roles.confirmDelete': 'Supprimer le rôle « {key} » ? Cette action est définitive.',
   'roles.saved': 'Rôle enregistré.',
   'roles.locked.notice':
     "Ce rôle est verrouillé. Il détient toujours l'intégralité des permissions, y compris celles ajoutées plus tard, et ne peut être ni renommé ni supprimé.",
@@ -202,8 +195,6 @@ const fr = {
     other: '{count} / {total} sélectionnées',
   },
 
-  // ═══ Journal d'activité ═════════════════════════════════════════════════
-  'logs.eyebrow': 'Traçabilité',
   'logs.title': 'Journal d’activité',
   'logs.description.before':
     'Qui a fait quoi, quand, et depuis quelle IP. Chaque action du panel passe par',
@@ -236,8 +227,6 @@ const fr = {
   'logs.drawer.kind': 'Entrée du journal',
   'logs.drawer.who': 'Qui, quoi, où',
   'logs.drawer.payload': 'Charge JSON',
-  'logs.drawer.before': 'Avant',
-  'logs.drawer.after': 'Après',
   'logs.drawer.none': 'Aucune charge utile pour cette entrée.',
   'logs.drawer.copy': 'Copier le JSON',
   'logs.drawer.copied': 'JSON copié',
@@ -277,7 +266,6 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  eyebrow: 'Administration',
 
   'users.title': 'Users',
   'users.description':
@@ -285,9 +273,6 @@ const en: Translated<typeof fr> = {
 
   'users.invite.title': 'Invite a user',
   'users.create.title': 'Create a user',
-  'users.invite.help':
-    'They get a link by email (channel “{channel}”) and pick their own password: nobody else ever knows it. The link lasts 72 hours and works once. Roles available: {roles}.',
-  'users.create.help': 'Roles available: {roles}. Password of {min} characters minimum.',
 
   'users.noMail.before':
     'No active email channel (SMTP): the password has to be typed here, then passed out of band — and you will know it. Set up an SMTP server under',
@@ -365,8 +350,6 @@ const en: Translated<typeof fr> = {
   'users.2fa.notice.none': 'No open session to close.',
   'users.2fa.notice.tail': 'They sign in again with their password alone.',
 
-  'users.2fa.dialog.title': 'Reset the second factor',
-  'users.2fa.dialog.noTarget': 'No user selected.',
   'users.2fa.dialog.intro': 'Once confirmed, for this account:',
   'users.2fa.dialog.totp': 'the TOTP secret is deleted — the authenticator app is of no more use;',
   'users.2fa.dialog.backup': 'backup codes already issued stop working immediately;',
@@ -421,7 +404,6 @@ const en: Translated<typeof fr> = {
     other: 'Carried by {count} users: reassign them before deleting this role.',
   },
   'roles.changes': { one: '{count} change', other: '{count} changes' },
-  'roles.confirmDelete': 'Delete the role “{key}”? This cannot be undone.',
   'roles.saved': 'Role saved.',
   'roles.locked.notice':
     'This role is locked. It always holds every permission, including those added later, and can be neither renamed nor deleted.',
@@ -434,7 +416,6 @@ const en: Translated<typeof fr> = {
     other: '{count} / {total} selected',
   },
 
-  'logs.eyebrow': 'Traceability',
   'logs.title': 'Activity log',
   'logs.description.before':
     'Who did what, when, and from which IP. Every panel action goes through',
@@ -466,8 +447,6 @@ const en: Translated<typeof fr> = {
   'logs.drawer.kind': 'Log entry',
   'logs.drawer.who': 'Who, what, where',
   'logs.drawer.payload': 'JSON payload',
-  'logs.drawer.before': 'Before',
-  'logs.drawer.after': 'After',
   'logs.drawer.none': 'No payload for this entry.',
   'logs.drawer.copy': 'Copy the JSON',
   'logs.drawer.copied': 'JSON copied',

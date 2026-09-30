@@ -35,10 +35,8 @@ const fr = {
 
   // ── En-têtes de colonne ─────────────────────────────────────────────────
   'column.date': 'Date',
-  'column.name': 'Nom',
   'column.state': 'État',
   'column.status': 'Statut',
-  'column.type': 'Type',
   'column.target': 'Cible',
   'column.detail': 'Détail',
   'column.actions': 'Actions',
@@ -89,10 +87,8 @@ const en: Translated<typeof fr> = {
   checking: 'Checking…',
 
   'column.date': 'Date',
-  'column.name': 'Name',
   'column.state': 'State',
   'column.status': 'Status',
-  'column.type': 'Type',
   'column.target': 'Target',
   'column.detail': 'Detail',
   'column.actions': 'Actions',

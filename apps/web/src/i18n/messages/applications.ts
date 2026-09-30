@@ -19,7 +19,6 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── Liste ───────────────────────────────────────────────────────────────
-  'page.eyebrow': 'Catalogue',
   'page.title': 'Applications',
   'page.description':
     'Une application est une AppSpec : une description neutre, qui ne connaît ni Docker ni Kubernetes. Le driver la traduit en compose.yml ou en manifests au moment du déploiement.',
@@ -101,11 +100,9 @@ const fr = {
   'empty.hint':
     "Décrivez une application — services, image, port exposé — ou laissez l'IA en proposer une AppSpec que vous relirez avant de déployer.",
 
-  'lifecycle.title': 'Cycle de vie',
   'lifecycle.autoRollback': "Rollback automatique en cas d'échec",
   'lifecycle.autoRollback.on':
     'Un healthcheck raté ramène la version précédente, si elle existe.',
-  'lifecycle.autoRollback.off': 'Un healthcheck raté laisse le déploiement en échec, en l’état.',
   'lifecycle.note':
     'Le runtime se choisit par cible : une cible Docker reçoit un compose.yml, une cible K3s des manifests. L’AppSpec, elle, est la même.',
   'lifecycle.scope':
@@ -118,13 +115,6 @@ const fr = {
   'action.deploy': 'Déployer',
   'action.sending': 'Envoi…',
 
-  'deploy.noDockerTarget':
-    "Aucune cible Docker prête. Cet écran déploie en Docker Compose ; lancez un preflight depuis /targets pour savoir ce que chaque machine sait faire.",
-  // L'espace avant le « ; » est insécable (U+00A0) : c'était un `&nbsp;` dans
-  // le JSX, et le rendu doit rester le même caractère.
-  'warn.noDockerTarget.before':
-    'Aucune cible Docker prête. Cet écran déploie en Docker Compose ; pour une machine K3s, passez par « Nouvelle application », qui laisse choisir le runtime. Un preflight depuis ',
-  'warn.noDockerTarget.after': ' dit ce que chaque machine sait faire.',
 
   // ── Suppression ─────────────────────────────────────────────────────────
   'delete.title': 'Supprimer « {slug} » ?',
@@ -226,12 +216,7 @@ const fr = {
   'secrets.replace': 'Remplacer',
   'secrets.setNow': 'Saisir maintenant',
   'secrets.regenerate.label': 'Régénérer {name}',
-  'secrets.regenerate.title': 'Tirer une nouvelle valeur au sort',
   'secrets.delete.label': 'Supprimer {name}',
-  'secrets.delete.title': 'Supprimer définitivement',
-  'secrets.regenerate.confirm':
-    "Régénérer « {name} » ?\n\nLa nouvelle valeur ne prendra effet qu'au prochain déploiement, et les données déjà écrites avec l’ancienne (le volume d’une base, par exemple) ne la connaîtront pas. À ne faire que sur une application neuve ou après avoir migré les données.",
-  'secrets.delete.confirm': 'Supprimer définitivement la valeur de « {name} » ?',
 
   // ── Création ────────────────────────────────────────────────────────────
   'new.description':
@@ -261,7 +246,6 @@ const fr = {
 
   'generate.action': 'Générer',
   'generate.pending': 'Génération…',
-  'generate.busy': 'génération en cours',
   'generate.info': '{provider} · {model} — {seconds} s',
   'generate.info.tokens': ', {tokens} tokens',
   'generate.info.retried': ', après une relance sur erreurs de validation',
@@ -275,13 +259,10 @@ const fr = {
     "L'application « {name} » a bien été enregistrée, mais le déploiement a échoué : {message}",
 
   'review.label': 'Ce qui va tourner',
-  'review.label.proposal': ' — proposition du modèle, à valider',
   'form.appSpec.label': 'AppSpec (JSON)',
-  'form.appSpec.label.generated': ' — générée, éditable',
   'form.insertExample': 'Insérer un exemple',
   'form.origin.note':
     "Le prompt et la spec générée seront conservés avec l'application, à côté de la version que vous validez.",
-  'form.deployTarget.label': 'Déployer dans la foulée (facultatif)',
   'form.deployTarget.none': 'ne pas déployer maintenant',
   'form.runtime.label': 'Runtime',
   'form.submit.pending': 'Validation…',
@@ -371,7 +352,6 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
-  'page.eyebrow': 'Catalog',
   'page.title': 'Applications',
   'page.description':
     'An application is an AppSpec: a neutral description that knows neither Docker nor Kubernetes. The driver turns it into a compose.yml or manifests at deploy time.',
@@ -452,11 +432,9 @@ const en: Translated<typeof fr> = {
   'empty.hint':
     'Describe an application — services, image, exposed port — or let the AI propose an AppSpec for you to review before deploying.',
 
-  'lifecycle.title': 'Lifecycle',
   'lifecycle.autoRollback': 'Roll back automatically on failure',
   'lifecycle.autoRollback.on':
     'A failed healthcheck brings back the previous version, if there is one.',
-  'lifecycle.autoRollback.off': 'A failed healthcheck leaves the deployment failed, as it stands.',
   'lifecycle.note':
     'The runtime is picked per target: a Docker target gets a compose.yml, a K3s target manifests. The AppSpec stays the same.',
   'lifecycle.scope':
@@ -469,11 +447,6 @@ const en: Translated<typeof fr> = {
   'action.deploy': 'Deploy',
   'action.sending': 'Sending…',
 
-  'deploy.noDockerTarget':
-    'No Docker target is ready. This screen deploys on Docker Compose; run a preflight from /targets to see what each machine can do.',
-  'warn.noDockerTarget.before':
-    'No Docker target is ready. This screen deploys on Docker Compose; for a K3s machine, go through “New application”, which lets you pick the runtime. A preflight from ',
-  'warn.noDockerTarget.after': ' says what each machine can do.',
 
   'delete.title': 'Delete “{slug}”?',
   'delete.title.cascade': 'Destroy and delete “{slug}”?',
@@ -571,12 +544,7 @@ const en: Translated<typeof fr> = {
   'secrets.replace': 'Replace',
   'secrets.setNow': 'Set it now',
   'secrets.regenerate.label': 'Regenerate {name}',
-  'secrets.regenerate.title': 'Draw a new value at random',
   'secrets.delete.label': 'Delete {name}',
-  'secrets.delete.title': 'Delete for good',
-  'secrets.regenerate.confirm':
-    'Regenerate “{name}”?\n\nThe new value only takes effect at the next deployment, and data already written with the old one (a database volume, for instance) will not know it. Do this on a fresh application only, or once the data has been migrated.',
-  'secrets.delete.confirm': 'Delete the value of “{name}” for good?',
 
   'new.description':
     'Nothing is touched on a machine until a target is chosen. The prompt and the generated spec are kept with the application.',
@@ -605,7 +573,6 @@ const en: Translated<typeof fr> = {
 
   'generate.action': 'Generate',
   'generate.pending': 'Generating…',
-  'generate.busy': 'generating',
   'generate.info': '{provider} · {model} — {seconds} s',
   'generate.info.tokens': ', {tokens} tokens',
   'generate.info.retried': ', after one retry on validation errors',
@@ -619,13 +586,10 @@ const en: Translated<typeof fr> = {
     'Application “{name}” was saved, but the deployment failed: {message}',
 
   'review.label': 'What will run',
-  'review.label.proposal': ' — the model’s proposal, to approve',
   'form.appSpec.label': 'AppSpec (JSON)',
-  'form.appSpec.label.generated': ' — generated, editable',
   'form.insertExample': 'Insert an example',
   'form.origin.note':
     'The prompt and the generated spec are kept with the application, next to the version you approve.',
-  'form.deployTarget.label': 'Deploy straight away (optional)',
   'form.deployTarget.none': 'do not deploy now',
   'form.runtime.label': 'Runtime',
   'form.submit.pending': 'Validating…',
