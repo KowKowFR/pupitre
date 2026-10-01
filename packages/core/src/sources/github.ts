@@ -440,9 +440,10 @@ export function githubAppManifest(options: {
     url: options.panelUrl,
     redirect_url: options.redirectUrl,
     setup_url: options.setupUrl,
-    // Le panel est privé : GitHub ne pourrait pas y livrer un webhook. L'URL
-    // est exigée par le format ; `active: false` la neutralise.
-    hook_attributes: { url: `${options.panelUrl.replace(/\/+$/, '')}/api/integrations/github/unused`, active: false },
+    // Pas de `hook_attributes` : le panel est privé et n'attend aucun webhook.
+    // Le bloc est facultatif, et s'il est là, GitHub exige que son URL soit
+    // joignable depuis Internet — même avec `active: false` — et refuse le
+    // manifeste d'un panel en `localhost` ou sur un réseau privé.
     public: false,
     default_permissions: { contents: 'read', metadata: 'read', statuses: 'write' },
     default_events: [],

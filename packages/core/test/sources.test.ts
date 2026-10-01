@@ -279,7 +279,7 @@ describe('client GitHub', () => {
     assert.equal((status.body as { target_url: string }).target_url, 'http://pupitre.lan/deployments/1');
   });
 
-  it('le manifeste ne demande que lire le code et écrire les statuts, webhook éteint', () => {
+  it('le manifeste ne demande que lire le code et écrire les statuts, sans webhook', () => {
     const manifest = githubAppManifest({
       name: 'Pupitre — atelier',
       panelUrl: 'http://pupitre.lan',
@@ -291,7 +291,10 @@ describe('client GitHub', () => {
       metadata: 'read',
       statuses: 'write',
     });
-    assert.equal((manifest.hook_attributes as { active: boolean }).active, false);
+    // Un bloc webhook, même éteint, fait refuser le manifeste d'un panel privé :
+    // GitHub veut que son URL soit joignable depuis Internet.
+    assert.equal('hook_attributes' in manifest, false);
+    assert.deepEqual(manifest.default_events, []);
     assert.equal(manifest.public, false);
   });
 });
