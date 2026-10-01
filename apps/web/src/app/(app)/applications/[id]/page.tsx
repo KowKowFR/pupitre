@@ -147,6 +147,13 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           applicationId={application.id}
           secrets={buildSecretViews(spec, storedSecrets)}
           canEdit={auth.can('application:update')}
+          deployedAt={
+            versions
+              .filter((version) => version.status === 'success')
+              .map((version) => version.createdAt.toISOString())
+              .sort()
+              .at(-1) ?? null
+          }
         />
       </div>
 

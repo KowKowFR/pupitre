@@ -208,6 +208,13 @@ const fr = {
   'secrets.badge.generated': 'générée',
   'secrets.badge.provided': 'saisie',
   'secrets.badge.undeclared': 'plus déclarée',
+  'secrets.badge.pending': 'à appliquer',
+  'secrets.pending.title': {
+    one: '{count} secret modifié depuis le dernier déploiement.',
+    other: '{count} secrets modifiés depuis le dernier déploiement.',
+  },
+  'secrets.pending.body':
+    'Les valeurs se rendent au déploiement : ce qui tourne utilise encore les anciennes. Déployez à nouveau pour les appliquer.',
   'secrets.claimedBy': 'réclamée par ',
   'secrets.orphan':
     "aucun service de l'AppSpec courante ne la réclame — conservée tant qu'elle n'est pas supprimée à la main",
@@ -231,6 +238,10 @@ const fr = {
   'tab.fromPrompt': 'Depuis une description',
   'tab.fromJson': 'Depuis un JSON',
   'tab.fromCompose': 'Depuis un docker-compose',
+  'new.secrets.title': 'Valeurs des secrets',
+  'new.secrets.help':
+    'Laissez vide pour que Pupitre génère une valeur, chiffrée. Saisissez celles qui viennent d’ailleurs : une clé d’API, le mot de passe d’une base existante. Elles partent avec le premier déploiement.',
+  'new.secrets.placeholder': 'générée si vide',
   'compose.label': 'Contenu du docker-compose.yml',
   'compose.help':
     'Collez le fichier, ou choisissez-le. Rien n’est enregistré avant « Enregistrer » : la conversion propose une AppSpec, à relire.',
@@ -337,6 +348,8 @@ const fr = {
   // ── Refus des routes ────────────────────────────────────────────────────
   'error.notFound': 'Application « {id} » introuvable',
   'error.slugTaken': 'Une application « {name} » existe déjà',
+  'error.secretNotDeclared':
+    '« {name} » n’est pas un secret que cette AppSpec déclare (ou c’est un alias, qui reprend la valeur d’un autre).',
   'error.enqueueFailed': "La tâche n'a pas reçu d'identifiant",
   'error.deploymentEntry': 'v{version} sur {target}',
   'error.liveDeployments': {
@@ -568,6 +581,13 @@ const en: Translated<typeof fr> = {
   'secrets.badge.generated': 'generated',
   'secrets.badge.provided': 'entered',
   'secrets.badge.undeclared': 'no longer declared',
+  'secrets.badge.pending': 'to apply',
+  'secrets.pending.title': {
+    one: '{count} secret changed since the last deployment.',
+    other: '{count} secrets changed since the last deployment.',
+  },
+  'secrets.pending.body':
+    'Values are rendered at deployment: what runs still uses the old ones. Deploy again to apply them.',
   'secrets.claimedBy': 'claimed by ',
   'secrets.orphan':
     'no service of the current AppSpec claims it — kept until someone deletes it by hand',
@@ -590,6 +610,10 @@ const en: Translated<typeof fr> = {
   'tab.fromPrompt': 'From a description',
   'tab.fromJson': 'From JSON',
   'tab.fromCompose': 'From docker-compose',
+  'new.secrets.title': 'Secret values',
+  'new.secrets.help':
+    'Leave empty for Pupitre to generate an encrypted value. Enter those that come from elsewhere: an API key, an existing database password. They go out with the first deployment.',
+  'new.secrets.placeholder': 'generated if empty',
   'compose.label': 'docker-compose.yml content',
   'compose.help':
     'Paste the file, or pick it. Nothing is saved before “Save”: the conversion proposes an AppSpec, to review.',
@@ -693,6 +717,8 @@ const en: Translated<typeof fr> = {
 
   'error.notFound': 'Application “{id}” not found',
   'error.slugTaken': 'An application “{name}” already exists',
+  'error.secretNotDeclared':
+    '“{name}” is not a secret this AppSpec declares (or it is an alias, which takes another’s value).',
   'error.enqueueFailed': 'The job got no ID',
   'error.deploymentEntry': 'v{version} on {target}',
   'error.liveDeployments': {

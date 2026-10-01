@@ -31,14 +31,32 @@ export function ApplicationSecrets({
   applicationId,
   secrets,
   canEdit,
+  deployedAt,
 }: {
   applicationId: string;
   secrets: SecretView[];
   canEdit: boolean;
+  /**
+   * Départ du dernier déploiement réussi. Une valeur posée après lui ne tourne
+   * pas encore : le `.env` ou le Secret Kubernetes se rendent au déploiement.
+   */
+  deployedAt: string | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
   const router = useRouter();
+  // Modifiés après le dernier déploiement réussi, donc pas encore en service.
+  // Un alias suit son secret : il est en attente quand sa source l'est.
+  const changed = new Set(
+    deployedAt
+      ? secrets
+          .filter((secret) => !secret.aliasOf && secret.updatedAt && secret.updatedAt > deployedAt)
+          .map((secret) => secret.name)
+      : [],
+  );
+  const pending = secrets
+    .filter((secret) => changed.has(secret.aliasOf ?? secret.name) && secret.declared)
+    .map((secret) => secret.name);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -108,6 +126,12 @@ export function ApplicationSecrets({
 
         {secrets.length === 0 ? <p className="t-sm text-text-2">{t('secrets.none')}</p> : null}
 
+        {pending.length > 0 ? (
+          <Alert variant="warn" title={t('secrets.pending.title', { count: pending.length })}>
+            {t('secrets.pending.body')}
+          </Alert>
+        ) : null}
+
         <ul className="flex flex-col divide-y divide-border-subtle">
           {secrets.map((secret) => (
             <li key={secret.name} className="flex flex-wrap items-center gap-3 py-3">
@@ -143,6 +167,11 @@ export function ApplicationSecrets({
                   {secret.declared ? null : (
                     <Badge variant="warn">{t('secrets.badge.undeclared')}</Badge>
                   )}
+                  {pending.includes(secret.name) ? (
+                    <Badge variant="warn" dot>
+                      {t('secrets.badge.pending')}
+                    </Badge>
+                  ) : null}
                 </div>
 
                 <p className="mt-0.5 text-xs text-text-3">
