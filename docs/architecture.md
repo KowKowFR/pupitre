@@ -25,7 +25,7 @@ qui suit est la conséquence pratique.
 | Interface | Fichier | Implémentations |
 |---|---|---|
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
-| `ProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider` (fichiers ou Ingress) — `BunkerWebProvider` n'existe pas |
+| `ProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider` (fichiers ou Ingress), `BunkerWebProvider` (API REST, WAF) |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
 | `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider` |
 
@@ -487,6 +487,39 @@ des routes faites à la main ne voit jamais celles-ci touchées.
 Le mode suit l'installation trouvée sur la machine, pas le runtime des
 applications : c'est une propriété du proxy. Un amont que le mode ne sait pas
 joindre est refusé, en le disant.
+
+**Ce qu'un proxy dit de lui, sans rien exécuter.** L'écran et l'API ne
+nomment jamais un proxy : chacun déclare une fiche (`traefik/config.ts`,
+`bunkerweb/config.ts`), réunies dans `catalog.ts` — lire sa configuration, se
+décrire, et ses **capacités** : HTTPS, certificats automatiques, WAF (le
+champ Domaines propose alors une protection par domaine), et comment il joint
+une autre machine (`remoteUpstream` : toute adresse, IPv4 seulement — le
+Traefik d'un cluster —, ou pas du tout). Une option d'installation dit quelles
+autorités de certification elle accepte ; la sonde reçoit du proxy ses
+**signatures** — ce qu'il sert à un nom inconnu (Traefik : 404 et son corps ;
+BunkerWeb : sa page par défaut, **en 200**) et le certificat qu'il présente en
+attendant le vrai. Sans elles, une route absente passerait pour une route qui
+répond.
+
+**BunkerWeb, par son API.** Un service BunkerWeb par domaine, créé, modifié ou
+retiré par l'API REST de BunkerWeb, appelée depuis sa machine par SSH. Le
+jeton est lu dans le conteneur à chaque appel et passé à `curl` par un
+fichier temporaire : il ne quitte jamais la machine. BunkerWeb n'ayant pas
+d'étiquette où marquer ce qui est à Pupitre, un **registre** par application
+(`{racine}/bunkerweb/routes/*.json`, sur sa machine) dit quels domaines Pupitre
+y a posés : `planServices()` en tire ce qu'il faut créer, modifier, retirer —
+sans jamais toucher un service fait à la main, ni retirer un domaine qu'une
+autre application a repris. Son API relisant et réécrivant la configuration
+entière à chaque appel, deux poses sur le même BunkerWeb passent l'une après
+l'autre. Son nginx résolvant par DNS et pas par `/etc/hosts`, l'amont est
+toujours une adresse IP : la passerelle Docker pour une application de sa
+machine — c'est là que le driver la publie (`publishAddress()`), et pas sur
+toutes les interfaces — ou l'adresse de la liaison pour le proxy central.
+BunkerWeb appliquant en différé et revenant en silence à la configuration
+précédente quand nginx refuse la nouvelle, `apply()` attend de voir les
+domaines servis et, sinon, rapporte le refus lu dans son journal. Ses sondes
+passent sa liste blanche par un en-tête secret (`ProbeSignatures.headerFile`,
+lu par `curl -H @fichier`), pas par leur adresse.
 
 **Le port de l'application n'est plus ouvert au monde.** Le pipeline dit au
 driver comment la publier — `DriverContext.exposure`, une **intention**, pas un

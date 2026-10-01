@@ -103,8 +103,8 @@ la navigation métier.
 | `/api/targets/:id/workloads/:ref/logs` | POST | `workload:manage` — `{ run, tail }`, les lignes reviennent par le flux `?run=` |
 | `/api/targets/:id/workloads/:ref/exec` | POST | `workload:exec` — `{ run, command }`, 30 par minute ; la sortie revient par le flux `?run=` |
 | `/api/targets/:id/proxy` | GET / PUT / DELETE | `target:read` / `target:update` / `target:update` — GET : le proxy de la machine et les machines qu'il sert, ou la liaison au proxy d'une autre, plus les proxies auxquels la relier ; PUT relie un proxy **trouvé** (`{ kind, config }`), un test part aussitôt, 409 si la machine est reliée à un autre ; DELETE `?uninstall=1` défait ce que Pupitre a installé, 409 tant que des domaines passent par lui — ceux des machines qu'il sert compris |
-| `/api/targets/:id/proxy/detect` | POST | `target:update` — ce que la machine porte et ce qu'on peut y installer ; la route attend la tâche (60 s au plus) |
-| `/api/targets/:id/proxy/install` | POST | `target:update` — `{ option: container \| kubernetes, acme }`, `202` ; la connexion passe `installing` puis `ok` ou `failed` |
+| `/api/targets/:id/proxy/detect` | POST | `target:update` — ce que la machine porte et ce qu'on peut y installer, tous proxies confondus : chaque détection et chaque option dit son genre (`kind`), une option dit aussi son titre et les autorités qu'elle accepte (`acmeServers`) ; la route attend la tâche (60 s au plus) |
+| `/api/targets/:id/proxy/install` | POST | `target:update` — `{ kind: traefik \| bunkerweb, option, acme }` (`kind` vaut `traefik` s'il manque), `202` ; la connexion passe `installing` puis `ok` ou `failed` ; une autorité que l'option n'accepte pas fait échouer l'installation, en le disant |
 | `/api/targets/:id/proxy/check` | POST | `target:update` — « Tester », par la file |
 | `/api/targets/:id/proxy/link` | PUT / DELETE | `target:update` — le proxy central : PUT `{ proxyId, address }` relie la machine au proxy d'une autre, joint à `address` (une IPv4 pour le Traefik d'un cluster, sinon 422), et lance le test de la liaison ; 409 si la machine a son propre proxy. DELETE délie, 409 tant que des domaines de la machine passent par lui |
 | `/api/targets/:id/proxy/link/check` | POST | `target:update` — « Tester la liaison », par la file : adresse d'arrivée du proxy, adresse bien à la machine |
@@ -124,7 +124,7 @@ la navigation métier.
 | `/api/applications/:id/versions` | GET | `application:read` |
 | `/api/applications/:id/secrets` | GET | `application:read` — **jamais de valeur** |
 | `/api/applications/:id/secrets/:name` | PUT / DELETE | `application:update` |
-| `/api/applications/:id/routes` | GET / PUT | `application:read` / `deployment:create` — les domaines, cible par cible ; PUT `{ targetId, routes }` remplace la liste et la pose sur le proxy si l'application tourne ; 409 si un domaine est déjà pris |
+| `/api/applications/:id/routes` | GET / PUT | `application:read` / `deployment:create` — les domaines, cible par cible ; PUT `{ targetId, routes }` remplace la liste et la pose sur le proxy si l'application tourne — chaque route `{ hostname, tls, redirectHttps, waf }`, `waf` (`block` \| `detect` \| `off`, `block` par défaut) n'ayant d'effet que derrière un proxy qui est un WAF ; 409 si un domaine est déjà pris, ou si le proxy est en cours d'installation |
 | `/api/applications/:id/backups` | GET / POST | `backup:read` / `backup:manage` — POST : « Sauvegarder maintenant » `{ targetId }`, `202` ; 409 sans destination, sans volume, sans déploiement en service ou pendant une autre sauvegarde |
 | `/api/applications/:id/backup-policy` | PUT | `backup:manage` — automatique, avant déploiement, mode, rétention ; crée ou réactive la tâche « Sauvegardes des applications » |
 

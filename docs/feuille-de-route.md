@@ -97,17 +97,14 @@ build. Une politique d'expiration serait mieux qu'une commande dans un journal.
 
 ## Abstractions déclarées mais à une seule implémentation
 
-### `BunkerWebProvider`
+### BunkerWeb dans un cluster, et un BunkerWeb trouvé
 
-`ProxyProvider` n'a qu'une implémentation, `TraefikProvider`.
-`getProxyProvider('bunkerweb')` lève. Ce n'est pas un oubli : le format de
-configuration de BunkerWeb a changé entre ses versions majeures, aucune instance
-ne tourne sur la cible de test, et un provider écrit sur la seule foi d'une
-documentation — sans qu'une seule requête ne le traverse jamais — n'est pas une
-capacité, c'est une affirmation non vérifiée dans une table de fabrique.
-
-La condition pour l'écrire est une instance de BunkerWeb contre laquelle
-l'exercer, pas du temps de développement.
+`BunkerWebProvider` pilote un BunkerWeb en conteneur Docker (série 1.6), par
+son API — installé par Pupitre ou trouvé avec son API activée. Restent : son
+contrôleur d'ingress pour K3s (aujourd'hui, une machine K3s se relie au
+BunkerWeb d'une machine Docker), un BunkerWeb installé en paquet système, et
+le réglage des certificats d'un BunkerWeb trouvé — Pupitre ne lui demande pas
+de certificats tant qu'aucun e-mail n'est réglé pour lui.
 
 ### Nginx Proxy Manager, un proxy hors des cibles
 
