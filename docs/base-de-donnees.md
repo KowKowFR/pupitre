@@ -7,18 +7,22 @@ en crée une nouvelle.
 `packages/db` est la source unique du modèle : ni `apps/web` ni `apps/worker`
 n'écrivent de SQL, et les drivers n'ont pas le droit de connaître une table.
 
-## Les 25 tables
+## Les 45 tables
 
 | Domaine | Tables |
 |---|---|
-| Authentification | `users` `sessions` `accounts` `verifications` `two_factors` |
+| Authentification | `users` `sessions` `accounts` `verifications` `two_factors` `user_avatars` |
 | RBAC | `roles` `permissions` `role_permissions` `user_roles` |
 | Infrastructure | `targets` `applications` `application_secrets` |
-| Déploiement | `deployments` `deployment_steps` `port_allocations` |
+| Dépôts liés | `source_connections` `application_sources` `application_source_targets` `source_proposals` |
+| Déploiement | `deployments` `deployment_steps` `port_allocations` `image_updates` |
 | Sécurité | `scan_runs` `findings` |
-| Supervision | `monitors` `monitor_checks` `monitor_incidents` |
+| Supervision | `monitors` `monitor_checks` `monitor_incidents` `monitor_captures` `target_metric_samples` `target_metric_thresholds` `target_metric_breaches` |
 | Automatisation | `scheduled_jobs` `scheduled_job_runs` |
-| Divers | `audit_logs` `app_settings` `notification_channels` |
+| Notifications | `notification_channels` `notification_policy` `notification_digest_groups` `notification_digest_items` |
+| Discussion | `chat_messages` `chat_reactions` `chat_reads` `chat_attachments` |
+| Sauvegardes | `backup_destinations` `backup_policies` `backups` |
+| Divers | `audit_logs` `app_settings` |
 
 Dix-sept d'entre elles ont été créées dès la première migration — y compris
 celles qui ne serviraient que bien plus tard — pour n'avoir aucune migration
@@ -87,6 +91,15 @@ par une clé étrangère, purgé avec sa tâche.
 survit à ce qu'il décrit, et c'est voulu. Purger un déploiement ne purge pas sa
 trace.
 
+**Les sauvegardes ne sont pas en base, seulement leur index.** `backups` dit où
+chacune a été déposée (`destination_id`, `location`) et ce qu'elle contient
+(`manifest`) ; les octets sont sur la destination, avec un manifeste chiffré qui
+suffit à les relire sans le panel. Une sauvegarde **survit à son application**
+(`application_id` passe à `null`, `application_slug` garde le nom) : supprimer
+une application n'efface pas ses données de la destination. Et une destination
+changée de lieu n'est pas modifiée mais remplacée, pour que `destination_id`
+désigne toujours l'endroit où sont vraiment les fichiers.
+
 ## Les 13 migrations
 
 | Migration | Contenu |
@@ -105,10 +118,9 @@ trace.
 | `0011_mushy_firelord` | les trois tables de supervision de sites, dont l'index unique partiel sur l'incident ouvert |
 | `0012_bent_may_parker` | l'enum `notification_channel_kind` et la table `notification_channels` |
 
-Au 12/09/2026, une quatorzième migration (`0013`, regroupement des
-notifications) est en cours d'écriture dans un chantier parallèle : elle est
-dans l'arbre de travail, pas encore appliquée. Les 25 tables ci-dessus sont
-celles d'une base à jour des treize premières.
+La liste s'arrête aux treize premières ; les suivantes — jusqu'à
+`0026_backups`, les trois tables de sauvegarde — se lisent dans
+`packages/db/migrations/`.
 
 ### Deux arbitrages qui se lisent dans le SQL
 

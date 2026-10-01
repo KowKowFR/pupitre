@@ -54,6 +54,11 @@ const fr = {
   'section.ai.governs':
     "Le fournisseur, le modèle et la clé qui servent à générer une AppSpec depuis une description, sur l'écran « Nouvelle application ». Sans clé ni variable d'environnement, la génération reste hors service.",
 
+  'section.backups.label': 'Sauvegardes',
+  'section.backups.title': 'Sauvegardes',
+  'section.backups.short': 'où partent les sauvegardes, et celle de la base du panel',
+  'section.backups.governs':
+    "La destination des sauvegardes — S3, SFTP vers un NAS, ou un dossier monté —, la sauvegarde de la base du panel, et le nombre d'applications sauvegardées automatiquement. Chaque application règle la sienne sur sa fiche.",
   'section.integrations.label': 'Intégrations',
   'section.integrations.title': 'Intégrations',
   'section.integrations.short': 'les dépôts GitHub liés aux applications',
@@ -258,6 +263,11 @@ const en: Translated<typeof fr> = {
   'section.ai.governs':
     'The provider, the model and the key used to generate an AppSpec from a description, on the “New application” screen. With neither a key nor an environment variable, generation stays out of service.',
 
+  'section.backups.label': 'Backups',
+  'section.backups.title': 'Backups',
+  'section.backups.short': 'where backups go, and the panel database backup',
+  'section.backups.governs':
+    'The backup destination — S3, SFTP to a NAS, or a mounted folder —, the panel database backup, and how many applications are backed up automatically. Each application sets its own on its page.',
   'section.integrations.label': 'Integrations',
   'section.integrations.title': 'Integrations',
   'section.integrations.short': 'GitHub repositories linked to applications',

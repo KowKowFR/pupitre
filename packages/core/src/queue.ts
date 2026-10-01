@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { backupTriggerSchema } from './backup/model.js';
 import { hostMetricsSchema } from './host-metrics.js';
 import { accountMailKindSchema } from './notifications/account-mail.js';
 import { notificationDigestSchema } from './notifications/digest.js';
@@ -937,3 +938,84 @@ export function jobMayAdvanceDeployment(
       return false;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Sauvegardes
+   ------------------------------------------------------------------------- */
+
+/**
+ * File dédiée aux sauvegardes et aux restaurations.
+ *
+ * Une sauvegarde nocturne de dix applications, c'est une heure de transferts :
+ * sur `ops`, elle ferait attendre chaque déploiement du matin. Sa propre file,
+ * sa propre concurrence (une à la fois par défaut — ni la cible ni la
+ * destination n'aiment être sollicitées par dix archives en même temps).
+ *
+ * La sauvegarde **avant déploiement** n'y passe pas : elle est une étape du
+ * pipeline, exécutée dans la tâche de déploiement elle-même.
+ */
+export const BACKUPS_QUEUE = 'backups' as const;
+
+export const BACKUP_APPLICATION_JOB = 'backup:application' as const;
+export const BACKUP_PANEL_JOB = 'backup:panel' as const;
+export const BACKUP_RESTORE_JOB = 'backup:restore' as const;
+export const BACKUP_DELETE_JOB = 'backup:delete' as const;
+
+/** Tester une destination : quelques secondes de réseau, sur `supervision`. */
+export const BACKUP_DESTINATION_CHECK_JOB = 'backup:destination-check' as const;
+
+const actorFields = {
+  actorId: z.string().min(1).nullable().default(null),
+  ip: z.string().min(1).nullable().default(null),
+};
+
+export const backupApplicationJobDataSchema = z.object({
+  applicationId: z.string().uuid(),
+  targetId: z.string().uuid(),
+  trigger: backupTriggerSchema,
+  /**
+   * La ligne `backups` déjà créée par la route, en `running` : l'écran la voit
+   * avant même que la tâche parte. `null` pour la tâche planifiée.
+   */
+  backupId: z.string().uuid().nullable().default(null),
+  ...actorFields,
+});
+export type BackupApplicationJobData = z.infer<typeof backupApplicationJobDataSchema>;
+
+export const backupPanelJobDataSchema = z.object({
+  trigger: backupTriggerSchema,
+  backupId: z.string().uuid().nullable().default(null),
+  ...actorFields,
+});
+export type BackupPanelJobData = z.infer<typeof backupPanelJobDataSchema>;
+
+export const backupRestoreJobDataSchema = z.object({
+  backupId: z.string().uuid(),
+  /** La cible où restaurer — celle de la sauvegarde par défaut. */
+  targetId: z.string().uuid(),
+  /** Sauvegarder l'état actuel avant de l'écraser. */
+  safetyBackup: z.boolean().default(true),
+  ...actorFields,
+});
+export type BackupRestoreJobData = z.infer<typeof backupRestoreJobDataSchema>;
+
+export const backupDeleteJobDataSchema = z.object({
+  backupId: z.string().uuid(),
+  ...actorFields,
+});
+export type BackupDeleteJobData = z.infer<typeof backupDeleteJobDataSchema>;
+
+export const backupDestinationCheckJobDataSchema = z.object({
+  destinationId: z.string().uuid(),
+  ...actorFields,
+});
+export type BackupDestinationCheckJobData = z.infer<typeof backupDestinationCheckJobDataSchema>;
+
+/** Ce que rend une sauvegarde, une restauration : de quoi l'écrire au journal de la tâche. */
+export const backupJobResultSchema = z.object({
+  backupId: z.string().uuid().nullable(),
+  status: z.enum(['success', 'failed', 'skipped']),
+  bytes: z.number().int().nonnegative().default(0),
+  detail: z.string().nullable().default(null),
+});
+export type BackupJobResult = z.infer<typeof backupJobResultSchema>;

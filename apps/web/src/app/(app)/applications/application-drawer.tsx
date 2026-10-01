@@ -43,6 +43,7 @@ export function ApplicationDrawer({
   canDelete,
   autoRollback,
   onAutoRollbackChange,
+  backupChoice,
   focusDeploy,
   busy,
   error,
@@ -58,6 +59,8 @@ export function ApplicationDrawer({
   canDelete: boolean;
   autoRollback: boolean;
   onAutoRollbackChange: (value: boolean) => void;
+  /** Au premier déploiement : activer la sauvegarde. Rendu par la liste, posé ici. */
+  backupChoice?: React.ReactNode;
   focusDeploy: boolean;
   busy: boolean;
   error: string | null;
@@ -181,6 +184,7 @@ export function ApplicationDrawer({
                   checked={autoRollback}
                   onChange={(event) => onAutoRollbackChange(event.target.checked)}
                 />
+                {backupChoice}
               </>
             )}
             {error ? <Alert variant="destructive">{error}</Alert> : null}

@@ -1,4 +1,4 @@
-import { OPS_QUEUE, SUPERVISION_QUEUE } from '@pupitre/core';
+import { BACKUPS_QUEUE, OPS_QUEUE, SUPERVISION_QUEUE } from '@pupitre/core';
 import { Queue } from 'bullmq';
 import { createRedisConnection } from './redis.js';
 
@@ -51,6 +51,25 @@ export function getSupervisionQueue(): Queue {
   return supervisionQueue;
 }
 
+let backupsQueue: Queue | null = null;
+
+/**
+ * La file des sauvegardes. Une tentative : une sauvegarde ratée est notifiée,
+ * pas rejouée à l'aveugle — la suivante passe la nuit prochaine, et un
+ * « Sauvegarder maintenant » reste à portée.
+ */
+export function getBackupsQueue(): Queue {
+  backupsQueue ??= new Queue(BACKUPS_QUEUE, {
+    connection: createRedisConnection(),
+    defaultJobOptions: {
+      attempts: 1,
+      removeOnComplete: { age: 7 * 24 * 3600, count: 500 },
+      removeOnFail: { age: 30 * 24 * 3600, count: 500 },
+    },
+  });
+  return backupsQueue;
+}
+
 export async function closeOpsQueue(): Promise<void> {
   if (queue) {
     await queue.close();
@@ -59,5 +78,9 @@ export async function closeOpsQueue(): Promise<void> {
   if (supervisionQueue) {
     await supervisionQueue.close();
     supervisionQueue = null;
+  }
+  if (backupsQueue) {
+    await backupsQueue.close();
+    backupsQueue = null;
   }
 }

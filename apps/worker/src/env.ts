@@ -52,6 +52,19 @@ const envSchema = z.object({
    * `packages/core/src/capture/egress.ts`.
    */
   MONITOR_CAPTURE_EGRESS_PORT: z.coerce.number().int().min(1).max(65_535).default(8383),
+  /**
+   * Sauvegardes menées en même temps. Une par défaut : ni la cible ni la
+   * destination n'apprécient dix archives à la fois, et la nuit est longue.
+   */
+  BACKUP_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(1),
+  /**
+   * Où une restauration dépose ses fichiers le temps de les vérifier, avant de
+   * les appliquer. Il y faut la place de la plus grosse archive.
+   */
+  BACKUP_TMP_DIR: z.string().min(1).default('/tmp'),
+  /** Les outils PostgreSQL de la sauvegarde du panel — dans l'image Docker du worker. */
+  PG_DUMP_PATH: z.string().min(1).default('pg_dump'),
+  PG_RESTORE_PATH: z.string().min(1).default('pg_restore'),
   /** Racine où le driver dépose ses artefacts sur les cibles. */
   DRIVER_ROOT_PATH: z.string().min(1).default('/opt/bootstrap'),
   /**

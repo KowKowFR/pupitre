@@ -5,6 +5,7 @@ import type { SshSession } from '../ssh/client.js';
 import type { Workload, WorkloadControlAction, WorkloadRef } from '../workloads.js';
 import type { WorkloadExecOptions, WorkloadExecResult } from './workload-exec.js';
 import type { RunningImage } from '../images/updates.js';
+import type { Readable, Writable } from 'node:stream';
 
 /**
  * Contrat que doit remplir un runtime pour être déployable par le panel.
@@ -383,6 +384,43 @@ export interface DeploymentDriver {
    * Lecture seule ; un service sans conteneur est absent du résultat.
    */
   runningImages(ctx: DriverContext): Promise<RunningImage[]>;
+
+  // ─── sauvegardes ─────────────────────────────────────────────────────────
+  // Les données d'une application vivent dans des volumes que chaque runtime
+  // range à sa façon — volume Docker nommé, PVC Kubernetes. Le worker ne sait
+  // rien de cela : il demande au driver un flux d'octets, ou lui en donne un.
+  // Un code de sortie non nul est un `DriverError`, avec la fin de stderr.
+
+  /** Archive (`tar.gz`) du contenu d'un volume de l'application, écrite sur `sink`. */
+  exportVolume(ctx: DriverContext, service: string, volume: string, sink: Writable): Promise<void>;
+
+  /**
+   * Remplace le contenu d'un volume par l'archive lue sur `source`. À faire
+   * application arrêtée : un processus qui écrit pendant ce temps aurait le
+   * dernier mot.
+   */
+  importVolume(
+    ctx: DriverContext,
+    service: string,
+    volume: string,
+    source: Readable,
+  ): Promise<void>;
+
+  /** Lance `command` (sous `sh -c`) dans le service en marche ; sa sortie standard va sur `sink`. */
+  exportFromService(
+    ctx: DriverContext,
+    service: string,
+    command: string,
+    sink: Writable,
+  ): Promise<void>;
+
+  /** Lance `command` dans le service en marche, `source` en entrée standard. */
+  importIntoService(
+    ctx: DriverContext,
+    service: string,
+    command: string,
+    source: Readable,
+  ): Promise<void>;
 
   /** Les dernières lignes du journal d'une charge, horodatées. Lecture seule. */
   workloadLogs(ctx: TargetContext, ref: WorkloadRef, tail: number, onLine: LogSink): Promise<void>;

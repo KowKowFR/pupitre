@@ -187,6 +187,20 @@ const fr = {
   'help.preflight.steps.c':
     " par cible. Elle ne fait pas le preflight elle-même : elle réutilise la tâche existante, pour qu'il n'y ait qu'une implémentation et qu'un endroit où un credential est déchiffré.",
   'help.preflight.payload': " pour ne rafraîchir qu'une partie du parc.",
+  'help.backup.steps.a':
+    'Pour chaque application dont la sauvegarde automatique est activée, et chaque cible où elle tourne, ',
+  'help.backup.steps.queue': 'enfile',
+  'help.backup.steps.b': ' une sauvegarde sur la file ',
+  'help.backup.steps.c':
+    " : export des bases reconnues, archive des volumes, chiffrés et déposés sur la destination. Le détail de chacune est sur la fiche de l'application.",
+  'help.backup.payload.a': ' ou ',
+  'help.backup.payload.b': " pour n'en sauvegarder qu'une partie.",
+  'help.panel_backup.steps.a': 'Exporte la base de Pupitre avec ',
+  'help.panel_backup.steps.b':
+    ', la chiffre et la dépose sur la destination. Elle ne contient pas ',
+  'help.panel_backup.steps.c':
+    ' : gardez cette clé ailleurs, sans elle aucune sauvegarde ne se relit.',
+  'help.panel_backup.payload': 'Aucun paramètre.',
 
   'help.when.title': 'Quand elles tournent',
   'help.when.a': "L'ordonnanceur est ",
@@ -453,6 +467,19 @@ const en: Translated<typeof fr> = {
   'help.preflight.steps.c':
     ' per target. It does not run preflight itself: it reuses the existing job, so that there is one implementation and one place where a credential is decrypted.',
   'help.preflight.payload': ' to refresh only part of the fleet.',
+  'help.backup.steps.a':
+    'For each application with automatic backup enabled, and each target it runs on, ',
+  'help.backup.steps.queue': 'queues',
+  'help.backup.steps.b': ' a backup on the ',
+  'help.backup.steps.c':
+    ' queue: export of recognized databases, archive of volumes, encrypted and stored on the destination. The details of each are on the application page.',
+  'help.backup.payload.a': ' or ',
+  'help.backup.payload.b': ' to back up only part of them.',
+  'help.panel_backup.steps.a': 'Exports the Pupitre database with ',
+  'help.panel_backup.steps.b':
+    ', encrypts it and stores it on the destination. It does not contain ',
+  'help.panel_backup.steps.c': ': keep that key elsewhere, without it no backup can be read.',
+  'help.panel_backup.payload': 'No parameter.',
 
   'help.when.title': 'When they run',
   'help.when.a': 'The scheduler is ',

@@ -29,6 +29,7 @@ import { ServiceChips } from '../applications-view';
 import { ingressOf, serviceRows } from '../rows';
 import { ServiceList } from '../service-list';
 import { ApplicationActions } from './application-actions';
+import { ApplicationBackups } from './application-backups';
 import { ApplicationImages } from './application-images';
 import { ApplicationSecrets } from './application-secrets';
 import { ApplicationSources, type SourceView } from './application-sources';
@@ -189,6 +190,17 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         checkedAgo={relativeTime(lastImageCheck, tc)}
         canDeploy={auth.can('deployment:create')}
       />
+
+      {auth.can('backup:read') ? (
+        <ApplicationBackups
+          applicationId={application.id}
+          applicationSlug={application.slug}
+          canManage={auth.can('backup:manage')}
+          canRestore={auth.can('backup:restore')}
+          canConfigure={auth.can('settings:manage')}
+          format={formatSettingsOf(settings)}
+        />
+      ) : null}
 
       <ApplicationSources
         applicationId={application.id}

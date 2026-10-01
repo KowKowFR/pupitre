@@ -13,6 +13,7 @@ impliquent quand on ouvre le code — où regarder, et ce qui va vous surprendre
 - [Healthcheck : trois issues, pas deux](#healthcheck--trois-issues-pas-deux)
 - [Rollback automatique](#rollback-automatique)
 - [Versions et rétention](#versions-et-rétention)
+- [Sauvegardes : un lieu, un format, deux runtimes](#sauvegardes--un-lieu-un-format-deux-runtimes)
 
 ## Les quatre abstractions
 
@@ -31,8 +32,9 @@ qui suit est la conséquence pratique.
 `deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus les
 méthodes d'inventaire `listWorkloads` `removeWorkload` `updateWorkload`
 `controlWorkload` `workloadLogs` `execInWorkload`, la lecture `runningImages`
-(les digests de ce qui tourne, pour les mises à jour d'images), plus une
-fabrique `getDriver(runtime)`.
+(les digests de ce qui tourne, pour les mises à jour d'images), les quatre
+méthodes de sauvegarde `exportVolume` `importVolume` `exportFromService`
+`importIntoService`, plus une fabrique `getDriver(runtime)`.
 
 Le driver **n'importe rien** de `packages/db`, de `apps/web` ni de Redis : il
 reçoit tout par `DriverContext`, il exécute, et il émet des lignes via un
@@ -56,7 +58,7 @@ grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' \
 ```
 
 **Un seul résultat**, et il vaut d'être nommé plutôt que balayé :
-`packages/db/src/deployments.ts:1329` choisit le mot « namespace » ou « projet
+`packages/db/src/deployments.ts:1506` choisit le mot « namespace » ou « projet
 Compose » dans le message d'un déploiement abandonné. Aucun chemin d'exécution
 n'en dépend — c'est du vocabulaire, pas une branche — mais la règle serait plus
 propre si ce mot venait du driver. À cette ligne près, le seul endroit du dépôt
@@ -185,13 +187,18 @@ une limite d'alias : un fichier piégé ne fait pas exploser la mémoire.
 
 ## Pipeline de déploiement
 
-`POST /api/deployments` **crée les dix étapes en base, toutes en `pending`**,
+`POST /api/deployments` **crée les onze étapes en base, toutes en `pending`**,
 enfile le job, et répond `202` sans rien attendre. L'UI affiche donc le pipeline
 complet avant que le worker n'ait commencé.
 
 ```
-preflight → allocate_port → render → upload → build → scan → deploy → healthcheck → proxy → rollback
+preflight → allocate_port → render → upload → build → scan → backup → deploy → healthcheck → proxy → rollback
 ```
+
+`backup` sauvegarde les données de l'application juste avant de toucher à ce qui
+tourne — `skipped` sans politique « avant chaque déploiement », et au premier
+déploiement, où il n'y a rien à sauvegarder. Son échec arrête le pipeline :
+mieux vaut un déploiement qui n'a pas lieu qu'une mise à jour sans filet.
 
 `rollback` est déclarée comme les autres, et `skipped` quand tout va bien. Une
 étape surgissant en cours de route ferait mentir le compteur « n / total » de
@@ -392,3 +399,51 @@ aux cinq plus récentes : six répertoires au pire, jamais davantage.
 `pruneReleases()` est une **méthode de l'interface** et non un détail interne :
 la tâche planifiée `cleanup:versions` en a besoin depuis l'extérieur, et le
 chemin des releases est une décision du driver, pas de l'appelant.
+
+## Sauvegardes : un lieu, un format, deux runtimes
+
+Trois pièces, chacune à sa place.
+
+**Le driver sait lire et écrire des données, pas où les ranger.** Ses quatre
+méthodes de sauvegarde échangent un **flux d'octets** avec la cible, par
+`execPipe` — une commande SSH dont stdin et stdout sont des flux bruts, sans
+découpage en lignes :
+
+| Méthode | `DockerComposeDriver` | `K3sDriver` |
+|---|---|---|
+| `exportVolume` / `importVolume` | un conteneur `busybox` éphémère monte le volume, retrouvé par ses labels Compose, et `tar` | un pod d'aide monte le PVC, `tar` par `kubectl exec`, pod supprimé dans tous les cas |
+| `exportFromService` / `importIntoService` | `docker exec` dans le conteneur du service | `kubectl exec` dans le pod du service |
+
+La commande lancée dans le service — `pg_dumpall`, `mariadb-dump`, `mongodump`
+et leurs réciproques — vient de `packages/core/src/backup/model.ts`, pas du
+driver : quoi exporter est une affaire de moteur de base, pas de runtime. Elle
+lit ses identifiants dans l'environnement que l'image a déjà reçu ; le panel ne
+les voit jamais.
+
+**`BackupStore` dit où.** `check` `put` `get` `remove` `removePrefix` `list` —
+dans `packages/core/src/backup/stores/`, trois implémentations : `S3BackupStore`
+(signature SigV4 écrite à la main, envoi en plusieurs parties de 16 Mio),
+`SftpBackupStore` (empreinte d'hôte vérifiable), `LocalBackupStore` (un dossier
+monté dans le worker). Une destination de plus, c'est une classe, son schéma Zod
+dans `destinations.ts` et une ligne dans la table de `openBackupStore`.
+
+**Le format `.pupb` dit comment.** Chaque morceau est chiffré en flux,
+AES-256-GCM, sous une clé **dérivée** de `MASTER_KEY` par HKDF avec un sel tiré
+au hasard pour chaque fichier. L'en-tête — `PUPB`, version, sel, IV — est
+authentifié avec le contenu, l'étiquette GCM ferme le fichier. Un octet changé,
+une clé différente : le déchiffrement échoue, il ne rend jamais un contenu faux.
+Chaque sauvegarde dépose aussi son `manifest.json.pupb` : la liste de ses
+morceaux, leurs tailles et leurs empreintes SHA-256, de quoi relire la
+destination **sans** la base du panel — c'est le jour où elle est perdue qu'on
+en a besoin.
+
+Le chemin d'une sauvegarde ne touche jamais le disque du worker : cible → SSH →
+gzip → chiffrement → destination, en flux, avec contre-pression. La restauration
+fait l'inverse **en deux temps** : elle télécharge et vérifie tout (empreinte et
+étiquette GCM) dans `BACKUP_TMP_DIR`, et n'applique rien tant qu'un seul morceau
+est douteux. Une archive corrompue ne doit pas trouver une application à moitié
+effacée.
+
+Conséquence de la neutralité : une sauvegarde ne connaît que des noms de
+l'AppSpec — service, volume, moteur. Rien n'y dit Docker ni Kubernetes.
+

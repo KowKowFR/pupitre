@@ -95,6 +95,8 @@ const JOB_TOPICS: Array<[RegExp, LiveTopic]> = [
   [/^target:(preflight|metrics|metrics_sweep)$/, 'targets'],
   [/^workload:(remove|update|control)$/, 'targets'],
   [/^images:check$/, 'applications'],
+  [/^backup:(application|restore|delete)$/, 'applications'],
+  [/^backup:panel$/, 'settings'],
   [/^monitor:/, 'monitors'],
 ];
 

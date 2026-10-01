@@ -138,6 +138,37 @@ function whatTheyDo(
         </>
       ),
     },
+    backup: {
+      steps: (
+        <>
+          {t('help.backup.steps.a')}
+          <strong>{t('help.backup.steps.queue')}</strong>
+          {t('help.backup.steps.b')}
+          <Code>backups</Code>
+          {t('help.backup.steps.c')}
+        </>
+      ),
+      payload: (
+        <>
+          <Code>applicationIds</Code>
+          {t('help.backup.payload.a')}
+          <Code>targetIds</Code>
+          {t('help.backup.payload.b')}
+        </>
+      ),
+    },
+    panel_backup: {
+      steps: (
+        <>
+          {t('help.panel_backup.steps.a')}
+          <Code>pg_dump</Code>
+          {t('help.panel_backup.steps.b')}
+          <strong>MASTER_KEY</strong>
+          {t('help.panel_backup.steps.c')}
+        </>
+      ),
+      payload: <>{t('help.panel_backup.payload')}</>,
+    },
   };
 }
 

@@ -21,9 +21,11 @@ import {
   createPortAllocator,
   finishDeployment,
   finishStep,
+  getBackupPolicy,
   getDeploymentForRun,
   getTargetSecret,
   hasLiveDeploymentOnTarget,
+  listLiveDeployments,
   listSteps,
   logAudit,
   markDeploymentRunning,
@@ -39,6 +41,7 @@ import { logger } from '../logger.js';
 import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
+import { backupApplication } from '../backup/application.js';
 
 /**
  * Exécution du pipeline de déploiement.
@@ -332,6 +335,50 @@ export async function runDeploymentPipeline(
         );
       }
 
+      return 'success';
+    },
+
+    /**
+     * La sauvegarde avant déploiement — ou avant une mise à jour d'image, qui
+     * est un redéploiement. Elle sauvegarde ce qui tourne **encore**, juste
+     * avant qu'on le remplace : après le build et l'analyse, pour ne rien
+     * sauvegarder d'un déploiement qui n'aurait pas eu lieu.
+     *
+     * Si elle échoue, le déploiement s'arrête là : c'est le sens même de
+     * l'option. Rien n'a encore changé sur la cible.
+     */
+    backup: async () => {
+      const policy = await getBackupPolicy(deployment.applicationId);
+      if (!policy.beforeDeploy) {
+        stream.line('backup', 'sauvegarde avant déploiement non demandée — étape sans objet');
+        return 'skipped';
+      }
+      const [live] = await listLiveDeployments({
+        applicationId: deployment.applicationId,
+        targetId: deployment.targetId,
+      });
+      if (!live?.inService || live.inService.id === deployment.id) {
+        stream.line('backup', 'premier déploiement sur cette cible : rien à sauvegarder encore');
+        return 'skipped';
+      }
+      const result = await backupApplication({
+        applicationId: deployment.applicationId,
+        targetId: deployment.targetId,
+        trigger: 'pre_deploy',
+        mode: policy.mode,
+        actorId: actor.actorId,
+        ip: actor.ip,
+        onLog: (line) => stream.line('backup', line),
+      });
+      if (result.status === 'failed') {
+        throw new Error(
+          `sauvegarde préalable impossible — déploiement interrompu : ${result.error}`,
+        );
+      }
+      if (result.status === 'skipped') {
+        stream.line('backup', `${result.reason} — étape sans objet`);
+        return 'skipped';
+      }
       return 'success';
     },
 

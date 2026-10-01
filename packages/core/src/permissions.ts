@@ -25,6 +25,9 @@ export const PERMISSIONS = [
   'deployment:restart',
   'deployment:destroy',
   'deployment:purge',
+  'backup:read',
+  'backup:manage',
+  'backup:restore',
   'workload:read',
   'workload:manage',
   'workload:exec',
@@ -82,6 +85,9 @@ const descriptionsFr = {
   // Détruire retire l'application de la machine ; purger efface la trace en base.
   // Deux gestes différents, deux permissions.
   'deployment:purge': "Effacer des déploiements de l'historique",
+  'backup:read': 'Consulter les sauvegardes et leur politique',
+  'backup:manage': 'Régler les sauvegardes des applications et en lancer une',
+  'backup:restore': "Restaurer une sauvegarde — remplace les données de l'application",
   // « Charge » plutôt que « conteneur » : sur une cible K3s ce sont des pods.
   // Le mot Docker n'a pas sa place dans le vocabulaire partagé.
   'workload:read': "Consulter les charges qui tournent sur une cible",
@@ -119,6 +125,9 @@ const descriptionsEn: Translated<typeof descriptionsFr> = {
   'deployment:restart': 'Restart a running application',
   'deployment:destroy': 'Destroy a deployment',
   'deployment:purge': 'Erase deployments from the history',
+  'backup:read': 'Read backups and their policy',
+  'backup:manage': 'Configure application backups and run one',
+  'backup:restore': 'Restore a backup — replaces the application’s data',
   'workload:read': 'Read the workloads running on a target',
   'workload:manage':
     'Start, stop, restart, read the log of, update and delete a target’s workloads',
@@ -212,6 +221,10 @@ export const ROLE_DEFINITIONS: Record<
       'deployment:create',
       'deployment:rollback',
       'deployment:restart',
+      // Sauvegarder fait partie de l'exploitation ; restaurer remplace des
+      // données, et reste à l'administrateur tant qu'il ne le délègue pas.
+      'backup:read',
+      'backup:manage',
       'scan:read',
       // Choisir les scanners fait partie du geste de déploiement : un opérateur
       // qui déploie doit pouvoir décider ce qu'on analyse et quand ça bloque.

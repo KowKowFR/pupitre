@@ -1,4 +1,5 @@
-import { exec, execStream, upload } from '../../ssh/client.js';
+import { exec, execPipe, execStream, upload } from '../../ssh/client.js';
+import type { Readable, Writable } from 'node:stream';
 import { storedSecretNames, topologicalOrder, type Service } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
@@ -42,6 +43,7 @@ import {
   entrypointService,
   namespaceFilePath,
   namespaceName,
+  pvcName,
   renderFiles,
 } from './render.js';
 import {
@@ -1338,6 +1340,155 @@ export class K3sDriver implements DeploymentDriver {
     return result.code === 0 ? parsePodImages(result.stdout) : [];
   }
 
+  // ─── sauvegardes ────────────────────────────────────────────────────────────
+
+  private async pipeOrFail(
+    ctx: DriverContext,
+    command: string,
+    step: string,
+    streams: { stdout?: Writable; stdin?: Readable },
+  ): Promise<void> {
+    const result = await execPipe(ctx.sshSession, this.script([command]), streams);
+    if (result.timedOut)
+      throw new DriverError(`« ${step} » a dépassé son délai`, this.runtime, step);
+    if (result.code !== 0) {
+      const lines = result.stderr
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      throw new DriverError(
+        `Échec de « ${step} » (code ${result.code}) : ${lines.at(-1) ?? 'sans détail'}`,
+        this.runtime,
+        step,
+      );
+    }
+  }
+
+  /**
+   * Un pod éphémère monte le PVC du volume et en sort l'archive — ou y
+   * extrait celle qu'on lui donne. Le planificateur le place de lui-même sur le
+   * nœud du volume (`local-path` est `ReadWriteOnce` : par nœud, pas par pod).
+   * Le pod est **toujours** supprimé, réussite ou échec.
+   */
+  private async withVolumePod<T>(
+    ctx: DriverContext,
+    service: string,
+    volume: string,
+    readOnly: boolean,
+    run: (pod: string) => Promise<T>,
+  ): Promise<T> {
+    const namespace = this.namespace(ctx);
+    const pod = `pupitre-backup-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const manifest = JSON.stringify({
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: {
+        name: pod,
+        namespace,
+        labels: { 'app.kubernetes.io/managed-by': MANAGED_BY, 'pupitre.io/role': 'backup' },
+      },
+      spec: {
+        restartPolicy: 'Never',
+        terminationGracePeriodSeconds: 0,
+        containers: [
+          {
+            name: 'helper',
+            image: BACKUP_HELPER_IMAGE,
+            imagePullPolicy: 'IfNotPresent',
+            command: ['sleep', '86400'],
+            volumeMounts: [{ name: 'data', mountPath: '/data', readOnly }],
+          },
+        ],
+        volumes: [{ name: 'data', persistentVolumeClaim: { claimName: pvcName(service, volume) } }],
+      },
+    });
+    const step = readOnly ? 'backup.volume' : 'restore.volume';
+    try {
+      await this.stream(
+        ctx,
+        this.script([applyManifestCommand(manifest)]),
+        () => {},
+        step,
+        SHORT_TIMEOUT_MS,
+      );
+      await this.stream(
+        ctx,
+        this.kubectl(`-n ${namespace} wait --for=condition=Ready pod/${pod} --timeout=180s`),
+        () => {},
+        step,
+        APPLY_TIMEOUT_MS,
+      );
+      return await run(pod);
+    } finally {
+      await exec(
+        ctx.sshSession,
+        this.kubectl(`-n ${namespace} delete pod ${pod} --wait=false --grace-period=0`),
+        { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+      ).catch(() => undefined);
+    }
+  }
+
+  async exportVolume(
+    ctx: DriverContext,
+    service: string,
+    volume: string,
+    sink: Writable,
+  ): Promise<void> {
+    await this.withVolumePod(ctx, service, volume, true, (pod) =>
+      this.pipeOrFail(
+        ctx,
+        `kubectl -n ${this.namespace(ctx)} exec ${pod} -- tar czf - -C /data .`,
+        'backup.volume',
+        { stdout: sink },
+      ),
+    );
+  }
+
+  async importVolume(
+    ctx: DriverContext,
+    service: string,
+    volume: string,
+    source: Readable,
+  ): Promise<void> {
+    await this.withVolumePod(ctx, service, volume, false, (pod) =>
+      this.pipeOrFail(
+        ctx,
+        `kubectl -n ${this.namespace(ctx)} exec -i ${pod} -- sh -c ${shellQuote(CLEAR_AND_EXTRACT)}`,
+        'restore.volume',
+        { stdin: source },
+      ),
+    );
+  }
+
+  /** Dans un pod du service : `kubectl exec` sur le Deployment en choisit un. */
+  async exportFromService(
+    ctx: DriverContext,
+    service: string,
+    command: string,
+    sink: Writable,
+  ): Promise<void> {
+    await this.pipeOrFail(
+      ctx,
+      `kubectl -n ${this.namespace(ctx)} exec deployment/${service} -- sh -c ${shellQuote(command)}`,
+      'backup.dump',
+      { stdout: sink },
+    );
+  }
+
+  async importIntoService(
+    ctx: DriverContext,
+    service: string,
+    command: string,
+    source: Readable,
+  ): Promise<void> {
+    await this.pipeOrFail(
+      ctx,
+      `kubectl -n ${this.namespace(ctx)} exec -i deployment/${service} -- sh -c ${shellQuote(command)}`,
+      'restore.dump',
+      { stdin: source },
+    );
+  }
+
   /**
    * Tire les images des registres avant d'appliquer les manifests, et retient
    * le digest obtenu pour chaque service.
@@ -1726,6 +1877,12 @@ export class K3sDriver implements DeploymentDriver {
  */
 
 /** Échappement POSIX en quotes simples. */
+/** De quoi lancer `tar`, rien d'autre — l'image des opérations de sauvegarde. */
+const BACKUP_HELPER_IMAGE = 'busybox:1.37';
+
+/** Vide le volume — fichiers cachés compris —, puis y extrait l'archive lue sur l'entrée. */
+const CLEAR_AND_EXTRACT = 'cd /data && rm -rf -- * .[!.]* ..?* 2>/dev/null; tar xzf - -C /data';
+
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }

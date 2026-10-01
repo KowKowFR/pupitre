@@ -22,12 +22,14 @@ export function NewApplicationDrawer({
   targets,
   onClose,
   onSaved,
+  backupOptions,
 }: {
   open: boolean;
   ai: NewApplicationAi;
   targets: DeployTarget[];
   onClose: () => void;
   onSaved: (application: { id: string; name: string }) => void;
+  backupOptions: { hasDestination: boolean } | null;
 }) {
   const t = useT(messages);
   return (
@@ -45,7 +47,13 @@ export function NewApplicationDrawer({
             title={t('action.new')}
             extra={<p className="t-sm text-text-2">{t('new.description')}</p>}
           />
-          <NewApplicationForm {...ai} targets={targets} onSaved={onSaved} onCancel={onClose} />
+          <NewApplicationForm
+            {...ai}
+            targets={targets}
+            backupOptions={backupOptions}
+            onSaved={onSaved}
+            onCancel={onClose}
+          />
         </>
       ) : null}
     </Drawer>

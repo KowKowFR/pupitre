@@ -191,7 +191,7 @@ Vérification de bout en bout : `scripts/verify-monitor-notifications.sh`.
 
 ## Notifications
 
-Quatre canaux, sept événements, derrière un catalogue et une fabrique. Même
+Quatre canaux, onze événements, derrière un catalogue et une fabrique. Même
 patron que `getDriver()`, `getScanner()` et `getAiProviderFactory()` — et le code
 le revendique.
 
@@ -230,7 +230,7 @@ serveur mal configuré.
 C'est **la seule voie e-mail de l'instance** : il n'existe aucun réglage SMTP
 global ailleurs.
 
-### Les sept événements
+### Les onze événements
 
 Tous dérivés du journal d'activité :
 
@@ -246,6 +246,7 @@ Tous dérivés du journal d'activité :
 | `target.threshold.breached` | warning | `target.threshold.breached` |
 | `target.threshold.cleared` | info | `target.threshold.cleared` |
 | `image.update.available` | warning | `image.update.available` — une image déployée republiée, ou un tag plus récent de la même série ; voir [exploitation](exploitation.md#les-mises-à-jour-dimages) |
+| `backup.failed` | critical | `backup.failed` — une sauvegarde d'application ou du panel, automatique, manuelle ou avant déploiement ; voir [exploitation](exploitation.md#sauvegardes) |
 
 **Un seul `monitor.down`**, pas un par nature de panne. Séparer « répond mal »
 d'« injoignable » donnerait deux clés, donc deux groupes de regroupement, donc
@@ -299,6 +300,12 @@ rouverte. Écran `/jobs`, `job:read` pour lire, `job:manage` pour agir.
 | `healthcheck` | `health:periodic` | sonde les déploiements courants, écrit `deployments.health_status` | **ne déclenche aucun rollback** |
 | `cleanup` | `cleanup:versions` | `driver.pruneReleases()` — les 5 dernières versions, plus la courante | ne touche jamais la version en service |
 | `preflight` | `target:preflight:all` | enfile un `target:preflight` par cible | ne modifie aucune cible |
+| `backup` | `backup:schedule` | enfile une sauvegarde par application à sauvegarde automatique, sur chaque cible où elle tourne | ne restaure rien ; n'efface que ce que la rétention ne garde plus |
+| `panel_backup` | `backup:schedule-panel` | sauvegarde la base du panel vers la destination | ne restaure rien — une restauration du panel se fait en ligne de commande |
+
+Les deux tâches de sauvegarde n'ont pas à être créées à la main : activer une
+sauvegarde automatique, sur une application ou pour le panel, crée la tâche si
+elle n'existe pas — ou la réactive si on l'avait désactivée.
 
 ### Rien d'automatique et de destructeur
 

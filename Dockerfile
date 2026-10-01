@@ -49,9 +49,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# postgresql16-client : pg_dump / pg_restore de la sauvegarde du panel — même
+# majeure que le serveur (PostgreSQL 16), pour qu'un export se relise toujours.
 RUN addgroup -g 1001 -S nodejs \
  && adduser -u 1001 -S nodejs -G nodejs \
- && apk add --no-cache openssh-client
+ && apk add --no-cache openssh-client postgresql16-client
 
 # Arbre « monorepo » : sert le worker et le script de migration.
 COPY --from=prod-deps /app/node_modules ./node_modules
@@ -72,7 +74,11 @@ COPY --from=builder /app/apps/web/.next/standalone ./web/
 COPY --from=builder /app/apps/web/.next/static ./web/apps/web/.next/static
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh && chown -R nodejs:nodejs /app
+# `/backups` existe dans l'image et appartient à `nodejs` : un volume nommé neuf
+# en hérite à son premier montage — sans quoi il naîtrait à root, et le worker
+# n'y écrirait rien.
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && chown -R nodejs:nodejs /app \
+  && mkdir -p /backups && chown nodejs:nodejs /backups
 
 USER nodejs
 EXPOSE 3000

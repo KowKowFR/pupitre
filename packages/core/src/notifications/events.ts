@@ -29,6 +29,7 @@ import {
  *   monitor.down              un site supervisé est tombé, panne confirmée
  *   monitor.recovered         ce site est revenu
  *   image.update.available    une image déployée a été republiée, ou dépassée
+ *   backup.failed             une sauvegarde n'a pas abouti
  *
  * Sont écartés, volontairement : les succès (un déploiement qui marche ne
  * réveille personne), les refus de permission (bavards et déjà tracés) et les
@@ -88,6 +89,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'target.threshold.breached',
   'target.threshold.cleared',
   'image.update.available',
+  'backup.failed',
 ] as const;
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
@@ -329,6 +331,26 @@ const fr = {
     'Version plus récente publiée : {images}. Changer de tag se fait dans l’AppSpec.',
   'field.application': 'Application',
   'field.images': 'Images',
+
+  // ── backup.failed ──────────────────────────────────────────────────────
+  'backup.failed.label': 'Sauvegarde en échec',
+  'backup.failed.description':
+    'Une sauvegarde — d’une application ou de la base du panel — n’a pas abouti.',
+  'backup.failed.rationale':
+    'Une sauvegarde qui échoue en silence est pire que pas de sauvegarde : on croit être ' +
+    'couvert. On l’apprend la nuit de l’échec, pas le jour où il faudrait restaurer.',
+  'backup.failed.title': 'Sauvegarde en échec — {subject}',
+  'backup.failed.panel': 'base du panel',
+  'backup.failed.body': 'La sauvegarde de « {subject} »{where} n’a pas abouti : {error}',
+  'backup.failed.where': ' sur « {machine} »',
+  'backup.failed.bodyDeploy':
+    ' Elle précédait un déploiement : celui-ci n’a pas été lancé, rien n’a changé.',
+  'backup.failed.summary': '{subject}',
+  'field.trigger': 'Déclenchement',
+  'backup.trigger.schedule': 'planifiée',
+  'backup.trigger.manual': 'à la demande',
+  'backup.trigger.pre_deploy': 'avant déploiement',
+  'backup.trigger.pre_restore': 'avant restauration',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -530,6 +552,24 @@ const en: Translated<typeof fr> = {
     'Newer version published: {images}. Changing the tag is done in the AppSpec.',
   'field.application': 'Application',
   'field.images': 'Images',
+
+  'backup.failed.label': 'Backup failed',
+  'backup.failed.description': 'A backup — of an application or of the panel database — failed.',
+  'backup.failed.rationale':
+    'A backup that fails silently is worse than no backup: you believe you are covered. ' +
+    'You learn it the night it fails, not the day you would need to restore.',
+  'backup.failed.title': 'Backup failed — {subject}',
+  'backup.failed.panel': 'panel database',
+  'backup.failed.body': 'The backup of “{subject}”{where} failed: {error}',
+  'backup.failed.where': ' on “{machine}”',
+  'backup.failed.bodyDeploy':
+    ' It preceded a deployment: that deployment was not started, nothing changed.',
+  'backup.failed.summary': '{subject}',
+  'field.trigger': 'Trigger',
+  'backup.trigger.schedule': 'scheduled',
+  'backup.trigger.manual': 'on demand',
+  'backup.trigger.pre_deploy': 'before deployment',
+  'backup.trigger.pre_restore': 'before restore',
 };
 
 const EVENT_TEXT = { fr, en };
@@ -1182,6 +1222,55 @@ const CATALOG = {
           actorField(ctx),
         ]),
         path: entry.resourceId ? `/applications/${entry.resourceId}` : '/applications',
+      };
+    },
+  },
+  'backup.failed': {
+    key: 'backup.failed',
+    severity: 'critical',
+    auditAction: 'backup.failed',
+    digestPath: '/applications',
+    matches: () => true,
+    // La ressource est l'application (ou le panel), stable d'une nuit à
+    // l'autre : c'est la sauvegarde elle-même qui distingue deux échecs.
+    dedupDiscriminator: (entry) => optional(record(entry.after).backupId),
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const subject =
+        after.kind === 'panel'
+          ? t(lang, 'backup.failed.panel')
+          : text(after.applicationName ?? after.application, '?');
+      const machine = optional(after.targetName);
+      const trigger = text(after.trigger, 'schedule');
+      const known = ['schedule', 'manual', 'pre_deploy', 'pre_restore'].includes(trigger);
+      const error = text(after.error, '?');
+      return {
+        title: t(lang, 'backup.failed.title', { subject }),
+        summary: clip(t(lang, 'backup.failed.summary', { subject }), 200),
+        summaryDetail: clip(error, 300),
+        body:
+          t(lang, 'backup.failed.body', {
+            subject,
+            where: machine ? t(lang, 'backup.failed.where', { machine }) : '',
+            error,
+          }) + (trigger === 'pre_deploy' ? t(lang, 'backup.failed.bodyDeploy') : ''),
+        fields: fieldsOf([
+          [t(lang, 'field.application'), after.kind === 'panel' ? null : subject],
+          [t(lang, 'field.machine'), machine],
+          [
+            t(lang, 'field.trigger'),
+            known ? t(lang, `backup.trigger.${trigger as 'schedule'}`) : trigger,
+          ],
+          [t(lang, 'field.error'), error],
+          actorField(ctx),
+        ]),
+        path:
+          after.kind === 'panel'
+            ? '/admin/settings'
+            : entry.resourceId
+              ? `/applications/${entry.resourceId}`
+              : '/applications',
       };
     },
   },

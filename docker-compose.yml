@@ -86,9 +86,15 @@ services:
       # Même valeur que côté panel : une garde qui diverge entre les deux
       # laisserait créer des sondes que le worker refuserait en silence.
       MONITOR_ALLOWED_CIDRS: ${MONITOR_ALLOWED_CIDRS:-}
+      BACKUP_CONCURRENCY: ${BACKUP_CONCURRENCY:-1}
+      BACKUP_TMP_DIR: ${BACKUP_TMP_DIR:-/tmp}
     volumes:
       # Clés SSH de l'hôte, en lecture seule — utilisées pour joindre les cibles.
       - ${SSH_KEYS_PATH:-${HOME}/.ssh}:/home/nodejs/.ssh:ro
+      # Destination de sauvegarde « Dossier monté » : le panel y écrit en
+      # `/backups`. Sans BACKUP_LOCAL_PATH, c'est un volume nommé — sur la même
+      # machine que le panel, donc pas une vraie sauvegarde : S3 ou SFTP pour ça.
+      - ${BACKUP_LOCAL_PATH:-backups}:/backups
     # Le worker est le **seul** service à cheval sur les deux réseaux : lui seul
     # pilote le navigateur de capture, en CDP. `capture` ne porte aucune route
     # vers `postgres`, `redis` ni `panel` — c'est précisément ce qui isole le
@@ -365,9 +371,12 @@ networks:
 volumes:
   # `pgdata` et `redisdata` portent l'état du plan de contrôle et ont été
   # recopiés depuis les volumes préfixés `bootstrap-tp-v2_` au moment du
-  # renommage. Les deux autres sont des caches de cibles de test — images
-  # Docker et état k3s — que Compose recrée vides et qui se remplissent seuls.
+  # renommage. `backups` sert la destination « Dossier monté » quand
+  # BACKUP_LOCAL_PATH n'est pas fourni. Les deux derniers sont des caches de
+  # cibles de test — images Docker et état k3s — que Compose recrée vides et qui
+  # se remplissent seuls.
   pgdata:
   redisdata:
+  backups:
   k3s-data:
   dind-data:
