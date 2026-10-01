@@ -109,26 +109,6 @@ export async function restoreApplicationBackup(request: {
       throw new BackupError("l'application est arrêtée : démarrez-la avant de restaurer");
     }
 
-    if (request.safetyBackup) {
-      onLog("sauvegarde de sûreté de l'état actuel");
-      const policy = await getBackupPolicy(application.id);
-      const safety = await backupApplication({
-        applicationId: application.id,
-        targetId: request.targetId,
-        trigger: 'pre_restore',
-        mode: policy.mode,
-        actorId: request.actorId,
-        ip: request.ip,
-        onLog: (line) => onLog(`  ${line}`),
-      });
-      if (safety.status === 'failed') {
-        throw new BackupError(
-          `sauvegarde de sûreté impossible — restauration annulée : ${safety.error}`,
-        );
-      }
-      if (safety.status === 'success') safetyId = safety.backupId;
-    }
-
     // 1. Tout télécharger et vérifier, avant de toucher à quoi que ce soit.
     opened = await openStore(backup.destinationId);
     workdir = await mkdtemp(join(env.BACKUP_TMP_DIR, 'pupitre-restore-'));
@@ -153,6 +133,28 @@ export async function restoreApplicationBackup(request: {
       onLog(`✓ ${piece.file} téléchargé et vérifié`);
     }
 
+    // 2. L'état actuel, au plus près de son remplacement. Après le téléchargement :
+    //    la sauvegarde de sûreté ne doit rien pouvoir retirer de ce qu'on restaure.
+    if (request.safetyBackup) {
+      onLog("sauvegarde de sûreté de l'état actuel");
+      const policy = await getBackupPolicy(application.id);
+      const safety = await backupApplication({
+        applicationId: application.id,
+        targetId: request.targetId,
+        trigger: 'pre_restore',
+        mode: policy.mode,
+        actorId: request.actorId,
+        ip: request.ip,
+        onLog: (line) => onLog(`  ${line}`),
+      });
+      if (safety.status === 'failed') {
+        throw new BackupError(
+          `sauvegarde de sûreté impossible — restauration annulée : ${safety.error}`,
+        );
+      }
+      if (safety.status === 'success') safetyId = safety.backupId;
+    }
+
     const context = await openDeploymentContext(deployment.id, { connect: { retries: 2 } });
     session = context.session;
     const driver = getDriver(deployment.runtime);
@@ -166,7 +168,7 @@ export async function restoreApplicationBackup(request: {
         piece.kind === 'dump' && files.has(piece.file),
     );
 
-    // 2. Les volumes, application arrêtée.
+    // 3. Les volumes, application arrêtée.
     if (volumes.length > 0) {
       onLog("arrêt de l'application pour remplacer ses volumes");
       await driver.stop(ctx, (line) => onLog(`  ${line}`));
@@ -186,7 +188,7 @@ export async function restoreApplicationBackup(request: {
       }
     }
 
-    // 3. Les bases, une fois prêtes.
+    // 4. Les bases, une fois prêtes.
     for (const piece of dumps) {
       await waitForDatabase(driver, ctx, piece.service, readyCommand(piece.engine));
       await driver.importIntoService(

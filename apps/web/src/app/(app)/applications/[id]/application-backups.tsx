@@ -2,14 +2,13 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Archive, Ellipsis, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, LoaderCircle } from 'lucide-react';
 import type { BackupMode, BackupPiece, BackupRetention } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
+import { BackupHistory, type BackupHistoryItem } from '@/components/backups/backup-history';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckboxField } from '@/components/ui/checkbox';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,12 +18,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented';
 import { SwitchField } from '@/components/ui/switch';
-import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { backups as messages } from '@/i18n/messages/backups';
 import { common } from '@/i18n/messages/common';
+import type { LastRestoreView, LiveTargetView } from '@/lib/backups';
 import { formatDateTime, type FormatSettings } from '@/lib/format';
-import { relativeTime } from '@/lib/relative-time';
 import { toast } from '@/lib/toast';
 
 /**
@@ -44,19 +42,6 @@ type Policy = {
   configured: boolean;
 };
 
-type BackupRow = {
-  id: string;
-  targetId: string | null;
-  trigger: 'schedule' | 'manual' | 'pre_deploy' | 'pre_restore';
-  mode: BackupMode | null;
-  status: 'running' | 'success' | 'failed';
-  bytes: number;
-  pieces: Array<{ kind: string; label: string; bytes: number }>;
-  error: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-};
-
 type Data = {
   policy: Policy;
   hasData: boolean;
@@ -64,26 +49,13 @@ type Data = {
   hotCopied: string[];
   destination: { description: string; lastCheckError: string | null } | null;
   schedule: { enabled: boolean; nextRunAt: string | null } | null;
-  targets: Array<{ id: string; name: string; stopped: boolean }>;
-  items: BackupRow[];
-  lastRestore: { ok: boolean; at: string; actorName: string | null; error: string | null } | null;
+  targets: LiveTargetView[];
+  targetNames: Record<string, string>;
+  items: BackupHistoryItem[];
+  lastRestore: LastRestoreView | null;
 };
 
 type ApiError = { error?: { message?: string } };
-
-const STATUS_VARIANT = { running: 'accent', success: 'ok', failed: 'danger' } as const;
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  const units = ['Kio', 'Mio', 'Gio', 'Tio'];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
-}
 
 export function ApplicationBackups({
   applicationId,
@@ -107,9 +79,6 @@ export function ApplicationBackups({
   const [draft, setDraft] = useState<Policy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState<BackupRow | null>(null);
-  const [safety, setSafety] = useState(true);
-  const [deleting, setDeleting] = useState<BackupRow | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/applications/${applicationId}/backups`, {
@@ -211,9 +180,6 @@ export function ApplicationBackups({
     );
     setBusy(null);
   }
-
-  const targetName = (id: string | null) =>
-    liveTargets.find((target) => target.id === id)?.name ?? '—';
 
   return (
     <Card>
@@ -397,156 +363,21 @@ export function ApplicationBackups({
 
           <div className="flex flex-col gap-2">
             <span className="t-sm font-medium">{t('history.title')}</span>
-            {data.items.length === 0 ? (
-              <p className="t-sm text-text-3">{t('history.empty')}</p>
-            ) : (
-              <ul className="flex flex-col divide-y divide-border-subtle rounded-lg border border-border">
-                {data.items.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
-                  >
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="mono t-sm" title={item.startedAt}>
-                          {formatDateTime(item.startedAt, format)}
-                        </span>
-                        <Badge variant={STATUS_VARIANT[item.status]} dot>
-                          {item.status === 'running' ? (
-                            <LoaderCircle aria-hidden className="size-3 animate-spin" />
-                          ) : null}
-                          {t(`status.${item.status}`)}
-                        </Badge>
-                        <span className="t-cap text-text-3">
-                          {t(`trigger.${item.trigger}`)}
-                          {item.mode ? ` · ${t(`mode.${item.mode}`)}` : ''}
-                          {liveTargets.length > 1 ? ` · ${targetName(item.targetId)}` : ''}
-                          {item.status === 'success' ? ` · ${formatBytes(item.bytes)}` : ''}
-                          {item.finishedAt && item.status !== 'running'
-                            ? ` · ${relativeTime(item.finishedAt, tc) ?? ''}`
-                            : ''}
-                        </span>
-                      </span>
-                      {item.status === 'failed' && item.error ? (
-                        <span className="t-cap text-danger-text">{item.error}</span>
-                      ) : item.pieces.length > 0 ? (
-                        <span className="t-cap mono truncate text-text-3">
-                          {item.pieces
-                            .map((piece) => `${piece.label} (${formatBytes(piece.bytes)})`)
-                            .join(' · ')}
-                        </span>
-                      ) : null}
-                    </span>
-                    {(canRestore && item.status === 'success') ||
-                    (canManage && item.status !== 'running') ? (
-                      <span className="flex items-center gap-1">
-                        {canRestore && item.status === 'success' ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={running || liveTargets.length === 0}
-                            onClick={() => {
-                              setSafety(true);
-                              setRestoring(item);
-                            }}
-                          >
-                            <RotateCcw aria-hidden />
-                            {t('action.restore')}
-                          </Button>
-                        ) : null}
-                        {canManage ? (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <IconButton label={t('action.more')} size="icon-sm">
-                                <Ellipsis />
-                              </IconButton>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem destructive onSelect={() => setDeleting(item)}>
-                                <Trash2 aria-hidden />
-                                {t('action.delete')}…
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <BackupHistory
+              applicationSlug={applicationSlug}
+              restorable
+              items={data.items}
+              targets={liveTargets}
+              targetNames={data.targetNames}
+              canRestore={canRestore}
+              canManage={canManage}
+              busy={running}
+              format={format}
+              run={call}
+            />
           </div>
         </CardContent>
       ) : null}
-
-      <ConfirmDialog
-        open={restoring !== null}
-        onOpenChange={(open) => (open ? undefined : setRestoring(null))}
-        level="data"
-        title={
-          restoring
-            ? t('restore.title', {
-                app: applicationSlug,
-                date: formatDateTime(restoring.startedAt, format),
-              })
-            : ''
-        }
-        consequences={
-          restoring
-            ? [
-                t('restore.replace', {
-                  app: applicationSlug,
-                  target: targetName(restoring.targetId),
-                }),
-                t('restore.downtime'),
-                t('restore.code'),
-              ]
-            : []
-        }
-        retypeName={applicationSlug}
-        confirmLabel={t('restore.confirm')}
-        onConfirm={async () => {
-          if (!restoring) return;
-          const backup = restoring;
-          setRestoring(null);
-          await call(
-            `/api/backups/${backup.id}/restore`,
-            {
-              method: 'POST',
-              body: JSON.stringify({
-                ...(backup.targetId ? { targetId: backup.targetId } : {}),
-                safetyBackup: safety,
-              }),
-            },
-            t('restore.queued'),
-            t('restore.queued.detail'),
-          );
-        }}
-      >
-        <CheckboxField
-          label={t('restore.safety')}
-          help={t('restore.safety.help')}
-          checked={safety}
-          onChange={(event) => setSafety(event.target.checked)}
-        />
-      </ConfirmDialog>
-
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => (open ? undefined : setDeleting(null))}
-        level="reversible"
-        title={
-          deleting ? t('delete.title', { date: formatDateTime(deleting.startedAt, format) }) : ''
-        }
-        consequences={[t('delete.consequence')]}
-        confirmLabel={t('action.delete')}
-        onConfirm={async () => {
-          if (!deleting) return;
-          const backup = deleting;
-          setDeleting(null);
-          await call(`/api/backups/${backup.id}`, { method: 'DELETE' }, t('delete.queued'));
-        }}
-      />
     </Card>
   );
 }
