@@ -17,7 +17,21 @@ import {
   type RenderedFile,
   type TargetContext,
 } from '../types.js';
-import { managedWorkloadRefusal, type Workload, type WorkloadRef } from '../../workloads.js';
+import { digestOf, parseImageReference } from '../../images/reference.js';
+import { checkableImages, type RunningImage } from '../../images/updates.js';
+import {
+  managedWorkloadControlRefusal,
+  managedWorkloadRefusal,
+  type Workload,
+  type WorkloadControlAction,
+  type WorkloadRef,
+} from '../../workloads.js';
+import {
+  quoteForShell,
+  runBoundedExec,
+  type WorkloadExecOptions,
+  type WorkloadExecResult,
+} from '../workload-exec.js';
 import {
   LEGACY_MANAGED_BY,
   MANAGED_BY,
@@ -607,6 +621,10 @@ export class K3sDriver implements DeploymentDriver {
     const manifests = this.manifestPath(ctx);
     const namespace = this.namespace(ctx);
 
+    // L'équivalent de `docker compose pull` : sans lui, `IfNotPresent` garde
+    // indéfiniment le premier contenu tiré pour un tag.
+    const pulled = await this.pullImages(ctx, onLog);
+
     // Le namespace d'abord, seul : les ressources qui suivent le référencent.
     onLog(`kubectl apply — namespace ${namespace}`);
     await this.stream(
@@ -636,6 +654,8 @@ export class K3sDriver implements DeploymentDriver {
         APPLY_TIMEOUT_MS,
       );
     }
+
+    await this.refreshStaleImages(ctx, pulled, onLog);
 
     // Marque la release courante : `rollback()` et `destroy()` s'en servent.
     await this.run(
@@ -1310,6 +1330,315 @@ export class K3sDriver implements DeploymentDriver {
     onLog('✓ pods recréés sur le manifeste courant');
   }
 
+  async runningImages(ctx: DriverContext): Promise<RunningImage[]> {
+    const result = await exec(ctx.sshSession, this.kube(ctx, 'get pods -o json'), {
+      timeout: SHORT_TIMEOUT_MS,
+      logOutput: false,
+    });
+    return result.code === 0 ? parsePodImages(result.stdout) : [];
+  }
+
+  /**
+   * Tire les images des registres avant d'appliquer les manifests, et retient
+   * le digest obtenu pour chaque service.
+   *
+   * `imagePullPolicy: IfNotPresent` est imposé par les images construites sur
+   * la cible (elles n'existent dans aucun registre). Son revers : un tag déjà
+   * présent n'est jamais retiré, et `postgres:16` resterait figé sur son
+   * premier contenu. Tirer ici rend au tag son contenu actuel dans containerd —
+   * exactement ce que fait `docker compose pull` de l'autre côté.
+   *
+   * Un échec n'arrête pas le déploiement : l'image locale, si elle existe,
+   * fera l'affaire, et si elle n'existe pas le rollout le dira.
+   */
+  private async pullImages(ctx: DriverContext, onLog: LogSink): Promise<Map<string, string>> {
+    const pulled = new Map<string, string>();
+    for (const { service, image, ref } of checkableImages(ctx.spec)) {
+      if (ref.digest) continue;
+      onLog(`k3s crictl pull ${image}`);
+      const result = await exec(
+        ctx.sshSession,
+        this.script([
+          `k3s crictl pull ${shellQuote(image)} >/dev/null && k3s crictl inspecti -o json ${shellQuote(image)}`,
+        ]),
+        // Le socket de containerd n'est ouvert qu'à root — comme pour l'import
+        // des images construites, plus haut.
+        { timeout: APPLY_TIMEOUT_MS, logOutput: false, sudo: true },
+      );
+      const digest = result.code === 0 ? pulledDigest(result.stdout, image) : null;
+      if (digest) {
+        pulled.set(service, digest);
+        onLog(`   ${image} → ${digest.slice(0, 19)}…`);
+      } else {
+        onLog(
+          `   tirage impossible (${firstLine(result.stderr) ?? `code ${result.code}`}) — ` +
+            "l'image locale servira",
+        );
+      }
+    }
+    return pulled;
+  }
+
+  /**
+   * Un manifest identique n'est pas un changement pour Kubernetes : si seul le
+   * contenu du tag a bougé, aucun pod n'est remplacé. Ce qui tourne encore sur
+   * l'ancien digest est donc redémarré — et seulement cela.
+   */
+  private async refreshStaleImages(
+    ctx: DriverContext,
+    pulled: Map<string, string>,
+    onLog: LogSink,
+  ): Promise<void> {
+    if (pulled.size === 0) return;
+    const running = await this.runningImages(ctx);
+    for (const { service, digests } of running) {
+      const latest = pulled.get(service);
+      if (!latest || digests.length === 0 || digests.every((digest) => digest === latest)) continue;
+      onLog(
+        `« ${service} » tourne sur une image antérieure — redémarrage sur ${latest.slice(0, 19)}…`,
+      );
+      await this.stream(
+        ctx,
+        this.kube(ctx, `rollout restart deployment/${service}`),
+        onLog,
+        'rollout',
+        APPLY_TIMEOUT_MS,
+      );
+      await this.stream(
+        ctx,
+        this.kube(ctx, `rollout status deployment/${service} --timeout=${ROLLOUT_TIMEOUT}`),
+        onLog,
+        'rollout',
+        APPLY_TIMEOUT_MS,
+      );
+    }
+  }
+
+  /**
+   * Cycle de vie d'une charge, en Kubernetes :
+   *
+   *   - **redémarrer** : `rollout restart` du contrôleur, puis `rollout
+   *     status` — les pods sont remplacés sur le manifeste courant ;
+   *   - **arrêter** : mise à zéro des répliques d'un Deployment ou d'un
+   *     StatefulSet. Le nombre d'avant est noté dans une annotation, pour que
+   *     « démarrer » le rende tel quel ;
+   *   - **démarrer** : les répliques notées (une, à défaut), puis `rollout
+   *     status`.
+   *
+   * Un DaemonSet tourne sur chaque nœud par construction : il ne s'arrête pas
+   * sans être supprimé. Un pod sans contrôleur, lui, ne se recrée pas. Les
+   * deux sont refusés plutôt que maquillés.
+   */
+  async controlWorkload(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    action: WorkloadControlAction,
+    onLog: LogSink,
+  ): Promise<void> {
+    const step = `workload.${action}`;
+    const { workload, resource } = await this.findWorkload(ctx, ref, step);
+    if (workload.managed && action !== 'restart') {
+      throw new DriverError(managedWorkloadControlRefusal(workload), this.runtime, step);
+    }
+    if (SYSTEM_NAMESPACES.has(resource.namespace)) {
+      throw new DriverError(
+        `« ${workload.name} » vit dans le namespace système « ${resource.namespace} » : ` +
+          'le panel ne pilote pas ce qui fait tourner le cluster.',
+        this.runtime,
+        step,
+      );
+    }
+    const ns = `-n ${resource.namespace}`;
+    const path = `${resource.kind}/${resource.name}`;
+
+    if (action === 'restart') {
+      if (resource.kind === 'pod') {
+        throw new DriverError(
+          `« ${workload.name} » est un pod sans contrôleur : rien ne le recréerait.`,
+          this.runtime,
+          step,
+        );
+      }
+      onLog(`→ kubectl ${ns} rollout restart ${path}`);
+      await this.stream(
+        ctx,
+        this.kubectl(`${ns} rollout restart ${path}`),
+        onLog,
+        step,
+        APPLY_TIMEOUT_MS,
+      );
+      await this.stream(
+        ctx,
+        this.kubectl(`${ns} rollout status ${path} --timeout=${ROLLOUT_TIMEOUT}`),
+        onLog,
+        step,
+        APPLY_TIMEOUT_MS,
+      );
+      onLog('✓ pods remplacés');
+      return;
+    }
+
+    if (resource.kind !== 'deployment' && resource.kind !== 'statefulset') {
+      throw new DriverError(
+        resource.kind === 'daemonset'
+          ? `« ${workload.name} » est un DaemonSet : il tourne sur chaque nœud et ne s'arrête pas sans être supprimé.`
+          : `« ${workload.name} » est un pod sans contrôleur : l'arrêter le supprimerait pour de bon.`,
+        this.runtime,
+        step,
+      );
+    }
+
+    const read = await exec(
+      ctx.sshSession,
+      this.kubectl(
+        `${ns} get ${path} -o jsonpath='{.spec.replicas}{" "}{.metadata.annotations.pupitre\\.io/replicas-before-stop}'`,
+      ),
+      { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+    );
+    const [currentRaw = '', savedRaw = ''] = read.stdout.trim().split(/\s+/);
+    const current = Number.parseInt(currentRaw, 10) || 0;
+
+    if (action === 'stop') {
+      if (current === 0) {
+        onLog('déjà arrêtée — zéro réplique');
+        return;
+      }
+      onLog(`→ kubectl ${ns} scale ${path} --replicas=0 (${current} avant)`);
+      await this.stream(
+        ctx,
+        this.kubectl(
+          `${ns} annotate ${path} pupitre.io/replicas-before-stop=${current} --overwrite`,
+        ),
+        onLog,
+        step,
+        SHORT_TIMEOUT_MS,
+      );
+      await this.stream(
+        ctx,
+        this.kubectl(`${ns} scale ${path} --replicas=0`),
+        onLog,
+        step,
+        SHORT_TIMEOUT_MS,
+      );
+      onLog('✓ arrêtée — ses volumes et son service restent en place');
+      return;
+    }
+
+    if (current > 0) {
+      onLog(`déjà en marche — ${current} réplique(s)`);
+      return;
+    }
+    const replicas = Math.max(1, Number.parseInt(savedRaw, 10) || 1);
+    onLog(`→ kubectl ${ns} scale ${path} --replicas=${replicas}`);
+    await this.stream(
+      ctx,
+      this.kubectl(`${ns} scale ${path} --replicas=${replicas}`),
+      onLog,
+      step,
+      SHORT_TIMEOUT_MS,
+    );
+    await this.stream(
+      ctx,
+      this.kubectl(`${ns} annotate ${path} pupitre.io/replicas-before-stop-`),
+      onLog,
+      step,
+      SHORT_TIMEOUT_MS,
+      false,
+    );
+    await this.stream(
+      ctx,
+      this.kubectl(`${ns} rollout status ${path} --timeout=${ROLLOUT_TIMEOUT}`),
+      onLog,
+      step,
+      APPLY_TIMEOUT_MS,
+    );
+    onLog('✓ démarrée');
+  }
+
+  /**
+   * Le journal d'une charge, **tous ses pods** : `kubectl logs deployment/x`
+   * n'en lirait qu'un (« Found 2 pods, using pod/… »). Pour un contrôleur, on
+   * passe donc par son sélecteur, puis on remet les lignes dans l'ordre du
+   * temps — chaque pod arrive d'un bloc, et l'opérateur lit une chronologie.
+   */
+  async workloadLogs(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    tail: number,
+    onLine: LogSink,
+  ): Promise<void> {
+    const { resource } = await this.findWorkload(ctx, ref, 'workload.logs');
+    const lines = Math.max(1, Math.floor(tail));
+    const ns = `-n ${resource.namespace}`;
+
+    let source = `${resource.kind}/${resource.name}`;
+    if (resource.kind !== 'pod') {
+      const read = await exec(
+        ctx.sshSession,
+        this.kubectl(`${ns} get ${source} -o jsonpath='{.spec.selector.matchLabels}'`),
+        { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+      );
+      const selector = labelSelector(read.stdout);
+      if (!selector) {
+        throw new DriverError(
+          `« ${resource.name} » n'a pas de sélecteur lisible : impossible de trouver ses pods.`,
+          this.runtime,
+          'workload.logs',
+        );
+      }
+      source = `-l ${shellQuote(selector)} --max-log-requests=20`;
+    }
+
+    const collected: string[] = [];
+    await this.stream(
+      ctx,
+      this.kubectl(
+        `${ns} logs ${source} --all-containers=true --prefix --timestamps --tail=${lines}`,
+      ),
+      (line) => collected.push(line),
+      'workload.logs',
+      SHORT_TIMEOUT_MS,
+    );
+    for (const line of chronological(collected).slice(-lines)) onLine(line);
+  }
+
+  /**
+   * `kubectl exec` sur la ressource : pour un contrôleur, kubectl choisit un
+   * de ses pods. Pas dans les namespaces système, pas plus qu'on n'y supprime.
+   */
+  async execInWorkload(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    command: string,
+    onLine: LogSink,
+    options: WorkloadExecOptions,
+  ): Promise<WorkloadExecResult> {
+    const { workload, resource } = await this.findWorkload(ctx, ref, 'workload.exec');
+    if (SYSTEM_NAMESPACES.has(resource.namespace)) {
+      throw new DriverError(
+        `« ${workload.name} » vit dans le namespace système « ${resource.namespace} » : ` +
+          'le panel n’y exécute rien.',
+        this.runtime,
+        'workload.exec',
+      );
+    }
+    if (!workload.exec) {
+      throw new DriverError(
+        `« ${workload.name} » n'a aucun pod prêt : une commande ne s'exécute que dans une charge en marche.`,
+        this.runtime,
+        'workload.exec',
+      );
+    }
+    return runBoundedExec(
+      ctx.sshSession,
+      this.kubectl(
+        `-n ${resource.namespace} exec ${resource.kind}/${resource.name} -- sh -c ${quoteForShell(command)} 2>&1`,
+      ),
+      onLine,
+      options,
+    );
+  }
+
   /** Relit une charge sur le cluster, et refuse d'agir à l'aveugle. */
   private async findWorkload(
     ctx: TargetContext,
@@ -1628,7 +1957,13 @@ type KubeItem = {
     phase?: string;
     startTime?: string;
     conditions?: KubeCondition[] | null;
-    containerStatuses?: Array<{ ready?: boolean; image?: string; restartCount?: number }> | null;
+    containerStatuses?: Array<{
+      name?: string;
+      ready?: boolean;
+      image?: string;
+      imageID?: string;
+      restartCount?: number;
+    }> | null;
   } | null;
 };
 
@@ -1698,6 +2033,8 @@ function toControllerWorkload(item: KubeItem, kind: string): Workload | null {
   const containers = item.spec?.template?.spec?.containers ?? null;
   const { state, since } = controllerState(item);
   const ready = state === 'running';
+  const managed = isManaged(meta);
+  const system = SYSTEM_NAMESPACES.has(meta.namespace);
 
   return {
     runtime: 'k3s',
@@ -1711,9 +2048,28 @@ function toControllerWorkload(item: KubeItem, kind: string): Workload | null {
     createdAt: meta.creationTimestamp ?? null,
     since,
     ports: hostPorts(containers),
-    managed: isManaged(meta),
+    managed,
     managedApp: managedApp(meta),
+    controls: system ? [] : controllerControls(kind, state, managed),
+    exec: !system && ready,
   };
+}
+
+/**
+ * Ce qu'un contrôleur accepte : tous redémarrent ; seuls un Deployment et un
+ * StatefulSet s'arrêtent (zéro réplique) et redémarrent — un DaemonSet tourne
+ * sur chaque nœud par construction. Une charge du panel ne fait que redémarrer.
+ */
+function controllerControls(
+  kind: string,
+  state: ServiceState,
+  managed: boolean,
+): WorkloadControlAction[] {
+  // Arrêtée, une charge du panel attend que son application redémarre :
+  // un `rollout restart` à zéro réplique ne ferait rien.
+  if (managed) return state === 'exited' ? [] : ['restart'];
+  if (kind === 'daemonset') return ['restart'];
+  return state === 'exited' ? ['start'] : ['stop', 'restart'];
 }
 
 function toPodWorkload(item: KubeItem): Workload | null {
@@ -1739,6 +2095,10 @@ function toPodWorkload(item: KubeItem): Workload | null {
     ports: hostPorts(item.spec?.containers ?? null),
     managed: isManaged(meta),
     managedApp: managedApp(meta),
+    // Un pod sans contrôleur ne se redémarre ni ne s'arrête : rien ne le
+    // recréerait. On peut encore lire son journal et y exécuter une commande.
+    controls: [],
+    exec: !SYSTEM_NAMESPACES.has(meta.namespace) && ready,
   };
 }
 
@@ -1777,4 +2137,89 @@ export function parseSingleWorkload(json: string, resource: K3sResourceRef): Wor
   }
 
   return resource.kind === 'pod' ? toPodWorkload(item) : toControllerWorkload(item, resource.kind);
+}
+
+/**
+ * `{"app":"web","tier":"front"}` → `app=web,tier=front`. Rien de lisible →
+ * `null` : mieux vaut refuser que lire le journal de tout le namespace.
+ */
+export function labelSelector(matchLabels: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(matchLabels.trim() || 'null');
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const pairs = Object.entries(parsed as Record<string, unknown>).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string',
+  );
+  if (pairs.length === 0) return null;
+  return pairs.map(([key, value]) => `${key}=${value}`).join(',');
+}
+
+const STAMP = /^(?:\[[^\]]*\] )?(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?Z /;
+
+/**
+ * Remet dans l'ordre du temps des lignes `[pod/x/c] 2026-…Z texte`.
+ *
+ * Les horodatages sont en UTC, au format RFC 3339 « nano » — qui **retire**
+ * les zéros de fin : `33.1Z` et `33.123456789Z` ne se comparent pas comme des
+ * chaînes. La fraction est donc complétée à neuf chiffres. Tri stable : une
+ * ligne sans horodatage (une continuation) reste derrière celle qui la précède.
+ */
+export function chronological(lines: string[]): string[] {
+  let last = '';
+  return lines
+    .map((line, index) => {
+      const match = STAMP.exec(line);
+      if (match) last = `${match[1]}.${(match[2] ?? '').padEnd(9, '0').slice(0, 9)}`;
+      return { line, index, key: last };
+    })
+    .sort((a, b) => (a.key === b.key ? a.index - b.index : a.key < b.key ? -1 : 1))
+    .map((entry) => entry.line);
+}
+
+/**
+ * Les digests des pods d'une application, par service. Le service est le label
+ * `app.kubernetes.io/name` posé par le rendu ; `imageID` est la forme
+ * `docker.io/library/nginx@sha256:…` de containerd.
+ */
+export function parsePodImages(json: string): RunningImage[] {
+  const byService = new Map<string, Set<string>>();
+  for (const item of kubeItems(json)) {
+    const service = item.metadata?.labels?.['app.kubernetes.io/name'];
+    if (!service) continue;
+    const digests = byService.get(service) ?? new Set<string>();
+    for (const container of item.status?.containerStatuses ?? []) {
+      if (container.name && container.name !== service) continue;
+      const digest = container.imageID ? digestOf(container.imageID) : null;
+      if (digest) digests.add(digest);
+    }
+    byService.set(service, digests);
+  }
+  return [...byService].map(([service, digests]) => ({ service, digests: [...digests] }));
+}
+
+/**
+ * Le digest d'une image tirée, lu dans `crictl inspecti -o json` : parmi ses
+ * `repoDigests`, celui du dépôt demandé (une même image peut être connue sous
+ * plusieurs noms).
+ */
+export function pulledDigest(json: string, image: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  const repoDigests = (parsed as { status?: { repoDigests?: unknown } }).status?.repoDigests;
+  if (!Array.isArray(repoDigests)) return null;
+  const ref = parseImageReference(image);
+  const wanted = ref
+    ? `${ref.registry === 'registry-1.docker.io' ? 'docker.io' : ref.registry}/${ref.repository}@`
+    : null;
+  const candidates = repoDigests.filter((value): value is string => typeof value === 'string');
+  const match = (wanted && candidates.find((value) => value.startsWith(wanted))) ?? candidates[0];
+  return match ? digestOf(match) : null;
 }

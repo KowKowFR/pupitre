@@ -27,6 +27,7 @@ export const PERMISSIONS = [
   'deployment:purge',
   'workload:read',
   'workload:manage',
+  'workload:exec',
   'scan:read',
   'scan:configure',
   'job:read',
@@ -84,7 +85,9 @@ const descriptionsFr = {
   // « Charge » plutôt que « conteneur » : sur une cible K3s ce sont des pods.
   // Le mot Docker n'a pas sa place dans le vocabulaire partagé.
   'workload:read': "Consulter les charges qui tournent sur une cible",
-  'workload:manage': 'Supprimer et mettre à jour les charges d\'une cible',
+  'workload:manage':
+    "Démarrer, arrêter, redémarrer, lire le journal, mettre à jour et supprimer les charges d'une cible",
+  'workload:exec': "Exécuter des commandes dans les charges d'une cible",
   'scan:read': 'Consulter les scans et leurs findings',
   'scan:configure': 'Choisir les scanners et le seuil de blocage',
   'job:read': 'Consulter les tâches planifiées',
@@ -117,7 +120,9 @@ const descriptionsEn: Translated<typeof descriptionsFr> = {
   'deployment:destroy': 'Destroy a deployment',
   'deployment:purge': 'Erase deployments from the history',
   'workload:read': 'Read the workloads running on a target',
-  'workload:manage': 'Delete and update a target’s workloads',
+  'workload:manage':
+    'Start, stop, restart, read the log of, update and delete a target’s workloads',
+  'workload:exec': 'Run commands inside a target’s workloads',
   'scan:read': 'Read scans and their findings',
   'scan:configure': 'Choose the scanners and the blocking threshold',
   'job:read': 'Read scheduled jobs',

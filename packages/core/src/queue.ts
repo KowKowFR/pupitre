@@ -3,7 +3,14 @@ import { hostMetricsSchema } from './host-metrics.js';
 import { accountMailKindSchema } from './notifications/account-mail.js';
 import { notificationDigestSchema } from './notifications/digest.js';
 import { notificationMessageSchema } from './notifications/message.js';
-import { workloadActionSchema, workloadListSchema, workloadRefSchema } from './workloads.js';
+import {
+  WORKLOAD_EXEC_MAX_COMMAND,
+  WORKLOAD_LOGS_MAX_TAIL,
+  workloadActionSchema,
+  workloadControlActionSchema,
+  workloadListSchema,
+  workloadRefSchema,
+} from './workloads.js';
 
 /**
  * Contrat partagé entre `apps/web` (producteur) et `apps/worker` (consommateur).
@@ -94,6 +101,19 @@ export const WORKLOAD_REMOVE_JOB = 'workload:remove' as const;
 export const WORKLOAD_UPDATE_JOB = 'workload:update' as const;
 
 /**
+ * Démarrer, arrêter, redémarrer une charge ; y exécuter une commande. Sur
+ * `ops`, comme la suppression : ce sont des écritures sur la machine.
+ */
+export const WORKLOAD_CONTROL_JOB = 'workload:control' as const;
+export const WORKLOAD_EXEC_JOB = 'workload:exec' as const;
+
+/**
+ * Les dernières lignes du journal d'une charge. Sur `supervision` : c'est une
+ * lecture, elle ne doit pas attendre derrière un déploiement.
+ */
+export const WORKLOAD_LOGS_JOB = 'workload:logs' as const;
+
+/**
  * Balayage des sondes de supervision de sites.
  *
  * ── Une tâche répétable par sonde, ou un balayage unique ? ───────────────────
@@ -170,6 +190,16 @@ export const SOURCE_POLL_JOB = 'source:poll' as const;
  * seule implémentation, que le déclenchement soit automatique ou manuel.
  */
 export const SOURCE_DEPLOY_JOB = 'source:deploy' as const;
+
+/**
+ * Images des applications déployées : ce qui tourne, comparé à ce que le
+ * registre annonce pour le même tag. Toutes les six heures (scheduler BullMQ),
+ * et à la demande par « Vérifier maintenant » avec un `applicationId`. Sur
+ * `supervision` : des lectures — `HEAD` vers les registres, `docker inspect`
+ * sur les cibles —, qu'un déploiement en cours ne doit pas retarder.
+ */
+export const IMAGE_CHECK_JOB = 'images:check' as const;
+export const IMAGE_CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
 export const pingJobDataSchema = z.object({
   message: z.string().min(1).max(280).default('pong'),
@@ -322,6 +352,27 @@ export const workloadActionJobResultSchema = z.object({
   action: workloadActionSchema,
   ok: z.literal(true),
   lines: z.number().int().nonnegative(),
+  exitCode: z.number().int().nullable().optional(),
+});
+
+export const workloadControlJobDataSchema = workloadActionJobDataSchema.extend({
+  action: workloadControlActionSchema,
+});
+
+/**
+ * Une commande dans une charge. `run` désigne cette exécution dans le flux
+ * temps réel : l'écran qui l'a lancée ne lit que ses propres lignes.
+ */
+export const workloadExecJobDataSchema = workloadActionJobDataSchema.extend({
+  action: z.literal('exec'),
+  command: z.string().trim().min(1).max(WORKLOAD_EXEC_MAX_COMMAND),
+  run: z.string().uuid(),
+});
+
+export const workloadLogsJobDataSchema = workloadActionJobDataSchema.extend({
+  action: z.literal('logs'),
+  tail: z.number().int().min(10).max(WORKLOAD_LOGS_MAX_TAIL).default(300),
+  run: z.string().uuid(),
 });
 
 export const targetMetricsJobDataSchema = z.object({
@@ -349,6 +400,24 @@ export const sourcePollJobDataSchema = z.object({
   ip: z.string().min(1).nullable().default(null),
 });
 export type SourcePollJobData = z.infer<typeof sourcePollJobDataSchema>;
+
+export const imageCheckJobDataSchema = z.object({
+  /** Restreint la vérification à une application. `null` : tout ce qui est déployé. */
+  applicationId: z.string().uuid().nullable().default(null),
+  actorId: z.string().min(1).nullable().default(null),
+  ip: z.string().min(1).nullable().default(null),
+});
+export type ImageCheckJobData = z.infer<typeof imageCheckJobDataSchema>;
+
+export const imageCheckJobResultSchema = z.object({
+  /** Couples (application, cible) examinés. */
+  checked: z.number().int().nonnegative(),
+  /** Services dont le tag a bougé. */
+  outdated: z.number().int().nonnegative(),
+  /** Annonces faites — une par couple qui a du nouveau. */
+  announced: z.number().int().nonnegative(),
+});
+export type ImageCheckJobResult = z.infer<typeof imageCheckJobResultSchema>;
 
 export const sourceDeployJobDataSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -436,6 +505,9 @@ export type WorkloadListJobData = z.infer<typeof workloadListJobDataSchema>;
 export type WorkloadListJobResult = z.infer<typeof workloadListJobResultSchema>;
 export type WorkloadActionJobData = z.infer<typeof workloadActionJobDataSchema>;
 export type WorkloadActionJobResult = z.infer<typeof workloadActionJobResultSchema>;
+export type WorkloadControlJobData = z.infer<typeof workloadControlJobDataSchema>;
+export type WorkloadExecJobData = z.infer<typeof workloadExecJobDataSchema>;
+export type WorkloadLogsJobData = z.infer<typeof workloadLogsJobDataSchema>;
 
 /** Toutes les tâches acceptées par la queue `ops`. */
 export type OpsJobMap = {
@@ -451,6 +523,8 @@ export type OpsJobMap = {
   [APP_START_JOB]: DeploymentJobData;
   [WORKLOAD_REMOVE_JOB]: WorkloadActionJobData;
   [WORKLOAD_UPDATE_JOB]: WorkloadActionJobData;
+  [WORKLOAD_CONTROL_JOB]: WorkloadControlJobData;
+  [WORKLOAD_EXEC_JOB]: WorkloadExecJobData;
 };
 
 export type OpsJobName = keyof OpsJobMap;

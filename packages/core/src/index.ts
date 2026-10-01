@@ -3,6 +3,8 @@ export * from './chat.js';
 export * from './crypto.js';
 export * from './host-metrics.js';
 export * from './i18n.js';
+export * from './images/reference.js';
+export * from './images/updates.js';
 export * from './monitoring.js';
 export * from './naming.js';
 export * from './notifications/account-mail.js';
@@ -29,9 +31,10 @@ export * from './spec/index.js';
 export * from './supervision.js';
 export * from './workloads.js';
 
-// Ni la couche SSH, ni les drivers, ni les scanners, ni la sonde HTTP ne sont
-// réexportés ici : ils vivent sous `@pupitre/core/ssh`, `@pupitre/core/drivers`,
-// `@pupitre/core/scanners` et `@pupitre/core/probe`,
+// Ni la couche SSH, ni les drivers, ni les scanners, ni la sonde HTTP, ni le
+// client des registres d'images ne sont réexportés ici : ils vivent sous
+// `@pupitre/core/ssh`, `@pupitre/core/drivers`, `@pupitre/core/scanners`,
+// `@pupitre/core/probe` et `@pupitre/core/images`,
 // pour que `ssh2` reste hors du graphe de dépendances du panel Next.
 // Seuls leurs *types* (`preflight.ts`, `ports.ts`, `scan.ts`) sont ici, parce
 // que l'UI en a besoin et qu'ils n'exécutent rien.

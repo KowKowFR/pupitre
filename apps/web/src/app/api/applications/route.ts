@@ -1,6 +1,8 @@
-import { appSpecSchema } from '@pupitre/core';
+import { ENV_NAME_PATTERN, appSpecSchema, storedSecretNames } from '@pupitre/core';
 import {
   createApplication,
+  secretValueSchema,
+  setApplicationSecret,
   generationOriginSchema,
   getApplicationBySlug,
   listApplications,
@@ -38,11 +40,25 @@ const bodySchema = z.object({
   generation: generationOriginSchema.optional(),
   /** L'AppSpec vient d'un docker-compose.yml traduit par `import-compose`. */
   importedFrom: z.literal('compose').optional(),
+  /**
+   * Valeurs choisies dès la création, pour les secrets que la spec déclare :
+   * une clé d'API, un mot de passe déjà en service ailleurs. Les autres sont
+   * générées. Un nom absent de la spec — ou un alias, qui n'a pas de valeur à
+   * lui — est refusé : il n'y aurait rien à quoi l'attacher.
+   */
+  secrets: z.record(z.string().regex(ENV_NAME_PATTERN), secretValueSchema.min(1)).default({}),
 });
 
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'application:create');
   const input = await readJsonBody(request, bodySchema);
+
+  const storable = storedSecretNames(input.appSpec);
+  for (const name of Object.keys(input.secrets)) {
+    if (!storable.includes(name)) {
+      throw new ConflictError(msg(messages, 'error.secretNotDeclared', { name }));
+    }
+  }
 
   const existing = await getApplicationBySlug(input.appSpec.name);
   if (existing) {
@@ -60,6 +76,10 @@ export const POST = apiRoute(async (request) => {
   // déploiement ne doit jamais échouer parce que personne n'a pensé à les
   // renseigner. Une valeur venue de l'extérieur se pose ensuite, par PUT.
   const generated = await syncApplicationSecrets(application.id, input.appSpec);
+  // Puis celles qu'on a choisies remplacent les valeurs tirées au sort.
+  for (const [name, value] of Object.entries(input.secrets)) {
+    await setApplicationSecret(application.id, name, value, 'provided');
+  }
 
   await logAudit({
     actorId: auth.userId,
@@ -82,7 +102,8 @@ export const POST = apiRoute(async (request) => {
           }
         : { origin: input.importedFrom ?? 'manual' }),
       // Les noms, jamais les valeurs.
-      secretsGenerated: generated,
+      secretsGenerated: generated.filter((name) => !(name in input.secrets)),
+      secretsProvided: Object.keys(input.secrets),
     },
     ip: auth.ip,
   });

@@ -29,7 +29,9 @@ qui suit est la conséquence pratique.
 
 **`DeploymentDriver`** — `preflight` `allocatePort` `render` `upload` `build`
 `deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus les
-méthodes d'inventaire `listWorkloads` `removeWorkload` `updateWorkload`, plus une
+méthodes d'inventaire `listWorkloads` `removeWorkload` `updateWorkload`
+`controlWorkload` `workloadLogs` `execInWorkload`, la lecture `runningImages`
+(les digests de ce qui tourne, pour les mises à jour d'images), plus une
 fabrique `getDriver(runtime)`.
 
 Le driver **n'importe rien** de `packages/db`, de `apps/web` ni de Redis : il

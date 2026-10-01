@@ -8,6 +8,8 @@ import {
   DEPLOYMENT_DESTROY_JOB,
   DEPLOYMENT_ROLLBACK_JOB,
   DEPLOYMENT_RUN_JOB,
+  IMAGE_CHECK_EVERY_MS,
+  IMAGE_CHECK_JOB,
   MONITOR_CAPTURE_JOB,
   MONITOR_SWEEP_EVERY_MS,
   MONITOR_SWEEP_JOB,
@@ -26,7 +28,10 @@ import {
   SCHEDULED_JOB_TYPES_LIST,
   TARGET_METRICS_JOB,
   TARGET_PREFLIGHT_JOB,
+  WORKLOAD_CONTROL_JOB,
+  WORKLOAD_EXEC_JOB,
   WORKLOAD_LIST_JOB,
+  WORKLOAD_LOGS_JOB,
   WORKLOAD_REMOVE_JOB,
   WORKLOAD_UPDATE_JOB,
   assertMasterKey,
@@ -61,8 +66,15 @@ import {
   installNotificationDigestSweep,
 } from './handlers/notification.js';
 import { handleAccountMail } from './handlers/account-mail.js';
-import { handleWorkloadAction, handleWorkloadList } from './handlers/workload.js';
+import {
+  handleWorkloadAction,
+  handleWorkloadControl,
+  handleWorkloadExec,
+  handleWorkloadList,
+  handleWorkloadLogs,
+} from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
+import { handleImageCheck } from './handlers/images.js';
 import { handleSourceDeploy, handleSourcePoll } from './handlers/source.js';
 import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
 import { logger } from './logger.js';
@@ -98,6 +110,8 @@ const handlers: Record<string, JobHandler> = {
   // déploiement, parce qu'elles touchent la même ressource.
   [WORKLOAD_REMOVE_JOB]: handleWorkloadAction,
   [WORKLOAD_UPDATE_JOB]: handleWorkloadAction,
+  [WORKLOAD_CONTROL_JOB]: handleWorkloadControl,
+  [WORKLOAD_EXEC_JOB]: handleWorkloadExec,
   ...Object.fromEntries(
     SCHEDULED_JOB_TYPES_LIST.map((type) => [
       SCHEDULED_JOB_TYPES[type].jobName,
@@ -121,6 +135,8 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // L'inventaire est une lecture : sur la file de supervision, il ne retarde
   // aucun déploiement et aucun déploiement ne le retarde.
   [WORKLOAD_LIST_JOB]: handleWorkloadList,
+  // Une lecture : comme l'inventaire, elle n'attend pas derrière un déploiement.
+  [WORKLOAD_LOGS_JOB]: handleWorkloadLogs,
   // Le relevé de métriques est de la même famille : une lecture courte, qu'un
   // déploiement en cours ne doit pas faire attendre.
   [TARGET_METRICS_JOB]: handleTargetMetrics,
@@ -141,6 +157,9 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // lui-même part sur `ops`, comme tous les autres.
   [SOURCE_POLL_JOB]: handleSourcePoll,
   [SOURCE_DEPLOY_JOB]: handleSourceDeploy,
+  // Images déployées contre leurs registres : des HEAD HTTP et un
+  // `docker inspect` par application, rien qui doive attendre un déploiement.
+  [IMAGE_CHECK_JOB]: handleImageCheck,
 };
 
 /**
@@ -255,6 +274,32 @@ async function installSourcePoll(): Promise<void> {
   logger.info({ everyMs: SOURCE_POLL_EVERY_MS }, 'vérification des dépôts liés installée');
 }
 
+/**
+ * Installe l'horloge de la vérification des images : toutes les six heures.
+ *
+ * Même motif que les balayages ci-dessus. Six heures et pas une minute : un
+ * registre public n'apprécie pas d'être interrogé en boucle, et une image de
+ * base n'est pas republiée plusieurs fois par jour. « Vérifier maintenant »
+ * reste là pour qui ne veut pas attendre.
+ */
+async function installImageCheck(): Promise<void> {
+  const queue = getSupervisionQueue();
+  await queue.upsertJobScheduler(
+    'image-check',
+    { every: IMAGE_CHECK_EVERY_MS },
+    {
+      name: IMAGE_CHECK_JOB,
+      data: { applicationId: null, actorId: null, ip: null },
+      opts: {
+        attempts: 1,
+        removeOnComplete: { age: 24 * 3600, count: 50 },
+        removeOnFail: { age: 7 * 24 * 3600, count: 50 },
+      },
+    },
+  );
+  logger.info({ everyMs: IMAGE_CHECK_EVERY_MS }, 'vérification des images installée');
+}
+
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -324,6 +369,14 @@ async function main(): Promise<void> {
     // Sans horloge, les dépôts liés ne sont plus suivis d'eux-mêmes ;
     // « Vérifier maintenant » et « Déployer ce commit » marchent toujours.
     logger.error({ err: error }, 'installation de la vérification des dépôts impossible');
+  }
+
+  try {
+    await installImageCheck();
+  } catch (error) {
+    // Sans horloge, plus d'annonce de mise à jour d'image ; « Vérifier
+    // maintenant » marche toujours.
+    logger.error({ err: error }, 'installation de la vérification des images impossible');
   }
 
   try {

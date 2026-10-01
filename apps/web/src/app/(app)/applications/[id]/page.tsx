@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { defaultWatchPaths, usableRuntimes } from '@pupitre/core';
+import { checkableImages, defaultWatchPaths, usableRuntimes } from '@pupitre/core';
 import {
   getApplication,
   getAppSettings,
@@ -7,11 +7,13 @@ import {
   listApplicationSecrets,
   listApplicationSources,
   listApplicationVersions,
+  listImageUpdates,
   listPendingProposals,
   listTargets,
 } from '@pupitre/db';
 import { z } from 'zod';
 import { PageHeader } from '@/components/page-header';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { Crumb } from '@/components/shell/breadcrumb';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
@@ -27,6 +29,7 @@ import { ServiceChips } from '../applications-view';
 import { ingressOf, serviceRows } from '../rows';
 import { ServiceList } from '../service-list';
 import { ApplicationActions } from './application-actions';
+import { ApplicationImages } from './application-images';
 import { ApplicationSecrets } from './application-secrets';
 import { ApplicationSources, type SourceView } from './application-sources';
 import { VersionTimeline, type VersionRow } from './version-timeline';
@@ -52,14 +55,21 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const application = await getApplication(parsed.data.id);
   if (!application) notFound();
 
-  const [versions, targets, storedSecrets, sources, proposals, connection] = await Promise.all([
-    listApplicationVersions(application.id),
-    listTargets(),
-    listApplicationSecrets(application.id),
-    listApplicationSources(application.id),
-    listPendingProposals(application.id),
-    getSourceConnection('github'),
-  ]);
+  const [versions, targets, storedSecrets, sources, proposals, connection, imageRows] =
+    await Promise.all([
+      listApplicationVersions(application.id),
+      listTargets(),
+      listApplicationSecrets(application.id),
+      listApplicationSources(application.id),
+      listPendingProposals(application.id),
+      getSourceConnection('github'),
+      listImageUpdates(application.id),
+    ]);
+  const lastImageCheck =
+    imageRows
+      .map((row) => row.checkedAt)
+      .sort((a, b) => a.getTime() - b.getTime())
+      .at(-1) ?? null;
 
   const rows: VersionRow[] = versions.map(
     ({ sourceRepository, sourceRef, sourceSha, ...version }) => ({
@@ -115,6 +125,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   return (
     <>
       <Crumb label={application.slug} />
+      <LiveRefresh topics={['applications']} />
       <PageHeader
         title={application.slug}
         status={<span className="mono text-[15px] text-text-3">{spec.version}</span>}
@@ -147,8 +158,37 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           applicationId={application.id}
           secrets={buildSecretViews(spec, storedSecrets)}
           canEdit={auth.can('application:update')}
+          deployedAt={
+            versions
+              .filter((version) => version.status === 'success')
+              .map((version) => version.createdAt.toISOString())
+              .sort()
+              .at(-1) ?? null
+          }
         />
       </div>
+
+      <ApplicationImages
+        applicationId={application.id}
+        applicationSlug={application.slug}
+        rows={imageRows.map((row) => ({
+          targetId: row.targetId,
+          targetName: row.targetName,
+          deploymentId: row.deploymentId,
+          service: row.service,
+          image: row.image,
+          status: row.status,
+          runningDigest: row.runningDigest,
+          latestDigest: row.latestDigest,
+          newerTag: row.newerTag,
+          nextMajorTag: row.nextMajorTag,
+          error: row.error,
+        }))}
+        checkable={checkableImages(spec).length}
+        checkedAt={lastImageCheck?.toISOString() ?? null}
+        checkedAgo={relativeTime(lastImageCheck, tc)}
+        canDeploy={auth.can('deployment:create')}
+      />
 
       <ApplicationSources
         applicationId={application.id}

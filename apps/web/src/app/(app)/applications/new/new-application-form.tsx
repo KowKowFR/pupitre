@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Rocket, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DrawerBody, DrawerFooter, DrawerSection } from '@/components/ui/drawer';
-import { Field } from '@/components/ui/field';
+import { Field, SecretInput } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Tab, Tabs } from '@/components/ui/tabs';
 import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 import { common } from '@/i18n/messages/common';
+import { appSpecSchema, storedSecretNames } from '@pupitre/core';
 import { applications as messages } from '@/i18n/messages/applications';
 import { ComposeImport } from './compose-import';
 
@@ -399,6 +400,8 @@ export function NewApplicationForm({
   const [origin, setOrigin] = useState<GenerationOrigin | null>(null);
   /** L'AppSpec vient d'un docker-compose traduit : le journal le dira. */
   const [imported, setImported] = useState(false);
+  /** Valeurs choisies pour les secrets ; un champ vide laisse Pupitre générer. */
+  const [secretValues, setSecretValues] = useState<Record<string, string>>({});
 
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -427,6 +430,15 @@ export function NewApplicationForm({
     });
 
   const review = parseReview(value, words);
+  // Les secrets qui portent une valeur : les alias la reprennent d'un autre.
+  const storable = (() => {
+    try {
+      const parsed = appSpecSchema.safeParse(JSON.parse(value));
+      return parsed.success ? storedSecretNames(parsed.data) : [];
+    } catch {
+      return [];
+    }
+  })();
 
   function reset() {
     setError(null);
@@ -515,13 +527,16 @@ export function NewApplicationForm({
       headers: { 'content-type': 'application/json' },
       // La provenance n'accompagne la création que si la spec vient bien d'une
       // génération : une spec collée à la main n'a pas d'origine à inventer.
-      body: JSON.stringify(
-        origin
-          ? { appSpec, generation: origin }
-          : imported
-            ? { appSpec, importedFrom: 'compose' }
-            : { appSpec },
-      ),
+      body: JSON.stringify({
+        appSpec,
+        ...(origin ? { generation: origin } : imported ? { importedFrom: 'compose' } : {}),
+        // Seulement les valeurs saisies, et seulement pour les noms encore déclarés.
+        secrets: Object.fromEntries(
+          Object.entries(secretValues).filter(
+            ([name, secret]) => secret.length > 0 && storable.includes(name),
+          ),
+        ),
+      }),
     });
 
     if (!response.ok) {
@@ -850,6 +865,29 @@ export function NewApplicationForm({
         >
           {specEditor}
         </DrawerSection>
+        {storable.length > 0 ? (
+          <DrawerSection
+            title={t('new.secrets.title')}
+            aside={
+              <span className="t-cap font-normal text-text-3">{tChrome('field.optional')}</span>
+            }
+          >
+            <p className="help">{t('new.secrets.help')}</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {storable.map((name) => (
+                <Field key={name} label={<span className="mono">{name}</span>}>
+                  <SecretInput
+                    value={secretValues[name] ?? ''}
+                    placeholder={t('new.secrets.placeholder')}
+                    onChange={(event) =>
+                      setSecretValues((current) => ({ ...current, [name]: event.target.value }))
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
+          </DrawerSection>
+        ) : null}
         {deployFields ? (
           <DrawerSection
             title={t('new.deploy.title')}

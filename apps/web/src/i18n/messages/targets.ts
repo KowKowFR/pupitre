@@ -332,6 +332,42 @@ const fr = {
   'origin.outside': 'hors panel',
   'workloads.managedNotice': 'gérée par le panel — passez par son déploiement',
   'action.update': 'Mettre à jour',
+  'action.more': 'Actions sur « {name} »',
+  'action.start': 'Démarrer',
+  'action.stop': 'Arrêter',
+  'action.restart': 'Redémarrer',
+  'action.logs': 'Journal',
+  'action.exec': 'Console',
+  'workload.menu.managed': 'Gérée par le panel',
+  'workload.menu.managedApp': 'Gérée par le panel · {app}',
+  'workload.stop.title': 'Arrêter {kind} « {name} » ?',
+  'workload.stop.signal':
+    "Le processus reçoit un signal d'arrêt, et vingt secondes pour finir proprement.",
+  'workload.stop.unreachable': 'Ce qu’elle sert ne répond plus jusqu’à son prochain démarrage.',
+  'workload.stop.keep':
+    'Sa configuration et ses volumes restent en place : « Démarrer » la relance telle quelle.',
+  'workload.restart.title': 'Redémarrer {kind} « {name} » ?',
+  'workload.restart.same': 'Même image, même configuration : seul le processus repart.',
+  'run.logs.kind': 'Journal',
+  'run.logs.note':
+    "Les dernières lignes écrites par la charge. Une lecture, pas un flux : « Relire » va les chercher à nouveau. Chaque lecture figure au journal d'audit.",
+  'run.logs.tail': 'Lignes à lire',
+  'run.logs.refresh': 'Relire',
+  'run.logs.empty': 'La charge n’a rien écrit.',
+  'run.exec.kind': 'Console',
+  'run.exec.note':
+    "Une commande à la fois, exécutée sous sh -c dans la charge, sans terminal interactif, deux minutes au plus. Chacune figure au journal d'audit avec son code de sortie — sa sortie, jamais.",
+  'run.exec.label': 'Commande',
+  'run.exec.placeholder': 'ex. ls -la /data — ↑ pour l’historique',
+  'run.exec.submit': 'Exécuter',
+  'run.exec.clear': 'Effacer',
+  'run.exec.empty': 'Aucune commande pour l’instant.',
+  'run.exec.exit': 'code de sortie {code}',
+  'run.exec.timeout': 'interrompue après {seconds} s',
+  'run.exec.notRunning':
+    "« {name} » n'est pas en marche : démarrez-la pour y exécuter une commande.",
+  'run.truncated': 'sortie coupée à {max} lignes',
+  'run.streamError': 'Flux temps réel indisponible.',
   'image.unknown': 'inconnue',
 
   /**
@@ -373,6 +409,7 @@ const fr = {
       "Cette cible ne porte plus rien en marche, mais garde {count} déploiement(s) dans l'historique, et l'historique ne se supprime pas tout seul. Purgez-les depuis l'écran Déploiements, puis reprenez.",
   },
   'error.jobNoId': "La tâche n'a pas reçu d'identifiant",
+  'error.runNotOwned': 'Cette exécution a été ouverte par une autre session.',
   'error.metricsTimeout':
     "Le relevé n'a pas abouti dans le délai imparti. Le worker est peut-être saturé.",
   'error.metricsFailed': 'Relevé impossible : {message}',
@@ -389,6 +426,8 @@ const fr = {
     "« {name} » est déployée par le panel : sa mise à jour est un redéploiement. Lancez-en un depuis la fiche de l'application, qui rejouera aussi les scans et l'historique.",
   'error.workloadManagedUpdateApp':
     "« {name} » est déployée par le panel (application « {app} ») : sa mise à jour est un redéploiement. Lancez-en un depuis la fiche de l'application, qui rejouera aussi les scans et l'historique.",
+  'error.workloadManagedControl':
+    "« {name} » est déployée par le panel : on ne l'arrête ni ne la démarre d'ici, sinon le panel la croirait toujours en marche. Passez par « Arrêter » ou « Démarrer » sur la page Supervision de l'application.",
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -684,6 +723,40 @@ const en: Translated<typeof fr> = {
   'origin.outside': 'outside the panel',
   'workloads.managedNotice': 'managed by the panel — deploy it from there',
   'action.update': 'Update',
+  'action.more': 'Actions on “{name}”',
+  'action.start': 'Start',
+  'action.stop': 'Stop',
+  'action.restart': 'Restart',
+  'action.logs': 'Log',
+  'action.exec': 'Console',
+  'workload.menu.managed': 'Managed by the panel',
+  'workload.menu.managedApp': 'Managed by the panel · {app}',
+  'workload.stop.title': 'Stop {kind} “{name}”?',
+  'workload.stop.signal': 'The process gets a stop signal and twenty seconds to exit cleanly.',
+  'workload.stop.unreachable': 'Whatever it serves stops answering until it starts again.',
+  'workload.stop.keep':
+    'Its configuration and volumes stay in place: “Start” brings it back as it was.',
+  'workload.restart.title': 'Restart {kind} “{name}”?',
+  'workload.restart.same': 'Same image, same configuration: only the process restarts.',
+  'run.logs.kind': 'Log',
+  'run.logs.note':
+    'The last lines the workload wrote. A read, not a stream: “Read again” fetches them anew. Every read is recorded in the audit log.',
+  'run.logs.tail': 'Lines to read',
+  'run.logs.refresh': 'Read again',
+  'run.logs.empty': 'The workload wrote nothing.',
+  'run.exec.kind': 'Console',
+  'run.exec.note':
+    'One command at a time, run under sh -c inside the workload, without an interactive terminal, two minutes at most. Each one is recorded in the audit log with its exit code — never its output.',
+  'run.exec.label': 'Command',
+  'run.exec.placeholder': 'e.g. ls -la /data — ↑ for history',
+  'run.exec.submit': 'Run',
+  'run.exec.clear': 'Clear',
+  'run.exec.empty': 'No command yet.',
+  'run.exec.exit': 'exit code {code}',
+  'run.exec.timeout': 'interrupted after {seconds} s',
+  'run.exec.notRunning': '“{name}” is not running: start it to run a command inside.',
+  'run.truncated': 'output cut at {max} lines',
+  'run.streamError': 'Live stream unavailable.',
   'image.unknown': 'unknown',
 
   'workload.kind.container': 'container',
@@ -709,6 +782,7 @@ const en: Translated<typeof fr> = {
       'Nothing runs on this target any more, but {count} deployments stay in its history, and history does not delete itself. Purge them from the Deployments screen, then come back.',
   },
   'error.jobNoId': 'The job got no ID',
+  'error.runNotOwned': 'This run was opened by another session.',
   'error.metricsTimeout': 'The readout did not finish in time. The worker may be saturated.',
   'error.metricsFailed': 'Readout failed: {message}',
   'error.metricsUnreadable': 'The worker returned an unreadable readout',
@@ -722,6 +796,8 @@ const en: Translated<typeof fr> = {
     '“{name}” is deployed by the panel: updating it means redeploying it. Start a deployment from the application page — it replays the scans and the history too.',
   'error.workloadManagedUpdateApp':
     '“{name}” is deployed by the panel (application “{app}”): updating it means redeploying it. Start a deployment from the application page — it replays the scans and the history too.',
+  'error.workloadManagedControl':
+    '“{name}” is deployed by the panel: it is neither stopped nor started from here, or the panel would still believe it runs. Use “Stop” or “Start” on the application’s Supervision page.',
 };
 
 export const targets = { fr, en };

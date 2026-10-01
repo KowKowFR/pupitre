@@ -22,6 +22,10 @@
       "types": "./dist/probe/index.d.ts",
       "default": "./dist/probe/index.js"
     },
+    "./images": {
+      "types": "./dist/images/index.d.ts",
+      "default": "./dist/images/index.js"
+    },
     "./ssh": {
       "types": "./dist/ssh/index.d.ts",
       "default": "./dist/ssh/index.js"

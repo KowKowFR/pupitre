@@ -2,12 +2,30 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Trash2, ArrowUpCircle } from 'lucide-react';
-import type { ServiceState, Translate, Workload } from '@pupitre/core';
+import {
+  ArrowUpCircle,
+  Ellipsis,
+  Play,
+  RefreshCw,
+  RotateCw,
+  ScrollText,
+  Square,
+  SquareTerminal,
+  Trash2,
+} from 'lucide-react';
+import type { ServiceState, Translate, Workload, WorkloadControlAction } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { State, type Tone } from '@/components/ui/led';
 import {
   Table,
@@ -19,9 +37,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { targets as messages } from '@/i18n/messages/targets';
+import { WorkloadRunDrawer, type RunMode } from './workload-run-drawer';
 
 /**
  * Ce qui tourne sur la cible, panel compris.
@@ -58,6 +78,38 @@ type ApiError = { error?: { message?: string } };
 
 type Progress = { ref: string; name: string; lines: string[]; done: boolean; failed: boolean };
 
+/** Ce qui demande une confirmation. Démarrer n'en demande pas : rien ne s'interrompt. */
+type ConfirmedAction = 'remove' | 'update' | 'stop' | 'restart';
+type Action = ConfirmedAction | 'start';
+
+const CONTROL_ICON: Record<WorkloadControlAction, typeof Play> = {
+  start: Play,
+  stop: Square,
+  restart: RotateCw,
+};
+
+/**
+ * L'adresse de chaque geste. Supprimer est le `DELETE` de la charge ; les
+ * autres sont des sous-ressources, et ceux du cycle de vie partagent la leur.
+ */
+function request(
+  targetId: string,
+  ref: string,
+  action: Action,
+): { url: string; init: RequestInit } {
+  const base = `/api/targets/${targetId}/workloads/${encodeURIComponent(ref)}`;
+  if (action === 'remove') return { url: base, init: { method: 'DELETE' } };
+  if (action === 'update') return { url: `${base}/update`, init: { method: 'POST' } };
+  return {
+    url: `${base}/control`,
+    init: {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    },
+  };
+}
+
 const STATE_TONE: Record<ServiceState, Tone> = {
   running: 'ok',
   restarting: 'warn',
@@ -91,7 +143,15 @@ function formatDate(iso: string | null, none: string): string {
   return Number.isNaN(date.getTime()) ? none : date.toISOString().slice(0, 16).replace('T', ' ');
 }
 
-export function WorkloadsPanel({ targetId, canManage }: { targetId: string; canManage: boolean }) {
+export function WorkloadsPanel({
+  targetId,
+  canManage,
+  canExec,
+}: {
+  targetId: string;
+  canManage: boolean;
+  canExec: boolean;
+}) {
   const router = useRouter();
   const t = useT(messages);
   const tc = useT(common);
@@ -217,22 +277,20 @@ export function WorkloadsPanel({ targetId, canManage }: { targetId: string; canM
   );
 
   /** Le geste en attente de confirmation, s'il y en a un. */
-  const [pending, setPending] = useState<{ workload: WorkloadRow; action: 'remove' | 'update' } | null>(
+  const [pending, setPending] = useState<{ workload: WorkloadRow; action: ConfirmedAction } | null>(
     null,
   );
+  /** Le journal ou la console ouverts, s'il y en a. */
+  const [session, setSession] = useState<{ workload: WorkloadRow; mode: RunMode } | null>(null);
 
-  async function act(workload: WorkloadRow, action: 'remove' | 'update') {
+  async function act(workload: WorkloadRow, action: Action) {
     setPending(null);
     setBusy(workload.ref);
     setError(null);
     await openStream(workload.ref, workload.name);
 
-    const url =
-      action === 'remove'
-        ? `/api/targets/${targetId}/workloads/${encodeURIComponent(workload.ref)}`
-        : `/api/targets/${targetId}/workloads/${encodeURIComponent(workload.ref)}/update`;
-
-    const response = await fetch(url, { method: action === 'remove' ? 'DELETE' : 'POST' });
+    const { url, init } = request(targetId, workload.ref, action);
+    const response = await fetch(url, init);
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       setError(body.error?.message ?? tc('http.failure', { status: response.status }));
@@ -334,7 +392,9 @@ export function WorkloadsPanel({ targetId, canManage }: { targetId: string; canM
               <TableHead>{tc('column.state')}</TableHead>
               <TableHead>{t('column.ports')}</TableHead>
               <TableHead>{t('column.createdAt')}</TableHead>
-              {canManage ? <TableActionsHead>{tc('column.actions')}</TableActionsHead> : null}
+              {canManage || canExec ? (
+                <TableActionsHead>{tc('column.actions')}</TableActionsHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -376,34 +436,20 @@ export function WorkloadsPanel({ targetId, canManage }: { targetId: string; canM
                 <TableCell className="mono text-text-3">
                   {formatDate(workload.createdAt, tc('none'))}
                 </TableCell>
-                {canManage ? (
+                {canManage || canExec ? (
                   <TableActions>
-                    {workload.managed ? (
-                      // Dire pourquoi le geste est absent vaut mieux que de
-                      // laisser croire à un oubli.
-                      <span className="t-cap text-text-3">{t('workloads.managedNotice')}</span>
-                    ) : (
-                      <span className="inline-flex justify-end gap-1.5">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={busy !== null}
-                          onClick={() => setPending({ workload, action: 'update' })}
-                        >
-                          <ArrowUpCircle aria-hidden />
-                          {t('action.update')}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={busy !== null}
-                          onClick={() => setPending({ workload, action: 'remove' })}
-                        >
-                          <Trash2 aria-hidden />
-                          {tc('delete')}
-                        </Button>
-                      </span>
-                    )}
+                    <WorkloadMenu
+                      workload={workload}
+                      canManage={canManage}
+                      canExec={canExec}
+                      disabled={busy !== null}
+                      onAction={(action) =>
+                        action === 'start'
+                          ? void act(workload, action)
+                          : setPending({ workload, action })
+                      }
+                      onSession={(mode) => setSession({ workload, mode })}
+                    />
                   </TableActions>
                 ) : null}
               </TableRow>
@@ -416,30 +462,127 @@ export function WorkloadsPanel({ targetId, canManage }: { targetId: string; canM
         open={pending !== null}
         onOpenChange={(open) => (open ? undefined : setPending(null))}
         level={pending?.action === 'remove' ? 'data' : 'reversible'}
-        title={
-          confirmVars
-            ? t(pending?.action === 'remove' ? 'workload.remove.title' : 'workload.update.title', confirmVars)
-            : ''
-        }
-        consequences={
-          !confirmVars
-            ? []
-            : pending?.action === 'remove'
-              ? [
-                  t('workload.remove.image', confirmVars),
-                  t('workload.remove.final'),
-                  t('workload.remove.volumes'),
-                ]
-              : [
-                  t('workload.update.pull', confirmVars),
-                  t('workload.update.recreate'),
-                  t('workload.update.downtime'),
-                ]
-        }
+        title={confirmVars && pending ? t(`workload.${pending.action}.title`, confirmVars) : ''}
+        consequences={!confirmVars || !pending ? [] : CONSEQUENCES[pending.action](t, confirmVars)}
         retypeName={pending?.action === 'remove' ? pending.workload.name : undefined}
-        confirmLabel={pending?.action === 'remove' ? tc('delete') : t('action.update')}
+        confirmLabel={
+          pending?.action === 'remove' ? tc('delete') : pending ? t(`action.${pending.action}`) : ''
+        }
         onConfirm={() => (pending ? act(pending.workload, pending.action) : undefined)}
       />
+
+      {session ? (
+        <WorkloadRunDrawer
+          key={`${session.workload.ref}:${session.mode}`}
+          targetId={targetId}
+          workload={session.workload}
+          mode={session.mode}
+          onClose={() => setSession(null)}
+        />
+      ) : null}
     </section>
+  );
+}
+
+type ConfirmVars = { kind: string; name: string; image: string };
+
+/** Ce que chaque geste confirmé va faire, dit avant qu'il ne le fasse. */
+const CONSEQUENCES: Record<ConfirmedAction, (t: Messages, vars: ConfirmVars) => string[]> = {
+  remove: (t, vars) => [
+    t('workload.remove.image', vars),
+    t('workload.remove.final'),
+    t('workload.remove.volumes'),
+  ],
+  update: (t, vars) => [
+    t('workload.update.pull', vars),
+    t('workload.update.recreate'),
+    t('workload.update.downtime'),
+  ],
+  stop: (t) => [t('workload.stop.signal'), t('workload.stop.unreachable'), t('workload.stop.keep')],
+  restart: (t) => [t('workload.restart.same'), t('workload.update.downtime')],
+};
+
+/**
+ * Le menu d'une ligne. Il n'offre que ce que le driver a dit possible pour
+ * cette charge, dans son état (`controls`, `exec`) — l'écran ne devine rien du
+ * runtime. Une charge du panel ne se supprime ni ne se met à jour d'ici.
+ */
+function WorkloadMenu({
+  workload,
+  canManage,
+  canExec,
+  disabled,
+  onAction,
+  onSession,
+}: {
+  workload: WorkloadRow;
+  canManage: boolean;
+  canExec: boolean;
+  disabled: boolean;
+  onAction: (action: Action) => void;
+  onSession: (mode: RunMode) => void;
+}) {
+  const t = useT(messages);
+  const tc = useT(common);
+  const controls = canManage ? workload.controls : [];
+  const editable = canManage && !workload.managed;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          label={t('action.more', { name: workload.name })}
+          size="icon-sm"
+          disabled={disabled}
+        >
+          <Ellipsis />
+        </IconButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-52">
+        {workload.managed ? (
+          <DropdownMenuLabel className="t-cap font-normal text-text-3">
+            {workload.managedApp
+              ? t('workload.menu.managedApp', { app: workload.managedApp })
+              : t('workload.menu.managed')}
+          </DropdownMenuLabel>
+        ) : null}
+        {canManage ? (
+          <DropdownMenuItem onSelect={() => onSession('logs')}>
+            <ScrollText aria-hidden />
+            {t('action.logs')}
+          </DropdownMenuItem>
+        ) : null}
+        {canExec ? (
+          <DropdownMenuItem disabled={!workload.exec} onSelect={() => onSession('exec')}>
+            <SquareTerminal aria-hidden />
+            {t('action.exec')}
+          </DropdownMenuItem>
+        ) : null}
+        {controls.length > 0 ? <DropdownMenuSeparator /> : null}
+        {controls.map((action) => {
+          const Icon = CONTROL_ICON[action];
+          return (
+            <DropdownMenuItem key={action} onSelect={() => onAction(action)}>
+              <Icon aria-hidden />
+              {t(`action.${action}`)}
+              {action === 'start' ? null : '…'}
+            </DropdownMenuItem>
+          );
+        })}
+        {editable ? (
+          <>
+            <DropdownMenuItem onSelect={() => onAction('update')}>
+              <ArrowUpCircle aria-hidden />
+              {t('action.update')}…
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem destructive onSelect={() => onAction('remove')}>
+              <Trash2 aria-hidden />
+              {tc('delete')}…
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
