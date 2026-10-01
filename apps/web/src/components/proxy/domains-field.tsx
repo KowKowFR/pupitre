@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { Globe, Plus, X } from 'lucide-react';
-import { hostnameProblem, type ProxyCapabilities } from '@pupitre/core';
+import { hostnameProblem, WAF_MODES, type ProxyCapabilities, type WafMode } from '@pupitre/core';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { IconButton } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { proxy as messages } from '@/i18n/messages/proxy';
@@ -20,13 +21,19 @@ import { proxy as messages } from '@/i18n/messages/proxy';
  * panel joint la machine, et c'est normal.
  */
 
-export type DomainDraft = { hostname: string; tls: boolean };
+/** `waf` : la protection, pour un proxy qui est aussi un WAF — « bloquer » par défaut. */
+export type DomainDraft = { hostname: string; tls: boolean; waf?: WafMode };
 
 export function toRouteInputs(drafts: DomainDraft[]) {
   return drafts
     .map((draft) => ({ ...draft, hostname: draft.hostname.trim().toLowerCase() }))
     .filter((draft) => draft.hostname.length > 0)
-    .map((draft) => ({ hostname: draft.hostname, tls: draft.tls, redirectHttps: draft.tls }));
+    .map((draft) => ({
+      hostname: draft.hostname,
+      tls: draft.tls,
+      redirectHttps: draft.tls,
+      waf: draft.waf ?? 'block',
+    }));
 }
 
 type DnsState =
@@ -137,6 +144,7 @@ export function DomainsField({
       <p className="t-cap text-text-3">
         {t('domains.help', { target: proxy.via ?? targetName, proxy: proxy.description })}
         {proxy.capabilities.autoTls ? t('domains.helpAcme') : ''}
+        {proxy.capabilities.waf ? ` ${t('domains.helpWaf')}` : ''}
       </p>
       {value.map((draft, index) => (
         <div key={index} className="flex flex-col gap-1">
@@ -159,6 +167,20 @@ export function DomainsField({
               />
               {t('domains.https')}
             </label>
+            {proxy.capabilities.waf ? (
+              <Select
+                className="input-sm w-auto shrink-0"
+                aria-label={t('domains.waf')}
+                value={draft.waf ?? 'block'}
+                onChange={(event) => update(index, { waf: event.target.value as WafMode })}
+              >
+                {WAF_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(`waf.${mode}`)}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
             <IconButton
               label={t('domains.remove')}
               size="icon-sm"

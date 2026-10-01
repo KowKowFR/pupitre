@@ -7,6 +7,9 @@ import { probeHostOf } from '../src/drivers/docker/driver.js';
 import { renderComposeFile } from '../src/drivers/docker/render.js';
 import { PROXY_POLICY_NAME, renderManifests } from '../src/drivers/k3s/render.js';
 import {
+  BUNKERWEB_PROBE,
+  bunkerwebConfigSchema,
+  describeProxy,
   hostnameProblem,
   interpretRouteProbe,
   interpretTraefikCluster,
@@ -17,10 +20,14 @@ import {
   normalizePeer,
   parseCertificate,
   parseIngressClasses,
+  parseRegistry,
+  planServices,
+  proxyAcme,
   proxyCapabilities,
   reachCandidates,
   readTraefik,
   renderHelmChartConfig,
+  renderBunkerwebCompose,
   renderManagedCompose,
   renderTraefikFile,
   renderTraefikIngresses,
@@ -28,10 +35,13 @@ import {
   REMOTE_NAMESPACE,
   routeListSchema,
   serializeKubeObjects,
+  serviceVariables,
   staticConfigFromArgs,
   staticConfigFromEnv,
   staticConfigFromYaml,
   traefikConfigSchema,
+  TRAEFIK_PROBE,
+  wafPreset,
   type ProxyRoute,
   type TraefikFileConfig,
   type TraefikKubernetesConfig,
@@ -48,13 +58,24 @@ const kubeConfig: TraefikKubernetesConfig = traefikConfigSchema.parse({
   certResolver: 'pupitre',
 }) as TraefikKubernetesConfig;
 
-const secure: ProxyRoute = { hostname: 'blog.example.fr', tls: true, redirectHttps: true };
+const secure: ProxyRoute = {
+  hostname: 'blog.example.fr',
+  tls: true,
+  redirectHttps: true,
+  waf: 'block',
+};
 const secureNoRedirect: ProxyRoute = {
   hostname: 'api.example.fr',
   tls: true,
   redirectHttps: false,
+  waf: 'detect',
 };
-const plain: ProxyRoute = { hostname: 'old.example.fr', tls: false, redirectHttps: false };
+const plain: ProxyRoute = {
+  hostname: 'old.example.fr',
+  tls: false,
+  redirectHttps: false,
+  waf: 'off',
+};
 
 describe('les noms de domaine', () => {
   it('normalise et refuse ce qui ne se route pas', () => {
@@ -69,7 +90,9 @@ describe('les noms de domaine', () => {
     const parsed = routeListSchema.safeParse([{ hostname: 'a.fr' }, { hostname: 'A.fr' }]);
     assert.equal(parsed.success, false);
     const ok = routeListSchema.parse([{ hostname: 'Blog.Example.fr' }]);
-    assert.deepEqual(ok, [{ hostname: 'blog.example.fr', tls: true, redirectHttps: true }]);
+    assert.deepEqual(ok, [
+      { hostname: 'blog.example.fr', tls: true, redirectHttps: true, waf: 'block' },
+    ]);
   });
 
   it('dit ce que le proxy sait faire', () => {
@@ -77,7 +100,10 @@ describe('les noms de domaine', () => {
       autoTls: true,
       https: true,
       redirectHttps: true,
+      waf: false,
+      remoteUpstream: 'any',
     });
+    assert.equal(proxyCapabilities('traefik', kubeConfig).remoteUpstream, 'ipv4');
     const noAcme = proxyCapabilities('traefik', { mode: 'file', certResolver: null });
     assert.equal(noAcme.autoTls, false);
     assert.equal(noAcme.https, true);
@@ -305,6 +331,7 @@ describe('la sonde d’une route', () => {
         "cert issuer=C = US, O = Let's Encrypt, CN = R11",
         'cert notAfter=Dec 30 12:00:00 2026 GMT',
       ].join('\n'),
+      TRAEFIK_PROBE,
       now,
     );
     assert.equal(probe.ok, true);
@@ -313,21 +340,31 @@ describe('la sonde d’une route', () => {
   });
 
   it('distingue route absente, application muette, proxy éteint, redirection manquante', () => {
-    assert.match(interpretRouteProbe(plain, 'probe http 404 1', now).detail, /ne connaît pas/);
-    assert.match(interpretRouteProbe(plain, 'probe http 502 0', now).detail, /ne joint pas/);
-    assert.match(interpretRouteProbe(plain, 'probe http 000 0', now).detail, /ne répond pas/);
     assert.match(
-      interpretRouteProbe(secure, 'probe http 200 0\nprobe https 200 0', now).detail,
+      interpretRouteProbe(plain, 'probe http 404 1', TRAEFIK_PROBE, now).detail,
+      /ne connaît pas/,
+    );
+    assert.match(
+      interpretRouteProbe(plain, 'probe http 502 0', TRAEFIK_PROBE, now).detail,
+      /ne joint pas/,
+    );
+    assert.match(
+      interpretRouteProbe(plain, 'probe http 000 0', TRAEFIK_PROBE, now).detail,
+      /ne répond pas/,
+    );
+    assert.match(
+      interpretRouteProbe(secure, 'probe http 200 0\nprobe https 200 0', TRAEFIK_PROBE, now).detail,
       /redirection/,
     );
     // Une 404 de l'application elle-même n'est pas une route absente.
-    assert.equal(interpretRouteProbe(plain, 'probe http 404 0', now).ok, true);
+    assert.equal(interpretRouteProbe(plain, 'probe http 404 0', TRAEFIK_PROBE, now).ok, true);
   });
 
   it('reconnaît le certificat par défaut de Traefik, et un certificat expiré', () => {
     assert.equal(
       parseCertificate(
         'curl subject=CN=TRAEFIK DEFAULT CERT\ncurl issuer=CN=TRAEFIK DEFAULT CERT',
+        TRAEFIK_PROBE,
         now,
       ).status,
       'pending',
@@ -335,11 +372,12 @@ describe('la sonde d’une route', () => {
     assert.equal(
       parseCertificate(
         'cert subject=CN = a.fr\ncert issuer=CN = R11\ncert notAfter=Jan  1 00:00:00 2026 GMT',
+        TRAEFIK_PROBE,
         now,
       ).status,
       'invalid',
     );
-    assert.equal(parseCertificate('', now).status, 'unknown');
+    assert.equal(parseCertificate('', TRAEFIK_PROBE, now).status, 'unknown');
   });
 });
 
@@ -620,5 +658,166 @@ describe('le proxy central — la connexion éprouvée entre les deux machines',
     );
     assert.match(interpretReach({ ...base, curlCode: 52, body: '' }).detail, /coupe sans réponse/);
     assert.equal(interpretReach({ ...base, curlCode: 6, body: '' }).failure, 'error');
+  });
+});
+
+describe('BunkerWeb — la connexion et ce qu’elle permet', () => {
+  const config = bunkerwebConfigSchema.parse({
+    container: 'pupitre-bunkerweb',
+    apiContainer: 'pupitre-bunkerweb',
+    upstreamHost: '172.17.0.1',
+    managed: true,
+    acme: { email: 'ops@example.fr', server: 'staging' },
+  });
+
+  it('est un WAF qui sert en HTTPS, et joint toute machine', () => {
+    assert.deepEqual(proxyCapabilities('bunkerweb', config), {
+      autoTls: true,
+      https: true,
+      redirectHttps: true,
+      waf: true,
+      remoteUpstream: 'any',
+    });
+    assert.match(
+      describeProxy('bunkerweb', config),
+      /BunkerWeb · conteneur pupitre-bunkerweb · WAF/,
+    );
+    assert.deepEqual(proxyAcme('bunkerweb', config), {
+      email: 'ops@example.fr',
+      server: 'staging',
+    });
+    assert.equal(proxyCapabilities('bunkerweb', { ...config, acme: null }).autoTls, false);
+  });
+
+  it('refuse une autorité que BunkerWeb ne sait pas interroger', () => {
+    const custom = bunkerwebConfigSchema.safeParse({
+      ...config,
+      acme: { email: 'ops@example.fr', server: 'custom', customUrl: 'https://acme.local/dir' },
+    });
+    assert.equal(custom.success, false);
+  });
+
+  it('reconnaît sa page par défaut, servie en 200, et son certificat d’attente', () => {
+    const now = Date.parse('2026-10-01T12:00:00Z');
+    const absent = interpretRouteProbe(plain, 'probe http 200 1', BUNKERWEB_PROBE, now);
+    assert.equal(absent.ok, false);
+    assert.match(absent.detail, /ne connaît pas ce domaine \(200\)/);
+    const pending = interpretRouteProbe(
+      secure,
+      [
+        'probe http 301 0',
+        'probe https 200 0',
+        'cert subject=C=AU, ST=Some-State, O=Internet Widgits Pty Ltd, CN=www.example.org',
+        'cert issuer=C=AU, ST=Some-State, O=Internet Widgits Pty Ltd, CN=www.example.org',
+      ].join('\n'),
+      BUNKERWEB_PROBE,
+      now,
+    );
+    assert.equal(pending.ok, true);
+    assert.equal(pending.certificate.status, 'pending');
+  });
+});
+
+describe('BunkerWeb — un service par domaine', () => {
+  it('relaie vers l’amont, certificat et redirection selon la route', () => {
+    const variables = serviceVariables({
+      route: secure,
+      upstream: 'http://172.17.0.1:30001',
+      acme: { email: 'ops@example.fr', server: 'staging' },
+    });
+    assert.equal(variables.SERVER_NAME, 'blog.example.fr');
+    assert.equal(variables.USE_REVERSE_PROXY, 'yes');
+    assert.equal(variables.REVERSE_PROXY_HOST, 'http://172.17.0.1:30001');
+    assert.equal(variables.AUTO_LETS_ENCRYPT, 'yes');
+    assert.equal(variables.USE_LETS_ENCRYPT_STAGING, 'yes');
+    assert.equal(variables.LETS_ENCRYPT_SERVER, 'letsencrypt');
+    assert.equal(variables.EMAIL_LETS_ENCRYPT, 'ops@example.fr');
+    assert.equal(variables.REDIRECT_HTTP_TO_HTTPS, 'yes');
+    // Les sondes passent la liste blanche par un en-tête secret, jamais par
+    // l'adresse : la passerelle Docker est aussi celle des visiteurs IPv6.
+    assert.equal(variables.WHITELIST_HEADER_NAME, 'X-Pupitre-Probe');
+    assert.equal(variables.WHITELIST_HEADER_VALUE, '^__PUPITRE_PROBE_SECRET__$');
+    assert.equal(variables.WHITELIST_IP, undefined);
+
+    const noRedirect = serviceVariables({
+      route: secureNoRedirect,
+      upstream: 'http://10.0.0.12:30002',
+      acme: { email: 'ops@example.fr', server: 'zerossl' },
+    });
+    assert.equal(noRedirect.REDIRECT_HTTP_TO_HTTPS, 'no');
+    assert.equal(noRedirect.AUTO_REDIRECT_HTTP_TO_HTTPS, 'no');
+    assert.equal(noRedirect.LETS_ENCRYPT_SERVER, 'zerossl');
+
+    const http = serviceVariables({ route: plain, upstream: 'http://x:1', acme: null });
+    assert.equal(http.AUTO_LETS_ENCRYPT, 'no');
+    assert.equal(http.GENERATE_SELF_SIGNED_SSL, 'no');
+    const selfSigned = serviceVariables({
+      route: secure,
+      upstream: 'http://x:1',
+      acme: null,
+    });
+    assert.equal(selfSigned.AUTO_LETS_ENCRYPT, 'no');
+    assert.equal(selfSigned.GENERATE_SELF_SIGNED_SSL, 'yes');
+  });
+
+  it('trois préréglages : bloquer, détecter, relayer — jamais les limites d’un site vitrine', () => {
+    const block = wafPreset('block');
+    assert.equal(block.SECURITY_MODE, 'block');
+    assert.equal(block.MODSECURITY_SEC_RULE_ENGINE, 'On');
+    assert.equal(block.USE_MODSECURITY_CRS, 'yes');
+    assert.notEqual(block.LIMIT_REQ_RATE, '2r/s');
+    assert.doesNotMatch(block.BAD_BEHAVIOR_STATUS_CODES ?? '', /429/);
+    assert.match(block.ALLOWED_METHODS ?? '', /PUT.*DELETE/);
+    assert.equal(block.LIMIT_CONN_MAX_HTTP1, '100');
+    assert.equal(
+      wafPreset('detect').USE_LIMIT_CONN,
+      'no',
+      'nginx ne sait pas seulement journaliser',
+    );
+    const detect = wafPreset('detect');
+    assert.equal(detect.SECURITY_MODE, 'detect');
+    assert.equal(detect.MODSECURITY_SEC_RULE_ENGINE, 'DetectionOnly');
+    const off = wafPreset('off');
+    assert.equal(off.USE_MODSECURITY, 'no');
+    assert.equal(off.USE_LIMIT_REQ, 'no');
+    assert.equal(off.USE_BAD_BEHAVIOR, 'no');
+  });
+
+  it('ne touche qu’à ce qu’il a posé, et laisse à l’autre application ce qu’elle a repris', () => {
+    const plan = planServices({
+      wanted: ['a.fr', 'b.fr', 'c.fr'],
+      previous: ['a.fr', 'old.fr', 'moved.fr'],
+      existing: ['a.fr', 'c.fr', 'old.fr', 'moved.fr', 'manual.fr'],
+      others: ['moved.fr'],
+    });
+    assert.deepEqual(plan.create, ['b.fr']);
+    assert.deepEqual(plan.update, ['a.fr']);
+    assert.deepEqual(plan.foreign, ['c.fr'], 'un service fait à la main n’est pas écrasé');
+    assert.deepEqual(plan.remove, ['old.fr'], 'moved.fr est désormais à une autre application');
+  });
+
+  it('lit son registre, même abîmé', () => {
+    assert.deepEqual(parseRegistry('{"hostnames":["a.fr",3]}'), { hostnames: ['a.fr'] });
+    assert.deepEqual(parseRegistry('pas du json'), { hostnames: [] });
+    assert.deepEqual(parseRegistry(null), { hostnames: [] });
+  });
+
+  it('s’installe sans jeton dans le fichier Compose, API ouverte, interface fermée', () => {
+    const compose = parseYaml(renderBunkerwebCompose()) as {
+      services: {
+        bunkerweb: { ports: string[]; environment: Record<string, string>; env_file: string[] };
+      };
+    };
+    const service = compose.services.bunkerweb;
+    assert.deepEqual(service.ports, ['80:8080/tcp', '443:8443/tcp']);
+    assert.equal(service.environment.SERVICE_API, 'yes');
+    assert.equal(service.environment.SERVICE_UI, 'no');
+    assert.deepEqual(service.env_file, ['./api.env']);
+    assert.doesNotMatch(renderBunkerwebCompose(), /API_TOKEN/);
+    assert.equal(
+      service.environment.SERVER_NAMES_HASH_BUCKET_SIZE,
+      '256',
+      'un domaine long ne fait pas refuser la configuration',
+    );
   });
 });

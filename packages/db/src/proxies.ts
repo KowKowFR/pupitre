@@ -113,6 +113,7 @@ export async function setProxyStatus(
     check?: Record<string, unknown> | null;
     config?: Record<string, unknown>;
     managed?: boolean;
+    name?: string;
   },
   db: Database = getDb(),
 ): Promise<void> {
@@ -124,6 +125,7 @@ export async function setProxyStatus(
       ...(update.check !== undefined ? { lastCheck: update.check, lastCheckedAt: new Date() } : {}),
       ...(update.config ? { config: update.config } : {}),
       ...(update.managed !== undefined ? { managed: update.managed } : {}),
+      ...(update.name ? { name: update.name } : {}),
       updatedAt: new Date(),
     })
     .where(eq(proxies.id, id));
@@ -376,7 +378,12 @@ export async function replaceRoutes(
           .values({ applicationId, targetId, ...route })
           .onConflictDoUpdate({
             target: routes.hostname,
-            set: { tls: route.tls, redirectHttps: route.redirectHttps, updatedAt: new Date() },
+            set: {
+              tls: route.tls,
+              redirectHttps: route.redirectHttps,
+              waf: route.waf,
+              updatedAt: new Date(),
+            },
           })
           .returning();
         if (row) saved.push(row);

@@ -378,7 +378,7 @@ async function openSide(
     proxy = {
       provider,
       ctx: { ...ctx, config: proxyRecord.config },
-      route: { hostname: host, tls, redirectHttps: tls },
+      route: { hostname: host, tls, redirectHttps: tls, waf: 'block' },
     };
     const address = provider.publishAddress(proxyRecord.config);
     if (address) ctx.exposure = { bindAddress: address };

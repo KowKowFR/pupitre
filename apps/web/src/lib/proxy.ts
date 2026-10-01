@@ -2,6 +2,7 @@ import 'server-only';
 import {
   OPS_QUEUE,
   describeProxy,
+  proxyAcme,
   proxyCapabilities,
   type ProxyCapabilities,
   type ProxyKind,
@@ -40,9 +41,7 @@ export type ProxyViewForUi = {
   status: ProxyView['status'];
   description: string;
   capabilities: ProxyCapabilities;
-  /** Ce qui se montre de la configuration : mode, résolveur, ACME (e-mail, serveur). */
-  mode: string;
-  certResolver: string | null;
+  /** L'autorité de certification réglée par Pupitre (e-mail, serveur), s'il y en a une. */
   acme: { email: string; server: string } | null;
   lastCheckedAt: string | null;
   lastCheckError: string | null;
@@ -50,20 +49,23 @@ export type ProxyViewForUi = {
 };
 
 export function proxyViewForUi(proxy: ProxyView): ProxyViewForUi {
-  const config = proxy.config as {
-    mode?: string;
-    certResolver?: string | null;
-    acme?: { email?: string; server?: string } | null;
-  };
   let description: string;
   let capabilities: ProxyCapabilities;
+  let acme: ProxyViewForUi['acme'] = null;
   try {
     description = describeProxy(proxy.kind, proxy.config);
     capabilities = proxyCapabilities(proxy.kind, proxy.config);
+    acme = proxyAcme(proxy.kind, proxy.config);
   } catch {
     // Une installation en cours n'a pas encore sa configuration définitive.
     description = proxy.kind;
-    capabilities = { autoTls: false, https: false, redirectHttps: false };
+    capabilities = {
+      autoTls: false,
+      https: false,
+      redirectHttps: false,
+      waf: false,
+      remoteUpstream: 'none',
+    };
   }
   const check = proxy.lastCheck as { checks?: ProxyViewForUi['checks'] } | null;
   return {
@@ -74,11 +76,7 @@ export function proxyViewForUi(proxy: ProxyView): ProxyViewForUi {
     status: proxy.status,
     description,
     capabilities,
-    mode: config.mode ?? '?',
-    certResolver: config.certResolver ?? null,
-    acme: config.acme?.email
-      ? { email: config.acme.email, server: config.acme.server ?? 'production' }
-      : null,
+    acme,
     lastCheckedAt: proxy.lastCheckedAt?.toISOString() ?? null,
     lastCheckError: proxy.lastCheckError,
     checks: check?.checks ?? [],
@@ -90,6 +88,8 @@ export type RouteViewForUi = {
   hostname: string;
   tls: boolean;
   redirectHttps: boolean;
+  /** La protection, pour un proxy qui est aussi un WAF. */
+  waf: RouteView['waf'];
   status: RouteView['status'];
   lastError: string | null;
   lastCheckedAt: string | null;
@@ -107,6 +107,7 @@ export function routeViewForUi(route: RouteView): RouteViewForUi {
     hostname: route.hostname,
     tls: route.tls,
     redirectHttps: route.redirectHttps,
+    waf: route.waf,
     status: route.status,
     lastError: route.lastError,
     lastCheckedAt: route.lastCheckedAt?.toISOString() ?? null,

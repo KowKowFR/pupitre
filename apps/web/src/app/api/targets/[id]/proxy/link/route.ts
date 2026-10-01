@@ -1,4 +1,4 @@
-import { PROXY_LINK_CHECK_JOB, isIPv4, parseProxyConfig } from '@pupitre/core';
+import { PROXY_LINK_CHECK_JOB, isIPv4, proxyCapabilities } from '@pupitre/core';
 import {
   deleteTargetLink,
   getProxy,
@@ -47,9 +47,13 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   if (!proxy?.hostTargetId) throw new NotFoundError(msg(messages, 'error.proxyNotFound'));
   if (proxy.hostTargetId === id) throw new ConflictError(msg(messages, 'error.hasOwnProxy'));
   if (proxy.status === 'installing') throw new ConflictError(msg(messages, 'error.installing'));
-  const config = parseProxyConfig(proxy.kind, proxy.config);
-  if (config.mode === 'kubernetes' && !isIPv4(input.address)) {
-    // Le Traefik d'un cluster joint une autre machine par une EndpointSlice : une IPv4.
+  // Ce que ce proxy sait joindre hors de sa machine — le Traefik d'un cluster,
+  // par exemple, ne joint une autre machine que par une IPv4.
+  const { remoteUpstream } = proxyCapabilities(proxy.kind, proxy.config);
+  if (remoteUpstream === 'none') {
+    throw new ConflictError(msg(messages, 'error.linkUnsupported'));
+  }
+  if (remoteUpstream === 'ipv4' && !isIPv4(input.address)) {
     throw new HttpError(422, 'link_needs_ipv4', msg(messages, 'error.linkNeedsIp'));
   }
 

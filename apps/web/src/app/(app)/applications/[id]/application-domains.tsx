@@ -157,6 +157,7 @@ export function ApplicationDomains({
                           ? target.routes.map((route) => ({
                               hostname: route.hostname,
                               tls: route.tls,
+                              waf: route.waf,
                             }))
                           : [
                               {
@@ -193,7 +194,11 @@ export function ApplicationDomains({
                   </div>
                 </div>
               ) : target.routes.length > 0 ? (
-                <RouteList routes={target.routes} format={format} />
+                <RouteList
+                  routes={target.routes}
+                  format={format}
+                  showWaf={target.proxy?.capabilities.waf ?? false}
+                />
               ) : (
                 <p className="t-cap text-text-3">
                   {target.proxy ? t('routes.none') : t('domains.noProxy')}

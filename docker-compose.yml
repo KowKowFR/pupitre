@@ -185,7 +185,7 @@ services:
   # d'éprouver « HTTPS automatique » sans domaine public. Son DNS est
   # `pebble-dns`, où `pnpm test:proxy` déclare les domaines de test.
   #
-  #   docker compose --profile test up -d pebble pebble-dns
+  #   docker compose --profile test up -d pebble pebble-dns acme-front
   pebble:
     profiles: ["test"]
     image: ghcr.io/letsencrypt/pebble:2.10.1
@@ -195,6 +195,16 @@ services:
       PEBBLE_VA_NOSLEEP: "1"
     volumes:
       - ./scripts/test-acme/pebble-config.json:/acme/pebble-config.json:ro
+    restart: unless-stopped
+
+  # Le même Pebble, sous les noms de Let's Encrypt : pour un proxy qui n'accepte
+  # pas d'autre autorité (BunkerWeb). Voir scripts/test-acme/Caddyfile.
+  acme-front:
+    profiles: ["test"]
+    image: caddy:2.10-alpine
+    volumes:
+      - ./scripts/test-acme/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on: [pebble]
     restart: unless-stopped
 
   pebble-dns:

@@ -1,7 +1,17 @@
 /**
  * Le reverse proxy, éprouvé de bout en bout sur les deux runtimes.
  *
- *   pnpm test:proxy <cible-docker> <cible-k3s> [--no-acme] [--keep]
+ *   pnpm test:proxy <cible-docker> <cible-k3s> [--proxy=traefik|bunkerweb] [--no-acme] [--keep]
+ *
+ * `--proxy=bunkerweb` éprouve BunkerWeb au lieu de Traefik : il s'installe en
+ * conteneur Docker seulement — sur la machine K3s, l'option doit se dire
+ * indisponible, et c'est le BunkerWeb de la machine Docker qui sert
+ * l'application K3s (proxy central). Son WAF est éprouvé depuis l'autre
+ * machine : une injection SQL bloquée en « Protection », qui passe en
+ * « Détection seule », et une page et ses ressources jamais limitées.
+ * BunkerWeb n'accepte que Let's Encrypt : ses certificats viennent de Pebble
+ * par le relais `acme-front`, que le script fait passer, **dans le conteneur
+ * de test seulement**, pour Let's Encrypt (`scripts/test-acme/Caddyfile`).
  *
  * D'abord, avant toute installation : les deux machines se joignent-elles ?
  * Dans les deux sens, par l'épreuve même du produit (`checkReach()`) — une
@@ -35,10 +45,18 @@
  *
  * Sortie en code 1 dès qu'un point échoue.
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decrypt, parseAppSpec, type AcmeSettings, type AppSpec } from '@pupitre/core';
+import {
+  decrypt,
+  parseAppSpec,
+  proxyKindSchema,
+  type AcmeSettings,
+  type AppSpec,
+  type ProxyKind,
+} from '@pupitre/core';
 import {
   getDriver,
   type DeploymentDriver,
@@ -46,10 +64,13 @@ import {
   type RuntimeKind,
 } from '@pupitre/core/drivers';
 import {
+  BUNKERWEB_CONTAINER,
+  bunkerwebRoot,
   checkReach,
   defaultDynamicDirectory,
   getProxyProvider,
   reachSource,
+  registryFileName,
   REMOTE_NAMESPACE,
   traefikConfigSchema,
   traefikFileName,
@@ -73,6 +94,9 @@ import {
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHALLTESTSRV = 'http://127.0.0.1:8055';
+/** Le relais qui fait passer Pebble pour Let's Encrypt (profil test). */
+const ACME_FRONT = 'pupitre-acme-front-1';
+const LETS_ENCRYPT_NAMES = ['acme-staging-v02.api.letsencrypt.org', 'acme-v02.api.letsencrypt.org'];
 
 const ESC = String.fromCharCode(27);
 const paint = (code: string) => (text: string) => `${ESC}[${code}m${text}${ESC}[0m`;
@@ -260,27 +284,179 @@ async function probeUntil(
   return probe;
 }
 
+// ─── le WAF ──────────────────────────────────────────────────────────────────
+
+/**
+ * Le WAF, éprouvé depuis l'autre machine — une adresse qu'aucune liste
+ * blanche ne couvre, contrairement aux sondes de Pupitre :
+ *   - en « Protection », une injection SQL est refusée (403), et une page et
+ *     ses ressources — vingt requêtes à la fois — passent toutes ;
+ *   - en « Détection seule », la même injection passe ; puis retour à la
+ *     protection.
+ */
+async function exerciseWaf(
+  side: Side,
+  outsider: Side,
+  installed: Installed,
+  routes: ProxyRoute[],
+  route: ProxyRoute,
+  upstream: NonNullable<ReturnType<DeploymentDriver['upstream']>>,
+): Promise<void> {
+  const { runtime } = side;
+  const { provider, proxyCtx } = installed;
+  const log = (line: string) => write(`    ${dim(line)}\n`);
+  const address = await machineAddress(side.session);
+  if (!record(runtime, 'WAF : adresse de la machine du proxy', Boolean(address), address ?? '?')) {
+    return;
+  }
+  const host = `-H 'Host: ${route.hostname}'`;
+  const injection = () =>
+    exec(
+      outsider.session,
+      `curl -s -o /dev/null -w '%{http_code}' -m 5 ${host} "http://${address}/?id=1%27%20OR%201=1--" || true`,
+    ).then((result) => result.stdout.trim());
+  const applyWith = (waf: ProxyRoute['waf']) =>
+    provider.apply(
+      proxyCtx,
+      {
+        appSlug: SPEC.name,
+        routes: routes.map((candidate) =>
+          candidate === route ? { ...candidate, waf } : candidate,
+        ),
+        upstream,
+      },
+      log,
+    );
+  const until = async (expected: string, seconds: number) => {
+    let code = await injection();
+    const deadline = Date.now() + seconds * 1000;
+    while (code !== expected && Date.now() < deadline) {
+      await sleep(3000);
+      code = await injection();
+    }
+    return code;
+  };
+
+  const blocked = await until('403', 30);
+  record(
+    runtime,
+    `WAF « Protection » : injection SQL refusée depuis ${outsider.ctx.target.name}`,
+    blocked === '403',
+    `HTTP ${blocked}`,
+  );
+  const burst = await exec(
+    outsider.session,
+    `for i in $(seq 1 20); do curl -s -o /dev/null -w '%{http_code}\\n' -m 10 ${host} "http://${address}/?r=$i" & done; wait`,
+  );
+  const codes = burst.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const tally = [...new Set(codes)].map(
+    (code) => `${codes.filter((c) => c === code).length} × ${code}`,
+  );
+  record(
+    runtime,
+    'WAF « Protection » : une page et ses ressources (20 requêtes simultanées) passent toutes',
+    codes.length === 20 && codes.every((code) => code === '200'),
+    tally.join(', '),
+  );
+
+  await applyWith('detect');
+  const detected = await until('200', 45);
+  record(
+    runtime,
+    'WAF « Détection seule » : la même injection passe, journalisée',
+    detected === '200',
+    `HTTP ${detected}`,
+  );
+  await applyWith(route.waf);
+}
+
 // ─── le déroulé, par runtime ─────────────────────────────────────────────────
 
 type Installed = {
   side: Side;
+  kind: ProxyKind;
   provider: ProxyProvider;
   proxyCtx: ProxyContext;
   kubernetes: boolean;
 };
 
+const PROXY_LABEL: Record<ProxyKind, string> = { traefik: 'Traefik', bunkerweb: 'BunkerWeb' };
+
+/**
+ * Le relais `acme-front` : son adresse sur le réseau de test et son autorité,
+ * lues par Docker sur le poste. `null` : il ne tourne pas.
+ */
+function acmeFront(): { address: string; ca: string } | null {
+  try {
+    const address = execFileSync(
+      'docker',
+      ['inspect', '-f', '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}', ACME_FRONT],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+    const ca = execFileSync(
+      'docker',
+      ['exec', ACME_FRONT, 'cat', '/data/caddy/pki/authorities/local/root.crt'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    return address && ca.includes('BEGIN CERTIFICATE') ? { address, ca } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Dans le conteneur BunkerWeb de test seulement : les noms de Let's Encrypt
+ * mènent au relais, et son autorité est reconnue par certbot. Le conteneur
+ * recréé, plus rien n'en reste.
+ */
+async function teachBunkerWebWherePebbleIs(
+  session: SshSession,
+  front: { address: string; ca: string },
+): Promise<void> {
+  const ca = Buffer.from(front.ca, 'utf8').toString('base64');
+  const result = await exec(
+    session,
+    [
+      `docker exec -u 0 ${BUNKERWEB_CONTAINER} sh -c 'echo "${front.address} ${LETS_ENCRYPT_NAMES.join(' ')}" >> /etc/hosts'`,
+      `printf '%s' '${ca}' | base64 -d | docker exec -i -u 0 ${BUNKERWEB_CONTAINER} sh -c 'B=$(PYTHONPATH=/usr/share/bunkerweb/deps/python python3 -c "import certifi; print(certifi.where())") && cat >> "$B" && echo "bundle=$B"'`,
+    ].join('\n'),
+  );
+  if (!/bundle=/.test(result.stdout)) {
+    throw new Error(`relais ACME non posé : ${result.stderr.trim() || result.stdout.trim()}`);
+  }
+}
+
 async function exercise(
   side: Side,
+  kind: ProxyKind,
   acme: AcmeSettings | null,
   keep: boolean,
+  /** L'autre machine : d'où viennent les requêtes qu'aucune liste blanche ne couvre. */
+  outsider: Side | null,
 ): Promise<Installed | null> {
   const { runtime, driver, ctx, session } = side;
-  const provider = getProxyProvider('traefik');
+  const provider = getProxyProvider(kind);
+  const label = PROXY_LABEL[kind];
   const log = (line: string) => write(`    ${dim(line)}\n`);
-  write(`\n${bold(`── ${runtime} — ${ctx.target.name}`)}\n`);
+  write(`\n${bold(`── ${runtime} — ${ctx.target.name} — ${label}`)}\n`);
 
   const options = await provider.installOptions(ctx);
   const option = options.find((candidate) => candidate.available);
+  // BunkerWeb s'installe en conteneur Docker : sur une machine K3s seule,
+  // l'option doit se dire indisponible — en renvoyant vers le proxy central.
+  if (kind === 'bunkerweb' && runtime === 'k3s') {
+    const refused = options.find((candidate) => !candidate.available);
+    record(
+      runtime,
+      'BunkerWeb : installation indisponible sans Docker, qui renvoie vers la liaison',
+      !option && Boolean(refused && /Docker/.test(refused.detail) && /reliez/.test(refused.detail)),
+      refused?.detail ?? option?.detail ?? '?',
+    );
+    return null;
+  }
   if (
     !record(
       runtime,
@@ -312,10 +488,21 @@ async function exercise(
   const proxyCtx: ProxyContext = { ...ctx, config };
   const installed: Installed = {
     side,
+    kind,
     provider,
     proxyCtx,
     kubernetes: option!.key === 'kubernetes',
   };
+  // BunkerWeb ne connaît que Let's Encrypt : dans ce conteneur de test, ses
+  // noms mènent à Pebble par le relais.
+  if (kind === 'bunkerweb' && acme) {
+    const front = acmeFront();
+    await guarded(runtime, 'relais ACME de test', async () => {
+      if (!front) throw new Error(`${ACME_FRONT} ne tourne pas`);
+      await teachBunkerWebWherePebbleIs(session, front);
+      return true;
+    });
+  }
 
   const check = await guarded(runtime, 'check()', () => provider.check(proxyCtx, log));
   record(
@@ -331,7 +518,7 @@ async function exercise(
   const detections = await guarded(runtime, 'detect()', () => provider.detect(ctx, log));
   record(
     runtime,
-    'detect() retrouve le Traefik posé',
+    `detect() retrouve le ${label} posé`,
     Boolean(detections?.some((detection) => detection.config !== null)),
     detections?.map((detection) => detection.summary).join(' · ') ?? '',
   );
@@ -375,25 +562,27 @@ async function exercise(
       : null;
     const inside = await exec(
       session,
-      `curl -s -o /dev/null -w '%{http_code}' -m 3 http://127.0.0.1:${port}/ || true`,
+      `curl -s -o /dev/null -w '%{http_code}' -m 3 http://${publishAddress}:${port}/ || true`,
     );
     record(
       runtime,
-      'port publié sur la boucle locale seulement',
+      `port publié là où le proxy le joint seulement (${publishAddress})`,
       inside.stdout.trim() === '200' && outside?.stdout.trim() === '000',
-      `127.0.0.1 → ${inside.stdout.trim()}, ${own ?? '?'} → ${outside?.stdout.trim() ?? '?'}`,
+      `${publishAddress} → ${inside.stdout.trim()}, ${own ?? '?'} → ${outside?.stdout.trim() ?? '?'}`,
     );
   }
 
   const secure: ProxyRoute = {
-    hostname: `${runtime}.proxy.pupitre.test`,
+    hostname: `${runtime}-${kind}.proxy.pupitre.test`,
     tls: true,
     redirectHttps: true,
+    waf: 'block',
   };
   const plain: ProxyRoute = {
-    hostname: `plain-${runtime}.proxy.pupitre.test`,
+    hostname: `plain-${runtime}-${kind}.proxy.pupitre.test`,
     tls: false,
     redirectHttps: false,
+    waf: 'block',
   };
   if (acme) {
     const address = await machineAddress(session);
@@ -417,6 +606,9 @@ async function exercise(
       30,
     );
     record(runtime, `${plain.hostname} en HTTP`, plainly.ok, plainly.detail);
+    if (kind === 'bunkerweb' && outsider) {
+      await exerciseWaf(side, outsider, installed, [secure, plain], plain, upstream!);
+    }
     if (acme) {
       const issued = await probeUntil(
         () => provider.probe(proxyCtx, secure, '/'),
@@ -487,12 +679,17 @@ async function reachBetween(from: Side, to: Side): Promise<Reach | null> {
     return null;
   }
   const portRange = await appRange(to);
+  // Les ports que le panel a réservés sur cette machine : le produit les écarte
+  // aussi — un NodePort en service détournerait la connexion d'essai.
+  const report = await getTargetPortReport(to.ctx.target.id);
+  const reserved = new Set(report?.allocations.map((allocation) => allocation.port) ?? []);
   const result = await guarded(label, 'connexion éprouvée', () =>
     checkReach({
       proxyHost: from.ctx,
       served: to.ctx,
       address: address!,
       portRange,
+      reserved,
       onLog: (line) => write(`    ${dim(line)}\n`),
     }),
   );
@@ -558,7 +755,7 @@ async function crossExercise(
   const { provider, proxyCtx } = proxy;
   const log = (line: string) => write(`    ${dim(line)}\n`);
   write(
-    `\n${bold(`── proxy central — le Traefik de ${proxy.side.ctx.target.name} sert ${app.ctx.target.name}`)}\n`,
+    `\n${bold(`── proxy central — le ${PROXY_LABEL[proxy.kind]} de ${proxy.side.ctx.target.name} sert ${app.ctx.target.name}`)}\n`,
   );
 
   // L'adresse et l'arrivée viennent de la phase 0 : la connexion y a été éprouvée.
@@ -577,14 +774,16 @@ async function crossExercise(
   const scope = `t${app.ctx.target.id.slice(0, 8)}`;
   const name = `${SPEC.name}--${scope}`;
   const secure: ProxyRoute = {
-    hostname: `${app.runtime}-via-${proxy.side.runtime}.proxy.pupitre.test`,
+    hostname: `${app.runtime}-via-${proxy.side.runtime}-${proxy.kind}.proxy.pupitre.test`,
     tls: true,
     redirectHttps: true,
+    waf: 'block',
   };
   const plain: ProxyRoute = {
-    hostname: `plain-${app.runtime}-via-${proxy.side.runtime}.proxy.pupitre.test`,
+    hostname: `plain-${app.runtime}-via-${proxy.side.runtime}-${proxy.kind}.proxy.pupitre.test`,
     tls: false,
     redirectHttps: false,
+    waf: 'block',
   };
   if (acme) {
     const proxyAddress = await machineAddress(proxy.side.session);
@@ -611,15 +810,17 @@ async function crossExercise(
     );
     if (port === null) return;
     await applyRoutes([plain], port);
+    // Concluant seulement une fois la route appliquée : le proxy connaît le
+    // domaine, mais ne joint pas l'application (502).
     const refused = await probeUntil(
       () => provider.probe(proxyCtx, plain, '/'),
-      (probe) => probe.ok,
-      20,
+      (probe) => probe.ok || probe.http === 502,
+      60,
     );
     record(
       label,
       'NetworkPolicy : un proxy qui n’est pas le sien est refusé',
-      !refused.ok,
+      !refused.ok && refused.http === 502,
       refused.detail,
     );
   }
@@ -681,16 +882,29 @@ async function crossExercise(
     (probe) => !probe.ok,
     30,
   );
-  const config = traefikConfigSchema.parse(proxyCtx.config);
-  const leftovers = proxy.kubernetes
-    ? await exec(
-        proxy.side.session,
-        `export KUBECONFIG=\${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}; kubectl -n ${REMOTE_NAMESPACE} get service,endpointslice,ingress -o name 2>/dev/null | grep -F '${name}' || true`,
-      )
-    : await exec(
-        proxy.side.session,
-        `ls ${(config.mode === 'file' && config.directory) || defaultDynamicDirectory(proxy.side.ctx.target.rootPath)}/${traefikFileName(name)} 2>/dev/null || true`,
-      );
+  // Ce que chaque proxy garderait s'il oubliait : objets du cluster, fichier
+  // de routes, ou registre des services BunkerWeb de l'application.
+  const leftovers =
+    proxy.kind === 'bunkerweb'
+      ? await exec(
+          proxy.side.session,
+          `ls ${bunkerwebRoot(proxy.side.ctx.target.rootPath)}/routes/${registryFileName(name)} 2>/dev/null || true`,
+        )
+      : proxy.kubernetes
+        ? await exec(
+            proxy.side.session,
+            `export KUBECONFIG=\${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}; kubectl -n ${REMOTE_NAMESPACE} get service,endpointslice,ingress -o name 2>/dev/null | grep -F '${name}' || true`,
+          )
+        : await exec(
+            proxy.side.session,
+            `ls ${(() => {
+              const config = traefikConfigSchema.parse(proxyCtx.config);
+              return (
+                (config.mode === 'file' && config.directory) ||
+                defaultDynamicDirectory(proxy.side.ctx.target.rootPath)
+              );
+            })()}/${traefikFileName(name)} 2>/dev/null || true`,
+          );
   record(
     label,
     'tout retiré : plus de route, rien ne reste chez le proxy',
@@ -714,7 +928,7 @@ async function teardown(installed: Installed, acme: AcmeSettings | null): Promis
     await provider.uninstall(proxyCtx, (line) => write(`    ${dim(line)}\n`));
     return true;
   });
-  if (removed) record(side.runtime, 'Traefik désinstallé', true);
+  if (removed) record(side.runtime, `${PROXY_LABEL[installed.kind]} désinstallé`, true);
   if (removed && installed.kubernetes) {
     // Le namespace des routes vers d'autres machines part avec lui.
     const phase = await exec(
@@ -735,12 +949,24 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const [dockerRef, k3sRef] = args.filter((arg) => !arg.startsWith('--'));
   if (!dockerRef || !k3sRef) {
-    write('Usage : pnpm test:proxy <cible-docker> <cible-k3s> [--no-acme] [--keep]\n');
+    write(
+      'Usage : pnpm test:proxy <cible-docker> <cible-k3s> [--proxy=traefik|bunkerweb] [--no-acme] [--keep]\n',
+    );
     process.exit(1);
   }
-  const acme: AcmeSettings | null =
-    !args.includes('--no-acme') && (await acmeAvailable())
-      ? {
+  const kind = proxyKindSchema.parse(
+    args.find((arg) => arg.startsWith('--proxy='))?.slice('--proxy='.length) ?? 'traefik',
+  );
+  const pebble = !args.includes('--no-acme') && (await acmeAvailable());
+  // Traefik interroge Pebble directement ; BunkerWeb, qui ne connaît que Let's
+  // Encrypt, par le relais qui en prend les noms.
+  const acme: AcmeSettings | null = !pebble
+    ? null
+    : kind === 'bunkerweb'
+      ? acmeFront()
+        ? { email: 'tests@pupitre.test', server: 'staging', customUrl: null, caCertificate: null }
+        : null
+      : {
           email: 'tests@pupitre.test',
           server: 'custom',
           customUrl: 'https://pebble:14000/dir',
@@ -748,14 +974,13 @@ async function main(): Promise<void> {
             path.join(ROOT, 'scripts/test-acme/pebble.minica.pem'),
             'utf8',
           ),
-        }
-      : null;
-  write(bold('Reverse proxy — Traefik sur les deux runtimes\n'));
+        };
+  write(bold(`Reverse proxy — ${PROXY_LABEL[kind]} sur les deux runtimes\n`));
   write(
     dim(
       acme
-        ? '  certificats : Pebble (ACME de test)\n'
-        : '  certificats : non vérifiés — Pebble absent\n',
+        ? `  certificats : Pebble (ACME de test)${kind === 'bunkerweb' ? ', sous les noms de Let’s Encrypt par acme-front' : ''}\n`
+        : `  certificats : non vérifiés — ${pebble ? `${ACME_FRONT} absent` : 'Pebble absent'}\n`,
     ),
   );
 
@@ -785,7 +1010,8 @@ async function main(): Promise<void> {
     }
 
     for (const side of sides) {
-      const done = await exercise(side, acme, keep);
+      const outsider = sides.find((other) => other !== side) ?? null;
+      const done = await exercise(side, kind, acme, keep, outsider);
       if (done) installed.push(done);
     }
 

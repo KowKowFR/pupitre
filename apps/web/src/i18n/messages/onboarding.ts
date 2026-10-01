@@ -81,7 +81,7 @@ const fr = {
   'step.proxy.title': 'Reverse proxy',
   'step.proxy.summary': 'Ce qui servira vos applications par leur nom de domaine, en HTTPS.',
   'step.proxy.detail':
-    'Le reverse proxy reçoit les visiteurs sur les ports 80 et 443 et les mène à la bonne application selon le domaine. Pupitre peut reprendre celui qui tourne déjà sur la machine, ou installer Traefik avec des certificats Let’s Encrypt. Ensuite, déployer une application avec un domaine suffit : la route et le certificat suivent.',
+    'Le reverse proxy reçoit les visiteurs sur les ports 80 et 443 et les mène à la bonne application selon le domaine. Pupitre peut reprendre celui qui tourne déjà sur la machine, ou installer Traefik ou BunkerWeb — un reverse proxy qui est aussi un pare-feu applicatif (WAF) — avec des certificats Let’s Encrypt. Ensuite, déployer une application avec un domaine suffit : la route et le certificat suivent.',
   'step.proxy.cost':
     'Sans reverse proxy, les applications ne sont joignables que par leur port, sans nom de domaine ni HTTPS. Il se règle plus tard sur la page de la cible.',
   'proxy.intro': 'Choisissez la machine, puis laissez Pupitre regarder ce qu’elle a déjà.',
@@ -302,7 +302,7 @@ const en: Translated<typeof fr> = {
   'step.proxy.title': 'Reverse proxy',
   'step.proxy.summary': 'What will serve your applications by their domain name, over HTTPS.',
   'step.proxy.detail':
-    'The reverse proxy receives visitors on ports 80 and 443 and leads them to the right application depending on the domain. Pupitre can take over the one already running on the machine, or install Traefik with Let’s Encrypt certificates. From then on, deploying an application with a domain is enough: the route and the certificate follow.',
+    'The reverse proxy receives visitors on ports 80 and 443 and leads them to the right application depending on the domain. Pupitre can take over the one already running on the machine, or install Traefik or BunkerWeb — a reverse proxy that is also a web application firewall (WAF) — with Let’s Encrypt certificates. From then on, deploying an application with a domain is enough: the route and the certificate follow.',
   'step.proxy.cost':
     'Without a reverse proxy, applications are only reachable by their port, with no domain name nor HTTPS. It can be set up later on the target page.',
   'proxy.intro': 'Pick the machine, then let Pupitre look at what it already has.',

@@ -180,3 +180,9 @@ export const proxyPlacementEnum = pgEnum('proxy_placement', ['target', 'remote']
 export const proxyStatusEnum = pgEnum('proxy_status', ['unknown', 'installing', 'ok', 'failed']);
 
 export const routeStatusEnum = pgEnum('route_status', ['pending', 'active', 'failed']);
+
+/**
+ * La protection d'un domaine par un proxy qui est aussi un pare-feu applicatif
+ * (`WafMode` de `@pupitre/core`). Ignorée par un proxy qui n'en est pas un.
+ */
+export const wafModeEnum = pgEnum('waf_mode', ['block', 'detect', 'off']);
