@@ -45,6 +45,10 @@
     "./sources": {
       "types": "./dist/sources/index.d.ts",
       "default": "./dist/sources/index.js"
+    },
+    "./compose": {
+      "types": "./dist/compose/index.d.ts",
+      "default": "./dist/compose/index.js"
     }
   },
   "files": [

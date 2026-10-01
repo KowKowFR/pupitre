@@ -16,6 +16,7 @@ import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 import { common } from '@/i18n/messages/common';
 import { applications as messages } from '@/i18n/messages/applications';
+import { ComposeImport } from './compose-import';
 
 /**
  * Création d'une application, par deux chemins qui aboutissent au même endroit.
@@ -61,7 +62,7 @@ type DeployTarget = {
   runtimes: Array<'docker' | 'k3s'>;
 };
 
-type Tab = 'prompt' | 'json';
+type Tab = 'prompt' | 'json' | 'compose';
 
 type Props = {
   /** `false` quand aucune clé n'est configurée, ou que l'IA est coupée. */
@@ -396,6 +397,8 @@ export function NewApplicationForm({
   const [generating, setGenerating] = useState(false);
   const [generationInfo, setGenerationInfo] = useState<string | null>(null);
   const [origin, setOrigin] = useState<GenerationOrigin | null>(null);
+  /** L'AppSpec vient d'un docker-compose traduit : le journal le dira. */
+  const [imported, setImported] = useState(false);
 
   const [value, setValue] = useState('');
   const [saving, setSaving] = useState(false);
@@ -467,6 +470,7 @@ export function NewApplicationForm({
 
       setValue(JSON.stringify(body.appSpec, null, 2));
       setOrigin({ prompt, model: body.model, appSpec: body.appSpec });
+      setImported(false);
 
       const retried = body.attempts.length > 1;
       setGenerationInfo(
@@ -511,7 +515,13 @@ export function NewApplicationForm({
       headers: { 'content-type': 'application/json' },
       // La provenance n'accompagne la création que si la spec vient bien d'une
       // génération : une spec collée à la main n'a pas d'origine à inventer.
-      body: JSON.stringify(origin ? { appSpec, generation: origin } : { appSpec }),
+      body: JSON.stringify(
+        origin
+          ? { appSpec, generation: origin }
+          : imported
+            ? { appSpec, importedFrom: 'compose' }
+            : { appSpec },
+      ),
     });
 
     if (!response.ok) {
@@ -571,6 +581,9 @@ export function NewApplicationForm({
       <Tabs label={t('new.card.title')}>
         <Tab selected={tab === 'prompt'} disabled={!aiEnabled} onClick={() => setTab('prompt')}>
           {t('tab.fromPrompt')}
+        </Tab>
+        <Tab selected={tab === 'compose'} onClick={() => setTab('compose')}>
+          {t('tab.fromCompose')}
         </Tab>
         <Tab selected={tab === 'json'} onClick={() => setTab('json')}>
           {t('tab.fromJson')}
@@ -660,6 +673,15 @@ export function NewApplicationForm({
             </Alert>
           ) : null}
         </form>
+      ) : tab === 'compose' ? (
+        <ComposeImport
+          onConverted={(spec) => {
+            setValue(JSON.stringify(spec, null, 2));
+            setOrigin(null);
+            setImported(true);
+            reset();
+          }}
+        />
       ) : (
         <div className="flex flex-col items-start gap-3">
           <p className="t-sm text-text-2">{t('new.json.tab.hint')}</p>
@@ -760,6 +782,7 @@ export function NewApplicationForm({
       onClick={() => {
         setValue(EXAMPLE);
         setOrigin(null);
+        setImported(false);
       }}
     >
       {t('form.insertExample')}
@@ -800,7 +823,11 @@ export function NewApplicationForm({
           title={t('review.label')}
           aside={
             <span className="t-cap font-normal text-text-3">
-              {origin ? t('new.review.sub.proposal') : t('new.review.sub.manual')}
+              {origin
+                ? t('new.review.sub.proposal')
+                : imported
+                  ? t('new.review.sub.imported')
+                  : t('new.review.sub.manual')}
             </span>
           }
         >
@@ -811,7 +838,11 @@ export function NewApplicationForm({
           aside={
             <>
               <span className="t-cap font-normal text-text-3">
-                {origin ? t('new.json.sub.generated') : t('new.json.sub.manual')}
+                {origin
+                  ? t('new.json.sub.generated')
+                  : imported
+                    ? t('new.json.sub.imported')
+                    : t('new.json.sub.manual')}
               </span>
               <span className="ml-auto">{insertExample}</span>
             </>

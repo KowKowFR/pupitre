@@ -190,6 +190,18 @@ describe('render() — AppSpec vers Compose', () => {
       assert.doesNotMatch(postgres, /wget|curl/);
     });
 
+    it('sonde en HTTP avec wget ou curl, et en TCP seulement si l’image n’a ni l’un ni l’autre', () => {
+      // `freshrss/freshrss` n'embarque ni wget ni curl : sans repli, le
+      // conteneur restait « unhealthy » et le déploiement échouait.
+      const front = file.services.front?.healthcheck?.test.join(' ') ?? '';
+      assert.match(front, /^CMD-SHELL if command -v wget .* then wget --spider /);
+      assert.match(front, /elif command -v curl .* then curl -fsS /);
+      assert.match(
+        front,
+        /else nc -z -w \d+ 127\.0\.0\.1 \d+ .*\/dev\/tcp\/127\.0\.0\.1\/\d+'.*; fi$/,
+      );
+    });
+
     it('sonde en TCP sans dépendre de `nc`, absent des images Debian', () => {
       // `postgres:16` et `mariadb:11` n'embarquent ni `nc`, ni `wget`, ni
       // `curl` — seulement `bash`. Sans ce repli, leur sonde échouait à vie et

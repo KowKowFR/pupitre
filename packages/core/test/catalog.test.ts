@@ -104,6 +104,14 @@ describe('catalogue', () => {
     assert.equal(catalogParamsSchema.safeParse({ name: 'Kuma', email: 'a@b.fr' }).success, false);
   });
 
+  it('laisse pgAdmin démarrer avec une adresse d’entreprise en .local', () => {
+    // Vu sur une vraie cible : sans ce réglage, pgAdmin refuse l'adresse et s'arrête.
+    const pgadmin = findCatalogTemplate('pgadmin');
+    assert.ok(pgadmin);
+    const spec = instantiateCatalogTemplate(pgadmin, { ...WITH_HOST, email: 'admin@corp.local' });
+    assert.match(spec.services[0]?.env.PGADMIN_CONFIG_ALLOW_SPECIAL_EMAIL_DOMAINS ?? '', /'local'/);
+  });
+
   it('coupe TLS quand il n’y a pas de domaine : il n’y aurait rien à certifier', () => {
     const n8n = findCatalogTemplate('n8n');
     assert.ok(n8n);

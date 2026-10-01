@@ -107,6 +107,7 @@ pnpm db:generate                  # génère une migration Drizzle
 pnpm db:migrate                   # applique les migrations
 pnpm test                         # tests unitaires de @pupitre/core
 pnpm test:parity <docker> <k3s>   # la même AppSpec sur les deux runtimes
+pnpm test:catalog <cible>         # chaque modèle du catalogue déployé, sondé, détruit
 docker compose up -d              # stack complète
 ```
 
