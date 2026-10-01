@@ -18,7 +18,7 @@ fabrique de 401/403 à la main, et **tout refus est audité**.
 | `/targets/:id` | Preflight, métriques, jauge des ports, charges qui y tournent | `target:read` |
 | `/applications` | Catalogue des AppSpec déclarées | `application:read` |
 | `/applications/new` | Deux onglets : « Depuis une description » (IA) et « Depuis un JSON » | `application:create` |
-| `/applications/:id` | AppSpec, secrets, historique des versions, redéploiement | `application:read` |
+| `/applications/:id` | AppSpec, secrets, historique des versions, redéploiement ; sauvegardes avec `backup:read` | `application:read` |
 | `/apps` | **Supervision, vue par serveur** — une carte par machine, dépliable | `deployment:read` |
 | `/apps/:id` | Une application en marche : santé, logs live, redémarrage | `deployment:read` |
 | `/deployments` | Journal des runs, filtres, purge en masse | `deployment:read` |
@@ -35,7 +35,7 @@ fabrique de 401/403 à la main, et **tout refus est audité**.
 | `/admin/users` | Comptes : création, statut, rôle, réinitialisation du 2FA | `user:manage` |
 | `/admin/roles` | Rôles et leurs permissions | `role:read` |
 | `/admin/settings` | Sommaire, en lecture seule | `settings:read` |
-| `/admin/settings/{identite,regionalisation,securite,notifications,ia,demarrage}` | Les six sections | `settings:read` — écriture `settings:manage` |
+| `/admin/settings/{identite,regionalisation,securite,notifications,ia,integrations,sauvegardes,demarrage}` | Les huit sections | `settings:read` — écriture `settings:manage` |
 
 ### Hors navigation
 
@@ -117,12 +117,14 @@ la navigation métier.
 | `/api/applications/:id/versions` | GET | `application:read` |
 | `/api/applications/:id/secrets` | GET | `application:read` — **jamais de valeur** |
 | `/api/applications/:id/secrets/:name` | PUT / DELETE | `application:update` |
+| `/api/applications/:id/backups` | GET / POST | `backup:read` / `backup:manage` — POST : « Sauvegarder maintenant » `{ targetId }`, `202` ; 409 sans destination, sans volume, sans déploiement en service ou pendant une autre sauvegarde |
+| `/api/applications/:id/backup-policy` | PUT | `backup:manage` — automatique, avant déploiement, mode, rétention ; crée ou réactive la tâche « Sauvegardes des applications » |
 
 ### Déploiements
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` (+ `scan:configure` si un `scanConfig` est fourni) |
+| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` (+ `scan:configure` si un `scanConfig` est fourni ; un `backup` n'est retenu qu'avec `backup:manage`, et seulement si l'application n'a pas encore de politique) |
 | `/api/deployments/:id` | GET / DELETE | `deployment:read` / **`deployment:destroy`** |
 | `/api/deployments/:id/purge` | DELETE | **`deployment:purge`** |
 | `/api/deployments/purge` | POST | `deployment:purge` — en masse, `dryRun` compris |
@@ -169,6 +171,21 @@ la navigation métier.
 dans la file. Une même route ne pouvait pas répondre à la fois à « où en est le
 job n° 42 » et à « modifie la tâche planifiée `<uuid>` » : deux ressources, deux
 chemins.
+
+### Sauvegardes
+
+| Route | Méthodes | Permission |
+|---|---|---|
+| `/api/backups/destination` | GET / PUT / DELETE | `settings:read` / `settings:manage` — **secrets jamais rendus**, seulement leurs noms ; PUT enfile un test, `202` |
+| `/api/backups/destination/check` | POST | `settings:manage` — « Tester », par la file |
+| `/api/backups/panel` | GET / POST | `settings:read` / `settings:manage` — POST : sauvegarde de la base du panel, `202` |
+| `/api/backups/panel/schedule` | PUT | `settings:manage` — `{ enabled }`, la tâche « Sauvegarde du panel » |
+| `/api/backups/:id` | DELETE | `backup:manage` (+ `settings:manage` pour une sauvegarde du panel) — efface sur la destination puis dans l'index, `202` |
+| `/api/backups/:id/restore` | POST | **`backup:restore`** — `{ targetId, safetyBackup }`, `202` ; 409 si l'application est arrêtée, absente de la cible ou occupée |
+
+La base du panel ne se restaure pas par l'API : on ne remplace pas la base d'un
+processus qui s'en sert. C'est la ligne de commande, panel et worker arrêtés —
+voir [`exploitation.md`](exploitation.md#restaurer-la-base-du-panel).
 
 ### Discussion
 

@@ -167,7 +167,7 @@ la comparaison telle qu'elle est.
 |---|---|
 | **Deux runtimes, une seule description** | La même AppSpec se déploie sur Docker Compose et sur K3s. Les panels de cette famille sont Docker — Compose ou Swarm ; Kubernetes est hors de leur périmètre. Ici, `pnpm test:parity` déploie la *même* spec des deux côtés, obtient deux URLs qui répondent, rollback et détruit — et il rend **30/30 au vert** (tableau plus bas). |
 | **Le scan bloque, avant le déploiement** | Trivy, Grype et Syft tournent sur la machine cible dans le pipeline. Une politique `failOn: CRITICAL \| HIGH \| NONE`, stockée en donnée, arrête le déploiement à l'étape `scan`. Un SBOM est téléchargeable. |
-| **RBAC granulaire et journal d'activité** | Trente permissions `ressource:action`, des rôles qui sont des **données** modifiables et non des constantes, et un journal d'activité écrit par un point d'entrée unique — refus de permission compris, avec l'IP réelle derrière le reverse proxy. |
+| **RBAC granulaire et journal d'activité** | Trente-quatre permissions `ressource:action`, des rôles qui sont des **données** modifiables et non des constantes, et un journal d'activité écrit par un point d'entrée unique — refus de permission compris, avec l'IP réelle derrière le reverse proxy. |
 | **Supervision et notifications intégrées** | Sondes HTTP et TLS avec hystérésis, métriques d'hôte avec seuils à trois niveaux, quatre canaux de notification. Pas d'outil séparé à brancher. |
 | **Une AppSpec que l'IA remplit** | Une description en français produit un JSON validé par Zod — jamais du shell. Éditable avant déploiement. |
 
@@ -182,8 +182,6 @@ la comparaison telle qu'elle est.
 - **Il n'installe pas le reverse proxy et ne gère pas les certificats.**
   `TraefikProvider` écrit la configuration dynamique d'un Traefik qui doit déjà
   tourner sur la cible.
-- **Aucune sauvegarde de base de données.** Ni planifiée, ni vers un stockage
-  objet.
 - **Pas de gestion d'équipes ni de multi-tenance.** Un RBAC sur une instance,
   pas des espaces cloisonnés.
 - **Aucune version publiée, aucune communauté.** Pas de tag, pas de release, pas
@@ -265,7 +263,8 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | | Où c'est décrit |
 |---|---|
 | Machines cibles, preflight, charges distantes, suppression et purge | [`docs/exploitation.md`](docs/exploitation.md) |
-| RBAC (30 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
+| Sauvegardes chiffrées vers S3, SFTP ou un dossier monté, restauration, reprise après sinistre | [`docs/exploitation.md`](docs/exploitation.md#sauvegardes) |
+| RBAC (34 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Scanners Trivy / Grype / Syft et politique de blocage | [`docs/securite.md`](docs/securite.md#scanners-de-sécurité) |
 | Sondes HTTP et TLS, métriques d'hôte, notifications, tâches planifiées | [`docs/supervision.md`](docs/supervision.md) |
 | Génération d'AppSpec par IA, trois fournisseurs | [`docs/ia.md`](docs/ia.md) |

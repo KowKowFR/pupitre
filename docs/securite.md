@@ -1,7 +1,7 @@
 # Sécurité
 
 - [Authentification et comptes](#authentification-et-comptes)
-- [RBAC — 30 permissions](#rbac--30-permissions)
+- [RBAC — 34 permissions](#rbac--34-permissions)
 - [Journal d'activité](#journal-dactivité)
 - [Chiffrement](#chiffrement)
 - [Magasin de secrets d'application](#magasin-de-secrets-dapplication)
@@ -59,7 +59,7 @@ client SQL. Réinitialiser un compte qui n'a pas de second facteur rend un `409`
 
 L'action `user.2fa.reset` déclenche aussi une notification `security.two_factor_reset`.
 
-## RBAC — 30 permissions
+## RBAC — 34 permissions
 
 `packages/core/src/permissions.ts` est le vocabulaire, partagé par le panel, le
 worker et le seed. Une permission est une chaîne `ressource:action`.
@@ -71,7 +71,8 @@ worker et le seed. Une permission est une chaîne `ressource:action`.
 | `target` | `read` `create` `update` `delete` |
 | `application` | `read` `create` `update` `delete` |
 | `deployment` | `read` `create` `rollback` `restart` `destroy` `purge` |
-| `workload` | `read` `manage` |
+| `backup` | `read` `manage` `restore` |
+| `workload` | `read` `manage` `exec` |
 | `scan` | `read` `configure` |
 | `job` | `read` `manage` |
 | `monitor` | `read` `manage` |
@@ -87,6 +88,9 @@ cosmétiques :
   pas donner le pouvoir de lever le second facteur de quelqu'un.
 - **`workload`, pas `container`** — sur une cible K3s ce sont des pods. Le mot
   Docker n'a pas sa place dans un vocabulaire partagé.
+- **`backup:manage` vs `backup:restore`** — sauvegarder ne remplace rien ;
+  restaurer écrase les données en service. L'opérateur a la première, pas la
+  seconde.
 
 ### Les rôles sont des données, pas du code
 
@@ -98,9 +102,9 @@ recompiler le panel pour créer un rôle.
 
 | Rôle | Permissions |
 |---|---|
-| `admin` | les 30 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
-| `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure` |
-| `viewer` | les 11 permissions en `:read` |
+| `admin` | les 34 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
+| `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure`, sauvegardes sans restauration |
+| `viewer` | les 12 permissions en `:read` |
 
 `admin` est le garde-fou qui empêche de se verrouiller hors de son propre panel.
 Le seed est idempotent et rejoué à chaque démarrage, mais **il ne réécrit pas une
@@ -146,7 +150,7 @@ HKDF-SHA256, format `version:iv:authTag:ciphertext` avec la version passée en
 **AAD** (pas de downgrade v2 → v1). Le panel et le worker refusent de démarrer si
 `MASTER_KEY` est absente ou fait moins de 32 octets.
 
-Cinq choses sont chiffrées par la même primitive, chacune dans sa colonne :
+Sept choses sont chiffrées par la même primitive, chacune dans sa colonne :
 
 | Quoi | Colonne | Seul point de déchiffrement |
 |---|---|---|
@@ -155,6 +159,15 @@ Cinq choses sont chiffrées par la même primitive, chacune dans sa colonne :
 | Clé d'API de l'IA | `app_settings.ai_api_key_encrypted` | le panel, à l'appel du fournisseur |
 | Secrets d'un canal de notification | `notification_channels.encrypted_secrets` | le worker, à l'envoi |
 | URL de webhook d'une sonde | `monitors.webhook_url_encrypted` | le worker, à l'alerte |
+| Clé privée de l'App GitHub | `source_connections.private_key_encrypted` | le panel et le worker, à l'appel de l'API GitHub |
+| Clés d'une destination de sauvegarde | `backup_destinations.encrypted_secrets` | le worker, à l'ouverture de la destination |
+
+Les **fichiers de sauvegarde** sont chiffrés eux aussi, mais en flux et sous une
+clé à part pour chaque fichier : HKDF de `MASTER_KEY` avec un sel tiré au
+hasard, AES-256-GCM, en-tête authentifié — voir
+[`architecture.md`](architecture.md#sauvegardes--un-lieu-un-format-deux-runtimes).
+Une destination compromise ne livre que des octets illisibles ; une sauvegarde
+modifiée est refusée, jamais restaurée.
 
 **Le credential ne sort jamais du panel** : `getTarget()` et `listTargets()` ne
 sélectionnent pas la colonne, donc la réponse HTTP ne peut pas la contenir, même
@@ -200,16 +213,17 @@ cet ordre :
 openssl rand -hex 32          # la nouvelle clé
 ```
 
-1. Relever, **avec l'ancienne clé encore en place**, tout ce qui est chiffré :
-   credentials de cibles, secrets d'applications, clé d'API de l'IA, secrets de
-   canaux, URL de webhook des sondes — les cinq colonnes du tableau ci-dessus.
+1. Relever, **avec l'ancienne clé encore en place**, tout ce qui est chiffré —
+   les sept colonnes du tableau ci-dessus.
 2. Remplacer `MASTER_KEY` dans `.env`, puis redémarrer panel et worker.
 3. Ressaisir chaque valeur par l'API ou par l'écran qui la porte. Rien ne se
    rechiffre tout seul : les anciennes valeurs deviennent illisibles, pas
    invalides.
 
 Inverser 1 et 2 perd les identifiants sans recours — c'est la garantie même du
-chiffrement.
+chiffrement. Et les sauvegardes faites sous l'ancienne clé ne se relisent
+qu'avec elle : gardez-la tant qu'elles comptent, ou refaites-en sous la
+nouvelle.
 
 ## Magasin de secrets d'application
 

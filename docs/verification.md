@@ -120,6 +120,14 @@ seconde, qui n'a pas de script.
   `DriverContext.additionalFiles` : par le panel, seules les applications en
   `source.type: "image"` se déploient. Voir
   [`feuille-de-route.md`](feuille-de-route.md).
+- **Les sauvegardes n'ont pas de script de bout en bout.** `pnpm test` couvre
+  le format chiffré (aller-retour, falsification, mauvaise clé), la signature
+  SigV4 contre le vecteur d'AWS, le plan, la rétention, les destinations et le
+  dossier local. Le reste a été joué à la main sur les cibles de test — export
+  et restauration PostgreSQL, MariaDB et MongoDB, arrêt bref, restauration
+  d'une sauvegarde Docker sur K3s, base du panel par la ligne de commande —
+  vers un SFTP et un S3 compatible (CloudServer), **jamais vers AWS, Scaleway
+  ou Backblaze réels**.
 - Le point 9 de `verify-ports-rollback.sh` se contente d'un `pnpm typecheck` sur
   `test-parity.ts` au lieu de le jouer : il n'a qu'une cible Docker sous la main.
   La parité elle-même se joue par `pnpm test:parity`, séparément.

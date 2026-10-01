@@ -52,7 +52,10 @@ Le format de chiffrement est `version:iv:authTag:ciphertext` : le champ
 `version` existe **pour permettre** une rotation. Le code de rotation, lui,
 n'est pas écrit. Aujourd'hui, changer `MASTER_KEY` rend illisibles les
 credentials SSH, les valeurs de secrets, la clé d'API d'IA, les secrets des
-canaux de notification et les URL de webhook des sondes.
+canaux de notification, les URL de webhook des sondes, la clé de l'App GitHub,
+les clés de la destination de sauvegarde — et **toutes les sauvegardes déjà
+faites**, dont le format (`PUPB`, version 1) n'a pas de place pour une seconde
+clé.
 
 ## Trous de couverture
 

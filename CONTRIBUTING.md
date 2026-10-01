@@ -132,7 +132,7 @@ renvoie le perdant au tirage suivant. Pas de « SELECT puis INSERT ». Pas de `i
 
 ### 6. Les permissions sont des chaînes `ressource:action`
 
-Trente aujourd'hui, dans `packages/core/src/permissions.ts` :
+Trente-quatre aujourd'hui, dans `packages/core/src/permissions.ts` :
 
 ```bash
 grep -oE "'[a-z0-9-]+:[a-z0-9-]+'" packages/core/src/permissions.ts | sort -u | wc -l
