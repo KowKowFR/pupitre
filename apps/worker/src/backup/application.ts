@@ -210,13 +210,18 @@ export async function backupApplication(
     await finishBackupRecord(backupId, { status: 'success', manifest, bytes });
     onLog(`sauvegarde terminée — ${formatBytes(bytes)} au total`);
 
-    await applyRetention(
-      store,
-      { kind: 'application', applicationId: application.id },
-      opened.id,
-      policy.configured ? policy.retention : DEFAULT_BACKUP_RETENTION,
-      onLog,
-    );
+    // Une sauvegarde de sûreté reste hors de la rotation : elle précède une
+    // restauration, et la rétention pourrait retirer la sauvegarde même qu'on
+    // s'apprête à restaurer. La prochaine sauvegarde ordinaire fera le tri.
+    if (request.trigger !== 'pre_restore') {
+      await applyRetention(
+        store,
+        { kind: 'application', applicationId: application.id },
+        opened.id,
+        policy.configured ? policy.retention : DEFAULT_BACKUP_RETENTION,
+        onLog,
+      );
+    }
     return { status: 'success', backupId, bytes };
   } catch (error) {
     const message = messageOf(error);

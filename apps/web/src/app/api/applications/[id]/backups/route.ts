@@ -24,7 +24,13 @@ import { z } from 'zod';
 import { backups as messages } from '@/i18n/messages/backups';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
-import { backupScheduleView, backupView, destinationView, getBackupsQueue } from '@/lib/backups';
+import {
+  backupScheduleView,
+  backupView,
+  destinationView,
+  getBackupsQueue,
+  lastRestoreView,
+} from '@/lib/backups';
 import { requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
@@ -69,15 +75,14 @@ export const GET = apiRoute<Context>(async (request, context) => {
         name: targets.find((target) => target.id === couple.targetId)?.name ?? couple.targetId,
         stopped: couple.inService?.stoppedAt !== null,
       })),
+    // Le nom des cibles d'où viennent ses sauvegardes, même si elle n'y tourne plus.
+    targetNames: Object.fromEntries(
+      targets
+        .filter((target) => rows.some((row) => row.targetId === target.id))
+        .map((target) => [target.id, target.name]),
+    ),
     items: rows.map(backupView),
-    lastRestore: lastRestore
-      ? {
-          ok: lastRestore.ok,
-          at: lastRestore.at.toISOString(),
-          actorName: lastRestore.actorName,
-          error: typeof lastRestore.after.error === 'string' ? lastRestore.after.error : null,
-        }
-      : null,
+    lastRestore: lastRestoreView(lastRestore),
   });
 });
 

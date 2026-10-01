@@ -3,11 +3,18 @@ import {
   BACKUPS_QUEUE,
   SCHEDULED_JOB_TYPES,
   describeBackupDestination,
+  type BackupMode,
   type ScheduledJobType,
 } from '@pupitre/core';
 import {
   createScheduledJob,
+  lastRestoreOf,
+  listApplications,
+  listBackupPolicies,
+  listBackups,
+  listLiveDeployments,
   listScheduledJobs,
+  listTargets,
   updateScheduledJob,
   type BackupDestinationView,
   type BackupRow,
@@ -144,6 +151,123 @@ export function backupView(row: BackupRow): BackupView {
     startedAt: row.startedAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
   };
+}
+
+/** Où une application tourne en ce moment — là où l'on peut la restaurer. */
+export type LiveTargetView = { id: string; name: string; stopped: boolean };
+
+export type LastRestoreView = {
+  ok: boolean;
+  at: string;
+  actorName: string | null;
+  error: string | null;
+};
+
+export function lastRestoreView(
+  restore: Awaited<ReturnType<typeof lastRestoreOf>>,
+): LastRestoreView | null {
+  if (!restore) return null;
+  return {
+    ok: restore.ok,
+    at: restore.at.toISOString(),
+    actorName: restore.actorName,
+    error: typeof restore.after.error === 'string' ? restore.after.error : null,
+  };
+}
+
+export type ApplicationBackupsView = {
+  /** `null` : l'application a été supprimée, ses sauvegardes sont restées. */
+  id: string | null;
+  slug: string;
+  name: string;
+  policy: { enabled: boolean; beforeDeploy: boolean; mode: BackupMode } | null;
+  targets: LiveTargetView[];
+  items: BackupView[];
+  lastRestore: LastRestoreView | null;
+};
+
+/**
+ * Le nombre de sauvegardes lues pour la vue d'ensemble. La rétention en garde
+ * une vingtaine par application et les échecs partent au bout d'un mois : la
+ * borne n'est là que pour qu'une instance démesurée ne rende pas une page
+ * démesurée.
+ */
+const OVERVIEW_LIMIT = 2000;
+
+/**
+ * Toutes les applications qui ont une sauvegarde ou une politique, chacune avec
+ * son historique et les cibles où elle tourne. Les sauvegardes d'une
+ * application supprimée y figurent aussi, regroupées par son nom : elles sont
+ * toujours sur la destination, et c'est ici qu'on les retrouve.
+ */
+export async function applicationBackupsOverview(): Promise<{
+  applications: ApplicationBackupsView[];
+  targetNames: Record<string, string>;
+}> {
+  const [rows, applications, policies, live, targets] = await Promise.all([
+    listBackups({ kind: 'application', limit: OVERVIEW_LIMIT }),
+    listApplications(),
+    listBackupPolicies(),
+    listLiveDeployments(),
+    listTargets(),
+  ]);
+  const nameOf = new Map(targets.map((target) => [target.id, target.name]));
+
+  const byApplication = new Map<string, BackupView[]>();
+  const orphans = new Map<string, BackupView[]>();
+  for (const row of rows) {
+    const view = backupView(row);
+    const [bucket, key] = row.applicationId
+      ? [byApplication, row.applicationId]
+      : [orphans, row.applicationSlug ?? '?'];
+    const items = bucket.get(key);
+    if (items) items.push(view);
+    else bucket.set(key, [view]);
+  }
+
+  const listed = applications.filter(
+    (application) => policies.has(application.id) || byApplication.has(application.id),
+  );
+  const restores = await Promise.all(listed.map((application) => lastRestoreOf(application.id)));
+
+  const views: ApplicationBackupsView[] = listed.map((application, index) => {
+    const policy = policies.get(application.id);
+    return {
+      id: application.id,
+      slug: application.slug,
+      name: application.name,
+      policy: policy
+        ? { enabled: policy.enabled, beforeDeploy: policy.beforeDeploy, mode: policy.mode }
+        : null,
+      targets: live
+        .filter((couple) => couple.applicationId === application.id && couple.inService)
+        .map((couple) => ({
+          id: couple.targetId,
+          name: nameOf.get(couple.targetId) ?? couple.targetId,
+          stopped: couple.inService?.stoppedAt !== null,
+        })),
+      items: byApplication.get(application.id) ?? [],
+      lastRestore: lastRestoreView(restores[index] ?? null),
+    };
+  });
+  for (const [slug, items] of [...orphans].sort(([a], [b]) => a.localeCompare(b))) {
+    views.push({
+      id: null,
+      slug,
+      name: slug,
+      policy: null,
+      targets: [],
+      items,
+      lastRestore: null,
+    });
+  }
+
+  // Les noms des cibles où une sauvegarde a été prise — pas les autres.
+  const referenced = new Set(rows.map((row) => row.targetId).filter((id) => id !== null));
+  const targetNames = Object.fromEntries(
+    [...referenced].map((id) => [id, nameOf.get(id) ?? id] as const),
+  );
+  return { applications: views, targetNames };
 }
 
 export type DestinationView = {

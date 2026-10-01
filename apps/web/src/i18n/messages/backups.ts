@@ -86,6 +86,10 @@ const fr = {
     "L'application est arrêtée le temps de remplacer ses volumes, puis redémarrée ; ses bases sont rechargées.",
   'restore.code':
     'Son code et sa version ne changent pas : seules ses données reviennent en arrière.',
+  'restore.target': 'Restaurer sur',
+  'restore.target.origin': 'là où elle a été prise',
+  'restore.target.other':
+    'La sauvegarde vient de « {origin} » : ses données iront sur une autre cible — c’est aussi la façon de les déménager.',
   'restore.safety': "Sauvegarder d'abord l'état actuel",
   'restore.safety.help': 'Pour pouvoir revenir en arrière si ce n’était pas la bonne sauvegarde.',
   'restore.confirm': 'Restaurer',
@@ -188,6 +192,23 @@ const fr = {
     'Aucune application n’a encore la sauvegarde automatique — elle s’active sur leur fiche.',
   'apps.schedule': 'Tâche « Sauvegardes des applications » : prochaine {next}.',
   'apps.noSchedule': 'La tâche planifiée sera créée à la première activation.',
+  'apps.list.empty': 'Aucune application n’a encore de sauvegarde.',
+  'apps.list.last': 'dernière le {date}',
+  'apps.list.never': 'jamais sauvegardée',
+  'apps.list.count': {
+    one: '{count} sauvegarde',
+    other: '{count} sauvegardes',
+  },
+  'apps.list.auto': 'automatique',
+  'apps.list.beforeDeploy': 'avant déploiement',
+  'apps.list.open': 'Ouvrir la fiche',
+  'apps.list.deleted': 'supprimée',
+  'apps.list.deleted.help':
+    'L’application a été supprimée : ses sauvegardes sont toujours sur la destination, mais plus aucune application ne peut les recevoir. « backup decrypt » les relit à la main ; les supprimer libère la place.',
+  'apps.list.notDeployed':
+    'Elle ne tourne sur aucune cible : déployez-la pour pouvoir y restaurer une sauvegarde.',
+  'apps.list.stopped':
+    'Elle est arrêtée partout où elle tourne : relancez-la pour pouvoir restaurer une sauvegarde.',
   'schedule.paused': 'en pause',
   'jobs.link': 'Régler dans Tâches',
 } as const;
@@ -270,6 +291,10 @@ const en: Translated<typeof fr> = {
   'restore.downtime':
     'The application is stopped while its volumes are replaced, then restarted; its databases are reloaded.',
   'restore.code': 'Its code and version do not change: only its data goes back in time.',
+  'restore.target': 'Restore onto',
+  'restore.target.origin': 'where it was taken',
+  'restore.target.other':
+    'The backup comes from “{origin}”: its data will go to another target — which is also how to move it.',
   'restore.safety': 'Back up the current state first',
   'restore.safety.help': 'To be able to go back if it was not the right backup.',
   'restore.confirm': 'Restore',
@@ -365,6 +390,22 @@ const en: Translated<typeof fr> = {
   'apps.none': 'No application has automatic backup yet — it is enabled on their page.',
   'apps.schedule': '“Application backups” job: next {next}.',
   'apps.noSchedule': 'The scheduled job will be created on first activation.',
+  'apps.list.empty': 'No application has a backup yet.',
+  'apps.list.last': 'last on {date}',
+  'apps.list.never': 'never backed up',
+  'apps.list.count': {
+    one: '{count} backup',
+    other: '{count} backups',
+  },
+  'apps.list.auto': 'automatic',
+  'apps.list.beforeDeploy': 'before deployment',
+  'apps.list.open': 'Open its page',
+  'apps.list.deleted': 'deleted',
+  'apps.list.deleted.help':
+    'The application was deleted: its backups are still on the destination, but no application can receive them any more. “backup decrypt” reads them by hand; deleting them frees the space.',
+  'apps.list.notDeployed': 'It runs on no target: deploy it to be able to restore a backup there.',
+  'apps.list.stopped':
+    'It is stopped everywhere it runs: start it again to be able to restore a backup.',
   'schedule.paused': 'paused',
   'jobs.link': 'Set in Jobs',
 };

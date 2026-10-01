@@ -264,6 +264,24 @@ export async function listBackupPolicyApplicationIds(db: Database = getDb()): Pr
   return new Set(rows.map((row) => row.id));
 }
 
+/** Toutes les politiques posées, par application — pour la vue d'ensemble des réglages. */
+export async function listBackupPolicies(
+  db: Database = getDb(),
+): Promise<Map<string, BackupPolicy>> {
+  const rows = await db.select().from(backupPolicies);
+  return new Map(
+    rows.map((row) => [
+      row.applicationId,
+      backupPolicySchema.parse({
+        enabled: row.enabled,
+        mode: row.mode,
+        beforeDeploy: row.beforeDeploy,
+        retention: row.retention,
+      }),
+    ]),
+  );
+}
+
 /** Combien d'applications sont sauvegardées automatiquement — pour l'écran des réglages. */
 export async function countEnabledBackupPolicies(db: Database = getDb()): Promise<number> {
   const [row] = await db

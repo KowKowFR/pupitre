@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Archive, CircleCheck, CircleX, LoaderCircle, PlugZap, Trash2 } from 'lucide-react';
 import type { BackupDestinationKind } from '@pupitre/core';
+import { formatBytes } from '@/components/backups/backup-history';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,11 +26,16 @@ import { SwitchField } from '@/components/ui/switch';
 import { useT } from '@/i18n/client';
 import { backups as messages } from '@/i18n/messages/backups';
 import { common } from '@/i18n/messages/common';
-import type { BackupScheduleView, BackupView, DestinationView } from '@/lib/backups';
+import type {
+  ApplicationBackupsView,
+  BackupScheduleView,
+  BackupView,
+  DestinationView,
+} from '@/lib/backups';
 import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { relativeTime } from '@/lib/relative-time';
 import { toast } from '@/lib/toast';
-import { formatBytes } from '../../../applications/[id]/application-backups';
+import { ApplicationsBackups } from './applications-backups';
 
 /**
  * Paramètres → Sauvegardes, côté écran : la destination (un formulaire par
@@ -68,7 +74,10 @@ export function BackupSettings({
   panelSchedule,
   appsSchedule,
   enabledApps,
+  appsOverview,
   canManage,
+  canManageBackups,
+  canRestore,
   format,
 }: {
   initialDestination: DestinationView | null;
@@ -76,7 +85,16 @@ export function BackupSettings({
   panelSchedule: BackupScheduleView;
   appsSchedule: BackupScheduleView;
   enabledApps: number;
+  /** Les applications et leur historique — `null` sans `backup:read`. */
+  appsOverview: {
+    applications: ApplicationBackupsView[];
+    targetNames: Record<string, string>;
+  } | null;
   canManage: boolean;
+  /** `backup:manage` : supprimer une sauvegarde d'application. */
+  canManageBackups: boolean;
+  /** `backup:restore`. */
+  canRestore: boolean;
   format: FormatSettings;
 }) {
   const t = useT(messages);
@@ -242,7 +260,11 @@ export function BackupSettings({
           {destination ? (
             <p className="t-sm flex flex-wrap items-center gap-2">
               <span className="mono text-text">{destination.description}</span>
-              <span className={destination.lastCheckError ? 'text-danger-text' : 'text-text-3'}>
+              {/* « testée il y a 3 min » : l'horloge du serveur et celle du navigateur diffèrent. */}
+              <span
+                className={destination.lastCheckError ? 'text-danger-text' : 'text-text-3'}
+                suppressHydrationWarning
+              >
                 {destination.lastCheckedAt === null
                   ? t('destination.untested')
                   : destination.lastCheckError
@@ -492,6 +514,17 @@ export function BackupSettings({
               : t('apps.noSchedule')}
           </CardDescription>
         </CardHeader>
+        {appsOverview ? (
+          <CardContent>
+            <ApplicationsBackups
+              applications={appsOverview.applications}
+              targetNames={appsOverview.targetNames}
+              canRestore={canRestore}
+              canManage={canManageBackups}
+              format={format}
+            />
+          </CardContent>
+        ) : null}
       </Card>
 
       <ConfirmDialog
