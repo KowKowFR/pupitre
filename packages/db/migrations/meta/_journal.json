@@ -183,6 +183,13 @@
       "when": 1790844358608,
       "tag": "0026_backups",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790856691552,
+      "tag": "0027_reverse_proxy",
+      "breakpoints": true
     }
   ]
 }

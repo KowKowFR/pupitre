@@ -324,6 +324,7 @@ export function applySecuritySettings(
  * plus général au plus particulier, et chaque étape ne dépend que des
  * précédentes. `welcome` situe le panel avant de rien demander ; `identity`
  * n'engage rien d'extérieur ; `target` est la seule qui touche une machine ;
+ * `proxy` la suit : le reverse proxy d'une machine se règle quand elle existe ;
  * `role` puis `user` viennent après elle parce qu'un rôle sert à donner accès
  * à quelque chose qui existe — inviter quelqu'un sur un panel sans cible n'a
  * pas d'objet ; `security` règle ce qui s'appliquera aux déploiements à venir ;
@@ -333,6 +334,7 @@ export const ONBOARDING_STEPS = [
   'welcome',
   'identity',
   'target',
+  'proxy',
   'role',
   'user',
   'security',
@@ -429,6 +431,7 @@ export const ONBOARDING_STEP_DEFINITIONS: readonly OnboardingStepDefinition[] = 
   { id: 'welcome', requires: null, optional: false },
   { id: 'identity', requires: 'settings:manage', optional: false },
   { id: 'target', requires: 'target:create', optional: true },
+  { id: 'proxy', requires: 'target:update', optional: true },
   { id: 'role', requires: 'role:manage', optional: true },
   { id: 'user', requires: 'user:manage', optional: true },
   { id: 'security', requires: 'settings:manage', optional: true },

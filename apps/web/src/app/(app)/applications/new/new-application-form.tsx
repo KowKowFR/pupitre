@@ -7,7 +7,9 @@ import {
   type FirstDeployBackupChoice,
 } from '@/components/backups/first-deploy-backup';
 import { useState } from 'react';
+import type { ProxyCapabilities } from '@pupitre/core';
 import { AppSpecHelp } from '@/components/appspec-help';
+import { DomainsField, toRouteInputs, type DomainDraft } from '@/components/proxy/domains-field';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Rocket, Sparkles } from 'lucide-react';
@@ -66,6 +68,7 @@ type DeployTarget = {
   name: string;
   host: string;
   runtimes: Array<'docker' | 'k3s'>;
+  proxy: { description: string; capabilities: ProxyCapabilities } | null;
 };
 
 type Tab = 'prompt' | 'json' | 'compose';
@@ -454,6 +457,18 @@ export function NewApplicationForm({
   const storable = parsedSpec ? storedSecretNames(parsedSpec) : [];
   // Une application qui a des données, déployée tout de suite : on propose sa sauvegarde.
   const offersBackup = backupOptions !== null && parsedSpec !== null && hasBackupData(parsedSpec);
+  // Les domaines : tant qu'on n'y a pas touché, celui de l'AppSpec.
+  const [domainDraft, setDomainDraft] = useState<DomainDraft[] | null>(null);
+  const domains: DomainDraft[] =
+    domainDraft ??
+    (parsedSpec?.ingress?.host
+      ? [
+          {
+            hostname: parsedSpec.ingress.host,
+            tls: parsedSpec.ingress.tls && (selectedTarget?.proxy?.capabilities.https ?? false),
+          },
+        ]
+      : []);
 
   function reset() {
     setError(null);
@@ -577,6 +592,7 @@ export function NewApplicationForm({
           runtime: deployRuntime,
           proxy: 'traefik',
           autoRollback: true,
+          ...(selectedTarget.proxy ? { domains: toRouteInputs(domains) } : {}),
           ...(offersBackup
             ? firstDeployPayload(firstBackup, backupOptions?.hasDestination ?? false)
             : {}),
@@ -759,6 +775,17 @@ export function NewApplicationForm({
             ))}
           </Select>
         </Field>
+        {selectedTarget ? (
+          <div className="sm:col-span-2">
+            <DomainsField
+              targetId={selectedTarget.id}
+              targetName={selectedTarget.name}
+              proxy={selectedTarget.proxy}
+              value={domains}
+              onChange={setDomainDraft}
+            />
+          </div>
+        ) : null}
         {selectedTarget && offersBackup ? (
           <div className="sm:col-span-2">
             <FirstDeployBackup

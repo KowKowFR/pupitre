@@ -15,6 +15,7 @@ import type {
 } from '@pupitre/core';
 import { Led } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
+import { ProxyPanel } from '@/components/proxy/proxy-panel';
 import { TargetHelp } from '@/components/target-help';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,8 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { onboarding } from '@/i18n/messages/onboarding';
+import type { FormatSettings } from '@/lib/format';
+import type { ProxyViewForUi } from '@/lib/proxy';
 import { cn } from '@/lib/utils';
 import { CreateRoleForm } from '@/app/(app)/admin/roles/create-role-form';
 import { CreateUserForm } from '@/app/(app)/admin/users/create-user-form';
@@ -76,6 +79,11 @@ type Props = {
   dateStyles: DateStyleName[];
   roleKeys: RoleKey[];
   canRunPreflight: boolean;
+  /** Les machines dont on peut régler le reverse proxy — l'étape `proxy`. */
+  proxyTargets: Array<{ id: string; name: string }>;
+  format: FormatSettings;
+  /** Proposé pour Let's Encrypt : l'e-mail de la personne connectée. */
+  userEmail: string;
   /**
    * L'instance sait-elle envoyer un e-mail ? Sur une instance neuve — le cas
    * de figure de cet assistant — la réponse est presque toujours « non », et
@@ -99,6 +107,7 @@ type ApiError = { error?: { message?: string } };
  */
 const COST_KEYS = {
   target: 'step.target.cost',
+  proxy: 'step.proxy.cost',
   role: 'step.role.cost',
   user: 'step.user.cost',
   security: 'step.security.cost',
@@ -288,6 +297,15 @@ export function OnboardingWizard(props: Props) {
                     canRunPreflight={props.canRunPreflight}
                     disabled={busy}
                     onDone={() => complete('target')}
+                  />
+                ) : null}
+
+                {currentId === 'proxy' ? (
+                  <ProxyStep
+                    targets={props.proxyTargets}
+                    format={props.format}
+                    email={props.userEmail}
+                    onDone={() => complete('proxy')}
                   />
                 ) : null}
 
@@ -557,6 +575,69 @@ function Welcome() {
 }
 
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Le reverse proxy de la machine : la même carte que sur la page de la cible.
+ * L'étape est faite quand un proxy est relié — trouvé ou installé.
+ */
+function ProxyStep({
+  targets,
+  format,
+  email,
+  onDone,
+}: {
+  targets: Array<{ id: string; name: string }>;
+  format: FormatSettings;
+  email: string;
+  onDone: () => void;
+}) {
+  const t = useT(onboarding);
+  const [targetId, setTargetId] = useState(targets[0]?.id ?? '');
+  const [proxy, setProxy] = useState<ProxyViewForUi | null>(null);
+  const target = targets.find((candidate) => candidate.id === targetId) ?? targets[0];
+  if (!target) return <p className="t-sm text-text-3">{t('proxy.noTarget')}</p>;
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="t-sm text-text-2">{t('proxy.intro')}</p>
+      {targets.length > 1 ? (
+        <label className="flex max-w-sm flex-col gap-1.5">
+          <span className="t-sm font-medium">{t('proxy.target')}</span>
+          <select
+            className="select"
+            value={target.id}
+            onChange={(event) => {
+              setProxy(null);
+              setTargetId(event.target.value);
+            }}
+          >
+            {targets.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <ProxyPanel
+        key={target.id}
+        targetId={target.id}
+        targetName={target.name}
+        canManage
+        format={format}
+        defaultEmail={email}
+        onProxyChange={setProxy}
+      />
+      {proxy && proxy.status !== 'installing' && proxy.status !== 'failed' ? (
+        <div>
+          <Button onClick={onDone}>
+            <Check aria-hidden />
+            {t('proxy.done')}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function TargetStep({
   existing,

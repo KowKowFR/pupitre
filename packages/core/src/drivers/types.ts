@@ -5,6 +5,7 @@ import type { SshSession } from '../ssh/client.js';
 import type { Workload, WorkloadControlAction, WorkloadRef } from '../workloads.js';
 import type { WorkloadExecOptions, WorkloadExecResult } from './workload-exec.js';
 import type { RunningImage } from '../images/updates.js';
+import type { ProxyUpstream } from '../proxy/model.js';
 import type { Readable, Writable } from 'node:stream';
 
 /**
@@ -91,6 +92,14 @@ export type DriverContext = TargetContext & {
    */
   portRange?: { min: number; max: number };
   resolveSecrets?: SecretResolver;
+  /**
+   * L'adresse où publier le port de l'application. Absente : toutes les
+   * interfaces. `127.0.0.1` quand un reverse proxy **sur la même machine** la
+   * sert par ses domaines : son port n'a plus à être joignable du dehors —
+   * sinon il contournerait le HTTPS du proxy. C'est le pipeline qui en décide,
+   * au vu des routes ; le driver applique.
+   */
+  publishAddress?: string;
   /**
    * Fichiers supplémentaires à déposer avec les artefacts rendus — typiquement
    * le code source, quand un service se construit depuis un Dockerfile.
@@ -219,6 +228,18 @@ export interface DeploymentDriver {
    * cible par un service étranger au panel.
    */
   allocatePort(ctx: DriverContext, onLog?: LogSink): Promise<number | null>;
+
+  /**
+   * Par où un reverse proxy joint le service exposé de l'application : le port
+   * publié sur la machine, ou le Service du cluster. `null` : rien à joindre —
+   * aucun port publié. Pure : c'est une décision du runtime, qui ne demande
+   * aucune lecture de la cible.
+   *
+   * Sur l'interface, et non chez l'appelant : le pipeline route vers ce que le
+   * driver annonce, sans savoir quel runtime il pilote. Le proxy, lui, dit
+   * lequel des deux il sait atteindre.
+   */
+  upstream(ctx: DriverContext, publishedPort: number | null): ProxyUpstream | null;
 
   /** Traduit l'AppSpec en artefacts propres au runtime. Aucun effet de bord. */
   render(ctx: DriverContext): Promise<RenderedArtifacts>;

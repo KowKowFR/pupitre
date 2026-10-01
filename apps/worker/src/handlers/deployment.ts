@@ -1,12 +1,13 @@
 import { deployChannel, deploymentJobDataSchema, type DeploymentJobResult } from '@pupitre/core';
-import { getDriver, getProxyProvider } from '@pupitre/core/drivers';
+import { getDriver } from '@pupitre/core/drivers';
 import { disconnect, type ConnectOptions } from '@pupitre/core/ssh';
-import { finishDeployment, logAudit, setDeploymentStopped } from '@pupitre/db';
+import { finishDeployment, listLiveDeployments, logAudit, setDeploymentStopped } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { openDeploymentContext } from '../deploy/context.js';
 import { DeployLogStream } from '../deploy/log-stream.js';
 import { runDeploymentPipeline } from '../deploy/pipeline.js';
+import { removeCoupleRoutes } from '../proxy/routes.js';
 import { getPublisher } from '../redis.js';
 import { reportDeploymentStatus } from '../sources/status.js';
 
@@ -211,10 +212,24 @@ export async function destroyDeployment(
   const stream = new DeployLogStream(deploymentId, getPublisher());
 
   try {
-    await getProxyProvider(deployment.proxy).unregister(ctx, (line) =>
-      stream.line('proxy', line),
-    );
-    await getDriver(deployment.runtime).destroy(ctx, (line) => stream.line('deploy', line));
+    const driver = getDriver(deployment.runtime);
+    // Les domaines suivent l'application en service sur la cible : détruire
+    // une version qui ne l'est plus ne doit rien retirer au proxy.
+    const [live] = await listLiveDeployments({
+      applicationId: deployment.applicationId,
+      targetId: deployment.targetId,
+    });
+    if (!live?.inService || live.inService.id === deploymentId) {
+      await removeCoupleRoutes({
+        applicationId: deployment.applicationId,
+        targetId: deployment.targetId,
+        driver,
+        ctx,
+        publishedPort: deployment.publishedPort,
+        onLog: (line) => stream.line('proxy', line),
+      });
+    }
+    await driver.destroy(ctx, (line) => stream.line('deploy', line));
 
     await finishDeployment(deploymentId, 'destroyed', { url: null, publishedPort: null });
     stream.event({

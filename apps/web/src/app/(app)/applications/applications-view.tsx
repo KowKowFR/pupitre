@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { Boxes, Ellipsis, LayoutGrid, Plus, Rocket, Trash2 } from 'lucide-react';
+import type { ProxyCapabilities } from '@pupitre/core';
 import { AppSpecHelp } from '@/components/appspec-help';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
+import { DomainsField, toRouteInputs, type DomainDraft } from '@/components/proxy/domains-field';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useDrawerSelection } from '@/components/ui/drawer';
@@ -67,6 +69,8 @@ export type ApplicationRow = {
   backup: { configured: boolean; hasData: boolean };
   /** Ce que la vérification des images a trouvé ; `null` : rien à signaler. */
   imageUpdates: { outdated: number; newerTags: number } | null;
+  /** Ses domaines, par cible — ce que le prochain déploiement gardera. */
+  domains: Record<string, DomainDraft[]>;
 };
 
 export type DeployTarget = {
@@ -77,6 +81,8 @@ export type DeployTarget = {
   dockerVersion: string | null;
   k3sVersion: string | null;
   healthy: boolean;
+  /** Son reverse proxy, s'il en a un : c'est lui qui servira les domaines. */
+  proxy: { description: string; capabilities: ProxyCapabilities } | null;
 };
 
 type ApiError = { error?: { message?: string } };
@@ -116,6 +122,9 @@ export function ApplicationsView({
     enabled: true,
     beforeDeploy: true,
   });
+  // Les domaines saisis, par application et par cible : changer de cible dans
+  // le tiroir ne perd pas ce qui a été tapé pour l'autre.
+  const [domainDrafts, setDomainDrafts] = useState<Record<string, DomainDraft[]>>({});
   const [deleting, setDeleting] = useState<ApplicationRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -162,7 +171,31 @@ export function ApplicationsView({
     );
   }
 
+  /**
+   * Les domaines proposés : ceux déjà posés sur cette cible ; à défaut, au
+   * premier déploiement sur elle, celui de l'AppSpec. Une application qui y
+   * tourne sans domaine n'en reçoit pas d'office : on les lui avait retirés.
+   */
+  function domainsFor(application: ApplicationRow, target: DeployTarget): DomainDraft[] {
+    const drafted = domainDrafts[`${application.id}:${target.id}`];
+    if (drafted) return drafted;
+    const existing = application.domains[target.id];
+    if (existing && existing.length > 0) return existing;
+    const deployedThere =
+      application.live?.some((live) => live.targetName === target.name) ?? false;
+    if (application.ingress?.host && !deployedThere) {
+      return [
+        {
+          hostname: application.ingress.host,
+          tls: application.ingress.tls && (target.proxy?.capabilities.https ?? false),
+        },
+      ];
+    }
+    return [];
+  }
+
   async function deploy(application: ApplicationRow, targetId: string, runtime: 'docker' | 'k3s') {
+    const target = targets.find((candidate) => candidate.id === targetId);
     setBusy(true);
     setError(null);
     const response = await fetch('/api/deployments', {
@@ -174,6 +207,7 @@ export function ApplicationsView({
         runtime,
         proxy: 'traefik',
         autoRollback,
+        ...(target?.proxy ? { domains: toRouteInputs(domainsFor(application, target)) } : {}),
         ...(offersBackupChoice(application)
           ? firstDeployPayload(firstBackup, backupOptions?.hasDestination ?? false)
           : {}),
@@ -399,6 +433,22 @@ export function ApplicationsView({
               value={firstBackup}
               onChange={setFirstBackup}
               hasDestination={backupOptions?.hasDestination ?? false}
+            />
+          ) : null
+        }
+        domainsChoice={(target) =>
+          current ? (
+            <DomainsField
+              targetId={target.id}
+              targetName={target.name}
+              proxy={target.proxy}
+              value={domainsFor(current, target)}
+              onChange={(value) =>
+                setDomainDrafts((previous) => ({
+                  ...previous,
+                  [`${current.id}:${target.id}`]: value,
+                }))
+              }
             />
           ) : null
         }

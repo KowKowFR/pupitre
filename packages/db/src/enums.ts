@@ -171,3 +171,12 @@ export const backupTriggerEnum = pgEnum('backup_trigger', [
 ]);
 
 export const backupStatusEnum = pgEnum('backup_status', ['running', 'success', 'failed']);
+
+// ─── reverse proxies ─────────────────────────────────────────────────────────
+
+/** Où tourne un proxy : sur la machine qu'il sert, ou ailleurs. */
+export const proxyPlacementEnum = pgEnum('proxy_placement', ['target', 'remote']);
+
+export const proxyStatusEnum = pgEnum('proxy_status', ['unknown', 'installing', 'ok', 'failed']);
+
+export const routeStatusEnum = pgEnum('route_status', ['pending', 'active', 'failed']);

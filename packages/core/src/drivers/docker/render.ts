@@ -262,6 +262,8 @@ export type RenderInput = {
   appSlug: string;
   /** Port publié sur l'hôte pour le service exposé. `null` = pas de publication. */
   publishedPort: number | null;
+  /** Adresse de publication — voir `DriverContext.publishAddress`. Absente : toutes. */
+  publishAddress?: string;
   /** Noms des secrets dont la valeur sera fournie par le fichier `.env`. */
   secretNames?: readonly string[];
 };
@@ -321,7 +323,11 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
     }
 
     if (isExposed && publishedPort !== null) {
-      composeService.ports = [`${publishedPort}:${service.port}`];
+      composeService.ports = [
+        input.publishAddress
+          ? `${input.publishAddress}:${publishedPort}:${service.port}`
+          : `${publishedPort}:${service.port}`,
+      ];
     }
 
     if (service.volumes.length > 0) {

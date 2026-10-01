@@ -1,9 +1,7 @@
 import {
   WORKLOAD_EXEC_MAX_LINES,
   WORKLOAD_EXEC_TIMEOUT_SEC,
-  decrypt,
   encodeWorkloadRef,
-  usableRuntimes,
   workloadActionJobDataSchema,
   workloadChannel,
   workloadControlJobDataSchema,
@@ -17,10 +15,10 @@ import {
   type WorkloadMessage,
 } from '@pupitre/core';
 import { getDriver, type TargetContext } from '@pupitre/core/drivers';
-import { connect, disconnect, type SshSession, type SshTarget } from '@pupitre/core/ssh';
-import { getTargetSecret, logAudit } from '@pupitre/db';
+import { disconnect } from '@pupitre/core/ssh';
+import { logAudit } from '@pupitre/db';
 import type { Job } from 'bullmq';
-import { env } from '../env.js';
+import { openTargetContext } from '../deploy/target-context.js';
 import { logger } from '../logger.js';
 import { getPublisher } from '../redis.js';
 
@@ -33,56 +31,6 @@ import { getPublisher } from '../redis.js';
  * qu'est un conteneur. Le worker demande au driver du runtime, le driver
  * répond ; il n'y a nulle part ici de branche sur `docker` ou `k3s`.
  */
-
-type OpenedTarget = {
-  session: SshSession;
-  ctx: TargetContext;
-  runtimes: Array<'docker' | 'k3s'>;
-  name: string;
-};
-
-/**
- * Ouvre une session SSH vers une cible, sans aucun déploiement en tête.
- *
- * Pendant de `openDeploymentContext()`, pour le contexte de cible. Comme lui,
- * c'est un des rares endroits où un credential est déchiffré, et il ne quitte
- * pas la portée de cette fonction.
- */
-async function openTargetContext(targetId: string): Promise<OpenedTarget> {
-  const record = await getTargetSecret(targetId);
-  if (!record) throw new Error(`Cible « ${targetId} » introuvable`);
-
-  const { target, encryptedCredential } = record;
-  const secret = decrypt(encryptedCredential);
-
-  const sshTarget: SshTarget = {
-    host: target.host,
-    port: target.port,
-    username: target.sshUser,
-    sudoMethod: target.sudoMethod,
-    credentials:
-      target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: secret }
-        : { authMethod: 'password', password: secret },
-  };
-
-  const session = await connect(sshTarget, { logger });
-
-  return {
-    session,
-    name: target.name,
-    runtimes: usableRuntimes(target.runtimesAvailable),
-    ctx: {
-      target: {
-        id: target.id,
-        name: target.name,
-        host: target.host,
-        rootPath: env.DRIVER_ROOT_PATH,
-      },
-      sshSession: session,
-    },
-  };
-}
 
 /**
  * Inventaire des charges de la cible, tous runtimes confondus.

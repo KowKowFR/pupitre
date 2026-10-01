@@ -1,0 +1,56 @@
+import { decrypt, usableRuntimes } from '@pupitre/core';
+import type { TargetContext } from '@pupitre/core/drivers';
+import { connect, type SshSession, type SshTarget } from '@pupitre/core/ssh';
+import { getTargetSecret } from '@pupitre/db';
+import { env } from '../env.js';
+import { logger } from '../logger.js';
+
+export type OpenedTarget = {
+  session: SshSession;
+  ctx: TargetContext;
+  runtimes: Array<'docker' | 'k3s'>;
+  name: string;
+};
+
+/**
+ * Ouvre une session SSH vers une cible, sans aucun déploiement en tête.
+ *
+ * Pendant de `openDeploymentContext()`, pour le contexte de cible. Comme lui,
+ * c'est un des rares endroits où un credential est déchiffré, et il ne quitte
+ * pas la portée de cette fonction.
+ */
+export async function openTargetContext(targetId: string): Promise<OpenedTarget> {
+  const record = await getTargetSecret(targetId);
+  if (!record) throw new Error(`Cible « ${targetId} » introuvable`);
+
+  const { target, encryptedCredential } = record;
+  const secret = decrypt(encryptedCredential);
+
+  const sshTarget: SshTarget = {
+    host: target.host,
+    port: target.port,
+    username: target.sshUser,
+    sudoMethod: target.sudoMethod,
+    credentials:
+      target.authMethod === 'key'
+        ? { authMethod: 'key', privateKey: secret }
+        : { authMethod: 'password', password: secret },
+  };
+
+  const session = await connect(sshTarget, { logger });
+
+  return {
+    session,
+    name: target.name,
+    runtimes: usableRuntimes(target.runtimesAvailable),
+    ctx: {
+      target: {
+        id: target.id,
+        name: target.name,
+        host: target.host,
+        rootPath: env.DRIVER_ROOT_PATH,
+      },
+      sshSession: session,
+    },
+  };
+}

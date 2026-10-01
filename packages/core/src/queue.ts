@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { backupTriggerSchema } from './backup/model.js';
+import { acmeSettingsSchema } from './proxy/model.js';
 import { hostMetricsSchema } from './host-metrics.js';
 import { accountMailKindSchema } from './notifications/account-mail.js';
 import { notificationDigestSchema } from './notifications/digest.js';
@@ -1019,3 +1020,63 @@ export const backupJobResultSchema = z.object({
   detail: z.string().nullable().default(null),
 });
 export type BackupJobResult = z.infer<typeof backupJobResultSchema>;
+
+// ─── reverse proxies ─────────────────────────────────────────────────────────
+//
+// Sur `ops`, comme un déploiement : chacune ouvre une session SSH et peut
+// modifier la machine. La sonde périodique des routes, elle, est une lecture :
+// elle passe par `supervision`.
+
+export const PROXY_DETECT_JOB = 'proxy:detect' as const;
+export const PROXY_INSTALL_JOB = 'proxy:install' as const;
+export const PROXY_CHECK_JOB = 'proxy:check' as const;
+export const PROXY_REMOVE_JOB = 'proxy:remove' as const;
+/** Pose les domaines d'une application sur une cible, sans la redéployer. */
+export const PROXY_APPLY_JOB = 'proxy:apply' as const;
+export const ROUTES_CHECK_JOB = 'routes:check' as const;
+/** Toutes les dix minutes : un domaine qui tombe se voit vite, sans charger la machine. */
+export const ROUTES_CHECK_EVERY_MS = 10 * 60_000;
+
+/**
+ * La sonde des domaines : toutes les routes (la tournée périodique), ou
+ * celles d'une application sur une cible — la relecture rapprochée qui suit
+ * un certificat en cours d'émission.
+ */
+export const routesCheckJobDataSchema = z.object({
+  applicationId: z.string().uuid().nullable().default(null),
+  targetId: z.string().uuid().nullable().default(null),
+});
+export type RoutesCheckJobData = z.infer<typeof routesCheckJobDataSchema>;
+
+/** Relire un certificat en cours d'émission : 30 secondes, puis 2 minutes. */
+export const CERTIFICATE_RECHECK_DELAYS_MS = [30_000, 120_000] as const;
+
+export const proxyDetectJobDataSchema = z.object({ targetId: z.string().uuid() });
+export type ProxyDetectJobData = z.infer<typeof proxyDetectJobDataSchema>;
+
+export const proxyInstallJobDataSchema = z.object({
+  targetId: z.string().uuid(),
+  proxyId: z.string().uuid(),
+  option: z.string().min(1).max(32),
+  acme: acmeSettingsSchema,
+  ...actorFields,
+});
+export type ProxyInstallJobData = z.infer<typeof proxyInstallJobDataSchema>;
+
+export const proxyCheckJobDataSchema = z.object({ proxyId: z.string().uuid() });
+export type ProxyCheckJobData = z.infer<typeof proxyCheckJobDataSchema>;
+
+export const proxyRemoveJobDataSchema = z.object({
+  proxyId: z.string().uuid(),
+  /** Défaire aussi l'installation, quand Pupitre l'a faite. */
+  uninstall: z.boolean().default(false),
+  ...actorFields,
+});
+export type ProxyRemoveJobData = z.infer<typeof proxyRemoveJobDataSchema>;
+
+export const proxyApplyJobDataSchema = z.object({
+  applicationId: z.string().uuid(),
+  targetId: z.string().uuid(),
+  ...actorFields,
+});
+export type ProxyApplyJobData = z.infer<typeof proxyApplyJobDataSchema>;

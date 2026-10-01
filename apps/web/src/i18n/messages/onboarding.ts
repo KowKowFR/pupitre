@@ -78,6 +78,17 @@ const fr = {
   'step.target.cost':
     "Sans cible déclarée, rien ne peut être déployé : les écrans d'application et de déploiement resteront sans destination. Vous pourrez la déclarer plus tard depuis « Cibles → Ajouter une cible ».",
 
+  'step.proxy.title': 'Reverse proxy',
+  'step.proxy.summary': 'Ce qui servira vos applications par leur nom de domaine, en HTTPS.',
+  'step.proxy.detail':
+    'Le reverse proxy reçoit les visiteurs sur les ports 80 et 443 et les mène à la bonne application selon le domaine. Pupitre peut reprendre celui qui tourne déjà sur la machine, ou installer Traefik avec des certificats Let’s Encrypt. Ensuite, déployer une application avec un domaine suffit : la route et le certificat suivent.',
+  'step.proxy.cost':
+    'Sans reverse proxy, les applications ne sont joignables que par leur port, sans nom de domaine ni HTTPS. Il se règle plus tard sur la page de la cible.',
+  'proxy.intro': 'Choisissez la machine, puis laissez Pupitre regarder ce qu’elle a déjà.',
+  'proxy.noTarget': 'Aucune cible n’est déclarée : cette étape vient après la première.',
+  'proxy.target': 'Machine',
+  'proxy.done': 'C’est réglé',
+
   'step.role.title': 'Un rôle',
   'step.role.summary': 'Un jeu de permissions taillé pour votre équipe.',
   'step.role.detail':
@@ -287,6 +298,17 @@ const en: Translated<typeof fr> = {
     'A target is a Linux machine reachable over SSH, with Docker or K3s installed. The panel builds your images and starts your containers there; no image registry sits in between. The SSH key you paste is encrypted with AES-256-GCM before it reaches the database, and never comes back out in the clear.',
   'step.target.cost':
     'With no target declared, nothing can be deployed: the application and deployment screens stay without a destination. You can declare one later from “Targets → Add a target”.',
+
+  'step.proxy.title': 'Reverse proxy',
+  'step.proxy.summary': 'What will serve your applications by their domain name, over HTTPS.',
+  'step.proxy.detail':
+    'The reverse proxy receives visitors on ports 80 and 443 and leads them to the right application depending on the domain. Pupitre can take over the one already running on the machine, or install Traefik with Let’s Encrypt certificates. From then on, deploying an application with a domain is enough: the route and the certificate follow.',
+  'step.proxy.cost':
+    'Without a reverse proxy, applications are only reachable by their port, with no domain name nor HTTPS. It can be set up later on the target page.',
+  'proxy.intro': 'Pick the machine, then let Pupitre look at what it already has.',
+  'proxy.noTarget': 'No target is declared: this step comes after the first one.',
+  'proxy.target': 'Machine',
+  'proxy.done': 'Done',
 
   'step.role.title': 'A role',
   'step.role.summary': 'A set of permissions cut for your team.',

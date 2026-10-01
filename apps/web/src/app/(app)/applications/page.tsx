@@ -1,10 +1,12 @@
-import { hasBackupData, usableRuntimes } from '@pupitre/core';
+import { describeProxy, hasBackupData, proxyCapabilities, usableRuntimes } from '@pupitre/core';
 import {
   getActiveBackupDestination,
   listApplications,
   listBackupPolicyApplicationIds,
   listImageUpdateSummaries,
+  listRoutes,
   listSupervisedApps,
+  listTargetProxies,
   listTargets,
 } from '@pupitre/db';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
@@ -25,16 +27,27 @@ export const dynamic = 'force-dynamic';
 export default async function ApplicationsPage() {
   const auth = await requirePagePermission('/applications', 'application:read');
   const canDeploy = auth.can('deployment:create');
-  const [applications, targets, running, tc, imageSummaries, policyIds, backupDestination] =
-    await Promise.all([
-      listApplications(),
-      canDeploy ? listTargets() : Promise.resolve([]),
-      auth.can('deployment:read') ? listSupervisedApps() : Promise.resolve(null),
-      getT(common),
-      listImageUpdateSummaries(),
-      listBackupPolicyApplicationIds(),
-      getActiveBackupDestination(),
-    ]);
+  const [
+    applications,
+    targets,
+    running,
+    tc,
+    imageSummaries,
+    policyIds,
+    backupDestination,
+    proxies,
+    routes,
+  ] = await Promise.all([
+    listApplications(),
+    canDeploy ? listTargets() : Promise.resolve([]),
+    auth.can('deployment:read') ? listSupervisedApps() : Promise.resolve(null),
+    getT(common),
+    listImageUpdateSummaries(),
+    listBackupPolicyApplicationIds(),
+    getActiveBackupDestination(),
+    canDeploy ? listTargetProxies() : Promise.resolve(new Map()),
+    canDeploy ? listRoutes({}) : Promise.resolve([]),
+  ]);
 
   const items: ApplicationRow[] = applications.map((application) => ({
     id: application.id,
@@ -63,6 +76,12 @@ export default async function ApplicationsPage() {
       const summary = imageSummaries.find((entry) => entry.applicationId === application.id);
       return summary ? { outdated: summary.outdated, newerTags: summary.newerTags } : null;
     })(),
+    domains: routes
+      .filter((route) => route.applicationId === application.id)
+      .reduce<ApplicationRow['domains']>((byTarget, route) => {
+        (byTarget[route.targetId] ??= []).push({ hostname: route.hostname, tls: route.tls });
+        return byTarget;
+      }, {}),
   }));
 
   // Une cible n'est déployable que si son preflight a montré un runtime : on
@@ -77,6 +96,14 @@ export default async function ApplicationsPage() {
       dockerVersion: target.runtimesAvailable.docker.version,
       k3sVersion: target.runtimesAvailable.k3s.version,
       healthy: target.status === 'ok',
+      proxy: (() => {
+        const proxy = proxies.get(target.id);
+        if (!proxy || proxy.status === 'installing') return null;
+        return {
+          description: describeProxy(proxy.kind, proxy.config),
+          capabilities: proxyCapabilities(proxy.kind, proxy.config),
+        };
+      })(),
     }))
     // Les cibles opérationnelles d'abord : c'est parmi elles que se choisit la
     // cible proposée par défaut.

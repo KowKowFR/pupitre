@@ -14,6 +14,7 @@ import type { Translate } from '@pupitre/core';
 import { z } from 'zod';
 import { Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
+import { ProxyPanel } from '@/components/proxy/proxy-panel';
 import { Crumb } from '@/components/shell/breadcrumb';
 import { TargetLabelChip, sortedLabelEntries } from '@/components/target-label';
 import { RuntimePill } from '@/components/ui/badge';
@@ -34,7 +35,7 @@ export const dynamic = 'force-dynamic';
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 
-const TABS = ['overview', 'workloads', 'ports', 'preflight', 'config'] as const;
+const TABS = ['overview', 'workloads', 'proxy', 'ports', 'preflight', 'config'] as const;
 type TabKey = (typeof TABS)[number];
 
 /** « stable », « +6 pt », « −4 pt » : le sens dans lequel ça va sur 24 h. */
@@ -301,6 +302,16 @@ export default async function TargetDetailPage({
           targetId={target.id}
           canManage={auth.can('workload:manage')}
           canExec={auth.can('workload:exec')}
+        />
+      ) : null}
+
+      {show('proxy') ? (
+        <ProxyPanel
+          targetId={target.id}
+          targetName={target.name}
+          canManage={auth.can('target:update')}
+          format={format}
+          defaultEmail={auth.email}
         />
       ) : null}
 
