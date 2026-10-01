@@ -1,6 +1,6 @@
 import { PORT_RANGE_MAX, PORT_RANGE_MIN } from '../../ports.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
-import { exec, execStream, upload } from '../../ssh/client.js';
+import { exec, execPipe, execStream, upload } from '../../ssh/client.js';
 import { exposedService, storedSecretNames, type AppSpec } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
 import { listeningPorts } from '../listening.js';
@@ -20,6 +20,7 @@ import {
   type RenderedFile,
   type TargetContext,
 } from '../types.js';
+import type { Readable, Writable } from 'node:stream';
 import { digestOf } from '../../images/reference.js';
 import type { RunningImage } from '../../images/updates.js';
 import {
@@ -35,7 +36,7 @@ import {
   type WorkloadExecOptions,
   type WorkloadExecResult,
 } from '../workload-exec.js';
-import { PROJECT_PREFIX, buildImageTag, projectName, renderFiles } from './render.js';
+import { PROJECT_PREFIX, buildImageTag, projectName, renderFiles, volumeName } from './render.js';
 
 /**
  * Driver Docker Compose.
@@ -1101,6 +1102,128 @@ export class DockerComposeDriver implements DeploymentDriver {
     }));
   }
 
+  /** Le nom Docker réel d'un volume de l'application : Compose le préfixe du projet. */
+  private async dockerVolume(ctx: DriverContext, service: string, volume: string): Promise<string> {
+    const key = volumeName(ctx.appSlug, service, volume);
+    const result = await exec(
+      ctx.sshSession,
+      `docker volume ls -q --filter label=${COMPOSE_PROJECT_LABEL}=${shellQuote(this.project(ctx))} ` +
+        `--filter label=com.docker.compose.volume=${shellQuote(key)}`,
+      { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+    );
+    const name = result.stdout.trim().split('\n')[0]?.trim();
+    if (result.code !== 0 || !name) {
+      throw new DriverError(
+        `Volume « ${volume} » du service « ${service} » introuvable sur la cible`,
+        this.runtime,
+        'backup',
+      );
+    }
+    return name;
+  }
+
+  /** Le conteneur en marche d'un service de l'application. */
+  private async serviceContainer(ctx: DriverContext, service: string): Promise<string> {
+    const result = await exec(
+      ctx.sshSession,
+      `docker ps -q --filter label=${COMPOSE_PROJECT_LABEL}=${shellQuote(this.project(ctx))} ` +
+        `--filter label=${COMPOSE_SERVICE_LABEL}=${shellQuote(service)}`,
+      { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+    );
+    const id = result.stdout.trim().split('\n')[0]?.trim();
+    if (result.code !== 0 || !id) {
+      throw new DriverError(`Le service « ${service} » ne tourne pas`, this.runtime, 'backup');
+    }
+    return id;
+  }
+
+  private async pipeOrFail(
+    ctx: DriverContext,
+    command: string,
+    step: string,
+    streams: { stdout?: Writable; stdin?: Readable },
+  ): Promise<void> {
+    const result = await execPipe(ctx.sshSession, command, streams);
+    if (result.timedOut)
+      throw new DriverError(`« ${step} » a dépassé son délai`, this.runtime, step);
+    if (result.code !== 0) {
+      throw new DriverError(
+        `Échec de « ${step} » (code ${result.code}) : ${lastLine(result.stderr) ?? 'sans détail'}`,
+        this.runtime,
+        step,
+      );
+    }
+  }
+
+  /**
+   * Un conteneur `busybox` éphémère, sans réseau, monte le volume en lecture
+   * seule et en écrit l'archive : le volume se lit même application arrêtée,
+   * et l'image de l'application n'a pas besoin d'avoir `tar`.
+   */
+  async exportVolume(
+    ctx: DriverContext,
+    service: string,
+    volume: string,
+    sink: Writable,
+  ): Promise<void> {
+    const name = await this.dockerVolume(ctx, service, volume);
+    await this.pipeOrFail(
+      ctx,
+      `docker run --rm --network none -v ${shellQuote(`${name}:/data:ro`)} ${BACKUP_HELPER_IMAGE} ` +
+        'tar czf - -C /data .',
+      'backup.volume',
+      { stdout: sink },
+    );
+  }
+
+  async importVolume(
+    ctx: DriverContext,
+    service: string,
+    volume: string,
+    source: Readable,
+  ): Promise<void> {
+    const name = await this.dockerVolume(ctx, service, volume);
+    await this.pipeOrFail(
+      ctx,
+      `docker run --rm -i --network none -v ${shellQuote(`${name}:/data`)} ${BACKUP_HELPER_IMAGE} ` +
+        `sh -c ${shellQuote(CLEAR_AND_EXTRACT)}`,
+      'restore.volume',
+      { stdin: source },
+    );
+  }
+
+  async exportFromService(
+    ctx: DriverContext,
+    service: string,
+    command: string,
+    sink: Writable,
+  ): Promise<void> {
+    const id = await this.serviceContainer(ctx, service);
+    await this.pipeOrFail(
+      ctx,
+      `docker exec ${shellQuote(id)} sh -c ${shellQuote(command)}`,
+      'backup.dump',
+      {
+        stdout: sink,
+      },
+    );
+  }
+
+  async importIntoService(
+    ctx: DriverContext,
+    service: string,
+    command: string,
+    source: Readable,
+  ): Promise<void> {
+    const id = await this.serviceContainer(ctx, service);
+    await this.pipeOrFail(
+      ctx,
+      `docker exec -i ${shellQuote(id)} sh -c ${shellQuote(command)}`,
+      'restore.dump',
+      { stdin: source },
+    );
+  }
+
   /**
    * `docker start`, `docker stop`, `docker restart` — le conteneur lui-même,
    * rien de recréé, rien de supprimé. L'arrêt laisse vingt secondes au
@@ -1263,6 +1386,24 @@ export class DockerComposeDriver implements DeploymentDriver {
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
+
+/** Dernière ligne non vide — là où un outil dit pourquoi il s'arrête. */
+function lastLine(value: string): string | null {
+  const lines = value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.at(-1) ?? null;
+}
+
+/**
+ * L'image des opérations de sauvegarde sur la cible : de quoi lancer `tar`,
+ * rien d'autre. Tirée une fois, quelques centaines de kilo-octets.
+ */
+const BACKUP_HELPER_IMAGE = 'busybox:1.37';
+
+/** Vide le volume — fichiers cachés compris —, puis y extrait l'archive lue sur l'entrée. */
+const CLEAR_AND_EXTRACT = 'cd /data && rm -rf -- * .[!.]* ..?* 2>/dev/null; tar xzf - -C /data';
 
 function firstLine(value: string): string | null {
   const line = value.split('\n').find((candidate) => candidate.trim().length > 0);

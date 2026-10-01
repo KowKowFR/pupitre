@@ -5,6 +5,12 @@ import {
   APP_RESTART_JOB,
   APP_START_JOB,
   APP_STOP_JOB,
+  BACKUPS_QUEUE,
+  BACKUP_APPLICATION_JOB,
+  BACKUP_DELETE_JOB,
+  BACKUP_DESTINATION_CHECK_JOB,
+  BACKUP_PANEL_JOB,
+  BACKUP_RESTORE_JOB,
   DEPLOYMENT_DESTROY_JOB,
   DEPLOYMENT_ROLLBACK_JOB,
   DEPLOYMENT_RUN_JOB,
@@ -36,7 +42,7 @@ import {
   WORKLOAD_UPDATE_JOB,
   assertMasterKey,
 } from '@pupitre/core';
-import { HOST_SWEEP_EVERY_MS, closeDb, pingDb } from '@pupitre/db';
+import { HOST_SWEEP_EVERY_MS, closeDb, failInterruptedBackups, pingDb } from '@pupitre/db';
 import { Worker, type Job } from 'bullmq';
 import { env } from './env.js';
 import { handlePing } from './handlers/ping.js';
@@ -75,6 +81,13 @@ import {
 } from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
 import { handleImageCheck } from './handlers/images.js';
+import {
+  handleBackupApplication,
+  handleBackupDelete,
+  handleBackupDestinationCheck,
+  handleBackupPanel,
+  handleBackupRestore,
+} from './handlers/backup.js';
 import { handleSourceDeploy, handleSourcePoll } from './handlers/source.js';
 import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
 import { logger } from './logger.js';
@@ -160,6 +173,17 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // Images déployées contre leurs registres : des HEAD HTTP et un
   // `docker inspect` par application, rien qui doive attendre un déploiement.
   [IMAGE_CHECK_JOB]: handleImageCheck,
+  // Tester une destination de sauvegarde : quelques secondes de réseau, qui
+  // ne doivent pas attendre derrière une sauvegarde d'une heure.
+  [BACKUP_DESTINATION_CHECK_JOB]: handleBackupDestinationCheck,
+};
+
+/** La file des sauvegardes : longues, lentes, une à la fois par défaut. */
+const backupHandlers: Record<string, JobHandler> = {
+  [BACKUP_APPLICATION_JOB]: handleBackupApplication,
+  [BACKUP_PANEL_JOB]: handleBackupPanel,
+  [BACKUP_RESTORE_JOB]: handleBackupRestore,
+  [BACKUP_DELETE_JOB]: handleBackupDelete,
 };
 
 /**
@@ -464,14 +488,44 @@ async function main(): Promise<void> {
     },
   );
 
+  // Ce qui « tournait » quand le worker s'est arrêté ne tourne plus : le dire.
+  try {
+    const interrupted = await failInterruptedBackups(new Date());
+    if (interrupted > 0)
+      logger.warn({ interrupted }, 'sauvegardes interrompues par le redémarrage');
+  } catch (error) {
+    logger.error({ err: error }, 'relecture des sauvegardes interrompues impossible');
+  }
+
+  const backupWorker = new Worker(
+    BACKUPS_QUEUE,
+    async (job: Job) => {
+      const handler = backupHandlers[job.name];
+      if (!handler) {
+        throw new Error(`aucun handler de sauvegarde pour « ${job.name} »`);
+      }
+      return handler(job);
+    },
+    {
+      connection: createRedisConnection(),
+      concurrency: env.BACKUP_CONCURRENCY,
+      // Une sauvegarde de plusieurs gigaoctets tient son verrou longtemps :
+      // BullMQ le renouvelle, mais un délai court ferait croire à une tâche bloquée.
+      lockDuration: 5 * 60_000,
+      removeOnComplete: { age: 7 * 24 * 3600, count: 500 },
+      removeOnFail: { age: 30 * 24 * 3600 },
+    },
+  );
+
   // Les écrans ouverts apprennent qu'un déploiement part ou finit, qu'une
   // sonde a tourné : ils se relisent d'eux-mêmes.
-  installRealtimeJobEvents([worker, supervision]);
+  installRealtimeJobEvents([worker, supervision, backupWorker]);
 
   for (const [instance, queue, concurrency] of [
     [worker, OPS_QUEUE, env.WORKER_CONCURRENCY],
     [supervision, SUPERVISION_QUEUE, env.SUPERVISION_CONCURRENCY],
     [notifications, NOTIFICATIONS_QUEUE, 4],
+    [backupWorker, BACKUPS_QUEUE, env.BACKUP_CONCURRENCY],
   ] as const) {
     instance.on('ready', () => {
       logger.info({ queue, concurrency }, 'worker prêt');
@@ -506,6 +560,7 @@ async function main(): Promise<void> {
       await worker.close();
       await supervision.close();
       await notifications.close();
+      await backupWorker.close();
       await stopCaptureEgress();
       await closeOpsQueue();
       await closeNotificationsQueue();

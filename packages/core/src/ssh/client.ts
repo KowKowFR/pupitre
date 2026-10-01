@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import type { Readable, Writable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { NodeSSH } from 'node-ssh';
+import type { ClientChannel } from 'ssh2';
 import {
   SshConfigError,
   SshConnectionError,
@@ -349,6 +352,94 @@ export async function execStream(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+export type PipeOptions = {
+  /** Reçoit la sortie standard brute — octets, pas lignes. Terminé à la fin de la commande. */
+  stdout?: Writable;
+  /** Alimente l'entrée standard ; sa fin ferme l'entrée de la commande distante. */
+  stdin?: Readable;
+  /** Millisecondes. `null` : aucune garde. Défaut : six heures. */
+  timeout?: number | null;
+};
+
+export type PipeResult = {
+  code: number;
+  /** Les derniers kilo-octets de la sortie d'erreur, pour dire pourquoi. */
+  stderr: string;
+  timedOut: boolean;
+  durationMs: number;
+};
+
+const PIPE_TIMEOUT_MS = 6 * 60 * 60 * 1000;
+const STDERR_TAIL_BYTES = 8 * 1024;
+
+/**
+ * Exécute une commande en branchant ses flux **octets** — une archive de
+ * volume qui sort, un export de base qui rentre. `exec()` et `execStream()`
+ * accumulent ou découpent du texte : un `tar` de plusieurs gigaoctets n'y a pas
+ * sa place.
+ *
+ * La pression arrière est respectée dans les deux sens : un envoi lent vers le
+ * stockage ralentit la lecture sur la cible au lieu de tout garder en mémoire.
+ * Pas de `sudo` ici : les commandes qui passent par là (`docker`, `kubectl`)
+ * tournent sous l'utilisateur de la cible, comme le reste des drivers.
+ */
+export async function execPipe(
+  session: SshSession,
+  command: string,
+  options: PipeOptions = {},
+): Promise<PipeResult> {
+  const logger = session.logger ?? noopLogger;
+  const connection = session.client.connection;
+  if (!connection) {
+    throw new SshConnectionError('Session SSH fermée', session.host, undefined);
+  }
+  const timeout = options.timeout === undefined ? PIPE_TIMEOUT_MS : options.timeout;
+  const startedAt = Date.now();
+  logger.debug({ host: session.host, sessionId: session.id, command }, 'exécution SSH en tube');
+
+  const channel = await new Promise<ClientChannel>((resolve, reject) => {
+    connection.exec(command, (error, opened) => (error ? reject(error) : resolve(opened)));
+  });
+
+  let stderr = '';
+  channel.stderr.on('data', (chunk: Buffer) => {
+    stderr = (stderr + chunk.toString('utf8')).slice(-STDERR_TAIL_BYTES);
+  });
+
+  let code = -1;
+  const closed = new Promise<void>((resolve) => {
+    channel.on('exit', (exitCode: number | null) => {
+      code = exitCode ?? -1;
+    });
+    channel.on('close', () => resolve());
+  });
+
+  let timedOut = false;
+  const timer =
+    timeout === null
+      ? null
+      : setTimeout(() => {
+          timedOut = true;
+          channel.close();
+        }, timeout);
+
+  try {
+    const flows: Promise<void>[] = [closed];
+    if (options.stdout) flows.push(pipeline(channel, options.stdout));
+    else channel.resume();
+    if (options.stdin) flows.push(pipeline(options.stdin, channel));
+    else channel.end();
+    await Promise.all(flows);
+  } catch (error) {
+    channel.close();
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
+  return { code, stderr, timedOut, durationMs: Date.now() - startedAt };
 }
 
 /** Téléverse un fichier local ou un contenu en mémoire vers la cible. */

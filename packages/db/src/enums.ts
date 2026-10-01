@@ -94,6 +94,8 @@ export const scheduledJobTypeEnum = pgEnum('scheduled_job_type', [
   'healthcheck',
   'preflight',
   'cleanup',
+  'backup',
+  'panel_backup',
 ]);
 
 /**
@@ -152,3 +154,20 @@ export const imageUpdateStatusEnum = pgEnum('image_update_status', [
   'unknown',
   'pinned',
 ]);
+
+/** Où vont les sauvegardes — même vocabulaire que `BACKUP_DESTINATION_KINDS`. */
+export const backupDestinationKindEnum = pgEnum('backup_destination_kind', ['s3', 'sftp', 'local']);
+
+export const backupKindEnum = pgEnum('backup_kind', ['application', 'panel']);
+
+/** `hot` : à chaud, export des bases reconnues ; `stop` : arrêt bref, volumes copiés. */
+export const backupModeEnum = pgEnum('backup_mode', ['hot', 'stop']);
+
+export const backupTriggerEnum = pgEnum('backup_trigger', [
+  'schedule',
+  'manual',
+  'pre_deploy',
+  'pre_restore',
+]);
+
+export const backupStatusEnum = pgEnum('backup_status', ['running', 'success', 'failed']);

@@ -1,6 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import {
+  FirstDeployBackup,
+  firstDeployPayload,
+  type FirstDeployBackupChoice,
+} from '@/components/backups/first-deploy-backup';
 import { useState } from 'react';
 import { AppSpecHelp } from '@/components/appspec-help';
 import { Alert } from '@/components/ui/alert';
@@ -15,7 +20,7 @@ import { Tab, Tabs } from '@/components/ui/tabs';
 import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 import { common } from '@/i18n/messages/common';
-import { appSpecSchema, storedSecretNames } from '@pupitre/core';
+import { appSpecSchema, hasBackupData, storedSecretNames } from '@pupitre/core';
 import { applications as messages } from '@/i18n/messages/applications';
 import { ComposeImport } from './compose-import';
 
@@ -77,6 +82,8 @@ type Props = {
   missingKeyVar: string | null;
   /** Cibles déployables. Vide si l'utilisateur n'a pas `deployment:create`. */
   targets: DeployTarget[];
+  /** Proposer d'activer la sauvegarde au premier déploiement — `null` sans `backup:manage`. */
+  backupOptions?: { hasDestination: boolean } | null;
   /**
    * Après un enregistrement **sans** déploiement. Avec déploiement, on part
    * suivre le run.
@@ -379,6 +386,7 @@ export function NewApplicationForm({
   modelWarning,
   missingKeyVar,
   targets,
+  backupOptions = null,
   onSaved,
   onCancel,
 }: Props) {
@@ -413,6 +421,10 @@ export function NewApplicationForm({
   const [targetId, setTargetId] = useState('');
   const selectedTarget = targets.find((target) => target.id === targetId) ?? null;
   const [deployRuntime, setDeployRuntime] = useState<'docker' | 'k3s'>('docker');
+  const [firstBackup, setFirstBackup] = useState<FirstDeployBackupChoice>({
+    enabled: true,
+    beforeDeploy: true,
+  });
 
   const words: ReviewWords = {
     none: tc('none'),
@@ -431,14 +443,17 @@ export function NewApplicationForm({
 
   const review = parseReview(value, words);
   // Les secrets qui portent une valeur : les alias la reprennent d'un autre.
-  const storable = (() => {
+  const parsedSpec = (() => {
     try {
       const parsed = appSpecSchema.safeParse(JSON.parse(value));
-      return parsed.success ? storedSecretNames(parsed.data) : [];
+      return parsed.success ? parsed.data : null;
     } catch {
-      return [];
+      return null;
     }
   })();
+  const storable = parsedSpec ? storedSecretNames(parsedSpec) : [];
+  // Une application qui a des données, déployée tout de suite : on propose sa sauvegarde.
+  const offersBackup = backupOptions !== null && parsedSpec !== null && hasBackupData(parsedSpec);
 
   function reset() {
     setError(null);
@@ -562,6 +577,9 @@ export function NewApplicationForm({
           runtime: deployRuntime,
           proxy: 'traefik',
           autoRollback: true,
+          ...(offersBackup
+            ? firstDeployPayload(firstBackup, backupOptions?.hasDestination ?? false)
+            : {}),
         }),
       });
 
@@ -741,6 +759,15 @@ export function NewApplicationForm({
             ))}
           </Select>
         </Field>
+        {selectedTarget && offersBackup ? (
+          <div className="sm:col-span-2">
+            <FirstDeployBackup
+              value={firstBackup}
+              onChange={setFirstBackup}
+              hasDestination={backupOptions?.hasDestination ?? false}
+            />
+          </div>
+        ) : null}
       </div>
     ) : null;
 

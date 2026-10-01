@@ -1,6 +1,7 @@
 import {
   Bell,
   Compass,
+  DatabaseBackup,
   Globe,
   Plug,
   ScanSearch,
@@ -36,6 +37,7 @@ export type SettingsSectionId =
   | 'notifications'
   | 'ai'
   | 'integrations'
+  | 'backups'
   | 'onboarding';
 
 export type SettingsSection = {
@@ -53,6 +55,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { href: '/admin/settings/notifications', id: 'notifications', icon: Bell },
   { href: '/admin/settings/ia', id: 'ai', icon: Sparkles },
   { href: '/admin/settings/integrations', id: 'integrations', icon: Plug },
+  { href: '/admin/settings/sauvegardes', id: 'backups', icon: DatabaseBackup },
   { href: '/admin/settings/demarrage', id: 'onboarding', icon: Compass },
 ];
 

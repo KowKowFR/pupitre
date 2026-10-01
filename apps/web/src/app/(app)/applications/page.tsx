@@ -1,6 +1,8 @@
-import { usableRuntimes } from '@pupitre/core';
+import { hasBackupData, usableRuntimes } from '@pupitre/core';
 import {
+  getActiveBackupDestination,
   listApplications,
+  listBackupPolicyApplicationIds,
   listImageUpdateSummaries,
   listSupervisedApps,
   listTargets,
@@ -23,13 +25,16 @@ export const dynamic = 'force-dynamic';
 export default async function ApplicationsPage() {
   const auth = await requirePagePermission('/applications', 'application:read');
   const canDeploy = auth.can('deployment:create');
-  const [applications, targets, running, tc, imageSummaries] = await Promise.all([
-    listApplications(),
-    canDeploy ? listTargets() : Promise.resolve([]),
-    auth.can('deployment:read') ? listSupervisedApps() : Promise.resolve(null),
-    getT(common),
-    listImageUpdateSummaries(),
-  ]);
+  const [applications, targets, running, tc, imageSummaries, policyIds, backupDestination] =
+    await Promise.all([
+      listApplications(),
+      canDeploy ? listTargets() : Promise.resolve([]),
+      auth.can('deployment:read') ? listSupervisedApps() : Promise.resolve(null),
+      getT(common),
+      listImageUpdateSummaries(),
+      listBackupPolicyApplicationIds(),
+      getActiveBackupDestination(),
+    ]);
 
   const items: ApplicationRow[] = applications.map((application) => ({
     id: application.id,
@@ -50,6 +55,10 @@ export default async function ApplicationsPage() {
               health: app.healthStatus,
               ago: relativeTime(app.finishedAt ?? app.createdAt, tc),
             })),
+    backup: {
+      configured: policyIds.has(application.id),
+      hasData: hasBackupData(application.appSpec),
+    },
     imageUpdates: (() => {
       const summary = imageSummaries.find((entry) => entry.applicationId === application.id);
       return summary ? { outdated: summary.outdated, newerTags: summary.newerTags } : null;
@@ -83,6 +92,9 @@ export default async function ApplicationsPage() {
         canDeploy={canDeploy}
         canDelete={auth.can('application:delete')}
         ai={auth.can('application:create') ? await newApplicationAi() : null}
+        backupOptions={
+          auth.can('backup:manage') ? { hasDestination: backupDestination !== null } : null
+        }
       />
     </>
   );

@@ -23,6 +23,11 @@ case "${1:-web}" in
   seed)
     exec $SEED
     ;;
+  backup)
+    # Reprise après sinistre : `docker compose run --rm worker backup restore-panel …`
+    shift
+    exec node /app/apps/worker/dist/cli/backup.js "$@"
+    ;;
   *)
     exec "$@"
     ;;

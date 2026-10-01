@@ -176,6 +176,13 @@
       "when": 1790841967250,
       "tag": "0025_avatars_chat_images",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790844358608,
+      "tag": "0026_backups",
+      "breakpoints": true
     }
   ]
 }

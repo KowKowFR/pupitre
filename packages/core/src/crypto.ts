@@ -87,6 +87,26 @@ export function deriveKey(masterKey: string | undefined): Buffer {
   return Buffer.from(hkdfSync('sha256', ikm, HKDF_SALT, HKDF_INFO, KEY_LENGTH));
 }
 
+/**
+ * La clé d'un fichier de sauvegarde : tirée de `MASTER_KEY`, mais **pas** la
+ * clé des secrets en base — un usage, une clé. Le sel est propre à chaque
+ * fichier et rangé dans son en-tête : deux sauvegardes ne partagent jamais la
+ * même clé, et une seule `MASTER_KEY` suffit à les relire toutes.
+ */
+export function deriveBackupKey(
+  salt: Buffer,
+  masterKey: string | undefined = process.env.MASTER_KEY,
+): Buffer {
+  if (masterKey === undefined || masterKey === '') {
+    throw new MasterKeyError(
+      'MASTER_KEY est absente : impossible de chiffrer ou de relire une sauvegarde.',
+    );
+  }
+  return Buffer.from(
+    hkdfSync('sha256', toKeyMaterial(masterKey), salt, 'pupitre-backup-v1', KEY_LENGTH),
+  );
+}
+
 let cachedKey: Buffer | null = null;
 
 function activeKey(): Buffer {

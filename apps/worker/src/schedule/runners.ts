@@ -1,4 +1,6 @@
 import {
+  BACKUP_APPLICATION_JOB,
+  BACKUP_PANEL_JOB,
   TARGET_PREFLIGHT_JOB,
   parseScanConfig,
   scannerKeySchema,
@@ -10,6 +12,8 @@ import { getDriver } from '@pupitre/core/drivers';
 import { disconnect } from '@pupitre/core/ssh';
 import {
   listCurrentDeployments,
+  listLiveDeployments,
+  listScheduledBackupPolicies,
   listTargets,
   recordHealthStatus,
   type Deployment,
@@ -18,7 +22,7 @@ import { z } from 'zod';
 import { openDeploymentContext } from '../deploy/context.js';
 import { runSecurityScan } from '../deploy/scan.js';
 import { logger } from '../logger.js';
-import { getOpsQueue } from '../queue.js';
+import { getBackupsQueue, getOpsQueue } from '../queue.js';
 
 /**
  * Les quatre tâches planifiées.
@@ -304,6 +308,52 @@ const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog }) => {
   return { targets: targets.length, enqueued };
 };
 
+// ─── sauvegardes ─────────────────────────────────────────────────────────────
+
+/**
+ * Enfile une sauvegarde par application dont la sauvegarde automatique est
+ * activée, et par cible où elle tourne. La tâche planifiée rend la main tout de
+ * suite : les sauvegardes, elles, se suivent sur la file `backups`, une à la
+ * fois, et chacune a sa ligne et son verdict.
+ */
+const runBackupApplications: ScheduledJobRunner = async ({ payload, onLog }) => {
+  const policies = await listScheduledBackupPolicies();
+  if (policies.length === 0) {
+    onLog("aucune application n'a la sauvegarde automatique activée");
+    return { applications: 0, enqueued: 0 };
+  }
+  const queue = getBackupsQueue();
+  let enqueued = 0;
+  for (const { applicationId, slug } of policies) {
+    const live = await listLiveDeployments({ applicationId });
+    for (const couple of live) {
+      if (!couple.inService || !inScope(couple.inService, payload)) continue;
+      await queue.add(BACKUP_APPLICATION_JOB, {
+        applicationId,
+        targetId: couple.targetId,
+        trigger: 'schedule',
+        backupId: null,
+        actorId: null,
+        ip: null,
+      });
+      enqueued += 1;
+      onLog(`sauvegarde enfilée : ${slug}`);
+    }
+  }
+  return { applications: policies.length, enqueued };
+};
+
+const runBackupPanel: ScheduledJobRunner = async ({ onLog }) => {
+  const job = await getBackupsQueue().add(BACKUP_PANEL_JOB, {
+    trigger: 'schedule',
+    backupId: null,
+    actorId: null,
+    ip: null,
+  });
+  onLog(`sauvegarde de la base du panel enfilée (job ${job.id})`);
+  return { enqueued: 1 };
+};
+
 // ─── registre ────────────────────────────────────────────────────────────────
 
 /**
@@ -315,4 +365,6 @@ export const SCHEDULED_JOB_RUNNERS: Record<ScheduledJobType, ScheduledJobRunner>
   healthcheck: runHealthPeriodic,
   cleanup: runCleanupVersions,
   preflight: runTargetPreflight,
+  backup: runBackupApplications,
+  panel_backup: runBackupPanel,
 };

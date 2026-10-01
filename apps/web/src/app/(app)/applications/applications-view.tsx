@@ -33,6 +33,11 @@ import { applications as messages } from '@/i18n/messages/applications';
 import { hrefWithSelection } from '@/lib/drawer-url';
 import type { NewApplicationAi } from '@/lib/new-application';
 import { toast } from '@/lib/toast';
+import {
+  FirstDeployBackup,
+  firstDeployPayload,
+  type FirstDeployBackupChoice,
+} from '@/components/backups/first-deploy-backup';
 import { ApplicationDrawer } from './application-drawer';
 import { NewApplicationDrawer } from './new/new-application-drawer';
 import { DeleteApplicationDialog } from './delete-dialog';
@@ -58,6 +63,8 @@ export type ApplicationRow = {
   ingress: { host: string | null; service: string; tls: boolean } | null;
   /** `null` : la session ne lit pas les déploiements. */
   live: Array<{ id: string; targetName: string; health: string; ago: string | null }> | null;
+  /** La politique de sauvegarde est-elle réglée, et y a-t-il quelque chose à sauvegarder ? */
+  backup: { configured: boolean; hasData: boolean };
   /** Ce que la vérification des images a trouvé ; `null` : rien à signaler. */
   imageUpdates: { outdated: number; newerTags: number } | null;
 };
@@ -86,6 +93,7 @@ export function ApplicationsView({
   canDeploy,
   canDelete,
   ai,
+  backupOptions,
 }: {
   items: ApplicationRow[];
   targets: DeployTarget[];
@@ -94,6 +102,8 @@ export function ApplicationsView({
   canDelete: boolean;
   /** L'état de la génération par IA, pour « Nouvelle application ». `null` sans `application:create`. */
   ai: NewApplicationAi | null;
+  /** Le choix de sauvegarde au premier déploiement — `null` sans `backup:manage`. */
+  backupOptions: { hasDestination: boolean } | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -102,6 +112,10 @@ export function ApplicationsView({
   // Cochée par défaut : perdre une version qui marchait parce qu'on a oublié
   // une case est le mauvais défaut.
   const [autoRollback, setAutoRollback] = useState(true);
+  const [firstBackup, setFirstBackup] = useState<FirstDeployBackupChoice>({
+    enabled: true,
+    beforeDeploy: true,
+  });
   const [deleting, setDeleting] = useState<ApplicationRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +149,19 @@ export function ApplicationsView({
     router.refresh();
   }
 
+  /**
+   * Le premier déploiement d'une application qui a des données, et dont la
+   * politique n'a jamais été réglée : on propose d'activer sa sauvegarde.
+   */
+  function offersBackupChoice(application: ApplicationRow): boolean {
+    return (
+      backupOptions !== null &&
+      application.backup.hasData &&
+      !application.backup.configured &&
+      (application.live === null || application.live.length === 0)
+    );
+  }
+
   async function deploy(application: ApplicationRow, targetId: string, runtime: 'docker' | 'k3s') {
     setBusy(true);
     setError(null);
@@ -147,6 +174,9 @@ export function ApplicationsView({
         runtime,
         proxy: 'traefik',
         autoRollback,
+        ...(offersBackupChoice(application)
+          ? firstDeployPayload(firstBackup, backupOptions?.hasDestination ?? false)
+          : {}),
       }),
     });
     setBusy(false);
@@ -347,6 +377,7 @@ export function ApplicationsView({
           open={adding.selected !== null}
           ai={ai}
           targets={targets}
+          backupOptions={backupOptions}
           onClose={adding.close}
           onSaved={saved}
         />
@@ -362,6 +393,15 @@ export function ApplicationsView({
         canDelete={canDelete}
         autoRollback={autoRollback}
         onAutoRollbackChange={setAutoRollback}
+        backupChoice={
+          current && offersBackupChoice(current) ? (
+            <FirstDeployBackup
+              value={firstBackup}
+              onChange={setFirstBackup}
+              hasDestination={backupOptions?.hasDestination ?? false}
+            />
+          ) : null
+        }
         focusDeploy={focusDeploy}
         busy={busy}
         error={error}

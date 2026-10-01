@@ -22,6 +22,10 @@
       "types": "./dist/probe/index.d.ts",
       "default": "./dist/probe/index.js"
     },
+    "./backup": {
+      "types": "./dist/backup/index.d.ts",
+      "default": "./dist/backup/index.js"
+    },
     "./images": {
       "types": "./dist/images/index.d.ts",
       "default": "./dist/images/index.js"

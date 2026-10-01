@@ -24,6 +24,8 @@ export const SCHEDULED_JOB_TYPES_LIST = [
   'healthcheck',
   'cleanup',
   'preflight',
+  'backup',
+  'panel_backup',
 ] as const;
 
 export const scheduledJobTypeSchema = z.enum(SCHEDULED_JOB_TYPES_LIST);
@@ -69,6 +71,19 @@ const fr = {
   'job.preflight.description': "Relance le preflight de toutes les cibles et rafraîchit leur état.",
   'job.preflight.neverDoes': 'Ne modifie aucune cible : elle ne fait que constater.',
 
+  'job.backup.label': 'Sauvegardes des applications',
+  'job.backup.description':
+    'Sauvegarde chaque application dont la sauvegarde automatique est activée — export des ' +
+    'bases reconnues, archive des volumes —, chiffrée, vers la destination configurée.',
+  'job.backup.neverDoes':
+    "N'arrête une application que si son mode « arrêt bref » le demande ; ne restaure jamais rien.",
+
+  'job.panel_backup.label': 'Sauvegarde du panel',
+  'job.panel_backup.description':
+    'Exporte la base de Pupitre (pg_dump), la chiffre et la dépose sur la destination configurée.',
+  'job.panel_backup.neverDoes':
+    'Ne sauvegarde pas MASTER_KEY : sans elle, aucune sauvegarde ne se relit. Gardez-la ailleurs.',
+
   // ── Champs d'une expression cron, nommés pour un humain ─────────────────
   // La *clé* d'un champ reste anglaise et sert à la logique (alias de mois,
   // alias de jour) ; seul ce libellé-ci s'affiche.
@@ -105,6 +120,19 @@ const en: Translated<typeof fr> = {
   'job.preflight.label': 'Target refresh',
   'job.preflight.description': 'Runs preflight on every target again and refreshes their state.',
   'job.preflight.neverDoes': 'Changes no target: it only observes.',
+
+  'job.backup.label': 'Application backups',
+  'job.backup.description':
+    'Backs up every application with automatic backup enabled — export of recognized ' +
+    'databases, archive of volumes —, encrypted, to the configured destination.',
+  'job.backup.neverDoes':
+    'Stops an application only if its “brief stop” mode asks for it; never restores anything.',
+
+  'job.panel_backup.label': 'Panel backup',
+  'job.panel_backup.description':
+    'Exports the Pupitre database (pg_dump), encrypts it and stores it on the configured destination.',
+  'job.panel_backup.neverDoes':
+    'Does not back up MASTER_KEY: without it, no backup can be read. Keep it elsewhere.',
 
   'cron.field.second': 'second',
   'cron.field.minute': 'minute',
@@ -169,6 +197,24 @@ function buildScheduledJobTypes(
       description: t('job.preflight.description'),
       defaultCron: '0 * * * *',
       neverDoes: t('job.preflight.neverDoes'),
+    },
+    backup: {
+      // La tâche planifiée ne fait qu'enfiler une sauvegarde par application,
+      // sur la file `backups` : elle rend la main en une seconde.
+      jobName: 'backup:schedule',
+      defaultKey: 'backup:applications',
+      label: t('job.backup.label'),
+      description: t('job.backup.description'),
+      defaultCron: '0 2 * * *',
+      neverDoes: t('job.backup.neverDoes'),
+    },
+    panel_backup: {
+      jobName: 'backup:schedule-panel',
+      defaultKey: 'backup:panel',
+      label: t('job.panel_backup.label'),
+      description: t('job.panel_backup.description'),
+      defaultCron: '30 1 * * *',
+      neverDoes: t('job.panel_backup.neverDoes'),
     },
   };
 }

@@ -12,11 +12,15 @@ import {
   deploymentQuerySchema,
   getAppSettings,
   getApplication,
+  getBackupPolicy,
   getTarget,
   listDeployments,
   logAudit,
+  saveBackupPolicy,
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { ensureBackupSchedule } from '@/lib/backups';
 import { deployments as messages } from '@/i18n/messages/deployments';
 import { ConflictError, ForbiddenError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
@@ -34,6 +38,15 @@ export const GET = apiRoute(async (request) => {
 });
 
 /**
+ * Au premier déploiement, l'écran propose d'activer la sauvegarde
+ * automatique — et celle qui précède chaque déploiement. Facultatif : une
+ * absence ne change rien à la politique existante.
+ */
+const createBodySchema = createDeploymentSchema.extend({
+  backup: z.object({ enabled: z.boolean(), beforeDeploy: z.boolean() }).optional(),
+});
+
+/**
  * Crée le déploiement et ses huit étapes en `pending`, puis enfile le job.
  *
  * La route **n'attend jamais** le déploiement : elle répond 202 tout de suite,
@@ -41,7 +54,7 @@ export const GET = apiRoute(async (request) => {
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'deployment:create');
-  const input = await readJsonBody(request, createDeploymentSchema);
+  const { backup: backupChoice, ...input } = await readJsonBody(request, createBodySchema);
 
   // Choisir les scanners et le seuil est une décision de sécurité : elle a sa
   // propre permission. Ne rien demander n'en réclame aucune — c'est la
@@ -99,6 +112,34 @@ export const POST = apiRoute(async (request) => {
   // L'AppSpec est figée dans le déploiement : l'application peut évoluer
   // ensuite sans rendre ce déploiement illisible.
   const appSpec = parseAppSpec(application.appSpec);
+
+  // Le choix fait au premier déploiement : il pose la politique de sauvegarde
+  // de l'application, s'il n'y en a pas encore. Ensuite, elle se règle sur sa
+  // fiche — un déploiement ne la réécrit jamais.
+  if (backupChoice && auth.can('backup:manage')) {
+    const current = await getBackupPolicy(application.id);
+    if (!current.configured) {
+      await saveBackupPolicy(
+        application.id,
+        { ...current, enabled: backupChoice.enabled, beforeDeploy: backupChoice.beforeDeploy },
+        auth.userId,
+      );
+      if (backupChoice.enabled) await ensureBackupSchedule('backup');
+      await logAudit({
+        actorId: auth.userId,
+        action: 'backup.policy.updated',
+        resourceType: 'application',
+        resourceId: application.id,
+        after: {
+          application: application.slug,
+          enabled: backupChoice.enabled,
+          beforeDeploy: backupChoice.beforeDeploy,
+          origin: 'first_deployment',
+        },
+        ip: auth.ip,
+      });
+    }
+  }
 
   const { deployment, steps } = await createDeploymentWithSteps({
     ...input,
