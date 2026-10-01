@@ -262,7 +262,7 @@ export type RenderInput = {
   appSlug: string;
   /** Port publié sur l'hôte pour le service exposé. `null` = pas de publication. */
   publishedPort: number | null;
-  /** Adresse de publication — voir `DriverContext.publishAddress`. Absente : toutes. */
+  /** Adresse de publication — voir `DriverExposure.bindAddress`. Absente : toutes. */
   publishAddress?: string;
   /** Noms des secrets dont la valeur sera fournie par le fichier `.env`. */
   secretNames?: readonly string[];

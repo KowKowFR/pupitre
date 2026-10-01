@@ -20,6 +20,7 @@ import {
   type EnvFromSource,
   type KubeManifest,
   type NamespaceManifest,
+  type NetworkPolicyManifest,
   type PersistentVolumeClaimManifest,
   type PodSecurityContext,
   type PodVolume,
@@ -151,7 +152,21 @@ export type RenderInput = {
    * rendu, comme côté Docker : voir `completeSecretValues()`.
    */
   secretValues?: Record<string, string>;
+  /**
+   * Le port publié sur les nœuds pour le point d'entrée, quand un proxy
+   * distant doit le joindre (`DriverExposure.byPort`). Absent : ClusterIP seul.
+   */
+  publishedPort?: number | null;
+  /**
+   * La seule adresse d'où ce port peut être joint (`DriverExposure.allowFrom`).
+   * Un NodePort écoute sur tous les nœuds et passe avant le pare-feu de la
+   * machine : c'est une NetworkPolicy qui le restreint.
+   */
+  allowFrom?: string | null;
 };
+
+/** Le nom de la NetworkPolicy qui réserve le point d'entrée au proxy. */
+export const PROXY_POLICY_NAME = 'pupitre-proxy-only';
 
 function renderProbe(service: Service, http: boolean, initialDelaySeconds: number): Probe {
   const port = probePort(service);
@@ -430,6 +445,12 @@ function renderDeployment(input: RenderInput, service: Service): DeploymentManif
 function renderService(input: RenderInput, service: Service): ServiceManifest {
   const { spec, appSlug } = input;
   const http = isHttpProbed(spec, service);
+  // Le point d'entrée seul, et seulement quand un proxy hors du cluster doit
+  // le joindre : un port publié sur les nœuds.
+  const nodePort =
+    input.publishedPort && service.name === entrypointService(spec).name
+      ? input.publishedPort
+      : null;
 
   return {
     apiVersion: 'v1',
@@ -440,10 +461,14 @@ function renderService(input: RenderInput, service: Service): ServiceManifest {
       labels: standardLabels(appSlug, service.name, spec.version),
     },
     spec: {
-      // Jamais de NodePort : en K3s l'exposition passe par le proxy du cluster,
-      // qui joint ce Service — la raison pour laquelle `allocatePort()` retourne
-      // `null`, et `upstream()` le Service.
-      type: 'ClusterIP',
+      // ClusterIP d'ordinaire : le proxy du cluster joint ce Service, d'où un
+      // `allocatePort()` à `null` et un `upstream()` qui rend le Service. Un
+      // NodePort quand le proxy est sur une autre machine.
+      type: nodePort ? 'NodePort' : 'ClusterIP',
+      // Sans quoi le nœud masque l'adresse d'origine, et la NetworkPolicy ne
+      // peut plus distinguer le proxy du reste du monde. Une cible Pupitre est
+      // une machine : le pod est sur le nœud qu'on joint.
+      ...(nodePort ? { externalTrafficPolicy: 'Local' as const } : {}),
       selector: selectorLabels(appSlug, service.name),
       ports: [
         {
@@ -451,7 +476,37 @@ function renderService(input: RenderInput, service: Service): ServiceManifest {
           port: service.port,
           targetPort: service.port,
           protocol: 'TCP',
+          ...(nodePort ? { nodePort } : {}),
         },
+      ],
+    },
+  };
+}
+
+/**
+ * Le point d'entrée publié sur les nœuds n'accepte, de l'extérieur, que le
+ * proxy qui le sert ; les autres pods de l'application le joignent comme avant.
+ * Les sondes du kubelet viennent du nœud même, que le contrôleur laisse passer.
+ */
+export function renderProxyPolicy(input: RenderInput): NetworkPolicyManifest | null {
+  if (!input.publishedPort || !input.allowFrom) return null;
+  const { spec, appSlug } = input;
+  const entrypoint = entrypointService(spec);
+  const cidr = `${input.allowFrom}/${input.allowFrom.includes(':') ? 128 : 32}`;
+  return {
+    apiVersion: 'networking.k8s.io/v1',
+    kind: 'NetworkPolicy',
+    metadata: {
+      name: PROXY_POLICY_NAME,
+      namespace: namespaceName(appSlug),
+      labels: standardLabels(appSlug, entrypoint.name, spec.version),
+    },
+    spec: {
+      podSelector: { matchLabels: selectorLabels(appSlug, entrypoint.name) },
+      policyTypes: ['Ingress'],
+      ingress: [
+        { from: [{ podSelector: {} }] },
+        { from: [{ ipBlock: { cidr } }], ports: [{ protocol: 'TCP', port: entrypoint.port }] },
       ],
     },
   };
@@ -489,6 +544,8 @@ export function renderManifests(rawInput: RenderInput): KubeManifest[] {
   for (const service of services) {
     manifests.push(renderService(input, service));
   }
+  const policy = renderProxyPolicy(input);
+  if (policy) manifests.push(policy);
 
   // Pas d'Ingress ici : un domaine est une route, posée par le reverse proxy
   // de la cible (`@pupitre/core/proxy`) vers le Service rendu ci-dessus.
@@ -530,6 +587,7 @@ export function manifestFileName(manifest: KubeManifest): string {
     PersistentVolumeClaim: 30,
     Deployment: 40,
     Service: 50,
+    NetworkPolicy: 55,
     Ingress: 60,
   };
   const kind = manifest.kind.toLowerCase();

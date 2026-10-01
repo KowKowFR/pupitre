@@ -24,6 +24,14 @@ const fr = {
   'error.jobNoId': 'La tâche n’a pas reçu d’identifiant.',
   'error.unknownKind': 'Ce genre de proxy n’est pas encore pris en charge.',
   'error.acmeUrl': 'Un serveur ACME personnalisé demande son URL.',
+  'error.hasOwnProxy':
+    'Cette machine a son propre reverse proxy : retirez-le avant de la relier à celui d’une autre.',
+  'error.linked':
+    'Cette machine passe par le reverse proxy d’une autre : déliez-la avant de lui en donner un.',
+  'error.proxyNotFound': 'Ce reverse proxy n’existe plus.',
+  'error.noLink': 'Cette machine n’est reliée à aucun autre proxy.',
+  'error.linkNeedsIp':
+    'Le Traefik d’un cluster joint une autre machine par son adresse IPv4 : donnez une adresse, pas un nom.',
 
   // ── la carte de la cible ─────────────────────────────────────────────────
   'card.title': 'Reverse proxy',
@@ -80,7 +88,42 @@ const fr = {
   'remove.uninstall.help':
     'Pupitre l’a installé : il arrête et retire le conteneur, ou rend à K3s sa configuration.',
   'remove.queued': 'Retrait lancé',
-  connected: 'Proxy relié — test en cours',
+  'connect.done': 'Proxy relié — test en cours',
+
+  // ── le proxy central ─────────────────────────────────────────────────────
+  'link.title': 'Ou passer par le reverse proxy d’une autre machine',
+  'link.help':
+    'Il reçoit les visiteurs et les mène jusqu’ici. Entre les deux machines, le trafic n’est pas chiffré : préférez une adresse privée — réseau privé de l’hébergeur, VLAN, WireGuard.',
+  'link.proxy': 'Reverse proxy',
+  'link.address': 'Adresse de cette machine, vue de celle du proxy',
+  'link.address.help':
+    'Celle par laquelle le proxy la joindra — une IP privée de préférence. Le port des applications n’y sera ouvert qu’à lui. « Relier » éprouve aussitôt la connexion entre les deux machines.',
+  'link.reached':
+    'Connexion éprouvée : « {target} » a joint cette machine sur un port de la plage des applications. Elle l’est de nouveau avant chaque déploiement.',
+  'link.via': 'Servie par le reverse proxy de « {target} »',
+  'link.addresses': 'Le proxy joint cette machine à {address}.',
+  'link.source':
+    ' Il arrive depuis {source} : le port des applications ne s’ouvre qu’à cette adresse.',
+  'link.public':
+    '{address} n’est pas une adresse privée : entre les deux machines, le trafic passera en clair sur Internet.',
+  'link.notBindable':
+    '{address} n’est pas une adresse de cette machine (NAT ?) : le port des applications sera publié sur toutes ses adresses.',
+  'link.status.unknown': 'à tester',
+  'link.status.installing': 'à tester',
+  'link.status.ok': 'reliée',
+  'link.status.failed': 'en échec',
+  'link.linked': 'Machine reliée — test de la liaison en cours',
+  'link.unlinked': 'Machine déliée',
+  'link.checked': 'Test de la liaison lancé',
+  'action.link': 'Relier',
+  'action.linkCheck': 'Tester la liaison',
+  'action.unlink': 'Délier',
+  'unlink.title': 'Délier « {target} » du reverse proxy de « {via} » ?',
+  'unlink.consequence':
+    'Ses prochains déploiements ne seront plus servis par ce proxy : leurs domaines ne pourront plus être posés.',
+  'served.title': 'Machines servies',
+  'served.help': 'Leurs domaines passent par ce proxy, qui les joint à l’adresse indiquée.',
+  'domains.via': 'sur « {target} »',
 
   // ── les domaines ─────────────────────────────────────────────────────────
   'domains.title': 'Domaines',
@@ -94,6 +137,7 @@ const fr = {
   'domains.remove': 'Retirer ce domaine',
   'domains.dns.checking': 'vérification du DNS…',
   'domains.dns.ok': 'pointe vers cette machine',
+  'domains.dns.okVia': 'pointe vers « {target} », la machine du proxy',
   'domains.dns.elsewhere': 'pointe ailleurs ({addresses}) — normal derrière un CDN ou un NAT',
   'domains.dns.none': 'ne résout pas encore — le certificat attendra',
   'domains.save': 'Enregistrer',
@@ -134,6 +178,14 @@ const en: Translated<typeof fr> = {
   'error.jobNoId': 'The job received no identifier.',
   'error.unknownKind': 'This kind of proxy is not supported yet.',
   'error.acmeUrl': 'A custom ACME server needs its URL.',
+  'error.hasOwnProxy':
+    'This machine has its own reverse proxy: remove it before linking the machine to another one.',
+  'error.linked':
+    'This machine goes through another machine’s reverse proxy: unlink it before giving it its own.',
+  'error.proxyNotFound': 'This reverse proxy no longer exists.',
+  'error.noLink': 'This machine is not linked to another proxy.',
+  'error.linkNeedsIp':
+    'A cluster’s Traefik reaches another machine by its IPv4 address: give an address, not a name.',
 
   'card.title': 'Reverse proxy',
   'card.description':
@@ -189,7 +241,40 @@ const en: Translated<typeof fr> = {
   'remove.uninstall.help':
     'Pupitre installed it: it stops and removes the container, or gives K3s back its configuration.',
   'remove.queued': 'Removal started',
-  connected: 'Proxy connected — test running',
+  'connect.done': 'Proxy connected — test running',
+
+  'link.title': 'Or go through another machine’s reverse proxy',
+  'link.help':
+    'It receives visitors and leads them here. Between the two machines, traffic is not encrypted: prefer a private address — the host’s private network, a VLAN, WireGuard.',
+  'link.proxy': 'Reverse proxy',
+  'link.address': 'Address of this machine, as seen from the proxy’s',
+  'link.address.help':
+    'The one the proxy will reach it by — a private IP preferably. Application ports will be open to it only. “Link” tests the connection between the two machines right away.',
+  'link.reached':
+    'Connection tested: “{target}” reached this machine on a port of the application range. It is tested again before each deployment.',
+  'link.via': 'Served by the reverse proxy of “{target}”',
+  'link.addresses': 'The proxy reaches this machine at {address}.',
+  'link.source': ' It comes from {source}: application ports open to that address only.',
+  'link.public':
+    '{address} is not a private address: between the two machines, traffic will cross the Internet unencrypted.',
+  'link.notBindable':
+    '{address} is not an address of this machine (NAT?): application ports will be published on all its addresses.',
+  'link.status.unknown': 'to test',
+  'link.status.installing': 'to test',
+  'link.status.ok': 'linked',
+  'link.status.failed': 'failing',
+  'link.linked': 'Machine linked — link test running',
+  'link.unlinked': 'Machine unlinked',
+  'link.checked': 'Link test started',
+  'action.link': 'Link',
+  'action.linkCheck': 'Test the link',
+  'action.unlink': 'Unlink',
+  'unlink.title': 'Unlink “{target}” from the reverse proxy of “{via}”?',
+  'unlink.consequence':
+    'Its next deployments will no longer be served by this proxy: their domains can no longer be set.',
+  'served.title': 'Machines served',
+  'served.help': 'Their domains go through this proxy, which reaches them at the address shown.',
+  'domains.via': 'on “{target}”',
 
   'domains.title': 'Domains',
   'domains.help': 'Served by the reverse proxy of “{target}” ({proxy}).',
@@ -202,6 +287,7 @@ const en: Translated<typeof fr> = {
   'domains.remove': 'Remove this domain',
   'domains.dns.checking': 'checking DNS…',
   'domains.dns.ok': 'points to this machine',
+  'domains.dns.okVia': 'points to “{target}”, the proxy’s machine',
   'domains.dns.elsewhere': 'points elsewhere ({addresses}) — normal behind a CDN or a NAT',
   'domains.dns.none': 'does not resolve yet — the certificate will wait',
   'domains.save': 'Save',

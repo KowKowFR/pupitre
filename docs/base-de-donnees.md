@@ -7,7 +7,7 @@ en crée une nouvelle.
 `packages/db` est la source unique du modèle : ni `apps/web` ni `apps/worker`
 n'écrivent de SQL, et les drivers n'ont pas le droit de connaître une table.
 
-## Les 47 tables
+## Les 48 tables
 
 | Domaine | Tables |
 |---|---|
@@ -22,7 +22,7 @@ n'écrivent de SQL, et les drivers n'ont pas le droit de connaître une table.
 | Notifications | `notification_channels` `notification_policy` `notification_digest_groups` `notification_digest_items` |
 | Discussion | `chat_messages` `chat_reactions` `chat_reads` `chat_attachments` |
 | Sauvegardes | `backup_destinations` `backup_policies` `backups` |
-| Reverse proxies | `proxies` `routes` |
+| Reverse proxies | `proxies` `routes` `proxy_links` |
 | Divers | `audit_logs` `app_settings` |
 
 Dix-sept d'entre elles ont été créées dès la première migration — y compris
@@ -59,7 +59,9 @@ celui qui perd rejoue. Il n'y a pas de `if` à trouver dans le code.
 **`routes.hostname` est unique.** Deux applications ne peuvent pas réclamer le
 même domaine : celui qui perd la course reçoit une `23505`, traduite en « déjà
 routé vers… ». Et **`proxies_host_target_unique`**, index unique partiel, tient
-un seul reverse proxy par machine.
+un seul reverse proxy par machine. **`proxy_links.target_id`** est la clé
+primaire : une machine passe par le proxy d'une autre au plus — et l'API
+refuse qu'elle ait à la fois le sien et une liaison.
 
 **`targets_port_range_check`** interdit une plage inversée, en plus de Zod.
 
@@ -126,7 +128,8 @@ désigne toujours l'endroit où sont vraiment les fichiers.
 
 La liste s'arrête aux treize premières ; les suivantes — jusqu'à
 `0027_reverse_proxy`, les connexions et les routes, avec la reprise de ce qui
-était routé avant — se lisent dans `packages/db/migrations/`.
+était routé avant, et `0028_central_proxy`, les liaisons d'une machine au proxy
+d'une autre — se lisent dans `packages/db/migrations/`.
 
 ### Deux arbitrages qui se lisent dans le SQL
 

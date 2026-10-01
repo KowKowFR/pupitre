@@ -93,13 +93,12 @@ export type DriverContext = TargetContext & {
   portRange?: { min: number; max: number };
   resolveSecrets?: SecretResolver;
   /**
-   * L'adresse où publier le port de l'application. Absente : toutes les
-   * interfaces. `127.0.0.1` quand un reverse proxy **sur la même machine** la
-   * sert par ses domaines : son port n'a plus à être joignable du dehors —
-   * sinon il contournerait le HTTPS du proxy. C'est le pipeline qui en décide,
-   * au vu des routes ; le driver applique.
+   * Comment un reverse proxy joint l'application, quand ses domaines passent
+   * par lui — ce qui décide de la publication de son port. Absente : pas de
+   * proxy, la publication habituelle du runtime. C'est le pipeline qui en
+   * décide, au vu des routes ; le driver applique ce qui a un sens chez lui.
    */
-  publishAddress?: string;
+  exposure?: DriverExposure;
   /**
    * Fichiers supplémentaires à déposer avec les artefacts rendus — typiquement
    * le code source, quand un service se construit depuis un Dockerfile.
@@ -115,6 +114,23 @@ export type DriverContext = TargetContext & {
    * d'où elle vient.
    */
   sourceArchive?: SourceArchive;
+};
+
+export type DriverExposure = {
+  /**
+   * Où publier le port : `127.0.0.1` pour un proxy de la même machine,
+   * l'adresse privée par laquelle un proxy distant joint celle-ci. Absente :
+   * toutes les interfaces. Le port ne doit pas être joignable d'ailleurs —
+   * sinon il contournerait le HTTPS du proxy.
+   */
+  bindAddress?: string;
+  /** N'ouvrir le pare-feu qu'à cette adresse : celle du proxy distant. */
+  allowFrom?: string;
+  /**
+   * Le proxy joint l'application par un port de la machine : un runtime qui
+   * n'en publie pas d'ordinaire doit en publier un — un NodePort, en K3s.
+   */
+  byPort?: boolean;
 };
 
 export type SourceArchive = {

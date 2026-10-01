@@ -2,7 +2,16 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { CircleCheck, CircleX, LoaderCircle, PlugZap, ScanSearch, Trash2 } from 'lucide-react';
+import {
+  CircleCheck,
+  CircleX,
+  Link2,
+  LoaderCircle,
+  PlugZap,
+  ScanSearch,
+  Trash2,
+  Unlink,
+} from 'lucide-react';
 import type { ProxyDetection, ProxyInstallOption } from '@pupitre/core/proxy';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -13,23 +22,40 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Field } from '@/components/ui/field';
 import { Input, Textarea } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented';
+import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { proxy as messages } from '@/i18n/messages/proxy';
-import type { ProxyViewForUi, RouteViewForUi } from '@/lib/proxy';
+import type { LinkViewForUi, ProxyViewForUi, RouteViewForUi } from '@/lib/proxy';
 import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 
 /**
  * Le reverse proxy d'une machine : le trouver, l'installer, le tester, le
- * retirer, et voir les domaines qui passent par lui. Sur la page de la cible
- * et dans l'assistant de démarrage — le même composant aux deux endroits.
+ * retirer, et voir les domaines qui passent par lui. Ou bien relier la machine
+ * au proxy d'une autre — le proxy central. Sur la page de la cible et dans
+ * l'assistant de démarrage — le même composant aux deux endroits.
  *
  * La carte se lit elle-même et se relit tant qu'une installation ou un test
  * est en cours : ils prennent de quelques secondes à deux minutes.
  */
 
-type Data = { proxy: ProxyViewForUi | null; routes: RouteViewForUi[] };
+type Data = {
+  proxy: ProxyViewForUi | null;
+  link: LinkViewForUi | null;
+  /** Les machines que le proxy de celle-ci sert par liaison. */
+  served: Array<{
+    targetId: string;
+    targetName: string;
+    address: string;
+    status: LinkViewForUi['status'];
+  }>;
+  /** Les proxies des autres machines, auxquels on peut relier celle-ci. */
+  candidates: Array<{ proxyId: string; targetId: string; targetName: string; description: string }>;
+  /** L'adresse proposée pour la liaison : celle par laquelle Pupitre la joint. */
+  suggestedAddress: string;
+  routes: RouteViewForUi[];
+};
 type Detected = { detections: ProxyDetection[]; installOptions: ProxyInstallOption[] };
 type ApiError = { error?: { message?: string } };
 type AcmeServer = 'production' | 'staging' | 'custom';
@@ -72,7 +98,12 @@ export function ProxyPanel({
   const [caCertificate, setCaCertificate] = useState('');
   const [removing, setRemoving] = useState(false);
   const [uninstall, setUninstall] = useState(true);
-  const [watching, setWatching] = useState(false);
+  // Un geste en cours : on relit jusqu'à ce que son test soit passé, c'est-à-dire
+  // jusqu'à ce que la date du dernier test change. `since` : celle d'avant.
+  const [watching, setWatching] = useState<{ since: string | null } | null>(null);
+  const [linkProxyId, setLinkProxyId] = useState('');
+  const [linkAddress, setLinkAddress] = useState<string | null>(null);
+  const [unlinking, setUnlinking] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch(`/api/targets/${targetId}/proxy`, { cache: 'no-store' }).catch(
@@ -98,23 +129,36 @@ export function ProxyPanel({
     };
   }, [load]);
 
+  // Pour l'assistant : le proxy qui sert la machine, le sien ou celui d'une
+  // autre — une liaison en échec ne compte pas comme faite.
   useEffect(() => {
-    if (data) onProxyChange?.(data.proxy);
+    if (!data) return;
+    onProxyChange?.(
+      data.proxy ?? (data.link ? { ...data.link.proxy, status: data.link.status } : null),
+    );
   }, [data, onProxyChange]);
 
   // Une installation ou un test en cours : on relit jusqu'à leur issue.
-  const pending = data?.proxy?.status === 'installing' || watching;
+  const pending = data?.proxy?.status === 'installing' || watching !== null;
   useEffect(() => {
     if (!pending) return;
     const timer = window.setInterval(() => {
       void refresh().then((next) => {
-        if (next && next.proxy?.status !== 'installing' && next.proxy?.lastCheckedAt)
-          setWatching(false);
-        if (next && !next.proxy) setWatching(false);
+        if (!next) return;
+        const checkedAt = lastCheckedAt(next);
+        const tested =
+          next.proxy?.status !== 'installing' &&
+          checkedAt !== null &&
+          checkedAt !== watching?.since;
+        if (tested || (!next.proxy && !next.link)) setWatching(null);
       });
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [pending, refresh]);
+  }, [pending, refresh, watching]);
+
+  function watch() {
+    setWatching({ since: data ? lastCheckedAt(data) : null });
+  }
 
   async function call(url: string, init: RequestInit): Promise<Response | null> {
     setError(null);
@@ -148,9 +192,9 @@ export function ProxyPanel({
     });
     setBusy(null);
     if (!response) return;
-    toast({ title: t('connected'), tone: 'ok' });
+    toast({ title: t('connect.done'), tone: 'ok' });
     setDetected(null);
-    setWatching(true);
+    watch();
     await refresh();
   }
 
@@ -173,7 +217,7 @@ export function ProxyPanel({
     if (!response) return;
     toast({ title: t('install.queued'), description: t('install.running'), tone: 'accent' });
     setDetected(null);
-    setWatching(true);
+    watch();
     await refresh();
   }
 
@@ -183,7 +227,30 @@ export function ProxyPanel({
     setBusy(null);
     if (!response) return;
     toast({ title: t('checks.queued'), tone: 'accent' });
-    setWatching(true);
+    watch();
+  }
+
+  async function link(proxyId: string, address: string) {
+    setBusy('link');
+    const response = await call(`/api/targets/${targetId}/proxy/link`, {
+      method: 'PUT',
+      body: JSON.stringify({ proxyId, address }),
+    });
+    setBusy(null);
+    if (!response) return;
+    toast({ title: t('link.linked'), tone: 'ok' });
+    setDetected(null);
+    watch();
+    await refresh();
+  }
+
+  async function checkLink() {
+    setBusy('linkCheck');
+    const response = await call(`/api/targets/${targetId}/proxy/link/check`, { method: 'POST' });
+    setBusy(null);
+    if (!response) return;
+    toast({ title: t('link.checked'), tone: 'accent' });
+    watch();
   }
 
   if (!data) {
@@ -200,6 +267,9 @@ export function ProxyPanel({
   }
 
   const proxy = data.proxy;
+  const linked = data.link;
+  const chosenProxyId = linkProxyId || data.candidates[0]?.proxyId || '';
+  const address = linkAddress ?? data.suggestedAddress;
   const serverLabel = (value: string) =>
     value === 'production' || value === 'staging' || value === 'custom'
       ? t(`install.server.${value}`)
@@ -210,7 +280,23 @@ export function ProxyPanel({
       <CardHeader
         actions={
           canManage ? (
-            proxy ? (
+            linked ? (
+              <span className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={busy === 'linkCheck'}
+                  onClick={() => void checkLink()}
+                >
+                  {busy === 'linkCheck' ? null : <PlugZap aria-hidden />}
+                  {t('action.linkCheck')}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setUnlinking(true)}>
+                  <Unlink aria-hidden />
+                  {t('action.unlink')}
+                </Button>
+              </span>
+            ) : proxy ? (
               <span className="flex gap-2">
                 <Button
                   variant="secondary"
@@ -255,9 +341,94 @@ export function ProxyPanel({
       <CardContent className="flex flex-col gap-4">
         {error ? <Alert variant="destructive">{error}</Alert> : null}
 
-        {!proxy ? (
+        {linked ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="t-sm font-medium">
+                {t('link.via', { target: linked.hostTargetName })}
+              </span>
+              <Badge variant={STATUS_VARIANT[linked.status]} dot>
+                {pending ? <LoaderCircle aria-hidden className="size-3 animate-spin" /> : null}
+                {t(`link.status.${linked.status}`)}
+              </Badge>
+            </div>
+            <p className="t-sm mono text-text-2">{linked.proxy.description}</p>
+            <p className="t-cap text-text-3">
+              {t('link.addresses', { address: linked.address })}
+              {linked.sourceAddress ? t('link.source', { source: linked.sourceAddress }) : null}
+              {linked.lastCheckedAt ? (
+                <span className="ml-2">{formatDateTime(linked.lastCheckedAt, format)}</span>
+              ) : null}
+            </p>
+            {linked.status === 'ok' && !linked.lastCheckError ? (
+              <p className="t-sm flex items-start gap-2">
+                <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-ok-text" />
+                {t('link.reached', { target: linked.hostTargetName })}
+              </p>
+            ) : null}
+            {linked.lastCheckError ? (
+              <Alert variant={linked.status === 'failed' ? 'destructive' : 'warn'}>
+                {linked.lastCheckError}
+              </Alert>
+            ) : null}
+            {!linked.privateAddress ? (
+              <Alert variant="warn">{t('link.public', { address: linked.address })}</Alert>
+            ) : null}
+            {linked.status === 'ok' && !linked.bindable ? (
+              <Alert variant="warn">{t('link.notBindable', { address: linked.address })}</Alert>
+            ) : null}
+            <div className="flex flex-col gap-1.5">
+              <span className="t-sm font-medium">{t('routes.title')}</span>
+              {data.routes.length === 0 ? (
+                <p className="t-cap text-text-3">{t('routes.none')}</p>
+              ) : (
+                <RouteList routes={data.routes} format={format} showApplication />
+              )}
+            </div>
+          </>
+        ) : !proxy ? (
           <>
             <p className="t-sm text-text-2">{canManage ? t('card.none') : t('card.readOnly')}</p>
+            {canManage && data.candidates.length > 0 ? (
+              <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                <span className="flex flex-col gap-0.5">
+                  <span className="t-sm font-medium">{t('link.title')}</span>
+                  <span className="help">{t('link.help')}</span>
+                </span>
+                <Field label={t('link.proxy')}>
+                  <Select
+                    value={chosenProxyId}
+                    onChange={(event) => setLinkProxyId(event.target.value)}
+                  >
+                    {data.candidates.map((candidate) => (
+                      <option key={candidate.proxyId} value={candidate.proxyId}>
+                        {candidate.targetName} — {candidate.description}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label={t('link.address')} help={t('link.address.help')}>
+                  <Input
+                    className="mono"
+                    value={address}
+                    placeholder="10.0.0.12"
+                    onChange={(event) => setLinkAddress(event.target.value)}
+                  />
+                </Field>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={busy === 'link'}
+                    disabled={!chosenProxyId || !address.trim()}
+                    onClick={() => void link(chosenProxyId, address.trim())}
+                  >
+                    {busy === 'link' ? null : <Link2 aria-hidden />}
+                    {t('action.link')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {detected ? (
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
@@ -463,9 +634,42 @@ export function ProxyPanel({
               {data.routes.length === 0 ? (
                 <p className="t-cap text-text-3">{t('routes.none')}</p>
               ) : (
-                <RouteList routes={data.routes} format={format} showApplication />
+                <RouteList
+                  routes={data.routes}
+                  format={format}
+                  showApplication
+                  hostTargetId={targetId}
+                />
               )}
             </div>
+
+            {data.served.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="flex flex-col gap-0.5">
+                  <span className="t-sm font-medium">{t('served.title')}</span>
+                  <span className="help">{t('served.help')}</span>
+                </span>
+                <ul className="flex flex-col divide-y divide-border-subtle rounded-lg border border-border">
+                  {data.served.map((entry) => (
+                    <li
+                      key={entry.targetId}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
+                    >
+                      <Link
+                        href={`/targets/${entry.targetId}?tab=proxy`}
+                        className="t-sm font-medium hover:underline"
+                      >
+                        {entry.targetName}
+                      </Link>
+                      <span className="t-cap mono text-text-3">{entry.address}</span>
+                      <Badge variant={STATUS_VARIANT[entry.status]} dot>
+                        {t(`link.status.${entry.status}`)}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </>
         )}
       </CardContent>
@@ -485,7 +689,7 @@ export function ProxyPanel({
           );
           if (!response) return;
           toast({ title: t('remove.queued'), tone: 'ok' });
-          setWatching(true);
+          watch();
         }}
       >
         {proxy?.managed ? (
@@ -497,8 +701,30 @@ export function ProxyPanel({
           />
         ) : null}
       </ConfirmDialog>
+
+      <ConfirmDialog
+        open={unlinking}
+        onOpenChange={setUnlinking}
+        level="reversible"
+        title={t('unlink.title', { target: targetName, via: linked?.hostTargetName ?? '' })}
+        consequences={[t('unlink.consequence')]}
+        confirmLabel={t('action.unlink')}
+        onConfirm={async () => {
+          setUnlinking(false);
+          const response = await call(`/api/targets/${targetId}/proxy/link`, {
+            method: 'DELETE',
+          });
+          if (!response) return;
+          toast({ title: t('link.unlinked'), tone: 'ok' });
+          await refresh();
+        }}
+      />
     </Card>
   );
+}
+
+function lastCheckedAt(data: Data): string | null {
+  return data.proxy?.lastCheckedAt ?? data.link?.lastCheckedAt ?? null;
 }
 
 /** Le jour seul, dans le fuseau et la langue de l'instance : une échéance de certificat. */
@@ -514,10 +740,13 @@ export function RouteList({
   routes,
   format,
   showApplication = false,
+  hostTargetId,
 }: {
   routes: RouteViewForUi[];
   format: FormatSettings;
   showApplication?: boolean;
+  /** La machine du proxy : les domaines d'une autre machine qu'il sert disent laquelle. */
+  hostTargetId?: string;
 }) {
   const t = useT(messages);
   return (
@@ -551,9 +780,12 @@ export function RouteList({
             ) : null}
           </span>
           {showApplication ? (
-            <Link href={`/applications/${route.applicationId}`} className="link t-cap">
-              {route.applicationSlug}
-            </Link>
+            <span className="t-cap text-text-3">
+              <Link href={`/applications/${route.applicationId}`} className="link">
+                {route.applicationSlug}
+              </Link>
+              {hostTargetId && route.targetId !== hostTargetId ? ` · ${route.targetName}` : null}
+            </span>
           ) : null}
         </li>
       ))}

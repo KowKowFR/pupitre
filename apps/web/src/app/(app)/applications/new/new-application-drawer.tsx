@@ -13,7 +13,7 @@ type DeployTarget = {
   name: string;
   host: string;
   runtimes: Array<'docker' | 'k3s'>;
-  proxy: { description: string; capabilities: ProxyCapabilities } | null;
+  proxy: { description: string; capabilities: ProxyCapabilities; via?: string | null } | null;
 };
 
 /**

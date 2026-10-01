@@ -102,10 +102,12 @@ la navigation métier.
 | `/api/targets/:id/workloads/:ref/control` | POST | `workload:manage` — `{ action: start \| stop \| restart }`, `202` |
 | `/api/targets/:id/workloads/:ref/logs` | POST | `workload:manage` — `{ run, tail }`, les lignes reviennent par le flux `?run=` |
 | `/api/targets/:id/workloads/:ref/exec` | POST | `workload:exec` — `{ run, command }`, 30 par minute ; la sortie revient par le flux `?run=` |
-| `/api/targets/:id/proxy` | GET / PUT / DELETE | `target:read` / `target:update` / `target:update` — PUT relie un proxy **trouvé** (`{ kind, config }`), un test part aussitôt ; DELETE `?uninstall=1` défait ce que Pupitre a installé, 409 tant que des domaines passent par lui |
+| `/api/targets/:id/proxy` | GET / PUT / DELETE | `target:read` / `target:update` / `target:update` — GET : le proxy de la machine et les machines qu'il sert, ou la liaison au proxy d'une autre, plus les proxies auxquels la relier ; PUT relie un proxy **trouvé** (`{ kind, config }`), un test part aussitôt, 409 si la machine est reliée à un autre ; DELETE `?uninstall=1` défait ce que Pupitre a installé, 409 tant que des domaines passent par lui — ceux des machines qu'il sert compris |
 | `/api/targets/:id/proxy/detect` | POST | `target:update` — ce que la machine porte et ce qu'on peut y installer ; la route attend la tâche (60 s au plus) |
 | `/api/targets/:id/proxy/install` | POST | `target:update` — `{ option: container \| kubernetes, acme }`, `202` ; la connexion passe `installing` puis `ok` ou `failed` |
 | `/api/targets/:id/proxy/check` | POST | `target:update` — « Tester », par la file |
+| `/api/targets/:id/proxy/link` | PUT / DELETE | `target:update` — le proxy central : PUT `{ proxyId, address }` relie la machine au proxy d'une autre, joint à `address` (une IPv4 pour le Traefik d'un cluster, sinon 422), et lance le test de la liaison ; 409 si la machine a son propre proxy. DELETE délie, 409 tant que des domaines de la machine passent par lui |
+| `/api/targets/:id/proxy/link/check` | POST | `target:update` — « Tester la liaison », par la file : adresse d'arrivée du proxy, adresse bien à la machine |
 | `/api/targets/:id/dns` | GET | `target:read` — `?hostname=` : le domaine pointe-t-il vers cette machine ? Un avertissement, jamais un refus |
 
 ### Applications

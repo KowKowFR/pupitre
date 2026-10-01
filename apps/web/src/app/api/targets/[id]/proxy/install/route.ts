@@ -1,5 +1,11 @@
 import { PROXY_INSTALL_JOB, acmeSettingsSchema } from '@pupitre/core';
-import { getProxyForTarget, getTarget, logAudit, saveTargetProxy } from '@pupitre/db';
+import {
+  getProxyForTarget,
+  getTarget,
+  getTargetLink,
+  logAudit,
+  saveTargetProxy,
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { proxy as messages } from '@/i18n/messages/proxy';
@@ -37,6 +43,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
   }
   const existing = await getProxyForTarget(id);
   if (existing?.status === 'installing') throw new ConflictError(msg(messages, 'error.installing'));
+  if (await getTargetLink(id)) throw new ConflictError(msg(messages, 'error.linked'));
 
   // Une configuration d'attente, complétée par la tâche : le mode suffit à la lire.
   const proxy = await saveTargetProxy({

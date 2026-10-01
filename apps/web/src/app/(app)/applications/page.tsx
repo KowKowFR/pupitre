@@ -5,8 +5,8 @@ import {
   listBackupPolicyApplicationIds,
   listImageUpdateSummaries,
   listRoutes,
+  listServingProxies,
   listSupervisedApps,
-  listTargetProxies,
   listTargets,
 } from '@pupitre/db';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
@@ -45,7 +45,7 @@ export default async function ApplicationsPage() {
     listImageUpdateSummaries(),
     listBackupPolicyApplicationIds(),
     getActiveBackupDestination(),
-    canDeploy ? listTargetProxies() : Promise.resolve(new Map()),
+    canDeploy ? listServingProxies() : Promise.resolve(new Map()),
     canDeploy ? listRoutes({}) : Promise.resolve([]),
   ]);
 
@@ -97,11 +97,17 @@ export default async function ApplicationsPage() {
       k3sVersion: target.runtimesAvailable.k3s.version,
       healthy: target.status === 'ok',
       proxy: (() => {
-        const proxy = proxies.get(target.id);
-        if (!proxy || proxy.status === 'installing') return null;
+        const serving = proxies.get(target.id);
+        if (!serving || serving.proxy.status === 'installing') return null;
+        const { proxy, link } = serving;
+        // Le proxy d'une autre machine : on dit laquelle.
+        const via = link
+          ? targets.find((candidate) => candidate.id === proxy.hostTargetId)?.name
+          : null;
         return {
           description: describeProxy(proxy.kind, proxy.config),
           capabilities: proxyCapabilities(proxy.kind, proxy.config),
+          via: via ?? null,
         };
       })(),
     }))

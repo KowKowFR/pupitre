@@ -4,30 +4,35 @@ import {
   proxyCheckJobDataSchema,
   proxyDetectJobDataSchema,
   proxyInstallJobDataSchema,
+  proxyLinkCheckJobDataSchema,
   proxyRemoveJobDataSchema,
   routesCheckJobDataSchema,
 } from '@pupitre/core';
 import { getDriver } from '@pupitre/core/drivers';
 import {
   getProxyProvider,
+  reachSource,
   type ProxyCheck,
   type ProxyDetection,
   type ProxyInstallOption,
 } from '@pupitre/core/proxy';
 import { disconnect } from '@pupitre/core/ssh';
 import {
-  countRoutesByTarget,
+  countRoutesServedBy,
   deleteProxy,
   getProxy,
   listLiveDeployments,
   listRoutedCouples,
   logAudit,
+  resolveServingProxy,
   setProxyStatus,
+  type ServingProxy,
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
 import { openTargetContext } from '../deploy/target-context.js';
 import { logger } from '../logger.js';
+import { verifyTargetLink } from '../proxy/link.js';
 import { applyCoupleRoutes, probeCoupleRoutes, proxyContextOf } from '../proxy/routes.js';
 
 /**
@@ -153,7 +158,7 @@ export async function handleProxyRemove(job: Job): Promise<{ removed: boolean }>
   const data = proxyRemoveJobDataSchema.parse(job.data);
   const proxy = await getProxy(data.proxyId);
   if (!proxy) return { removed: false };
-  if (proxy.hostTargetId && (await countRoutesByTarget(proxy.hostTargetId)) > 0) {
+  if ((await countRoutesServedBy(proxy.id)) > 0) {
     throw new Error('des domaines passent encore par ce proxy : retirez-les d’abord');
   }
   if (data.uninstall && proxy.managed && proxy.hostTargetId) {
@@ -222,34 +227,71 @@ export async function handleRoutesCheck(job: Job): Promise<{ checked: number; fa
       (!scope.applicationId || couple.applicationId === scope.applicationId) &&
       (!scope.targetId || couple.targetId === scope.targetId),
   );
-  const byTarget = new Map<string, string[]>();
+  // On sonde depuis la machine du proxy — celle de la cible, ou celle du proxy
+  // central qui la sert : une session par machine de proxy.
+  const byHost = new Map<
+    string,
+    Array<{ applicationId: string; targetId: string; serving: ServingProxy }>
+  >();
   for (const couple of couples) {
-    byTarget.set(couple.targetId, [...(byTarget.get(couple.targetId) ?? []), couple.applicationId]);
+    const serving = await resolveServingProxy(couple.targetId);
+    const host = serving?.proxy.hostTargetId;
+    if (!serving || !host) continue;
+    byHost.set(host, [...(byHost.get(host) ?? []), { ...couple, serving }]);
   }
   let checked = 0;
   let failing = 0;
-  for (const [targetId, applicationIds] of byTarget) {
+  for (const [hostTargetId, entries] of byHost) {
     let opened: Awaited<ReturnType<typeof openTargetContext>> | null = null;
     try {
-      opened = await openTargetContext(targetId);
-      for (const applicationId of applicationIds) {
+      opened = await openTargetContext(hostTargetId);
+      for (const { applicationId, targetId, serving } of entries) {
         const [live] = await listLiveDeployments({ applicationId, targetId });
         if (!live?.inService || live.inService.stoppedAt) continue;
         const result = await probeCoupleRoutes({
           applicationId,
           targetId,
           spec: parseAppSpec(live.inService.appSpec),
-          host: opened.ctx,
+          serving,
+          proxyHost: opened.ctx,
         });
         checked += result.checked;
         failing += result.failing;
       }
     } catch (error) {
       // Une machine injoignable n'arrête pas la tournée : les autres sont sondées.
-      logger.warn({ targetId, err: error }, 'sonde des domaines impossible sur cette cible');
+      logger.warn(
+        { hostTargetId, err: error },
+        'sonde des domaines impossible depuis cette machine',
+      );
     } finally {
       if (opened) await disconnect(opened.session);
     }
   }
   return { checked, failing };
+}
+
+/**
+ * « Tester la liaison » : la machine du proxy ouvre-t-elle vraiment une
+ * connexion vers celle-ci, sur un port de la plage des applications ? Voir
+ * `checkReach()` — le résultat est retenu sur la liaison.
+ */
+export async function handleProxyLinkCheck(job: Job): Promise<{
+  ok: boolean | null;
+  port: number | null;
+  sourceAddress: string | null;
+  bindable: boolean;
+  detail: string;
+}> {
+  const data = proxyLinkCheckJobDataSchema.parse(job.data);
+  const checked = await verifyTargetLink({ targetId: data.targetId });
+  if (!checked) throw new Error('aucune liaison pour cette cible');
+  const { result } = checked;
+  return {
+    ok: result.ok,
+    port: result.port,
+    sourceAddress: reachSource(result),
+    bindable: result.bindable,
+    detail: result.detail,
+  };
 }

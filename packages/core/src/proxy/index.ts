@@ -25,6 +25,7 @@ export function implementedProxyKinds(): ProxyKind[] {
 
 export * from './model.js';
 export * from './probe.js';
+export * from './reach.js';
 export * from './types.js';
 export {
   TraefikProvider,

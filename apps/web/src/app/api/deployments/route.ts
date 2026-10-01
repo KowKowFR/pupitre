@@ -15,11 +15,11 @@ import {
   getAppSettings,
   getApplication,
   getBackupPolicy,
-  getProxyForTarget,
   getTarget,
   listDeployments,
   logAudit,
   replaceRoutes,
+  resolveServingProxy,
   RouteTakenError,
   saveBackupPolicy,
 } from '@pupitre/db';
@@ -157,7 +157,7 @@ export const POST = apiRoute(async (request) => {
   // Les domaines avant le déploiement : le pipeline les lit dès son départ —
   // ils décident de la publication du port.
   if (domains) {
-    const proxy = await getProxyForTarget(input.targetId);
+    const proxy = (await resolveServingProxy(input.targetId))?.proxy ?? null;
     if (!proxy && domains.length > 0) {
       throw new ConflictError(msg(proxyMessages, 'error.noProxy', { target: target.name }));
     }

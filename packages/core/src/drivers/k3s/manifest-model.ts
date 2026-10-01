@@ -152,9 +152,18 @@ export type DeploymentManifest = Resource<'Deployment'> & {
 export type ServiceManifest = Resource<'Service'> & {
   apiVersion: 'v1';
   spec: {
-    type: 'ClusterIP';
+    type: 'ClusterIP' | 'NodePort';
+    /** `Local` : le pod voit l'adresse d'origine, que la NetworkPolicy filtre. */
+    externalTrafficPolicy?: 'Local' | 'Cluster';
     selector: Record<string, string>;
-    ports: Array<{ name: string; port: number; targetPort: number; protocol: 'TCP' }>;
+    ports: Array<{
+      name: string;
+      port: number;
+      targetPort: number;
+      protocol: 'TCP';
+      /** Seulement en `NodePort` : le port publié sur les nœuds. */
+      nodePort?: number;
+    }>;
   };
 };
 
@@ -176,6 +185,18 @@ export type IngressManifest = Resource<'Ingress'> & {
   };
 };
 
+export type NetworkPolicyManifest = Resource<'NetworkPolicy'> & {
+  apiVersion: 'networking.k8s.io/v1';
+  spec: {
+    podSelector: { matchLabels: Record<string, string> };
+    policyTypes: Array<'Ingress'>;
+    ingress: Array<{
+      from: Array<{ podSelector: Record<string, never> } | { ipBlock: { cidr: string } }>;
+      ports?: Array<{ protocol: 'TCP'; port: number }>;
+    }>;
+  };
+};
+
 export type KubeManifest =
   | NamespaceManifest
   | ConfigMapManifest
@@ -183,6 +204,7 @@ export type KubeManifest =
   | PersistentVolumeClaimManifest
   | DeploymentManifest
   | ServiceManifest
+  | NetworkPolicyManifest
   | IngressManifest;
 
 /** Millicores Kubernetes : `500m`. */

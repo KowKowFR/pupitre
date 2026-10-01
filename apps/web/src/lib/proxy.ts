@@ -6,8 +6,9 @@ import {
   type ProxyCapabilities,
   type ProxyKind,
   type RouteCertificate,
+  isPrivateAddress,
 } from '@pupitre/core';
-import type { ProxyView, RouteView } from '@pupitre/db';
+import type { ProxyLinkRow, ProxyView, RouteView } from '@pupitre/db';
 import { QueueEvents } from 'bullmq';
 import { proxy as messages } from '@/i18n/messages/proxy';
 import { ConflictError, msg } from './errors';
@@ -130,4 +131,37 @@ export function assertServable(
       );
     }
   }
+}
+
+export type LinkViewForUi = {
+  proxy: ProxyViewForUi;
+  hostTargetId: string | null;
+  hostTargetName: string;
+  address: string;
+  sourceAddress: string | null;
+  bindable: boolean;
+  /** L'adresse est privée : le trafic en clair entre les deux machines y reste. */
+  privateAddress: boolean;
+  status: ProxyLinkRow['status'];
+  lastCheckedAt: string | null;
+  lastCheckError: string | null;
+};
+
+export function linkViewForUi(
+  link: ProxyLinkRow,
+  proxy: ProxyView,
+  hostTargetName: string,
+): LinkViewForUi {
+  return {
+    proxy: proxyViewForUi(proxy),
+    hostTargetId: proxy.hostTargetId,
+    hostTargetName,
+    address: link.address,
+    sourceAddress: link.sourceAddress,
+    bindable: link.bindable,
+    privateAddress: isPrivateAddress(link.address),
+    status: link.status,
+    lastCheckedAt: link.lastCheckedAt?.toISOString() ?? null,
+    lastCheckError: link.lastCheckError,
+  };
 }

@@ -41,7 +41,8 @@ import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
 import { backupApplication } from '../backup/application.js';
-import { applyCoupleRoutes, publishAddressFor, seedRouteFromSpec } from '../proxy/routes.js';
+import { verifyLinkBeforeDeploy } from '../proxy/link.js';
+import { applyCoupleRoutes, exposureFor, seedRouteFromSpec } from '../proxy/routes.js';
 
 /**
  * Exécution du pipeline de déploiement.
@@ -178,15 +179,16 @@ export async function runDeploymentPipeline(
 
   // Les domaines d'abord, parce qu'ils décident de la publication du port :
   // celui de l'AppSpec au premier déploiement sur cette cible, puis la liste de
-  // la cible. Un proxy de la machine qui joint l'application par la boucle
-  // locale permet de ne plus ouvrir son port au monde.
+  // la cible. Un proxy de la machine la joint par la boucle locale ; celui
+  // d'une autre, par un port publié sur l'adresse privée qu'il joint, ouvert à
+  // lui seul. Dans les deux cas, le port n'est plus ouvert au monde.
   if (!ctx.previousDeployment) {
     await seedRouteFromSpec(deployment.applicationId, deployment.targetId, spec, (line) =>
       stream.line('preflight', line),
     );
   }
-  const publishAddress = await publishAddressFor(deployment.applicationId, deployment.targetId);
-  if (publishAddress) ctx.publishAddress = publishAddress;
+  const exposure = await exposureFor(deployment.applicationId, deployment.targetId);
+  if (exposure) ctx.exposure = exposure;
   const state: PipelineState = {
     artifacts: null,
     port: null,
@@ -209,6 +211,21 @@ export async function runDeploymentPipeline(
         stream.line('preflight', `${check.ok ? '✓' : '✗'} ${check.label} — ${check.detail ?? ''}`);
       }
       if (!report.ok) throw new Error("la cible ne peut pas accueillir ce déploiement");
+
+      // Servie par le proxy d'une autre machine : la connexion de l'une à
+      // l'autre est éprouvée avant de rien construire, sur la plage où le port
+      // sera publié. L'adresse d'arrivée relevée devient celle à qui l'ouvrir.
+      const linked = await verifyLinkBeforeDeploy({
+        applicationId: deployment.applicationId,
+        targetId: deployment.targetId,
+        served: ctx,
+        portRange,
+        onLog: (line) => stream.line('preflight', line),
+      });
+      if (linked) {
+        const refreshed = await exposureFor(deployment.applicationId, deployment.targetId);
+        if (refreshed) ctx.exposure = refreshed;
+      }
       return 'success';
     },
 

@@ -109,13 +109,14 @@ capacité, c'est une affirmation non vérifiée dans une table de fabrique.
 La condition pour l'écrire est une instance de BunkerWeb contre laquelle
 l'exercer, pas du temps de développement.
 
-### Les proxies centraux, Nginx Proxy Manager
+### Nginx Proxy Manager, un proxy hors des cibles
 
-Le modèle porte un placement `remote` — un proxy ailleurs, qui sert plusieurs
-machines —, mais seul le proxy « sur la cible » est implémenté. Il faudra, pour
-Nginx Proxy Manager : son API, une connexion par instance avec ses identifiants
-chiffrés, une table des cibles qu'elle sert, et, côté driver, ouvrir le port de
-l'application à la seule adresse du proxy plutôt qu'au monde.
+Le proxy central existe : une machine passe par le proxy d'une autre
+(`proxy_links`), et chaque driver publie l'application pour lui seul. Mais ce
+proxy tourne sur une cible que Pupitre pilote en SSH. Pour Nginx Proxy Manager,
+souvent ailleurs, il faudra le placement `remote` que le modèle porte déjà :
+une connexion par instance, son API et ses identifiants chiffrés, et une sonde
+des domaines qui ne passe plus par SSH.
 
 ### Pas de certificat joker
 

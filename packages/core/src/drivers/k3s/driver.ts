@@ -44,6 +44,7 @@ import {
   entrypointService,
   namespaceFilePath,
   namespaceName,
+  PROXY_POLICY_NAME,
   pvcName,
   renderFiles,
 } from './render.js';
@@ -106,6 +107,10 @@ const DRAIN_INTERVAL_SECONDS = 2;
  * dans `$HOME/.kube`. On respecte un `KUBECONFIG` déjà positionné — une cible
  * peut viser un cluster distant — et on retombe sur le chemin K3s sinon.
  */
+/** La plage des NodePort de Kubernetes, celle de K3s par défaut. */
+const NODE_PORT_MIN = 30_000;
+const NODE_PORT_MAX = 32_767;
+
 const KUBECONFIG_SETUP =
   'if [ -z "${KUBECONFIG:-}" ] && [ -r /etc/rancher/k3s/k3s.yaml ]; ' +
   'then KUBECONFIG=/etc/rancher/k3s/k3s.yaml; export KUBECONFIG; fi';
@@ -407,14 +412,50 @@ export class K3sDriver implements DeploymentDriver {
    * Retourner `null` est la réponse du driver, pas une exception traitée
    * ailleurs — le pipeline marquera l'étape « skipped » de lui-même.
    */
-  async allocatePort(): Promise<number | null> {
-    return null;
+  /**
+   * Aucun port d'ordinaire : le proxy du cluster joint le Service. Quand le
+   * proxy est sur une **autre** machine (`exposure.byPort`), il lui faut un
+   * port des nœuds — un NodePort, réservé comme un port Docker, dans la plage
+   * que Kubernetes accepte.
+   */
+  async allocatePort(ctx: DriverContext, onLog?: LogSink): Promise<number | null> {
+    if (!ctx.exposure?.byPort) return null;
+    if (!ctx.portAllocator) {
+      throw new DriverError('allocatePort exige un `portAllocator`', this.runtime, 'allocate_port');
+    }
+    const key = { targetId: ctx.target.id, applicationId: ctx.applicationId };
+    const existing = await ctx.portAllocator.current(key);
+    if (existing !== null) return existing;
+    const range = {
+      min: Math.max(ctx.portRange?.min ?? NODE_PORT_MIN, NODE_PORT_MIN),
+      max: Math.min(ctx.portRange?.max ?? NODE_PORT_MAX, NODE_PORT_MAX),
+    };
+    if (range.min > range.max) {
+      throw new DriverError(
+        `la plage de ports de la cible n'a rien en commun avec celle des NodePort (${NODE_PORT_MIN}-${NODE_PORT_MAX})`,
+        this.runtime,
+        'allocate_port',
+      );
+    }
+    const port = await ctx.portAllocator.allocate({ ...key, ...range });
+    onLog?.(`NodePort ${port} : le proxy distant joindra l'application par là`);
+    return port;
   }
 
-  /** Le Service du point d'entrée, dans le namespace de l'application. */
-  upstream(ctx: DriverContext): ProxyUpstream | null {
+  /**
+   * Le Service du point d'entrée, dans le namespace de l'application ; ou son
+   * NodePort, quand un proxy hors du cluster doit le joindre.
+   */
+  upstream(ctx: DriverContext, publishedPort: number | null): ProxyUpstream | null {
+    if (publishedPort !== null) return { kind: 'port', port: publishedPort };
     const service = entrypointService(ctx.spec);
     return { kind: 'kubernetes', namespace: this.namespace(ctx), service: service.name, port: service.port };
+  }
+
+  /** Le NodePort réservé, s'il y en a un et qu'il est toujours voulu. */
+  private async publishedPort(ctx: DriverContext): Promise<number | null> {
+    if (!ctx.exposure?.byPort || !ctx.portAllocator) return null;
+    return ctx.portAllocator.current({ targetId: ctx.target.id, applicationId: ctx.applicationId });
   }
 
   // ─── render ─────────────────────────────────────────────────────────────────
@@ -424,9 +465,16 @@ export class K3sDriver implements DeploymentDriver {
     const secretNames = storedSecretNames(ctx.spec);
     const secretValues = ctx.resolveSecrets ? await ctx.resolveSecrets(secretNames) : {};
 
-    const files = renderFiles({ spec: ctx.spec, appSlug: ctx.appSlug, secretValues });
+    const publishedPort = await this.publishedPort(ctx);
+    const files = renderFiles({
+      spec: ctx.spec,
+      appSlug: ctx.appSlug,
+      secretValues,
+      publishedPort,
+      allowFrom: ctx.exposure?.allowFrom ?? null,
+    });
 
-    return { projectName: this.namespace(ctx), files, publishedPort: null };
+    return { projectName: this.namespace(ctx), files, publishedPort };
   }
 
   // ─── upload ─────────────────────────────────────────────────────────────────
@@ -654,6 +702,16 @@ export class K3sDriver implements DeploymentDriver {
       'apply',
       APPLY_TIMEOUT_MS,
     );
+    // `apply` ne retire rien : la restriction au proxy distant d'un déploiement
+    // précédent bloquerait le proxy du cluster, s'il n'est plus question d'elle.
+    if (!ctx.exposure?.allowFrom || (await this.publishedPort(ctx)) === null) {
+      await this.run(
+        ctx,
+        this.kube(ctx, `delete networkpolicy ${PROXY_POLICY_NAME} --ignore-not-found`),
+        onLog,
+        'apply',
+      );
+    }
 
     for (const service of topologicalOrder(ctx.spec)) {
       onLog(`kubectl rollout status deployment/${service.name}`);
@@ -1026,6 +1084,15 @@ export class K3sDriver implements DeploymentDriver {
 
     onLog(`→ suppression de ${appPath}`);
     await this.run(ctx, `rm -rf ${shellQuote(appPath)}`, onLog, 'destroy');
+
+    // Un NodePort a pu être réservé pour un proxy distant : il part avec le namespace.
+    if (ctx.portAllocator) {
+      const key = { targetId: ctx.target.id, applicationId: ctx.applicationId };
+      if ((await ctx.portAllocator.current(key)) !== null) {
+        await ctx.portAllocator.release(key);
+        onLog('→ NodePort libéré');
+      }
+    }
 
     onLog('✓ déploiement détruit');
   }

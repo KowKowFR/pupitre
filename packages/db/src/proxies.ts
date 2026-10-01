@@ -10,7 +10,14 @@ import {
 import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import { applications, targets } from './schema/infra.js';
-import { proxies, routes, type ProxyRow, type RouteRow } from './schema/proxies.js';
+import {
+  proxies,
+  proxyLinks,
+  routes,
+  type ProxyLinkRow,
+  type ProxyRow,
+  type RouteRow,
+} from './schema/proxies.js';
 
 /**
  * Les reverse proxies et leurs routes.
@@ -136,6 +143,143 @@ export async function resolveProxySecrets(
     .from(proxies)
     .where(eq(proxies.id, id));
   return row?.secrets ? (JSON.parse(decrypt(row.secrets)) as Record<string, string>) : {};
+}
+
+// ─── le proxy central ────────────────────────────────────────────────────────
+
+/** Le proxy qui sert une machine : le sien, ou celui d'une autre par une liaison. */
+export type ServingProxy = {
+  proxy: ProxyView;
+  /** `null` : le proxy tourne sur la machine même. */
+  link: ProxyLinkRow | null;
+};
+
+export async function getTargetLink(
+  targetId: string,
+  db: Database = getDb(),
+): Promise<ProxyLinkRow | null> {
+  const [row] = await db.select().from(proxyLinks).where(eq(proxyLinks.targetId, targetId));
+  return row ?? null;
+}
+
+/**
+ * Qui sert cette machine. Son propre proxy d'abord — une machine qui en a un
+ * n'a pas de liaison, l'API y veille —, sinon celui de sa liaison.
+ */
+export async function resolveServingProxy(
+  targetId: string,
+  db: Database = getDb(),
+): Promise<ServingProxy | null> {
+  const own = await getProxyForTarget(targetId, db);
+  if (own) return { proxy: own, link: null };
+  const link = await getTargetLink(targetId, db);
+  if (!link) return null;
+  const proxy = await getProxy(link.proxyId, db);
+  return proxy ? { proxy, link } : null;
+}
+
+/** Le proxy de chaque machine servie, le sien ou celui d'une autre : pour les listes. */
+export async function listServingProxies(
+  db: Database = getDb(),
+): Promise<Map<string, ServingProxy>> {
+  const [all, links] = await Promise.all([db.select().from(proxies), db.select().from(proxyLinks)]);
+  const byId = new Map(all.map((row) => [row.id, view(row)]));
+  const serving = new Map<string, ServingProxy>();
+  for (const row of all) {
+    if (row.hostTargetId) serving.set(row.hostTargetId, { proxy: view(row), link: null });
+  }
+  for (const link of links) {
+    const proxy = byId.get(link.proxyId);
+    if (proxy && !serving.has(link.targetId)) serving.set(link.targetId, { proxy, link });
+  }
+  return serving;
+}
+
+export async function saveTargetLink(
+  input: { targetId: string; proxyId: string; address: string; createdBy: string | null },
+  db: Database = getDb(),
+): Promise<ProxyLinkRow> {
+  const values = {
+    proxyId: input.proxyId,
+    address: input.address,
+    sourceAddress: null,
+    bindable: false,
+    status: 'unknown' as const,
+    lastCheckedAt: null,
+    lastCheckError: null,
+    updatedAt: new Date(),
+  };
+  const [row] = await db
+    .insert(proxyLinks)
+    .values({ targetId: input.targetId, ...values, createdBy: input.createdBy })
+    .onConflictDoUpdate({ target: proxyLinks.targetId, set: values })
+    .returning();
+  if (!row) throw new Error("la liaison n'a pas été enregistrée");
+  return row;
+}
+
+export async function setTargetLinkCheck(
+  targetId: string,
+  check: {
+    status: ProxyStatus;
+    sourceAddress: string | null;
+    bindable: boolean;
+    error: string | null;
+  },
+  db: Database = getDb(),
+): Promise<void> {
+  await db
+    .update(proxyLinks)
+    .set({
+      status: check.status,
+      sourceAddress: check.sourceAddress,
+      bindable: check.bindable,
+      lastCheckError: check.error,
+      lastCheckedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(proxyLinks.targetId, targetId));
+}
+
+export async function deleteTargetLink(targetId: string, db: Database = getDb()): Promise<void> {
+  await db.delete(proxyLinks).where(eq(proxyLinks.targetId, targetId));
+}
+
+/** Les machines qu'un proxy sert par liaison, avec leur nom. */
+export async function listProxyLinks(
+  proxyId: string,
+  db: Database = getDb(),
+): Promise<Array<ProxyLinkRow & { targetName: string }>> {
+  const rows = await db
+    .select({ link: proxyLinks, targetName: targets.name })
+    .from(proxyLinks)
+    .innerJoin(targets, eq(targets.id, proxyLinks.targetId))
+    .where(eq(proxyLinks.proxyId, proxyId))
+    .orderBy(asc(targets.name));
+  return rows.map((row) => ({ ...row.link, targetName: row.targetName }));
+}
+
+/** Les domaines qui passent par ce proxy : ceux de sa machine et ceux des machines qu'il sert. */
+export async function countRoutesServedBy(
+  proxyId: string,
+  db: Database = getDb(),
+): Promise<number> {
+  const proxy = await getProxy(proxyId, db);
+  if (!proxy) return 0;
+  const linked = await db
+    .select({ targetId: proxyLinks.targetId })
+    .from(proxyLinks)
+    .where(eq(proxyLinks.proxyId, proxyId));
+  const targetIds = [
+    ...(proxy.hostTargetId ? [proxy.hostTargetId] : []),
+    ...linked.map((row) => row.targetId),
+  ];
+  if (targetIds.length === 0) return 0;
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(routes)
+    .where(inArray(routes.targetId, targetIds));
+  return row?.count ?? 0;
 }
 
 // ─── routes ──────────────────────────────────────────────────────────────────
