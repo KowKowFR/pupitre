@@ -1,5 +1,6 @@
 import { PORT_RANGE_MAX, PORT_RANGE_MIN } from '../../ports.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
+import type { ProxyUpstream } from '../../proxy/model.js';
 import { exec, execPipe, execStream, upload } from '../../ssh/client.js';
 import { exposedService, storedSecretNames, type AppSpec } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
@@ -301,7 +302,17 @@ export class DockerComposeDriver implements DeploymentDriver {
    * tout — l'exposition y passe par l'Ingress. Le pipeline appelle si la
    * méthode existe, sans jamais regarder de quel runtime il s'agit.
    */
+  /** Le port publié sur la machine : un proxy local le joint par la boucle locale. */
+  upstream(_ctx: DriverContext, publishedPort: number | null): ProxyUpstream | null {
+    return publishedPort === null ? null : { kind: 'port', port: publishedPort };
+  }
+
   async openFirewall(ctx: DriverContext, port: number, onLog?: LogSink): Promise<void> {
+    if (ctx.publishAddress && isLoopback(ctx.publishAddress)) {
+      // Publié sur la boucle locale : seul le proxy de la machine le joint.
+      onLog?.(`port ${port} publié sur ${ctx.publishAddress} seulement — rien à ouvrir`);
+      return;
+    }
     await ufwAllow(ctx, port, onLog ?? (() => {}));
   }
 
@@ -321,6 +332,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       spec: ctx.spec,
       appSlug: ctx.appSlug,
       publishedPort,
+      ...(ctx.publishAddress ? { publishAddress: ctx.publishAddress } : {}),
       secretValues,
     });
 
@@ -1891,4 +1903,8 @@ export function parseRepoDigests(output: string): Map<string, string[]> {
     );
   }
   return digests;
+}
+
+function isLoopback(address: string): boolean {
+  return address === 'localhost' || address === '::1' || address.startsWith('127.');
 }

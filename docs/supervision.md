@@ -191,7 +191,7 @@ Vérification de bout en bout : `scripts/verify-monitor-notifications.sh`.
 
 ## Notifications
 
-Quatre canaux, onze événements, derrière un catalogue et une fabrique. Même
+Quatre canaux, treize événements, derrière un catalogue et une fabrique. Même
 patron que `getDriver()`, `getScanner()` et `getAiProviderFactory()` — et le code
 le revendique.
 
@@ -230,7 +230,7 @@ serveur mal configuré.
 C'est **la seule voie e-mail de l'instance** : il n'existe aucun réglage SMTP
 global ailleurs.
 
-### Les onze événements
+### Les treize événements
 
 Tous dérivés du journal d'activité :
 
@@ -247,6 +247,8 @@ Tous dérivés du journal d'activité :
 | `target.threshold.cleared` | info | `target.threshold.cleared` |
 | `image.update.available` | warning | `image.update.available` — une image déployée republiée, ou un tag plus récent de la même série ; voir [exploitation](exploitation.md#les-mises-à-jour-dimages) |
 | `backup.failed` | critical | `backup.failed` — une sauvegarde d'application ou du panel, automatique, manuelle ou avant déploiement ; voir [exploitation](exploitation.md#sauvegardes) |
+| `route.down` | warning | `route.down` — un domaine ne répond plus à travers son reverse proxy, deux sondes de suite ; voir [exploitation](exploitation.md#ce-qui-part-en-alerte) |
+| `route.recovered` | info | `route.recovered` — ce domaine répond de nouveau |
 
 **Un seul `monitor.down`**, pas un par nature de panne. Séparer « répond mal »
 d'« injoignable » donnerait deux clés, donc deux groupes de regroupement, donc

@@ -1,5 +1,5 @@
 import { exec } from '../ssh/client.js';
-import type { DriverContext, LogSink } from './types.js';
+import type { DriverContext, LogSink, TargetContext } from './types.js';
 
 /**
  * Pare-feu UFW sur la machine cible.
@@ -59,7 +59,7 @@ export type UfwState = 'active' | 'inactive' | 'absent';
  * `ufw status` exige root : on passe par sudo, et on retombe sur `absent` quand
  * le binaire n'est pas là — ce qui est le cas de bien des images minimales.
  */
-export async function ufwState(ctx: DriverContext): Promise<UfwState> {
+export async function ufwState(ctx: TargetContext): Promise<UfwState> {
   const present = await exec(ctx.sshSession, 'command -v ufw >/dev/null 2>&1', {
     timeout: UFW_TIMEOUT_MS,
   });
@@ -83,6 +83,20 @@ export async function ufwAllow(
   port: number,
   onLog: LogSink,
 ): Promise<void> {
+  await ufwAllowPort(ctx, port, ufwComment(ctx.appSlug), onLog);
+}
+
+/**
+ * Le même geste pour ce qui n'est pas une application — les ports 80 et 443
+ * d'un reverse proxy installé par Pupitre. Le commentaire porte le marqueur :
+ * la règle reste reconnaissable comme posée par le panel.
+ */
+export async function ufwAllowPort(
+  ctx: TargetContext,
+  port: number,
+  comment: string,
+  onLog: LogSink,
+): Promise<void> {
   const state = await ufwState(ctx);
   if (state !== 'active') {
     onLog(
@@ -93,7 +107,6 @@ export async function ufwAllow(
     return;
   }
 
-  const comment = ufwComment(ctx.appSlug);
   const result = await exec(
     ctx.sshSession,
     `ufw allow ${port}/tcp comment ${shellQuote(comment)}`,

@@ -18,7 +18,6 @@ import {
   type ContainerSecurityContext,
   type DeploymentManifest,
   type EnvFromSource,
-  type IngressManifest,
   type KubeManifest,
   type NamespaceManifest,
   type PersistentVolumeClaimManifest,
@@ -70,9 +69,6 @@ export const MANAGED_SELECTOR =
 /** Classe de stockage par défaut de K3s. */
 export const DEFAULT_STORAGE_CLASS = 'local-path';
 
-/** Contrôleur d'ingress embarqué par K3s. */
-export const DEFAULT_INGRESS_CLASS = 'traefik';
-
 /** Taille de PVC retenue quand l'AppSpec n'en donne pas. */
 export const DEFAULT_VOLUME_SIZE = '1Gi';
 
@@ -110,10 +106,6 @@ export function secretName(service: string): string {
 /** Le namespace isole déjà : inutile de préfixer par le slug comme en Docker. */
 export function pvcName(service: string, volume: string): string {
   return `${service}-${volume}`;
-}
-
-export function ingressName(appSlug: string): string {
-  return appSlug;
 }
 
 /**
@@ -448,8 +440,9 @@ function renderService(input: RenderInput, service: Service): ServiceManifest {
       labels: standardLabels(appSlug, service.name, spec.version),
     },
     spec: {
-      // Jamais de NodePort : en K3s l'exposition passe par l'Ingress, ce qui est
-      // exactement la raison pour laquelle `allocatePort()` retourne `null`.
+      // Jamais de NodePort : en K3s l'exposition passe par le proxy du cluster,
+      // qui joint ce Service — la raison pour laquelle `allocatePort()` retourne
+      // `null`, et `upstream()` le Service.
       type: 'ClusterIP',
       selector: selectorLabels(appSlug, service.name),
       ports: [
@@ -458,49 +451,6 @@ function renderService(input: RenderInput, service: Service): ServiceManifest {
           port: service.port,
           targetPort: service.port,
           protocol: 'TCP',
-        },
-      ],
-    },
-  };
-}
-
-function renderIngress(input: RenderInput): IngressManifest | null {
-  const { spec, appSlug } = input;
-  if (!spec.ingress) return null;
-
-  const target = spec.services.find((service) => service.name === spec.ingress?.targetService);
-  if (!target) return null; // impossible : la validation de l'AppSpec le garantit
-
-  const host = spec.ingress.host;
-
-  return {
-    apiVersion: 'networking.k8s.io/v1',
-    kind: 'Ingress',
-    metadata: {
-      name: ingressName(appSlug),
-      namespace: namespaceName(appSlug),
-      labels: standardLabels(appSlug, appSlug, spec.version),
-    },
-    spec: {
-      ingressClassName: DEFAULT_INGRESS_CLASS,
-      ...(spec.ingress.tls && host
-        ? { tls: [{ hosts: [host], secretName: `${appSlug}-tls` }] }
-        : {}),
-      rules: [
-        {
-          // Sans `host`, la règle attrape tout ce qui arrive au contrôleur.
-          ...(host ? { host } : {}),
-          http: {
-            paths: [
-              {
-                path: '/',
-                pathType: 'Prefix',
-                backend: {
-                  service: { name: target.name, port: { number: target.port } },
-                },
-              },
-            ],
-          },
         },
       ],
     },
@@ -540,9 +490,8 @@ export function renderManifests(rawInput: RenderInput): KubeManifest[] {
     manifests.push(renderService(input, service));
   }
 
-  const ingress = renderIngress(input);
-  if (ingress) manifests.push(ingress);
-
+  // Pas d'Ingress ici : un domaine est une route, posée par le reverse proxy
+  // de la cible (`@pupitre/core/proxy`) vers le Service rendu ci-dessus.
   return manifests;
 }
 

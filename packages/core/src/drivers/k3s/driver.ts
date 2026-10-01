@@ -20,6 +20,7 @@ import {
 } from '../types.js';
 import { digestOf, parseImageReference } from '../../images/reference.js';
 import { checkableImages, type RunningImage } from '../../images/updates.js';
+import type { ProxyUpstream } from '../../proxy/model.js';
 import {
   managedWorkloadControlRefusal,
   managedWorkloadRefusal,
@@ -191,14 +192,16 @@ export class K3sDriver implements DeploymentDriver {
       { timeout: SHORT_TIMEOUT_MS },
     );
     const classes = ingress.code === 0 ? ingress.stdout.trim() : '';
+    // Une information, plus une condition : les domaines passent par le
+    // reverse proxy de la cible, et c'est sa connexion qui dit s'il est là.
     checks.push({
       key: 'ingress_controller',
       label: "Contrôleur d'ingress",
-      ok: classes.length > 0,
+      ok: true,
       detail:
         classes.length > 0
           ? `IngressClass : ${classes.split(/\s+/).join(', ')}`
-          : "aucune IngressClass — une AppSpec avec `ingress` ne serait pas joignable",
+          : 'aucune IngressClass — sans reverse proxy, l’application ne sera joignable que dans le cluster',
     });
 
     const disk = await exec(
@@ -406,6 +409,12 @@ export class K3sDriver implements DeploymentDriver {
    */
   async allocatePort(): Promise<number | null> {
     return null;
+  }
+
+  /** Le Service du point d'entrée, dans le namespace de l'application. */
+  upstream(ctx: DriverContext): ProxyUpstream | null {
+    const service = entrypointService(ctx.spec);
+    return { kind: 'kubernetes', namespace: this.namespace(ctx), service: service.name, port: service.port };
   }
 
   // ─── render ─────────────────────────────────────────────────────────────────
@@ -685,14 +694,13 @@ export class K3sDriver implements DeploymentDriver {
   /**
    * URL par laquelle l'application doit répondre.
    *
-   * Sans `ingress.host`, il n'y a rien à annoncer : le ClusterIP n'est joignable
-   * que depuis le cluster. Le driver le dit en retournant `null` plutôt que de
-   * fabriquer une URL qui ne répondra jamais.
+   * Aucune, du point de vue du driver : le Service n'est joignable que depuis le
+   * cluster, et un domaine est l'affaire du reverse proxy, dont l'étape suit. Le
+   * driver le dit en retournant `null` plutôt que de fabriquer une URL qui ne
+   * répondrait pas.
    */
-  private buildUrl(ctx: DriverContext): string | null {
-    const ingress = ctx.spec.ingress;
-    if (!ingress?.host) return null;
-    return `${ingress.tls ? 'https' : 'http'}://${ingress.host}`;
+  private buildUrl(_ctx: DriverContext): string | null {
+    return null;
   }
 
   /**
@@ -868,13 +876,11 @@ export class K3sDriver implements DeploymentDriver {
   /**
    * Comment sonder l'application depuis le node.
    *
-   * Avec un `ingress.host`, on emprunte le vrai chemin — le contrôleur
-   * d'ingress — en forçant la résolution du nom vers la boucle locale : la cible
-   * n'a aucune raison d'avoir le DNS public de l'application.
-   *
-   * Sans nom de domaine, rien n'est publié : on ouvre un `port-forward`
-   * temporaire vers le Service, on sonde, on referme. Le tout en une commande —
-   * une session SSH par sonde, pas de processus qui traîne si elle est coupée.
+   * Par le Service, toujours : on ouvre un `port-forward` temporaire, on sonde,
+   * on referme. Le tout en une commande — une session SSH par sonde, pas de
+   * processus qui traîne si elle est coupée. Le chemin par un domaine, lui, est
+   * éprouvé par l'étape `proxy`, à travers le reverse proxy : la santé de
+   * l'application ne dépend pas de sa route.
    */
   private probeCommand(
     ctx: DriverContext,
@@ -882,19 +888,6 @@ export class K3sDriver implements DeploymentDriver {
     timeoutSec: number,
   ): { command: string; label: string } {
     const path = service.healthcheck.path;
-    const ingress = ctx.spec.ingress;
-
-    if (ingress?.host) {
-      const tls = ingress.tls;
-      const port = tls ? 443 : 80;
-      const url = `${tls ? 'https' : 'http'}://${ingress.host}${path}`;
-      return {
-        label: url,
-        command:
-          `curl -s -k -o /dev/null -w '%{http_code}' -m ${timeoutSec} ` +
-          `--resolve ${shellQuote(`${ingress.host}:${port}:127.0.0.1`)} ${shellQuote(url)}`,
-      };
-    }
 
     const namespace = this.namespace(ctx);
     const logFile = `/tmp/tp-portforward-${ctx.deployment.id}.log`;

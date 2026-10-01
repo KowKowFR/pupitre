@@ -1,5 +1,6 @@
 'use client';
 
+import type { ProxyCapabilities } from '@pupitre/core';
 import { Boxes } from 'lucide-react';
 import { Drawer, DrawerHeader } from '@/components/ui/drawer';
 import { useT } from '@/i18n/client';
@@ -7,7 +8,13 @@ import { applications as messages } from '@/i18n/messages/applications';
 import type { NewApplicationAi } from '@/lib/new-application';
 import { NewApplicationForm } from './new-application-form';
 
-type DeployTarget = { id: string; name: string; host: string; runtimes: Array<'docker' | 'k3s'> };
+type DeployTarget = {
+  id: string;
+  name: string;
+  host: string;
+  runtimes: Array<'docker' | 'k3s'>;
+  proxy: { description: string; capabilities: ProxyCapabilities } | null;
+};
 
 /**
  * « Nouvelle application », dans un tiroir large au-dessus de la liste.

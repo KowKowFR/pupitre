@@ -14,6 +14,7 @@ impliquent quand on ouvre le code — où regarder, et ce qui va vous surprendre
 - [Rollback automatique](#rollback-automatique)
 - [Versions et rétention](#versions-et-rétention)
 - [Sauvegardes : un lieu, un format, deux runtimes](#sauvegardes--un-lieu-un-format-deux-runtimes)
+- [Reverse proxy : la route au proxy, l'amont au driver](#reverse-proxy--la-route-au-proxy-lamont-au-driver)
 
 ## Les quatre abstractions
 
@@ -24,7 +25,7 @@ qui suit est la conséquence pratique.
 | Interface | Fichier | Implémentations |
 |---|---|---|
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
-| `ProxyProvider` | `packages/core/src/proxy/` | `TraefikProvider` — `BunkerWebProvider` n'existe pas |
+| `ProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider` (fichiers ou Ingress) — `BunkerWebProvider` n'existe pas |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
 | `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider` |
 
@@ -34,7 +35,8 @@ méthodes d'inventaire `listWorkloads` `removeWorkload` `updateWorkload`
 `controlWorkload` `workloadLogs` `execInWorkload`, la lecture `runningImages`
 (les digests de ce qui tourne, pour les mises à jour d'images), les quatre
 méthodes de sauvegarde `exportVolume` `importVolume` `exportFromService`
-`importIntoService`, plus une fabrique `getDriver(runtime)`.
+`importIntoService`, `upstream` — par où un reverse proxy joint l'application —,
+plus une fabrique `getDriver(runtime)`.
 
 Le driver **n'importe rien** de `packages/db`, de `apps/web` ni de Redis : il
 reçoit tout par `DriverContext`, il exécute, et il émet des lignes via un
@@ -44,6 +46,10 @@ base, ou de les jeter.
 La réservation de ports suit la même règle. Le driver a besoin de la table
 `port_allocations`, mais n'a pas le droit de la connaître : le contexte porte une
 interface `PortAllocator`, dont l'implémentation Drizzle vit dans `packages/db`.
+
+**`ProxyProvider`** — `detect` `installOptions` `install` `uninstall` `check`
+`apply` `probe` `publishAddress`, plus une fabrique `getProxyProvider(kind)`. Voir
+[Reverse proxy](#reverse-proxy--la-route-au-proxy-lamont-au-driver).
 
 **Deux méthodes sont optionnelles** — `openFirewall?` et `closeFirewall?`.
 `DockerComposeDriver` les implémente, `K3sDriver` ne les déclare pas du tout.
@@ -120,8 +126,9 @@ inscrits dans le `compose.yml` : ils arrivent par un `.env` déposé en 0600.
 
 **Rendu K3s** — un namespace `app-{slug}`, puis des manifests numérotés par ordre
 d'application : `0-namespace`, `10-configmap`, `20-secret`, `30-persistentvolumeclaim`,
-`40-deployment`, `50-service`, `60-ingress`. Pas de port hôte : l'exposition passe
-par l'Ingress, donc `allocatePort()` rend `null` et l'étape est `skipped`.
+`40-deployment`, `50-service`. Pas de port hôte ni d'Ingress : l'exposition passe
+par le reverse proxy du cluster, qui joint le Service — `allocatePort()` rend
+`null` et l'étape est `skipped`, `upstream()` rend le Service.
 
 Pour voir les deux rendus côte à côte sans rien déployer :
 
@@ -209,9 +216,9 @@ Chaque étape va de `pending` à `running` puis à `success`, `failed` ou `skipp
 Un échec arrête le pipeline et marque le reste `skipped`.
 
 **Aucun `if (runtime === ...)` dans le worker.** Une étape est `skipped` quand le
-driver ou le provider renvoie `null` — `allocatePort()` en K3s, `build()` sans
-service à construire, `register()` sans `ingress.host`. Le worker enchaîne, il
-ne décide pas.
+driver ou le proxy n'ont rien à faire — `allocatePort()` en K3s, `build()` sans
+service à construire, une application sans domaine ou une cible sans reverse
+proxy. Le worker enchaîne, il ne décide pas.
 
 **Le job est idempotent.** Relancer un déploiement échoué remet en `pending` ce
 qui n'a pas abouti et laisse les `success` intactes : seules les étapes non
@@ -446,4 +453,62 @@ effacée.
 
 Conséquence de la neutralité : une sauvegarde ne connaît que des noms de
 l'AppSpec — service, volume, moteur. Rien n'y dit Docker ni Kubernetes.
+
+## Reverse proxy : la route au proxy, l'amont au driver
+
+Trois notions, chacune à sa place (`packages/core/src/proxy/model.ts`) :
+
+- **la connexion** — un proxy que le panel pilote, rangé dans `proxies` : son
+  genre, sa configuration, et s'il a été installé par Pupitre (`managed`) ou
+  seulement trouvé. Un par machine aujourd'hui ; le modèle porte déjà un
+  placement `remote`, pour les proxies centraux à venir ;
+- **la route** — un nom de domaine, une application, une cible, rangée dans
+  `routes`. **Unique par nom, tenu par la base** : deux applications ne
+  réclament pas le même domaine, et le perdant d'une course reçoit une 23505,
+  comme pour les ports ;
+- **l'amont** — par où le proxy joint l'application. C'est `driver.upstream()`
+  qui le dit : le port publié côté Compose, le Service côté K3s. Le driver ne
+  pose jamais de route ; le proxy ne sait pas sur quel runtime il route.
+
+**Déclaratif.** `apply()` reçoit l'ensemble des routes d'une application et fait
+en sorte que le proxy n'en ait pas d'autres : ajouter, retirer, modifier un
+domaine, c'est le même appel, et une liste vide nettoie. Chaque objet posé
+porte la marque de Pupitre et le nom de l'application — un proxy partagé avec
+des routes faites à la main ne voit jamais celles-ci touchées.
+
+**Traefik, deux façons d'être piloté** — ce sont ses propres fournisseurs :
+
+| Mode | Ce que Pupitre dépose | Amont attendu |
+|---|---|---|
+| `file` | `{dossier}/{slug}.yml`, relu à chaud par Traefik | un port de la machine |
+| `kubernetes` | des `Ingress` (et un `Middleware` de redirection) dans le namespace de l'application | un Service du cluster |
+
+Le mode suit l'installation trouvée sur la machine, pas le runtime des
+applications : c'est une propriété du proxy. Un amont que le mode ne sait pas
+joindre est refusé, en le disant.
+
+**Le port de l'application n'est plus ouvert au monde** quand un proxy de la
+même machine la sert par la boucle locale (`publishAddress()`) : Compose le
+publie sur `127.0.0.1` seulement, et le pare-feu n'est pas ouvert. Sinon, ce
+port en HTTP clair contournerait le HTTPS du proxy.
+
+**Dans le pipeline**, les domaines sont décidés avant le rendu — ils décident de
+la publication du port —, et posés à l'étape `proxy`, après `healthcheck`. Puis
+chacun est **éprouvé à travers le proxy**, depuis sa machine, le nom forcé vers
+la boucle locale (`probe()`) : HTTP, HTTPS, redirection, et le certificat
+présenté. Un domaine qui ne répond pas n'annule pas un déploiement sain — la
+nouvelle version tourne — : la route est notée en échec et le journal dit
+pourquoi. Seule une configuration que le proxy refuse fait échouer l'étape.
+
+**Ensuite**, la tâche `routes:check` (toutes les dix minutes, file
+`supervision`) sonde chaque domaine de la même façon. Deux échecs de suite font
+tomber la route et écrivent `route.down` au journal — donc une notification —,
+le retour écrit `route.recovered`. Un certificat en cours d'émission est relu à
+30 secondes puis à 2 minutes, plutôt qu'à la tournée suivante.
+
+**Avant ce modèle**, le driver K3s rendait lui-même un `Ingress` depuis
+l'AppSpec, et le pipeline déposait sous Docker un fichier pour un Traefik
+supposé présent. La migration `0027` a déclaré ces deux proxies tels qu'ils
+étaient et changé en routes les domaines en service : rien ne casse à la mise à
+jour. L'`Ingress` posé par le proxy porte le nom de l'ancien et le remplace.
 

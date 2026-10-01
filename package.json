@@ -19,6 +19,7 @@
     "db:seed": "pnpm --filter @pupitre/db seed",
     "test:driver": "tsx --env-file-if-exists=.env scripts/test-driver.ts",
     "test:parity": "tsx --env-file-if-exists=.env scripts/test-parity.ts",
+    "test:proxy": "tsx --env-file-if-exists=.env scripts/test-proxy.ts",
     "test:catalog": "tsx --env-file-if-exists=.env scripts/test-catalog.ts",
     "test:schedule": "tsx scripts/test-schedule.ts",
     "test:ai": "pnpm build:packages && tsx scripts/test-ai.ts"

@@ -109,11 +109,18 @@ capacité, c'est une affirmation non vérifiée dans une table de fabrique.
 La condition pour l'écrire est une instance de BunkerWeb contre laquelle
 l'exercer, pas du temps de développement.
 
-### `TraefikProvider` écrit une configuration, il ne déploie pas Traefik
+### Les proxies centraux, Nginx Proxy Manager
 
-Il produit la configuration dynamique d'un Traefik qui doit déjà tourner sur la
-cible. Installer et gérer le cycle de vie du reverse proxy — avec l'obtention des
-certificats — est un chantier à part entière, et il n'est pas commencé.
+Le modèle porte un placement `remote` — un proxy ailleurs, qui sert plusieurs
+machines —, mais seul le proxy « sur la cible » est implémenté. Il faudra, pour
+Nginx Proxy Manager : son API, une connexion par instance avec ses identifiants
+chiffrés, une table des cibles qu'elle sert, et, côté driver, ouvrir le port de
+l'application à la seule adresse du proxy plutôt qu'au monde.
+
+### Pas de certificat joker
+
+Un `*.exemple.fr` demande le défi DNS-01, donc un accès à l'API du DNS du
+domaine. Aujourd'hui, seul HTTP-01 est réglé par Pupitre.
 
 ## Ce qui n'est pas prévu, et pourquoi
 

@@ -15,6 +15,13 @@ import {
   DEPLOYMENT_ROLLBACK_JOB,
   DEPLOYMENT_RUN_JOB,
   IMAGE_CHECK_EVERY_MS,
+  PROXY_APPLY_JOB,
+  PROXY_CHECK_JOB,
+  PROXY_DETECT_JOB,
+  PROXY_INSTALL_JOB,
+  PROXY_REMOVE_JOB,
+  ROUTES_CHECK_EVERY_MS,
+  ROUTES_CHECK_JOB,
   IMAGE_CHECK_JOB,
   MONITOR_CAPTURE_JOB,
   MONITOR_SWEEP_EVERY_MS,
@@ -82,6 +89,14 @@ import {
 import { handleScheduledJob } from './handlers/scheduled.js';
 import { handleImageCheck } from './handlers/images.js';
 import {
+  handleProxyApply,
+  handleProxyCheck,
+  handleProxyDetect,
+  handleProxyInstall,
+  handleProxyRemove,
+  handleRoutesCheck,
+} from './handlers/proxy.js';
+import {
   handleBackupApplication,
   handleBackupDelete,
   handleBackupDestinationCheck,
@@ -125,6 +140,13 @@ const handlers: Record<string, JobHandler> = {
   [WORKLOAD_UPDATE_JOB]: handleWorkloadAction,
   [WORKLOAD_CONTROL_JOB]: handleWorkloadControl,
   [WORKLOAD_EXEC_JOB]: handleWorkloadExec,
+  // Reverse proxies : regarder, installer, tester, retirer, poser des domaines.
+  // Chacune ouvre une session et peut toucher la machine : la file d'un déploiement.
+  [PROXY_DETECT_JOB]: handleProxyDetect,
+  [PROXY_INSTALL_JOB]: handleProxyInstall,
+  [PROXY_CHECK_JOB]: handleProxyCheck,
+  [PROXY_REMOVE_JOB]: handleProxyRemove,
+  [PROXY_APPLY_JOB]: handleProxyApply,
   ...Object.fromEntries(
     SCHEDULED_JOB_TYPES_LIST.map((type) => [
       SCHEDULED_JOB_TYPES[type].jobName,
@@ -176,6 +198,8 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // Tester une destination de sauvegarde : quelques secondes de réseau, qui
   // ne doivent pas attendre derrière une sauvegarde d'une heure.
   [BACKUP_DESTINATION_CHECK_JOB]: handleBackupDestinationCheck,
+  // Chaque domaine, à travers son proxy, depuis sa machine : une lecture.
+  [ROUTES_CHECK_JOB]: handleRoutesCheck,
 };
 
 /** La file des sauvegardes : longues, lentes, une à la fois par défaut. */
@@ -324,6 +348,25 @@ async function installImageCheck(): Promise<void> {
   logger.info({ everyMs: IMAGE_CHECK_EVERY_MS }, 'vérification des images installée');
 }
 
+/** L'horloge de la sonde des domaines : toutes les dix minutes, sur `supervision`. */
+async function installRoutesCheck(): Promise<void> {
+  const queue = getSupervisionQueue();
+  await queue.upsertJobScheduler(
+    'routes-check',
+    { every: ROUTES_CHECK_EVERY_MS },
+    {
+      name: ROUTES_CHECK_JOB,
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { age: 24 * 3600, count: 50 },
+        removeOnFail: { age: 7 * 24 * 3600, count: 50 },
+      },
+    },
+  );
+  logger.info({ everyMs: ROUTES_CHECK_EVERY_MS }, 'sonde des domaines installée');
+}
+
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -397,6 +440,7 @@ async function main(): Promise<void> {
 
   try {
     await installImageCheck();
+    await installRoutesCheck();
   } catch (error) {
     // Sans horloge, plus d'annonce de mise à jour d'image ; « Vérifier
     // maintenant » marche toujours.

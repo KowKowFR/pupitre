@@ -11,7 +11,6 @@ import {
 } from '@pupitre/core';
 import {
   getDriver,
-  getProxyProvider,
   type DeployResult,
   type DriverContext,
   type RenderedArtifacts,
@@ -42,6 +41,7 @@ import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
 import { backupApplication } from '../backup/application.js';
+import { applyCoupleRoutes, publishAddressFor, seedRouteFromSpec } from '../proxy/routes.js';
 
 /**
  * Exécution du pipeline de déploiement.
@@ -175,7 +175,18 @@ export async function runDeploymentPipeline(
   };
 
   const driver = getDriver(deployment.runtime);
-  const proxy = getProxyProvider(deployment.proxy);
+
+  // Les domaines d'abord, parce qu'ils décident de la publication du port :
+  // celui de l'AppSpec au premier déploiement sur cette cible, puis la liste de
+  // la cible. Un proxy de la machine qui joint l'application par la boucle
+  // locale permet de ne plus ouvrir son port au monde.
+  if (!ctx.previousDeployment) {
+    await seedRouteFromSpec(deployment.applicationId, deployment.targetId, spec, (line) =>
+      stream.line('preflight', line),
+    );
+  }
+  const publishAddress = await publishAddressFor(deployment.applicationId, deployment.targetId);
+  if (publishAddress) ctx.publishAddress = publishAddress;
   const state: PipelineState = {
     artifacts: null,
     port: null,
@@ -429,17 +440,23 @@ export async function runDeploymentPipeline(
     },
 
     proxy: async () => {
-      const registration = await proxy.register(
+      const applied = await applyCoupleRoutes({
+        applicationId: deployment.applicationId,
+        targetId: deployment.targetId,
+        driver,
         ctx,
-        { port: state.port, runtime: deployment.runtime },
-        (line) => stream.line('proxy', line),
-      );
-      if (registration.url === null) {
-        stream.line('proxy', registration.detail);
+        publishedPort: state.port,
+        onLog: (line) => stream.line('proxy', line),
+      });
+      if (applied.skipped) {
+        stream.line('proxy', applied.skipped);
         return 'skipped';
       }
-      state.url = registration.url;
-      stream.line('proxy', registration.detail);
+      state.url = applied.url;
+      // Un domaine qui ne répond pas n'annule pas un déploiement sain : la
+      // nouvelle version tourne. La route est notée en échec, la sonde
+      // périodique prévient, et le journal de l'étape dit pourquoi.
+      for (const problem of applied.problems) stream.line('proxy', `⚠ ${problem}`, 'stderr');
       return 'success';
     },
   };

@@ -30,6 +30,7 @@ import { ingressOf, serviceRows } from '../rows';
 import { ServiceList } from '../service-list';
 import { ApplicationActions } from './application-actions';
 import { ApplicationBackups } from './application-backups';
+import { ApplicationDomains } from './application-domains';
 import { ApplicationImages } from './application-images';
 import { ApplicationSecrets } from './application-secrets';
 import { ApplicationSources, type SourceView } from './application-sources';
@@ -189,6 +190,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         checkedAt={lastImageCheck?.toISOString() ?? null}
         checkedAgo={relativeTime(lastImageCheck, tc)}
         canDeploy={auth.can('deployment:create')}
+      />
+
+      <ApplicationDomains
+        applicationId={application.id}
+        canEdit={auth.can('deployment:create')}
+        format={formatSettingsOf(settings)}
       />
 
       {auth.can('backup:read') ? (

@@ -32,6 +32,14 @@ import {
   type RenderedFile,
   type RuntimeKind,
 } from '@pupitre/core/drivers';
+import {
+  getProxyProvider,
+  proxyCapabilities,
+  type ProxyContext,
+  type ProxyProvider,
+  type ProxyRoute,
+  type RouteProbe,
+} from '@pupitre/core/proxy';
 import { connect, disconnect, exec, type SshSession, type SshTarget } from '@pupitre/core/ssh';
 import {
   applications,
@@ -39,6 +47,7 @@ import {
   createPortAllocator,
   eq,
   getDb,
+  getProxyForTarget,
   getTargetSecret,
   listTargets,
 } from '@pupitre/db';
@@ -270,6 +279,11 @@ type Side = {
   /** Renseigné par la phase de déploiement. */
   url: string | null;
   publishedPort: number | null;
+  /**
+   * Le reverse proxy de la cible, quand elle en a un et que la spec a un
+   * domaine : la route est alors posée et éprouvée comme le fait le pipeline.
+   */
+  proxy: { provider: ProxyProvider; ctx: ProxyContext; route: ProxyRoute } | null;
 };
 
 async function openSide(
@@ -352,6 +366,24 @@ async function openSide(
       : {}),
   };
 
+  // Le domaine de la spec passe par le proxy de la cible, s'il y en a un — et,
+  // comme dans le pipeline, le port n'est alors publié que là où le proxy le joint.
+  const proxyRecord = await getProxyForTarget(found.id);
+  const host = spec.ingress?.host;
+  let proxy: Side['proxy'] = null;
+  if (proxyRecord && host) {
+    const provider = getProxyProvider(proxyRecord.kind);
+    const tls =
+      (spec.ingress?.tls ?? false) && proxyCapabilities(proxyRecord.kind, proxyRecord.config).https;
+    proxy = {
+      provider,
+      ctx: { ...ctx, config: proxyRecord.config },
+      route: { hostname: host, tls, redirectHttps: tls },
+    };
+    const address = provider.publishAddress(proxyRecord.config);
+    if (address) ctx.publishAddress = address;
+  }
+
   return {
     runtime,
     driver: getDriver(runtime),
@@ -361,6 +393,37 @@ async function openSide(
     targetHost: found.host,
     url: null,
     publishedPort: null,
+    proxy,
+  };
+}
+
+/**
+ * L'URL, à travers le reverse proxy : la route du domaine de la spec, posée sur
+ * le proxy de la cible vers l'amont que le driver annonce, puis éprouvée depuis
+ * la cible. C'est le chemin d'un visiteur — et le même pour les deux runtimes.
+ */
+async function probeThroughProxy(side: Side, probePath: string): Promise<RouteProbe> {
+  const proxy = side.proxy!;
+  let probe = await proxy.provider.probe(proxy.ctx, proxy.route, probePath);
+  for (let attempt = 1; attempt < 10 && !probe.ok; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    probe = await proxy.provider.probe(proxy.ctx, proxy.route, probePath);
+  }
+  return probe;
+}
+
+async function urlCheck(side: Side, probePath: string): Promise<{ ok: boolean; detail: string }> {
+  if (side.proxy) {
+    const probe = await probeThroughProxy(side, probePath);
+    return {
+      ok: probe.ok,
+      detail: `${side.proxy.route.hostname} à travers le proxy — ${probe.detail}`,
+    };
+  }
+  const probe = await probeFromTarget(side, probePath);
+  return {
+    ok: probe.status !== null && probe.status >= 200 && probe.status < 400,
+    detail: probe.status === null ? probe.detail : `HTTP ${probe.status} — ${probe.detail}`,
   };
 }
 
@@ -371,15 +434,11 @@ async function openSide(
  * à coup sûr : le poste qui lance ce script n'a ni le DNS de l'application, ni
  * de route vers le réseau interne du cluster.
  *
- * L'ordre — port publié d'abord, URL ensuite — n'est pas arbitraire, et ce
- * n'est toujours pas un `if (runtime === …)` : c'est la réponse du driver qui
- * décide. Un port publié est ce que le driver a **réellement** ouvert sur la
- * machine ; l'URL à nom de domaine, elle, ne répond que si un proxy l'a
- * enregistrée, et l'enregistrement appartient au `ProxyProvider`, que ce script
- * n'appelle jamais. Sonder `https://parite.example.com` côté Docker revenait
- * donc à vérifier un composant que le test n'installe pas — d'où un échec qui
- * ne disait rien sur la parité. Côté K3s il n'y a rien d'autre à sonder :
- * `allocatePort()` a répondu `null`, l'Ingress *est* l'exposition.
+ * Le chemin sans reverse proxy : le port publié par le driver, ce qu'il a
+ * **réellement** ouvert sur la machine. Quand la cible a un proxy, c'est
+ * `probeThroughProxy()` qui sonde, par le domaine — voir `urlCheck()`. Une
+ * cible K3s sans proxy n'a rien à sonder ici : `allocatePort()` a répondu
+ * `null`, et le Service n'est joignable que dans le cluster.
  */
 async function probeFromTarget(
   side: Side,
@@ -513,14 +572,32 @@ async function deploySide(side: Side, probePath: string): Promise<void> {
     detail: health?.detail ?? 'sans détail',
   });
 
-  const probe = await probeFromTarget(side, probePath);
-  record({
-    phase: 'deploy',
-    runtime,
-    label: "l'URL répond 200",
-    ok: probe.status !== null && probe.status >= 200 && probe.status < 400,
-    detail: probe.status === null ? probe.detail : `HTTP ${probe.status} — ${probe.detail}`,
-  });
+  if (side.proxy) {
+    const proxy = side.proxy;
+    const applied = await guarded('deploy', runtime, 'route posée sur le proxy', async () => {
+      await proxy.provider.apply(
+        proxy.ctx,
+        {
+          appSlug: ctx.appSlug,
+          routes: [proxy.route],
+          upstream: driver.upstream(ctx, side.publishedPort),
+        },
+        emit,
+      );
+      return true;
+    });
+    if (!applied) return;
+    record({
+      phase: 'deploy',
+      runtime,
+      label: 'route posée sur le proxy',
+      ok: true,
+      detail: proxy.route.hostname,
+    });
+  }
+
+  const url = await urlCheck(side, probePath);
+  record({ phase: 'deploy', runtime, label: "l'URL répond", ok: url.ok, detail: url.detail });
 }
 
 async function rollbackSide(side: Side, probePath: string): Promise<void> {
@@ -545,13 +622,13 @@ async function rollbackSide(side: Side, probePath: string): Promise<void> {
     detail: health?.detail ?? 'sans détail',
   });
 
-  const probe = await probeFromTarget(side, probePath);
+  const url = await urlCheck(side, probePath);
   record({
     phase: 'rollback',
     runtime,
     label: "l'URL répond toujours",
-    ok: probe.status !== null && probe.status >= 200 && probe.status < 400,
-    detail: probe.status === null ? probe.detail : `HTTP ${probe.status} — ${probe.detail}`,
+    ok: url.ok,
+    detail: url.detail,
   });
 }
 
@@ -559,6 +636,16 @@ async function destroySide(side: Side): Promise<void> {
   const { driver, ctx, runtime } = side;
   const emit = (line: string) => write(`      ${dim(line)}\n`);
 
+  if (side.proxy) {
+    const proxy = side.proxy;
+    await guarded('destroy', runtime, 'route retirée du proxy', () =>
+      proxy.provider.apply(
+        proxy.ctx,
+        { appSlug: ctx.appSlug, routes: [], upstream: driver.upstream(ctx, side.publishedPort) },
+        emit,
+      ),
+    );
+  }
   const done = await guarded('destroy', runtime, 'destroy()', async () => {
     await driver.destroy(ctx, emit);
     return true;

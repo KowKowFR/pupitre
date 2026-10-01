@@ -4,6 +4,8 @@ import {
   deploymentJobDataSchema,
   scanConfigFromSettings,
   parseAppSpec,
+  proxyCapabilities,
+  routeListSchema,
   usableRuntimes,
 } from '@pupitre/core';
 import {
@@ -13,18 +15,23 @@ import {
   getAppSettings,
   getApplication,
   getBackupPolicy,
+  getProxyForTarget,
   getTarget,
   listDeployments,
   logAudit,
+  replaceRoutes,
+  RouteTakenError,
   saveBackupPolicy,
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ensureBackupSchedule } from '@/lib/backups';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { proxy as proxyMessages } from '@/i18n/messages/proxy';
 import { ConflictError, ForbiddenError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
 import { logger } from '@/lib/logger';
+import { assertServable } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
 
@@ -44,6 +51,12 @@ export const GET = apiRoute(async (request) => {
  */
 const createBodySchema = createDeploymentSchema.extend({
   backup: z.object({ enabled: z.boolean(), beforeDeploy: z.boolean() }).optional(),
+  /**
+   * Les domaines de l'application sur cette cible — la liste entière. Absent :
+   * ceux déjà posés restent, et un premier déploiement reprend celui de
+   * l'AppSpec.
+   */
+  domains: routeListSchema.optional(),
 });
 
 /**
@@ -54,7 +67,7 @@ const createBodySchema = createDeploymentSchema.extend({
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'deployment:create');
-  const { backup: backupChoice, ...input } = await readJsonBody(request, createBodySchema);
+  const { backup: backupChoice, domains, ...input } = await readJsonBody(request, createBodySchema);
 
   // Choisir les scanners et le seuil est une décision de sécurité : elle a sa
   // propre permission. Ne rien demander n'en réclame aucune — c'est la
@@ -141,6 +154,26 @@ export const POST = apiRoute(async (request) => {
     }
   }
 
+  // Les domaines avant le déploiement : le pipeline les lit dès son départ —
+  // ils décident de la publication du port.
+  if (domains) {
+    const proxy = await getProxyForTarget(input.targetId);
+    if (!proxy && domains.length > 0) {
+      throw new ConflictError(msg(proxyMessages, 'error.noProxy', { target: target.name }));
+    }
+    if (proxy) assertServable(domains, proxyCapabilities(proxy.kind, proxy.config));
+    try {
+      await replaceRoutes(
+        application.id,
+        input.targetId,
+        domains.map((route) => ({ ...route, redirectHttps: route.tls && route.redirectHttps })),
+      );
+    } catch (error) {
+      if (error instanceof RouteTakenError) throw new ConflictError(error.message);
+      throw error;
+    }
+  }
+
   const { deployment, steps } = await createDeploymentWithSteps({
     ...input,
     // Après `...input` : c'est la configuration effective qui est gelée.
@@ -183,6 +216,7 @@ export const POST = apiRoute(async (request) => {
           }
         : {}),
       autoRollback: input.autoRollback,
+      ...(domains ? { domains: domains.map((route) => route.hostname) } : {}),
       jobId: job.id,
     },
     ip: auth.ip,

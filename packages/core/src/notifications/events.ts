@@ -30,6 +30,8 @@ import {
  *   monitor.recovered         ce site est revenu
  *   image.update.available    une image déployée a été republiée, ou dépassée
  *   backup.failed             une sauvegarde n'a pas abouti
+ *   route.down                un domaine ne répond plus à travers son reverse proxy
+ *   route.recovered           ce domaine répond de nouveau
  *
  * Sont écartés, volontairement : les succès (un déploiement qui marche ne
  * réveille personne), les refus de permission (bavards et déjà tracés) et les
@@ -90,6 +92,8 @@ export const NOTIFICATION_EVENT_KEYS = [
   'target.threshold.cleared',
   'image.update.available',
   'backup.failed',
+  'route.down',
+  'route.recovered',
 ] as const;
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
@@ -346,6 +350,24 @@ const fr = {
   'backup.failed.bodyDeploy':
     ' Elle précédait un déploiement : celui-ci n’a pas été lancé, rien n’a changé.',
   'backup.failed.summary': '{subject}',
+
+  // ── route.down / route.recovered ───────────────────────────────────────
+  'route.down.label': 'Domaine injoignable',
+  'route.down.description':
+    'Un domaine ne répond plus à travers le reverse proxy de sa machine : route absente, proxy éteint ou application muette.',
+  'route.down.rationale':
+    'Le site tourne peut-être encore, mais plus personne ne l’atteint par son nom. La sonde passe par le proxy, depuis sa machine : elle voit ce que le DNS public cacherait.',
+  'route.down.title': 'Domaine injoignable — {hostname}',
+  'route.down.body': '« {hostname} » ({application}, sur « {machine} ») ne répond plus : {error}',
+  'route.down.summary': '{hostname}',
+  'route.recovered.label': 'Domaine rétabli',
+  'route.recovered.description': 'Un domaine qui ne répondait plus répond de nouveau.',
+  'route.recovered.rationale':
+    'Ferme l’alerte reçue plus tôt : rien à faire, juste à savoir que c’est revenu.',
+  'route.recovered.title': 'Domaine rétabli — {hostname}',
+  'route.recovered.body': '« {hostname} » ({application}, sur « {machine} ») répond de nouveau.',
+  'route.recovered.summary': '{hostname}',
+  'field.domain': 'Domaine',
   'field.trigger': 'Déclenchement',
   'backup.trigger.schedule': 'planifiée',
   'backup.trigger.manual': 'à la demande',
@@ -565,6 +587,22 @@ const en: Translated<typeof fr> = {
   'backup.failed.bodyDeploy':
     ' It preceded a deployment: that deployment was not started, nothing changed.',
   'backup.failed.summary': '{subject}',
+
+  'route.down.label': 'Domain unreachable',
+  'route.down.description':
+    'A domain no longer answers through the reverse proxy of its machine: route missing, proxy down or application silent.',
+  'route.down.rationale':
+    'The site may still run, but nobody reaches it by its name any more. The probe goes through the proxy, from its machine: it sees what public DNS would hide.',
+  'route.down.title': 'Domain unreachable — {hostname}',
+  'route.down.body': '“{hostname}” ({application}, on “{machine}”) no longer answers: {error}',
+  'route.down.summary': '{hostname}',
+  'route.recovered.label': 'Domain back',
+  'route.recovered.description': 'A domain that stopped answering answers again.',
+  'route.recovered.rationale': 'Closes the earlier alert: nothing to do, just to know it is back.',
+  'route.recovered.title': 'Domain back — {hostname}',
+  'route.recovered.body': '“{hostname}” ({application}, on “{machine}”) answers again.',
+  'route.recovered.summary': '{hostname}',
+  'field.domain': 'Domain',
   'field.trigger': 'Trigger',
   'backup.trigger.schedule': 'scheduled',
   'backup.trigger.manual': 'on demand',
@@ -1271,6 +1309,62 @@ const CATALOG = {
             : entry.resourceId
               ? `/applications/${entry.resourceId}`
               : '/applications',
+      };
+    },
+  },
+  'route.down': {
+    key: 'route.down',
+    severity: 'warning',
+    auditAction: 'route.down',
+    digestPath: '/applications',
+    matches: () => true,
+    dedupDiscriminator: (entry) => optional(record(entry.after).hostname),
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const hostname = text(after.hostname, '?');
+      const application = text(after.application, '?');
+      const machine = text(after.targetName, '?');
+      const error = text(after.error, '?');
+      return {
+        title: t(lang, 'route.down.title', { hostname }),
+        summary: clip(t(lang, 'route.down.summary', { hostname }), 200),
+        summaryDetail: clip(error, 300),
+        body: t(lang, 'route.down.body', { hostname, application, machine, error }),
+        fields: fieldsOf([
+          [t(lang, 'field.domain'), hostname],
+          [t(lang, 'field.application'), application],
+          [t(lang, 'field.machine'), machine],
+          [t(lang, 'field.error'), error],
+        ]),
+        path: entry.resourceId ? `/applications/${entry.resourceId}` : '/applications',
+      };
+    },
+  },
+  'route.recovered': {
+    key: 'route.recovered',
+    severity: 'info',
+    auditAction: 'route.recovered',
+    digestPath: '/applications',
+    matches: () => true,
+    dedupDiscriminator: (entry) => optional(record(entry.after).hostname),
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const hostname = text(after.hostname, '?');
+      const application = text(after.application, '?');
+      const machine = text(after.targetName, '?');
+      return {
+        title: t(lang, 'route.recovered.title', { hostname }),
+        summary: clip(t(lang, 'route.recovered.summary', { hostname }), 200),
+        summaryDetail: clip(`${application} · ${machine}`, 300),
+        body: t(lang, 'route.recovered.body', { hostname, application, machine }),
+        fields: fieldsOf([
+          [t(lang, 'field.domain'), hostname],
+          [t(lang, 'field.application'), application],
+          [t(lang, 'field.machine'), machine],
+        ]),
+        path: entry.resourceId ? `/applications/${entry.resourceId}` : '/applications',
       };
     },
   },

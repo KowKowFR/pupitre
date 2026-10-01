@@ -7,7 +7,6 @@ import { describe, it } from 'node:test';
 import { parse as parseYaml } from 'yaml';
 import { parseAppSpec, safeParseAppSpec, type AppSpec } from '../src/spec/index.js';
 import {
-  DEFAULT_INGRESS_CLASS,
   DEFAULT_STORAGE_CLASS,
   MANAGED_BY,
   builtImageTag,
@@ -20,7 +19,6 @@ import {
 } from '../src/drivers/k3s/render.js';
 import type {
   DeploymentManifest,
-  IngressManifest,
   KubeManifest,
   PersistentVolumeClaimManifest,
   SecretManifest,
@@ -192,7 +190,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       ]);
     });
 
-    it('expose en ClusterIP : aucun port hôte, c’est le rôle de l’Ingress', () => {
+    it('expose en ClusterIP : aucun port hôte, c’est le proxy du cluster qui le joint', () => {
       const service = byKind<ServiceManifest>(manifests, 'Service')[0];
       assert.equal(service?.spec.type, 'ClusterIP');
       assert.deepEqual(service?.spec.ports, [
@@ -239,7 +237,6 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
           'Service/postgres',
           'Service/api',
           'Service/front',
-          'Ingress/boutique',
         ],
         'services dans l’ordre des dépendances, ressources dans l’ordre d’application',
       );
@@ -405,17 +402,10 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.ok(!postgres.volumes?.some((volume) => volume.name === 'tmp-scratch'));
     });
 
-    it('route l’Ingress vers targetService, en TLS quand la spec le demande', () => {
-      const [ingress] = byKind<IngressManifest>(manifests, 'Ingress');
-      assert.ok(ingress);
-      assert.equal(ingress.spec.ingressClassName, DEFAULT_INGRESS_CLASS);
-      assert.deepEqual(ingress.spec.tls, [
-        { hosts: ['boutique.example.com'], secretName: 'boutique-tls' },
-      ]);
-      assert.equal(ingress.spec.rules[0]?.host, 'boutique.example.com');
-      assert.deepEqual(ingress.spec.rules[0]?.http.paths[0]?.backend, {
-        service: { name: 'front', port: { number: 3000 } },
-      });
+    it('ne rend aucun Ingress : un domaine est une route du reverse proxy', () => {
+      // La spec déclare pourtant un `ingress.host` : il devient une route, posée
+      // par le proxy de la cible vers le Service — voir test/proxy.test.ts.
+      assert.equal(byKind(manifests, 'Ingress').length, 0);
     });
 
     it('produit des manifests validés par kubectl', { skip: !kubectlAvailable }, () => {
@@ -426,7 +416,6 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
         'deployment.apps/api',
         'deployment.apps/postgres',
         'persistentvolumeclaim/api-uploads',
-        'ingress.networking.k8s.io/boutique',
       ]) {
         assert.ok(output.includes(expected), `${expected} attendu dans la sortie de kubectl`);
       }

@@ -7,7 +7,8 @@ import {
   type RoleKey,
   type SupportedLocale,
 } from '@pupitre/core';
-import { getAppSettings, listRoles } from '@pupitre/db';
+import { getAppSettings, listRoles, listTargets } from '@pupitre/db';
+import { formatSettingsOf } from '@/lib/format';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/empty-state';
@@ -96,6 +97,13 @@ export default async function OnboardingPage() {
       dateStyles={[...DATE_STYLES]}
       roleKeys={roleKeys}
       canRunPreflight={auth.can('target:update')}
+      proxyTargets={
+        auth.can('target:update')
+          ? (await listTargets()).map((target) => ({ id: target.id, name: target.name }))
+          : []
+      }
+      format={formatSettingsOf(record.settings)}
+      userEmail={auth.email}
       canInvite={await canSendAccountMail()}
     />
   );

@@ -7,7 +7,7 @@ en crée une nouvelle.
 `packages/db` est la source unique du modèle : ni `apps/web` ni `apps/worker`
 n'écrivent de SQL, et les drivers n'ont pas le droit de connaître une table.
 
-## Les 45 tables
+## Les 47 tables
 
 | Domaine | Tables |
 |---|---|
@@ -22,6 +22,7 @@ n'écrivent de SQL, et les drivers n'ont pas le droit de connaître une table.
 | Notifications | `notification_channels` `notification_policy` `notification_digest_groups` `notification_digest_items` |
 | Discussion | `chat_messages` `chat_reactions` `chat_reads` `chat_attachments` |
 | Sauvegardes | `backup_destinations` `backup_policies` `backups` |
+| Reverse proxies | `proxies` `routes` |
 | Divers | `audit_logs` `app_settings` |
 
 Dix-sept d'entre elles ont été créées dès la première migration — y compris
@@ -49,11 +50,16 @@ Le format et les dimensions sont **relus dans les octets** par le serveur
 pas accepté. Aucun écran ne lit une colonne `bytea` dans une liste : seule la
 route qui sert l'image charge les octets.
 
-## Trois invariants tenus par la base, pas par du TypeScript
+## Quatre invariants tenus par la base, pas par du TypeScript
 
 **`port_allocations (target_id, port)` est unique.** C'est l'anti-collision de
 ports. Deux workers qui visent le même port produisent une violation `23505`, et
 celui qui perd rejoue. Il n'y a pas de `if` à trouver dans le code.
+
+**`routes.hostname` est unique.** Deux applications ne peuvent pas réclamer le
+même domaine : celui qui perd la course reçoit une `23505`, traduite en « déjà
+routé vers… ». Et **`proxies_host_target_unique`**, index unique partiel, tient
+un seul reverse proxy par machine.
 
 **`targets_port_range_check`** interdit une plage inversée, en plus de Zod.
 
@@ -119,8 +125,8 @@ désigne toujours l'endroit où sont vraiment les fichiers.
 | `0012_bent_may_parker` | l'enum `notification_channel_kind` et la table `notification_channels` |
 
 La liste s'arrête aux treize premières ; les suivantes — jusqu'à
-`0026_backups`, les trois tables de sauvegarde — se lisent dans
-`packages/db/migrations/`.
+`0027_reverse_proxy`, les connexions et les routes, avec la reprise de ce qui
+était routé avant — se lisent dans `packages/db/migrations/`.
 
 ### Deux arbitrages qui se lisent dans le SQL
 

@@ -44,6 +44,7 @@ export function ApplicationDrawer({
   autoRollback,
   onAutoRollbackChange,
   backupChoice,
+  domainsChoice,
   focusDeploy,
   busy,
   error,
@@ -61,6 +62,8 @@ export function ApplicationDrawer({
   onAutoRollbackChange: (value: boolean) => void;
   /** Au premier déploiement : activer la sauvegarde. Rendu par la liste, posé ici. */
   backupChoice?: React.ReactNode;
+  /** Les domaines, pour la cible choisie : ils dépendent de son reverse proxy. */
+  domainsChoice?: (target: DeployTarget) => React.ReactNode;
   focusDeploy: boolean;
   busy: boolean;
   error: string | null;
@@ -184,6 +187,7 @@ export function ApplicationDrawer({
                   checked={autoRollback}
                   onChange={(event) => onAutoRollbackChange(event.target.checked)}
                 />
+                {target && domainsChoice ? domainsChoice(target) : null}
                 {backupChoice}
               </>
             )}

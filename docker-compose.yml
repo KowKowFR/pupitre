@@ -178,6 +178,34 @@ services:
       - k3s-data:/var/lib/rancher/k3s
     restart: unless-stopped
 
+  # ── ACME de test, hors du démarrage normal ───────────────────────────────────
+  # Pebble est le serveur ACME de test de l'équipe Let's Encrypt : il émet de
+  # vrais certificats, signés par une autorité jetable, après avoir réellement
+  # validé le défi HTTP-01 sur le port 80 de la cible. C'est ce qui permet
+  # d'éprouver « HTTPS automatique » sans domaine public. Son DNS est
+  # `pebble-dns`, où `pnpm test:proxy` déclare les domaines de test.
+  #
+  #   docker compose --profile test up -d pebble pebble-dns
+  pebble:
+    profiles: ["test"]
+    image: ghcr.io/letsencrypt/pebble:2.10.1
+    command: ["-config", "/acme/pebble-config.json", "-dnsserver", "pebble-dns:8053"]
+    environment:
+      # Pas d'attente artificielle entre deux validations : les tests restent courts.
+      PEBBLE_VA_NOSLEEP: "1"
+    volumes:
+      - ./scripts/test-acme/pebble-config.json:/acme/pebble-config.json:ro
+    restart: unless-stopped
+
+  pebble-dns:
+    profiles: ["test"]
+    image: ghcr.io/letsencrypt/pebble-challtestsrv:2.10.1
+    # Rien que le DNS et son API de gestion : les défis sont relevés par les vraies cibles.
+    command: ["-defaultIPv6", "", "-http01", "", "-https01", "", "-tlsalpn01", "", "-doh", ""]
+    ports:
+      - "127.0.0.1:8055:8055"
+    restart: unless-stopped
+
   # ── Serveur SMTP jetable, hors du démarrage normal ───────────────────────────
   # Démarrage explicite :
   #   docker compose --profile test up -d mailpit

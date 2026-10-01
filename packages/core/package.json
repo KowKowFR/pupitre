@@ -38,6 +38,10 @@
       "types": "./dist/drivers/index.d.ts",
       "default": "./dist/drivers/index.js"
     },
+    "./proxy": {
+      "types": "./dist/proxy/index.d.ts",
+      "default": "./dist/proxy/index.js"
+    },
     "./scanners": {
       "types": "./dist/scanners/index.d.ts",
       "default": "./dist/scanners/index.js"
