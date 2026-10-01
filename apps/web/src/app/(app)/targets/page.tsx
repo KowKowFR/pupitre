@@ -7,6 +7,7 @@ import {
   listTargets,
   targetHistories,
 } from '@pupitre/db';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { getT } from '@/i18n/server';
 import { common } from '@/i18n/messages/common';
 import { formatDateTimeWith, formatSettingsOf } from '@/lib/format';
@@ -114,21 +115,24 @@ export default async function TargetsPage({
   });
 
   return (
-    <TargetsView
-      targets={rows}
-      canCreate={auth.can('target:create')}
-      canRunPreflight={auth.can('target:update')}
-      canEdit={auth.can('target:update')}
-      canDelete={canDelete}
-      timezone={format.timezone}
-      limits={{
-        load: HOST_METRIC_CATALOG.load.defaultLimitPercent,
-        memory: HOST_METRIC_CATALOG.memory.defaultLimitPercent,
-        disk: HOST_METRIC_CATALOG.disk.defaultLimitPercent,
-      }}
-      initialQuery={filters.query}
-      initialLabels={filters.labels}
-      initialStatus={filters.status}
-    />
+    <>
+      <LiveRefresh topics={['targets', 'deployments']} />
+      <TargetsView
+        targets={rows}
+        canCreate={auth.can('target:create')}
+        canRunPreflight={auth.can('target:update')}
+        canEdit={auth.can('target:update')}
+        canDelete={canDelete}
+        timezone={format.timezone}
+        limits={{
+          load: HOST_METRIC_CATALOG.load.defaultLimitPercent,
+          memory: HOST_METRIC_CATALOG.memory.defaultLimitPercent,
+          disk: HOST_METRIC_CATALOG.disk.defaultLimitPercent,
+        }}
+        initialQuery={filters.query}
+        initialLabels={filters.labels}
+        initialStatus={filters.status}
+      />
+    </>
   );
 }

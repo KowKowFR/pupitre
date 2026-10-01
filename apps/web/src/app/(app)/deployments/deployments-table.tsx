@@ -39,6 +39,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import type { CommitSource } from '@/lib/commit';
 import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { filterParams, type StatusFilter } from './filters';
@@ -56,6 +57,8 @@ export type DeploymentRow = {
   applicationSlug: string;
   targetName: string;
   triggeredByEmail: string | null;
+  /** Le commit déployé, quand le run vient d'un dépôt lié. */
+  source: CommitSource | null;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
@@ -397,7 +400,7 @@ export function DeploymentsTable({
                 <TableCell>
                   <DeploymentStatusBadge status={item.status} />
                 </TableCell>
-                <TableCell className="r num">
+                <TableCell className="r num" suppressHydrationWarning>
                   {formatDuration(item.startedAt, item.finishedAt)}
                 </TableCell>
                 <TableCell className="mono whitespace-nowrap text-text-2">

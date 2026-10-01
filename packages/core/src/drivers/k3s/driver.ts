@@ -3,6 +3,7 @@ import { storedSecretNames, topologicalOrder, type Service } from '../../spec/in
 import { backoffMs } from '../backoff.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
 import { pruneReleases } from '../retention.js';
+import { extractSourceArchive } from '../source-archive.js';
 import {
   DriverError,
   type DeployResult,
@@ -418,6 +419,12 @@ export class K3sDriver implements DeploymentDriver {
       );
     }
     await this.run(ctx, `mkdir -p ${shellQuote(this.manifestPath(ctx))}`, onLog, 'upload');
+
+    // Le code d'un dépôt lié d'abord : les artefacts rendus passent après, et
+    // l'emportent sur un fichier du dépôt qui porterait le même nom.
+    if (ctx.sourceArchive) {
+      await extractSourceArchive(ctx.sshSession, release, ctx.sourceArchive, onLog, this.runtime);
+    }
 
     const files: RenderedFile[] = [...(ctx.additionalFiles ?? []), ...artifacts.files];
     for (const file of files) {

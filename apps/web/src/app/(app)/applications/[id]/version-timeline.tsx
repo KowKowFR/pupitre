@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check, Minus, RotateCcw, X } from 'lucide-react';
 import type { DeploymentStatus } from '@pupitre/core';
+import { CommitRef } from '@/components/commit-ref';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -12,6 +13,7 @@ import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { applications as messages } from '@/i18n/messages/applications';
+import type { CommitSource } from '@/lib/commit';
 import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
@@ -29,6 +31,8 @@ export type VersionRow = {
   targetId: string;
   targetName: string;
   triggeredByEmail: string | null;
+  /** Le commit de cette version, quand elle vient d'un dépôt lié. */
+  source: CommitSource | null;
   createdAt: string;
   finishedAt: string | null;
   redeployable: boolean;
@@ -151,6 +155,7 @@ export function VersionTimeline({
                 </div>
                 <div className="t-cap flex flex-wrap gap-x-3 text-text-3">
                   {version.triggeredByEmail ? <span>{version.triggeredByEmail}</span> : null}
+                  {version.source ? <CommitRef source={version.source} /> : null}
                   {version.imageTag ? (
                     <span className="mono truncate">{version.imageTag}</span>
                   ) : null}

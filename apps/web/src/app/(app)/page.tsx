@@ -30,6 +30,7 @@ import {
   TimeAxis,
   type TimelineEvent,
 } from '@/components/chart';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { Led, Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { PageHeader } from '@/components/page-header';
 import { DeployButton } from '@/components/shell/deploy-button';
@@ -226,6 +227,7 @@ export default async function HomePage({
 
   return (
     <>
+      <LiveRefresh />
       <PageHeader
         title={t('page.title')}
         description={t('page.description')}

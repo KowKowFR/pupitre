@@ -95,6 +95,21 @@ export type DriverContext = TargetContext & {
    * C'est le pipeline qui les fournit.
    */
   additionalFiles?: RenderedFile[];
+  /**
+   * Le code source quand il vient d'un dépôt lié : une archive `tar.gz` sur le
+   * disque du worker, que le driver dépose et décompresse à la racine de la
+   * release **avant** les artefacts rendus — ceux-ci gagnent en cas de
+   * collision. Même principe que `additionalFiles` : le driver ne sait pas
+   * d'où elle vient.
+   */
+  sourceArchive?: SourceArchive;
+};
+
+export type SourceArchive = {
+  /** Chemin local de l'archive, côté worker. */
+  localPath: string;
+  /** Dossiers de tête à retirer à l'extraction : 1 pour une archive GitHub. */
+  stripComponents: number;
 };
 
 export type PreflightResult = {

@@ -11,6 +11,7 @@ import {
   listScheduledJobRuns,
   listScheduledJobs,
 } from '@pupitre/db';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { currentLanguage } from '@/i18n/server';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -114,13 +115,16 @@ export default async function JobsPage() {
   }));
 
   return (
-    <JobsPanel
-      jobs={jobs}
-      types={types}
-      canManage={auth.can('job:manage')}
-      defaultTimeZone={defaultTimeZone}
-      timeZones={timeZones}
-      format={formatSettingsOf(settings)}
-    />
+    <>
+      <LiveRefresh topics={['jobs']} />
+      <JobsPanel
+        jobs={jobs}
+        types={types}
+        canManage={auth.can('job:manage')}
+        defaultTimeZone={defaultTimeZone}
+        timeZones={timeZones}
+        format={formatSettingsOf(settings)}
+      />
+    </>
   );
 }

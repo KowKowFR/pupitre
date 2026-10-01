@@ -141,6 +141,27 @@
       "when": 1790783774832,
       "tag": "0020_audit_user_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790787945964,
+      "tag": "0021_source_integration",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790790790006,
+      "tag": "0022_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790792092243,
+      "tag": "0023_chat_replies_reactions",
+      "breakpoints": true
     }
   ]
 }

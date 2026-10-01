@@ -1,5 +1,6 @@
 import { usableRuntimes } from '@pupitre/core';
 import { listApplications, listSupervisedApps, listTargets } from '@pupitre/db';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { getT } from '@/i18n/server';
 import { common } from '@/i18n/messages/common';
 import { newApplicationAi } from '@/lib/new-application';
@@ -63,13 +64,16 @@ export default async function ApplicationsPage() {
     .sort((a, b) => Number(b.healthy) - Number(a.healthy));
 
   return (
-    <ApplicationsView
-      items={items}
-      targets={deployTargets}
-      canCreate={auth.can('application:create')}
-      canDeploy={canDeploy}
-      canDelete={auth.can('application:delete')}
-      ai={auth.can('application:create') ? await newApplicationAi() : null}
-    />
+    <>
+      <LiveRefresh topics={['applications', 'deployments']} />
+      <ApplicationsView
+        items={items}
+        targets={deployTargets}
+        canCreate={auth.can('application:create')}
+        canDeploy={canDeploy}
+        canDelete={auth.can('application:delete')}
+        ai={auth.can('application:create') ? await newApplicationAi() : null}
+      />
+    </>
   );
 }

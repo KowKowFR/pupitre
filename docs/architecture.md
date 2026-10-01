@@ -3,7 +3,8 @@
 [`CLAUDE.md`](../CLAUDE.md) porte les décisions. Ce document explique ce qu'elles
 impliquent quand on ouvre le code — où regarder, et ce qui va vous surprendre.
 
-- [Les trois abstractions](#les-trois-abstractions)
+- [Les quatre abstractions](#les-quatre-abstractions)
+- [Dépôts liés](#dépôts-liés)
 - [AppSpec — la spec neutre](#appspec--la-spec-neutre)
 - [Pipeline de déploiement](#pipeline-de-déploiement)
 - [Logs en direct](#logs-en-direct)
@@ -13,17 +14,18 @@ impliquent quand on ouvre le code — où regarder, et ce qui va vous surprendre
 - [Rollback automatique](#rollback-automatique)
 - [Versions et rétention](#versions-et-rétention)
 
-## Les trois abstractions
+## Les quatre abstractions
 
-Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy
-ou un scanner doit se faire en ajoutant une classe**. Ce qui suit est la
-conséquence pratique.
+Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy,
+un scanner ou un fournisseur de code doit se faire en ajoutant une classe**. Ce
+qui suit est la conséquence pratique.
 
 | Interface | Fichier | Implémentations |
 |---|---|---|
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
 | `ProxyProvider` | `packages/core/src/proxy/` | `TraefikProvider` — `BunkerWebProvider` n'existe pas |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
+| `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider` |
 
 **`DeploymentDriver`** — `preflight` `allocatePort` `render` `upload` `build`
 `deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus les
@@ -57,6 +59,33 @@ Compose » dans le message d'un déploiement abandonné. Aucun chemin d'exécuti
 n'en dépend — c'est du vocabulaire, pas une branche — mais la règle serait plus
 propre si ce mot venait du driver. À cette ligne près, le seul endroit du dépôt
 qui a le droit de savoir sur quel runtime il tourne, c'est un driver.
+
+## Dépôts liés
+
+Une application peut être liée à une branche d'un dépôt GitHub. Le dépôt porte un
+`pupitre.json` — l'AppSpec, rien d'autre — à sa racine, ou dans le dossier de
+l'application pour un monorepo.
+
+- **Le dépôt dit quoi, le panel dit où et quand.** Cibles, runtime et mode de
+  déclenchement vivent dans la liaison, sous RBAC. Le fichier ne porte ni cible,
+  ni runtime, ni script : un droit d'écriture sur le dépôt ne devient pas un
+  droit d'exécution sur les machines.
+- **Polling, jamais de webhook.** Le panel est privé. Le worker demande chaque
+  minute le dernier commit de chaque branche liée (`source:poll`, file de
+  supervision), avec un ETag : « rien de neuf » répond 304 et ne coûte rien.
+- **Trois modes.** Automatique ; automatique sauf changement d'infra (le
+  défaut) ; toujours validé. Ce qui est de l'infra est décidé par
+  `classifySpecChange()` : port, exposition, domaine, volumes, secrets, variables,
+  ressources, services ajoutés ou retirés.
+- **Le code voyage en archive.** Le worker télécharge l'archive du commit exact
+  et la passe au driver (`DriverContext.sourceArchive`), qui la décompresse à la
+  racine de la release. Le build reste sur la cible, sans registry.
+- **Tout est tracé.** Chaque déploiement garde le dépôt, la branche et le commit ;
+  son état est renvoyé sur le commit GitHub (`pupitre/{cible}`).
+
+La première vérification d'une liaison enregistre le commit en tête sans
+déployer : lier un dépôt ne doit pas redéployer ce qui tourne. « Déployer ce
+commit » le fait à la demande.
 
 ## AppSpec — la spec neutre
 
@@ -95,6 +124,28 @@ Pour voir les deux rendus côte à côte sans rien déployer :
 ```bash
 pnpm tsx scripts/render-both.ts packages/core/src/spec/__fixtures__/simple.json
 ```
+
+## Catalogue — des AppSpec toutes faites
+
+`packages/core/src/catalog/`. Un modèle est une **fonction qui rend une AppSpec**
+à partir de quatre paramètres (nom, domaine, TLS, e-mail de la personne qui
+installe) — jamais un `compose.yml` recopié d'un README. Il passe par le même
+`appSpecSchema` que le reste, se déploie donc sur les deux runtimes, et un test
+instancie chaque modèle avec et sans domaine.
+
+Ce que l'AppSpec ne sait pas dire, le catalogue ne le dit pas : une image qui
+exige une commande de démarrage (MinIO, Keycloak), une URL de base de données
+avec le mot de passe dedans (Umami, Outline) ou la socket Docker (Portainer)
+n'y entre pas. Les mots de passe partagés entre une application et sa base
+passent par les alias de secrets `{ name, from }`.
+
+Les secrets qui servent à **se connecter** sont saisis à l'installation
+(`askedSecrets`) : un secret généré ne se relit jamais, un mot de passe
+d'administration généré serait perdu. Les autres sont générés.
+
+Installer (`POST /api/catalog/{id}`) crée l'application, sans la déployer. Le
+choix de la cible reste le geste habituel, avec son pipeline et ses scans.
+Ajouter un modèle : une entrée dans `templates.ts`, rien d'autre.
 
 ## Pipeline de déploiement
 
@@ -145,6 +196,49 @@ Redis dédiée par flux, relâchée à la déconnexion du client.
 
 Le même mécanisme sert ailleurs : `workload:{targetId}` pour la progression des
 actions sur les charges d'une cible, et le flux d'état de services de `/apps`.
+
+## Temps réel : présence, discussion, écrans vivants
+
+Un canal Redis unique, `pupitre:realtime`, porte des événements typés et validés
+(`@pupitre/core` → `realtime.ts`) : présence, messages de la discussion,
+signaux d'écran (`live`), activité du journal. `GET /api/realtime` les relaie en
+SSE — **un abonné Redis par processus**, pas par onglet, qui distribue en
+mémoire aux flux ouverts.
+
+Côté navigateur, **un seul flux pour tous les onglets** : ils élisent un meneur
+(Web Locks) qui ouvre le flux et relaie aux autres (BroadcastChannel). En
+HTTP/1.1, un flux par onglet épuiserait les six connexions par origine.
+
+**Les écrans ne reçoivent jamais de données par ce canal.** Un signal dit
+« les déploiements ont bougé » ; la page qui l'écoute (`<LiveRefresh>`) se
+relit auprès du serveur, avec les permissions de la session. Signaux venus du
+worker (début et fin des tâches BullMQ) et du journal d'audit (un observateur
+nommé, à côté de celui des notifications). Au plus un rafraîchissement toutes
+les 4 s, rien tant que l'onglet est caché. L'activité du journal ne part qu'aux
+sessions qui ont `audit:read`.
+
+**Présence** — dans Redis, pas en base : nombre d'onglets ouverts, dernier
+signe de vie du flux, dernière interaction, choix de la personne (absent, ne
+pas déranger). L'état affiché se déduit (`effectivePresence`) : hors ligne sans
+onglet ou après 75 s de silence (processus tué), absent après 5 min sans
+interaction. Un balayage toutes les 20 s, sous verrou Redis, annonce ce que le
+temps seul fait changer.
+
+**Discussion** — une bulle en bas à droite de chaque écran, qui ouvre le fil
+par-dessus la page (couche 55 : sous les tiroirs et dialogues, qui piègent le
+focus). Elle vit dans le layout : elle survit à la navigation, et le fil reste
+à jour en direct même fermé. La bulle porte les non-lus — en rouge quand l'un
+d'eux mentionne la personne ou répond à l'un de ses messages — et un « +1 »
+s'en envole à chaque arrivée.
+
+En base : `chat_messages` (avec `reply_to_id`), `chat_reads`, `chat_reactions`
+(clé `(message, personne, emoji)` : réagir deux fois retire). Une mention est un
+jeton `<@user|target|app:id>` posé par le compositeur, avec son libellé du
+moment ; la route ne garde que celles que l'auteur a le droit d'ouvrir. Une
+réaction n'est qu'un emoji (`isChatEmoji`), jamais du texte — sinon elle
+deviendrait un second canal de messages. Texte brut, jamais de HTML. Un
+message effacé garde sa ligne, vidée, et perd ses réactions ; effacer celui
+d'un autre demande `user:manage` et passe par `logAudit()`.
 
 ## Ports : la base tranche, la cible vérifie
 

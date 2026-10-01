@@ -22,4 +22,8 @@ export async function register(): Promise<void> {
   // Le navigateur de chaque action tracée, lu dans la requête qui l'a portée.
   const { installAuditContext } = await import('./lib/audit-context');
   installAuditContext();
+
+  // Chaque action tracée réveille les écrans ouverts qu'elle concerne.
+  const { installRealtimeAudit } = await import('./lib/realtime');
+  installRealtimeAudit();
 }

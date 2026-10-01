@@ -1,5 +1,6 @@
 import { auditQuerySchema, getAppSettings, listAuditActors, listAuditLogs } from '@pupitre/db';
 import { Download } from 'lucide-react';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { admin } from '@/i18n/messages/admin';
@@ -39,6 +40,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
 
   return (
     <>
+      <LiveRefresh topics="none" activity />
       <PageHeader
         title={t('logs.title')}
         description={

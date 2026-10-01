@@ -153,6 +153,24 @@ export const MONITOR_SWEEP_JOB = 'monitor:sweep' as const;
  */
 export const MONITOR_CAPTURE_JOB = 'monitor:capture' as const;
 
+/**
+ * Dépôts liés : « quoi de neuf sur la branche ? ».
+ *
+ * Planifiée chaque minute par le worker (scheduler BullMQ, jamais un cron),
+ * et enfilée à la demande par « Vérifier maintenant » avec un `sourceId`. Sur
+ * la file de supervision : ce sont des appels HTTP courts vers le fournisseur,
+ * qu'un déploiement en cours ne doit pas faire attendre.
+ */
+export const SOURCE_POLL_JOB = 'source:poll' as const;
+
+/**
+ * Déployer depuis un dépôt, sur décision humaine : le commit en tête de la
+ * branche (« Déployer ce commit »), ou un déploiement en attente qu'on valide.
+ * Même file que le polling, et la même fonction de déploiement au bout : une
+ * seule implémentation, que le déclenchement soit automatique ou manuel.
+ */
+export const SOURCE_DEPLOY_JOB = 'source:deploy' as const;
+
 export const pingJobDataSchema = z.object({
   message: z.string().min(1).max(280).default('pong'),
   requestedAt: z.string().datetime(),
@@ -321,6 +339,32 @@ export const targetMetricsJobResultSchema = hostMetricsSchema;
 
 export type TargetMetricsJobData = z.infer<typeof targetMetricsJobDataSchema>;
 export type TargetMetricsJobResult = z.infer<typeof targetMetricsJobResultSchema>;
+
+export const sourcePollJobDataSchema = z.object({
+  /** Restreint la vérification à une liaison. `null` : toutes les liaisons actives. */
+  sourceId: z.string().uuid().nullable().default(null),
+  /** Ignore l'ETag : repose la question même si GitHub dit « rien de neuf ». */
+  force: z.boolean().default(false),
+  actorId: z.string().min(1).nullable().default(null),
+  ip: z.string().min(1).nullable().default(null),
+});
+export type SourcePollJobData = z.infer<typeof sourcePollJobDataSchema>;
+
+export const sourceDeployJobDataSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('head'),
+    sourceId: z.string().uuid(),
+    actorId: z.string().min(1).nullable().default(null),
+    ip: z.string().min(1).nullable().default(null),
+  }),
+  z.object({
+    kind: z.literal('proposal'),
+    proposalId: z.string().uuid(),
+    actorId: z.string().min(1).nullable().default(null),
+    ip: z.string().min(1).nullable().default(null),
+  }),
+]);
+export type SourceDeployJobData = z.infer<typeof sourceDeployJobDataSchema>;
 
 export const monitorSweepJobDataSchema = z.object({
   /** Restreint le balayage à une sonde. Sert au déclenchement manuel. */

@@ -106,6 +106,11 @@ export function StepIcon({ status, className }: { status: StepStatus; className?
   );
 }
 
+/**
+ * Durée d'un run. En cours, elle se compte jusqu'à maintenant — et le serveur
+ * et le navigateur ne lisent pas l'horloge à la même seconde : là où elle
+ * s'affiche, l'élément porte `suppressHydrationWarning`.
+ */
 export function formatDuration(from: string | null, to: string | null): string {
   if (!from) return '—';
   const end = to ? new Date(to).getTime() : Date.now();

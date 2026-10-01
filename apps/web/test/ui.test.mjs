@@ -76,9 +76,10 @@ describe('masquage par permission', () => {
     assert.deepEqual(groups.map((group) => group.key), ['operations']);
   });
 
-  it("le rail d'un administrateur montre les onze sections", () => {
+  it("le rail d'un administrateur montre les douze sections, catalogue compris", () => {
     const keys = visibleNavigation(ADMIN).flatMap((group) => group.sections.map((section) => section.key));
-    assert.equal(keys.length, 11);
+    assert.equal(keys.length, 12);
+    assert.ok(keys.includes('catalog'));
   });
 
   it('la palette ne propose pas une commande interdite', () => {
@@ -96,6 +97,7 @@ describe('masquage par permission', () => {
   it('la section active suit le chemin, sans que « / » capture tout', () => {
     assert.equal(activeSection('/'), 'dashboard');
     assert.equal(activeSection('/targets/abc'), 'targets');
+    assert.equal(activeSection('/catalog'), 'catalog');
     assert.equal(activeSection('/admin/settings/ia'), 'settings');
     assert.equal(activeSection('/account'), null);
   });

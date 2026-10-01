@@ -13,6 +13,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Kbd } from '@/components/ui/kbd';
+import { PresenceDot } from '@/components/realtime/presence';
+import { useOptionalRealtime } from '@/components/realtime/realtime-provider';
+import { StatusSubMenu } from '@/components/realtime/status-menu';
 import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 import { DOCS_URL } from '@/lib/links';
@@ -43,13 +46,17 @@ export function UserMenu({
   const t = useT(chrome);
   const { openShortcuts } = useShell();
   const [theme, setTheme] = React.useState<ThemeChoice>(initialTheme);
+  const realtime = useOptionalRealtime();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         {variant === 'rail' ? (
           <button type="button" className="side-user" aria-label={t('shell.userMenu')}>
-            <Avatar name={name} />
+            <span className="presence">
+              <Avatar name={name} />
+              {realtime ? <PresenceDot status={realtime.statusOf(realtime.me)} /> : null}
+            </span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="t-sm truncate leading-[18px] font-semibold">{name}</span>
               <span className="t-cap truncate text-text-3">{roleLabel}</span>
@@ -74,6 +81,7 @@ export function UserMenu({
             <span className="t-cap truncate text-text-3">{email}</span>
           </span>
         </div>
+        <StatusSubMenu />
         <DropdownMenuItem asChild>
           <Link href="/account">
             <ShieldCheck aria-hidden />

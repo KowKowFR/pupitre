@@ -33,7 +33,7 @@ packages/db     Schéma Drizzle + migrations (source unique)
 packages/core   AppSpec, DeploymentDriver, ProxyProvider, Scanner
 ```
 
-## Les 3 abstractions — ne jamais les contourner
+## Les 4 abstractions — ne jamais les contourner
 
 ### DeploymentDriver
 `preflight() deploy() healthcheck() rollback() destroy() logs() allocatePort()`
@@ -47,8 +47,12 @@ Implémentations : `TraefikProvider` (défaut), `BunkerWebProvider` (P1).
 `run(image): Promise<ScanReport>` — rapport normalisé
 Implémentations : `TrivyScanner`, `GrypeScanner`, `SyftSBOM`.
 
-**Critère de qualité :** ajouter un runtime, un proxy ou un scanner doit se faire
-en ajoutant une classe, sans modifier une seule ligne ailleurs.
+### SourceProvider
+`resolveHead() compare() readFile() commit() downloadArchive() reportStatus() listRepositories()`
+Implémentation : `GitHubSourceProvider` (GitHub App, polling — jamais de webhook).
+
+**Critère de qualité :** ajouter un runtime, un proxy, un scanner ou un fournisseur
+de code doit se faire en ajoutant une classe, sans modifier une seule ligne ailleurs.
 
 ## AppSpec — la spec neutre
 
@@ -75,6 +79,9 @@ Conséquence : la même app se redéploie sur l'autre runtime en changeant un ch
    Jamais en clair, jamais dans les logs.
 8. **Les logs de déploiement transitent par Redis pub/sub** sur `deploy:{id}`,
    relayés en SSE. Pas de `tail` sur fichier.
+9. **Un dépôt lié ne porte que l'AppSpec** (`pupitre.json`). Ni cible, ni runtime,
+   ni script : le dépôt dit quoi, le panel dit où et quand. Et Pupitre interroge
+   le dépôt (polling) — le panel reste privé, aucun webhook entrant.
 
 ## Conventions
 
@@ -82,6 +89,8 @@ Conséquence : la même app se redéploie sur l'autre runtime en changeant un ch
 - Permissions : chaînes `ressource:action` (`deployment:create`, `target:delete`)
 - Statuts de step : `pending | running | success | failed | skipped`
 - Migrations : jamais éditer une migration appliquée, toujours en créer une nouvelle
+- Temps réel : un canal Redis `pupitre:realtime` relayé en SSE. Un écran reçoit un
+  signal, jamais des données — il se relit (`<LiveRefresh>`) avec ses permissions
 
 ## Décisions déjà tranchées — ne pas rouvrir
 

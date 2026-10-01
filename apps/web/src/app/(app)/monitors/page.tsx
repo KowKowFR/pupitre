@@ -1,5 +1,6 @@
 import { MONITOR_CHECK_RETENTION_DAYS, MONITOR_TYPES_LIST } from '@pupitre/core';
 import { getAppSettingsValue, listAdoptableApps, listMonitors } from '@pupitre/db';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { formatSettingsOf } from '@/lib/format';
 import { buildMonitorViews, monitorTypeOptions } from '@/lib/monitors';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -55,18 +56,21 @@ export default async function MonitorsPage() {
   const types = (await monitorTypeOptions(MONITOR_TYPES_LIST)) as TypeOption[];
 
   return (
-    <MonitorsPanel
-      monitors={monitors}
-      types={types}
-      adoptable={adoptable.map((app) => ({
-        applicationId: app.applicationId,
-        slug: app.slug,
-        name: app.name,
-        url: app.url,
-      }))}
-      canManage={auth.can('monitor:manage')}
-      retentionDays={MONITOR_CHECK_RETENTION_DAYS}
-      format={formatSettingsOf(settings)}
-    />
+    <>
+      <LiveRefresh topics={['monitors']} />
+      <MonitorsPanel
+        monitors={monitors}
+        types={types}
+        adoptable={adoptable.map((app) => ({
+          applicationId: app.applicationId,
+          slug: app.slug,
+          name: app.name,
+          url: app.url,
+        }))}
+        canManage={auth.can('monitor:manage')}
+        retentionDays={MONITOR_CHECK_RETENTION_DAYS}
+        format={formatSettingsOf(settings)}
+      />
+    </>
   );
 }

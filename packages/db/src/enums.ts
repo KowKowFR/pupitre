@@ -122,3 +122,22 @@ export const notificationChannelKindEnum = pgEnum('notification_channel_kind', [
   'discord',
   'webhook',
 ]);
+
+/** Fournisseur de code d'un dépôt lié. Un seul aujourd'hui ; l'enum en attend d'autres. */
+export const sourceProviderEnum = pgEnum('source_provider', ['github']);
+
+/**
+ * Ce que fait un nouveau commit sur une branche liée :
+ * `auto` le déploie ; `auto_unless_infra` le déploie sauf s'il touche à
+ * l'infrastructure (port, domaine, volumes, secrets…) ; `manual` attend toujours
+ * une validation.
+ */
+export const sourceModeEnum = pgEnum('source_mode', ['auto', 'auto_unless_infra', 'manual']);
+
+/** Un commit en attente de validation, et ce qu'il est devenu. */
+export const sourceProposalStatusEnum = pgEnum('source_proposal_status', [
+  'pending',
+  'approved',
+  'dismissed',
+  'superseded',
+]);

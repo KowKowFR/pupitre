@@ -14,6 +14,7 @@ const REDACTED = [
   'encryptedCredential',
   'privateKey',
   'passphrase',
+  'pem',
   'authorization',
   'cookie',
   'MASTER_KEY',

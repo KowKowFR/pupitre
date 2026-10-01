@@ -41,6 +41,10 @@
     "./ai": {
       "types": "./dist/ai/index.d.ts",
       "default": "./dist/ai/index.js"
+    },
+    "./sources": {
+      "types": "./dist/sources/index.d.ts",
+      "default": "./dist/sources/index.js"
     }
   },
   "files": [

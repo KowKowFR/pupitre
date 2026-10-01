@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ChevronRight, CircleHelp, Keyboard, Search } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
+import { TeamPresence } from '@/components/realtime/presence';
 import { Led } from '@/components/ui/led';
 import { IconButton, Tooltip } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
@@ -68,6 +69,7 @@ export function Topbar({
         ) : null}
       </nav>
       <div className="ml-auto flex items-center gap-2">
+        <TeamPresence />
         <WorkerStatusPill worker={worker} />
         <IconButton label={t('shell.docs')} asChild>
           <a href={DOCS_URL} target="_blank" rel="noreferrer">

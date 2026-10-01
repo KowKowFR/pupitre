@@ -34,6 +34,7 @@ import {
 } from '@pupitre/db';
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
+import { prepareSourceArchive } from '../sources/archive.js';
 import { logger } from '../logger.js';
 import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
@@ -235,7 +236,20 @@ export async function runDeploymentPipeline(
 
     upload: async () => {
       if (!state.artifacts) throw new Error('rien à déposer : le rendu a échoué');
-      await driver.upload(ctx, state.artifacts, (line) => stream.line('upload', line));
+      // Un run venu d'un dépôt lié apporte le code de son commit : l'archive
+      // est téléchargée ici, passée au driver, puis effacée du worker.
+      const source = await prepareSourceArchive(deployment, spec, (line) =>
+        stream.line('upload', line),
+      );
+      try {
+        await driver.upload(
+          source ? { ...ctx, sourceArchive: source.archive } : ctx,
+          state.artifacts,
+          (line) => stream.line('upload', line),
+        );
+      } finally {
+        await source?.cleanup();
+      }
       return 'success';
     },
 
