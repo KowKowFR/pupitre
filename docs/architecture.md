@@ -147,6 +147,40 @@ Installer (`POST /api/catalog/{id}`) crée l'application, sans la déployer. Le
 choix de la cible reste le geste habituel, avec son pipeline et ses scans.
 Ajouter un modèle : une entrée dans `templates.ts`, rien d'autre.
 
+**La preuve, sur une vraie cible** — `pnpm test:catalog <cible>` déploie chaque
+modèle par le driver (pull compris), attend sa sonde, le requête en HTTP depuis
+la cible sur son chemin de santé, puis le détruit et vérifie que rien ne reste.
+`--prune-images` vide les images entre deux modèles : réservé à une cible de
+test. Une image sans variante pour l'architecture de la cible est rapportée à
+part, hors des échecs : c'est un fait sur l'image, pas sur le modèle.
+
+## Import d'un docker-compose.yml
+
+`packages/core/src/compose/` (sous-chemin `@pupitre/core/compose`, pour que
+l'analyseur YAML reste hors du navigateur). Le fichier devient une AppSpec
+**proposée**, jamais enregistrée d'office : elle part dans l'éditeur de
+« Nouvelle application », et c'est la création habituelle qui l'enregistre.
+
+Rien n'est silencieux : chaque clé du fichier est traduite, ou nommée dans un
+message, à l'un de trois niveaux.
+
+- **bloquant** — l'application ne fonctionnera probablement pas sans une
+  décision humaine : `command`/`entrypoint` (l'AppSpec n'en porte pas), la
+  socket Docker, un fichier de l'hôte monté, `privileged`, `network_mode`… Ce
+  qui touche à l'isolation n'est jamais traduit « au mieux ».
+- **approximation** — un dossier de l'hôte devient un volume nommé vide, un
+  port non déclaré est deviné d'après l'image, une variable `${…}` prend sa
+  valeur par défaut.
+- **ignoré à dessein** — `restart`, `container_name`, les réseaux : Pupitre en
+  décide.
+
+Les variables qui ressemblent à des secrets ne sont jamais reprises en clair :
+elles deviennent des secrets générés, et deux noms qui partageaient la même
+valeur (ou la même variable du shell) deviennent un secret et un alias. Un
+seul service est exposé — celui qui publie un port, le mieux nommé s'ils sont
+plusieurs — et un domaine se lit dans les labels Traefik. Le YAML est lu avec
+une limite d'alias : un fichier piégé ne fait pas exploser la mémoire.
+
 ## Pipeline de déploiement
 
 `POST /api/deployments` **crée les dix étapes en base, toutes en `pending`**,
