@@ -14,6 +14,8 @@ export type AuthContext = {
   userId: string;
   email: string;
   name: string;
+  /** L'URL versionnée de sa photo de profil, ou `null`. */
+  image: string | null;
   roles: RoleKey[];
   permissions: Permission[];
   ip: string | null;
@@ -49,6 +51,7 @@ export async function requireSession(request: Request): Promise<AuthContext> {
     userId: session.user.id,
     email: session.user.email,
     name: session.user.name,
+    image: session.user.image ?? null,
     roles: grants.roles,
     permissions: grants.permissions,
     ip,

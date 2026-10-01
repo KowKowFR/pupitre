@@ -10,6 +10,7 @@ import {
   listRoles,
 } from '@pupitre/db';
 import { ChatDock } from '@/components/chat/chat-dock';
+import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { RealtimeProvider } from '@/components/realtime/realtime-provider';
 import { CrumbProvider } from '@/components/shell/breadcrumb';
 import type { NavMeta } from '@/components/shell/nav-item';
@@ -131,6 +132,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = {
     name: auth.name,
     email: auth.email,
+    image: auth.image,
     roleLabel,
     theme: parseTheme(cookieStore.get(THEME_COOKIE)?.value),
   };
@@ -139,7 +141,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <TooltipProvider>
       <RealtimeProvider
         me={auth.userId}
-        members={chatMembers.map((member) => ({ id: member.id, name: member.name }))}
+        members={chatMembers.map((member) => ({
+          id: member.id,
+          name: member.name,
+          image: member.image,
+        }))}
         initialUnread={chatUnread}
         initialMentions={chatMentions}
       >
@@ -171,6 +177,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               </div>
             </div>
             <ChatDock canModerate={auth.can('user:manage')} format={formatSettingsOf(settings)} />
+            {/* Une photo de profil changée, un compte renommé : le visage et le nom
+                se mettent à jour dans le rail, la présence et la discussion. */}
+            <LiveRefresh topics={['users']} />
             <Toaster />
           </CrumbProvider>
         </ShellProvider>

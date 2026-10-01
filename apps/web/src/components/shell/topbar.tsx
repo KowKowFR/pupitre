@@ -126,7 +126,13 @@ export function MobileHeader({
   instanceName: string;
   sections: Array<ShellSection & { label: string }>;
   metas: Partial<Record<string, NavMeta>>;
-  user: { name: string; email: string; roleLabel: string; theme: ThemeChoice };
+  user: {
+    name: string;
+    email: string;
+    image: string | null;
+    roleLabel: string;
+    theme: ThemeChoice;
+  };
 }) {
   const t = useT(chrome);
   const { openPalette } = useShell();

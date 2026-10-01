@@ -2,7 +2,16 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { Ellipsis, Link2Off, Power, Send, ShieldAlert, ShieldCheck, UserPlus } from 'lucide-react';
+import {
+  Ellipsis,
+  ImageOff,
+  Link2Off,
+  Power,
+  Send,
+  ShieldAlert,
+  ShieldCheck,
+  UserPlus,
+} from 'lucide-react';
 import type { RoleKey, Translate } from '@pupitre/core';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
@@ -48,6 +57,8 @@ export type AdminUserRow = {
   id: string;
   name: string;
   email: string;
+  /** L'URL versionnée de sa photo de profil, ou `null`. */
+  image: string | null;
   banned: boolean;
   banReason: string | null;
   roles: RoleKey[];
@@ -246,7 +257,7 @@ export function UsersView({
                 <TableRow key={user.id}>
                   <TableCell>
                     <span className="flex items-center gap-2.5">
-                      <Avatar name={user.name || user.email} />
+                      <Avatar name={user.name || user.email} src={user.image} />
                       <span className="flex min-w-0 flex-col">
                         <span className="cellname truncate">
                           {user.name}
@@ -329,6 +340,21 @@ export function UsersView({
                             >
                               <Link2Off aria-hidden />
                               {t('users.action.cancelLink')}
+                            </DropdownMenuItem>
+                          ) : null}
+                          {user.image ? (
+                            // La modération d'une photo déplacée : elle part, le compte reste.
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                void call(
+                                  `/api/admin/users/${user.id}/avatar`,
+                                  { method: 'DELETE' },
+                                  `${t('users.action.removeAvatar')} · ${user.email}`,
+                                )
+                              }
+                            >
+                              <ImageOff aria-hidden />
+                              {t('users.action.removeAvatar')}
                             </DropdownMenuItem>
                           ) : null}
                           {isSelf ? (

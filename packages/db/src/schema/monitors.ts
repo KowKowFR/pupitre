@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm';
 import {
   boolean,
   check,
-  customType,
   index,
   integer,
   jsonb,
@@ -13,6 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { bytea } from './columns.js';
 import { healthStatusEnum } from '../enums.js';
 import { users } from './auth.js';
 import { applications } from './infra.js';
@@ -207,16 +207,6 @@ export const monitorIncidents = pgTable(
     index('monitor_incidents_monitor_started_idx').on(t.monitorId, t.startedAt.desc()),
   ],
 );
-
-/**
- * `bytea` — Drizzle ne le fournit pas en natif ; le pilote `pg` rend déjà un
- * `Buffer` et en accepte un, il n'y a donc rien à transformer.
- */
-const bytea = customType<{ data: Buffer; driverData: Buffer }>({
-  dataType() {
-    return 'bytea';
-  },
-});
 
 /**
  * **Ce que la sonde a vu.**

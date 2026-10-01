@@ -70,6 +70,8 @@ la navigation métier.
 | `/api/account/two-factor/setup` | POST | session |
 | `/api/account/two-factor/activate` | POST | session |
 | `/api/account/two-factor/disable` | POST | session |
+| `/api/account/avatar` | PUT / DELETE | session — le corps **est** l'image (`content-type: image/…`), 512 Kio au plus, recadrée par le navigateur ; format et dimensions relus dans les octets |
+| `/api/users/:id/avatar` | GET | session — immuable avec `?v=`, l'URL que porte `users.image` |
 
 ### Utilisateurs et rôles
 
@@ -80,6 +82,7 @@ la navigation métier.
 | `/api/admin/users/:id/role` | PATCH | `user:manage` |
 | `/api/admin/users/:id/status` | PATCH | `user:manage` |
 | `/api/admin/users/:id/two-factor` | DELETE | **`user:reset-2fa`** |
+| `/api/admin/users/:id/avatar` | DELETE | `user:manage` — modération d'une photo, tracée à l'audit |
 | `/api/admin/roles` | GET / POST | `role:read` / `role:manage` |
 | `/api/admin/roles/:key` | GET / PATCH / DELETE | `role:read` / `role:manage` / `role:manage` |
 
@@ -166,6 +169,17 @@ la navigation métier.
 dans la file. Une même route ne pouvait pas répondre à la fois à « où en est le
 job n° 42 » et à « modifie la tâche planifiée `<uuid>` » : deux ressources, deux
 chemins.
+
+### Discussion
+
+| Route | Méthodes | Permission |
+|---|---|---|
+| `/api/chat/messages` | GET / POST | session — POST en JSON, ou en `multipart/form-data` avec des images (champ `image`, quatre au plus, 3 Mo chacune) ; une image seule suffit |
+| `/api/chat/messages/:id` | DELETE | l'auteur, ou `user:manage` — efface aussi les images |
+| `/api/chat/messages/:id/reactions` | POST | session |
+| `/api/chat/attachments/:id` | GET | session — immuable ; 404 si le message a été effacé |
+| `/api/chat/read` | POST | session |
+| `/api/chat/directory` | GET | session — ce que la session peut mentionner |
 
 ### Paramètres, notifications, journal
 

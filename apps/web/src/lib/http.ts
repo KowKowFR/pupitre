@@ -127,6 +127,47 @@ export async function readJsonBody<T extends z.ZodTypeAny>(
   return schema.parse(raw);
 }
 
+/**
+ * Le corps brut d'une requête, borné : la lecture s'arrête **pendant** le
+ * transfert dès que la borne est franchie, sans attendre d'avoir tout reçu.
+ * L'en-tête `content-length`, quand il est là, permet de refuser avant même de
+ * lire. Sert aux envois d'images, qui ne passent pas par JSON.
+ */
+export async function readLimitedBody(request: Request, maxBytes: number): Promise<Buffer> {
+  const tooLarge = () =>
+    new HttpError(413, 'payload_too_large', msg(errors, 'payload_too_large', { max: maxBytes }));
+  const announced = Number(request.headers.get('content-length') ?? NaN);
+  if (Number.isFinite(announced) && announced > maxBytes) throw tooLarge();
+  if (!request.body) return Buffer.alloc(0);
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = request.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks);
+}
+
+/** Un formulaire `multipart/form-data`, borné comme `readLimitedBody()`. */
+export async function readLimitedFormData(request: Request, maxBytes: number): Promise<FormData> {
+  const body = await readLimitedBody(request, maxBytes);
+  try {
+    return await new Response(new Uint8Array(body), {
+      headers: { 'content-type': request.headers.get('content-type') ?? '' },
+    }).formData();
+  } catch {
+    throw new HttpError(400, 'invalid_form', msg(errors, 'invalid_form'));
+  }
+}
+
 /** Valide les paramètres de query string. */
 export function readSearchParams<T extends z.ZodTypeAny>(request: Request, schema: T): z.infer<T> {
   return schema.parse(searchParamsOf(request));

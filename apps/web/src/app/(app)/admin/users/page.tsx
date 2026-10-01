@@ -40,6 +40,7 @@ export default async function UsersPage() {
       id: row.id,
       name: row.name,
       email: row.email,
+      image: row.image,
       banned: row.banned,
       banReason: row.banReason,
       roles: grants[index]?.roles ?? [],

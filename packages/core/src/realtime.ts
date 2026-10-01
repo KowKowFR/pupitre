@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { imageMediaTypeSchema } from './media.js';
 
 /**
  * Le temps réel du panel : qui est là, ce qui se dit, ce qui vient de changer.
@@ -155,6 +156,20 @@ export const chatReactionSchema = z.object({
 });
 export type ChatReaction = z.infer<typeof chatReactionSchema>;
 
+/**
+ * Une image jointe à un message : ses métadonnées seulement. Les octets se
+ * servent à part (`/api/chat/attachments/:id`) — le canal temps réel ne porte
+ * jamais que de quoi réserver la place à l'écran.
+ */
+export const chatAttachmentSchema = z.object({
+  id: z.string().uuid(),
+  contentType: imageMediaTypeSchema,
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  bytes: z.number().int().nonnegative(),
+});
+export type ChatAttachment = z.infer<typeof chatAttachmentSchema>;
+
 export const chatMessageSchema = z.object({
   id: z.string().uuid(),
   channel: z.string().min(1).max(40),
@@ -164,6 +179,7 @@ export const chatMessageSchema = z.object({
   mentions: z.array(chatMentionSchema),
   replyTo: chatQuoteSchema.nullable(),
   reactions: z.array(chatReactionSchema),
+  attachments: z.array(chatAttachmentSchema).default([]),
   createdAt: z.string(),
 });
 export type ChatMessage = z.infer<typeof chatMessageSchema>;

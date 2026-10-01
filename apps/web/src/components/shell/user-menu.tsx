@@ -33,12 +33,14 @@ import { useShell } from './shell-provider';
 export function UserMenu({
   name,
   email,
+  image,
   roleLabel,
   theme: initialTheme,
   variant = 'rail',
 }: {
   name: string;
   email: string;
+  image: string | null;
   roleLabel: string;
   theme: ThemeChoice;
   variant?: 'rail' | 'icon';
@@ -54,7 +56,7 @@ export function UserMenu({
         {variant === 'rail' ? (
           <button type="button" className="side-user" aria-label={t('shell.userMenu')}>
             <span className="presence">
-              <Avatar name={name} />
+              <Avatar name={name} src={image} />
               {realtime ? <PresenceDot status={realtime.statusOf(realtime.me)} /> : null}
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
@@ -75,7 +77,7 @@ export function UserMenu({
         className="w-[240px]"
       >
         <div className="-mx-1 -mt-1 mb-1 flex items-center gap-2.5 border-b border-border-subtle px-3 py-2.5">
-          <Avatar name={name} />
+          <Avatar name={name} src={image} />
           <span className="flex min-w-0 flex-col">
             <span className="t-sm truncate font-semibold">{name}</span>
             <span className="t-cap truncate text-text-3">{email}</span>
