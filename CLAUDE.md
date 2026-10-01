@@ -44,7 +44,10 @@ Implémentations : `DockerComposeDriver`, `K3sDriver`.
 Implémentations : `TraefikProvider` (défaut), `BunkerWebProvider` (P1).
 Un domaine est une **route** posée par le proxy vers l'amont que le driver
 annonce (`upstream()` : port publié, Service du cluster). Le driver ne pose
-jamais de route ; le proxy ne sait pas sur quel runtime il route.
+jamais de route ; le proxy ne sait pas sur quel runtime il route. Comment
+publier l'application pour son proxy — celui de la machine, ou celui d'une
+autre (proxy central, `proxy_links`) — est une intention (`DriverContext.exposure`)
+que chaque driver traduit : boucle locale, adresse privée, NodePort, pare-feu.
 
 ### Scanner
 `run(image): Promise<ScanReport>` — rapport normalisé

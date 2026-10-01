@@ -460,8 +460,9 @@ Trois notions, chacune à sa place (`packages/core/src/proxy/model.ts`) :
 
 - **la connexion** — un proxy que le panel pilote, rangé dans `proxies` : son
   genre, sa configuration, et s'il a été installé par Pupitre (`managed`) ou
-  seulement trouvé. Un par machine aujourd'hui ; le modèle porte déjà un
-  placement `remote`, pour les proxies centraux à venir ;
+  seulement trouvé. Au plus un par machine ; une machine sans proxy peut
+  passer par celui d'une autre, par une **liaison** (`proxy_links`) — voir
+  plus bas ;
 - **la route** — un nom de domaine, une application, une cible, rangée dans
   `routes`. **Unique par nom, tenu par la base** : deux applications ne
   réclament pas le même domaine, et le perdant d'une course reçoit une 23505,
@@ -487,10 +488,36 @@ Le mode suit l'installation trouvée sur la machine, pas le runtime des
 applications : c'est une propriété du proxy. Un amont que le mode ne sait pas
 joindre est refusé, en le disant.
 
-**Le port de l'application n'est plus ouvert au monde** quand un proxy de la
-même machine la sert par la boucle locale (`publishAddress()`) : Compose le
-publie sur `127.0.0.1` seulement, et le pare-feu n'est pas ouvert. Sinon, ce
-port en HTTP clair contournerait le HTTPS du proxy.
+**Le port de l'application n'est plus ouvert au monde.** Le pipeline dit au
+driver comment la publier — `DriverContext.exposure`, une **intention**, pas un
+runtime : `bindAddress` (où écouter), `allowFrom` (qui laisser entrer),
+`byPort` (il faut un port). Chaque driver la traduit à sa façon :
+
+| Qui sert l'application | `exposure` | Compose | K3s |
+|---|---|---|---|
+| un proxy de la machine | `bindAddress: 127.0.0.1` | port sur la boucle locale, pare-feu fermé | rien : le proxy du cluster joint le Service |
+| le proxy d'une autre machine | `byPort`, `bindAddress` (l'adresse de la liaison si elle est à la machine), `allowFrom` (l'adresse d'arrivée du proxy) | port sur cette adresse, `ufw allow from` le proxy | `NodePort` sur le point d'entrée, `externalTrafficPolicy: Local`, `NetworkPolicy` qui n'accepte que le proxy |
+
+Sinon, ce port en HTTP clair contournerait le HTTPS du proxy. Côté K3s, le
+`NodePort` passe avant le pare-feu de la machine — d'où la `NetworkPolicy`, et
+`Local` pour que le pod voie l'adresse d'origine. `apply` ne retirant rien, le
+driver supprime la `NetworkPolicy` quand elle n'a plus lieu d'être.
+
+**Le proxy central.** Une liaison (`proxy_links`) relie une machine au proxy
+d'une autre, avec l'adresse par laquelle celle-ci la joint ; son test relève
+l'adresse d'arrivée (`ip route get`, depuis la machine du proxy) et si
+l'adresse est bien à la machine servie. `resolveServingProxy()` répond « qui
+sert cette cible » — le sien, sinon celui de sa liaison — et tout le reste
+(champ Domaines, pipeline, sonde) passe par lui. Pour le proxy, rien ne change
+que l'amont : un port **avec une adresse** (`{ kind: 'port', host, port }`), et
+une **portée** (`ProxyRouteSet.scope`) qui met la machine d'origine dans le nom
+des objets — la même application peut tourner sur deux machines servies par le
+même proxy. Le Traefik en fichier y route directement ; celui d'un cluster
+reçoit un `Service` sans sélecteur et une `EndpointSlice` vers l'autre machine,
+dans le namespace `pupitre-routes` — ni `ExternalName`, que Traefik refuse par
+défaut, ni réglage du proxy. Le worker ouvre une session vers la machine du
+proxy le temps de poser ou de sonder ; la tournée `routes:check` regroupe les
+domaines par machine de proxy.
 
 **Dans le pipeline**, les domaines sont décidés avant le rendu — ils décident de
 la publication du port —, et posés à l'étape `proxy`, après `healthcheck`. Puis

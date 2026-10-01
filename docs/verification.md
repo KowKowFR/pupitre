@@ -116,7 +116,18 @@ il installe Traefik par Pupitre (conteneur sous Docker, Traefik de K3s réglé),
 le teste, le retrouve par la détection, déploie une petite application par son
 driver, lui pose deux domaines — l'un en HTTPS avec redirection, l'autre en HTTP —,
 vérifie qu'ils répondent **à travers le proxy**, que le certificat est émis, qu'un
-domaine retiré ne répond plus, puis détruit et désinstalle tout.
+domaine retiré ne répond plus.
+
+Puis le **proxy central**, dans les deux sens : le Traefik de la machine Docker
+sert l'application déployée sur la machine K3s, et celui de K3s l'application
+de la machine Docker. L'adresse d'arrivée du proxy est relevée comme le fait le
+test d'une liaison ; l'application est publiée pour lui seul — `NodePort`
+réservé par une `NetworkPolicy` côté K3s, port publié sur l'adresse privée côté
+Docker (la boucle locale ne répond plus) ; côté K3s, un premier déploiement
+réservé à une autre adresse vérifie que le proxy s'y voit **refusé**. Ses deux
+domaines répondent à travers le proxy de l'autre machine, certificat émis, puis
+tout est retiré et rien ne doit rester chez le proxy. Enfin, tout est détruit et
+Traefik désinstallé.
 
 ```bash
 docker compose --profile test up -d pebble pebble-dns
@@ -127,7 +138,7 @@ Les certificats viennent de **Pebble**, le serveur ACME de test de l'équipe Let
 Encrypt : il valide réellement le défi HTTP-01 sur le port 80 de la cible, et
 `pebble-dns` résout les domaines de test vers elle. Sans eux (`--no-acme`), tout
 le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que le port
-de l'application n'est publié que sur la boucle locale. **23/23** au dernier
+de l'application n'est publié que sur la boucle locale. **40/40** au dernier
 passage.
 
 ## Ce qui n'est pas vérifié
