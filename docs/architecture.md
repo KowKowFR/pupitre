@@ -87,9 +87,18 @@ l'application pour un monorepo.
   défaut) ; toujours validé. Ce qui est de l'infra est décidé par
   `classifySpecChange()` : port, exposition, domaine, volumes, secrets, variables,
   ressources, services ajoutés ou retirés.
-- **Le code voyage en archive.** Le worker télécharge l'archive du commit exact
-  et la passe au driver (`DriverContext.sourceArchive`), qui la décompresse à la
-  racine de la release. Le build reste sur la cible, sans registry.
+- **Le code voyage en archive, et reste à part.** Le worker télécharge
+  l'archive du commit exact et la passe au driver (`DriverContext.sourceArchive`),
+  qui la décompresse dans **`source/`** de la release — jamais à côté de ses
+  propres fichiers (`compose.yml`, `.env`, `k8s/`). Les contextes de construction
+  de l'AppSpec sont relatifs à la racine du dépôt et s'y résolvent
+  (`buildContextPath()`), et ils ne peuvent pas en sortir : ni chemin absolu, ni
+  `..`. Le build reste sur la cible, sans registry.
+- **Compose est toujours désigné.** Chaque appel passe `-p app-{slug}
+  -f compose.yml` : rien de ce qui traîne dans le dossier — un
+  `compose.override.yml`, un `.env` qui renommerait le projet — n'est lu.
+  Côté K3s, le dossier `k8s/` est vidé avant chaque rendu : `kubectl apply`
+  n'applique que ce que Pupitre vient d'écrire.
 - **Tout est tracé.** Chaque déploiement garde le dépôt, la branche et le commit ;
   son état est renvoyé sur le commit GitHub (`pupitre/{cible}`).
 

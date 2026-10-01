@@ -149,6 +149,21 @@ le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que l
 de l'application n'est publié que sur la boucle locale. **45/45** au dernier
 passage.
 
+## `pnpm test:source-isolation` — un dépôt piégé ne passe pas
+
+Sur chaque runtime, une application construite depuis l'archive d'un « dépôt »
+qui porte, en plus de son code, un `compose.override.yml` (conteneur privilégié,
+disque de la machine monté), un `docker-compose.yml` et un `.env` qui détournent
+le nom du projet, et un dossier `k8s/` à appliquer. Le script vérifie que le
+code est déposé dans `source/`, que l'application s'y construit et démarre
+saine, et qu'aucun piège n'a pris : conteneur non privilégié et sans montage,
+ni projet détourné ni service intrus, aucun objet du dossier `k8s/` dans le
+cluster. **7/7** au dernier passage.
+
+```bash
+pnpm test:source-isolation cible-docker-locale k3s-locale
+```
+
 ## Ce qui n'est pas vérifié
 
 - **Aucun vrai modèle d'IA n'a répondu sur cette instance.** Voir

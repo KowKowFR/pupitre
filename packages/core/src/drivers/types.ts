@@ -108,12 +108,17 @@ export type DriverContext = TargetContext & {
   additionalFiles?: RenderedFile[];
   /**
    * Le code source quand il vient d'un dépôt lié : une archive `tar.gz` sur le
-   * disque du worker, que le driver dépose et décompresse à la racine de la
-   * release **avant** les artefacts rendus — ceux-ci gagnent en cas de
-   * collision. Même principe que `additionalFiles` : le driver ne sait pas
-   * d'où elle vient.
+   * disque du worker, que le driver dépose et décompresse dans `source/` de la
+   * release (`SOURCE_DIR`), à part de ses propres fichiers. Même principe que
+   * `additionalFiles` : le driver ne sait pas d'où elle vient.
    */
   sourceArchive?: SourceArchive;
+  /**
+   * Ce déploiement apporte le code d'un dépôt : les contextes de construction
+   * de l'AppSpec, relatifs à la racine du dépôt, se résolvent sous `source/`.
+   * Connu dès le rendu, avant que l'archive ne soit téléchargée.
+   */
+  sourceInRelease?: boolean;
 };
 
 export type DriverExposure = {

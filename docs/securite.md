@@ -143,6 +143,27 @@ branché, et **un événement qui n'est pas audité n'est pas notifiable**. C'es
 contrainte assumée, et c'est ce qui garantit qu'on ne peut pas notifier quelque
 chose qui n'aurait laissé aucune trace.
 
+## Un dépôt lié ne commande pas la machine
+
+Pousser sur un dépôt lié ne doit pas valoir un accès aux machines. Le
+`pupitre.json` dit **quoi** déployer ; les cibles, le runtime et le moment
+restent au panel, sous RBAC. Le code du commit n'est qu'une entrée du build :
+
+- il est décompressé dans `source/` de la release, à part des fichiers de
+  pilotage. À la racine, un `compose.override.yml` du dépôt aurait été fusionné
+  par Compose — conteneur privilégié, disque de la machine monté —, un `.env`
+  aurait renommé le projet (un `down -v` visant une autre application), un
+  dossier `k8s/` aurait été appliqué sur le cluster avec les droits de Pupitre ;
+- Compose est toujours appelé avec `-p app-{slug} -f compose.yml`, et le dossier
+  `k8s/` est vidé avant chaque rendu ;
+- un contexte de construction ne sort pas du code envoyé : ni chemin absolu, ni
+  `..` — sans quoi une image pourrait embarquer les `.env` des autres
+  applications de la machine ;
+- l'image construite tourne avec le durcissement de toute image « maison » :
+  racine en lecture seule, utilisateur non privilégié, capacités retirées.
+
+`pnpm test:source-isolation` le vérifie sur les deux runtimes avec un dépôt piégé.
+
 ## Chiffrement
 
 `packages/core/src/crypto.ts` — **AES-256-GCM**, clé dérivée de `MASTER_KEY` par

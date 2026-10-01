@@ -4,7 +4,7 @@ import { storedSecretNames, topologicalOrder, type Service } from '../../spec/in
 import { backoffMs } from '../backoff.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
 import { pruneReleases } from '../retention.js';
-import { extractSourceArchive } from '../source-archive.js';
+import { buildContextPath, extractSourceArchive } from '../source-archive.js';
 import {
   DriverError,
   type DeployResult,
@@ -491,10 +491,17 @@ export class K3sDriver implements DeploymentDriver {
         'upload',
       );
     }
-    await this.run(ctx, `mkdir -p ${shellQuote(this.manifestPath(ctx))}`, onLog, 'upload');
+    // `kubectl apply -f k8s/` applique **tout** ce que contient le dossier : il
+    // ne doit porter que les manifestes de ce rendu — rien d'un déploiement
+    // précédent de la même version, rien d'un dépôt.
+    await this.run(
+      ctx,
+      `rm -rf ${shellQuote(this.manifestPath(ctx))} && mkdir -p ${shellQuote(this.manifestPath(ctx))}`,
+      onLog,
+      'upload',
+    );
 
-    // Le code d'un dépôt lié d'abord : les artefacts rendus passent après, et
-    // l'emportent sur un fichier du dépôt qui porterait le même nom.
+    // Le code d'un dépôt lié va dans `source/`, à part des manifestes.
     if (ctx.sourceArchive) {
       await extractSourceArchive(ctx.sshSession, release, ctx.sourceArchive, onLog, this.runtime);
     }
@@ -543,7 +550,8 @@ export class K3sDriver implements DeploymentDriver {
     for (const service of ctx.spec.services) {
       if (service.source.type !== 'dockerfile') continue;
 
-      const dockerfile = `${release}/${service.source.context}/${service.source.dockerfile}`;
+      const context = buildContextPath(service.source.context, ctx.sourceInRelease);
+      const dockerfile = `${release}/${context}/${service.source.dockerfile}`;
       const check = await exec(ctx.sshSession, `test -f ${shellQuote(dockerfile)}`, {
         timeout: SHORT_TIMEOUT_MS,
       });
@@ -551,7 +559,7 @@ export class K3sDriver implements DeploymentDriver {
         onLog(`✗ contexte de build absent pour « ${service.name} » : ${dockerfile}`);
         throw new DriverError(
           `Le service « ${service.name} » se construit depuis ${service.source.dockerfile}, ` +
-            `mais le fichier est absent de ${release}/${service.source.context}. ` +
+            `mais le fichier est absent de ${release}/${context}. ` +
             'Le contexte de build doit être fourni via `additionalFiles`.',
           this.runtime,
           'build_context',
@@ -585,7 +593,7 @@ export class K3sDriver implements DeploymentDriver {
       const source = service.source;
       if (source.type !== 'dockerfile') continue;
       const tag = builtImageTag(ctx.appSlug, service.name, ctx.spec.version);
-      const context = `${release}/${source.context}`;
+      const context = `${release}/${buildContextPath(source.context, ctx.sourceInRelease)}`;
 
       onLog(`→ envoi du contexte de « ${service.name} » au constructeur`);
       await this.stream(
