@@ -36,6 +36,8 @@ const bodySchema = z.object({
    * validée : c'est ce qui permet de relire ce qui a été corrigé à la main.
    */
   generation: generationOriginSchema.optional(),
+  /** L'AppSpec vient d'un docker-compose.yml traduit par `import-compose`. */
+  importedFrom: z.literal('compose').optional(),
 });
 
 export const POST = apiRoute(async (request) => {
@@ -78,7 +80,7 @@ export const POST = apiRoute(async (request) => {
             edited:
               JSON.stringify(input.generation.appSpec) !== JSON.stringify(input.appSpec),
           }
-        : { origin: 'manual' }),
+        : { origin: input.importedFrom ?? 'manual' }),
       // Les noms, jamais les valeurs.
       secretsGenerated: generated,
     },

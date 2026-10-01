@@ -230,6 +230,34 @@ const fr = {
 
   'tab.fromPrompt': 'Depuis une description',
   'tab.fromJson': 'Depuis un JSON',
+  'tab.fromCompose': 'Depuis un docker-compose',
+  'compose.label': 'Contenu du docker-compose.yml',
+  'compose.help':
+    'Collez le fichier, ou choisissez-le. Rien n’est enregistré avant « Enregistrer » : la conversion propose une AppSpec, à relire.',
+  'compose.placeholder': 'services:\n  web:\n    image: nginx:1.27\n    ports:\n      - "8080:80"',
+  'compose.file': 'Choisir un fichier…',
+  'compose.fileTooLarge': 'Fichier trop lourd ({size} Ko) : 256 Ko au plus.',
+  'compose.name': 'Nom de l’application',
+  'compose.name.help':
+    'Facultatif. Sinon celui du fichier (clé « name »), ou « imported-app ».',
+  'compose.convert': 'Convertir en AppSpec',
+  'compose.converting': 'Conversion…',
+  'compose.empty': 'Collez un docker-compose.yml, ou choisissez un fichier.',
+  'compose.summary': 'AppSpec proposée : {services}. Relisez-la ci-dessous, puis enregistrez.',
+  'compose.services': { one: '{count} service', other: '{count} services' },
+  'compose.count.blocking': { one: '{count} point bloquant', other: '{count} points bloquants' },
+  'compose.count.warning': { one: '{count} approximation', other: '{count} approximations' },
+  'compose.count.info': { one: '{count} information', other: '{count} informations' },
+  'compose.lead.blocking':
+    'À régler avant de déployer — l’application ne fonctionnera probablement pas en l’état :',
+  'compose.lead.warning': 'Traduit par approximation — à vérifier :',
+  'compose.lead.info': 'Ignoré à dessein, parce que Pupitre en décide :',
+  'compose.invalid': 'L’AppSpec ne passe pas encore la validation : corrigez-la dans l’éditeur.',
+  'compose.slugTaken':
+    'Une application « {name} » existe déjà : changez le nom ci-dessus, ou dans l’AppSpec.',
+  'compose.file.scope': 'fichier',
+  'new.review.sub.imported': 'Traduite du docker-compose, à relire',
+  'new.json.sub.imported': 'traduite, éditable',
 
   'ai.disabled.lead':
     "La génération par IA est désactivée : aucune clé d'API {provider} n'est configurée sur ce panel",
@@ -304,7 +332,7 @@ const fr = {
   'review.declaredSecrets.mid': '. Seuls leurs',
   'review.declaredSecrets.names': 'noms',
   'review.declaredSecrets.tail':
-    ' sont enregistrés : le panel ne stocke pas encore leurs valeurs, et les déploiera vides. Les services qui en dépendent (une base de données, par exemple) ne démarreront pas tant que ces valeurs ne seront pas fournies sur la cible.',
+    ' sont dans la spec. À l’enregistrement, Pupitre génère une valeur pour chacun, chiffrée et jamais réaffichée ; un alias reprend la valeur de son secret. Une valeur venue d’ailleurs se saisit ensuite sur la fiche de l’application.',
 
   // ── Refus des routes ────────────────────────────────────────────────────
   'error.notFound': 'Application « {id} » introuvable',
@@ -561,6 +589,33 @@ const en: Translated<typeof fr> = {
 
   'tab.fromPrompt': 'From a description',
   'tab.fromJson': 'From JSON',
+  'tab.fromCompose': 'From docker-compose',
+  'compose.label': 'docker-compose.yml content',
+  'compose.help':
+    'Paste the file, or pick it. Nothing is saved before “Save”: the conversion proposes an AppSpec, to review.',
+  'compose.placeholder': 'services:\n  web:\n    image: nginx:1.27\n    ports:\n      - "8080:80"',
+  'compose.file': 'Pick a file…',
+  'compose.fileTooLarge': 'File too large ({size} KB): 256 KB at most.',
+  'compose.name': 'Application name',
+  'compose.name.help': 'Optional. Otherwise the file’s (“name” key), or “imported-app”.',
+  'compose.convert': 'Convert to AppSpec',
+  'compose.converting': 'Converting…',
+  'compose.empty': 'Paste a docker-compose.yml, or pick a file.',
+  'compose.summary': 'Proposed AppSpec: {services}. Review it below, then save.',
+  'compose.services': { one: '{count} service', other: '{count} services' },
+  'compose.count.blocking': { one: '{count} blocking point', other: '{count} blocking points' },
+  'compose.count.warning': { one: '{count} approximation', other: '{count} approximations' },
+  'compose.count.info': { one: '{count} note', other: '{count} notes' },
+  'compose.lead.blocking':
+    'To settle before deploying — the application will probably not work as is:',
+  'compose.lead.warning': 'Translated by approximation — to check:',
+  'compose.lead.info': 'Ignored on purpose, because Pupitre decides:',
+  'compose.invalid': 'The AppSpec does not pass validation yet: fix it in the editor.',
+  'compose.slugTaken':
+    'An application “{name}” already exists: change the name above, or in the AppSpec.',
+  'compose.file.scope': 'file',
+  'new.review.sub.imported': 'Translated from docker-compose, to review',
+  'new.json.sub.imported': 'translated, editable',
 
   'ai.disabled.lead':
     'AI generation is off: no {provider} API key is configured on this panel',
@@ -634,7 +689,7 @@ const en: Translated<typeof fr> = {
   'review.declaredSecrets.mid': '. Only their',
   'review.declaredSecrets.names': 'names',
   'review.declaredSecrets.tail':
-    ' are stored: the panel does not keep their values yet, and will deploy them empty. Services that need them (a database, for instance) will not start until those values are provided on the target.',
+    ' are in the spec. On save, Pupitre generates a value for each, encrypted and never shown again; an alias takes its secret’s value. A value from elsewhere is entered afterwards on the application page.',
 
   'error.notFound': 'Application “{id}” not found',
   'error.slugTaken': 'An application “{name}” already exists',
