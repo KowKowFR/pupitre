@@ -1,7 +1,18 @@
 import type { ChatMention } from '@pupitre/core';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { index, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import type { ImageMediaType } from '@pupitre/core';
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { users } from './auth.js';
+import { bytea } from './columns.js';
 
 /**
  * La discussion d'équipe.
@@ -68,4 +79,37 @@ export const chatReactions = pgTable(
     primaryKey({ columns: [t.messageId, t.userId, t.emoji] }),
     index('chat_reactions_message_idx').on(t.messageId),
   ],
+);
+
+/**
+ * Les images jointes à un message.
+ *
+ * En base, comme les captures de la supervision, et pour la même raison : une
+ * seule chose à sauvegarder, pas de volume partagé entre le panel et le worker.
+ * Le coût est borné à l'entrée — quatre images par message, trois mégaoctets
+ * chacune au plus, réencodées par le navigateur (voir `media.ts` dans
+ * `@pupitre/core`) — et à la sortie : effacer le message efface ses images,
+ * pas seulement leur affichage.
+ *
+ * ⚠ `data` ne part jamais dans un `select *` : le fil ne lit que les
+ * métadonnées, la route `/api/chat/attachments/:id` seule lit les octets.
+ */
+export const chatAttachments = pgTable(
+  'chat_attachments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => chatMessages.id, { onDelete: 'cascade' }),
+    /** L'ordre d'affichage dans le message. */
+    position: integer('position').notNull().default(0),
+    /** Lu dans les octets à l'arrivée, jamais pris dans l'en-tête de la requête. */
+    contentType: text('content_type').$type<ImageMediaType>().notNull(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    bytes: integer('bytes').notNull(),
+    data: bytea('data').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('chat_attachments_message_idx').on(t.messageId, t.position)],
 );

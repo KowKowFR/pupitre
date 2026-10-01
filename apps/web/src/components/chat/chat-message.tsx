@@ -1,10 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { CornerUpLeft, Plus, SmilePlus, Trash2 } from 'lucide-react';
-import type { ChatMessage, ChatReaction } from '@pupitre/core';
+import { CornerUpLeft, ExternalLink, Plus, SmilePlus, Trash2 } from 'lucide-react';
+import type { ChatAttachment, ChatMessage, ChatReaction } from '@pupitre/core';
 import { PresenceAvatar } from '@/components/realtime/presence';
 import type { Member } from '@/components/realtime/realtime-provider';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { IconButton, Tooltip } from '@/components/ui/tooltip';
 import { useT } from '@/i18n/client';
@@ -113,21 +114,29 @@ export function ChatMessageItem({
               {message.replyTo.authorName ?? t('message.unknownAuthor')}
             </span>
             <span className="t-cap truncate text-text-3">
-              {message.replyTo.deleted ? <i>{t('quote.deleted')}</i> : message.replyTo.excerpt}
+              {message.replyTo.deleted ? (
+                <i>{t('quote.deleted')}</i>
+              ) : (
+                message.replyTo.excerpt || t('message.image')
+              )}
             </span>
           </button>
         ) : null}
 
         {message.deleted ? (
           <p className="t-sm text-text-3 italic">{t('message.deleted')}</p>
-        ) : (
+        ) : message.body ? (
           <MessageBody
             body={message.body}
             mentions={message.mentions}
             directory={directory}
             me={me}
           />
-        )}
+        ) : null}
+
+        {!message.deleted && message.attachments.length > 0 ? (
+          <Attachments items={message.attachments} />
+        ) : null}
 
         {message.reactions.length > 0 ? (
           <Reactions reactions={message.reactions} me={me} members={members} onToggle={react} />
@@ -247,5 +256,83 @@ function Reactions({
         );
       })}
     </div>
+  );
+}
+
+const attachmentUrl = (id: string) => `/api/chat/attachments/${id}`;
+
+/**
+ * Les images d'un message. Une seule s'affiche à sa forme, bornée ; plusieurs
+ * font une mosaïque de carrés. La place est réservée avant le chargement — les
+ * dimensions viennent avec le message —, le fil ne saute donc pas. Un clic
+ * ouvre l'image en grand.
+ */
+function Attachments({ items }: { items: readonly ChatAttachment[] }) {
+  const t = useT(messages);
+  const [open, setOpen] = React.useState<ChatAttachment | null>(null);
+  const single = items.length === 1;
+
+  return (
+    <>
+      <div className={cn('mt-1.5 max-w-[320px]', !single && 'grid grid-cols-2 gap-1')}>
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setOpen(item)}
+            aria-label={t('image.open')}
+            className="block overflow-hidden rounded-lg border border-border bg-surface-2 focus-visible:shadow-focus focus-visible:outline-none"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- image d'API authentifiée */}
+            <img
+              src={attachmentUrl(item.id)}
+              alt=""
+              width={item.width}
+              height={item.height}
+              loading="lazy"
+              decoding="async"
+              className={cn(
+                'block transition-opacity hover:opacity-90',
+                single ? 'h-auto max-h-72 w-auto max-w-full' : 'aspect-square w-full object-cover',
+              )}
+            />
+          </button>
+        ))}
+      </div>
+
+      <Dialog open={open !== null} onOpenChange={(next) => (next ? undefined : setOpen(null))}>
+        {/* À la taille de l'image : ni bandes blanches autour d'une petite capture,
+            ni débordement d'une grande. */}
+        <DialogContent className="flex w-fit max-w-[calc(100vw-32px)] min-w-[280px] flex-col items-center gap-3 p-3">
+          <DialogTitle className="sr-only">{t('image.viewer')}</DialogTitle>
+          {open ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element -- image d'API authentifiée */}
+              <img
+                src={attachmentUrl(open.id)}
+                alt=""
+                width={open.width}
+                height={open.height}
+                className="h-auto max-h-[calc(100dvh-min(180px,20vh)-96px)] w-auto max-w-[min(1200px,calc(100vw-56px))] rounded-md"
+              />
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="t-cap mono text-text-3">
+                  {open.width} × {open.height} · {Math.max(1, Math.round(open.bytes / 1024))} Kio
+                </span>
+                <a
+                  href={attachmentUrl(open.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-ghost btn-sm"
+                >
+                  <ExternalLink aria-hidden />
+                  {t('image.original')}
+                </a>
+              </span>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

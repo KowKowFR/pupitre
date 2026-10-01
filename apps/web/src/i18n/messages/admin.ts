@@ -80,6 +80,7 @@ const fr = {
 
   'users.action.inviteAgain': 'Inviter à nouveau',
   'users.action.resend': 'Relancer',
+  'users.action.removeAvatar': 'Retirer la photo de profil',
   'users.action.cancelLink': 'Annuler le lien',
   'users.action.reset2fa': 'Réinitialiser le 2FA',
   'users.action.reactivate': 'Réactiver',
@@ -330,6 +331,7 @@ const en: Translated<typeof fr> = {
 
   'users.action.inviteAgain': 'Invite again',
   'users.action.resend': 'Send again',
+  'users.action.removeAvatar': 'Remove profile picture',
   'users.action.cancelLink': 'Cancel the link',
   'users.action.reset2fa': 'Reset 2FA',
   'users.action.reactivate': 'Re-enable',

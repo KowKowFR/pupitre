@@ -28,6 +28,8 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   'invalid_json': 'Corps de requête JSON invalide',
+  'invalid_form': 'Formulaire illisible',
+  'payload_too_large': 'Envoi trop volumineux : {max} octets au plus',
   'validation.schema': 'La requête ne respecte pas le schéma',
   'validation.body': 'Le corps de la requête ne respecte pas le schéma',
   'internal': 'Erreur interne',
@@ -47,6 +49,8 @@ const fr = {
 
 const en: Translated<typeof fr> = {
   'invalid_json': 'Malformed JSON request body',
+  'invalid_form': 'Unreadable form',
+  'payload_too_large': 'Upload too large: {max} bytes at most',
   'validation.schema': 'The request does not match the schema',
   'validation.body': 'The request body does not match the schema',
   'internal': 'Internal error',

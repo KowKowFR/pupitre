@@ -31,7 +31,13 @@ export async function Rail({
   groups: NavGroup[];
   metas: Partial<Record<string, NavMeta>>;
   onboarding: RailOnboarding;
-  user: { name: string; email: string; roleLabel: string; theme: ThemeChoice };
+  user: {
+    name: string;
+    email: string;
+    image: string | null;
+    roleLabel: string;
+    theme: ThemeChoice;
+  };
   canOpenSettings: boolean;
 }) {
   const t = await getT(chrome);

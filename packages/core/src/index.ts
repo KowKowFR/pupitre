@@ -6,6 +6,7 @@ export * from './i18n.js';
 export * from './images/reference.js';
 export * from './images/updates.js';
 export * from './monitoring.js';
+export * from './media.js';
 export * from './naming.js';
 export * from './notifications/account-mail.js';
 export * from './notifications/catalog.js';

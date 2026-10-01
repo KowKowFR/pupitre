@@ -1,16 +1,25 @@
 import {
   CHAT_DEFAULT_CHANNEL,
+  CHAT_IMAGES_PER_MESSAGE,
+  CHAT_IMAGE_MAX_BYTES,
   CHAT_MESSAGE_MAX,
   CHAT_PAGE_SIZE,
   keepMentions,
+  sniffImage,
 } from '@pupitre/core';
-import { getChatMessage, insertChatMessage, listChatMessages, markChatRead } from '@pupitre/db';
+import {
+  getChatMessage,
+  insertChatMessage,
+  listChatMessages,
+  markChatRead,
+  type NewChatAttachment,
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { chat as messages } from '@/i18n/messages/chat';
 import { resolveMentions } from '@/lib/chat';
 import { HttpError, NotFoundError, msg } from '@/lib/errors';
-import { apiRoute, readJsonBody } from '@/lib/http';
+import { apiRoute, readJsonBody, readLimitedFormData } from '@/lib/http';
 import { enforceRateLimit, type RateLimitRule } from '@/lib/rate-limit';
 import { requireSession } from '@/lib/rbac';
 import { publishRealtime } from '@/lib/realtime';
@@ -35,10 +44,63 @@ export const GET = apiRoute(async (request) => {
 });
 
 const bodySchema = z.object({
-  body: z.string().max(CHAT_MESSAGE_MAX * 2),
+  body: z
+    .string()
+    .max(CHAT_MESSAGE_MAX * 2)
+    .default(''),
   /** Le message auquel on répond. Il doit exister, dans ce salon, et ne pas être effacé. */
   replyToId: z.string().uuid().nullable().default(null),
 });
+
+/** Le texte, plus les images — et un peu de marge pour l'enveloppe multipart. */
+const MULTIPART_MAX_BYTES = CHAT_IMAGES_PER_MESSAGE * CHAT_IMAGE_MAX_BYTES + 64 * 1024;
+
+/**
+ * Le message arrive en JSON, ou en `multipart/form-data` quand il porte des
+ * images : champs `body` et `replyToId`, fichiers `image` (quatre au plus).
+ *
+ * Chaque image est lue dans ses octets : format et dimensions viennent de là,
+ * jamais du nom de fichier ni du type annoncé. Elle a déjà été redimensionnée
+ * et réencodée par le navigateur — le serveur ne fait que vérifier et ranger.
+ */
+async function readMessage(request: Request) {
+  const type = request.headers.get('content-type') ?? '';
+  if (!type.startsWith('multipart/form-data')) {
+    return { ...(await readJsonBody(request, bodySchema)), attachments: [] };
+  }
+
+  const form = await readLimitedFormData(request, MULTIPART_MAX_BYTES);
+  const fields = bodySchema.parse({
+    body: form.get('body') ?? '',
+    replyToId: form.get('replyToId') || null,
+  });
+  const files = form.getAll('image').filter((entry): entry is File => entry instanceof File);
+  if (files.length > CHAT_IMAGES_PER_MESSAGE) {
+    throw new HttpError(
+      422,
+      'too_many_images',
+      msg(messages, 'error.tooManyImages', { max: CHAT_IMAGES_PER_MESSAGE }),
+    );
+  }
+
+  const attachments: NewChatAttachment[] = [];
+  for (const file of files) {
+    if (file.size > CHAT_IMAGE_MAX_BYTES) {
+      throw new HttpError(
+        413,
+        'image_too_large',
+        msg(messages, 'error.imageTooLarge', {
+          max: Math.round(CHAT_IMAGE_MAX_BYTES / 1024 / 1024),
+        }),
+      );
+    }
+    const data = Buffer.from(await file.arrayBuffer());
+    const info = sniffImage(data);
+    if (!info) throw new HttpError(415, 'unsupported_image', msg(messages, 'error.imageFormat'));
+    attachments.push({ ...info, bytes: data.byteLength, data });
+  }
+  return { ...fields, attachments };
+}
 
 /**
  * Écrire à l'équipe. Les mentions sont revérifiées ici : un jeton vers ce que
@@ -53,10 +115,13 @@ const bodySchema = z.object({
 export const POST = apiRoute(async (request) => {
   const auth = await requireSession(request);
   await enforceRateLimit(CHAT_POST_RULE, auth.userId);
-  const input = await readJsonBody(request, bodySchema);
+  const input = await readMessage(request);
 
   const raw = input.body.replace(/\r\n?/g, '\n').trim();
-  if (raw.length === 0) throw new HttpError(422, 'empty_message', msg(messages, 'error.empty'));
+  // Une image seule est un message ; un message vide, non.
+  if (raw.length === 0 && input.attachments.length === 0) {
+    throw new HttpError(422, 'empty_message', msg(messages, 'error.empty'));
+  }
   if (raw.length > CHAT_MESSAGE_MAX) {
     throw new HttpError(
       422,
@@ -80,6 +145,7 @@ export const POST = apiRoute(async (request) => {
     body,
     mentions,
     replyToId: input.replyToId,
+    attachments: input.attachments,
   });
   await markChatRead(auth.userId, CHAT_DEFAULT_CHANNEL, new Date(message.createdAt));
 
@@ -94,6 +160,7 @@ export const POST = apiRoute(async (request) => {
       mentions: message.mentions,
       replyTo: message.replyTo,
       reactions: message.reactions,
+      attachments: message.attachments,
       createdAt: message.createdAt,
     },
   });

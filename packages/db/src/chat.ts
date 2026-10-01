@@ -2,6 +2,7 @@ import {
   CHAT_QUOTE_LENGTH,
   CHAT_REACTIONS_MAX,
   chatPlainText,
+  type ChatAttachment,
   type ChatMention,
   type ChatMessage,
   type ChatQuote,
@@ -10,7 +11,7 @@ import {
 import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import { users } from './schema/auth.js';
-import { chatMessages, chatReactions, chatReads } from './schema/chat.js';
+import { chatAttachments, chatMessages, chatReactions, chatReads } from './schema/chat.js';
 
 /**
  * La discussion d'équipe : écrire, répondre, réagir, relire, effacer, compter
@@ -20,8 +21,9 @@ import { chatMessages, chatReactions, chatReads } from './schema/chat.js';
  * sur le canal temps réel. La base reste la source de vérité — un onglet qui
  * se reconnecte relit l'historique, il ne compte pas sur le direct.
  *
- * Une page de messages coûte trois requêtes, quelle que soit sa taille : les
- * messages, les originaux qu'ils citent, leurs réactions.
+ * Une page de messages coûte quatre requêtes, quelle que soit sa taille : les
+ * messages, les originaux qu'ils citent, leurs réactions, leurs images (les
+ * métadonnées seulement — les octets se servent à part).
  */
 
 const messageColumns = {
@@ -87,9 +89,37 @@ export async function listChatReactions(
   return byMessage;
 }
 
+/** Les images de plusieurs messages, sans leurs octets, dans l'ordre d'affichage. */
+export async function listChatAttachments(
+  messageIds: readonly string[],
+  db: Database = getDb(),
+): Promise<Map<string, ChatAttachment[]>> {
+  const byMessage = new Map<string, ChatAttachment[]>();
+  if (messageIds.length === 0) return byMessage;
+  const rows = await db
+    .select({
+      id: chatAttachments.id,
+      messageId: chatAttachments.messageId,
+      contentType: chatAttachments.contentType,
+      width: chatAttachments.width,
+      height: chatAttachments.height,
+      bytes: chatAttachments.bytes,
+    })
+    .from(chatAttachments)
+    .where(inArray(chatAttachments.messageId, [...messageIds]))
+    .orderBy(asc(chatAttachments.position));
+  for (const { messageId, ...attachment } of rows) {
+    const list = byMessage.get(messageId) ?? [];
+    list.push(attachment);
+    byMessage.set(messageId, list);
+  }
+  return byMessage;
+}
+
 async function hydrate(rows: MessageRow[], db: Database): Promise<StoredChatMessage[]> {
   const quotedIds = [...new Set(rows.flatMap((row) => (row.replyToId ? [row.replyToId] : [])))];
-  const [quoted, reactions] = await Promise.all([
+  const live = rows.filter((row) => row.deletedAt === null).map((row) => row.id);
+  const [quoted, reactions, attachments] = await Promise.all([
     quotedIds.length > 0
       ? db
           .select(messageColumns)
@@ -101,6 +131,7 @@ async function hydrate(rows: MessageRow[], db: Database): Promise<StoredChatMess
       rows.map((row) => row.id),
       db,
     ),
+    listChatAttachments(live, db),
   ]);
   const quotes = new Map(quoted.map((row) => [row.id, quoteOf(row)]));
 
@@ -114,11 +145,15 @@ async function hydrate(rows: MessageRow[], db: Database): Promise<StoredChatMess
     mentions: row.deletedAt ? [] : row.mentions,
     replyTo: row.replyToId ? (quotes.get(row.replyToId) ?? null) : null,
     reactions: row.deletedAt ? [] : (reactions.get(row.id) ?? []),
+    attachments: row.deletedAt ? [] : (attachments.get(row.id) ?? []),
     createdAt: row.createdAt.toISOString(),
     deleted: row.deletedAt !== null,
   }));
 }
 
+export type NewChatAttachment = Omit<ChatAttachment, 'id'> & { data: Buffer };
+
+/** Le message et ses images, dans la même transaction : jamais l'un sans les autres. */
 export async function insertChatMessage(
   input: {
     channel: string;
@@ -126,20 +161,36 @@ export async function insertChatMessage(
     body: string;
     mentions: ChatMention[];
     replyToId: string | null;
+    attachments?: NewChatAttachment[];
   },
   db: Database = getDb(),
 ): Promise<StoredChatMessage> {
-  const [created] = await db
-    .insert(chatMessages)
-    .values({
-      channel: input.channel,
-      authorId: input.authorId,
-      body: input.body,
-      mentions: input.mentions,
-      replyToId: input.replyToId,
-    })
-    .returning({ id: chatMessages.id });
-  if (!created) throw new Error("le message n'a pas été enregistré");
+  const created = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .insert(chatMessages)
+      .values({
+        channel: input.channel,
+        authorId: input.authorId,
+        body: input.body,
+        mentions: input.mentions,
+        replyToId: input.replyToId,
+      })
+      .returning({ id: chatMessages.id });
+    if (!row) throw new Error("le message n'a pas été enregistré");
+    const attachments = input.attachments ?? [];
+    if (attachments.length > 0) {
+      await tx
+        .insert(chatAttachments)
+        .values(
+          attachments.map((attachment, position) => ({
+            ...attachment,
+            messageId: row.id,
+            position,
+          })),
+        );
+    }
+    return row;
+  });
   const message = await getChatMessage(created.id, db);
   if (!message) throw new Error("le message n'a pas été relu");
   return message;
@@ -222,15 +273,38 @@ export async function toggleChatReaction(
   return { ok: true, reactions };
 }
 
-/** Efface un message : la ligne reste, son contenu et ses réactions partent. */
+/**
+ * Efface un message : la ligne reste, son contenu, ses réactions et ses images
+ * partent — les octets avec, pas seulement leur affichage.
+ */
 export async function deleteChatMessage(id: string, db: Database = getDb()): Promise<boolean> {
   const rows = await db
     .update(chatMessages)
     .set({ deletedAt: new Date(), body: '', mentions: [] })
     .where(and(eq(chatMessages.id, id), isNull(chatMessages.deletedAt)))
     .returning({ id: chatMessages.id });
-  if (rows.length > 0) await db.delete(chatReactions).where(eq(chatReactions.messageId, id));
+  if (rows.length > 0) {
+    await db.delete(chatReactions).where(eq(chatReactions.messageId, id));
+    await db.delete(chatAttachments).where(eq(chatAttachments.messageId, id));
+  }
   return rows.length > 0;
+}
+
+/** Les octets d'une image, pour la route qui la sert — et elle seule. */
+export async function getChatAttachmentData(
+  id: string,
+  db: Database = getDb(),
+): Promise<{ contentType: ChatAttachment['contentType']; bytes: number; data: Buffer } | null> {
+  const [row] = await db
+    .select({
+      contentType: chatAttachments.contentType,
+      bytes: chatAttachments.bytes,
+      data: chatAttachments.data,
+    })
+    .from(chatAttachments)
+    .innerJoin(chatMessages, eq(chatMessages.id, chatAttachments.messageId))
+    .where(and(eq(chatAttachments.id, id), isNull(chatMessages.deletedAt)));
+  return row ?? null;
 }
 
 /** Marque le salon lu jusqu'à `at` — jamais en arrière. */
@@ -310,12 +384,12 @@ export async function countUnreadChatMentions(
   return row?.count ?? 0;
 }
 
-export type ChatMember = { id: string; name: string; email: string };
+export type ChatMember = { id: string; name: string; email: string; image: string | null };
 
 /** Les personnes qu'on peut mentionner : tous les comptes actifs. */
 export async function listChatMembers(db: Database = getDb()): Promise<ChatMember[]> {
   return db
-    .select({ id: users.id, name: users.name, email: users.email })
+    .select({ id: users.id, name: users.name, email: users.email, image: users.image })
     .from(users)
     .where(eq(users.banned, false))
     .orderBy(asc(users.name));

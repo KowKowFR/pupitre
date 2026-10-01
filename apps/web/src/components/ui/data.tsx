@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { avatarSrc } from '@pupitre/core';
 import { cn } from '@/lib/utils';
 
 /**
@@ -105,19 +106,32 @@ export function MiniGauge({
   );
 }
 
-/** Initiales d'une personne, dans un disque graphite. */
+/**
+ * Une personne : sa photo de profil, ou ses initiales dans un disque graphite.
+ * Seule une URL que le panel a écrite lui-même est affichée (`avatarSrc`) —
+ * jamais une image hébergée ailleurs.
+ */
 export function Avatar({
   name,
+  src,
   large = false,
   className,
 }: {
   name: string;
+  src?: string | null;
   large?: boolean;
   className?: string;
 }) {
+  const image = avatarSrc(src);
   return (
-    <span aria-hidden className={cn('av', large && 'av-lg', className)}>
-      {initialsOf(name)}
+    <span aria-hidden className={cn('av', large && 'av-lg', image && 'has-img', className)}>
+      {image ? (
+        // Une URL d'API authentifiée et versionnée : `next/image` n'y apporterait rien.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={image} alt="" loading="lazy" decoding="async" draggable={false} />
+      ) : (
+        initialsOf(name)
+      )}
     </span>
   );
 }

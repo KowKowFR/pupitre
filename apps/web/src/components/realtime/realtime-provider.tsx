@@ -50,7 +50,7 @@ type BusMessage =
 type EventOf<T extends RealtimeEventType> = Extract<RealtimeEvent, { type: T }>;
 type Handler = (event: RealtimeEvent) => void;
 
-export type Member = { id: string; name: string };
+export type Member = { id: string; name: string; image: string | null };
 
 type RealtimeValue = {
   me: string;
@@ -183,7 +183,9 @@ export function RealtimeProvider({
             const name = event.message.authorName ?? '—';
             toast({
               title: tRef.current(mentioned ? 'toast.mention' : 'toast.reply', { name }),
-              description: chatPlainText(event.message.body, event.message.mentions).slice(0, 160),
+              description:
+                chatPlainText(event.message.body, event.message.mentions).slice(0, 160) ||
+                tRef.current('message.image'),
               tone: 'accent',
               action: { label: tRef.current('toast.open'), onClick: () => setChatOpen(true) },
             });

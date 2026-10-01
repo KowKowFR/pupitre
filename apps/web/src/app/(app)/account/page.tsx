@@ -54,6 +54,7 @@ export default async function AccountPage() {
       <AccountOverview
         name={auth.name}
         email={auth.email}
+        image={auth.image}
         roles={roleLabels}
         since={
           row?.createdAt

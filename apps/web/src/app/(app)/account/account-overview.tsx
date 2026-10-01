@@ -1,6 +1,6 @@
 import { Readout, ReadoutBar } from '@/components/instrument';
 import { Badge } from '@/components/ui/badge';
-import { initialsOf } from '@/components/ui/data';
+import { AvatarEditor } from './avatar-editor';
 
 /**
  * Le haut de « Mon compte » : qui l'on est, et où en est la protection du
@@ -10,6 +10,7 @@ import { initialsOf } from '@/components/ui/data';
 export function AccountOverview({
   name,
   email,
+  image,
   roles,
   since,
   twoFactor,
@@ -18,6 +19,7 @@ export function AccountOverview({
 }: {
   name: string;
   email: string;
+  image: string | null;
   roles: string[];
   since: string | null;
   twoFactor: { enabled: boolean; label: string; value: string; hint: string };
@@ -27,12 +29,7 @@ export function AccountOverview({
   return (
     <section className="card overflow-hidden">
       <div className="card-b flex flex-wrap items-center gap-4">
-        <span
-          aria-hidden
-          className="grid size-12 shrink-0 place-items-center rounded-full border border-accent-line bg-accent-soft text-[16px] font-semibold text-accent-text"
-        >
-          {initialsOf(name)}
-        </span>
+        <AvatarEditor name={name} image={image} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h2 className="truncate text-[17px] leading-6 font-semibold text-text">{name}</h2>
           <span className="mono t-sm truncate text-text-2">{email}</span>

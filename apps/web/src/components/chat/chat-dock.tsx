@@ -14,6 +14,7 @@ import { chat as messages } from '@/i18n/messages/chat';
 import { common } from '@/i18n/messages/common';
 import type { DirectoryEntry } from '@/lib/chat';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
+import { extensionOf, type PreparedImage } from '@/lib/image-prep';
 import { cn } from '@/lib/utils';
 import { ChatMessageItem, type ThreadMessage } from './chat-message';
 import { Composer } from './composer';
@@ -314,13 +315,30 @@ export function ChatDock({
     setTimeout(() => setHighlight((current) => (current === id ? null : current)), 1_600);
   }
 
-  async function send(body: string): Promise<boolean> {
+  async function send(body: string, images: PreparedImage[]): Promise<boolean> {
     setError(null);
-    const response = await fetch('/api/chat/messages', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ body, replyToId: replyTo?.id ?? null }),
-    });
+    let request: RequestInit;
+    if (images.length > 0) {
+      // Des images : un formulaire multipart, que le serveur relit octet par octet.
+      const form = new FormData();
+      form.set('body', body);
+      if (replyTo) form.set('replyToId', replyTo.id);
+      images.forEach((image, index) =>
+        form.append('image', image.blob, `image-${index + 1}.${extensionOf(image.blob)}`),
+      );
+      request = { method: 'POST', body: form };
+    } else {
+      request = {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body, replyToId: replyTo?.id ?? null }),
+      };
+    }
+    const response = await fetch('/api/chat/messages', request).catch(() => null);
+    if (!response) {
+      setError(tc('http.failure', { status: 0 }));
+      return false;
+    }
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as ApiError;
       setError(payload.error?.message ?? tc('http.failure', { status: response.status }));

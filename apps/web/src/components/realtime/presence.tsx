@@ -48,10 +48,11 @@ export function PresenceAvatar({
   large?: boolean;
 }) {
   const realtime = useOptionalRealtime();
+  const image = realtime?.members.find((member) => member.id === userId)?.image ?? null;
   if (!realtime) return <Avatar name={name} large={large} />;
   return (
     <span className="presence">
-      <Avatar name={name} large={large} />
+      <Avatar name={name} src={image} large={large} />
       <PresenceDot status={realtime.statusOf(userId)} />
     </span>
   );
@@ -95,7 +96,7 @@ export function TeamPresence() {
               <span className="flex -space-x-1.5">
                 {shown.map((member) => (
                   <span key={member.id} className="presence rounded-full ring-2 ring-[var(--bg)]">
-                    <Avatar name={member.name} />
+                    <Avatar name={member.name} src={member.image} />
                     <PresenceDot status={statusOf(member.id)} />
                   </span>
                 ))}
@@ -122,7 +123,7 @@ export function TeamPresence() {
               others.map((member) => (
                 <li key={member.id} className="flex items-center gap-2.5 px-3 py-1.5">
                   <span className="presence">
-                    <Avatar name={member.name} />
+                    <Avatar name={member.name} src={member.image} />
                     <PresenceDot status={statusOf(member.id)} />
                   </span>
                   <span className="t-sm min-w-0 flex-1 truncate text-text">{member.name}</span>

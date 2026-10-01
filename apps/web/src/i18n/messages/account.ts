@@ -30,6 +30,23 @@ const fr = {
   'error.http': 'Échec (HTTP {status}).',
 
   // ── Mot de passe ────────────────────────────────────────────────────────
+  'avatar.edit': 'Changer la photo de profil',
+  'avatar.dialog.title': 'Photo de profil',
+  'avatar.dialog.description':
+    'Elle apparaît dans la barre latérale, la discussion et la liste de l’équipe. Recadrez-la en déplaçant l’image ; la molette ou le curseur règlent le zoom.',
+  'avatar.choose': 'Choisir une image',
+  'avatar.choose.other': 'Choisir une autre image',
+  'avatar.drop': 'ou déposez-la ici — PNG, JPEG, WebP ou GIF',
+  'avatar.zoom': 'Zoom',
+  'avatar.crop.label': 'Recadrage — flèches pour déplacer, + et − pour zoomer',
+  'avatar.save': 'Enregistrer',
+  'avatar.remove': 'Retirer la photo',
+  'avatar.saved': 'Photo de profil enregistrée',
+  'avatar.removed': 'Photo de profil retirée',
+  'avatar.error.read': 'Image illisible : choisissez un PNG, un JPEG, un WebP ou un GIF.',
+  'avatar.error.format': 'Format non pris en charge : PNG, JPEG ou WebP.',
+  'avatar.error.dimensions': 'Image trop grande : {max} px de côté au plus.',
+  'avatar.error.notFound': 'Pas de photo de profil.',
   'password.title': 'Mot de passe',
   'password.description':
     "L'ancien mot de passe est exigé : sans lui, un cookie de session volé suffirait à s'emparer du compte. Le changement ferme toutes les autres sessions ouvertes.",
@@ -168,6 +185,23 @@ const en: Translated<typeof fr> = {
 
   'error.http': 'Failed (HTTP {status}).',
 
+  'avatar.edit': 'Change profile picture',
+  'avatar.dialog.title': 'Profile picture',
+  'avatar.dialog.description':
+    'It shows in the sidebar, the chat and the team list. Crop it by dragging the image; the wheel or the slider set the zoom.',
+  'avatar.choose': 'Choose an image',
+  'avatar.choose.other': 'Choose another image',
+  'avatar.drop': 'or drop it here — PNG, JPEG, WebP or GIF',
+  'avatar.zoom': 'Zoom',
+  'avatar.crop.label': 'Crop — arrows to move, + and − to zoom',
+  'avatar.save': 'Save',
+  'avatar.remove': 'Remove picture',
+  'avatar.saved': 'Profile picture saved',
+  'avatar.removed': 'Profile picture removed',
+  'avatar.error.read': 'Unreadable image: choose a PNG, JPEG, WebP or GIF.',
+  'avatar.error.format': 'Unsupported format: PNG, JPEG or WebP.',
+  'avatar.error.dimensions': 'Image too large: {max} px per side at most.',
+  'avatar.error.notFound': 'No profile picture.',
   'password.title': 'Password',
   'password.description':
     'The old password is required: without it, a stolen session cookie would be enough to take over the account. Changing it closes every other open session.',
