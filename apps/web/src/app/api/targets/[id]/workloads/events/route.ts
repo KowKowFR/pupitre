@@ -4,10 +4,11 @@ import { Redis } from 'ioredis';
 import { z } from 'zod';
 import { getEnv } from '@/lib/env';
 import { targets as messages } from '@/i18n/messages/targets';
-import { NotFoundError, msg } from '@/lib/errors';
+import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { requirePermission } from '@/lib/rbac';
+import { claimWorkloadRun } from '@/lib/workload-runs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,8 +27,16 @@ const HEARTBEAT_MS = 15_000;
  * action à l'autre — c'est un canal de cible, pas de tâche.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
-  await requirePermission(request, 'workload:read');
+  const auth = await requirePermission(request, 'workload:read');
   const { id } = paramsSchema.parse(await context.params);
+
+  // `?run=` : le flux d'une seule exécution (journal, commande), réservé à
+  // qui l'a ouverte. Sans lui, le flux de la cible — sans les sorties privées.
+  const runParam = new URL(request.url).searchParams.get('run');
+  const run = runParam ? z.string().uuid().parse(runParam) : null;
+  if (run && !(await claimWorkloadRun(run, auth.userId))) {
+    throw new HttpError(403, 'run_not_owned', msg(messages, 'error.runNotOwned'));
+  }
 
   const target = await getTarget(id);
   if (!target) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
@@ -72,6 +81,9 @@ export const GET = apiRoute<Context>(async (request, context) => {
         }
         const parsed = workloadMessageSchema.safeParse(payload);
         if (!parsed.success) return;
+        // Une sortie d'exécution ne va qu'au flux de cette exécution.
+        const messageRun = parsed.data.payload.run ?? null;
+        if (messageRun !== run) return;
         send(parsed.data.kind, parsed.data.payload);
       });
 

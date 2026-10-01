@@ -297,7 +297,11 @@ export default async function TargetDetailPage({
       ) : null}
 
       {show('workloads') && auth.can('workload:read') ? (
-        <WorkloadsPanel targetId={target.id} canManage={auth.can('workload:manage')} />
+        <WorkloadsPanel
+          targetId={target.id}
+          canManage={auth.can('workload:manage')}
+          canExec={auth.can('workload:exec')}
+        />
       ) : null}
 
       {show('preflight') ? <ReportDetails report={report} /> : null}

@@ -26,7 +26,10 @@ import {
   SCHEDULED_JOB_TYPES_LIST,
   TARGET_METRICS_JOB,
   TARGET_PREFLIGHT_JOB,
+  WORKLOAD_CONTROL_JOB,
+  WORKLOAD_EXEC_JOB,
   WORKLOAD_LIST_JOB,
+  WORKLOAD_LOGS_JOB,
   WORKLOAD_REMOVE_JOB,
   WORKLOAD_UPDATE_JOB,
   assertMasterKey,
@@ -61,7 +64,13 @@ import {
   installNotificationDigestSweep,
 } from './handlers/notification.js';
 import { handleAccountMail } from './handlers/account-mail.js';
-import { handleWorkloadAction, handleWorkloadList } from './handlers/workload.js';
+import {
+  handleWorkloadAction,
+  handleWorkloadControl,
+  handleWorkloadExec,
+  handleWorkloadList,
+  handleWorkloadLogs,
+} from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
 import { handleSourceDeploy, handleSourcePoll } from './handlers/source.js';
 import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
@@ -98,6 +107,8 @@ const handlers: Record<string, JobHandler> = {
   // déploiement, parce qu'elles touchent la même ressource.
   [WORKLOAD_REMOVE_JOB]: handleWorkloadAction,
   [WORKLOAD_UPDATE_JOB]: handleWorkloadAction,
+  [WORKLOAD_CONTROL_JOB]: handleWorkloadControl,
+  [WORKLOAD_EXEC_JOB]: handleWorkloadExec,
   ...Object.fromEntries(
     SCHEDULED_JOB_TYPES_LIST.map((type) => [
       SCHEDULED_JOB_TYPES[type].jobName,
@@ -121,6 +132,8 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // L'inventaire est une lecture : sur la file de supervision, il ne retarde
   // aucun déploiement et aucun déploiement ne le retarde.
   [WORKLOAD_LIST_JOB]: handleWorkloadList,
+  // Une lecture : comme l'inventaire, elle n'attend pas derrière un déploiement.
+  [WORKLOAD_LOGS_JOB]: handleWorkloadLogs,
   // Le relevé de métriques est de la même famille : une lecture courte, qu'un
   // déploiement en cours ne doit pas faire attendre.
   [TARGET_METRICS_JOB]: handleTargetMetrics,

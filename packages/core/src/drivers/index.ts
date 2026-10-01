@@ -41,3 +41,4 @@ export function getDriver(runtime: RuntimeKind): DeploymentDriver {
 export function availableRuntimes(): RuntimeKind[] {
   return Object.keys(registry) as RuntimeKind[];
 }
+export * from './workload-exec.js';

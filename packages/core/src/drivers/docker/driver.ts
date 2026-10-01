@@ -20,7 +20,19 @@ import {
   type RenderedFile,
   type TargetContext,
 } from '../types.js';
-import { managedWorkloadRefusal, type Workload, type WorkloadRef } from '../../workloads.js';
+import {
+  managedWorkloadControlRefusal,
+  managedWorkloadRefusal,
+  type Workload,
+  type WorkloadControlAction,
+  type WorkloadRef,
+} from '../../workloads.js';
+import {
+  quoteForShell,
+  runBoundedExec,
+  type WorkloadExecOptions,
+  type WorkloadExecResult,
+} from '../workload-exec.js';
 import { PROJECT_PREFIX, buildImageTag, projectName, renderFiles } from './render.js';
 
 /**
@@ -1047,6 +1059,80 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   /** Relit une charge sur la machine, et refuse d'agir à l'aveugle. */
+  /**
+   * `docker start`, `docker stop`, `docker restart` — le conteneur lui-même,
+   * rien de recréé, rien de supprimé. L'arrêt laisse vingt secondes au
+   * processus pour finir proprement avant le SIGKILL, comme `compose down`.
+   */
+  async controlWorkload(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    action: WorkloadControlAction,
+    onLog: LogSink,
+  ): Promise<void> {
+    const step = `workload.${action}`;
+    const { workload } = await this.findWorkload(ctx, ref, step);
+    if (workload.managed && action !== 'restart') {
+      throw new DriverError(managedWorkloadControlRefusal(workload), this.runtime, step);
+    }
+    if (!workload.controls.includes(action)) {
+      throw new DriverError(
+        `« ${workload.name} » est « ${workload.state} » : « ${action} » n'a pas de sens dans cet état.`,
+        this.runtime,
+        step,
+      );
+    }
+    const command = {
+      start: `docker start ${shellQuote(ref.id)}`,
+      stop: `docker stop -t 20 ${shellQuote(ref.id)}`,
+      restart: `docker restart -t 20 ${shellQuote(ref.id)}`,
+    }[action];
+    onLog(`→ ${command.replace(shellQuote(ref.id), workload.name)}`);
+    await this.stream(ctx, command, onLog, step, REMOVE_TIMEOUT_MS);
+    onLog(`✓ « ${workload.name} » : ${action}`);
+  }
+
+  async workloadLogs(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    tail: number,
+    onLine: LogSink,
+  ): Promise<void> {
+    await this.findWorkload(ctx, ref, 'workload.logs');
+    // `2>&1` : un conteneur écrit autant sur stderr que sur stdout, et le
+    // journal se lit dans l'ordre où il a été écrit.
+    await this.stream(
+      ctx,
+      `docker logs --timestamps --tail ${Math.max(1, Math.floor(tail))} ${shellQuote(ref.id)} 2>&1`,
+      onLine,
+      'workload.logs',
+      SHORT_TIMEOUT_MS,
+    );
+  }
+
+  async execInWorkload(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    command: string,
+    onLine: LogSink,
+    options: WorkloadExecOptions,
+  ): Promise<WorkloadExecResult> {
+    const { workload } = await this.findWorkload(ctx, ref, 'workload.exec');
+    if (!workload.exec) {
+      throw new DriverError(
+        `« ${workload.name} » n'est pas en marche : une commande ne s'exécute que dans un conteneur démarré.`,
+        this.runtime,
+        'workload.exec',
+      );
+    }
+    return runBoundedExec(
+      ctx.sshSession,
+      `docker exec ${shellQuote(ref.id)} sh -c ${quoteForShell(command)} 2>&1`,
+      onLine,
+      options,
+    );
+  }
+
   private async findWorkload(
     ctx: TargetContext,
     ref: WorkloadRef,
@@ -1429,6 +1515,11 @@ function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload
   const project = labels[COMPOSE_PROJECT_LABEL] ?? null;
   const fromProject = project !== null && project.startsWith(PROJECT_PREFIX);
   const rawState = raw.State?.Status ?? '';
+  const state = toServiceState(rawState);
+  const managed =
+    labels[MANAGED_LABEL] === MANAGED_VALUE ||
+    labels[LEGACY_MANAGED_LABEL] === LEGACY_MANAGED_VALUE ||
+    fromProject;
 
   return {
     runtime: 'docker',
@@ -1440,20 +1531,35 @@ function toWorkload(raw: DockerInspect, statuses: Map<string, string>): Workload
     kind: 'container',
     scope: project,
     image: raw.Config?.Image ?? null,
-    state: toServiceState(rawState),
+    state,
     health: toHealth(raw.State?.Health?.Status ?? ''),
     createdAt: raw.Created ?? null,
     since: statuses.get(id) ?? (rawState.length > 0 ? rawState : null),
     ports: publishedPorts(raw),
-    managed:
-      labels[MANAGED_LABEL] === MANAGED_VALUE ||
-      labels[LEGACY_MANAGED_LABEL] === LEGACY_MANAGED_VALUE ||
-      fromProject,
+    managed,
     managedApp:
       labels[APP_LABEL] ??
       labels[LEGACY_APP_LABEL] ??
       (fromProject && project ? project.slice(PROJECT_PREFIX.length) : null),
+    controls: containerControls(state, managed),
+    exec: state === 'running',
   };
+}
+
+/**
+ * Ce qu'un conteneur accepte dans son état : `docker stop` sur un conteneur
+ * arrêté ne fait rien d'utile, `docker restart` sur un conteneur en pause
+ * échoue. Une charge du panel ne fait que redémarrer — son arrêt appartient
+ * à l'application.
+ */
+export function containerControls(state: ServiceState, managed: boolean): WorkloadControlAction[] {
+  const controls: WorkloadControlAction[] =
+    state === 'running' || state === 'restarting'
+      ? ['stop', 'restart']
+      : state === 'paused'
+        ? ['stop']
+        : ['start'];
+  return managed ? controls.filter((action) => action === 'restart') : controls;
 }
 
 /**

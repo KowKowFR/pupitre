@@ -2,7 +2,8 @@ import type { PortAllocator } from '../ports.js';
 import type { AppStatus } from '../supervision.js';
 import type { AppSpec } from '../spec/index.js';
 import type { SshSession } from '../ssh/client.js';
-import type { Workload, WorkloadRef } from '../workloads.js';
+import type { Workload, WorkloadControlAction, WorkloadRef } from '../workloads.js';
+import type { WorkloadExecOptions, WorkloadExecResult } from './workload-exec.js';
 
 /**
  * Contrat que doit remplir un runtime pour être déployable par le panel.
@@ -356,6 +357,39 @@ export interface DeploymentDriver {
    * application du panel, c'est la redéployer, pas la recréer dans son dos.
    */
   updateWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void>;
+
+  /**
+   * Démarre, arrête ou redémarre une charge, sans rien recréer.
+   *
+   * Une charge `managed` se **redémarre** ici — son état en base n'en dépend
+   * pas —, mais ne s'arrête ni ne démarre : c'est l'arrêt de l'application
+   * qui tient `stopped_at`, et un arrêt par ce chemin laisserait le panel la
+   * croire en marche. Le refus est un `DriverError`. Ce que « arrêter » veut
+   * dire est propre au runtime, et écrit dans chaque implémentation.
+   */
+  controlWorkload(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    action: WorkloadControlAction,
+    onLog: LogSink,
+  ): Promise<void>;
+
+  /** Les dernières lignes du journal d'une charge, horodatées. Lecture seule. */
+  workloadLogs(ctx: TargetContext, ref: WorkloadRef, tail: number, onLine: LogSink): Promise<void>;
+
+  /**
+   * Exécute une commande dans la charge — non interactive, sous `sh -c`. La
+   * commande ne s'exécute **que** dans la charge, jamais sur l'hôte : elle est
+   * citée pour le shell de la machine (voir `quoteForShell`). Rend le code de
+   * sortie ; la sortie part ligne par ligne, bornée en nombre et en durée.
+   */
+  execInWorkload(
+    ctx: TargetContext,
+    ref: WorkloadRef,
+    command: string,
+    onLine: LogSink,
+    options: WorkloadExecOptions,
+  ): Promise<WorkloadExecResult>;
 
   /**
    * Ouvre le port sur le pare-feu de la cible.

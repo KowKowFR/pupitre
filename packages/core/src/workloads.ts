@@ -63,6 +63,11 @@ export function decodeWorkloadRef(raw: string): WorkloadRef | null {
   return parsed.success ? parsed.data : null;
 }
 
+/** Les gestes de cycle de vie : un processus qui démarre, s'arrête, redémarre. */
+export const WORKLOAD_CONTROL_ACTIONS = ['start', 'stop', 'restart'] as const;
+export const workloadControlActionSchema = z.enum(WORKLOAD_CONTROL_ACTIONS);
+export type WorkloadControlAction = z.infer<typeof workloadControlActionSchema>;
+
 export const workloadSchema = z.object({
   runtime: workloadRuntimeSchema,
   /** Poignée opaque, produite et relue par le seul driver de ce runtime. */
@@ -105,6 +110,16 @@ export const workloadSchema = z.object({
   managed: z.boolean(),
   /** Slug de l'application du panel, quand `managed` est vrai. */
   managedApp: z.string().nullable().default(null),
+  /**
+   * Les gestes de cycle de vie que **ce runtime** accepte pour cette charge,
+   * dans son état présent — c'est le driver qui le sait : un DaemonSet ne
+   * s'arrête pas, un pod nu ne se redémarre pas, un conteneur arrêté ne
+   * s'arrête pas deux fois, une charge du panel ne fait que redémarrer.
+   * L'écran n'offre que ceux-là ; la route et le driver le revérifient.
+   */
+  controls: z.array(workloadControlActionSchema).default([]),
+  /** Une commande peut-elle y être exécutée maintenant ? */
+  exec: z.boolean().default(false),
 });
 export type Workload = z.infer<typeof workloadSchema>;
 
@@ -128,8 +143,22 @@ export const workloadListSchema = z.object({
 });
 export type WorkloadList = z.infer<typeof workloadListSchema>;
 
-export const workloadActionSchema = z.enum(['remove', 'update']);
+export const workloadActionSchema = z.enum([
+  'remove',
+  'update',
+  'start',
+  'stop',
+  'restart',
+  'logs',
+  'exec',
+]);
 export type WorkloadAction = z.infer<typeof workloadActionSchema>;
+
+/** Une commande envoyée dans une charge : bornée en taille, en durée, en sortie. */
+export const WORKLOAD_EXEC_MAX_COMMAND = 2000;
+export const WORKLOAD_EXEC_TIMEOUT_SEC = 120;
+export const WORKLOAD_EXEC_MAX_LINES = 2000;
+export const WORKLOAD_LOGS_MAX_TAIL = 2000;
 
 /**
  * Progression d'une action sur une charge, publiée sur Redis et relayée en SSE.
@@ -143,6 +172,13 @@ export const workloadMessageSchema = z.discriminatedUnion('kind', [
       ts: z.string(),
       ref: z.string(),
       line: z.string(),
+      /**
+       * L'exécution à laquelle la ligne appartient — une commande, une lecture
+       * du journal. Deux écrans ouverts sur la même charge ne mélangent pas
+       * leurs sorties. Absent sur les anciennes actions (suppression, mise à
+       * jour), qui n'en ont qu'une à la fois.
+       */
+      run: z.string().optional(),
     }),
   }),
   z.object({
@@ -154,6 +190,13 @@ export const workloadMessageSchema = z.discriminatedUnion('kind', [
       action: workloadActionSchema,
       status: z.enum(['started', 'succeeded', 'failed']),
       detail: z.string().nullable().default(null),
+      run: z.string().optional(),
+      /** Code de sortie d'une commande, une fois terminée. */
+      exitCode: z.number().int().nullable().optional(),
+      /** La commande a dépassé son délai et a été interrompue. */
+      timedOut: z.boolean().optional(),
+      /** La sortie a dépassé sa borne : les lignes suivantes n'ont pas été transmises. */
+      truncated: z.boolean().optional(),
     }),
   }),
 ]);
@@ -182,6 +225,10 @@ const fr = {
     '« {name} » est déployée par le panel (application « {app} ») : ' +
     'cet écran ne la supprime pas. Passez par la destruction du déploiement ' +
     "(permission « deployment:destroy »), qui libère aussi son port et met la base à jour.",
+  'managed.control':
+    '« {name} » est déployée par le panel : on ne l’arrête ni ne la démarre d’ici, ' +
+    'sinon le panel la croirait toujours en marche. Passez par « Arrêter » ou « Démarrer » ' +
+    "sur la page Supervision de l'application — le redémarrage, lui, reste possible ici.",
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -193,6 +240,10 @@ const en: Translated<typeof fr> = {
     '“{name}” is deployed by the panel (application “{app}”): this screen will not remove ' +
     'it. Destroy the deployment instead (permission “deployment:destroy”) — that also frees ' +
     'its port and updates the database.',
+  'managed.control':
+    '“{name}” is deployed by the panel: it is neither stopped nor started from here, or the ' +
+    'panel would still believe it runs. Use “Stop” or “Start” on the application’s ' +
+    'Supervision page — restarting it stays possible here.',
 };
 
 export const workloadCopy = { fr, en };
@@ -214,4 +265,12 @@ export function managedWorkloadRefusal(
   return app
     ? t('managed.refusal.app', { name: workload.name, app })
     : t('managed.refusal', { name: workload.name });
+}
+
+/** Le refus d'arrêter ou de démarrer une charge du panel, hors de sa page Supervision. */
+export function managedWorkloadControlRefusal(
+  workload: Pick<Workload, 'name'>,
+  language: UiLanguage = 'fr',
+): string {
+  return translator(workloadCopy, language)('managed.control', { name: workload.name });
 }
