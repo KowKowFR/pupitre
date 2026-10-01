@@ -95,11 +95,12 @@ pnpm test:parity cible-docker-locale cible-k3s-locale --spec ma-spec.json --keep
 ```
 
 Il enchaîne, pour chaque côté : `preflight` → `allocatePort` → `render` →
-`upload` → `build` → `deploy` → `healthcheck` → **sonde HTTP depuis la cible**,
-puis `rollback` + resonde, puis `destroy` + contrôle des résidus. Il sort en
-code 1 si **une seule** vérification échoue.
+`upload` → `build` → `deploy` → `healthcheck` → **route posée sur le proxy de
+la cible** et sondée à travers lui depuis la cible (à défaut de proxy, par le
+port publié), puis `rollback` + resonde, puis `destroy` + contrôle des résidus.
+Il sort en code 1 si **une seule** vérification échoue.
 
-Il rend **30/30 au vert** au dernier passage. Le tableau et son analyse sont
+Il rend **32/32 au vert** au dernier passage, avec un Traefik sur chaque cible. Le tableau et son analyse sont
 dans le [README](../README.md#limites-connues) : c'est le document qui porte
 l'état daté du projet.
 
@@ -107,6 +108,27 @@ Prérequis : les deux cibles doivent être enregistrées et joignables **depuis 
 poste** (`cible-docker-locale`, `cible-k3s-locale`) —
 [`demarrage.md`](demarrage.md#la-cible-k3s-de-test) explique comment monter la
 seconde, qui n'a pas de script.
+
+## `pnpm test:proxy` — le reverse proxy, de bout en bout
+
+Le pendant de la parité pour les domaines : sur chaque cible, avec le même code,
+il installe Traefik par Pupitre (conteneur sous Docker, Traefik de K3s réglé),
+le teste, le retrouve par la détection, déploie une petite application par son
+driver, lui pose deux domaines — l'un en HTTPS avec redirection, l'autre en HTTP —,
+vérifie qu'ils répondent **à travers le proxy**, que le certificat est émis, qu'un
+domaine retiré ne répond plus, puis détruit et désinstalle tout.
+
+```bash
+docker compose --profile test up -d pebble pebble-dns
+pnpm test:proxy cible-docker-locale k3s-locale
+```
+
+Les certificats viennent de **Pebble**, le serveur ACME de test de l'équipe Let's
+Encrypt : il valide réellement le défi HTTP-01 sur le port 80 de la cible, et
+`pebble-dns` résout les domaines de test vers elle. Sans eux (`--no-acme`), tout
+le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que le port
+de l'application n'est publié que sur la boucle locale. **23/23** au dernier
+passage.
 
 ## Ce qui n'est pas vérifié
 

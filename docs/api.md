@@ -15,7 +15,7 @@ fabrique de 401/403 à la main, et **tout refus est audité**.
 | `/` | Tableau de bord — anomalies d'abord, inventaire en dernier | session ; chaque bloc filtré par sa permission |
 | `/targets` | Parc de machines, preflight, suppression | `target:read` |
 | `/targets/new` · `/targets/:id/edit` | Déclarer / modifier — credential jamais pré-rempli | `target:create` / `target:update` |
-| `/targets/:id` | Preflight, métriques, jauge des ports, charges qui y tournent | `target:read` |
+| `/targets/:id` | Preflight, métriques, jauge des ports, charges qui y tournent, reverse proxy | `target:read` |
 | `/applications` | Catalogue des AppSpec déclarées | `application:read` |
 | `/applications/new` | Deux onglets : « Depuis une description » (IA) et « Depuis un JSON » | `application:create` |
 | `/applications/:id` | AppSpec, secrets, historique des versions, redéploiement ; sauvegardes avec `backup:read` | `application:read` |
@@ -102,6 +102,11 @@ la navigation métier.
 | `/api/targets/:id/workloads/:ref/control` | POST | `workload:manage` — `{ action: start \| stop \| restart }`, `202` |
 | `/api/targets/:id/workloads/:ref/logs` | POST | `workload:manage` — `{ run, tail }`, les lignes reviennent par le flux `?run=` |
 | `/api/targets/:id/workloads/:ref/exec` | POST | `workload:exec` — `{ run, command }`, 30 par minute ; la sortie revient par le flux `?run=` |
+| `/api/targets/:id/proxy` | GET / PUT / DELETE | `target:read` / `target:update` / `target:update` — PUT relie un proxy **trouvé** (`{ kind, config }`), un test part aussitôt ; DELETE `?uninstall=1` défait ce que Pupitre a installé, 409 tant que des domaines passent par lui |
+| `/api/targets/:id/proxy/detect` | POST | `target:update` — ce que la machine porte et ce qu'on peut y installer ; la route attend la tâche (60 s au plus) |
+| `/api/targets/:id/proxy/install` | POST | `target:update` — `{ option: container \| kubernetes, acme }`, `202` ; la connexion passe `installing` puis `ok` ou `failed` |
+| `/api/targets/:id/proxy/check` | POST | `target:update` — « Tester », par la file |
+| `/api/targets/:id/dns` | GET | `target:read` — `?hostname=` : le domaine pointe-t-il vers cette machine ? Un avertissement, jamais un refus |
 
 ### Applications
 
@@ -117,6 +122,7 @@ la navigation métier.
 | `/api/applications/:id/versions` | GET | `application:read` |
 | `/api/applications/:id/secrets` | GET | `application:read` — **jamais de valeur** |
 | `/api/applications/:id/secrets/:name` | PUT / DELETE | `application:update` |
+| `/api/applications/:id/routes` | GET / PUT | `application:read` / `deployment:create` — les domaines, cible par cible ; PUT `{ targetId, routes }` remplace la liste et la pose sur le proxy si l'application tourne ; 409 si un domaine est déjà pris |
 | `/api/applications/:id/backups` | GET / POST | `backup:read` / `backup:manage` — POST : « Sauvegarder maintenant » `{ targetId }`, `202` ; 409 sans destination, sans volume, sans déploiement en service ou pendant une autre sauvegarde |
 | `/api/applications/:id/backup-policy` | PUT | `backup:manage` — automatique, avant déploiement, mode, rétention ; crée ou réactive la tâche « Sauvegardes des applications » |
 
@@ -124,7 +130,7 @@ la navigation métier.
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` (+ `scan:configure` si un `scanConfig` est fourni ; un `backup` n'est retenu qu'avec `backup:manage`, et seulement si l'application n'a pas encore de politique) |
+| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` (+ `scan:configure` si un `scanConfig` est fourni ; un `backup` n'est retenu qu'avec `backup:manage`, et seulement si l'application n'a pas encore de politique ; `domains` remplace les domaines de l'application sur la cible avant le déploiement) |
 | `/api/deployments/:id` | GET / DELETE | `deployment:read` / **`deployment:destroy`** |
 | `/api/deployments/:id/purge` | DELETE | **`deployment:purge`** |
 | `/api/deployments/purge` | POST | `deployment:purge` — en masse, `dryRun` compris |

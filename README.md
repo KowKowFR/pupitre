@@ -56,9 +56,11 @@ pnpm tsx scripts/render-both.ts ma-spec.json
 ```
 
 Sur cette spec-là, la sortie est un projet Compose `app-blog` de deux services, et
-un namespace `app-blog` de onze manifests — `Namespace`, deux `ConfigMap`, deux
-`Secret`, un `PersistentVolumeClaim`, deux `Deployment`, deux `Service`, un
-`Ingress`.
+un namespace `app-blog` de dix manifests — `Namespace`, deux `ConfigMap`, deux
+`Secret`, un `PersistentVolumeClaim`, deux `Deployment`, deux `Service`. Le domaine
+`blog.example.com` n'est pas rendu par le driver : c'est une route, posée par le
+reverse proxy de la cible au déploiement — un fichier pour Traefik sous Docker,
+un `Ingress` pour celui de K3s.
 
 Un détail qui n'en est pas un : `POSTGRES_PASSWORD` **est** `DATABASE_PASSWORD`.
 Une application et sa base attendent souvent le même mot de passe sous deux noms ;
@@ -99,7 +101,7 @@ flowchart LR
   end
 
   dk["<b>Cible Docker</b><br/>projet compose app-blog<br/>port alloué + règle ufw"]
-  k3["<b>Cible K3s</b><br/>namespace app-blog<br/>exposition par l'Ingress"]
+  k3["<b>Cible K3s</b><br/>namespace app-blog<br/>exposition par le Traefik du cluster"]
 
   worker == "SSH · le pipeline en 10 étapes" ==> dk
   worker == "SSH · la même AppSpec, l'autre driver" ==> k3
@@ -165,7 +167,7 @@ la comparaison telle qu'elle est.
 
 | | |
 |---|---|
-| **Deux runtimes, une seule description** | La même AppSpec se déploie sur Docker Compose et sur K3s. Les panels de cette famille sont Docker — Compose ou Swarm ; Kubernetes est hors de leur périmètre. Ici, `pnpm test:parity` déploie la *même* spec des deux côtés, obtient deux URLs qui répondent, rollback et détruit — et il rend **30/30 au vert** (tableau plus bas). |
+| **Deux runtimes, une seule description** | La même AppSpec se déploie sur Docker Compose et sur K3s. Les panels de cette famille sont Docker — Compose ou Swarm ; Kubernetes est hors de leur périmètre. Ici, `pnpm test:parity` déploie la *même* spec des deux côtés, obtient deux URLs qui répondent à travers le reverse proxy de chaque cible, rollback et détruit — et il rend **32/32 au vert** (tableau plus bas). |
 | **Le scan bloque, avant le déploiement** | Trivy, Grype et Syft tournent sur la machine cible dans le pipeline. Une politique `failOn: CRITICAL \| HIGH \| NONE`, stockée en donnée, arrête le déploiement à l'étape `scan`. Un SBOM est téléchargeable. |
 | **RBAC granulaire et journal d'activité** | Trente-quatre permissions `ressource:action`, des rôles qui sont des **données** modifiables et non des constantes, et un journal d'activité écrit par un point d'entrée unique — refus de permission compris, avec l'IP réelle derrière le reverse proxy. |
 | **Supervision et notifications intégrées** | Sondes HTTP et TLS avec hystérésis, métriques d'hôte avec seuils à trois niveaux, quatre canaux de notification. Pas d'outil séparé à brancher. |
@@ -179,9 +181,6 @@ la comparaison telle qu'elle est.
   ci-dessous.
 - **Aucun catalogue d'applications prêtes à l'emploi.** Là où Coolify propose des
   centaines de services en un clic, ici vous écrivez l'AppSpec.
-- **Il n'installe pas le reverse proxy et ne gère pas les certificats.**
-  `TraefikProvider` écrit la configuration dynamique d'un Traefik qui doit déjà
-  tourner sur la cible.
 - **Pas de gestion d'équipes ni de multi-tenance.** Un RBAC sur une instance,
   pas des espaces cloisonnés.
 - **Aucune version publiée, aucune communauté.** Pas de tag, pas de release, pas
@@ -263,6 +262,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | | Où c'est décrit |
 |---|---|
 | Machines cibles, preflight, charges distantes, suppression et purge | [`docs/exploitation.md`](docs/exploitation.md) |
+| Reverse proxy (Traefik repris ou installé), domaines et certificats Let's Encrypt au déploiement | [`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines) |
 | Sauvegardes chiffrées vers S3, SFTP ou un dossier monté, restauration, reprise après sinistre | [`docs/exploitation.md`](docs/exploitation.md#sauvegardes) |
 | RBAC (34 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Scanners Trivy / Grype / Syft et politique de blocage | [`docs/securite.md`](docs/securite.md#scanners-de-sécurité) |
@@ -302,7 +302,8 @@ La cible existe depuis le 12/09/2026 (`scripts/test-target-k3s/`, profil compose
   deploy   build()                          ✓       ✓
   deploy   deploy()                         ✓       ✓
   deploy   healthcheck()                    ✓       ✓
-  deploy   l'URL répond 200                 ✓       ✓
+  deploy   route posée sur le proxy         ✓       ✓
+  deploy   l'URL répond                     ✓       ✓
   rollback rollback()                       ✓       ✓
   rollback santé après rollback             ✓       ✓
   rollback l'URL répond toujours            ✓       ✓
@@ -312,8 +313,13 @@ La cible existe depuis le 12/09/2026 (`scripts/test-target-k3s/`, profil compose
   destroy  aucun conteneur Docker restant   ✓       —
   destroy  namespace K3s disparu            —       ✓
 
-  30/30 vérification(s) au vert
+  32/32 vérification(s) au vert
 ```
+
+Les deux URLs passent par le **reverse proxy** de chaque cible — un Traefik en
+conteneur côté Docker, celui du cluster côté K3s — : le domaine de la spec y est
+posé comme route, vers l'amont que chaque driver annonce, exactement comme le
+fait le pipeline. Une cible sans proxy est sondée par son port publié.
 
 La fixture (`packages/core/src/spec/__fixtures__/parity.json`) n'est pas
 complaisante : quatre services reliés par `dependsOn`, dont **deux construits
@@ -355,8 +361,8 @@ dépôt Git : il n'y a aucune voie d'entrée pour du code source.
 ### Compose ne sait pas publier un port derrière plusieurs répliques
 
 Un service à `replicas: 2` reçoit `publishedPort: null` côté Docker : Compose ne
-sait pas répartir un port publié entre deux conteneurs. Sans `ingress.host`
-servi par un vrai Traefik, un tel service n'est donc pas joignable depuis
+sait pas répartir un port publié entre deux conteneurs. Le Traefik de la machine
+le joignant par ce port, un tel service n'est donc pas joignable depuis
 l'extérieur en Docker — alors qu'il l'est en K3s, où un Service ClusterIP fait
 exactement ce travail.
 
@@ -405,9 +411,11 @@ qu'une seule requête ne le traverse jamais, n'est pas une capacité : c'est une
 affirmation non vérifiée dans une table de fabrique. `getProxyProvider('bunkerweb')`
 lève, et `proxy` reste à `traefik`.
 
-Le `TraefikProvider`, lui, écrit bien la configuration dynamique d'un Traefik mais
-**ne déploie pas Traefik**. Sans `ingress.host` dans l'AppSpec, l'étape `proxy`
-est `skipped` et l'exposition se fait par le port alloué.
+Traefik, lui, est complet : Pupitre reprend celui qui tourne déjà sur une
+machine ou en installe un, obtient les certificats Let's Encrypt et pose les
+domaines au déploiement — sur les deux runtimes, éprouvé par `pnpm test:proxy`
+contre un vrai serveur ACME de test. Voir
+[`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines).
 
 ### Pas de clé d'IA sur cette instance
 

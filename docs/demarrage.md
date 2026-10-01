@@ -101,7 +101,8 @@ défaut couperait la session SSH qui pilote la machine.
 ## La cible K3s de test
 
 Elle est le pendant de la précédente : un vrai cluster k3s (v1.33.4), joignable
-en SSH, avec Traefik conservé comme contrôleur d'ingress. Elle existe pour le
+en SSH, avec le Traefik qu'il livre — le reverse proxy que Pupitre règle et
+auquel il confie les domaines. Elle existe pour le
 critère de `CLAUDE.md`, que le rendu seul ne peut pas prouver.
 
 > Il n'y a **pas** de `setup-k3s-target.sh` : contrairement à la cible Docker,
@@ -130,7 +131,8 @@ Méthode d'authentification : clé, avec le contenu de `.test-target-key` (la cl
 **privée**). `sudo` est en `NOPASSWD` sur la cible.
 
 Le cluster publie son port 80 sur `127.0.0.1:8080` : c'est par là qu'on joint une
-application exposée par Ingress. Le panel n'alloue **aucun** port en K3s.
+application par son domaine, à travers Traefik. Le panel n'alloue **aucun** port
+en K3s.
 
 Le test de parité se lance ensuite depuis le poste :
 
@@ -138,7 +140,7 @@ Le test de parité se lance ensuite depuis le poste :
 pnpm test:parity cible-docker-locale cible-k3s-locale
 ```
 
-Il rend **30/30 au vert** au dernier passage ; le tableau détaillé et son
+Il rend **32/32 au vert** au dernier passage, avec un reverse proxy réglé sur chaque cible ; le tableau détaillé et son
 analyse sont dans les limites connues du
 [README](../README.md#limites-connues). Un point rouge y serait une information,
 pas un échec du script : c'est ce qu'on lui demande de révéler.

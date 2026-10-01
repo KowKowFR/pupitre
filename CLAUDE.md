@@ -36,12 +36,15 @@ packages/core   AppSpec, DeploymentDriver, ProxyProvider, Scanner
 ## Les 4 abstractions — ne jamais les contourner
 
 ### DeploymentDriver
-`preflight() deploy() healthcheck() rollback() destroy() logs() allocatePort()`
+`preflight() deploy() healthcheck() rollback() destroy() logs() allocatePort() upstream()`
 Implémentations : `DockerComposeDriver`, `K3sDriver`.
 
 ### ProxyProvider
-`register(app, target, port, runtime)` / `unregister(app)`
+`detect() install() check() apply(routes) probe(route) uninstall()`
 Implémentations : `TraefikProvider` (défaut), `BunkerWebProvider` (P1).
+Un domaine est une **route** posée par le proxy vers l'amont que le driver
+annonce (`upstream()` : port publié, Service du cluster). Le driver ne pose
+jamais de route ; le proxy ne sait pas sur quel runtime il route.
 
 ### Scanner
 `run(image): Promise<ScanReport>` — rapport normalisé
@@ -88,6 +91,8 @@ Conséquence : la même app se redéploie sur l'autre runtime en changeant un ch
 - Namespace / projet compose : `app-{slug}`
 - Permissions : chaînes `ressource:action` (`deployment:create`, `target:delete`)
 - Statuts de step : `pending | running | success | failed | skipped`
+- Domaines : une route par nom, **unique en base** (`routes.hostname`). L'AppSpec
+  (`ingress.host`) n'en donne que la valeur par défaut au premier déploiement
 - Migrations : jamais éditer une migration appliquée, toujours en créer une nouvelle
 - Temps réel : un canal Redis `pupitre:realtime` relayé en SSE. Un écran reçoit un
   signal, jamais des données — il se relit (`<LiveRefresh>`) avec ses permissions
@@ -107,6 +112,7 @@ pnpm db:generate                  # génère une migration Drizzle
 pnpm db:migrate                   # applique les migrations
 pnpm test                         # tests unitaires de @pupitre/core
 pnpm test:parity <docker> <k3s>   # la même AppSpec sur les deux runtimes
+pnpm test:proxy <docker> <k3s>    # le reverse proxy de bout en bout, certificats compris
 pnpm test:catalog <cible>         # chaque modèle du catalogue déployé, sondé, détruit
 docker compose up -d              # stack complète
 ```
