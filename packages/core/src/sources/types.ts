@@ -101,6 +101,13 @@ export interface SourceProvider {
   /** Le contenu d'un fichier à un commit donné, ou `null` s'il n'existe pas. */
   readFile(repo: RepositoryRef, sha: string, path: string): Promise<string | null>;
 
+  /**
+   * Les fichiers de ce nom, partout dans l'arbre du commit — les `pupitre.json`
+   * d'un dépôt, à proposer à la création d'une application. Chemins relatifs à
+   * la racine, triés.
+   */
+  findFiles(repo: RepositoryRef, sha: string, name: string): Promise<string[]>;
+
   /** Le message et l'auteur d'un commit, pour le journal et l'écran. */
   commit(repo: RepositoryRef, sha: string): Promise<SourceCommit>;
 

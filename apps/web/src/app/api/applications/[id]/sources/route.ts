@@ -1,6 +1,6 @@
 import {
   SourceBindingConflictError,
-  applicationSourceInputSchema,
+  applicationSourceCreateSchema,
   createApplicationSource,
   getSourceConnection,
   listApplicationSources,
@@ -45,7 +45,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:update');
   const { id } = paramsSchema.parse(await context.params);
-  const input = await readJsonBody(request, applicationSourceInputSchema);
+  const input = await readJsonBody(request, applicationSourceCreateSchema);
   const application = await assertApplication(id);
 
   const connection = await getSourceConnection('github');
@@ -87,6 +87,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
       specPath: source.specPath,
       watchPaths: source.watchPaths,
       mode: source.mode,
+      deployTo: source.deployTo,
       targets: source.targets.map((target) => `${target.targetName}:${target.runtime}`),
     },
     ip: auth.ip,

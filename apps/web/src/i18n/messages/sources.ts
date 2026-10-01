@@ -66,6 +66,43 @@ const fr = {
   'integration.connect.invalid.name': "Donnez un nom à l'application.",
   'integration.manual.invalid': "Indiquez l'App ID et collez la clé privée.",
 
+  // ── Nouvelle application → depuis un dépôt ─────────────────────────────
+  'import.section.source': 'Le dépôt',
+  'import.section.spec': 'Le pupitre.json',
+  'import.section.commits': 'À chaque nouveau commit',
+  'import.lead':
+    "Le pupitre.json d'une branche devient l'application. Vous la déployez ensuite où vous voulez, et ses commits la font évoluer.",
+  'import.branch.help': 'La branche suivie : ses commits font évoluer l’application.',
+  'import.searching': 'Recherche des pupitre.json de la branche…',
+  'import.found': { one: '{count} pupitre.json trouvé', other: '{count} pupitre.json trouvés' },
+  'import.none':
+    'Aucun pupitre.json sur la branche « {branch} » : indiquez son chemin, ou ajoutez-en un au dépôt.',
+  'import.specPath.help':
+    'Relatif à la racine du dépôt. Seuls les changements sous son dossier concernent l’application.',
+  'import.commit': 'Lu sur {branch}, au commit {sha}.',
+  'import.reading': 'Lecture et validation du fichier…',
+  'import.invalid': 'Ce pupitre.json ne peut pas devenir une application :',
+  'import.exposed': 'exposé',
+  'import.guardInfra': 'Faire valider les changements d’infrastructure',
+  'import.guardInfra.help':
+    'Un commit qui touche aux ports, domaines, volumes, secrets ou ressources attend un « Déployer » dans Pupitre.',
+  'import.saveNote': 'Rien n’est déployé : l’application rejoint le catalogue.',
+  'import.create': 'Créer l’application',
+  'import.cancel': 'Annuler',
+  'import.unavailable': 'Les dépôts GitHub ne sont pas disponibles.',
+  'import.searchFailed': 'La recherche dans le dépôt a échoué.',
+  'import.readFailed': 'Le fichier n’a pas pu être lu.',
+  'import.createFailed': 'L’application n’a pas pu être créée.',
+  'deployTo.none': 'Mettre à jour l’application',
+  'deployTo.none.help':
+    'Chaque commit qui la concerne devient sa nouvelle version. Vous la déployez où vous voulez, quand vous voulez.',
+  'deployTo.running': 'La redéployer là où elle tourne',
+  'deployTo.running.help':
+    'Chaque commit qui la concerne est déployé sur les cibles où elle est en service. Ailleurs, rien ne s’installe.',
+  'deployTo.targets': 'La déployer sur des cibles choisies',
+  'deployTo.targets.help':
+    'Chaque commit part sur les cibles de la liaison, qu’elle y tourne déjà ou non.',
+
   // ── Fiche d'une application ─────────────────────────────────────────────
   'card.title': 'Dépôt',
   'card.description':
@@ -82,6 +119,9 @@ const fr = {
   'source.watch': 'surveille',
   'source.targets': 'cibles',
   'source.lastSeen': 'dernier commit',
+  'source.synced': 'version de l’application',
+  'source.targets.running': 'là où elle tourne',
+  'source.targets.none': 'à la demande, où vous voulez',
   'source.checked': 'vérifié {when}',
   'source.never':
     'Premier passage dans la minute : Pupitre note le commit en tête, sans le déployer.',
@@ -89,6 +129,7 @@ const fr = {
   'source.error': 'Dernière vérification :',
   'action.check': 'Vérifier maintenant',
   'action.deploy': 'Déployer le dernier commit',
+  'action.sync': 'Mettre à jour depuis le dépôt',
   'action.edit': 'Modifier',
   'action.unlink': 'Délier',
   'toast.checking': 'Vérification enfilée',
@@ -143,6 +184,7 @@ const fr = {
   'field.targets.none': 'Aucune cible prête : lancez un preflight depuis Cibles.',
   'field.targets.runtime': 'Runtime sur {target}',
   'field.mode': 'Quand déployer',
+  'field.mode.none': 'Rien ne part tout seul : la nouvelle version attend que vous la déployiez.',
   'field.enabled': 'Suivre la branche',
   'field.enabled.help': "Décoché, Pupitre cesse de vérifier, sans rien oublier de la liaison.",
   'mode.auto.title': 'Automatique',
@@ -163,6 +205,13 @@ const fr = {
   'run.source': 'Commit',
 
   // ── Erreurs ─────────────────────────────────────────────────────────────
+  'error.branchNotFound': 'La branche « {branch} » est introuvable dans ce dépôt.',
+  'error.specMissing': 'Aucun {path} sur la branche « {branch} ».',
+  'error.specInvalid': '{path} refusé : {issue}',
+  'error.slugTaken':
+    'Une application « {name} » existe déjà : le name du pupitre.json doit être libre.',
+  'error.targetsRequired':
+    'Choisissez au moins une cible : les commits partent sur les cibles de la liaison.',
   'error.notConnected':
     "Aucune application GitHub n'est connectée : connectez-la dans Paramètres → Intégrations.",
   'error.state':
@@ -236,6 +285,42 @@ const en: Translated<typeof fr> = {
   'integration.connect.invalid.name': 'Give the app a name.',
   'integration.manual.invalid': 'Enter the App ID and paste the private key.',
 
+  'import.section.source': 'The repository',
+  'import.section.spec': 'The pupitre.json',
+  'import.section.commits': 'On each new commit',
+  'import.lead':
+    'A branch’s pupitre.json becomes the application. You then deploy it wherever you want, and its commits make it evolve.',
+  'import.branch.help': 'The branch followed: its commits make the application evolve.',
+  'import.searching': 'Looking for the branch’s pupitre.json files…',
+  'import.found': { one: '{count} pupitre.json found', other: '{count} pupitre.json found' },
+  'import.none':
+    'No pupitre.json on branch “{branch}”: give its path, or add one to the repository.',
+  'import.specPath.help':
+    'Relative to the repository root. Only changes under its folder concern the application.',
+  'import.commit': 'Read on {branch}, at commit {sha}.',
+  'import.reading': 'Reading and validating the file…',
+  'import.invalid': 'This pupitre.json cannot become an application:',
+  'import.exposed': 'exposed',
+  'import.guardInfra': 'Require approval for infrastructure changes',
+  'import.guardInfra.help':
+    'A commit touching ports, domains, volumes, secrets or resources waits for a “Deploy” in Pupitre.',
+  'import.saveNote': 'Nothing is deployed: the application joins the catalog.',
+  'import.create': 'Create the application',
+  'import.cancel': 'Cancel',
+  'import.unavailable': 'GitHub repositories are not available.',
+  'import.searchFailed': 'Searching the repository failed.',
+  'import.readFailed': 'The file could not be read.',
+  'import.createFailed': 'The application could not be created.',
+  'deployTo.none': 'Update the application',
+  'deployTo.none.help':
+    'Each commit concerning it becomes its new version. You deploy it wherever you want, whenever you want.',
+  'deployTo.running': 'Redeploy it where it runs',
+  'deployTo.running.help':
+    'Each commit concerning it is deployed to the targets where it is in service. Nothing is installed elsewhere.',
+  'deployTo.targets': 'Deploy it to chosen targets',
+  'deployTo.targets.help':
+    'Each commit goes to the link’s targets, whether it already runs there or not.',
+
   'card.title': 'Repository',
   'card.description':
     "A branch's pupitre.json describes the application. Pupitre checks every minute whether it changed.",
@@ -251,6 +336,9 @@ const en: Translated<typeof fr> = {
   'source.watch': 'watches',
   'source.targets': 'targets',
   'source.lastSeen': 'latest commit',
+  'source.synced': 'application version',
+  'source.targets.running': 'where it runs',
+  'source.targets.none': 'on demand, wherever you want',
   'source.checked': 'checked {when}',
   'source.never':
     'First check within a minute: Pupitre records the head commit without deploying it.',
@@ -258,6 +346,7 @@ const en: Translated<typeof fr> = {
   'source.error': 'Last check:',
   'action.check': 'Check now',
   'action.deploy': 'Deploy the latest commit',
+  'action.sync': 'Update from the repository',
   'action.edit': 'Edit',
   'action.unlink': 'Unlink',
   'toast.checking': 'Check queued',
@@ -310,6 +399,7 @@ const en: Translated<typeof fr> = {
   'field.targets.none': 'No ready target: run a preflight from Targets.',
   'field.targets.runtime': 'Runtime on {target}',
   'field.mode': 'When to deploy',
+  'field.mode.none': 'Nothing goes out on its own: the new version waits for you to deploy it.',
   'field.enabled': 'Follow the branch',
   'field.enabled.help': 'Unchecked, Pupitre stops checking, without forgetting anything about the link.',
   'mode.auto.title': 'Automatic',
@@ -328,6 +418,11 @@ const en: Translated<typeof fr> = {
 
   'run.source': 'Commit',
 
+  'error.branchNotFound': 'Branch “{branch}” was not found in this repository.',
+  'error.specMissing': 'No {path} on branch “{branch}”.',
+  'error.specInvalid': '{path} rejected: {issue}',
+  'error.slugTaken': 'An application “{name}” already exists: the pupitre.json name must be free.',
+  'error.targetsRequired': 'Choose at least one target: commits go to the link’s targets.',
   'error.notConnected': 'No GitHub App is connected: connect it in Settings → Integrations.',
   'error.state':
     'The creation request expired, or did not come from this browser. Start again from Settings → Integrations.',

@@ -1,5 +1,5 @@
 import type { AppSpec, SpecChange } from '@pupitre/core';
-import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { targets } from './schema/infra.js';
@@ -93,7 +93,7 @@ export async function deleteSourceConnection(
  * fichier du dépôt, jamais à toucher le disque — mais un chemin qui sort du
  * dépôt n'a de toute façon aucun sens.
  */
-const repoPathSchema = z
+export const repoPathSchema = z
   .string()
   .trim()
   .min(1)
@@ -103,6 +103,16 @@ const repoPathSchema = z
   });
 
 export const sourceModeSchema = z.enum(['auto', 'auto_unless_infra', 'manual']);
+export const sourceDeployToSchema = z.enum(['targets', 'running', 'none']);
+export type SourceDeployTo = z.infer<typeof sourceDeployToSchema>;
+
+const sourceTargetsSchema = z
+  .array(z.object({ targetId: z.string().uuid(), runtime: z.enum(['docker', 'k3s']) }))
+  .max(20)
+  .refine(
+    (list) => new Set(list.map((entry) => entry.targetId)).size === list.length,
+    'une cible ne se choisit qu’une fois',
+  );
 
 export const applicationSourceInputSchema = z.object({
   repository: z
@@ -119,17 +129,28 @@ export const applicationSourceInputSchema = z.object({
   specPath: repoPathSchema.default('pupitre.json'),
   watchPaths: z.array(repoPathSchema).max(50).default([]),
   mode: sourceModeSchema.default('auto_unless_infra'),
+  /** Où part un nouveau commit : les cibles de la liaison, là où elle tourne, ou nulle part. */
+  deployTo: sourceDeployToSchema.default('targets'),
   enabled: z.boolean().default(true),
-  targets: z
-    .array(z.object({ targetId: z.string().uuid(), runtime: z.enum(['docker', 'k3s']) }))
-    .min(1, 'au moins une cible')
-    .max(20)
-    .refine(
-      (list) => new Set(list.map((entry) => entry.targetId)).size === list.length,
-      'une cible ne se choisit qu’une fois',
-    ),
+  /** Les cibles de la liaison — exigées quand un commit part sur elles (`targets`). */
+  targets: sourceTargetsSchema.default([]),
 });
 export type ApplicationSourceInput = z.infer<typeof applicationSourceInputSchema>;
+
+/** Une liaison qui déploie « sur ses cibles » doit en avoir au moins une. */
+export function sourceTargetsProblem(
+  deployTo: SourceDeployTo,
+  targets: readonly unknown[],
+): string | null {
+  return deployTo === 'targets' && targets.length === 0 ? 'au moins une cible' : null;
+}
+
+export const applicationSourceCreateSchema = applicationSourceInputSchema.superRefine(
+  (input, context) => {
+    const problem = sourceTargetsProblem(input.deployTo, input.targets);
+    if (problem) context.addIssue({ code: 'custom', path: ['targets'], message: problem });
+  },
+);
 
 export const applicationSourcePatchSchema = applicationSourceInputSchema
   .omit({ repository: true, installationId: true })
@@ -239,6 +260,8 @@ export async function createApplicationSource(
     applicationId: string;
     connectionId: string;
     createdBy: string | null;
+    /** Le commit dont l'application vient d'être créée, s'il y a lieu. */
+    syncedSha?: string | null;
   },
   db: Database = getDb(),
 ): Promise<ApplicationSourceView> {
@@ -266,14 +289,28 @@ export async function createApplicationSource(
         specPath: input.specPath,
         watchPaths: input.watchPaths,
         mode: input.mode,
+        deployTo: input.deployTo,
         enabled: input.enabled,
         createdBy: input.createdBy,
+        // Une application créée depuis le dépôt porte déjà l'AppSpec de ce
+        // commit : il est à la fois le point de départ du polling et celui
+        // dont un déploiement à la main construit le code.
+        ...(input.syncedSha
+          ? {
+              lastSeenSha: input.syncedSha,
+              syncedSha: input.syncedSha,
+              syncedAt: new Date(),
+              lastCheckedAt: new Date(),
+            }
+          : {}),
       })
       .returning();
     if (!row) throw new Error("createApplicationSource : l'insertion n'a rien retourné");
-    await tx
-      .insert(applicationSourceTargets)
-      .values(input.targets.map((target) => ({ sourceId: row.id, ...target })));
+    if (input.targets.length > 0) {
+      await tx
+        .insert(applicationSourceTargets)
+        .values(input.targets.map((target) => ({ sourceId: row.id, ...target })));
+    }
     return row;
   });
   const [view] = await withTargets([created], db);
@@ -304,9 +341,11 @@ export async function updateApplicationSource(
       .returning();
     if (nextTargets) {
       await tx.delete(applicationSourceTargets).where(eq(applicationSourceTargets.sourceId, id));
-      await tx
-        .insert(applicationSourceTargets)
-        .values(nextTargets.map((target) => ({ sourceId: id, ...target })));
+      if (nextTargets.length > 0) {
+        await tx
+          .insert(applicationSourceTargets)
+          .values(nextTargets.map((target) => ({ sourceId: id, ...target })));
+      }
     }
     return row ?? null;
   });
@@ -487,4 +526,43 @@ export async function supersedePendingProposals(
 export async function countApplicationSources(db: Database = getDb()): Promise<number> {
   const [row] = await db.select({ value: sql<number>`count(*)::int` }).from(applicationSources);
   return row?.value ?? 0;
+}
+
+// ─── le commit de l'application ──────────────────────────────────────────────
+
+/** L'application porte désormais l'AppSpec de ce commit de la liaison. */
+export async function markSourceSynced(
+  id: string,
+  sha: string,
+  db: Database = getDb(),
+): Promise<void> {
+  await db
+    .update(applicationSources)
+    .set({ syncedSha: sha, syncedAt: new Date(), updatedAt: new Date() })
+    .where(eq(applicationSources.id, id));
+}
+
+/**
+ * La liaison d'où vient la version actuelle de l'application : celle qui l'a
+ * synchronisée en dernier. Un déploiement lancé à la main construit le code de
+ * son commit. `null` : l'application ne vient d'aucun dépôt.
+ */
+export async function getSyncedSource(
+  applicationId: string,
+  db: Database = getDb(),
+): Promise<ApplicationSourceView | null> {
+  const [row] = await db
+    .select()
+    .from(applicationSources)
+    .where(
+      and(
+        eq(applicationSources.applicationId, applicationId),
+        isNotNull(applicationSources.syncedSha),
+      ),
+    )
+    .orderBy(desc(applicationSources.syncedAt))
+    .limit(1);
+  if (!row) return null;
+  const [view] = await withTargets([row], db);
+  return view ?? null;
 }

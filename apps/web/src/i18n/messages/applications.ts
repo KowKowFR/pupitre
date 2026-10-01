@@ -238,6 +238,7 @@ const fr = {
   'tab.fromPrompt': 'Depuis une description',
   'tab.fromJson': 'Depuis un JSON',
   'tab.fromCompose': 'Depuis un docker-compose',
+  'tab.fromRepository': 'Depuis un dépôt GitHub',
   'new.secrets.title': 'Valeurs des secrets',
   'new.secrets.help':
     'Laissez vide pour que Pupitre génère une valeur, chiffrée. Saisissez celles qui viennent d’ailleurs : une clé d’API, le mot de passe d’une base existante. Elles partent avec le premier déploiement.',
@@ -655,6 +656,7 @@ const en: Translated<typeof fr> = {
   'tab.fromPrompt': 'From a description',
   'tab.fromJson': 'From JSON',
   'tab.fromCompose': 'From docker-compose',
+  'tab.fromRepository': 'From a GitHub repository',
   'new.secrets.title': 'Secret values',
   'new.secrets.help':
     'Leave empty for Pupitre to generate an encrypted value. Enter those that come from elsewhere: an API key, an existing database password. They go out with the first deployment.',

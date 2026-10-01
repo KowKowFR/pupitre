@@ -25,6 +25,8 @@ const fr = {
   rolledBack: 'Replié sur {target} : la version précédente tourne — run #{number}',
   proposal: 'En attente de validation dans Pupitre',
   invalid: 'pupitre.json refusé : {issue}',
+  synced: 'Version prise en compte par Pupitre — à déployer depuis le panel',
+  'synced.idle': 'Version prise en compte par Pupitre — l’application ne tourne nulle part',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -35,6 +37,8 @@ const en: Translated<typeof fr> = {
   rolledBack: 'Rolled back on {target}: the previous version is running — run #{number}',
   proposal: 'Awaiting approval in Pupitre',
   invalid: 'pupitre.json rejected: {issue}',
+  synced: 'Version taken into Pupitre — deploy it from the panel',
+  'synced.idle': 'Version taken into Pupitre — the application is not running anywhere',
 };
 
 const STATUS_TEXT = { fr, en };

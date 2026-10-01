@@ -83,10 +83,25 @@ l'application pour un monorepo.
 - **Polling, jamais de webhook.** Le panel est privé. Le worker demande chaque
   minute le dernier commit de chaque branche liée (`source:poll`, file de
   supervision), avec un ETag : « rien de neuf » répond 304 et ne coûte rien.
-- **Trois modes.** Automatique ; automatique sauf changement d'infra (le
-  défaut) ; toujours validé. Ce qui est de l'infra est décidé par
-  `classifySpecChange()` : port, exposition, domaine, volumes, secrets, variables,
-  ressources, services ajoutés ou retirés.
+- **Où part un commit** (`deploy_to`), réglé par liaison :
+  - `none` — **mettre à jour l'application** : elle prend l'AppSpec du commit,
+    rien ne se déploie ; on la déploie ensuite où l'on veut ;
+  - `running` — **la redéployer là où elle tourne** : les cibles sont celles où
+    une version est en service à l'instant du commit ; ailleurs, rien ne
+    s'installe ;
+  - `targets` — sur les cibles de la liaison, qu'elle y tourne ou non.
+- **Trois modes**, pour `running` et `targets` : automatique ; automatique sauf
+  changement d'infra (le défaut) ; toujours validé. Ce qui est de l'infra est
+  décidé par `classifySpecChange()` : port, exposition, domaine, volumes, secrets,
+  variables, ressources, services ajoutés ou retirés.
+- **Le commit de l'application.** Chaque liaison retient le commit dont
+  l'application porte l'AppSpec (`synced_sha`). Un déploiement lancé à la main —
+  tiroir, « Nouvelle application » — emporte ce commit : c'est son code qui se
+  construit, où que l'application aille.
+- **Créer depuis le dépôt.** « Nouvelle application → Depuis un dépôt GitHub »
+  cherche les `pupitre.json` de la branche (`findFiles()`), lit et valide celui
+  qu'on choisit au commit en tête, puis crée l'application et sa liaison, sans
+  cible : le `name` du fichier devient celui de l'application.
 - **Le code voyage en archive, et reste à part.** Le worker télécharge
   l'archive du commit exact et la passe au driver (`DriverContext.sourceArchive`),
   qui la décompresse dans **`source/`** de la release — jamais à côté de ses

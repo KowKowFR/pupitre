@@ -1,0 +1,26 @@
+{
+  "name": "bonjour",
+  "version": "1.0.0",
+  "services": [
+    {
+      "name": "web",
+      "source": {
+        "type": "dockerfile",
+        "context": "examples/bonjour",
+        "dockerfile": "Dockerfile"
+      },
+      "port": 8080,
+      "exposed": true,
+      "healthcheck": {
+        "path": "/",
+        "intervalSec": 5,
+        "timeoutSec": 3,
+        "retries": 10
+      },
+      "resources": {
+        "cpuMilli": 250,
+        "memoryMi": 64
+      }
+    }
+  ]
+}

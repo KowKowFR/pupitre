@@ -116,6 +116,10 @@ la navigation métier.
 |---|---|---|
 | `/api/applications` | GET / POST | `application:read` / `application:create` |
 | `/api/applications/generate` | POST | `application:create` — 501 sans clé, 422 spec invalide, 502 fournisseur muet, 429 au-delà du quota |
+| `/api/applications/from-source` | POST | `application:create` — créer une application **depuis son dépôt** : `{ repository, installationId, branch, specPath, deployTo: none \| running, mode }` lit le `pupitre.json` au commit en tête, crée l'application et sa liaison sans cible ; `preview: true` lit et valide sans rien créer ; 422 fichier absent ou refusé, 409 nom déjà pris |
+| `/api/applications/:id/sources` | GET / POST | `application:read` / `application:update` — les branches suivies ; POST relie une branche : `deployTo` (`targets` · `running` · `none`), cibles exigées pour `targets` |
+| `/api/applications/:id/sources/:sourceId` | PATCH / DELETE | `application:update` — 422 si `deployTo: targets` sans cible |
+| `/api/integrations/github/specs` | GET | `application:create` — les `pupitre.json` d'une branche (`repository`, `installationId`, `branch` facultative), avec le commit lu |
 | `/api/applications/:id` | GET / PATCH / DELETE | `application:read` / `application:update` / `application:delete` |
 | `/api/applications/:id/cascade` | GET / POST | GET : `application:delete` · POST : **union** `deployment:destroy` + `deployment:purge` + `application:delete` |
 | `/api/applications/:id/redeploy` | POST | `deployment:create` |

@@ -11,14 +11,23 @@ import {
   getAppSettingsValue,
   getApplication,
   getTarget,
+  listLiveDeployments,
   logAudit,
+  markSourceSynced,
   supersedePendingProposals,
   updateApplication,
   type ApplicationSourceView,
+  type SourceTarget,
 } from '@pupitre/db';
 import { logger } from '../logger.js';
 import { getOpsQueue } from '../queue.js';
-import { reportDeploymentStatus } from './status.js';
+import {
+  panelUrl,
+  reportCommitStatus,
+  reportDeploymentStatus,
+  statusLanguage,
+  statusText,
+} from './status.js';
 
 /**
  * Déployer un commit d'un dépôt lié sur les cibles de la liaison.
@@ -38,12 +47,94 @@ export type SourceDeployResult = {
   skipped: Array<{ targetName: string; reason: string }>;
 };
 
+/**
+ * Où part un commit de cette liaison, à cet instant :
+ *   targets  les cibles de la liaison ;
+ *   running  là où l'application est en service — redéployer ce qui tourne,
+ *            ne rien installer ailleurs ;
+ *   none     nulle part : on la déploie à la main, où l'on veut.
+ */
+export async function bindingsFor(source: ApplicationSourceView): Promise<SourceTarget[]> {
+  if (source.deployTo === 'targets') return source.targets;
+  if (source.deployTo === 'none') return [];
+  const live = await listLiveDeployments({ applicationId: source.applicationId });
+  const bindings: SourceTarget[] = [];
+  for (const couple of live) {
+    const running = couple.inService;
+    if (!running || running.stoppedAt) continue;
+    const target = await getTarget(couple.targetId);
+    bindings.push({
+      targetId: couple.targetId,
+      runtime: running.runtime,
+      targetName: target?.name ?? couple.targetId,
+    });
+  }
+  return bindings;
+}
+
+/**
+ * L'application prend la version d'un commit, sans être déployée : son AppSpec
+ * devient celle du commit, et c'est son code qu'un déploiement à la main
+ * construira. Le commit le dit sur GitHub.
+ */
+export async function syncFromSource(input: {
+  source: ApplicationSourceView;
+  sha: string;
+  spec: AppSpec;
+  trigger: 'auto' | 'manual' | 'proposal';
+  /** L'application devait être redéployée là où elle tourne, mais ne tourne nulle part. */
+  idle?: boolean;
+  proposalId?: string | null;
+  actorId: string | null;
+  ip: string | null;
+}): Promise<void> {
+  const { source, sha, spec } = input;
+  const application = await getApplication(source.applicationId);
+  if (!application) throw new Error(`application « ${source.applicationId} » introuvable`);
+  await updateApplication(application.id, { appSpec: spec });
+  await markSourceSynced(source.id, sha);
+  await supersedePendingProposals(source.id, input.proposalId ?? null);
+  await logAudit({
+    actorId: input.actorId,
+    action: 'source.commit.synced',
+    resourceType: 'application',
+    resourceId: application.id,
+    after: {
+      applicationSlug: application.slug,
+      repository: source.repository,
+      branch: source.branch,
+      sha,
+      version: spec.version,
+      trigger: input.trigger,
+    },
+    ip: input.ip,
+  });
+  const language = await statusLanguage();
+  const base = panelUrl();
+  await reportCommitStatus(
+    { fullName: source.repository, installationId: source.installationId },
+    sha,
+    {
+      state: 'success',
+      description: statusText(language, input.idle ? 'synced.idle' : 'synced'),
+      context: 'pupitre',
+      targetUrl: base ? `${base}/applications/${application.id}` : null,
+    },
+  );
+  logger.info(
+    { repository: source.repository, sha },
+    'version prise depuis un dépôt, sans déploiement',
+  );
+}
+
 export async function deployFromSource(input: {
   source: ApplicationSourceView;
   sha: string;
   spec: AppSpec;
   commit: SourceCommit | null;
   trigger: 'auto' | 'manual' | 'proposal';
+  /** Où déployer : `bindingsFor(source)` au moment de la décision. */
+  bindings: SourceTarget[];
   /** La proposition validée, qui ne doit pas être rendue caduque par ce déploiement. */
   proposalId?: string | null;
   actorId: string | null;
@@ -54,12 +145,13 @@ export async function deployFromSource(input: {
   if (!application) throw new Error(`application « ${source.applicationId} » introuvable`);
 
   await updateApplication(application.id, { appSpec: spec });
+  await markSourceSynced(source.id, sha);
 
   const settings = await getAppSettingsValue();
   const scanConfig = scanConfigFromSettings(settings.security);
   const result: SourceDeployResult = { created: [], skipped: [] };
 
-  for (const binding of source.targets) {
+  for (const binding of input.bindings) {
     const target = await getTarget(binding.targetId);
     if (!target) {
       result.skipped.push({ targetName: binding.targetName, reason: 'cible supprimée' });

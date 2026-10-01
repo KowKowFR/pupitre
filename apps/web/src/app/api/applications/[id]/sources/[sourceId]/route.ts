@@ -2,12 +2,13 @@ import {
   applicationSourcePatchSchema,
   deleteApplicationSource,
   logAudit,
+  sourceTargetsProblem,
   updateApplicationSource,
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sources as messages } from '@/i18n/messages/sources';
-import { NotFoundError, msg } from '@/lib/errors';
+import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { assertTargets, sourceJson, sourceOf } from '@/lib/source-routes';
@@ -25,6 +26,13 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const patch = await readJsonBody(request, applicationSourcePatchSchema);
   const before = await sourceOf(id, sourceId);
   if (patch.targets) await assertTargets(patch.targets);
+  // La règle porte sur l'état d'arrivée : passer en « cibles de la liaison »
+  // sans en donner, ou retirer les dernières, est refusé.
+  const problem = sourceTargetsProblem(
+    patch.deployTo ?? before.deployTo,
+    patch.targets ?? before.targets,
+  );
+  if (problem) throw new HttpError(422, 'source_targets', msg(messages, 'error.targetsRequired'));
 
   const after = await updateApplicationSource(sourceId, patch);
   if (!after) throw new NotFoundError(msg(messages, 'error.sourceNotFound', { id: sourceId }));
@@ -34,6 +42,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     specPath: source.specPath,
     watchPaths: source.watchPaths,
     mode: source.mode,
+    deployTo: source.deployTo,
     enabled: source.enabled,
     targets: source.targets.map((target) => `${target.targetName}:${target.runtime}`),
   });

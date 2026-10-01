@@ -229,6 +229,25 @@ export class GitHubSourceProvider implements SourceProvider {
     return response.text();
   }
 
+  async findFiles(repo: RepositoryRef, sha: string, name: string): Promise<string[]> {
+    // L'arbre récursif d'un commit, en un appel. GitHub le tronque au-delà de
+    // ~100 000 entrées : on rend alors ce qu'il a donné — un dépôt de cette
+    // taille garde son pupitre.json près de la racine.
+    const body = await this.json<{ tree: Array<{ path: string; type: string }> }>(
+      await this.call(
+        repo.installationId,
+        `/repos/${repoPath(repo.fullName)}/git/trees/${encodeURIComponent(sha)}?recursive=1`,
+      ),
+    );
+    return body.tree
+      .filter(
+        (entry) =>
+          entry.type === 'blob' && (entry.path === name || entry.path.endsWith(`/${name}`)),
+      )
+      .map((entry) => entry.path)
+      .sort();
+  }
+
   async commit(repo: RepositoryRef, sha: string): Promise<SourceCommit> {
     const body = await this.json<{
       sha: string;

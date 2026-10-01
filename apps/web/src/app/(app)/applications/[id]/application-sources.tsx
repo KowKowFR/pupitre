@@ -44,8 +44,13 @@ export type SourceView = {
   /** Ce que surveille une liaison sans chemin déclaré : le dossier du fichier de spec. */
   defaultWatchPaths: string[];
   mode: SourceMode;
+  /** Où part un nouveau commit : cibles de la liaison, là où elle tourne, ou nulle part. */
+  deployTo: 'targets' | 'running' | 'none';
   enabled: boolean;
   lastSeenSha: string | null;
+  /** Le commit dont l'application porte la version — celui qu'un déploiement construit. */
+  syncedSha: string | null;
+  syncedAgo: string | null;
   checkedAgo: string | null;
   lastError: string | null;
   targets: { targetId: string; runtime: 'docker' | 'k3s'; targetName: string }[];
@@ -211,7 +216,10 @@ function SourceBlock({
           {source.repository}
         </a>
         <CodeBadge>{source.branch}</CodeBadge>
-        <Badge variant="accent">{t(`mode.${source.mode}`)}</Badge>
+        <Badge variant="accent">{t(`deployTo.${source.deployTo}`)}</Badge>
+        {source.deployTo === 'none' ? null : (
+          <Badge variant="idle">{t(`mode.${source.mode}`)}</Badge>
+        )}
         {source.enabled ? null : (
           <Badge variant="warn" dot>
             {t('source.paused')}
@@ -240,15 +248,39 @@ function SourceBlock({
           {
             key: 'targets',
             term: t('source.targets'),
-            value: (
-              <span className="flex flex-wrap justify-end gap-1.5">
-                {source.targets.map((target) => (
-                  <Badge key={target.targetId} variant="outline">
-                    {target.targetName}
-                    <span className="text-text-3"> · {ta(`runtime.${target.runtime}`)}</span>
-                  </Badge>
-                ))}
+            value:
+              source.deployTo === 'targets' ? (
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  {source.targets.map((target) => (
+                    <Badge key={target.targetId} variant="outline">
+                      {target.targetName}
+                      <span className="text-text-3"> · {ta(`runtime.${target.runtime}`)}</span>
+                    </Badge>
+                  ))}
+                </span>
+              ) : (
+                <span className="text-text-2">{t(`source.targets.${source.deployTo}`)}</span>
+              ),
+          },
+          {
+            key: 'synced',
+            term: t('source.synced'),
+            value: source.syncedSha ? (
+              <span className="flex flex-wrap items-center justify-end gap-x-2">
+                <a
+                  href={commitHref(source.repository, source.syncedSha)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mono link"
+                >
+                  {source.syncedSha.slice(0, 7)}
+                </a>
+                {source.syncedAgo ? (
+                  <span className="t-cap text-text-3">{source.syncedAgo}</span>
+                ) : null}
               </span>
+            ) : (
+              <span className="text-text-3">{tc('none')}</span>
             ),
           },
           {
@@ -315,7 +347,7 @@ function SourceBlock({
               onClick={() => void deploy()}
             >
               <Rocket aria-hidden />
-              {t('action.deploy')}
+              {source.deployTo === 'none' ? t('action.sync') : t('action.deploy')}
             </Button>
           ) : null}
           {canEdit ? (

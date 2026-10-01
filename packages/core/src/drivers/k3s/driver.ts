@@ -472,6 +472,7 @@ export class K3sDriver implements DeploymentDriver {
       secretValues,
       publishedPort,
       allowFrom: ctx.exposure?.allowFrom ?? null,
+      release: ctx.deployment.id,
     });
 
     return { projectName: this.namespace(ctx), files, publishedPort };
@@ -2018,7 +2019,7 @@ export function parseNodes(
 }
 
 type PodItem = {
-  metadata?: { name?: string };
+  metadata?: { name?: string; deletionTimestamp?: string };
   status?: { conditions?: KubeCondition[]; phase?: string };
 };
 
@@ -2039,7 +2040,13 @@ export function parsePodReadiness(
   const pending: string[] = [];
   let ready = 0;
 
+  let total = 0;
   for (const item of items) {
+    // Un pod en cours de suppression appartient au passé : un ancien
+    // ReplicaSet qui s'en va, une épave d'éviction. Il ne dit rien de la
+    // version qu'on vient de poser, et ne doit pas la faire replier.
+    if (item.metadata?.deletionTimestamp) continue;
+    total += 1;
     const isReady =
       item.status?.conditions?.some(
         (condition) => condition.type === 'Ready' && condition.status === 'True',
@@ -2052,7 +2059,7 @@ export function parsePodReadiness(
     }
   }
 
-  return { total: items.length, ready, pending };
+  return { total, ready, pending };
 }
 
 
