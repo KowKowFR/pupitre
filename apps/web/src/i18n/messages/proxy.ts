@@ -97,7 +97,9 @@ const fr = {
   'link.proxy': 'Reverse proxy',
   'link.address': 'Adresse de cette machine, vue de celle du proxy',
   'link.address.help':
-    'Celle par laquelle le proxy la joindra — une IP privée de préférence. Le port des applications n’y sera ouvert qu’à lui.',
+    'Celle par laquelle le proxy la joindra — une IP privée de préférence. Le port des applications n’y sera ouvert qu’à lui. « Relier » éprouve aussitôt la connexion entre les deux machines.',
+  'link.reached':
+    'Connexion éprouvée : « {target} » a joint cette machine sur un port de la plage des applications. Elle l’est de nouveau avant chaque déploiement.',
   'link.via': 'Servie par le reverse proxy de « {target} »',
   'link.addresses': 'Le proxy joint cette machine à {address}.',
   'link.source':
@@ -247,7 +249,9 @@ const en: Translated<typeof fr> = {
   'link.proxy': 'Reverse proxy',
   'link.address': 'Address of this machine, as seen from the proxy’s',
   'link.address.help':
-    'The one the proxy will reach it by — a private IP preferably. Application ports will be open to it only.',
+    'The one the proxy will reach it by — a private IP preferably. Application ports will be open to it only. “Link” tests the connection between the two machines right away.',
+  'link.reached':
+    'Connection tested: “{target}” reached this machine on a port of the application range. It is tested again before each deployment.',
   'link.via': 'Served by the reverse proxy of “{target}”',
   'link.addresses': 'The proxy reaches this machine at {address}.',
   'link.source': ' It comes from {source}: application ports open to that address only.',

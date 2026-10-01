@@ -360,8 +360,16 @@ export function ProxyPanel({
                 <span className="ml-2">{formatDateTime(linked.lastCheckedAt, format)}</span>
               ) : null}
             </p>
-            {linked.lastCheckError && linked.status === 'failed' ? (
-              <Alert variant="destructive">{linked.lastCheckError}</Alert>
+            {linked.status === 'ok' && !linked.lastCheckError ? (
+              <p className="t-sm flex items-start gap-2">
+                <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-ok-text" />
+                {t('link.reached', { target: linked.hostTargetName })}
+              </p>
+            ) : null}
+            {linked.lastCheckError ? (
+              <Alert variant={linked.status === 'failed' ? 'destructive' : 'warn'}>
+                {linked.lastCheckError}
+              </Alert>
             ) : null}
             {!linked.privateAddress ? (
               <Alert variant="warn">{t('link.public', { address: linked.address })}</Alert>

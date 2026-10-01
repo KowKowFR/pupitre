@@ -41,6 +41,7 @@ import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
 import { backupApplication } from '../backup/application.js';
+import { verifyLinkBeforeDeploy } from '../proxy/link.js';
 import { applyCoupleRoutes, exposureFor, seedRouteFromSpec } from '../proxy/routes.js';
 
 /**
@@ -210,6 +211,21 @@ export async function runDeploymentPipeline(
         stream.line('preflight', `${check.ok ? '✓' : '✗'} ${check.label} — ${check.detail ?? ''}`);
       }
       if (!report.ok) throw new Error("la cible ne peut pas accueillir ce déploiement");
+
+      // Servie par le proxy d'une autre machine : la connexion de l'une à
+      // l'autre est éprouvée avant de rien construire, sur la plage où le port
+      // sera publié. L'adresse d'arrivée relevée devient celle à qui l'ouvrir.
+      const linked = await verifyLinkBeforeDeploy({
+        applicationId: deployment.applicationId,
+        targetId: deployment.targetId,
+        served: ctx,
+        portRange,
+        onLog: (line) => stream.line('preflight', line),
+      });
+      if (linked) {
+        const refreshed = await exposureFor(deployment.applicationId, deployment.targetId);
+        if (refreshed) ctx.exposure = refreshed;
+      }
       return 'success';
     },
 

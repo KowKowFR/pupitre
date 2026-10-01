@@ -3,7 +3,13 @@
  *
  *   pnpm test:proxy <cible-docker> <cible-k3s> [--no-acme] [--keep]
  *
- * Pour chaque cible, avec le même code — seul le driver et le mode de Traefik
+ * D'abord, avant toute installation : les deux machines se joignent-elles ?
+ * Dans les deux sens, par l'épreuve même du produit (`checkReach()`) — une
+ * connexion ouverte de l'une vers l'autre, sur un port de la plage des
+ * applications — et une adresse injoignable doit être dite telle. Sans quoi
+ * le proxy central n'est pas exercé, en le disant.
+ *
+ * Puis, pour chaque cible, avec le même code — seul le driver et le mode de Traefik
  * changent, et ils ne sont nommés nulle part ici :
  *   1. Traefik installé par Pupitre (conteneur, ou le Traefik de K3s réglé),
  *      ses certificats demandés à Pebble — l'ACME de test de Let's Encrypt —
@@ -40,14 +46,17 @@ import {
   type RuntimeKind,
 } from '@pupitre/core/drivers';
 import {
+  checkReach,
   defaultDynamicDirectory,
   getProxyProvider,
+  reachSource,
   REMOTE_NAMESPACE,
   traefikConfigSchema,
   traefikFileName,
   type ProxyContext,
   type ProxyProvider,
   type ProxyRoute,
+  type ReachResult,
   type RouteProbe,
 } from '@pupitre/core/proxy';
 import { connect, disconnect, exec, type SshSession, type SshTarget } from '@pupitre/core/ssh';
@@ -57,6 +66,7 @@ import {
   createPortAllocator,
   eq,
   getDb,
+  getTargetPortReport,
   getTargetSecret,
   listTargets,
 } from '@pupitre/db';
@@ -457,10 +467,65 @@ async function exercise(
 
 // ─── le proxy central ────────────────────────────────────────────────────────
 
-/** Ce que mesure le test d'une liaison : l'adresse par laquelle le proxy arrive. */
-async function sourceAddressTowards(session: SshSession, address: string): Promise<string | null> {
-  const route = await exec(session, `ip route get ${address} 2>/dev/null | head -1`);
-  return /\bsrc\s+(\S+)/.exec(route.stdout)?.[1] ?? null;
+/** La plage où les applications de la cible sont publiées, comme le pipeline la retient. */
+async function appRange(side: Side): Promise<{ min: number; max: number }> {
+  if (side.ctx.portRange) return side.ctx.portRange;
+  const report = await getTargetPortReport(side.ctx.target.id);
+  return report?.range ?? { min: 30000, max: 32767 };
+}
+
+type Reach = { address: string; result: ReachResult };
+
+/**
+ * Phase 0 : la machine `from` ouvre-t-elle une connexion vers `to` ? Par
+ * l'épreuve du produit, celle du test d'une liaison et du préflight.
+ */
+async function reachBetween(from: Side, to: Side): Promise<Reach | null> {
+  const label = `${from.runtime}→${to.runtime}`;
+  const address = await machineAddress(to.session);
+  if (!record(label, 'adresse de la machine', Boolean(address), address ?? 'introuvable')) {
+    return null;
+  }
+  const portRange = await appRange(to);
+  const result = await guarded(label, 'connexion éprouvée', () =>
+    checkReach({
+      proxyHost: from.ctx,
+      served: to.ctx,
+      address: address!,
+      portRange,
+      onLog: (line) => write(`    ${dim(line)}\n`),
+    }),
+  );
+  if (!result) return null;
+  record(
+    label,
+    `${from.ctx.target.name} joint ${to.ctx.target.name}`,
+    result.ok === true,
+    `${result.detail}${reachSource(result) ? ` — arrivée depuis ${reachSource(result)}` : ''}`,
+  );
+  return result.ok === true ? { address: address!, result } : null;
+}
+
+/** Et une adresse qui ne mène nulle part est dite telle, sans rien laisser derrière. */
+async function unreachableIsSaid(from: Side, to: Side): Promise<void> {
+  const label = `${from.runtime}→${to.runtime}`;
+  const result = await guarded(label, 'adresse injoignable', () =>
+    checkReach({
+      proxyHost: from.ctx,
+      served: to.ctx,
+      // TEST-NET-1 (RFC 5737) : routée par défaut, jamais attribuée.
+      address: '192.0.2.1',
+      portRange: { min: 30000, max: 30009 },
+    }),
+  );
+  if (!result) return;
+  const leftovers = await exec(to.session, 'ls /tmp/pupitre-reach-* 2>/dev/null || true');
+  record(
+    label,
+    'une adresse injoignable est signalée, rien ne reste',
+    result.ok === false && leftovers.stdout.trim() === '',
+    `${result.failure ?? '?'} — ${result.detail}`,
+  );
 }
 
 async function redeploy(app: Side, exposure: NonNullable<DriverContext['exposure']>) {
@@ -485,6 +550,7 @@ async function redeploy(app: Side, exposure: NonNullable<DriverContext['exposure
 async function crossExercise(
   proxy: Installed,
   app: Side,
+  reach: Reach,
   acme: AcmeSettings | null,
   keep: boolean,
 ): Promise<void> {
@@ -495,14 +561,15 @@ async function crossExercise(
     `\n${bold(`── proxy central — le Traefik de ${proxy.side.ctx.target.name} sert ${app.ctx.target.name}`)}\n`,
   );
 
-  const address = await machineAddress(app.session);
-  const source = address ? await sourceAddressTowards(proxy.side.session, address) : null;
+  // L'adresse et l'arrivée viennent de la phase 0 : la connexion y a été éprouvée.
+  const { address } = reach;
+  const source = reachSource(reach.result);
   if (
     !record(
       label,
-      'liaison : l’adresse de la machine, et celle d’où le proxy arrive',
-      Boolean(address && source),
-      `${address ?? '?'} ← ${source ?? '?'}`,
+      'liaison : adresse et arrivée du proxy',
+      Boolean(source),
+      `${address} ← ${source}`,
     )
   )
     return;
@@ -704,16 +771,38 @@ async function main(): Promise<void> {
       const side = await guarded(runtime, 'ouverture de la cible', () =>
         openSide(runtime, ref, applicationId),
       );
-      if (!side) continue;
-      sides.push(side);
+      if (side) sides.push(side);
+    }
+
+    // Phase 0 : les deux machines se joignent-elles, dans les deux sens ?
+    const reaches = new Map<Side, Reach | null>();
+    if (sides.length === 2) {
+      write(`\n${bold('── les deux machines se joignent-elles ?')}\n`);
+      for (const [from, to] of [sides, [...sides].reverse()] as Array<[Side, Side]>) {
+        reaches.set(to, await reachBetween(from, to));
+      }
+      await unreachableIsSaid(sides[0]!, sides[1]!);
+    }
+
+    for (const side of sides) {
       const done = await exercise(side, acme, keep);
       if (done) installed.push(done);
     }
 
-    // Le proxy central, dans les deux sens.
+    // Le proxy central, dans les deux sens — seulement entre machines qui se joignent.
     for (const proxy of installed) {
       const app = sides.find((side) => side !== proxy.side);
-      if (app) await crossExercise(proxy, app, acme, keep);
+      if (!app) continue;
+      const reach = reaches.get(app);
+      if (!reach) {
+        record(
+          `${proxy.side.runtime}→${app.runtime}`,
+          'proxy central non exercé : les machines ne se joignent pas (phase 0)',
+          false,
+        );
+        continue;
+      }
+      await crossExercise(proxy, app, reach, acme, keep);
     }
 
     if (!keep) for (const done of installed) await teardown(done, acme);

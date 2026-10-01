@@ -1,5 +1,5 @@
 import { exec } from '../ssh/client.js';
-import type { DriverContext } from './types.js';
+import type { TargetContext } from './types.js';
 
 /**
  * Ports déjà en écoute sur la cible.
@@ -25,7 +25,7 @@ const PROBE_TIMEOUT_MS = 30_000;
  * signifie « je n'ai pas pu regarder », le second « j'ai regardé, il n'y a
  * rien ». Confondre les deux ferait taire la vérification.
  */
-export async function listeningPorts(ctx: DriverContext): Promise<Set<number> | null> {
+export async function listeningPorts(ctx: TargetContext): Promise<Set<number> | null> {
   // `ss -tlnH` : TCP, en écoute, numérique, sans en-tête.
   // `-p` (processus) exige root et n'est qu'informatif : on ne le demande pas,
   // pour que la sonde fonctionne aussi sans élévation.

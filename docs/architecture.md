@@ -504,9 +504,14 @@ Sinon, ce port en HTTP clair contournerait le HTTPS du proxy. Côté K3s, le
 driver supprime la `NetworkPolicy` quand elle n'a plus lieu d'être.
 
 **Le proxy central.** Une liaison (`proxy_links`) relie une machine au proxy
-d'une autre, avec l'adresse par laquelle celle-ci la joint ; son test relève
-l'adresse d'arrivée (`ip route get`, depuis la machine du proxy) et si
-l'adresse est bien à la machine servie. `resolveServingProxy()` répond « qui
+d'une autre, avec l'adresse par laquelle celle-ci la joint. `checkReach()`
+(`packages/core/src/proxy/reach.ts`) l'éprouve pour de vrai : un écouteur
+éphémère sur la machine servie, dans la plage des applications, et une
+connexion depuis la machine du proxy qui doit en rapporter un jeton ; il en
+tire l'adresse d'arrivée (NAT compris) et dit si l'adresse est à la machine.
+Le test de la liaison et le **préflight** de chaque déploiement à domaines
+d'une machine reliée passent par lui — un chemin bloqué arrête le déploiement
+avant toute construction. `resolveServingProxy()` répond « qui
 sert cette cible » — le sien, sinon celui de sa liaison — et tout le reste
 (champ Domaines, pipeline, sonde) passe par lui. Pour le proxy, rien ne change
 que l'amont : un port **avec une adresse** (`{ kind: 'port', host, port }`), et

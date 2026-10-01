@@ -10,12 +10,15 @@ import {
   hostnameProblem,
   interpretRouteProbe,
   interpretTraefikCluster,
+  interpretReach,
   interpretTraefikContainer,
   isIPv4,
   isPrivateAddress,
+  normalizePeer,
   parseCertificate,
   parseIngressClasses,
   proxyCapabilities,
+  reachCandidates,
   readTraefik,
   renderHelmChartConfig,
   renderManagedCompose,
@@ -569,5 +572,53 @@ describe('le proxy central — une machine servie par le proxy d’une autre', (
     assert.equal(probeHostOf('[::]:30001'), '127.0.0.1');
     assert.equal(probeHostOf('127.0.0.1:30001'), '127.0.0.1');
     assert.equal(probeHostOf(null), '127.0.0.1');
+  });
+});
+
+describe('le proxy central — la connexion éprouvée entre les deux machines', () => {
+  it('tire le port d’essai dans la plage des applications, hors des réservations', () => {
+    let seed = 0;
+    const random = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+    const ports = reachCandidates({ min: 30000, max: 30009 }, new Set([30000, 30001]), 5, random);
+    assert.ok(ports.length > 0);
+    for (const port of ports) {
+      assert.ok(port >= 30000 && port <= 30009, String(port));
+      assert.ok(port !== 30000 && port !== 30001, String(port));
+    }
+    assert.equal(new Set(ports).size, ports.length, 'pas deux fois le même');
+  });
+
+  it('parcourt une plage presque pleine, et n’invente rien quand elle l’est', () => {
+    const full = new Set([30000, 30001, 30002]);
+    assert.deepEqual(
+      reachCandidates({ min: 30000, max: 30003 }, full, 3, () => 0),
+      [30003],
+    );
+    full.add(30003);
+    assert.deepEqual(reachCandidates({ min: 30000, max: 30003 }, full), []);
+  });
+
+  it('lit l’adresse d’arrivée, IPv4 vue par un écouteur IPv6 comprise', () => {
+    assert.equal(normalizePeer('::ffff:172.21.0.6\n'), '172.21.0.6');
+    assert.equal(normalizePeer('10.0.0.2'), '10.0.0.2');
+    assert.equal(normalizePeer('fd00::2'), 'fd00::2');
+    assert.equal(normalizePeer(''), null);
+  });
+
+  it('dit ce qui bloque : rien, un refus, un silence, une autre machine', () => {
+    const base = { token: 'abc123', address: '10.0.0.12', port: 30042, proxyName: 'srv-1' };
+    assert.equal(interpretReach({ ...base, curlCode: 0, body: 'abc123\n\ncurl=0' }).failure, null);
+    const refused = interpretReach({ ...base, curlCode: 7, body: '' });
+    assert.equal(refused.failure, 'refused');
+    assert.match(refused.detail, /10\.0\.0\.12:30042 refuse/);
+    const silent = interpretReach({ ...base, curlCode: 28, body: '' });
+    assert.equal(silent.failure, 'timeout');
+    assert.match(silent.detail, /groupe de sécurité/);
+    assert.equal(
+      interpretReach({ ...base, curlCode: 0, body: '<html>nginx</html>' }).failure,
+      'mismatch',
+    );
+    assert.match(interpretReach({ ...base, curlCode: 52, body: '' }).detail, /coupe sans réponse/);
+    assert.equal(interpretReach({ ...base, curlCode: 6, body: '' }).failure, 'error');
   });
 });

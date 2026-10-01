@@ -11,28 +11,28 @@ import {
 import { getDriver } from '@pupitre/core/drivers';
 import {
   getProxyProvider,
+  reachSource,
   type ProxyCheck,
   type ProxyDetection,
   type ProxyInstallOption,
 } from '@pupitre/core/proxy';
-import { disconnect, exec } from '@pupitre/core/ssh';
+import { disconnect } from '@pupitre/core/ssh';
 import {
   countRoutesServedBy,
   deleteProxy,
   getProxy,
-  getTargetLink,
   listLiveDeployments,
   listRoutedCouples,
   logAudit,
   resolveServingProxy,
   setProxyStatus,
-  setTargetLinkCheck,
   type ServingProxy,
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
 import { openTargetContext } from '../deploy/target-context.js';
 import { logger } from '../logger.js';
+import { verifyTargetLink } from '../proxy/link.js';
 import { applyCoupleRoutes, probeCoupleRoutes, proxyContextOf } from '../proxy/routes.js';
 
 /**
@@ -272,69 +272,26 @@ export async function handleRoutesCheck(job: Job): Promise<{ checked: number; fa
 }
 
 /**
- * Éprouver la liaison d'une machine au proxy d'une autre, sans rien y changer :
- *   - de la machine du proxy, la route vers l'adresse donnée — elle dit par
- *     quelle adresse le proxy arrive (`src`), la seule à qui ouvrir le port ;
- *   - un ping, pour dire si elle répond — un avertissement s'il échoue, un
- *     pare-feu peut le bloquer sans bloquer le reste ;
- *   - de la machine servie, si l'adresse est la sienne : on pourra alors y
- *     publier le port, et nulle part ailleurs.
+ * « Tester la liaison » : la machine du proxy ouvre-t-elle vraiment une
+ * connexion vers celle-ci, sur un port de la plage des applications ? Voir
+ * `checkReach()` — le résultat est retenu sur la liaison.
  */
 export async function handleProxyLinkCheck(job: Job): Promise<{
-  ok: boolean;
+  ok: boolean | null;
+  port: number | null;
   sourceAddress: string | null;
-  reachable: boolean | null;
   bindable: boolean;
-  error: string | null;
+  detail: string;
 }> {
   const data = proxyLinkCheckJobDataSchema.parse(job.data);
-  const link = await getTargetLink(data.targetId);
-  if (!link) throw new Error('aucune liaison pour cette cible');
-  const proxy = await getProxy(link.proxyId);
-  if (!proxy?.hostTargetId) throw new Error('le proxy de cette liaison a disparu');
-
-  let sourceAddress: string | null = null;
-  let reachable: boolean | null = null;
-  let bindable = false;
-  let error: string | null = null;
-  const quoted = `'${link.address.replaceAll("'", '')}'`;
-  const host = await openTargetContext(proxy.hostTargetId);
-  try {
-    const route = await exec(
-      host.session,
-      `(ip route get ${quoted} || ip -6 route get ${quoted}) 2>/dev/null | head -1; ` +
-        `ping -c 1 -W 2 ${quoted} >/dev/null 2>&1 && echo ping=ok || echo ping=ko`,
-      { timeout: 30_000 },
-    );
-    sourceAddress = /\bsrc\s+(\S+)/.exec(route.stdout)?.[1] ?? null;
-    reachable = /ping=ok/.test(route.stdout) ? true : /ping=ko/.test(route.stdout) ? false : null;
-    if (!sourceAddress) {
-      error = `la machine du proxy ne sait pas joindre ${link.address} : aucune route`;
-    }
-  } finally {
-    await disconnect(host.session);
-  }
-  if (!error) {
-    const served = await openTargetContext(data.targetId);
-    try {
-      const addresses = await exec(
-        served.session,
-        "ip -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1",
-        { timeout: 30_000 },
-      );
-      bindable = addresses.stdout
-        .split('\n')
-        .map((line) => line.trim())
-        .includes(link.address);
-    } finally {
-      await disconnect(served.session);
-    }
-  }
-  await setTargetLinkCheck(data.targetId, {
-    status: error ? 'failed' : 'ok',
-    sourceAddress,
-    bindable,
-    error,
-  });
-  return { ok: !error, sourceAddress, reachable, bindable, error };
+  const checked = await verifyTargetLink({ targetId: data.targetId });
+  if (!checked) throw new Error('aucune liaison pour cette cible');
+  const { result } = checked;
+  return {
+    ok: result.ok,
+    port: result.port,
+    sourceAddress: reachSource(result),
+    bindable: result.bindable,
+    detail: result.detail,
+  };
 }

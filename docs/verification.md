@@ -118,6 +118,14 @@ driver, lui pose deux domaines — l'un en HTTPS avec redirection, l'autre en HT
 vérifie qu'ils répondent **à travers le proxy**, que le certificat est émis, qu'un
 domaine retiré ne répond plus.
 
+Avant toute installation, une **phase 0** : les deux machines se joignent-elles,
+dans les deux sens ? Par l'épreuve même du produit (`checkReach()`, celle du
+test d'une liaison et du préflight) : une connexion ouverte de l'une vers un
+écouteur éphémère de l'autre, sur un port de la plage des applications. Une
+adresse injoignable doit être signalée telle, sans rien laisser derrière. Si
+les machines ne se joignent pas, le proxy central n'est pas exercé — et c'est
+compté en échec.
+
 Puis le **proxy central**, dans les deux sens : le Traefik de la machine Docker
 sert l'application déployée sur la machine K3s, et celui de K3s l'application
 de la machine Docker. L'adresse d'arrivée du proxy est relevée comme le fait le
@@ -138,7 +146,7 @@ Les certificats viennent de **Pebble**, le serveur ACME de test de l'équipe Let
 Encrypt : il valide réellement le défi HTTP-01 sur le port 80 de la cible, et
 `pebble-dns` résout les domaines de test vers elle. Sans eux (`--no-acme`), tout
 le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que le port
-de l'application n'est publié que sur la boucle locale. **40/40** au dernier
+de l'application n'est publié que sur la boucle locale. **45/45** au dernier
 passage.
 
 ## Ce qui n'est pas vérifié
