@@ -4,6 +4,7 @@ import {
   proxyCheckJobDataSchema,
   proxyDetectJobDataSchema,
   proxyInstallJobDataSchema,
+  proxyLinkCheckJobDataSchema,
   proxyRemoveJobDataSchema,
   routesCheckJobDataSchema,
 } from '@pupitre/core';
@@ -14,15 +15,19 @@ import {
   type ProxyDetection,
   type ProxyInstallOption,
 } from '@pupitre/core/proxy';
-import { disconnect } from '@pupitre/core/ssh';
+import { disconnect, exec } from '@pupitre/core/ssh';
 import {
-  countRoutesByTarget,
+  countRoutesServedBy,
   deleteProxy,
   getProxy,
+  getTargetLink,
   listLiveDeployments,
   listRoutedCouples,
   logAudit,
+  resolveServingProxy,
   setProxyStatus,
+  setTargetLinkCheck,
+  type ServingProxy,
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
@@ -153,7 +158,7 @@ export async function handleProxyRemove(job: Job): Promise<{ removed: boolean }>
   const data = proxyRemoveJobDataSchema.parse(job.data);
   const proxy = await getProxy(data.proxyId);
   if (!proxy) return { removed: false };
-  if (proxy.hostTargetId && (await countRoutesByTarget(proxy.hostTargetId)) > 0) {
+  if ((await countRoutesServedBy(proxy.id)) > 0) {
     throw new Error('des domaines passent encore par ce proxy : retirez-les d’abord');
   }
   if (data.uninstall && proxy.managed && proxy.hostTargetId) {
@@ -222,34 +227,114 @@ export async function handleRoutesCheck(job: Job): Promise<{ checked: number; fa
       (!scope.applicationId || couple.applicationId === scope.applicationId) &&
       (!scope.targetId || couple.targetId === scope.targetId),
   );
-  const byTarget = new Map<string, string[]>();
+  // On sonde depuis la machine du proxy — celle de la cible, ou celle du proxy
+  // central qui la sert : une session par machine de proxy.
+  const byHost = new Map<
+    string,
+    Array<{ applicationId: string; targetId: string; serving: ServingProxy }>
+  >();
   for (const couple of couples) {
-    byTarget.set(couple.targetId, [...(byTarget.get(couple.targetId) ?? []), couple.applicationId]);
+    const serving = await resolveServingProxy(couple.targetId);
+    const host = serving?.proxy.hostTargetId;
+    if (!serving || !host) continue;
+    byHost.set(host, [...(byHost.get(host) ?? []), { ...couple, serving }]);
   }
   let checked = 0;
   let failing = 0;
-  for (const [targetId, applicationIds] of byTarget) {
+  for (const [hostTargetId, entries] of byHost) {
     let opened: Awaited<ReturnType<typeof openTargetContext>> | null = null;
     try {
-      opened = await openTargetContext(targetId);
-      for (const applicationId of applicationIds) {
+      opened = await openTargetContext(hostTargetId);
+      for (const { applicationId, targetId, serving } of entries) {
         const [live] = await listLiveDeployments({ applicationId, targetId });
         if (!live?.inService || live.inService.stoppedAt) continue;
         const result = await probeCoupleRoutes({
           applicationId,
           targetId,
           spec: parseAppSpec(live.inService.appSpec),
-          host: opened.ctx,
+          serving,
+          proxyHost: opened.ctx,
         });
         checked += result.checked;
         failing += result.failing;
       }
     } catch (error) {
       // Une machine injoignable n'arrête pas la tournée : les autres sont sondées.
-      logger.warn({ targetId, err: error }, 'sonde des domaines impossible sur cette cible');
+      logger.warn(
+        { hostTargetId, err: error },
+        'sonde des domaines impossible depuis cette machine',
+      );
     } finally {
       if (opened) await disconnect(opened.session);
     }
   }
   return { checked, failing };
+}
+
+/**
+ * Éprouver la liaison d'une machine au proxy d'une autre, sans rien y changer :
+ *   - de la machine du proxy, la route vers l'adresse donnée — elle dit par
+ *     quelle adresse le proxy arrive (`src`), la seule à qui ouvrir le port ;
+ *   - un ping, pour dire si elle répond — un avertissement s'il échoue, un
+ *     pare-feu peut le bloquer sans bloquer le reste ;
+ *   - de la machine servie, si l'adresse est la sienne : on pourra alors y
+ *     publier le port, et nulle part ailleurs.
+ */
+export async function handleProxyLinkCheck(job: Job): Promise<{
+  ok: boolean;
+  sourceAddress: string | null;
+  reachable: boolean | null;
+  bindable: boolean;
+  error: string | null;
+}> {
+  const data = proxyLinkCheckJobDataSchema.parse(job.data);
+  const link = await getTargetLink(data.targetId);
+  if (!link) throw new Error('aucune liaison pour cette cible');
+  const proxy = await getProxy(link.proxyId);
+  if (!proxy?.hostTargetId) throw new Error('le proxy de cette liaison a disparu');
+
+  let sourceAddress: string | null = null;
+  let reachable: boolean | null = null;
+  let bindable = false;
+  let error: string | null = null;
+  const quoted = `'${link.address.replaceAll("'", '')}'`;
+  const host = await openTargetContext(proxy.hostTargetId);
+  try {
+    const route = await exec(
+      host.session,
+      `(ip route get ${quoted} || ip -6 route get ${quoted}) 2>/dev/null | head -1; ` +
+        `ping -c 1 -W 2 ${quoted} >/dev/null 2>&1 && echo ping=ok || echo ping=ko`,
+      { timeout: 30_000 },
+    );
+    sourceAddress = /\bsrc\s+(\S+)/.exec(route.stdout)?.[1] ?? null;
+    reachable = /ping=ok/.test(route.stdout) ? true : /ping=ko/.test(route.stdout) ? false : null;
+    if (!sourceAddress) {
+      error = `la machine du proxy ne sait pas joindre ${link.address} : aucune route`;
+    }
+  } finally {
+    await disconnect(host.session);
+  }
+  if (!error) {
+    const served = await openTargetContext(data.targetId);
+    try {
+      const addresses = await exec(
+        served.session,
+        "ip -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1",
+        { timeout: 30_000 },
+      );
+      bindable = addresses.stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .includes(link.address);
+    } finally {
+      await disconnect(served.session);
+    }
+  }
+  await setTargetLinkCheck(data.targetId, {
+    status: error ? 'failed' : 'ok',
+    sourceAddress,
+    bindable,
+    error,
+  });
+  return { ok: !error, sourceAddress, reachable, bindable, error };
 }

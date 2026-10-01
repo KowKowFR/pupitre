@@ -96,6 +96,8 @@ export async function ufwAllowPort(
   port: number,
   comment: string,
   onLog: LogSink,
+  /** N'ouvrir qu'à cette adresse — un proxy distant. Absente : à tous. */
+  from?: string,
 ): Promise<void> {
   const state = await ufwState(ctx);
   if (state !== 'active') {
@@ -107,19 +109,21 @@ export async function ufwAllowPort(
     return;
   }
 
-  const result = await exec(
-    ctx.sshSession,
-    `ufw allow ${port}/tcp comment ${shellQuote(comment)}`,
-    { sudo: true, timeout: UFW_TIMEOUT_MS },
-  );
+  const rule = from
+    ? `allow from ${shellQuote(from)} to any port ${port} proto tcp`
+    : `allow ${port}/tcp`;
+  const result = await exec(ctx.sshSession, `ufw ${rule} comment ${shellQuote(comment)}`, {
+    sudo: true,
+    timeout: UFW_TIMEOUT_MS,
+  });
 
   if (result.code !== 0) {
     // Un pare-feu qui refuse une règle n'est pas une raison de perdre le
     // déploiement : on le dit fort, on ne l'interrompt pas.
-    onLog(`⚠ ufw allow ${port}/tcp a échoué : ${firstLine(result.stderr) ?? `code ${result.code}`}`);
+    onLog(`⚠ ufw ${rule} a échoué : ${firstLine(result.stderr) ?? `code ${result.code}`}`);
     return;
   }
-  onLog(`ufw allow ${port}/tcp (${comment})`);
+  onLog(`ufw ${rule} (${comment})`);
 }
 
 /**
@@ -145,6 +149,17 @@ export async function ufwDelete(
     sudo: true,
     timeout: UFW_TIMEOUT_MS,
   });
+  // Une règle limitée à une source — celle d'un proxy distant — ne se retire
+  // pas par `delete allow <port>/tcp` : on la retrouve par son numéro, à notre
+  // marqueur et au port, du plus grand au plus petit pour que les numéros
+  // restants ne bougent pas.
+  await exec(
+    ctx.sshSession,
+    `ufw status numbered | grep -E ${shellQuote(UFW_MARKERS.map((marker) => `${marker}:`).join('|'))} ` +
+      `| grep -E ${shellQuote(`(^|[^0-9])${port}(/tcp)?([^0-9]|$)`)} ` +
+      `| sed -n 's/^\\[ *\\([0-9]*\\)\\].*/\\1/p' | sort -rn | while read n; do ufw --force delete "$n" >/dev/null; done; true`,
+    { sudo: true, timeout: UFW_TIMEOUT_MS },
+  );
 
   // La suppression se fait par correspondance de règle (`allow <port>/tcp`),
   // jamais par commentaire : une règle d'avant le renommage est donc retirée

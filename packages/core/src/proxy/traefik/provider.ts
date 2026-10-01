@@ -4,6 +4,7 @@ import { ufwAllowPort, UFW_MARKER } from '../../drivers/ufw.js';
 import type { LogSink } from '../../drivers/types.js';
 import { exec, execPipe, upload } from '../../ssh/client.js';
 import {
+  isIPv4,
   traefikConfigSchema,
   type TraefikConfig,
   type TraefikFileConfig,
@@ -44,6 +45,8 @@ import {
 import {
   ingressNames,
   REDIRECT_MIDDLEWARE,
+  REMOTE_NAMESPACE,
+  renderTraefikRemoteIngresses,
   renderTraefikFile,
   renderTraefikIngresses,
   serializeKubeObjects,
@@ -480,6 +483,25 @@ export class TraefikProvider implements ProxyProvider {
         );
         onLog('réglages de Traefik retirés : K3s revient à sa configuration par défaut');
       }
+      // Le namespace des routes vers d'autres machines est à Pupitre : vide de
+      // routes, il part avec le reste — avec lui, le middleware partagé.
+      const routesNamespace = await exec(
+        ctx.sshSession,
+        kubectl(
+          `get namespace ${REMOTE_NAMESPACE} -o jsonpath='{.metadata.labels.app\\.kubernetes\\.io/managed-by}' 2>/dev/null; ` +
+            `echo; kubectl -n ${REMOTE_NAMESPACE} get ingress -o name 2>/dev/null | wc -l`,
+        ),
+        { timeout: SHORT_MS },
+      );
+      const [owner, ingresses] = routesNamespace.stdout.split('\n').map((line) => line.trim());
+      if (owner === 'pupitre' && Number(ingresses) === 0) {
+        await exec(
+          ctx.sshSession,
+          kubectl(`delete namespace ${REMOTE_NAMESPACE} --ignore-not-found --wait=false`),
+          { timeout: SHORT_MS },
+        );
+        onLog(`namespace ${REMOTE_NAMESPACE} retiré`);
+      }
       return;
     }
     const root = proxyRoot(ctx.target.rootPath);
@@ -622,10 +644,14 @@ export class TraefikProvider implements ProxyProvider {
     if (set.routes.length > 0 && !set.upstream) {
       fail('apply', "l'application n'expose rien que le proxy puisse joindre");
     }
+    // Une même application peut tourner sur plusieurs des machines que ce
+    // proxy sert : le nom de ses objets porte alors celle d'où elle vient.
+    const name = set.scope ? `${set.appSlug}--${set.scope}` : set.appSlug;
+    const remote = set.upstream?.kind === 'port' && set.upstream.host ? set.upstream : null;
 
     if (config.mode === 'file') {
       const directory = this.directory(ctx, config);
-      const path = `${directory}/${traefikFileName(set.appSlug)}`;
+      const path = `${directory}/${traefikFileName(name)}`;
       if (set.routes.length === 0) {
         await removeFile(ctx, path);
         onLog(`routes retirées : ${path}`);
@@ -634,59 +660,86 @@ export class TraefikProvider implements ProxyProvider {
       if (set.upstream?.kind !== 'port') {
         fail(
           'apply',
-          "ce Traefik lit des fichiers : il ne joint qu'une application publiée sur un port de la machine",
+          "ce Traefik lit des fichiers : il ne joint qu'une application publiée sur un port",
         );
       }
+      const host = set.upstream.host ?? config.upstreamHost;
       await ensureDirectory(ctx, directory);
       await writeFile(
         ctx,
         path,
-        renderTraefikFile(
-          set.appSlug,
-          set.routes,
-          `http://${config.upstreamHost}:${set.upstream.port}`,
-          config,
-        ),
+        renderTraefikFile(name, set.routes, `http://${host}:${set.upstream.port}`, config),
       );
-      onLog(`routes écrites : ${path} → ${config.upstreamHost}:${set.upstream.port}`);
+      onLog(`routes écrites : ${path} → ${host}:${set.upstream.port}`);
       return;
     }
 
-    const names = ingressNames(set.appSlug);
+    const names = ingressNames(name);
     if (set.routes.length === 0) {
-      // Sans amont, on ne sait pas le namespace : celui du driver K3s, par convention.
+      // Le namespace suit l'amont : celui de l'application dans le cluster, ou
+      // celui des routes vers l'extérieur — une portée dit à elle seule que la
+      // machine n'est pas celle du proxy, l'amont a pu disparaître avec
+      // l'application. Sans amont, la convention du driver K3s.
+      const away = remote !== null || set.scope !== undefined;
       const namespace =
-        set.upstream?.kind === 'kubernetes' ? set.upstream.namespace : `app-${set.appSlug}`;
+        set.upstream?.kind === 'kubernetes'
+          ? set.upstream.namespace
+          : away
+            ? REMOTE_NAMESPACE
+            : `app-${set.appSlug}`;
+      const extra = away
+        ? `; kubectl -n ${namespace} delete service ${name} --ignore-not-found >/dev/null 2>&1; ` +
+          `kubectl -n ${namespace} delete endpointslice ${name}-upstream --ignore-not-found >/dev/null 2>&1`
+        : // Le middleware de redirection est propre au namespace de l'application ;
+          // dans celui des routes extérieures, il est partagé et reste.
+          `; kubectl -n ${namespace} delete middleware.traefik.io ${REDIRECT_MIDDLEWARE} --ignore-not-found >/dev/null 2>&1`;
       await exec(
         ctx.sshSession,
         kubectl(
-          `-n ${namespace} delete ingress ${Object.values(names).join(' ')} --ignore-not-found 2>&1; ` +
-            `kubectl -n ${namespace} delete middleware.traefik.io ${REDIRECT_MIDDLEWARE} --ignore-not-found >/dev/null 2>&1 || true`,
+          `-n ${namespace} delete ingress ${Object.values(names).join(' ')} --ignore-not-found 2>&1${extra}; true`,
         ),
         { timeout: SHORT_MS },
       );
       onLog(`routes retirées du namespace ${namespace}`);
       return;
     }
-    if (set.upstream?.kind !== 'kubernetes') {
+
+    let rendered: ReturnType<typeof renderTraefikIngresses>;
+    let namespace: string;
+    if (set.upstream?.kind === 'kubernetes') {
+      rendered = renderTraefikIngresses(name, set.routes, set.upstream, config);
+      namespace = set.upstream.namespace;
+    } else if (remote) {
+      if (!isIPv4(remote.host!)) {
+        fail(
+          'apply',
+          `le Traefik du cluster joint une autre machine par son adresse IPv4 — « ${remote.host} » n'en est pas une`,
+        );
+      }
+      rendered = renderTraefikRemoteIngresses(
+        name,
+        set.routes,
+        { host: remote.host!, port: remote.port },
+        config,
+      );
+      namespace = REMOTE_NAMESPACE;
+    } else {
       fail(
         'apply',
-        'ce Traefik vit dans le cluster : il ne joint que des applications déployées dans ce cluster',
+        'ce Traefik vit dans le cluster : il joint une application du cluster, ou une autre machine par son adresse — pas un port de la sienne',
       );
     }
-    const rendered = renderTraefikIngresses(set.appSlug, set.routes, set.upstream, config);
     await kubectlApply(ctx, serializeKubeObjects(rendered.objects), 'apply');
     if (rendered.stale.length > 0) {
       await exec(
         ctx.sshSession,
-        kubectl(
-          `-n ${set.upstream.namespace} delete ingress ${rendered.stale.join(' ')} --ignore-not-found`,
-        ),
+        kubectl(`-n ${namespace} delete ingress ${rendered.stale.join(' ')} --ignore-not-found`),
         { timeout: SHORT_MS },
       );
     }
     onLog(
-      `Ingress appliqués dans ${set.upstream.namespace} : ${set.routes.map((route) => route.hostname).join(', ')}`,
+      `Ingress appliqués dans ${namespace} : ${set.routes.map((route) => route.hostname).join(', ')}` +
+        (remote ? ` → ${remote.host}:${remote.port}` : ''),
     );
   }
 

@@ -19,6 +19,7 @@ import {
   PROXY_CHECK_JOB,
   PROXY_DETECT_JOB,
   PROXY_INSTALL_JOB,
+  PROXY_LINK_CHECK_JOB,
   PROXY_REMOVE_JOB,
   ROUTES_CHECK_EVERY_MS,
   ROUTES_CHECK_JOB,
@@ -93,6 +94,7 @@ import {
   handleProxyCheck,
   handleProxyDetect,
   handleProxyInstall,
+  handleProxyLinkCheck,
   handleProxyRemove,
   handleRoutesCheck,
 } from './handlers/proxy.js';
@@ -147,6 +149,7 @@ const handlers: Record<string, JobHandler> = {
   [PROXY_CHECK_JOB]: handleProxyCheck,
   [PROXY_REMOVE_JOB]: handleProxyRemove,
   [PROXY_APPLY_JOB]: handleProxyApply,
+  [PROXY_LINK_CHECK_JOB]: handleProxyLinkCheck,
   ...Object.fromEntries(
     SCHEDULED_JOB_TYPES_LIST.map((type) => [
       SCHEDULED_JOB_TYPES[type].jobName,

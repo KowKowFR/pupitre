@@ -6,10 +6,15 @@ import {
   proxyKindSchema,
 } from '@pupitre/core';
 import {
-  countRoutesByTarget,
+  countRoutesServedBy,
+  getProxy,
   getProxyForTarget,
   getTarget,
+  getTargetLink,
+  listProxyLinks,
   listRoutes,
+  listTargetProxies,
+  listTargets,
   logAudit,
   saveTargetProxy,
 } from '@pupitre/db';
@@ -18,7 +23,7 @@ import { z } from 'zod';
 import { proxy as messages } from '@/i18n/messages/proxy';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
-import { proxyViewForUi, routeViewForUi } from '@/lib/proxy';
+import { linkViewForUi, proxyViewForUi, routeViewForUi } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
 
@@ -34,14 +39,54 @@ async function targetOr404(id: string) {
   return target;
 }
 
-/** Le proxy de la cible, et les domaines qui passent par lui. */
+/**
+ * Le proxy de la cible : le sien — avec les machines qu'il sert —, ou celui
+ * d'une autre qui la sert. Plus les domaines qui passent par lui, et les
+ * proxies des autres machines auxquels on pourrait la relier.
+ */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'target:read');
   const { id } = paramsSchema.parse(await context.params);
-  await targetOr404(id);
-  const [proxy, routes] = await Promise.all([getProxyForTarget(id), listRoutes({ targetId: id })]);
+  const target = await targetOr404(id);
+  const [proxy, link, all, targets] = await Promise.all([
+    getProxyForTarget(id),
+    getTargetLink(id),
+    listTargetProxies(),
+    listTargets(),
+  ]);
+  const nameOf = new Map(targets.map((target) => [target.id, target.name]));
+
+  // Les domaines servis : ceux de la machine, et ceux des machines reliées.
+  const served = proxy ? await listProxyLinks(proxy.id) : [];
+  const routes = (
+    await Promise.all(
+      [id, ...served.map((entry) => entry.targetId)].map((targetId) => listRoutes({ targetId })),
+    )
+  ).flat();
+  const linkedProxy = link ? await getProxy(link.proxyId) : null;
+
   return NextResponse.json({
     proxy: proxy ? proxyViewForUi(proxy) : null,
+    link:
+      link && linkedProxy
+        ? linkViewForUi(link, linkedProxy, nameOf.get(linkedProxy.hostTargetId ?? '') ?? '?')
+        : null,
+    served: served.map((entry) => ({
+      targetId: entry.targetId,
+      targetName: entry.targetName,
+      address: entry.address,
+      status: entry.status,
+    })),
+    candidates: [...all.entries()]
+      .filter(([hostId, candidate]) => hostId !== id && candidate.status !== 'installing')
+      .map(([hostId, candidate]) => ({
+        proxyId: candidate.id,
+        targetId: hostId,
+        targetName: nameOf.get(hostId) ?? hostId,
+        description: proxyViewForUi(candidate).description,
+      }))
+      .sort((a, b) => a.targetName.localeCompare(b.targetName)),
+    suggestedAddress: target.host,
     routes: routes.map(routeViewForUi),
   });
 });
@@ -63,6 +108,7 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const input = await readJsonBody(request, putSchema);
   const existing = await getProxyForTarget(id);
   if (existing?.status === 'installing') throw new ConflictError(msg(messages, 'error.installing'));
+  if (await getTargetLink(id)) throw new ConflictError(msg(messages, 'error.linked'));
 
   let config: Record<string, unknown>;
   try {
@@ -110,7 +156,8 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   );
   const proxy = await getProxyForTarget(id);
   if (!proxy) return NextResponse.json({ removed: false });
-  const count = await countRoutesByTarget(id);
+  // Ses domaines, et ceux des machines qu'il sert par liaison.
+  const count = await countRoutesServedBy(proxy.id);
   if (count > 0) throw new ConflictError(msg(messages, 'error.hasRoutes', { count }));
   const job = await getOpsQueue().add(PROXY_REMOVE_JOB, {
     proxyId: proxy.id,

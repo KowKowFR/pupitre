@@ -34,6 +34,12 @@ export type ProxyRoute = Required<RouteInput>;
 /** Tout ce qu'un proxy doit router pour une application. */
 export type ProxyRouteSet = {
   appSlug: string;
+  /**
+   * Ce qui distingue cette machine quand le proxy en sert plusieurs : la même
+   * application peut tourner sur deux d'entre elles, chacune avec ses domaines,
+   * sans que l'une n'efface les routes de l'autre. Absent : la machine du proxy.
+   */
+  scope?: string;
   /** Vide : l'application ne doit plus rien avoir sur ce proxy. */
   routes: ProxyRoute[];
   /** Par où la joindre. `null` seulement quand `routes` est vide. */

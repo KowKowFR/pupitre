@@ -3,12 +3,16 @@ import { describe, it } from 'node:test';
 import { parse as parseYaml, parseAllDocuments } from 'yaml';
 import { getDriver } from '../src/drivers/index.js';
 import type { DriverContext } from '../src/drivers/types.js';
+import { probeHostOf } from '../src/drivers/docker/driver.js';
 import { renderComposeFile } from '../src/drivers/docker/render.js';
+import { PROXY_POLICY_NAME, renderManifests } from '../src/drivers/k3s/render.js';
 import {
   hostnameProblem,
   interpretRouteProbe,
   interpretTraefikCluster,
   interpretTraefikContainer,
+  isIPv4,
+  isPrivateAddress,
   parseCertificate,
   parseIngressClasses,
   proxyCapabilities,
@@ -17,6 +21,8 @@ import {
   renderManagedCompose,
   renderTraefikFile,
   renderTraefikIngresses,
+  renderTraefikRemoteIngresses,
+  REMOTE_NAMESPACE,
   routeListSchema,
   serializeKubeObjects,
   staticConfigFromArgs,
@@ -414,6 +420,10 @@ describe('l’amont, dit par le driver', () => {
     });
   });
 
+  it('K3s : le NodePort, quand un proxy hors du cluster doit la joindre', () => {
+    assert.deepEqual(getDriver('k3s').upstream(ctx, 30001), { kind: 'port', port: 30001 });
+  });
+
   it('Compose publie sur la boucle locale quand un proxy de la machine sert l’application', () => {
     const compose = renderComposeFile({
       spec,
@@ -424,5 +434,140 @@ describe('l’amont, dit par le driver', () => {
     assert.deepEqual(compose.services.front?.ports, ['127.0.0.1:30001:8080']);
     const open = renderComposeFile({ spec, appSlug: 'blog', publishedPort: 30001 });
     assert.deepEqual(open.services.front?.ports, ['30001:8080']);
+  });
+});
+
+describe('le proxy central — une machine servie par le proxy d’une autre', () => {
+  const spec = parseAppSpec({
+    name: 'blog',
+    version: '1.0.0',
+    services: [
+      { name: 'front', source: { type: 'image', ref: 'nginx:alpine' }, port: 8080, exposed: true },
+      { name: 'cache', source: { type: 'image', ref: 'redis:7' }, port: 6379 },
+    ],
+  });
+
+  it('distingue les adresses privées, celles où le trafic en clair reste chez soi', () => {
+    for (const address of ['10.0.0.12', '192.168.1.4', '172.20.0.3', '100.72.1.1', 'fd12::1'])
+      assert.equal(isPrivateAddress(address), true, address);
+    for (const address of ['51.15.20.1', '172.32.0.1', '2001:db8::1', 'srv.example.fr'])
+      assert.equal(isPrivateAddress(address), false, address);
+    assert.equal(isIPv4('10.0.0.12'), true);
+    assert.equal(isIPv4('10.0.0.256'), false);
+    assert.equal(isIPv4('srv.example.fr'), false);
+  });
+
+  it('Traefik en fichier : l’amont pointe l’autre machine', () => {
+    const yaml = renderTraefikFile(
+      'blog--t1a2b3c4d',
+      [plain],
+      'http://10.0.0.12:30001',
+      fileConfig,
+    );
+    const document = parseYaml(yaml) as {
+      http: { services: Record<string, { loadBalancer: { servers: Array<{ url: string }> } }> };
+    };
+    assert.deepEqual(document.http.services['blog--t1a2b3c4d']?.loadBalancer.servers, [
+      { url: 'http://10.0.0.12:30001' },
+    ]);
+  });
+
+  it('Traefik de cluster : un Service sans sélecteur, l’adresse en EndpointSlice', () => {
+    const rendered = renderTraefikRemoteIngresses(
+      'blog--t1a2b3c4d',
+      [secure, plain],
+      { host: '10.0.0.12', port: 30001 },
+      kubeConfig,
+    );
+    const byKind = (kind: string) => rendered.objects.filter((object) => object.kind === kind);
+    assert.equal(byKind('Namespace')[0]?.metadata.name, REMOTE_NAMESPACE);
+    const service = byKind('Service')[0] as unknown as {
+      metadata: { name: string; namespace: string };
+      spec: { selector?: unknown; ports: Array<{ port: number }> };
+    };
+    assert.equal(service.metadata.name, 'blog--t1a2b3c4d');
+    assert.equal(service.spec.selector, undefined, 'pas de sélecteur : pas de pod derrière');
+    const slice = byKind('EndpointSlice')[0] as unknown as {
+      metadata: { labels: Record<string, string> };
+      addressType: string;
+      endpoints: Array<{ addresses: string[] }>;
+      ports: Array<{ name: string; port: number }>;
+    };
+    assert.equal(slice.metadata.labels['kubernetes.io/service-name'], 'blog--t1a2b3c4d');
+    assert.equal(slice.addressType, 'IPv4');
+    assert.deepEqual(slice.endpoints[0]?.addresses, ['10.0.0.12']);
+    assert.deepEqual(slice.ports, [{ name: 'http', port: 30001, protocol: 'TCP' }]);
+    const ingresses = byKind('Ingress') as unknown as Array<{
+      metadata: { namespace: string };
+      spec: { rules: Array<{ http: { paths: Array<{ backend: unknown }> } }> };
+    }>;
+    assert.ok(ingresses.length > 0);
+    for (const ingress of ingresses) {
+      assert.equal(ingress.metadata.namespace, REMOTE_NAMESPACE);
+      assert.deepEqual(ingress.spec.rules[0]?.http.paths[0]?.backend, {
+        service: { name: 'blog--t1a2b3c4d', port: { number: 30001 } },
+      });
+    }
+  });
+
+  it('K3s : le point d’entrée seul en NodePort, réservé au proxy par une NetworkPolicy', () => {
+    const manifests = renderManifests({
+      spec,
+      appSlug: 'blog',
+      publishedPort: 30001,
+      allowFrom: '10.0.0.2',
+    });
+    const services = manifests.filter((manifest) => manifest.kind === 'Service') as Array<{
+      metadata: { name: string };
+      spec: { type: string; externalTrafficPolicy?: string; ports: Array<{ nodePort?: number }> };
+    }>;
+    const front = services.find((service) => service.metadata.name === 'front');
+    const cache = services.find((service) => service.metadata.name === 'cache');
+    assert.equal(front?.spec.type, 'NodePort');
+    assert.equal(front?.spec.ports[0]?.nodePort, 30001);
+    assert.equal(front?.spec.externalTrafficPolicy, 'Local', 'l’adresse d’origine reste lisible');
+    assert.equal(cache?.spec.type, 'ClusterIP');
+
+    const policy = manifests.find((manifest) => manifest.kind === 'NetworkPolicy') as unknown as {
+      metadata: { name: string };
+      spec: {
+        podSelector: { matchLabels: Record<string, string> };
+        ingress: Array<{ from: unknown[]; ports?: unknown[] }>;
+      };
+    };
+    assert.equal(policy.metadata.name, PROXY_POLICY_NAME);
+    assert.equal(policy.spec.podSelector.matchLabels['app.kubernetes.io/name'], 'front');
+    assert.deepEqual(policy.spec.ingress, [
+      { from: [{ podSelector: {} }] },
+      { from: [{ ipBlock: { cidr: '10.0.0.2/32' } }], ports: [{ protocol: 'TCP', port: 8080 }] },
+    ]);
+  });
+
+  it('K3s : sans proxy distant, ni NodePort ni NetworkPolicy', () => {
+    const manifests = renderManifests({ spec, appSlug: 'blog' });
+    assert.ok(
+      manifests
+        .filter((manifest) => manifest.kind === 'Service')
+        .every((manifest) => (manifest.spec as { type: string }).type === 'ClusterIP'),
+    );
+    assert.equal(
+      manifests.some((manifest) => manifest.kind === 'NetworkPolicy'),
+      false,
+    );
+  });
+
+  it('Compose : publié sur l’adresse privée que joint le proxy, sondé là', () => {
+    const compose = renderComposeFile({
+      spec,
+      appSlug: 'blog',
+      publishedPort: 30001,
+      publishAddress: '10.0.0.12',
+    });
+    assert.deepEqual(compose.services.front?.ports, ['10.0.0.12:30001:8080']);
+    assert.equal(probeHostOf('10.0.0.12:30001'), '10.0.0.12');
+    assert.equal(probeHostOf('0.0.0.0:30001'), '127.0.0.1');
+    assert.equal(probeHostOf('[::]:30001'), '127.0.0.1');
+    assert.equal(probeHostOf('127.0.0.1:30001'), '127.0.0.1');
+    assert.equal(probeHostOf(null), '127.0.0.1');
   });
 });

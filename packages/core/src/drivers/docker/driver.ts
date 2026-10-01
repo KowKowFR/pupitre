@@ -7,7 +7,7 @@ import { backoffMs } from '../backoff.js';
 import { listeningPorts } from '../listening.js';
 import { pruneReleases } from '../retention.js';
 import { extractSourceArchive } from '../source-archive.js';
-import { ufwAllow, ufwDelete } from '../ufw.js';
+import { ufwAllow, ufwAllowPort, ufwComment, ufwDelete } from '../ufw.js';
 import {
   DriverError,
   type DeployResult,
@@ -308,9 +308,21 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 
   async openFirewall(ctx: DriverContext, port: number, onLog?: LogSink): Promise<void> {
-    if (ctx.publishAddress && isLoopback(ctx.publishAddress)) {
+    const exposure = ctx.exposure;
+    if (exposure?.bindAddress && isLoopback(exposure.bindAddress)) {
       // Publié sur la boucle locale : seul le proxy de la machine le joint.
-      onLog?.(`port ${port} publié sur ${ctx.publishAddress} seulement — rien à ouvrir`);
+      onLog?.(`port ${port} publié sur ${exposure.bindAddress} seulement — rien à ouvrir`);
+      return;
+    }
+    if (exposure?.allowFrom) {
+      // Un proxy distant : le port ne s'ouvre qu'à lui.
+      await ufwAllowPort(
+        ctx,
+        port,
+        ufwComment(ctx.appSlug),
+        onLog ?? (() => {}),
+        exposure.allowFrom,
+      );
       return;
     }
     await ufwAllow(ctx, port, onLog ?? (() => {}));
@@ -332,7 +344,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       spec: ctx.spec,
       appSlug: ctx.appSlug,
       publishedPort,
-      ...(ctx.publishAddress ? { publishAddress: ctx.publishAddress } : {}),
+      ...(ctx.exposure?.bindAddress ? { publishAddress: ctx.exposure.bindAddress } : {}),
       secretValues,
     });
 
@@ -586,7 +598,16 @@ export class DockerComposeDriver implements DeploymentDriver {
           });
     }
 
-    const url = `http://127.0.0.1:${publishedPort}${path}`;
+    // Le port a pu être publié sur une seule adresse — celle que joint un
+    // proxy distant — : il n'écoute alors que là, et c'est là qu'on le sonde.
+    // Compose le dit lui-même, ce qui vaut aussi pour la sonde périodique, qui
+    // ne sait rien de la façon dont l'application a été publiée.
+    const bound = await exec(
+      ctx.sshSession,
+      this.compose(ctx, `port ${shellQuote(service.name)} ${service.port} 2>/dev/null | head -n 1`),
+      { timeout: SHORT_TIMEOUT_MS },
+    );
+    const url = `http://${probeHostOf(firstLine(bound.stdout))}:${publishedPort}${path}`;
     let lastStatus: number | null = null;
     let lastDetail: string | null = null;
     let lastOutcome: HealthOutcome = 'unreachable';
@@ -1907,4 +1928,14 @@ export function parseRepoDigests(output: string): Map<string, string[]> {
 
 function isLoopback(address: string): boolean {
   return address === 'localhost' || address === '::1' || address.startsWith('127.');
+}
+
+/**
+ * L'adresse à sonder pour un port publié, d'après `docker compose port` :
+ * `172.21.0.6:30001` → `172.21.0.6`. Publié partout (`0.0.0.0`, `[::]`) ou
+ * illisible : la boucle locale.
+ */
+export function probeHostOf(binding: string | null): string {
+  const host = binding?.replace(/:\d+$/, '').replace(/^\[|\]$/g, '') ?? '';
+  return host === '' || host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
 }

@@ -82,7 +82,7 @@ export type DeployTarget = {
   k3sVersion: string | null;
   healthy: boolean;
   /** Son reverse proxy, s'il en a un : c'est lui qui servira les domaines. */
-  proxy: { description: string; capabilities: ProxyCapabilities } | null;
+  proxy: { description: string; capabilities: ProxyCapabilities; via?: string | null } | null;
 };
 
 type ApiError = { error?: { message?: string } };

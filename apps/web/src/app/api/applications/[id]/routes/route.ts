@@ -1,12 +1,12 @@
 import { PROXY_APPLY_JOB, proxyCapabilities, routeListSchema } from '@pupitre/core';
 import {
   getApplication,
-  getProxyForTarget,
   getTarget,
   listLiveDeployments,
   listRoutes,
-  listTargetProxies,
+  listServingProxies,
   listTargets,
+  resolveServingProxy,
   logAudit,
   replaceRoutes,
   RouteTakenError,
@@ -41,8 +41,9 @@ export const GET = apiRoute<Context>(async (request, context) => {
     listRoutes({ applicationId: id }),
     listLiveDeployments({ applicationId: id }),
     listTargets(),
-    listTargetProxies(),
+    listServingProxies(),
   ]);
+  const nameOf = new Map(targets.map((target) => [target.id, target.name]));
   const targetIds = new Set([
     ...live.filter((couple) => couple.inService).map((couple) => couple.targetId),
     ...routes.map((route) => route.targetId),
@@ -52,12 +53,14 @@ export const GET = apiRoute<Context>(async (request, context) => {
     targets: targets
       .filter((target) => targetIds.has(target.id))
       .map((target) => {
-        const proxy = proxies.get(target.id);
+        const serving = proxies.get(target.id);
         return {
           id: target.id,
           name: target.name,
           live: live.some((couple) => couple.targetId === target.id && couple.inService),
-          proxy: proxy ? proxyViewForUi(proxy) : null,
+          proxy: serving ? proxyViewForUi(serving.proxy) : null,
+          /** La machine du proxy, quand c'est celui d'une autre — le proxy central. */
+          via: serving?.link ? (nameOf.get(serving.proxy.hostTargetId ?? '') ?? null) : null,
           routes: routes.filter((route) => route.targetId === target.id).map(routeViewForUi),
         };
       }),
@@ -82,7 +85,7 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const input = await readJsonBody(request, putSchema);
   const target = await getTarget(input.targetId);
   if (!target) throw new NotFoundError(msg(messages, 'error.targetNotFound'));
-  const proxy = await getProxyForTarget(input.targetId);
+  const proxy = (await resolveServingProxy(input.targetId))?.proxy ?? null;
   if (!proxy && input.routes.length > 0) {
     throw new ConflictError(msg(messages, 'error.noProxy', { target: target.name }));
   }

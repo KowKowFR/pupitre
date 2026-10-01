@@ -98,7 +98,7 @@ const JOB_TOPICS: Array<[RegExp, LiveTopic]> = [
   [/^backup:(application|restore|delete)$/, 'applications'],
   [/^backup:panel$/, 'settings'],
   // Une connexion de proxy se lit sur la cible ; un domaine, sur l'application.
-  [/^proxy:(install|check|remove)$/, 'targets'],
+  [/^proxy:(install|check|remove|link-check)$/, 'targets'],
   [/^proxy:apply$|^routes:check$/, 'applications'],
   [/^monitor:/, 'monitors'],
 ];

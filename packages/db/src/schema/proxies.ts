@@ -90,5 +90,36 @@ export const routes = pgTable(
   (table) => [index('routes_couple_idx').on(table.applicationId, table.targetId)],
 );
 
+/**
+ * Le proxy central : une machine servie par le reverse proxy d'une **autre**.
+ * Une ligne par machine servie ainsi — une machine qui a son propre proxy n'en
+ * a pas.
+ *
+ * `address` : comment la machine du proxy joint celle-ci — de préférence une
+ * adresse privée. `source_address` : l'adresse par laquelle elle arrive, vue
+ * de celle-ci — à elle seule s'ouvre le port de l'application. `bindable` :
+ * `address` est une adresse de cette machine, on peut y publier le port pour
+ * qu'il ne soit joignable que par là. Les deux derniers sont relevés par le
+ * test de la liaison.
+ */
+export const proxyLinks = pgTable('proxy_links', {
+  targetId: uuid('target_id')
+    .primaryKey()
+    .references(() => targets.id, { onDelete: 'cascade' }),
+  proxyId: uuid('proxy_id')
+    .notNull()
+    .references(() => proxies.id, { onDelete: 'cascade' }),
+  address: text('address').notNull(),
+  sourceAddress: text('source_address'),
+  bindable: boolean('bindable').notNull().default(false),
+  status: proxyStatusEnum('status').notNull().default('unknown'),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+  lastCheckError: text('last_check_error'),
+  createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ProxyLinkRow = typeof proxyLinks.$inferSelect;
 export type ProxyRow = typeof proxies.$inferSelect;
 export type RouteRow = typeof routes.$inferSelect;

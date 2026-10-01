@@ -41,7 +41,7 @@ import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
 import { backupApplication } from '../backup/application.js';
-import { applyCoupleRoutes, publishAddressFor, seedRouteFromSpec } from '../proxy/routes.js';
+import { applyCoupleRoutes, exposureFor, seedRouteFromSpec } from '../proxy/routes.js';
 
 /**
  * Exécution du pipeline de déploiement.
@@ -178,15 +178,16 @@ export async function runDeploymentPipeline(
 
   // Les domaines d'abord, parce qu'ils décident de la publication du port :
   // celui de l'AppSpec au premier déploiement sur cette cible, puis la liste de
-  // la cible. Un proxy de la machine qui joint l'application par la boucle
-  // locale permet de ne plus ouvrir son port au monde.
+  // la cible. Un proxy de la machine la joint par la boucle locale ; celui
+  // d'une autre, par un port publié sur l'adresse privée qu'il joint, ouvert à
+  // lui seul. Dans les deux cas, le port n'est plus ouvert au monde.
   if (!ctx.previousDeployment) {
     await seedRouteFromSpec(deployment.applicationId, deployment.targetId, spec, (line) =>
       stream.line('preflight', line),
     );
   }
-  const publishAddress = await publishAddressFor(deployment.applicationId, deployment.targetId);
-  if (publishAddress) ctx.publishAddress = publishAddress;
+  const exposure = await exposureFor(deployment.applicationId, deployment.targetId);
+  if (exposure) ctx.exposure = exposure;
   const state: PipelineState = {
     artifacts: null,
     port: null,

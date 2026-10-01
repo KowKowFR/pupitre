@@ -25,6 +25,8 @@ type TargetDomains = {
   name: string;
   live: boolean;
   proxy: ProxyViewForUi | null;
+  /** La machine du proxy, quand c'est celui d'une autre. */
+  via: string | null;
   routes: RouteViewForUi[];
 };
 type Data = { defaultHost: string | null; targets: TargetDomains[] };
@@ -141,6 +143,7 @@ export function ApplicationDomains({
                   {target.proxy ? (
                     <span className="t-cap mono ml-2 font-normal text-text-3">
                       {target.proxy.description}
+                      {target.via ? ` — ${t('domains.via', { target: target.via })}` : null}
                     </span>
                   ) : null}
                 </span>
@@ -175,7 +178,7 @@ export function ApplicationDomains({
                   <DomainsField
                     targetId={target.id}
                     targetName={target.name}
-                    proxy={target.proxy}
+                    proxy={target.proxy ? { ...target.proxy, via: target.via } : null}
                     value={draft}
                     onChange={setDraft}
                     disabled={busy}

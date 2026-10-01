@@ -1033,6 +1033,8 @@ export const PROXY_CHECK_JOB = 'proxy:check' as const;
 export const PROXY_REMOVE_JOB = 'proxy:remove' as const;
 /** Pose les domaines d'une application sur une cible, sans la redéployer. */
 export const PROXY_APPLY_JOB = 'proxy:apply' as const;
+/** Éprouve la liaison d'une machine au proxy d'une autre : adresses, joignabilité. */
+export const PROXY_LINK_CHECK_JOB = 'proxy:link-check' as const;
 export const ROUTES_CHECK_JOB = 'routes:check' as const;
 /** Toutes les dix minutes : un domaine qui tombe se voit vite, sans charger la machine. */
 export const ROUTES_CHECK_EVERY_MS = 10 * 60_000;
@@ -1073,6 +1075,9 @@ export const proxyRemoveJobDataSchema = z.object({
   ...actorFields,
 });
 export type ProxyRemoveJobData = z.infer<typeof proxyRemoveJobDataSchema>;
+
+export const proxyLinkCheckJobDataSchema = z.object({ targetId: z.string().uuid() });
+export type ProxyLinkCheckJobData = z.infer<typeof proxyLinkCheckJobDataSchema>;
 
 export const proxyApplyJobDataSchema = z.object({
   applicationId: z.string().uuid(),

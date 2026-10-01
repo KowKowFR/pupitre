@@ -2,6 +2,7 @@ import { exposedService, type AppSpec } from '@pupitre/core';
 import type {
   DeploymentDriver,
   DriverContext,
+  DriverExposure,
   LogSink,
   TargetContext,
 } from '@pupitre/core/drivers';
@@ -10,19 +11,23 @@ import {
   getProxyProvider,
   type ProxyContext,
   type ProxyRoute,
+  type ProxyUpstream,
   type RouteProbe,
 } from '@pupitre/core/proxy';
+import { disconnect } from '@pupitre/core/ssh';
 import {
   deleteRoutesOf,
-  getProxyForTarget,
   listRoutes,
   logAudit,
   replaceRoutes,
   RouteTakenError,
+  resolveServingProxy,
   setRouteStatus,
   type ProxyView,
   type RouteView,
+  type ServingProxy,
 } from '@pupitre/db';
+import { openTargetContext } from '../deploy/target-context.js';
 import { getSupervisionQueue } from '../queue.js';
 
 /**
@@ -36,6 +41,55 @@ import { getSupervisionQueue } from '../queue.js';
 
 export function proxyContextOf(proxy: ProxyView, host: TargetContext): ProxyContext {
   return { ...host, config: proxy.config };
+}
+
+/**
+ * Une session vers la machine **du proxy**. Pour le proxy de la machine même,
+ * c'est celle qu'on a déjà ; pour celui d'une autre — le proxy central —, on
+ * l'ouvre le temps du geste.
+ */
+async function withProxyHost<T>(
+  serving: ServingProxy,
+  local: TargetContext,
+  run: (ctx: ProxyContext) => Promise<T>,
+): Promise<T> {
+  if (!serving.link) return run(proxyContextOf(serving.proxy, local));
+  if (!serving.proxy.hostTargetId) throw new Error('ce proxy ne tourne sur aucune machine connue');
+  const opened = await openTargetContext(serving.proxy.hostTargetId);
+  try {
+    return await run(proxyContextOf(serving.proxy, opened.ctx));
+  } finally {
+    await disconnect(opened.session);
+  }
+}
+
+/**
+ * Ce qui distingue cette machine chez un proxy qui en sert plusieurs. Absent
+ * pour la machine du proxy : ses objets gardent le nom de l'application, comme
+ * avant que le proxy central n'existe.
+ */
+function scopeOf(serving: ServingProxy, targetId: string): string | undefined {
+  return serving.link ? `t${targetId.slice(0, 8)}` : undefined;
+}
+
+/**
+ * Par où le proxy joint l'application : ce que le driver annonce, plus, pour
+ * un proxy distant, l'adresse de la machine — il ne joint qu'un port publié.
+ */
+function upstreamOf(
+  serving: ServingProxy,
+  driver: DeploymentDriver,
+  ctx: DriverContext,
+  publishedPort: number | null,
+): ProxyUpstream | null {
+  const upstream = driver.upstream(ctx, publishedPort);
+  if (!serving.link || !upstream) return upstream;
+  if (upstream.kind !== 'port') {
+    throw new Error(
+      "l'application ne publie aucun port que le proxy distant puisse joindre — redéployez-la pour qu'elle en publie un",
+    );
+  }
+  return { ...upstream, host: serving.link.address };
 }
 
 function toProxyRoute(route: RouteView): ProxyRoute {
@@ -83,18 +137,30 @@ export async function seedRouteFromSpec(
 }
 
 /**
- * Où publier le port de l'application, au vu de ses domaines : sur la boucle
- * locale quand un proxy de la machine la sert par là. `undefined` : partout.
+ * Comment publier l'application, au vu de ses domaines et de qui les sert :
+ *   proxy de la machine  → sur la boucle locale, s'il la joint par là ;
+ *   proxy d'une autre    → un port publié (un NodePort en K3s), sur l'adresse
+ *                          privée que joint le proxy si elle est à cette
+ *                          machine, et le pare-feu ouvert à lui seul.
+ * `undefined` : pas de domaine, ou pas de proxy — la publication habituelle.
  */
-export async function publishAddressFor(
+export async function exposureFor(
   applicationId: string,
   targetId: string,
-): Promise<string | undefined> {
-  const proxy = await getProxyForTarget(targetId);
-  if (!proxy || proxy.placement !== 'target') return undefined;
+): Promise<DriverExposure | undefined> {
+  const serving = await resolveServingProxy(targetId);
+  if (!serving) return undefined;
   const routes = await listRoutes({ applicationId, targetId });
   if (routes.length === 0) return undefined;
-  return getProxyProvider(proxy.kind).publishAddress(proxy.config) ?? undefined;
+  if (!serving.link) {
+    const address = getProxyProvider(serving.proxy.kind).publishAddress(serving.proxy.config);
+    return address ? { bindAddress: address } : undefined;
+  }
+  return {
+    byPort: true,
+    ...(serving.link.bindable ? { bindAddress: serving.link.address } : {}),
+    ...(serving.link.sourceAddress ? { allowFrom: serving.link.sourceAddress } : {}),
+  };
 }
 
 /**
@@ -172,88 +238,97 @@ export async function applyCoupleRoutes(input: {
   onLog: LogSink;
 }): Promise<AppliedRoutes> {
   const { applicationId, targetId, driver, ctx, onLog } = input;
-  const proxy = await getProxyForTarget(targetId);
+  const serving = await resolveServingProxy(targetId);
   const routes = await listRoutes({ applicationId, targetId });
-  if (!proxy) {
+  if (!serving) {
     const reason =
       routes.length > 0
-        ? `aucun reverse proxy sur cette cible : ${routes.map((route) => route.hostname).join(', ')} non routé(s)`
-        : 'aucun reverse proxy sur cette cible — application jointe par son port';
+        ? `aucun reverse proxy ne sert cette cible : ${routes.map((route) => route.hostname).join(', ')} non routé(s)`
+        : 'aucun reverse proxy ne sert cette cible — application jointe par son port';
     return { skipped: reason, url: null, problems: [] };
   }
+  if (serving.link && routes.length > 0) {
+    onLog(`servie par le proxy d'une autre machine, qui la joint à ${serving.link.address}`);
+  }
 
-  const provider = getProxyProvider(proxy.kind);
-  const proxyCtx = proxyContextOf(proxy, ctx);
-  await provider.apply(
-    proxyCtx,
-    {
-      appSlug: ctx.appSlug,
-      routes: routes.map(toProxyRoute),
-      upstream: driver.upstream(ctx, input.publishedPort),
-    },
-    onLog,
-  );
-  if (routes.length === 0)
-    return { skipped: 'aucun domaine pour cette application', url: null, problems: [] };
-
-  // Un proxy relit sa configuration en une ou deux secondes ; un contrôleur
-  // d'ingress, parfois davantage. On réessaie un temps raisonnable avant de
-  // conclure.
-  const path = routedHealthPath(ctx.spec);
-  const problems: string[] = [];
-  let url: string | null = null;
-  let certificatePending = false;
-  for (const route of routes) {
-    let probe = await provider.probe(proxyCtx, toProxyRoute(route), path);
-    for (let attempt = 1; attempt < 10 && !probe.ok; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      probe = await provider.probe(proxyCtx, toProxyRoute(route), path);
-    }
-    await recordProbe(route, probe, { confirm: false });
-    const certificate =
-      probe.certificate.status === 'pending'
-        ? ' — certificat en cours d’émission'
-        : probe.certificate.status === 'valid'
-          ? ` — certificat valide jusqu’au ${probe.certificate.notAfter?.slice(0, 10) ?? '?'}`
-          : '';
-    onLog(
-      `${probe.ok ? '✓' : '✗'} ${route.hostname} — ${probe.detail}${probe.ok ? certificate : ''}`,
+  const provider = getProxyProvider(serving.proxy.kind);
+  return withProxyHost(serving, ctx, async (proxyCtx) => {
+    await provider.apply(
+      proxyCtx,
+      {
+        appSlug: ctx.appSlug,
+        ...(scopeOf(serving, targetId) ? { scope: scopeOf(serving, targetId)! } : {}),
+        routes: routes.map(toProxyRoute),
+        upstream: upstreamOf(serving, driver, ctx, input.publishedPort),
+      },
+      onLog,
     );
-    if (probe.ok) url ??= routeUrl(route);
-    else problems.push(`${route.hostname} : ${probe.detail}`);
-    if (probe.certificate.status === 'pending') certificatePending = true;
-  }
-  // Un certificat s'obtient en quelques secondes, la tournée passe toutes les
-  // dix minutes : on relit ce couple bientôt, pour que l'écran le voie émis.
-  if (certificatePending) {
-    for (const delay of CERTIFICATE_RECHECK_DELAYS_MS) {
-      await getSupervisionQueue().add(
-        ROUTES_CHECK_JOB,
-        { applicationId, targetId },
-        {
-          delay,
-          attempts: 1,
-          removeOnComplete: { age: 3600, count: 100 },
-          removeOnFail: { age: 86_400, count: 100 },
-        },
-      );
+    if (routes.length === 0) {
+      return { skipped: 'aucun domaine pour cette application', url: null, problems: [] };
     }
-  }
-  return { skipped: null, url: url ?? routeUrl(routes[0]!), problems };
+
+    // Un proxy relit sa configuration en une ou deux secondes ; un contrôleur
+    // d'ingress, parfois davantage. On réessaie un temps raisonnable avant de
+    // conclure.
+    const path = routedHealthPath(ctx.spec);
+    const problems: string[] = [];
+    let url: string | null = null;
+    let certificatePending = false;
+    for (const route of routes) {
+      let probe = await provider.probe(proxyCtx, toProxyRoute(route), path);
+      for (let attempt = 1; attempt < 10 && !probe.ok; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        probe = await provider.probe(proxyCtx, toProxyRoute(route), path);
+      }
+      await recordProbe(route, probe, { confirm: false });
+      const certificate =
+        probe.certificate.status === 'pending'
+          ? ' — certificat en cours d’émission'
+          : probe.certificate.status === 'valid'
+            ? ` — certificat valide jusqu’au ${probe.certificate.notAfter?.slice(0, 10) ?? '?'}`
+            : '';
+      onLog(
+        `${probe.ok ? '✓' : '✗'} ${route.hostname} — ${probe.detail}${probe.ok ? certificate : ''}`,
+      );
+      if (probe.ok) url ??= routeUrl(route);
+      else problems.push(`${route.hostname} : ${probe.detail}`);
+      if (probe.certificate.status === 'pending') certificatePending = true;
+    }
+    // Un certificat s'obtient en quelques secondes, la tournée passe toutes les
+    // dix minutes : on relit ce couple bientôt, pour que l'écran le voie émis.
+    if (certificatePending) {
+      for (const delay of CERTIFICATE_RECHECK_DELAYS_MS) {
+        await getSupervisionQueue().add(
+          ROUTES_CHECK_JOB,
+          { applicationId, targetId },
+          {
+            delay,
+            attempts: 1,
+            removeOnComplete: { age: 3600, count: 100 },
+            removeOnFail: { age: 86_400, count: 100 },
+          },
+        );
+      }
+    }
+    return { skipped: null, url: url ?? routeUrl(routes[0]!), problems };
+  });
 }
 
-/** La sonde périodique : éprouve sans rien poser, et prévient des changements. */
+/**
+ * La sonde périodique : éprouve sans rien poser, et prévient des changements.
+ * `proxyHost` : une session vers la machine du proxy — c'est de là qu'on sonde.
+ */
 export async function probeCoupleRoutes(input: {
   applicationId: string;
   targetId: string;
   spec: AppSpec;
-  host: TargetContext;
+  serving: ServingProxy;
+  proxyHost: TargetContext;
 }): Promise<{ checked: number; failing: number }> {
-  const proxy = await getProxyForTarget(input.targetId);
   const routes = await listRoutes({ applicationId: input.applicationId, targetId: input.targetId });
-  if (!proxy || routes.length === 0) return { checked: 0, failing: 0 };
-  const provider = getProxyProvider(proxy.kind);
-  const proxyCtx = proxyContextOf(proxy, input.host);
+  if (routes.length === 0) return { checked: 0, failing: 0 };
+  const provider = getProxyProvider(input.serving.proxy.kind);
+  const proxyCtx = proxyContextOf(input.serving.proxy, input.proxyHost);
   const path = routedHealthPath(input.spec);
   let failing = 0;
   for (const route of routes) {
@@ -277,17 +352,29 @@ export async function removeCoupleRoutes(input: {
   publishedPort: number | null;
   onLog: LogSink;
 }): Promise<void> {
-  const proxy = await getProxyForTarget(input.targetId);
-  if (proxy) {
+  const serving = await resolveServingProxy(input.targetId);
+  if (serving) {
     try {
-      await getProxyProvider(proxy.kind).apply(
-        proxyContextOf(proxy, input.ctx),
-        {
-          appSlug: input.ctx.appSlug,
-          routes: [],
-          upstream: input.driver.upstream(input.ctx, input.publishedPort),
-        },
-        input.onLog,
+      await withProxyHost(serving, input.ctx, (proxyCtx) =>
+        getProxyProvider(serving.proxy.kind).apply(
+          proxyCtx,
+          {
+            appSlug: input.ctx.appSlug,
+            ...(scopeOf(serving, input.targetId)
+              ? { scope: scopeOf(serving, input.targetId)! }
+              : {}),
+            routes: [],
+            // L'amont ne sert ici qu'à retrouver où les routes ont été posées.
+            upstream: (() => {
+              try {
+                return upstreamOf(serving, input.driver, input.ctx, input.publishedPort);
+              } catch {
+                return null;
+              }
+            })(),
+          },
+          input.onLog,
+        ),
       );
     } catch (error) {
       input.onLog(

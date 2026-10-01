@@ -128,8 +128,26 @@ export type RouteCertificate = z.infer<typeof routeCertificateSchema>;
  * savoir sur quel runtime il tourne.
  */
 export type ProxyUpstream =
-  | { kind: 'port'; port: number }
+  /**
+   * Un port publié sur une machine. Sans `host`, celle du proxy — il la joint
+   * à son adresse locale. Avec `host`, une **autre** machine, que le proxy
+   * joint par cette adresse : c'est le proxy central.
+   */
+  | { kind: 'port'; port: number; host?: string }
   | { kind: 'kubernetes'; namespace: string; service: string; port: number };
+
+/** Une adresse privée (RFC 1918, ULA, boucle locale) : le trafic en clair y reste. */
+export function isPrivateAddress(address: string): boolean {
+  if (/^10\.|^192\.168\.|^127\.|^169\.254\./.test(address)) return true;
+  const match = /^172\.(\d+)\./.exec(address);
+  if (match && Number(match[1]) >= 16 && Number(match[1]) <= 31) return true;
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(address)) return true; // CGNAT, Tailscale
+  return /^(fc|fd)[0-9a-f]{2}:|^::1$/i.test(address);
+}
+
+export function isIPv4(address: string): boolean {
+  return /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(address);
+}
 
 // ─── Traefik ─────────────────────────────────────────────────────────────────
 

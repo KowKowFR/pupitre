@@ -16,7 +16,16 @@
  *      qui répondent à travers le proxy ;
  *   6. le certificat émis par l'ACME, pour de vrai ;
  *   7. un domaine retiré ne répond plus, l'autre si ;
- *   8. tout retiré, application détruite, Traefik désinstallé.
+ *   8. tout retiré, application détruite.
+ *
+ * Puis le proxy central, dans les deux sens : le Traefik d'une machine sert
+ * une application qui tourne sur l'autre.
+ *   9. l'adresse de l'autre machine, et celle par laquelle le proxy y arrive ;
+ *  10. l'application publiée pour lui seul — sur l'adresse privée en Compose,
+ *      en NodePort réservé par une NetworkPolicy en K3s (et un proxy qui n'est
+ *      pas le bon s'y voit refusé) ;
+ *  11. ses domaines répondent à travers le proxy, certificat compris ;
+ *  12. tout retiré, rien ne reste chez le proxy ; Traefik désinstallé.
  *
  * Sortie en code 1 dès qu'un point échoue.
  */
@@ -31,8 +40,13 @@ import {
   type RuntimeKind,
 } from '@pupitre/core/drivers';
 import {
+  defaultDynamicDirectory,
   getProxyProvider,
+  REMOTE_NAMESPACE,
+  traefikConfigSchema,
+  traefikFileName,
   type ProxyContext,
+  type ProxyProvider,
   type ProxyRoute,
   type RouteProbe,
 } from '@pupitre/core/proxy';
@@ -238,7 +252,18 @@ async function probeUntil(
 
 // ─── le déroulé, par runtime ─────────────────────────────────────────────────
 
-async function exercise(side: Side, acme: AcmeSettings | null, keep: boolean): Promise<void> {
+type Installed = {
+  side: Side;
+  provider: ProxyProvider;
+  proxyCtx: ProxyContext;
+  kubernetes: boolean;
+};
+
+async function exercise(
+  side: Side,
+  acme: AcmeSettings | null,
+  keep: boolean,
+): Promise<Installed | null> {
   const { runtime, driver, ctx, session } = side;
   const provider = getProxyProvider('traefik');
   const log = (line: string) => write(`    ${dim(line)}\n`);
@@ -254,7 +279,7 @@ async function exercise(side: Side, acme: AcmeSettings | null, keep: boolean): P
       option ? `${option.key} — ${option.detail}` : options.map((o) => o.detail).join(' · '),
     )
   )
-    return;
+    return null;
 
   if (acme && option!.key === 'kubernetes') await teachClusterWherePebbleIs(session);
   const config = await guarded(runtime, 'install()', () =>
@@ -272,9 +297,15 @@ async function exercise(side: Side, acme: AcmeSettings | null, keep: boolean): P
       log,
     ),
   );
-  if (!config) return;
+  if (!config) return null;
   record(runtime, 'install()', true, option!.key);
   const proxyCtx: ProxyContext = { ...ctx, config };
+  const installed: Installed = {
+    side,
+    provider,
+    proxyCtx,
+    kubernetes: option!.key === 'kubernetes',
+  };
 
   const check = await guarded(runtime, 'check()', () => provider.check(proxyCtx, log));
   record(
@@ -297,7 +328,7 @@ async function exercise(side: Side, acme: AcmeSettings | null, keep: boolean): P
 
   // L'application, déployée par son driver, publiée là où le proxy la joint.
   const publishAddress = provider.publishAddress(config);
-  if (publishAddress) ctx.publishAddress = publishAddress;
+  if (publishAddress) ctx.exposure = { bindAddress: publishAddress };
   const port = await guarded(runtime, 'déploiement', async () => {
     const allocated = await driver.allocatePort(ctx);
     const artifacts = await driver.render(ctx);
@@ -322,7 +353,7 @@ async function exercise(side: Side, acme: AcmeSettings | null, keep: boolean): P
           : 'rien que le proxy puisse joindre',
     )
   )
-    return;
+    return installed;
 
   if (publishAddress && port) {
     const own = await machineAddress(session);
@@ -413,14 +444,224 @@ async function exercise(side: Side, acme: AcmeSettings | null, keep: boolean): P
     record(runtime, 'tout retiré : plus rien', !none.ok, none.detail);
   }
 
-  if (keep) return;
-  await guarded(runtime, 'destroy()', () => driver.destroy(ctx, () => {}));
-  const removed = await guarded(runtime, 'uninstall()', async () => {
-    await provider.uninstall(proxyCtx, log);
+  if (!keep) {
+    const destroyed = await guarded(runtime, 'destroy()', async () => {
+      await driver.destroy(ctx, () => {});
+      return true;
+    });
+    if (destroyed) record(runtime, 'application détruite', true);
+  }
+  delete ctx.exposure;
+  return installed;
+}
+
+// ─── le proxy central ────────────────────────────────────────────────────────
+
+/** Ce que mesure le test d'une liaison : l'adresse par laquelle le proxy arrive. */
+async function sourceAddressTowards(session: SshSession, address: string): Promise<string | null> {
+  const route = await exec(session, `ip route get ${address} 2>/dev/null | head -1`);
+  return /\bsrc\s+(\S+)/.exec(route.stdout)?.[1] ?? null;
+}
+
+async function redeploy(app: Side, exposure: NonNullable<DriverContext['exposure']>) {
+  app.ctx.exposure = exposure;
+  app.ctx.deployment = {
+    ...app.ctx.deployment,
+    id: `proxy-${app.runtime}-${Date.now()}`,
+    sequence: app.ctx.deployment.sequence + 1,
+  };
+  const allocated = await app.driver.allocatePort(app.ctx);
+  const artifacts = await app.driver.render(app.ctx);
+  await app.driver.upload(app.ctx, artifacts, () => {});
+  await app.driver.build(app.ctx, () => {});
+  const result = await app.driver.deploy(app.ctx, () => {});
+  const health = await app.driver.healthcheck(app.ctx);
+  if (!health.healthy) throw new Error(`application en mauvaise santé : ${health.detail ?? ''}`);
+  const port = result.publishedPort ?? allocated;
+  if (port === null) throw new Error('aucun port publié pour le proxy distant');
+  return port;
+}
+
+async function crossExercise(
+  proxy: Installed,
+  app: Side,
+  acme: AcmeSettings | null,
+  keep: boolean,
+): Promise<void> {
+  const label = `${proxy.side.runtime}→${app.runtime}`;
+  const { provider, proxyCtx } = proxy;
+  const log = (line: string) => write(`    ${dim(line)}\n`);
+  write(
+    `\n${bold(`── proxy central — le Traefik de ${proxy.side.ctx.target.name} sert ${app.ctx.target.name}`)}\n`,
+  );
+
+  const address = await machineAddress(app.session);
+  const source = address ? await sourceAddressTowards(proxy.side.session, address) : null;
+  if (
+    !record(
+      label,
+      'liaison : l’adresse de la machine, et celle d’où le proxy arrive',
+      Boolean(address && source),
+      `${address ?? '?'} ← ${source ?? '?'}`,
+    )
+  )
+    return;
+
+  const scope = `t${app.ctx.target.id.slice(0, 8)}`;
+  const name = `${SPEC.name}--${scope}`;
+  const secure: ProxyRoute = {
+    hostname: `${app.runtime}-via-${proxy.side.runtime}.proxy.pupitre.test`,
+    tls: true,
+    redirectHttps: true,
+  };
+  const plain: ProxyRoute = {
+    hostname: `plain-${app.runtime}-via-${proxy.side.runtime}.proxy.pupitre.test`,
+    tls: false,
+    redirectHttps: false,
+  };
+  if (acme) {
+    const proxyAddress = await machineAddress(proxy.side.session);
+    if (proxyAddress)
+      for (const route of [secure, plain]) await declareDomain(route.hostname, proxyAddress);
+  }
+  const applyRoutes = (routes: ProxyRoute[], port: number | null) =>
+    provider.apply(
+      proxyCtx,
+      {
+        appSlug: SPEC.name,
+        scope,
+        routes,
+        upstream: port === null ? null : { kind: 'port', port, host: address! },
+      },
+      log,
+    );
+
+  // Un proxy qui n'est pas le bon : en K3s, la NetworkPolicy le refuse. En
+  // Compose, c'est l'adresse de publication qui fait la barrière.
+  if (app.runtime === 'k3s') {
+    const port = await guarded(label, 'déploiement réservé à une autre adresse', () =>
+      redeploy(app, { byPort: true, allowFrom: '192.0.2.1' }),
+    );
+    if (port === null) return;
+    await applyRoutes([plain], port);
+    const refused = await probeUntil(
+      () => provider.probe(proxyCtx, plain, '/'),
+      (probe) => probe.ok,
+      20,
+    );
+    record(
+      label,
+      'NetworkPolicy : un proxy qui n’est pas le sien est refusé',
+      !refused.ok,
+      refused.detail,
+    );
+  }
+
+  const port = await guarded(label, 'déploiement pour le proxy distant', () =>
+    redeploy(app, { byPort: true, bindAddress: address!, allowFrom: source! }),
+  );
+  if (port === null) return;
+  record(
+    label,
+    app.runtime === 'k3s' ? `NodePort ${port}, réservé au proxy` : `port ${port} publié`,
+    true,
+  );
+
+  if (app.runtime === 'docker') {
+    const local = await exec(
+      app.session,
+      `curl -s -o /dev/null -w '%{http_code}' -m 3 http://127.0.0.1:${port}/ || true`,
+    );
+    const fromProxy = await exec(
+      proxy.side.session,
+      `curl -s -o /dev/null -w '%{http_code}' -m 3 http://${address}:${port}/ || true`,
+    );
+    record(
+      label,
+      'port publié sur l’adresse que joint le proxy, seulement',
+      local.stdout.trim() === '000' && fromProxy.stdout.trim() === '200',
+      `127.0.0.1 → ${local.stdout.trim()}, ${address} depuis le proxy → ${fromProxy.stdout.trim()}`,
+    );
+  }
+
+  const applied = await guarded(label, 'apply() vers l’autre machine', async () => {
+    await applyRoutes([secure, plain], port);
     return true;
   });
-  if (removed) record(runtime, 'application détruite, Traefik désinstallé', true);
-  if (acme && option!.key === 'kubernetes') await forgetPebble(session);
+  if (!applied) return;
+  const plainly = await probeUntil(
+    () => provider.probe(proxyCtx, plain, '/'),
+    (probe) => probe.ok,
+    60,
+  );
+  record(label, `${plain.hostname} en HTTP, à travers le proxy`, plainly.ok, plainly.detail);
+  const securely = await probeUntil(
+    () => provider.probe(proxyCtx, secure, '/'),
+    (probe) => probe.ok && (!acme || probe.certificate.status === 'valid'),
+    acme ? 180 : 45,
+  );
+  record(
+    label,
+    `${secure.hostname} en HTTPS${acme ? ', certificat émis' : ''}`,
+    securely.ok && (!acme || securely.certificate.status === 'valid'),
+    `${securely.detail} — ${securely.certificate.status}`,
+  );
+
+  // Tout retiré : plus de route, et rien ne reste chez le proxy.
+  await applyRoutes([], port);
+  const gone = await probeUntil(
+    () => provider.probe(proxyCtx, plain, '/'),
+    (probe) => !probe.ok,
+    30,
+  );
+  const config = traefikConfigSchema.parse(proxyCtx.config);
+  const leftovers = proxy.kubernetes
+    ? await exec(
+        proxy.side.session,
+        `export KUBECONFIG=\${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}; kubectl -n ${REMOTE_NAMESPACE} get service,endpointslice,ingress -o name 2>/dev/null | grep -F '${name}' || true`,
+      )
+    : await exec(
+        proxy.side.session,
+        `ls ${(config.mode === 'file' && config.directory) || defaultDynamicDirectory(proxy.side.ctx.target.rootPath)}/${traefikFileName(name)} 2>/dev/null || true`,
+      );
+  record(
+    label,
+    'tout retiré : plus de route, rien ne reste chez le proxy',
+    !gone.ok && leftovers.stdout.trim() === '',
+    leftovers.stdout.trim() || gone.detail,
+  );
+
+  if (!keep) {
+    const destroyed = await guarded(label, 'destroy()', async () => {
+      await app.driver.destroy(app.ctx, () => {});
+      return true;
+    });
+    if (destroyed) record(label, 'application détruite', true);
+  }
+  delete app.ctx.exposure;
+}
+
+async function teardown(installed: Installed, acme: AcmeSettings | null): Promise<void> {
+  const { side, provider, proxyCtx } = installed;
+  const removed = await guarded(side.runtime, 'uninstall()', async () => {
+    await provider.uninstall(proxyCtx, (line) => write(`    ${dim(line)}\n`));
+    return true;
+  });
+  if (removed) record(side.runtime, 'Traefik désinstallé', true);
+  if (removed && installed.kubernetes) {
+    // Le namespace des routes vers d'autres machines part avec lui.
+    const phase = await exec(
+      side.session,
+      `export KUBECONFIG=\${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}; kubectl get namespace ${REMOTE_NAMESPACE} -o jsonpath='{.status.phase}' 2>/dev/null || true`,
+    );
+    record(
+      side.runtime,
+      `namespace ${REMOTE_NAMESPACE} retiré`,
+      ['', 'Terminating'].includes(phase.stdout.trim()),
+      phase.stdout.trim() || 'absent',
+    );
+  }
+  if (acme && installed.kubernetes) await forgetPebble(side.session);
 }
 
 async function main(): Promise<void> {
@@ -452,19 +693,32 @@ async function main(): Promise<void> {
   );
 
   const applicationId = await ensureApplication(SPEC);
-  for (const [runtime, ref] of [
-    ['docker', dockerRef],
-    ['k3s', k3sRef],
-  ] as const) {
-    const side = await guarded(runtime, 'ouverture de la cible', () =>
-      openSide(runtime, ref, applicationId),
-    );
-    if (!side) continue;
-    try {
-      await exercise(side, acme, args.includes('--keep'));
-    } finally {
-      await disconnect(side.session);
+  const keep = args.includes('--keep');
+  const sides: Side[] = [];
+  const installed: Installed[] = [];
+  try {
+    for (const [runtime, ref] of [
+      ['docker', dockerRef],
+      ['k3s', k3sRef],
+    ] as const) {
+      const side = await guarded(runtime, 'ouverture de la cible', () =>
+        openSide(runtime, ref, applicationId),
+      );
+      if (!side) continue;
+      sides.push(side);
+      const done = await exercise(side, acme, keep);
+      if (done) installed.push(done);
     }
+
+    // Le proxy central, dans les deux sens.
+    for (const proxy of installed) {
+      const app = sides.find((side) => side !== proxy.side);
+      if (app) await crossExercise(proxy, app, acme, keep);
+    }
+
+    if (!keep) for (const done of installed) await teardown(done, acme);
+  } finally {
+    for (const side of sides) await disconnect(side.session);
   }
   if (!args.includes('--keep')) {
     await getDb().delete(applications).where(eq(applications.id, applicationId));

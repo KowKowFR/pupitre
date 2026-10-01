@@ -128,7 +128,7 @@ type KubeObject = {
   kind: string;
   metadata: {
     name: string;
-    namespace: string;
+    namespace?: string;
     labels: Record<string, string>;
     annotations?: Record<string, string>;
   };
@@ -215,4 +215,64 @@ export function renderTraefikIngresses(
  */
 export function serializeKubeObjects(objects: KubeObject[]): string {
   return objects.map((object) => stringify(object, { lineWidth: 0, version: '1.1' })).join('---\n');
+}
+
+// ─── une machine hors du cluster ─────────────────────────────────────────────
+
+/**
+ * Le namespace des routes vers des machines hors du cluster : l'application
+ * n'y tourne pas, elle n'a donc pas de namespace à elle ici.
+ */
+export const REMOTE_NAMESPACE = 'pupitre-routes';
+
+/**
+ * Le Traefik d'un cluster qui sert une machine **hors** du cluster — le proxy
+ * central. Un Ingress ne vise qu'un Service : on lui en donne un sans
+ * sélecteur, dont le seul point de terminaison est l'adresse de l'autre
+ * machine (EndpointSlice). Ni `ExternalName`, que Traefik refuse par défaut,
+ * ni réglage du proxy à changer.
+ */
+export function renderTraefikRemoteIngresses(
+  name: string,
+  routes: ProxyRoute[],
+  upstream: { host: string; port: number },
+  config: TraefikKubernetesConfig,
+): TraefikKubernetesRender {
+  const labels = routeLabels(name);
+  const rendered = renderTraefikIngresses(
+    name,
+    routes,
+    { namespace: REMOTE_NAMESPACE, service: name, port: upstream.port },
+    config,
+  );
+  const backing: KubeObject[] = [
+    {
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: { name: REMOTE_NAMESPACE, labels: { 'app.kubernetes.io/managed-by': 'pupitre' } },
+      spec: {},
+    },
+    {
+      apiVersion: 'v1',
+      kind: 'Service',
+      metadata: { name, namespace: REMOTE_NAMESPACE, labels },
+      spec: {
+        ports: [{ name: 'http', port: upstream.port, targetPort: upstream.port, protocol: 'TCP' }],
+      },
+    },
+    {
+      apiVersion: 'discovery.k8s.io/v1',
+      kind: 'EndpointSlice',
+      metadata: {
+        name: `${name}-upstream`,
+        namespace: REMOTE_NAMESPACE,
+        labels: { ...labels, 'kubernetes.io/service-name': name },
+      },
+      // Une EndpointSlice n'a pas de `spec` : ses champs sont à la racine.
+      addressType: 'IPv4',
+      endpoints: [{ addresses: [upstream.host], conditions: { ready: true } }],
+      ports: [{ name: 'http', port: upstream.port, protocol: 'TCP' }],
+    } as unknown as KubeObject,
+  ];
+  return { objects: [...backing, ...rendered.objects], stale: rendered.stale };
 }

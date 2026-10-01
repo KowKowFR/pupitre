@@ -31,7 +31,7 @@ export function toRouteInputs(drafts: DomainDraft[]) {
 
 type DnsState =
   | { state: 'checking' }
-  | { state: 'ok' }
+  | { state: 'ok'; via: string | null }
   | { state: 'elsewhere'; addresses: string[] }
   | { state: 'none' };
 
@@ -52,13 +52,14 @@ function DnsHint({ targetId, hostname }: { targetId: string; hostname: string })
             addresses: string[];
             resolves: boolean;
             matches: boolean;
+            via: string | null;
           };
           setDns({
             host: hostname,
             result: !body.resolves
               ? { state: 'none' }
               : body.matches
-                ? { state: 'ok' }
+                ? { state: 'ok', via: body.via }
                 : { state: 'elsewhere', addresses: body.addresses },
           });
         })
@@ -89,7 +90,9 @@ function DnsHint({ targetId, hostname }: { targetId: string; hostname: string })
       {result.state === 'checking'
         ? t('domains.dns.checking')
         : result.state === 'ok'
-          ? t('domains.dns.ok')
+          ? result.via
+            ? t('domains.dns.okVia', { target: result.via })
+            : t('domains.dns.ok')
           : result.state === 'none'
             ? t('domains.dns.none')
             : t('domains.dns.elsewhere', { addresses: result.addresses.join(', ') })}
@@ -107,8 +110,11 @@ export function DomainsField({
 }: {
   targetId: string;
   targetName: string;
-  /** `null` : la cible n'a pas de proxy — on le dit, et rien ne se saisit. */
-  proxy: { description: string; capabilities: ProxyCapabilities } | null;
+  /**
+   * `null` : la cible n'a pas de proxy — on le dit, et rien ne se saisit.
+   * `via` : la machine du proxy, quand c'est celui d'une autre.
+   */
+  proxy: { description: string; capabilities: ProxyCapabilities; via?: string | null } | null;
   value: DomainDraft[];
   onChange: (value: DomainDraft[]) => void;
   disabled?: boolean;
@@ -129,7 +135,7 @@ export function DomainsField({
     <fieldset className="flex flex-col gap-2" disabled={disabled}>
       <legend className="t-sm font-medium">{t('domains.title')}</legend>
       <p className="t-cap text-text-3">
-        {t('domains.help', { target: targetName, proxy: proxy.description })}
+        {t('domains.help', { target: proxy.via ?? targetName, proxy: proxy.description })}
         {proxy.capabilities.autoTls ? t('domains.helpAcme') : ''}
       </p>
       {value.map((draft, index) => (
