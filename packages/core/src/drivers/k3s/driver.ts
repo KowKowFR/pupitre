@@ -17,6 +17,8 @@ import {
   type RenderedFile,
   type TargetContext,
 } from '../types.js';
+import { digestOf, parseImageReference } from '../../images/reference.js';
+import { checkableImages, type RunningImage } from '../../images/updates.js';
 import {
   managedWorkloadControlRefusal,
   managedWorkloadRefusal,
@@ -619,6 +621,10 @@ export class K3sDriver implements DeploymentDriver {
     const manifests = this.manifestPath(ctx);
     const namespace = this.namespace(ctx);
 
+    // L'équivalent de `docker compose pull` : sans lui, `IfNotPresent` garde
+    // indéfiniment le premier contenu tiré pour un tag.
+    const pulled = await this.pullImages(ctx, onLog);
+
     // Le namespace d'abord, seul : les ressources qui suivent le référencent.
     onLog(`kubectl apply — namespace ${namespace}`);
     await this.stream(
@@ -648,6 +654,8 @@ export class K3sDriver implements DeploymentDriver {
         APPLY_TIMEOUT_MS,
       );
     }
+
+    await this.refreshStaleImages(ctx, pulled, onLog);
 
     // Marque la release courante : `rollback()` et `destroy()` s'en servent.
     await this.run(
@@ -1322,6 +1330,90 @@ export class K3sDriver implements DeploymentDriver {
     onLog('✓ pods recréés sur le manifeste courant');
   }
 
+  async runningImages(ctx: DriverContext): Promise<RunningImage[]> {
+    const result = await exec(ctx.sshSession, this.kube(ctx, 'get pods -o json'), {
+      timeout: SHORT_TIMEOUT_MS,
+      logOutput: false,
+    });
+    return result.code === 0 ? parsePodImages(result.stdout) : [];
+  }
+
+  /**
+   * Tire les images des registres avant d'appliquer les manifests, et retient
+   * le digest obtenu pour chaque service.
+   *
+   * `imagePullPolicy: IfNotPresent` est imposé par les images construites sur
+   * la cible (elles n'existent dans aucun registre). Son revers : un tag déjà
+   * présent n'est jamais retiré, et `postgres:16` resterait figé sur son
+   * premier contenu. Tirer ici rend au tag son contenu actuel dans containerd —
+   * exactement ce que fait `docker compose pull` de l'autre côté.
+   *
+   * Un échec n'arrête pas le déploiement : l'image locale, si elle existe,
+   * fera l'affaire, et si elle n'existe pas le rollout le dira.
+   */
+  private async pullImages(ctx: DriverContext, onLog: LogSink): Promise<Map<string, string>> {
+    const pulled = new Map<string, string>();
+    for (const { service, image, ref } of checkableImages(ctx.spec)) {
+      if (ref.digest) continue;
+      onLog(`k3s crictl pull ${image}`);
+      const result = await exec(
+        ctx.sshSession,
+        this.script([
+          `k3s crictl pull ${shellQuote(image)} >/dev/null && k3s crictl inspecti -o json ${shellQuote(image)}`,
+        ]),
+        // Le socket de containerd n'est ouvert qu'à root — comme pour l'import
+        // des images construites, plus haut.
+        { timeout: APPLY_TIMEOUT_MS, logOutput: false, sudo: true },
+      );
+      const digest = result.code === 0 ? pulledDigest(result.stdout, image) : null;
+      if (digest) {
+        pulled.set(service, digest);
+        onLog(`   ${image} → ${digest.slice(0, 19)}…`);
+      } else {
+        onLog(
+          `   tirage impossible (${firstLine(result.stderr) ?? `code ${result.code}`}) — ` +
+            "l'image locale servira",
+        );
+      }
+    }
+    return pulled;
+  }
+
+  /**
+   * Un manifest identique n'est pas un changement pour Kubernetes : si seul le
+   * contenu du tag a bougé, aucun pod n'est remplacé. Ce qui tourne encore sur
+   * l'ancien digest est donc redémarré — et seulement cela.
+   */
+  private async refreshStaleImages(
+    ctx: DriverContext,
+    pulled: Map<string, string>,
+    onLog: LogSink,
+  ): Promise<void> {
+    if (pulled.size === 0) return;
+    const running = await this.runningImages(ctx);
+    for (const { service, digests } of running) {
+      const latest = pulled.get(service);
+      if (!latest || digests.length === 0 || digests.every((digest) => digest === latest)) continue;
+      onLog(
+        `« ${service} » tourne sur une image antérieure — redémarrage sur ${latest.slice(0, 19)}…`,
+      );
+      await this.stream(
+        ctx,
+        this.kube(ctx, `rollout restart deployment/${service}`),
+        onLog,
+        'rollout',
+        APPLY_TIMEOUT_MS,
+      );
+      await this.stream(
+        ctx,
+        this.kube(ctx, `rollout status deployment/${service} --timeout=${ROLLOUT_TIMEOUT}`),
+        onLog,
+        'rollout',
+        APPLY_TIMEOUT_MS,
+      );
+    }
+  }
+
   /**
    * Cycle de vie d'une charge, en Kubernetes :
    *
@@ -1865,7 +1957,13 @@ type KubeItem = {
     phase?: string;
     startTime?: string;
     conditions?: KubeCondition[] | null;
-    containerStatuses?: Array<{ ready?: boolean; image?: string; restartCount?: number }> | null;
+    containerStatuses?: Array<{
+      name?: string;
+      ready?: boolean;
+      image?: string;
+      imageID?: string;
+      restartCount?: number;
+    }> | null;
   } | null;
 };
 
@@ -2080,4 +2178,48 @@ export function chronological(lines: string[]): string[] {
     })
     .sort((a, b) => (a.key === b.key ? a.index - b.index : a.key < b.key ? -1 : 1))
     .map((entry) => entry.line);
+}
+
+/**
+ * Les digests des pods d'une application, par service. Le service est le label
+ * `app.kubernetes.io/name` posé par le rendu ; `imageID` est la forme
+ * `docker.io/library/nginx@sha256:…` de containerd.
+ */
+export function parsePodImages(json: string): RunningImage[] {
+  const byService = new Map<string, Set<string>>();
+  for (const item of kubeItems(json)) {
+    const service = item.metadata?.labels?.['app.kubernetes.io/name'];
+    if (!service) continue;
+    const digests = byService.get(service) ?? new Set<string>();
+    for (const container of item.status?.containerStatuses ?? []) {
+      if (container.name && container.name !== service) continue;
+      const digest = container.imageID ? digestOf(container.imageID) : null;
+      if (digest) digests.add(digest);
+    }
+    byService.set(service, digests);
+  }
+  return [...byService].map(([service, digests]) => ({ service, digests: [...digests] }));
+}
+
+/**
+ * Le digest d'une image tirée, lu dans `crictl inspecti -o json` : parmi ses
+ * `repoDigests`, celui du dépôt demandé (une même image peut être connue sous
+ * plusieurs noms).
+ */
+export function pulledDigest(json: string, image: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  const repoDigests = (parsed as { status?: { repoDigests?: unknown } }).status?.repoDigests;
+  if (!Array.isArray(repoDigests)) return null;
+  const ref = parseImageReference(image);
+  const wanted = ref
+    ? `${ref.registry === 'registry-1.docker.io' ? 'docker.io' : ref.registry}/${ref.repository}@`
+    : null;
+  const candidates = repoDigests.filter((value): value is string => typeof value === 'string');
+  const match = (wanted && candidates.find((value) => value.startsWith(wanted))) ?? candidates[0];
+  return match ? digestOf(match) : null;
 }

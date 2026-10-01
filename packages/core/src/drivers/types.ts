@@ -4,6 +4,7 @@ import type { AppSpec } from '../spec/index.js';
 import type { SshSession } from '../ssh/client.js';
 import type { Workload, WorkloadControlAction, WorkloadRef } from '../workloads.js';
 import type { WorkloadExecOptions, WorkloadExecResult } from './workload-exec.js';
+import type { RunningImage } from '../images/updates.js';
 
 /**
  * Contrat que doit remplir un runtime pour être déployable par le panel.
@@ -373,6 +374,15 @@ export interface DeploymentDriver {
     action: WorkloadControlAction,
     onLog: LogSink,
   ): Promise<void>;
+
+  /**
+   * Le contenu exact de ce qui tourne : pour chaque service de l'application,
+   * les digests (`sha256:…`) des images de ses conteneurs ou pods — ceux que
+   * le registre annonce pour un tag, à forme égale (index multi-architecture).
+   * C'est ce qui permet de dire si un tag a bougé depuis le déploiement.
+   * Lecture seule ; un service sans conteneur est absent du résultat.
+   */
+  runningImages(ctx: DriverContext): Promise<RunningImage[]>;
 
   /** Les dernières lignes du journal d'une charge, horodatées. Lecture seule. */
   workloadLogs(ctx: TargetContext, ref: WorkloadRef, tail: number, onLine: LogSink): Promise<void>;

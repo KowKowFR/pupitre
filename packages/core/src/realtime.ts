@@ -92,7 +92,8 @@ const JOB_TOPICS: Array<[RegExp, LiveTopic]> = [
   // Les tâches planifiées d'abord : `target:preflight:all` en est une.
   [/^(scan|health):periodic$|^cleanup:|^target:preflight:all$/, 'jobs'],
   [/^target:(preflight|metrics|metrics_sweep)$/, 'targets'],
-  [/^workload:(remove|update)$/, 'targets'],
+  [/^workload:(remove|update|control)$/, 'targets'],
+  [/^images:check$/, 'applications'],
   [/^monitor:/, 'monitors'],
 ];
 

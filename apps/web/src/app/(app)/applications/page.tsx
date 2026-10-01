@@ -1,5 +1,10 @@
 import { usableRuntimes } from '@pupitre/core';
-import { listApplications, listSupervisedApps, listTargets } from '@pupitre/db';
+import {
+  listApplications,
+  listImageUpdateSummaries,
+  listSupervisedApps,
+  listTargets,
+} from '@pupitre/db';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { getT } from '@/i18n/server';
 import { common } from '@/i18n/messages/common';
@@ -18,11 +23,12 @@ export const dynamic = 'force-dynamic';
 export default async function ApplicationsPage() {
   const auth = await requirePagePermission('/applications', 'application:read');
   const canDeploy = auth.can('deployment:create');
-  const [applications, targets, running, tc] = await Promise.all([
+  const [applications, targets, running, tc, imageSummaries] = await Promise.all([
     listApplications(),
     canDeploy ? listTargets() : Promise.resolve([]),
     auth.can('deployment:read') ? listSupervisedApps() : Promise.resolve(null),
     getT(common),
+    listImageUpdateSummaries(),
   ]);
 
   const items: ApplicationRow[] = applications.map((application) => ({
@@ -44,6 +50,10 @@ export default async function ApplicationsPage() {
               health: app.healthStatus,
               ago: relativeTime(app.finishedAt ?? app.createdAt, tc),
             })),
+    imageUpdates: (() => {
+      const summary = imageSummaries.find((entry) => entry.applicationId === application.id);
+      return summary ? { outdated: summary.outdated, newerTags: summary.newerTags } : null;
+    })(),
   }));
 
   // Une cible n'est déployable que si son preflight a montré un runtime : on

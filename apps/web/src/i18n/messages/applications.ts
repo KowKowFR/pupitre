@@ -347,6 +347,51 @@ const fr = {
 
   // ── Refus des routes ────────────────────────────────────────────────────
   'error.notFound': 'Application « {id} » introuvable',
+  'row.imagesOutdated': {
+    one: '{count} image à mettre à jour',
+    other: '{count} images à mettre à jour',
+  },
+  'row.imagesNewer': 'nouvelle version',
+  'images.title': 'Images',
+  'images.description.never':
+    'Pas encore comparées à leur registre. La vérification passe toutes les six heures ; « Vérifier maintenant » n’attend pas.',
+  'images.description.checked':
+    'Comparées à leur registre {ago}. Vérification automatique toutes les six heures.',
+  'images.built':
+    'Les images de cette application sont construites sur la cible : il n’y a pas de registre à interroger.',
+  'images.check': 'Vérifier maintenant',
+  'images.checking': 'Vérification…',
+  'images.check.queued': 'Vérification des images demandée',
+  'images.outdated.title': {
+    one: '{count} image republiée depuis le déploiement',
+    other: '{count} images republiées depuis le déploiement',
+  },
+  'images.outdated.body':
+    'Le tag désigne aujourd’hui un autre contenu que celui qui tourne — souvent un correctif de sécurité de l’image de base. Redéployer la version en service le récupère, sans rien changer d’autre.',
+  'images.onTarget': 'sur {target}',
+  'images.digests': 'en service {running} · registre {latest}',
+  'images.newer': '{tag} disponible',
+  'images.major': '{tag} (majeure)',
+  'images.status.current': 'à jour',
+  'images.status.outdated': 'republiée',
+  'images.status.unknown': 'non vérifiable',
+  'images.status.pinned': 'épinglée par digest',
+  'images.error.unauthorized': 'Image privée : le registre refuse une lecture anonyme.',
+  'images.error.not_found': 'Le registre ne connaît pas ce tag.',
+  'images.error.rate_limited': 'Quota du registre atteint — nouvel essai au prochain passage.',
+  'images.error.unreachable': 'Registre injoignable depuis le worker.',
+  'images.error.unexpected': 'Réponse inattendue du registre.',
+  'images.error.target_unreachable': 'Cible injoignable : impossible de lire ce qui tourne.',
+  'images.error.not_running': 'Aucun conteneur en marche pour ce service.',
+  'images.update': 'Mettre à jour',
+  'images.update.title': 'Redéployer « {slug} » sur « {target} » ?',
+  'images.update.same': 'La version en service repart telle quelle : même AppSpec, mêmes secrets.',
+  'images.update.pull':
+    'Les images sont tirées à nouveau ; seuls les services dont le contenu a changé redémarrent.',
+  'images.update.pipeline':
+    'Le pipeline habituel s’applique : scans, healthcheck, retour automatique en cas d’échec.',
+  'images.update.toast': '« {slug} » redéployée sur « {target} »',
+  'error.jobNoId': "La tâche n'a pas reçu d'identifiant",
   'error.slugTaken': 'Une application « {name} » existe déjà',
   'error.secretNotDeclared':
     '« {name} » n’est pas un secret que cette AppSpec déclare (ou c’est un alias, qui reprend la valeur d’un autre).',
@@ -716,6 +761,49 @@ const en: Translated<typeof fr> = {
     ' are in the spec. On save, Pupitre generates a value for each, encrypted and never shown again; an alias takes its secret’s value. A value from elsewhere is entered afterwards on the application page.',
 
   'error.notFound': 'Application “{id}” not found',
+  'row.imagesOutdated': {
+    one: '{count} image to update',
+    other: '{count} images to update',
+  },
+  'row.imagesNewer': 'new version',
+  'images.title': 'Images',
+  'images.description.never':
+    'Not yet compared with their registry. The check runs every six hours; “Check now” does not wait.',
+  'images.description.checked':
+    'Compared with their registry {ago}. Checked automatically every six hours.',
+  'images.built': 'This application’s images are built on the target: there is no registry to ask.',
+  'images.check': 'Check now',
+  'images.checking': 'Checking…',
+  'images.check.queued': 'Image check requested',
+  'images.outdated.title': {
+    one: '{count} image republished since the deployment',
+    other: '{count} images republished since the deployment',
+  },
+  'images.outdated.body':
+    'The tag now points to other content than what runs — often a security fix to the base image. Redeploying the running version fetches it, nothing else changes.',
+  'images.onTarget': 'on {target}',
+  'images.digests': 'running {running} · registry {latest}',
+  'images.newer': '{tag} available',
+  'images.major': '{tag} (major)',
+  'images.status.current': 'up to date',
+  'images.status.outdated': 'republished',
+  'images.status.unknown': 'cannot check',
+  'images.status.pinned': 'pinned by digest',
+  'images.error.unauthorized': 'Private image: the registry refuses anonymous reads.',
+  'images.error.not_found': 'The registry does not know this tag.',
+  'images.error.rate_limited': 'Registry quota reached — retried on the next pass.',
+  'images.error.unreachable': 'Registry unreachable from the worker.',
+  'images.error.unexpected': 'Unexpected answer from the registry.',
+  'images.error.target_unreachable': 'Target unreachable: cannot read what runs.',
+  'images.error.not_running': 'No running container for this service.',
+  'images.update': 'Update',
+  'images.update.title': 'Redeploy “{slug}” on “{target}”?',
+  'images.update.same': 'The running version goes out as is: same AppSpec, same secrets.',
+  'images.update.pull': 'Images are pulled again; only the services whose content changed restart.',
+  'images.update.pipeline':
+    'The usual pipeline applies: scans, healthcheck, automatic rollback on failure.',
+  'images.update.toast': '“{slug}” redeployed on “{target}”',
+  'error.jobNoId': 'The job got no ID',
   'error.slugTaken': 'An application “{name}” already exists',
   'error.secretNotDeclared':
     '“{name}” is not a secret this AppSpec declares (or it is an alias, which takes another’s value).',

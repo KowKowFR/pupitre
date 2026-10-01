@@ -20,6 +20,8 @@ import {
   type RenderedFile,
   type TargetContext,
 } from '../types.js';
+import { digestOf } from '../../images/reference.js';
+import type { RunningImage } from '../../images/updates.js';
 import {
   managedWorkloadControlRefusal,
   managedWorkloadRefusal,
@@ -1060,6 +1062,46 @@ export class DockerComposeDriver implements DeploymentDriver {
 
   /** Relit une charge sur la machine, et refuse d'agir à l'aveugle. */
   /**
+   * Par le label du projet plutôt que par `docker compose ps` : la release peut
+   * avoir été élaguée, le projet, lui, existe tant que ses conteneurs existent.
+   * Les conteneurs arrêtés comptent — leur image est toujours celle déployée.
+   * `RepoDigests` porte le digest de l'index quand l'image a été tirée par tag.
+   */
+  async runningImages(ctx: DriverContext): Promise<RunningImage[]> {
+    const containers = await exec(
+      ctx.sshSession,
+      `ids=$(docker ps -aq --filter label=${COMPOSE_PROJECT_LABEL}=${shellQuote(this.project(ctx))}); ` +
+        `[ -z "$ids" ] || docker inspect --format ` +
+        `'{{index .Config.Labels "${COMPOSE_SERVICE_LABEL}"}} {{.Image}}' $ids`,
+      { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+    );
+    if (containers.code !== 0) return [];
+
+    const byService = new Map<string, Set<string>>();
+    for (const line of containers.stdout.split('\n')) {
+      const [service, imageId] = line.trim().split(/\s+/);
+      if (!service || !imageId) continue;
+      const ids = byService.get(service) ?? new Set<string>();
+      ids.add(imageId);
+      byService.set(service, ids);
+    }
+    const imageIds = [...new Set([...byService.values()].flatMap((ids) => [...ids]))];
+    if (imageIds.length === 0) return [];
+
+    const inspected = await exec(
+      ctx.sshSession,
+      `docker image inspect --format '{{.Id}} {{json .RepoDigests}}' ${imageIds.map(shellQuote).join(' ')}`,
+      { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+    );
+    const digests = parseRepoDigests(inspected.stdout);
+
+    return [...byService].map(([service, ids]) => ({
+      service,
+      digests: [...new Set([...ids].flatMap((id) => digests.get(id) ?? []))],
+    }));
+  }
+
+  /**
    * `docker start`, `docker stop`, `docker restart` — le conteneur lui-même,
    * rien de recréé, rien de supprimé. L'arrêt laisse vingt secondes au
    * processus pour finir proprement avant le SIGKILL, comme `compose down`.
@@ -1372,6 +1414,7 @@ const LEGACY_MANAGED_VALUE = 'bootstrap-tp-v2';
 const APP_LABEL = 'pupitre.app';
 const LEGACY_APP_LABEL = 'tp.app';
 const COMPOSE_PROJECT_LABEL = 'com.docker.compose.project';
+const COMPOSE_SERVICE_LABEL = 'com.docker.compose.service';
 
 type DockerPortBinding = { HostIp?: string; HostPort?: string };
 
@@ -1683,4 +1726,28 @@ function renderCreateArgs(raw: DockerInspect, defaults: ImageDefaults, name: str
   if (cmd && !sameList(cmd, defaults.cmd)) args.push(...cmd);
 
   return args;
+}
+
+/** `sha256:<id> ["nginx@sha256:…"]` par ligne → identifiant d'image → digests. */
+export function parseRepoDigests(output: string): Map<string, string[]> {
+  const digests = new Map<string, string[]>();
+  for (const line of output.split('\n')) {
+    const space = line.indexOf(' ');
+    if (space < 0) continue;
+    const id = line.slice(0, space).trim();
+    let repoDigests: unknown;
+    try {
+      repoDigests = JSON.parse(line.slice(space + 1));
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(repoDigests)) continue;
+    digests.set(
+      id,
+      repoDigests
+        .map((value) => (typeof value === 'string' ? digestOf(value) : null))
+        .filter((value): value is string => value !== null),
+    );
+  }
+  return digests;
 }

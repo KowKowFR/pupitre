@@ -191,6 +191,16 @@ export const SOURCE_POLL_JOB = 'source:poll' as const;
  */
 export const SOURCE_DEPLOY_JOB = 'source:deploy' as const;
 
+/**
+ * Images des applications déployées : ce qui tourne, comparé à ce que le
+ * registre annonce pour le même tag. Toutes les six heures (scheduler BullMQ),
+ * et à la demande par « Vérifier maintenant » avec un `applicationId`. Sur
+ * `supervision` : des lectures — `HEAD` vers les registres, `docker inspect`
+ * sur les cibles —, qu'un déploiement en cours ne doit pas retarder.
+ */
+export const IMAGE_CHECK_JOB = 'images:check' as const;
+export const IMAGE_CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
+
 export const pingJobDataSchema = z.object({
   message: z.string().min(1).max(280).default('pong'),
   requestedAt: z.string().datetime(),
@@ -390,6 +400,24 @@ export const sourcePollJobDataSchema = z.object({
   ip: z.string().min(1).nullable().default(null),
 });
 export type SourcePollJobData = z.infer<typeof sourcePollJobDataSchema>;
+
+export const imageCheckJobDataSchema = z.object({
+  /** Restreint la vérification à une application. `null` : tout ce qui est déployé. */
+  applicationId: z.string().uuid().nullable().default(null),
+  actorId: z.string().min(1).nullable().default(null),
+  ip: z.string().min(1).nullable().default(null),
+});
+export type ImageCheckJobData = z.infer<typeof imageCheckJobDataSchema>;
+
+export const imageCheckJobResultSchema = z.object({
+  /** Couples (application, cible) examinés. */
+  checked: z.number().int().nonnegative(),
+  /** Services dont le tag a bougé. */
+  outdated: z.number().int().nonnegative(),
+  /** Annonces faites — une par couple qui a du nouveau. */
+  announced: z.number().int().nonnegative(),
+});
+export type ImageCheckJobResult = z.infer<typeof imageCheckJobResultSchema>;
 
 export const sourceDeployJobDataSchema = z.discriminatedUnion('kind', [
   z.object({

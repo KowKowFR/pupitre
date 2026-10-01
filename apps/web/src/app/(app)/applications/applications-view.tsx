@@ -58,6 +58,8 @@ export type ApplicationRow = {
   ingress: { host: string | null; service: string; tls: boolean } | null;
   /** `null` : la session ne lit pas les déploiements. */
   live: Array<{ id: string; targetName: string; health: string; ago: string | null }> | null;
+  /** Ce que la vérification des images a trouvé ; `null` : rien à signaler. */
+  imageUpdates: { outdated: number; newerTags: number } | null;
 };
 
 export type DeployTarget = {
@@ -279,8 +281,17 @@ export function ApplicationsView({
                     {application.live === null ? (
                       <span className="text-text-3">{tc('none')}</span>
                     ) : application.live.length > 0 ? (
-                      <span className="mono text-[12px] text-text-2">
-                        {application.live.map((entry) => entry.targetName).join(', ')}
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="mono text-[12px] text-text-2">
+                          {application.live.map((entry) => entry.targetName).join(', ')}
+                        </span>
+                        {application.imageUpdates?.outdated ? (
+                          <Badge variant="warn" dot>
+                            {t('row.imagesOutdated', { count: application.imageUpdates.outdated })}
+                          </Badge>
+                        ) : application.imageUpdates?.newerTags ? (
+                          <Badge variant="accent">{t('row.imagesNewer')}</Badge>
+                        ) : null}
                       </span>
                     ) : (
                       <span className="text-text-3">{t('inService.never')}</span>

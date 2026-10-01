@@ -21,3 +21,4 @@ export * from './two-factor.js';
 export { seedRbac } from './seed.js';
 export { and, asc, count, desc, eq, gte, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
 export * from './chat.js';
+export * from './images.js';

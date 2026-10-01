@@ -28,6 +28,7 @@ import {
  *   security.role_changed     quelqu'un a gagné ou perdu des droits
  *   monitor.down              un site supervisé est tombé, panne confirmée
  *   monitor.recovered         ce site est revenu
+ *   image.update.available    une image déployée a été republiée, ou dépassée
  *
  * Sont écartés, volontairement : les succès (un déploiement qui marche ne
  * réveille personne), les refus de permission (bavards et déjà tracés) et les
@@ -86,6 +87,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'monitor.recovered',
   'target.threshold.breached',
   'target.threshold.cleared',
+  'image.update.available',
 ] as const;
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
@@ -306,6 +308,27 @@ const fr = {
   'target.threshold.cleared.bodyDuration': 'Le dépassement aura duré {duration}.',
   'target.threshold.cleared.byDisabled': 'désactivation du seuil',
   'target.threshold.cleared.byCrossed': 'retour sous le seuil',
+
+  // ── image.update.available ─────────────────────────────────────────────
+  'image.update.available.label': 'Mise à jour d’image disponible',
+  'image.update.available.description':
+    'Une image d’une application déployée a été republiée sous le même tag, ou une version ' +
+    'plus récente de la même série est sortie.',
+  'image.update.available.rationale':
+    'Une image de base reçoit ses correctifs de sécurité par republication du même tag : ' +
+    'sans redéploiement, l’application garde les failles corrigées depuis. Le panel vérifie ' +
+    'toutes les six heures et n’annonce chaque nouveauté qu’une fois.',
+  'image.update.available.title': 'Mise à jour d’image — {app}',
+  'image.update.available.summary': '{app} sur {machine}',
+  'image.update.available.summaryDetail': '{count} image(s)',
+  'image.update.available.body': 'Du nouveau pour « {app} » sur « {machine} ». ',
+  'image.update.available.bodyOutdated':
+    'Republiée depuis le déploiement : {images}. Redéployer la version en service récupère ' +
+    'le nouveau contenu, sans rien changer d’autre. ',
+  'image.update.available.bodyNewer':
+    'Version plus récente publiée : {images}. Changer de tag se fait dans l’AppSpec.',
+  'field.application': 'Application',
+  'field.images': 'Images',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -487,6 +510,26 @@ const en: Translated<typeof fr> = {
   'target.threshold.cleared.bodyDuration': 'The breach lasted {duration}.',
   'target.threshold.cleared.byDisabled': 'threshold turned off',
   'target.threshold.cleared.byCrossed': 'back under the threshold',
+
+  'image.update.available.label': 'Image update available',
+  'image.update.available.description':
+    'An image of a deployed application was republished under the same tag, or a newer ' +
+    'version of the same series came out.',
+  'image.update.available.rationale':
+    'A base image gets its security fixes by republishing the same tag: without a redeploy, ' +
+    'the application keeps the flaws fixed since. The panel checks every six hours and ' +
+    'announces each novelty once.',
+  'image.update.available.title': 'Image update — {app}',
+  'image.update.available.summary': '{app} on {machine}',
+  'image.update.available.summaryDetail': '{count} image(s)',
+  'image.update.available.body': 'Something new for “{app}” on “{machine}”. ',
+  'image.update.available.bodyOutdated':
+    'Republished since the deployment: {images}. Redeploying the running version fetches the ' +
+    'new content, nothing else changes. ',
+  'image.update.available.bodyNewer':
+    'Newer version published: {images}. Changing the tag is done in the AppSpec.',
+  'field.application': 'Application',
+  'field.images': 'Images',
 };
 
 const EVENT_TEXT = { fr, en };
@@ -1092,6 +1135,53 @@ const CATALOG = {
           actorField(ctx),
         ]),
         path: '/apps',
+      };
+    },
+  },
+  'image.update.available': {
+    key: 'image.update.available',
+    severity: 'warning',
+    auditAction: 'image.update.available',
+    digestPath: '/applications',
+    matches: () => true,
+    // La ressource est l'application, stable d'une annonce à l'autre : c'est la
+    // nouveauté elle-même (digests, tags) qui distingue deux annonces.
+    dedupDiscriminator: (entry) => optional(record(entry.after).noticeKey),
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const app = text(after.applicationName ?? after.application, '?');
+      const machine = text(after.targetName, '?');
+      const images = Array.isArray(after.images) ? after.images.map(record) : [];
+      const outdated = images
+        .filter((image) => image.status === 'outdated')
+        .map((image) => `${text(image.image, '?')} (${text(image.service, '?')})`);
+      const newer = images
+        .filter((image) => optional(image.newerTag) !== null)
+        .map(
+          (image) =>
+            `${text(image.image, '?')} → ${text(image.newerTag, '?')} (${text(image.service, '?')})`,
+        );
+
+      return {
+        title: t(lang, 'image.update.available.title', { app }),
+        summary: clip(t(lang, 'image.update.available.summary', { app, machine }), 200),
+        summaryDetail: t(lang, 'image.update.available.summaryDetail', { count: images.length }),
+        body:
+          t(lang, 'image.update.available.body', { app, machine }) +
+          (outdated.length > 0
+            ? t(lang, 'image.update.available.bodyOutdated', { images: outdated.join(', ') })
+            : '') +
+          (newer.length > 0
+            ? t(lang, 'image.update.available.bodyNewer', { images: newer.join(', ') })
+            : ''),
+        fields: fieldsOf([
+          [t(lang, 'field.application'), app],
+          [t(lang, 'field.machine'), machine],
+          [t(lang, 'field.images'), [...outdated, ...newer].join(' · ') || null],
+          actorField(ctx),
+        ]),
+        path: entry.resourceId ? `/applications/${entry.resourceId}` : '/applications',
       };
     },
   },

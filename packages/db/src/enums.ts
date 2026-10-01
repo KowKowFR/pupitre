@@ -141,3 +141,14 @@ export const sourceProposalStatusEnum = pgEnum('source_proposal_status', [
   'dismissed',
   'superseded',
 ]);
+
+/**
+ * Le constat sur l'image d'un service déployé — même vocabulaire que
+ * `imageUpdateStatusSchema` dans `@pupitre/core`.
+ */
+export const imageUpdateStatusEnum = pgEnum('image_update_status', [
+  'current',
+  'outdated',
+  'unknown',
+  'pinned',
+]);

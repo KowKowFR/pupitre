@@ -12,3 +12,4 @@ export * from './target-metrics.js';
 export * from './notifications.js';
 export * from './settings.js';
 export * from './chat.js';
+export * from './images.js';
