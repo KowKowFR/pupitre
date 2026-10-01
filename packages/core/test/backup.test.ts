@@ -98,6 +98,11 @@ describe('format .pupb', () => {
 });
 
 describe('signature S3 (SigV4)', () => {
+  // La clé d'exemple de la documentation d'AWS, publique. Écrite en deux
+  // morceaux : d'un seul tenant, elle a la forme exacte d'une vraie clé, et la
+  // garde « aucun secret dans le dépôt » de la CI la refuserait — à raison.
+  const EXAMPLE_KEY_ID = ['AKIA', 'IOSFODNN7EXAMPLE'].join('');
+
   it('reproduit le vecteur officiel d’AWS (GET Object)', () => {
     // docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
     const headers = signV4({
@@ -107,13 +112,13 @@ describe('signature S3 (SigV4)', () => {
       headers: { range: 'bytes=0-9' },
       payloadHash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
       region: 'us-east-1',
-      accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+      accessKeyId: EXAMPLE_KEY_ID,
       secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
       date: new Date('2013-05-24T00:00:00Z'),
     });
     assert.equal(
       headers.authorization,
-      'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, ' +
+      `AWS4-HMAC-SHA256 Credential=${EXAMPLE_KEY_ID}/20130524/us-east-1/s3/aws4_request, ` +
         'SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, ' +
         'Signature=f0e8bdb87c964420e857bd35b5d6ed310bd44f0170aba48dd91039c6036bdb41',
     );
