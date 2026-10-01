@@ -29,6 +29,22 @@ migration**.
 
 Tous les statuts sont des **enums Postgres**, jamais des `text` libres.
 
+### Les octets en base
+
+Trois tables portent des images, en `bytea` : `monitor_captures` (ce que la
+sonde a vu), `user_avatars` (une photo de profil par personne) et
+`chat_attachments` (les images de la discussion). Pas de volume de fichiers à
+côté : la base est **la seule chose à sauvegarder**, et une suppression en
+cascade emporte les octets avec la ligne.
+
+Chacune est bornée à l'entrée : une capture est un JPEG plafonné et purgé à
+90 jours, une photo de profil un carré de 256 px (512 Kio au plus), une image
+de discussion 3 Mo au plus, quatre par message, réencodée par le navigateur.
+Le format et les dimensions sont **relus dans les octets** par le serveur
+(`sniffImage()`), jamais pris dans l'en-tête de la requête — et le SVG n'est
+pas accepté. Aucun écran ne lit une colonne `bytea` dans une liste : seule la
+route qui sert l'image charge les octets.
+
 ## Trois invariants tenus par la base, pas par du TypeScript
 
 **`port_allocations (target_id, port)` est unique.** C'est l'anti-collision de
