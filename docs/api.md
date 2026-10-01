@@ -93,9 +93,12 @@ la navigation métier.
 | `/api/targets/:id/metrics` | GET | `target:read` — relevé d'hôte, par la file |
 | `/api/targets/:id/ports` | GET | `target:read` — plage, alloués, libres, et par qui |
 | `/api/targets/:id/workloads` | GET | `workload:read` |
-| `/api/targets/:id/workloads/events` | GET | `workload:read` — SSE |
+| `/api/targets/:id/workloads/events` | GET | `workload:read` — SSE ; `?run=` : le flux d'une seule exécution, réservé à qui l'a ouverte |
 | `/api/targets/:id/workloads/:ref` | DELETE | `workload:manage` |
 | `/api/targets/:id/workloads/:ref/update` | POST | `workload:manage` |
+| `/api/targets/:id/workloads/:ref/control` | POST | `workload:manage` — `{ action: start \| stop \| restart }`, `202` |
+| `/api/targets/:id/workloads/:ref/logs` | POST | `workload:manage` — `{ run, tail }`, les lignes reviennent par le flux `?run=` |
+| `/api/targets/:id/workloads/:ref/exec` | POST | `workload:exec` — `{ run, command }`, 30 par minute ; la sortie revient par le flux `?run=` |
 
 ### Applications
 
@@ -106,6 +109,8 @@ la navigation métier.
 | `/api/applications/:id` | GET / PATCH / DELETE | `application:read` / `application:update` / `application:delete` |
 | `/api/applications/:id/cascade` | GET / POST | GET : `application:delete` · POST : **union** `deployment:destroy` + `deployment:purge` + `application:delete` |
 | `/api/applications/:id/redeploy` | POST | `deployment:create` |
+| `/api/applications/:id/images` | GET | `application:read` — dernier constat des images, cible par cible |
+| `/api/applications/:id/images/check` | POST | `application:read` — « Vérifier maintenant », par la file, 6 par minute |
 | `/api/applications/:id/versions` | GET | `application:read` |
 | `/api/applications/:id/secrets` | GET | `application:read` — **jamais de valeur** |
 | `/api/applications/:id/secrets/:name` | PUT / DELETE | `application:update` |

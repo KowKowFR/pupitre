@@ -243,6 +243,9 @@ Tous dérivés du journal d'activité :
 | `security.role_changed` | warning | `user.role.changed` |
 | `monitor.down` | critical | `monitor.down` |
 | `monitor.recovered` | info | `monitor.recovered` |
+| `target.threshold.breached` | warning | `target.threshold.breached` |
+| `target.threshold.cleared` | info | `target.threshold.cleared` |
+| `image.update.available` | warning | `image.update.available` — une image déployée republiée, ou un tag plus récent de la même série ; voir [exploitation](exploitation.md#les-mises-à-jour-dimages) |
 
 **Un seul `monitor.down`**, pas un par nature de panne. Séparer « répond mal »
 d'« injoignable » donnerait deux clés, donc deux groupes de regroupement, donc
