@@ -214,7 +214,15 @@ function applySecurityContext(composeService: ComposeService, service: Service):
  * `isHttpProbed()`, partagé avec le rendu K3s. Ne reste à ce rendu que le
  * *comment*, qui dépend de ce que l'image embarque.
  *
- * HTTP : `wget` puis `curl`, présents dans busybox comme dans les bases Debian.
+ * HTTP : `wget`, sinon `curl`, présents dans busybox comme dans la plupart des
+ * bases Debian. Une image qui n'a **ni l'un ni l'autre** existe pourtant —
+ * `freshrss/freshrss`, vu sur une vraie cible : sa sonde rendait 127 à vie, le
+ * conteneur restait `unhealthy` et `up --wait` faisait échouer le déploiement
+ * d'une application qui répondait très bien. Faute d'outil HTTP, la sonde
+ * retombe alors sur le test TCP ci-dessous. Elle ne retombe **que** dans ce
+ * cas : un `wget` présent qui reçoit une 500 reste un échec, il ne se rattrape
+ * pas sur un port ouvert. Le statut HTTP, lui, est vérifié de l'extérieur par
+ * `healthcheck()` à chaque déploiement.
  *
  * TCP : `nc` puis la redirection `/dev/tcp` de bash. Les deux sont nécessaires
  * et aucun ne suffit — `postgres:16-alpine` a `nc` mais pas `bash`,
@@ -229,11 +237,16 @@ function renderHealthcheck(spec: AppSpec, service: Service): ComposeHealthcheck 
   const port = probePort(service);
   const timeout = Math.max(1, service.healthcheck.timeoutSec);
 
+  const tcp =
+    `nc -z -w ${timeout} 127.0.0.1 ${port} 2>/dev/null ` +
+    `|| bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port}' 2>/dev/null`;
+  const url = `http://127.0.0.1:${port}${service.healthcheck.path}`;
+
   const probe = isHttpProbed(spec, service)
-    ? `wget --spider -q -T ${timeout} http://127.0.0.1:${port}${service.healthcheck.path} ` +
-      `|| curl -fsS -m ${timeout} http://127.0.0.1:${port}${service.healthcheck.path} >/dev/null`
-    : `nc -z -w ${timeout} 127.0.0.1 ${port} 2>/dev/null ` +
-      `|| bash -c 'exec 3<>/dev/tcp/127.0.0.1/${port}' 2>/dev/null`;
+    ? `if command -v wget >/dev/null 2>&1; then wget --spider -q -T ${timeout} ${url}; ` +
+      `elif command -v curl >/dev/null 2>&1; then curl -fsS -m ${timeout} ${url} >/dev/null; ` +
+      `else ${tcp}; fi`
+    : tcp;
 
   return {
     test: ['CMD-SHELL', probe],

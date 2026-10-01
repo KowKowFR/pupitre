@@ -472,9 +472,20 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
         {
           name: 'web',
           source: { type: 'image', ref: 'dpage/pgadmin4:latest' },
-          port: 80,
+          // Sur le port 80, l'image se donne le droit d'écouter par `sudo` —
+          // ce que `no-new-privileges` interdit : elle se rabat alors en
+          // silence sur 8080. On le lui dit d'emblée, sans privilège à demander.
+          port: 8080,
           exposed: true,
-          env: { PGADMIN_DEFAULT_EMAIL: params.email },
+          env: {
+            PGADMIN_LISTEN_PORT: '8080',
+            PGADMIN_DEFAULT_EMAIL: params.email,
+            // pgAdmin refuse au démarrage une adresse d'un domaine réservé
+            // (`.local`, `.internal`, `.test`…) — et s'arrête. Une adresse
+            // d'entreprise en `@corp.local` est banale : on les autorise.
+            PGADMIN_CONFIG_ALLOW_SPECIAL_EMAIL_DOMAINS:
+              "['local', 'localhost', 'internal', 'intranet', 'lan', 'home', 'corp', 'test', 'example']",
+          },
           secrets: ['PGADMIN_DEFAULT_PASSWORD'],
           resources: { cpuMilli: 500, memoryMi: 512 },
           healthcheck: { path: '/misc/ping', intervalSec: 15, retries: 20 },
