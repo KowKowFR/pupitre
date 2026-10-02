@@ -2,6 +2,7 @@ import type { ScannerKey } from '../scan.js';
 import { exec } from '../ssh/client.js';
 import type { SshSession } from '../ssh/client.js';
 import { ScannerError, type ScanLogSink } from './types.js';
+import { firstLine, shellQuote } from '../shell.js';
 
 /**
  * Installation des outils sur la machine cible.
@@ -30,7 +31,7 @@ import { ScannerError, type ScanLogSink } from './types.js';
 export const TOOL_HOME = '"$HOME"/.bootstrap-tp';
 export const TOOL_BIN = `${TOOL_HOME}/bin`;
 
-export const INSTALL_TIMEOUT_MS = 5 * 60_000;
+const INSTALL_TIMEOUT_MS = 5 * 60_000;
 const VERSION_TIMEOUT_MS = 60_000;
 
 export type ReleaseAsset = {
@@ -140,14 +141,4 @@ async function readVersion(session: SshSession, binary: string): Promise<string 
   if (text.length === 0) return null;
   if (/not found|No such file|Permission denied/i.test(text)) return null;
   return text.split('\n')[0]?.trim() ?? null;
-}
-
-/** Échappement POSIX en quotes simples. */
-export function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
-
-export function firstLine(value: string): string | null {
-  const line = value.split('\n').find((candidate) => candidate.trim().length > 0);
-  return line?.trim() ?? null;
 }

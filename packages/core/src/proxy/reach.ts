@@ -5,6 +5,7 @@ import { ufwState, UFW_MARKER } from '../drivers/ufw.js';
 import type { PortRange } from '../ports.js';
 import { exec } from '../ssh/client.js';
 import type { ReachAttempt } from './types.js';
+import { firstLine, shellQuote } from '../shell.js';
 
 /**
  * La machine d'un proxy joint-elle vraiment celle qu'il doit servir ?
@@ -262,21 +263,8 @@ reply() { printf 'HTTP/1.0 200 OK\\r\\nContent-Type: text/plain\\r\\nContent-Len
 reply | $to nc -l -p "$port" >/dev/null 2>&1 || reply | $to nc -l "$port" >/dev/null 2>&1
 `;
 
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
-
 function base64(value: string): string {
   return Buffer.from(value, 'utf8').toString('base64');
-}
-
-function firstLine(value: string): string | null {
-  return (
-    value
-      .split('\n')
-      .find((line) => line.trim().length > 0)
-      ?.trim() ?? null
-  );
 }
 
 // ─── l'épreuve ───────────────────────────────────────────────────────────────

@@ -112,6 +112,9 @@ la navigation métier.
 | `/api/targets/:id/proxy/check` | POST | `target:update` — « Tester », par la file |
 | `/api/targets/:id/proxy/link` | PUT / DELETE | `target:update` — le proxy central : PUT `{ proxyId, address }` relie la machine au proxy d'une autre, joint à `address` (une IPv4 pour le Traefik d'un cluster, sinon 422), et lance le test de la liaison ; 409 si la machine a son propre proxy. DELETE délie, 409 tant que des domaines de la machine passent par lui |
 | `/api/targets/:id/proxy/link/check` | POST | `target:update` — « Tester la liaison », par la file : adresse d'arrivée du proxy, adresse bien à la machine |
+| `/api/proxies` | GET / POST | `target:read` / `target:update` — les proxies **distants**, hors des cibles (Nginx Proxy Manager), avec le nombre de machines qu'ils servent ; POST `{ kind, name?, config, secrets }` connecte une instance : le mot de passe est chiffré aussitôt, le test part et la route attend son issue — une connexion qui n'entre pas n'est pas gardée (422, avec ce qui ne va pas) |
+| `/api/proxies/:id` | PATCH / DELETE | `target:update` — PATCH change l'adresse ou le compte (`secrets` absents : ceux d'avant restent) et rend le nouveau test ; DELETE retire la connexion, 409 tant que des domaines passent par elle — les machines qu'elle sert sans domaine en sont déliées |
+| `/api/proxies/:id/check` | POST | `target:update` — « Tester » un proxy distant, par la file |
 | `/api/targets/:id/dns` | GET | `target:read` — `?hostname=` : le domaine pointe-t-il vers cette machine ? Un avertissement, jamais un refus |
 
 ### Applications

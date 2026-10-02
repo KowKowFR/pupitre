@@ -1,10 +1,11 @@
 import {
   BACKUP_APPLICATION_JOB,
   BACKUP_PANEL_JOB,
-  TARGET_PREFLIGHT_JOB,
+  errorMessage,
+  failOnSchema,
   parseScanConfig,
   scannerKeySchema,
-  failOnSchema,
+  TARGET_PREFLIGHT_JOB,
   type ScanConfig,
   type ScheduledJobType,
 } from '@pupitre/core';
@@ -46,10 +47,6 @@ export type RunnerContext = {
 export type RunnerSummary = Record<string, unknown>;
 
 export type ScheduledJobRunner = (ctx: RunnerContext) => Promise<RunnerSummary>;
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 /** Restreint le champ d'action d'une tâche. Absent = toutes les applications. */
 const scopeSchema = z.object({
@@ -109,7 +106,7 @@ async function forEachCurrentDeployment<T>(
       opened = await openDeploymentContext(deployment.id);
       results.push(await action(deployment, opened));
     } catch (error) {
-      const message = messageOf(error);
+      const message = errorMessage(error);
       failures.push({ deploymentId: deployment.id, error: message });
       onLog(`✗ ${deployment.id} : ${message}`);
       logger.warn({ err: error, deploymentId: deployment.id }, 'tâche planifiée en échec');

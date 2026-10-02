@@ -12,7 +12,7 @@ import {
   type BackupTrigger,
   type StoredPiece,
 } from '@pupitre/core/backup';
-import { parseAppSpec } from '@pupitre/core';
+import { errorMessage, parseAppSpec } from '@pupitre/core';
 import { getDriver } from '@pupitre/core/drivers';
 import { disconnect } from '@pupitre/core/ssh';
 import { Readable } from 'node:stream';
@@ -30,7 +30,7 @@ import {
 } from '@pupitre/db';
 import { openDeploymentContext } from '../deploy/context.js';
 import { logger } from '../logger.js';
-import { BackupError, applyRetention, messageOf, openStore, storePiece } from './shared.js';
+import { BackupError, applyRetention, openStore, storePiece } from './shared.js';
 
 /**
  * Sauvegarder une application sur une cible.
@@ -224,7 +224,7 @@ export async function backupApplication(
     }
     return { status: 'success', backupId, bytes };
   } catch (error) {
-    const message = messageOf(error);
+    const message = errorMessage(error);
     onLog(`✗ ${message}`);
     if (backupId) {
       await finishBackupRecord(backupId, { status: 'failed', error: message });
@@ -258,7 +258,7 @@ export async function backupApplication(
   }
 }
 
-export function formatBytes(bytes: number): string {
+function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`;
   const units = ['Kio', 'Mio', 'Gio', 'Tio'];
   let value = bytes / 1024;

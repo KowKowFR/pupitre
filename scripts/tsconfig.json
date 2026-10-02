@@ -8,5 +8,5 @@
     "declarationMap": false,
     "types": ["node"]
   },
-  "include": ["*.ts"]
+  "include": ["*.ts", "lib/*.ts"]
 }

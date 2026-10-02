@@ -27,6 +27,7 @@ import {
   npmSecretsSchema,
   type NpmConfig,
 } from './config.js';
+import { errorMessage } from '../../error-message.js';
 
 /**
  * Nginx Proxy Manager, piloté par son API — un proxy **distant** : Pupitre ne
@@ -105,10 +106,6 @@ function markOf(host: NpmHost): NpmMark | null {
   return mark && typeof mark === 'object' ? (mark as NpmMark) : null;
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Le certificat couvre-t-il ce nom — exactement, ou par un joker d'un niveau ? */
 export function certificateCovers(certificate: NpmCertificate, hostname: string): boolean {
   const parent = hostname.slice(hostname.indexOf('.') + 1);
@@ -174,7 +171,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         detail: `Nginx Proxy Manager${version ? ` ${version}` : ''} à ${config.url}`,
       });
     } catch (error) {
-      checks.push({ key: 'api', label: 'API', ok: false, detail: messageOf(error) });
+      checks.push({ key: 'api', label: 'API', ok: false, detail: errorMessage(error) });
       return done();
     }
 
@@ -197,7 +194,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       client = (await this.open(ctx)).client;
       checks.push({ key: 'login', label: 'Compte', ok: true, detail: config.email });
     } catch (error) {
-      checks.push({ key: 'login', label: 'Compte', ok: false, detail: messageOf(error) });
+      checks.push({ key: 'login', label: 'Compte', ok: false, detail: errorMessage(error) });
       return done();
     }
 
@@ -218,7 +215,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
           : 'le compte doit pouvoir gérer (« Manage ») les Proxy Hosts et les SSL Certificates',
       });
     } catch (error) {
-      checks.push({ key: 'rights', label: 'Droits', ok: false, detail: messageOf(error) });
+      checks.push({ key: 'rights', label: 'Droits', ok: false, detail: errorMessage(error) });
     }
 
     // Les sondes des domaines partent du panel vers l'entrée de NPM.
@@ -297,7 +294,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         problems.push(
           error instanceof NpmApiError && /already in use/i.test(error.message)
             ? `« ${route.hostname} » existe déjà dans NPM, hors de Pupitre : retirez-le de NPM, ou choisissez un autre domaine`
-            : `${route.hostname} : ${messageOf(error)}`,
+            : `${route.hostname} : ${errorMessage(error)}`,
         );
       }
     }
@@ -310,7 +307,9 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         await client
           .deleteCertificate(id)
           .then(() => onLog(`NPM : certificat ${id} retiré`))
-          .catch((error: unknown) => onLog(`⚠ certificat ${id} non retiré : ${messageOf(error)}`));
+          .catch((error: unknown) =>
+            onLog(`⚠ certificat ${id} non retiré : ${errorMessage(error)}`),
+          );
       }
     }
     if (problems.length > 0) throw new ProxyError(problems.join(' · '), this.kind, 'apply');
@@ -448,7 +447,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
           onLog(`NPM : certificat obtenu pour ${hostname}`);
           return certificate.id;
         } catch (error) {
-          failure = messageOf(error);
+          failure = errorMessage(error);
           // Refusé avant même d'interroger l'autorité — un autre certbot
           // tournait, lancé depuis l'interface de NPM : l'essai ne compte pas.
           if (Date.now() - started < BUSY_FAILURE_MS && busy < 3) {

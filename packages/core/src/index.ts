@@ -3,6 +3,8 @@ export * from './backup/model.js';
 export * from './catalog/index.js';
 export * from './chat.js';
 export * from './crypto.js';
+export * from './error-message.js';
+export * from './shell.js';
 export * from './host-metrics.js';
 export * from './i18n.js';
 export * from './images/reference.js';

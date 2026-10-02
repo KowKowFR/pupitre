@@ -1,5 +1,6 @@
 import { exec } from '../ssh/client.js';
 import type { DriverContext, LogSink } from './types.js';
+import { shellQuote } from '../shell.js';
 
 /**
  * Rétention des répertoires de version sur la cible.
@@ -19,11 +20,6 @@ import type { DriverContext, LogSink } from './types.js';
 export const RELEASES_KEPT = 5;
 
 const PRUNE_TIMEOUT_MS = 60_000;
-
-/** Échappement POSIX en quotes simples. */
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
 
 /**
  * Supprime les répertoires de version les plus anciens, en gardant les

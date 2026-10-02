@@ -7,7 +7,7 @@ const GITHUB_WEB = 'https://github.com';
 
 export type CommitSource = { repository: string; ref: string | null; sha: string };
 
-export function repositoryHref(repository: string): string {
+function repositoryHref(repository: string): string {
   return `${GITHUB_WEB}/${repository}`;
 }
 

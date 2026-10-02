@@ -162,9 +162,6 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = descriptionsF
  */
 export const SEEDED_ROLES = ['admin', 'operator', 'viewer'] as const;
 
-/** @deprecated Utiliser `SEEDED_ROLES` — conservé le temps de la migration. */
-export const ROLES = SEEDED_ROLES;
-
 export type SeededRoleKey = (typeof SEEDED_ROLES)[number];
 
 /**

@@ -165,20 +165,3 @@ export function formatNumber(
 ): string {
   return numberFormatterFor(settings.locale, options).format(value);
 }
-
-/** Formateur pré-lié, pour les listes qui alignent beaucoup de chiffres. */
-export function createNumberFormatter(
-  settings: FormatSettings,
-  options?: Intl.NumberFormatOptions,
-): (value: number) => string {
-  const formatter = numberFormatterFor(settings.locale, options);
-  return (value) => formatter.format(value);
-}
-
-/**
- * Étiquette du fuseau à afficher en tête de colonne, à la place du « (UTC) »
- * qui était écrit en dur : « Europe/Paris », « UTC », etc.
- */
-export function timeZoneLabel(settings: FormatSettings): string {
-  return settings.timezone;
-}

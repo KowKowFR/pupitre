@@ -63,6 +63,7 @@ import {
   pushContextCommand,
   rolloutStatusCommand,
 } from './builder.js';
+import { firstLine, shellQuote } from '../../shell.js';
 
 /**
  * Driver K3s.
@@ -1139,6 +1140,19 @@ export class K3sDriver implements DeploymentDriver {
       false,
     );
 
+    // Les images construites pour l'application, importées dans containerd :
+    // le namespace parti, plus rien ne s'en sert, et elles s'accumuleraient sur
+    // le nœud. Le socket de containerd n'est ouvert qu'à root, comme pour l'import.
+    onLog(`→ retrait des images ${namespace}/* de containerd`);
+    await exec(
+      ctx.sshSession,
+      this.script([
+        `ids=$(k3s crictl images 2>/dev/null | awk -v p=${shellQuote(`(^|/)${namespace}/`)} '$1 ~ p {print $3}' | sort -u)`,
+        '[ -z "$ids" ] || k3s crictl rmi $ids >/dev/null 2>&1; true',
+      ]),
+      { timeout: SHORT_TIMEOUT_MS, sudo: true },
+    );
+
     onLog(`→ suppression de ${appPath}`);
     await this.run(ctx, `rm -rf ${shellQuote(appPath)}`, onLog, 'destroy');
 
@@ -2000,15 +2014,6 @@ const BACKUP_HELPER_IMAGE = 'busybox:1.37';
 /** Vide le volume — fichiers cachés compris —, puis y extrait l'archive lue sur l'entrée. */
 const CLEAR_AND_EXTRACT = 'cd /data && rm -rf -- * .[!.]* ..?* 2>/dev/null; tar xzf - -C /data';
 
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
-
-function firstLine(value: string): string | null {
-  const line = value.split('\n').find((candidate) => candidate.trim().length > 0);
-  return line?.trim() ?? null;
-}
-
 /** Dernière ligne non vide : la sonde imprime son code après le bruit de kubectl. */
 function lastNonEmptyLine(value: string): string | null {
   const lines = value.split('\n').filter((line) => line.trim().length > 0);
@@ -2040,7 +2045,7 @@ type NodeItem = {
 };
 
 /** `kubectl get nodes -o json` : nombre de nodes, nodes prêts, version. */
-export function parseNodes(
+function parseNodes(
   output: string,
 ): { nodes: number; readyNodes: number; version: string | null } | null {
   let parsed: { items?: NodeItem[] };
@@ -2195,11 +2200,11 @@ export type K3sResourceRef = { namespace: string; kind: string; name: string };
  * DNS-1123, donc dans un nom de ressource Kubernetes. Aucune ambiguïté possible
  * au découpage.
  */
-export function encodeResourceRef(resource: K3sResourceRef): string {
+function encodeResourceRef(resource: K3sResourceRef): string {
   return `${resource.namespace}:${resource.kind}:${resource.name}`;
 }
 
-export function parseResourceRef(raw: string): K3sResourceRef | null {
+function parseResourceRef(raw: string): K3sResourceRef | null {
   const parts = raw.split(':');
   if (parts.length !== 3) return null;
 
@@ -2408,7 +2413,7 @@ export function parseWorkloads(json: string): Workload[] {
 }
 
 /** `kubectl get <kind> <name> -o json` → une charge, ou rien. */
-export function parseSingleWorkload(json: string, resource: K3sResourceRef): Workload | null {
+function parseSingleWorkload(json: string, resource: K3sResourceRef): Workload | null {
   let item: KubeItem;
   try {
     item = JSON.parse(json) as KubeItem;

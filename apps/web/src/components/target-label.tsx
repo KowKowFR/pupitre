@@ -56,7 +56,7 @@ function fnv1a(text: string): number {
  * `env=prod` que l'on cherche du regard dans une liste, pas « la dimension
  * env ». Deux valeurs différentes d'une même clé doivent donc se distinguer.
  */
-export function tagToneOf(key: string, value: string): string {
+function tagToneOf(key: string, value: string): string {
   const index = (fnv1a(`${key}=${value}`) % TAG_TONE_COUNT) + 1;
   return `var(--tag-${index})`;
 }

@@ -38,7 +38,7 @@ import { cn } from '@/lib/utils';
 const VIEW = 1000;
 
 /** Sous ce nombre de mesures, un taux n'est qu'un tirage. */
-export const THIN_SAMPLES = 3;
+const THIN_SAMPLES = 3;
 
 export type Bucket = { at: string; samples: number };
 
@@ -518,65 +518,6 @@ export async function NotEnoughHistory({
             (since ? t('chart.history.oldest', { when: dayClock(since, format) }) : '.')}
       </p>
       {children}
-    </div>
-  );
-}
-
-/** La couverture d'une figure, sous elle : mesures, seaux couverts, seaux maigres. */
-export async function CoverageNote({
-  covered,
-  buckets,
-  thin,
-  samples,
-  what,
-  className,
-}: {
-  covered: number;
-  buckets: number;
-  thin: number;
-  samples: number;
-  what: 'sample' | 'readout';
-  className?: string;
-}) {
-  const t = await getT(chrome);
-  const parts: string[] = [
-    t(what === 'sample' ? 'chart.coverage.sample' : 'chart.coverage.readout', {
-      count: samples,
-      covered,
-      buckets,
-    }),
-  ];
-  if (thin > 0) parts.push(t('chart.coverage.thin', { count: thin, min: THIN_SAMPLES }));
-  if (covered < buckets) parts.push(t('chart.coverage.missing', { count: buckets - covered }));
-  return <p className={cn('t-cap text-text-3', className)}>{parts.join(' · ')}</p>;
-}
-
-/** Légende des teintes d'une figure. */
-export function ChartLegend({
-  items,
-  className,
-}: {
-  items: readonly { color: string; label: string; hatched?: boolean }[];
-  className?: string;
-}) {
-  return (
-    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', className)}>
-      {items.map((item) => (
-        <span key={item.label} className="t-cap inline-flex items-center gap-1.5 text-text-3">
-          <span
-            aria-hidden
-            className="inline-block size-2.5 rounded-[3px]"
-            style={
-              item.hatched
-                ? {
-                    background: `repeating-linear-gradient(45deg, ${item.color} 0 2px, transparent 2px 4px)`,
-                  }
-                : { backgroundColor: item.color }
-            }
-          />
-          {item.label}
-        </span>
-      ))}
     </div>
   );
 }

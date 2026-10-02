@@ -2,13 +2,10 @@ import { posix } from 'node:path';
 import { exec, upload } from '../ssh/client.js';
 import type { SshSession } from '../ssh/client.js';
 import { DriverError, type LogSink, type RuntimeKind, type SourceArchive } from './types.js';
+import { shellQuote } from '../shell.js';
 
 /** Décompresser un gros dépôt prend du temps ; au-delà, quelque chose ne va pas. */
 const EXTRACT_TIMEOUT_MS = 5 * 60_000;
-
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-}
 
 /**
  * Le dossier de la release où le code d'un dépôt lié est décompressé — **à

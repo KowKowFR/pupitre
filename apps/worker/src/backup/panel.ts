@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { Readable, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { errorMessage } from '@pupitre/core';
 import {
   DEFAULT_BACKUP_RETENTION,
   MANIFEST_FILE,
@@ -19,7 +20,7 @@ import {
 } from '@pupitre/db';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
-import { applyRetention, messageOf, openStore, storePiece } from './shared.js';
+import { applyRetention, openStore, storePiece } from './shared.js';
 
 /**
  * Sauvegarder la base du panel : `pg_dump` au format personnalisé (compressé,
@@ -34,7 +35,7 @@ import { applyRetention, messageOf, openStore, storePiece } from './shared.js';
 export const PANEL_DUMP_FILE = 'panel.dump.pupb';
 
 /** Les variables `PG*` tirées de `DATABASE_URL` : le mot de passe ne passe pas par `ps`. */
-export function pgEnvironment(databaseUrl: string): NodeJS.ProcessEnv {
+function pgEnvironment(databaseUrl: string): NodeJS.ProcessEnv {
   const url = new URL(databaseUrl);
   return {
     ...process.env,
@@ -173,7 +174,7 @@ export async function backupPanel(request: {
     );
     return { status: 'success', backupId, bytes: dump.bytes, error: null };
   } catch (error) {
-    const message = messageOf(error);
+    const message = errorMessage(error);
     log.error({ err: error }, 'sauvegarde du panel en échec');
     if (backupId) {
       await finishBackupRecord(backupId, { status: 'failed', error: message });

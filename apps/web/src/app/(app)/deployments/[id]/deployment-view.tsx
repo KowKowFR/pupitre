@@ -47,7 +47,6 @@ export type DeploymentView = {
   id: string;
   status: DeploymentStatus;
   runtime: string;
-  proxy: string;
   version: number;
   url: string | null;
   failedStep: string | null;
@@ -581,8 +580,7 @@ function Summary({
         <div className="flex flex-col items-start gap-1">
           <DeploymentStatusBadge status={deployment.status} />
           <span className="t-sm text-text-2">
-            <span className="mono">{deployment.targetName}</span> · {deployment.runtime} ·{' '}
-            {deployment.proxy}
+            <span className="mono">{deployment.targetName}</span> · {deployment.runtime}
           </span>
         </div>
         <span className="vsep max-md:hidden" />

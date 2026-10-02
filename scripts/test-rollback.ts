@@ -9,49 +9,28 @@
  *   2. retour à la release précédente — A est servie de nouveau ;
  *   3. (Docker) une release d'avant le nommage `-r{numéro}` se retrouve encore ;
  *   4. le ménage : au-delà de cinq releases, les plus anciennes partent, et
- *      leurs images construites avec elles ; les récentes restent.
+ *      leurs images construites avec elles ; les récentes restent ;
+ *   5. la destruction ne laisse aucune image construite derrière elle.
  * Puis tout est détruit. Sortie en code 1 au premier échec.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { decrypt, parseAppSpec } from '@pupitre/core';
+import { parseAppSpec } from '@pupitre/core';
 import {
   getDriver,
   type DriverContext,
   type DriverDeployment,
   type RuntimeKind,
 } from '@pupitre/core/drivers';
-import { connect, disconnect, exec, type SshSession, type SshTarget } from '@pupitre/core/ssh';
-import {
-  applications,
-  closeDb,
-  createPortAllocator,
-  eq,
-  getDb,
-  getTargetSecret,
-  listTargets,
-} from '@pupitre/db';
+import { disconnect, exec } from '@pupitre/core/ssh';
+import { applications, closeDb, createPortAllocator, eq, getDb } from '@pupitre/db';
+import { bold, createReport, dim, red, write } from './lib/report.js';
+import { ensureApplication, openTarget, portRangeFromEnv } from './lib/targets.js';
 
-const ESC = String.fromCharCode(27);
-const paint = (code: string) => (text: string) => `${ESC}[${code}m${text}${ESC}[0m`;
-const green = paint('32');
-const red = paint('31');
-const bold = paint('1');
-const dim = paint('2');
-const write = (text: string) => process.stdout.write(text);
-
-let failures = 0;
-let passes = 0;
-function record(runtime: string, label: string, ok: boolean, detail = ''): boolean {
-  if (ok) passes += 1;
-  else failures += 1;
-  write(
-    `  ${ok ? green('OK') : red('KO')} [${runtime}] ${label}${detail ? ` ${dim(`— ${detail}`)}` : ''}\n`,
-  );
-  return ok;
-}
+const report = createReport();
+const { record } = report;
 
 const SPEC = parseAppSpec({
   name: 'retour-arriere',
@@ -82,41 +61,9 @@ function archive(label: string): { localPath: string; cleanup: () => void } {
   return { localPath, cleanup: () => rmSync(work, { recursive: true, force: true }) };
 }
 
-async function ensureApplication(): Promise<string> {
-  const db = getDb();
-  const [existing] = await db.select().from(applications).where(eq(applications.slug, SPEC.name));
-  if (existing) return existing.id;
-  const [created] = await db
-    .insert(applications)
-    .values({ slug: SPEC.name, name: SPEC.name, appSpec: SPEC })
-    .returning({ id: applications.id });
-  return created!.id;
-}
-
-async function open(
-  ref: string,
-): Promise<{ session: SshSession; target: { id: string; name: string; host: string } }> {
-  const found = (await listTargets()).find((target) => target.id === ref || target.name === ref);
-  if (!found) throw new Error(`cible « ${ref} » introuvable`);
-  const stored = await getTargetSecret(found.id);
-  if (!stored) throw new Error(`cible « ${ref} » illisible`);
-  const secret = decrypt(stored.encryptedCredential);
-  const ssh: SshTarget = {
-    host: stored.target.host,
-    port: stored.target.port,
-    username: stored.target.sshUser,
-    sudoMethod: stored.target.sudoMethod,
-    credentials:
-      stored.target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: secret }
-        : { authMethod: 'password', password: secret },
-  };
-  return { session: await connect(ssh), target: found };
-}
-
 async function exercise(runtime: RuntimeKind, ref: string, applicationId: string): Promise<void> {
   write(`\n${bold(`── ${runtime} — ${ref}`)}\n`);
-  const { session, target } = await open(ref);
+  const { session, target } = await openTarget(ref);
   const driver = getDriver(runtime);
   const log = (line: string) => write(`    ${dim(line)}\n`);
   const root = process.env.DRIVER_ROOT_PATH ?? '/opt/bootstrap';
@@ -128,12 +75,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),
-    ...(process.env.DRIVER_PORT_RANGE
-      ? (() => {
-          const [min, max] = process.env.DRIVER_PORT_RANGE.split('-').map(Number);
-          return { portRange: { min: min!, max: max! } };
-        })()
-      : {}),
+    ...portRangeFromEnv(),
     resolveSecrets: async () => ({}),
     sourceInRelease: true,
   };
@@ -260,6 +202,9 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     record(runtime, 'déroulé', false, error instanceof Error ? error.message : String(error));
   } finally {
     await driver.destroy({ ...base, deployment: release(first) }, () => {}).catch(() => undefined);
+    // La destruction retire aussi les images construites, toutes releases confondues.
+    const left = await images().catch(() => '?');
+    record(runtime, 'la destruction retire les images construites', left === '', left || 'aucune');
     await disconnect(session);
   }
 }
@@ -271,14 +216,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   write(bold('Revenir en arrière retrouve le bon code, même sans changer de version\n'));
-  const applicationId = await ensureApplication();
+  const applicationId = await ensureApplication(SPEC);
   await exercise('docker', dockerRef, applicationId);
   await exercise('k3s', k3sRef, applicationId);
   await getDb().delete(applications).where(eq(applications.id, applicationId));
   await closeDb();
-  write(`\n  ${passes} vérification(s) au vert, ${failures} en échec\n`);
-  write(failures === 0 ? green(bold('\nLe retour en arrière tient.\n')) : red(bold('\nÉchec.\n')));
-  process.exit(failures === 0 ? 0 : 1);
+  report.summary('Le retour en arrière tient.');
+  process.exit(report.failures === 0 ? 0 : 1);
 }
 
 main().catch(async (error: unknown) => {

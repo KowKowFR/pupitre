@@ -1,12 +1,10 @@
 import {
   DEPLOYMENT_STEPS,
-  proxyKindSchema,
   scanConfigSchema,
   workspaceNameFor,
   type AppSpec,
   type DeploymentStatus,
   type DeploymentStepKey,
-  type ProxyKind,
   type ScanConfig,
   type StepStatus,
 } from '@pupitre/core';
@@ -48,7 +46,6 @@ export type DeploymentSummary = {
   number: number;
   status: DeploymentStatus;
   runtime: 'docker' | 'k3s';
-  proxy: ProxyKind;
   version: number;
   url: string | null;
   publishedPort: number | null;
@@ -79,7 +76,6 @@ const summaryColumns = {
   number: deployments.number,
   status: deployments.status,
   runtime: deployments.runtime,
-  proxy: deployments.proxy,
   version: deployments.version,
   url: deployments.url,
   publishedPort: deployments.publishedPort,
@@ -118,7 +114,6 @@ export const createDeploymentSchema = z.object({
   applicationId: z.string().uuid(),
   targetId: z.string().uuid(),
   runtime: z.enum(['docker', 'k3s']),
-  proxy: proxyKindSchema.default('traefik'),
   /**
    * Scanners et seuil de blocage.
    *
@@ -181,7 +176,6 @@ export async function createDeploymentWithSteps(
         applicationId: input.applicationId,
         targetId: input.targetId,
         runtime: input.runtime,
-        proxy: input.proxy,
         status: 'pending',
         version,
         appSpec: input.appSpec,
@@ -1505,7 +1499,6 @@ function abandonMessage(
   const workspace = workspaceNameFor(row.applicationSlug);
   const port = row.publishedPort ?? row.allocatedPort;
   const where = `${row.targetName} (${row.targetHost})`;
-  const grouping = row.runtime === 'k3s' ? 'namespace' : 'projet Compose';
   const stamp = observedAt.toISOString();
 
   const opening = row.currentStep
@@ -1526,8 +1519,10 @@ function abandonMessage(
       `si quelque chose avait malgré tout été fait.`;
   } else if (startedServices(row.currentStep?.key ?? null)) {
     remains =
-      `À vérifier sur ${where}, le panel ne peut pas le savoir d'ici : le ${grouping} ` +
-      `« ${workspace} » peut porter des conteneurs démarrés, les fichiers déposés ` +
+      // Aucun mot de runtime ici (règle n° 1) : « services » vaut pour les
+      // conteneurs d'un projet Compose comme pour les pods d'un namespace.
+      `À vérifier sur ${where}, le panel ne peut pas le savoir d'ici : ` +
+      `« ${workspace} » peut porter des services démarrés, les fichiers déposés ` +
       `peuvent être en place` +
       (port !== null ? `, et le port ${port} reste réservé à cette application` : '') +
       `. Détruisez ce déploiement pour que le panel remette la cible à plat, ou ` +

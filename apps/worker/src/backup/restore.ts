@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createGunzip } from 'node:zlib';
 import { backupManifestSchema, readyCommand, restoreCommand } from '@pupitre/core/backup';
-import { parseAppSpec } from '@pupitre/core';
+import { errorMessage, parseAppSpec } from '@pupitre/core';
 import { getDriver, type DriverContext } from '@pupitre/core/drivers';
 import { disconnect } from '@pupitre/core/ssh';
 import { Writable } from 'node:stream';
@@ -19,7 +19,7 @@ import { openDeploymentContext } from '../deploy/context.js';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
 import { backupApplication } from './application.js';
-import { BackupError, fetchPiece, messageOf, openStore } from './shared.js';
+import { BackupError, fetchPiece, openStore } from './shared.js';
 
 /**
  * Restaurer une sauvegarde d'application sur une cible où elle tourne.
@@ -63,7 +63,7 @@ async function waitForDatabase(
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }
   }
-  throw new BackupError(`la base « ${service} » ne répond pas : ${messageOf(last)}`);
+  throw new BackupError(`la base « ${service} » ne répond pas : ${errorMessage(last)}`);
 }
 
 export async function restoreApplicationBackup(request: {
@@ -221,7 +221,7 @@ export async function restoreApplicationBackup(request: {
     });
     return { status: 'success', error: null };
   } catch (error) {
-    const message = messageOf(error);
+    const message = errorMessage(error);
     onLog(`✗ ${message}`);
     await logAudit({
       actorId: request.actorId,

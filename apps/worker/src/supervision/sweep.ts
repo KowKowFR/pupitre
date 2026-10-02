@@ -117,10 +117,7 @@ type Counters = {
  * sont pas stockés, ils sont dérivés. Le raisonnement est dans
  * `evaluateThresholds()`.
  */
-export async function sampleOne(
-  target: { id: string; name: string },
-  counters: Counters,
-): Promise<void> {
+async function sampleOne(target: { id: string; name: string }, counters: Counters): Promise<void> {
   const { metrics, recorded } = await collectAndRecord(target.id, 'sweep');
   counters.sampled += 1;
   if (metrics.reachable) counters.reachable += 1;

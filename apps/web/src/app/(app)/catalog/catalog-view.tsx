@@ -53,7 +53,7 @@ export const CATEGORY_ICON: Record<CatalogCategory, LucideIcon> = {
 };
 
 /** Deux lettres du nom, sur un cartouche : « Uptime Kuma » → UK, « n8n » → N8. */
-export function monogramOf(name: string): string {
+function monogramOf(name: string): string {
   const words = name.split(/[\s.-]+/).filter(Boolean);
   const letters =
     words.length > 1 ? `${words[0]?.[0] ?? ''}${words[1]?.[0] ?? ''}` : name.slice(0, 2);

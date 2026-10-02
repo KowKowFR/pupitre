@@ -27,7 +27,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { decrypt, parseAppSpec } from '@pupitre/core';
+import { parseAppSpec } from '@pupitre/core';
 import {
   getDriver,
   type DeploymentDriver,
@@ -43,7 +43,7 @@ import {
   type RemoteProxyContext,
   type RouteProbe,
 } from '@pupitre/core/proxy';
-import { connect, disconnect, exec, type SshSession, type SshTarget } from '@pupitre/core/ssh';
+import { disconnect, exec, type SshSession } from '@pupitre/core/ssh';
 import {
   applications,
   closeDb,
@@ -51,9 +51,9 @@ import {
   eq,
   getDb,
   getTargetPortReport,
-  getTargetSecret,
-  listTargets,
 } from '@pupitre/db';
+import { bold, createReport, dim, red, write } from './lib/report.js';
+import { ensureApplication, openTarget, portRangeFromEnv } from './lib/targets.js';
 
 const NPM_URL = process.env.NPM_TEST_URL ?? 'http://127.0.0.1:8181';
 const ENTRYPOINT = {
@@ -69,25 +69,10 @@ const PUPITRE = { email: 'pupitre@npm.pupitre.test', password: 'pupitre-npm-test
 const CHALLTESTSRV = 'http://127.0.0.1:8055';
 const DOMAIN = 'npm.pupitre.test';
 
-const ESC = String.fromCharCode(27);
-const paint = (code: string) => (text: string) => `${ESC}[${code}m${text}${ESC}[0m`;
-const green = paint('32');
-const red = paint('31');
-const bold = paint('1');
-const dim = paint('2');
-const write = (text: string) => process.stdout.write(text);
 const log = (line: string) => write(`    ${dim(line)}\n`);
 
-let passes = 0;
-let failures = 0;
-function record(scope: string, label: string, ok: boolean, detail = ''): boolean {
-  if (ok) passes += 1;
-  else failures += 1;
-  write(
-    `  ${ok ? green('OK') : red('KO')} [${scope}] ${label}${detail ? ` ${dim(`— ${detail}`)}` : ''}\n`,
-  );
-  return ok;
-}
+const report = createReport();
+const { record } = report;
 
 async function guarded<T>(scope: string, label: string, run: () => Promise<T>): Promise<T | null> {
   try {
@@ -185,34 +170,8 @@ type Side = {
   hostname: string;
 };
 
-async function ensureApplication(): Promise<string> {
-  const db = getDb();
-  const [existing] = await db.select().from(applications).where(eq(applications.slug, SPEC.name));
-  if (existing) return existing.id;
-  const [created] = await db
-    .insert(applications)
-    .values({ slug: SPEC.name, name: SPEC.name, appSpec: SPEC })
-    .returning({ id: applications.id });
-  return created!.id;
-}
-
 async function openSide(runtime: RuntimeKind, ref: string, applicationId: string): Promise<Side> {
-  const found = (await listTargets()).find((target) => target.id === ref || target.name === ref);
-  if (!found) throw new Error(`cible « ${ref} » introuvable`);
-  const stored = await getTargetSecret(found.id);
-  if (!stored) throw new Error(`cible « ${ref} » illisible`);
-  const secret = decrypt(stored.encryptedCredential);
-  const ssh: SshTarget = {
-    host: stored.target.host,
-    port: stored.target.port,
-    username: stored.target.sshUser,
-    sudoMethod: stored.target.sudoMethod,
-    credentials:
-      stored.target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: secret }
-        : { authMethod: 'password', password: secret },
-  };
-  const session = await connect(ssh);
+  const { session, target: found } = await openTarget(ref);
   const address = (await exec(session, "hostname -i 2>/dev/null | awk '{print $1}'")).stdout.trim();
   if (!/^\d+\.\d+\.\d+\.\d+$/.test(address)) throw new Error(`${ref} : adresse illisible`);
   const ctx: DriverContext = {
@@ -228,12 +187,7 @@ async function openSide(runtime: RuntimeKind, ref: string, applicationId: string
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),
-    ...(process.env.DRIVER_PORT_RANGE
-      ? (() => {
-          const [min, max] = process.env.DRIVER_PORT_RANGE.split('-').map(Number);
-          return { portRange: { min: min!, max: max! } };
-        })()
-      : {}),
+    ...portRangeFromEnv(),
     resolveSecrets: async () => ({}),
   };
   return {
@@ -343,7 +297,7 @@ async function main(): Promise<void> {
     login1?.detail ?? '',
   );
 
-  const applicationId = await ensureApplication();
+  const applicationId = await ensureApplication(SPEC);
   const sides = [
     await openSide('docker', dockerRef, applicationId),
     await openSide('k3s', k3sRef, applicationId),
@@ -687,9 +641,8 @@ async function main(): Promise<void> {
   }
 
   await closeDb();
-  write(`\n  ${passes} vérification(s) au vert, ${failures} en échec\n`);
-  write(failures === 0 ? green(bold('\nNPM tient.\n')) : red(bold('\nÉchec.\n')));
-  process.exit(failures === 0 ? 0 : 1);
+  report.summary('NPM tient.');
+  process.exit(report.failures === 0 ? 0 : 1);
 }
 
 main().catch(async (error: unknown) => {

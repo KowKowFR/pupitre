@@ -1,14 +1,15 @@
 import {
-  EMPTY_SEVERITY_COUNTS,
   blocks,
   countBySeverity,
+  EMPTY_SEVERITY_COUNTS,
+  errorMessage,
   scannerLabel,
   verdictFor,
   worstSeverity,
   type Finding,
   type ScanConfig,
-  type ScanVerdict,
   type ScannerKey,
+  type ScanVerdict,
   type SeverityCounts,
 } from '@pupitre/core';
 import type { DriverContext } from '@pupitre/core/drivers';
@@ -100,7 +101,7 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
         logger.info({ scanner: key, version }, 'scanner disponible sur la cible');
       } catch (error) {
         // L'échec est reproduit — et enregistré — au moment du `run`.
-        onLog(`${prefix} installation impossible : ${messageOf(error)}`);
+        onLog(`${prefix} installation impossible : ${errorMessage(error)}`);
       }
     }),
   );
@@ -123,7 +124,7 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
     // `runOne` capture déjà ses erreurs : un rejet ici signale un problème
     // d'écriture en base, pas un scanner en défaut. On le rend visible.
     const task = tasks[index];
-    const message = messageOf(result.reason);
+    const message = errorMessage(result.reason);
     onLog(`[${task?.scanner ?? '?'}] exécution non enregistrée : ${message}`);
     if (task) {
       runs.push({
@@ -229,7 +230,7 @@ async function runOne(
           : [],
     };
   } catch (error) {
-    const message = messageOf(error);
+    const message = errorMessage(error);
     onLog(`${prefix} ✗ ${message}`);
     logger.error({ err: error, scanner: task.scanner, image: task.image }, 'scanner en échec');
 
@@ -252,8 +253,4 @@ async function runOne(
       blocking: [],
     };
   }
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

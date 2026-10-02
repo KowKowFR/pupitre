@@ -106,7 +106,7 @@ export async function publishRealtime(event: RealtimeEvent): Promise<void> {
 }
 
 /** Publie sans attendre ni échouer : un signal perdu ne doit jamais casser une action. */
-export function signalRealtime(event: RealtimeEvent): void {
+function signalRealtime(event: RealtimeEvent): void {
   publishRealtime(event).catch((error: unknown) => {
     logger.warn({ err: error, type: event.type }, 'événement temps réel non publié');
   });

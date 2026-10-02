@@ -386,7 +386,7 @@ function ScanRunCard({
   );
 }
 
-export function SeverityBadge({ severity, count }: { severity: Severity; count?: number }) {
+function SeverityBadge({ severity, count }: { severity: Severity; count?: number }) {
   return (
     <span className={cn('sev', SEVERITY_CLASS[severity])}>
       {severity}

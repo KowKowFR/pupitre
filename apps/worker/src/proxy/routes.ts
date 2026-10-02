@@ -75,14 +75,14 @@ function toProxyRoute(route: RouteView): ProxyRoute {
 }
 
 /** Le chemin de santé du service routé — celui que l'on interroge à travers le proxy. */
-export function routedHealthPath(spec: AppSpec): string {
+function routedHealthPath(spec: AppSpec): string {
   const name = spec.ingress?.targetService ?? exposedService(spec).name;
   const service =
     spec.services.find((candidate) => candidate.name === name) ?? exposedService(spec);
   return service.healthcheck.path;
 }
 
-export function routeUrl(route: Pick<RouteView, 'hostname' | 'tls'>): string {
+function routeUrl(route: Pick<RouteView, 'hostname' | 'tls'>): string {
   return `${route.tls ? 'https' : 'http'}://${route.hostname}`;
 }
 

@@ -270,7 +270,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Génération d'AppSpec par IA, trois fournisseurs | [`docs/ia.md`](docs/ia.md) |
 | Toutes les pages et toutes les routes d'API, avec leur permission | [`docs/api.md`](docs/api.md) |
 | Tables et migrations | [`docs/base-de-donnees.md`](docs/base-de-donnees.md) |
-| Les 26 scripts de vérification et ce que chacun prouve | [`docs/verification.md`](docs/verification.md) |
+| Les scripts de vérification et ce que chacun prouve | [`docs/verification.md`](docs/verification.md) |
 | Le choix de chaque dépendance, et les deux montées refusées | [`docs/dependances.md`](docs/dependances.md) |
 | Ce qui manque, et ce qu'il faudrait pour le lever | [`docs/feuille-de-route.md`](docs/feuille-de-route.md) |
 
@@ -278,7 +278,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 
 ## Limites connues
 
-*État au 13/09/2026.* Ce qui suit n'est pas une note en bas de page : c'est un
+*État au 02/10/2026.* Ce qui suit n'est pas une note en bas de page : c'est un
 tiers de ce fichier, et volontairement. Un README qui prétend à l'intemporalité
 vieillit mal ; celui-ci est daté et le dit.
 
@@ -336,27 +336,18 @@ non 80, parce que nos images tournent en uid 1000 sans `CAP_NET_BIND_SERVICE` �
 ce n'est pas un contournement du test, c'est la conséquence directe du
 durcissement décrit plus bas.
 
-### Le panel ne sait pas fournir un contexte de build
+### Un Dockerfile ne se construit que depuis un dépôt lié
 
-C'est la limite la plus importante de cette liste, et elle est nouvellement
-documentée.
+Les deux drivers construisent une image depuis un Dockerfile, à partir d'un
+contexte de build. Ce contexte n'arrive aujourd'hui que par un chemin : le
+**dépôt GitHub lié** à l'application, dont l'archive au commit déployé est
+extraite dans `source/` de la release — voir
+[`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt-github).
 
-Les deux drivers savent construire une image depuis un Dockerfile. Le contexte de
-build leur arrive par `DriverContext.additionalFiles`. Or **rien dans `apps/web`
-ni dans `apps/worker` ne remplit ce champ** :
-
-```bash
-grep -rn "additionalFiles" apps packages scripts --include='*.ts' --include='*.tsx' | grep -v dist
-```
-
-Seul `scripts/test-parity.ts` en fabrique un — et c'est pour cela que le tableau
-ci-dessus est vert : il pilote les drivers en direct, sans passer par le panel.
-
-**Conséquence : par l'interface et par l'API, seules les applications en
-`source.type: "image"` se déploient.** Un service `dockerfile` échoue à l'étape
-`build`, avec le message « Le contexte de build doit être fourni via
-`additionalFiles` ». C'est aussi pourquoi il n'y a pas de déploiement depuis un
-dépôt Git : il n'y a aucune voie d'entrée pour du code source.
+Une application créée par le formulaire, par l'IA, depuis le catalogue ou par
+l'import d'un `compose.yml` n'a pas de dépôt : un service `dockerfile` y échoue
+à l'étape `build` (« Le contexte de build doit être fourni »). Par ces voies-là,
+seuls les services en `source.type: "image"` se déploient.
 
 ### Compose ne sait pas publier un port derrière plusieurs répliques
 
@@ -402,19 +393,13 @@ et prend sa réponse. Avant, le refus arrivait après `upload`, donc après avoi
 déposé les manifests sur la machine — Secrets rendus compris, en clair, pour un
 déploiement qui n'aurait jamais lieu.
 
-### `BunkerWebProvider` n'existe pas
+### Trois reverse proxies, pas plus
 
-Prévu en P1, il n'a pas été écrit — et c'est un choix. Le format de configuration
-de BunkerWeb a changé entre ses versions majeures, aucune instance ne tourne sur
-la cible de test, et un provider écrit sur la seule foi d'une documentation, sans
-qu'une seule requête ne le traverse jamais, n'est pas une capacité : c'est une
-affirmation non vérifiée dans une table de fabrique. `getProxyProvider('bunkerweb')`
-lève, et `proxy` reste à `traefik`.
-
-Traefik, lui, est complet : Pupitre reprend celui qui tourne déjà sur une
-machine ou en installe un, obtient les certificats Let's Encrypt et pose les
-domaines au déploiement — sur les deux runtimes, éprouvé par `pnpm test:proxy`
-contre un vrai serveur ACME de test. Voir
+Traefik, BunkerWeb (avec son pare-feu applicatif) et Nginx Proxy Manager sont
+pilotés et éprouvés de bout en bout contre un vrai serveur ACME de test
+(`pnpm test:proxy`, `pnpm test:npm`). Restent hors de portée : BunkerWeb dans un
+cluster K3s, l'installation de Nginx Proxy Manager par Pupitre, et les
+certificats jokers, qui demandent le défi DNS-01. Voir
 [`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines).
 
 ### Pas de clé d'IA sur cette instance
@@ -432,8 +417,6 @@ un vrai modèle répondre sur cette instance.
   `/run/k3s/containerd/containerd.sock`, namespace `k8s.io`. L'étape de scan rend
   donc `unknown` — non bloquant, mais silencieusement inutile. Deux variables
   d'environnement dans `packages/core/src/scanners/trivy.ts` suffiraient.
-- **`destroy()` ne retire pas de containerd les images qu'il a fait construire.**
-  Symétrique du driver Docker, mais ça s'accumule sur le nœud.
 - **Le compteur de limitation de débit de l'authentification est en mémoire**,
   donc par processus. Correct pour un panel mono-conteneur, faux dès qu'on en
   met deux derrière un répartiteur. Celui du panel, lui, vit déjà dans Redis.

@@ -78,7 +78,7 @@ export function exportResponse(options: {
  * deux formes : `filename` assaini en ASCII pour les clients anciens, et
  * `filename*` percent-encodé en UTF-8, que les navigateurs préfèrent.
  */
-export function contentDisposition(filename: string, fallbackName: string): string {
+function contentDisposition(filename: string, fallbackName: string): string {
   const ascii = filename
     .normalize('NFKD')
     .replace(/[^\x20-\x7e]/g, '')

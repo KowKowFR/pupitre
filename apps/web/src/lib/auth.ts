@@ -17,12 +17,9 @@ import {
 } from '@pupitre/db';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { APIError } from 'better-auth/api';
 import { admin, twoFactor } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultStatements, userAc } from 'better-auth/plugins/admin/access';
-import { auth as authMessages } from '@/i18n/messages/auth';
-import { getT } from '@/i18n/server';
 import { INVITATION_TTL_MS, sendAccountMail } from './account-mail';
 import { getEnv } from './env';
 import { PASSWORD_MIN_LENGTH } from './password-policy';
@@ -45,7 +42,7 @@ const DEFAULT_ROLE: RoleKey = 'viewer';
  * empruntent la même machinerie, mais pas la même situation : l'un répond à une
  * demande immédiate, l'autre arrive sans prévenir.
  */
-export const PASSWORD_RESET_TTL_SECONDS = 3600;
+const PASSWORD_RESET_TTL_SECONDS = 3600;
 
 /**
  * Où atterrit la personne qui clique.
@@ -63,7 +60,7 @@ export const PASSWORD_RESET_TTL_SECONDS = 3600;
  * a ouvert un accès ».
  */
 export const INVITATION_PATH = '/invitation';
-export const RESET_PASSWORD_PATH = '/reset-password';
+const RESET_PASSWORD_PATH = '/reset-password';
 
 /**
  * Ce compte a-t-il déjà un mot de passe ?
@@ -410,26 +407,6 @@ export async function getSession(headers: Headers) {
   }
 }
 
-export { APIError };
-
-/**
- * Refus d'inscription quand `ALLOW_SIGNUP` est à false et qu'un compte existe
- * déjà. Asynchrone parce que la phrase est rendue dans la langue de
- * l'instance, qui se lit en base.
- */
-export async function signupClosedError(): Promise<APIError> {
-  const t = await getT(authMessages);
-  return new APIError('FORBIDDEN', {
-    code: 'SIGNUP_DISABLED',
-    message: t('signup.closed.api'),
-  });
-}
-
-/** Suppression d'un utilisateur — passe par l'adaptateur pour rester cohérent. */
-export async function deleteUserRow(userId: string): Promise<void> {
-  await getDb().delete(users).where(eq(users.id, userId));
-}
-
 /* ---------------------------------------------------------------------------
    Les jetons de réinitialisation, vus depuis notre côté
    ------------------------------------------------------------------------- */
@@ -471,7 +448,7 @@ function resetTokensOf(userId: string) {
  * Repousse l'échéance des jetons de réinitialisation en cours d'un compte.
  * Rend la nouvelle échéance, ou `null` si aucune ligne n'a été touchée.
  */
-export async function extendResetToken(userId: string, ttlMs: number): Promise<Date | null> {
+async function extendResetToken(userId: string, ttlMs: number): Promise<Date | null> {
   const expiresAt = new Date(Date.now() + ttlMs);
 
   const rows = await getDb()
@@ -503,20 +480,4 @@ export async function revokeResetTokens(userId: string): Promise<number> {
     .where(resetTokensOf(userId))
     .returning({ id: verifications.id });
   return rows.length;
-}
-
-/** Échéance du lien en cours d'un compte, ou `null` s'il n'y en a aucun de vivant. */
-export async function pendingResetTokenExpiry(userId: string): Promise<Date | null> {
-  const rows = await getDb()
-    .select({ expiresAt: verifications.expiresAt })
-    .from(verifications)
-    .where(resetTokensOf(userId));
-
-  const now = Date.now();
-  const alive = rows
-    .map((row) => row.expiresAt)
-    .filter((date) => date.getTime() > now)
-    .sort((a, b) => b.getTime() - a.getTime());
-
-  return alive[0] ?? null;
 }

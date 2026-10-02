@@ -199,7 +199,8 @@ en arrière, qui doit servir A de nouveau. Côté Docker, une release d'avant le
 nommage `{version}-r{numéro}` se retrouve encore, et une application déployée
 avant la mise à jour reste pilotable. Enfin, assez de déploiements pour que le
 ménage passe : les cinq releases les plus récentes restent, les autres partent
-avec leurs images construites. **10/10** au dernier passage.
+avec leurs images construites ; et la destruction ne laisse aucune image
+construite derrière elle. **12/12** au dernier passage.
 
 ```bash
 pnpm test:rollback cible-docker-locale k3s-locale

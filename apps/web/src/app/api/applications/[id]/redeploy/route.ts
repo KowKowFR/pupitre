@@ -107,7 +107,6 @@ export const POST = apiRoute<Context>(async (request, context) => {
     applicationId: id,
     targetId: input.targetId,
     runtime: source.deployment.runtime,
-    proxy: source.deployment.proxy,
     scanConfig,
     autoRollback: input.autoRollback,
     appSpec,

@@ -1,7 +1,7 @@
 import type { ScannerKey } from '../scan.js';
 import { execStream } from '../ssh/client.js';
 import type { SshSession } from '../ssh/client.js';
-import { firstLine } from './install.js';
+import { firstLine } from '../shell.js';
 import { ScannerError, type ScanLogSink } from './types.js';
 
 /**
