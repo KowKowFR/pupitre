@@ -130,6 +130,59 @@ export interface ProxyProvider {
   probe(ctx: ProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe>;
 }
 
+// ─── un proxy hors des cibles ────────────────────────────────────────────────
+
+/**
+ * Une connexion à un proxy **distant** (`placement: remote`) : sa configuration
+ * et ses secrets, déchiffrés par le worker. Aucune session SSH — Pupitre ne
+ * pilote pas sa machine, il parle à son API.
+ */
+export type RemoteProxyContext = {
+  config: unknown;
+  secrets: Readonly<Record<string, string>>;
+};
+
+/**
+ * Ce qu'une requête a donné à travers le proxy, dans le vocabulaire de curl —
+ * celui que `checkReach()` sait lire : `0` une réponse (son corps dans
+ * `body`), `7` une connexion refusée, `28` rien dans le délai.
+ */
+export type ReachAttempt = { curlCode: number; body: string };
+
+/**
+ * Le contrat d'un proxy distant. Mêmes règles que `ProxyProvider` — déclaratif,
+ * ne touche qu'à ce qu'il a posé, ne lit ni la base ni Redis —, sans ce qui
+ * suppose sa machine : ni détection, ni installation. On s'y connecte.
+ */
+export interface RemoteProxyProvider {
+  readonly kind: ProxyKind;
+
+  parseConfig(config: unknown): unknown;
+
+  /** « Tester » : l'API répond-elle, le compte entre-t-il, a-t-il les droits ? */
+  check(ctx: RemoteProxyContext, onLog: LogSink): Promise<ProxyCheck>;
+
+  /** Fait correspondre le proxy à l'ensemble des routes d'une application. */
+  apply(ctx: RemoteProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void>;
+
+  /**
+   * Interroge une route à travers le proxy, **depuis le panel** : par l'adresse
+   * où il reçoit les visiteurs, avec le nom demandé (en-tête `Host`, SNI).
+   */
+  probe(ctx: RemoteProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe>;
+
+  /**
+   * Le test d'une liaison : une requête `GET /{token}` vers `address:port`, que
+   * le proxy relaie — c'est lui qui ouvre la connexion, comme il le fera pour
+   * les visiteurs. Rien ne reste sur le proxy après.
+   */
+  reach(
+    ctx: RemoteProxyContext,
+    request: { address: string; port: number; token: string },
+    onLog: LogSink,
+  ): Promise<ReachAttempt>;
+}
+
 export class ProxyError extends Error {
   constructor(
     message: string,

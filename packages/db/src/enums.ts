@@ -7,7 +7,7 @@ import { pgEnum } from 'drizzle-orm/pg-core';
 
 export const runtimeEnum = pgEnum('runtime', ['docker', 'k3s']);
 
-export const proxyEnum = pgEnum('proxy', ['traefik', 'bunkerweb']);
+export const proxyEnum = pgEnum('proxy', ['traefik', 'bunkerweb', 'npm']);
 
 export const sshAuthMethodEnum = pgEnum('ssh_auth_method', ['key', 'password']);
 

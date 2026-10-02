@@ -100,9 +100,9 @@ export default async function ApplicationsPage() {
         const serving = proxies.get(target.id);
         if (!serving || serving.proxy.status === 'installing') return null;
         const { proxy, link } = serving;
-        // Le proxy d'une autre machine : on dit laquelle.
+        // Le proxy d'une autre machine, ou un proxy distant : on dit lequel.
         const via = link
-          ? targets.find((candidate) => candidate.id === proxy.hostTargetId)?.name
+          ? (targets.find((candidate) => candidate.id === proxy.hostTargetId)?.name ?? proxy.name)
           : null;
         return {
           description: describeProxy(proxy.kind, proxy.config),

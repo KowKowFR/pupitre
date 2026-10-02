@@ -594,7 +594,45 @@ reçoit un `Service` sans sélecteur et une `EndpointSlice` vers l'autre machine
 dans le namespace `pupitre-routes` — ni `ExternalName`, que Traefik refuse par
 défaut, ni réglage du proxy. Le worker ouvre une session vers la machine du
 proxy le temps de poser ou de sonder ; la tournée `routes:check` regroupe les
-domaines par machine de proxy.
+domaines par proxy.
+
+**Un proxy hors des cibles : Nginx Proxy Manager.** Il tourne souvent sur une
+machine à part, que Pupitre ne pilote pas : il ne la joint que par l'API de
+NPM, avec un compte à lui. C'est le placement `remote` du modèle, et un second
+contrat, `RemoteProxyProvider` — `check() apply() probe() reach()` —, sans ce
+qui suppose une machine (ni détection, ni installation : on s'y connecte).
+La fiche du catalogue dit le placement d'un genre ; le worker n'en sait pas
+plus : `openProxy()` (`apps/worker/src/proxy/connect.ts`) rend les mêmes gestes
+— poser, sonder, tester, éprouver une liaison — par SSH ou par l'API, et tout
+le reste (pipeline, « Appliquer », destruction, tournée) passe par lui. La
+connexion vit dans `proxies` sans machine hôte ; son mot de passe dans
+`encrypted_secrets`, chiffré sous `MASTER_KEY`, déchiffré par le worker seul.
+Elle sert des machines **par liaison**, toujours — l'amont est un port avec une
+adresse, comme pour le proxy central. Trois choses changent de main :
+
+- **la sonde** part du panel vers l'entrée de NPM (`probeDirect()`), le nom en
+  `Host` et en SNI — et plus de la machine du proxy ;
+- **le test d'une liaison** ne peut plus lancer `curl` depuis la machine du
+  proxy : `checkReach()` reçoit une **origine** (`ReachOrigin`), et celle d'un
+  proxy distant pose sur NPM un hôte éphémère vers l'écouteur, l'interroge par
+  son entrée, puis le retire. NPM ne dit pas sa table de routage : l'adresse
+  d'arrivée n'est relevée que par l'écouteur (python3 ou perl sur la machine
+  servie), et le test dit quand elle ne l'est pas ;
+- **les certificats** : NPM les demande lui-même à Let's Encrypt, au nom du
+  compte ; un certificat déjà présent qui couvre le domaine (un joker obtenu
+  par défi DNS) est repris tel quel.
+
+Un domaine est un « proxy host » de NPM, marqué dans son `meta` (`pupitre` :
+l'application, la portée, le certificat que Pupitre a demandé pour lui) : seuls
+ceux-là sont lus, modifiés, retirés, et seuls leur domaine, leur amont et leur
+HTTPS sont tenus — ce qu'on règle dans NPM sur ces hôtes reste. Trois
+comportements de NPM sont contournés ici, et pas ailleurs : il recharge nginx
+sans attendre qu'il ait pris (le test d'une liaison attend que son site par
+défaut cesse de répondre pour le nom) ; pour un hôte déjà en service, il le
+retire de nginx le temps d'une demande de certificat et lance certbot aussitôt
+(un hôte neuf demande donc son certificat **avant** d'exister ; un hôte déjà là
+a droit à un nouvel essai) ; et il refuse un second certbot pendant le premier
+(les demandes d'un worker vers une instance passent l'une après l'autre).
 
 **Dans le pipeline**, les domaines sont décidés avant le rendu — ils décident de
 la publication du port —, et posés à l'étape `proxy`, après `healthcheck`. Puis

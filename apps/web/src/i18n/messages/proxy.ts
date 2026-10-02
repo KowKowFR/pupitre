@@ -33,6 +33,9 @@ const fr = {
   'error.linkNeedsIp':
     'Ce reverse proxy joint une autre machine par son adresse IPv4 : donnez une adresse, pas un nom.',
   'error.linkUnsupported': 'Ce reverse proxy ne sait pas servir une autre machine que la sienne.',
+  'error.notRemote':
+    'Ce genre de proxy tourne sur une machine : il se trouve ou s’installe depuis la page de la cible.',
+  'error.remoteCheckFailed': 'La connexion ne marche pas — {problems}',
 
   // ── la carte de la cible ─────────────────────────────────────────────────
   'card.title': 'Reverse proxy',
@@ -94,9 +97,11 @@ const fr = {
   'connect.done': 'Proxy relié — test en cours',
 
   // ── le proxy central ─────────────────────────────────────────────────────
-  'link.title': 'Ou passer par le reverse proxy d’une autre machine',
+  'link.title': 'Ou passer par un autre reverse proxy',
   'link.help':
-    'Il reçoit les visiteurs et les mène jusqu’ici. Entre les deux machines, le trafic n’est pas chiffré : préférez une adresse privée — réseau privé de l’hébergeur, VLAN, WireGuard.',
+    'Celui d’une autre machine, ou un Nginx Proxy Manager connecté à Pupitre. Il reçoit les visiteurs et les mène jusqu’ici. Entre les deux, le trafic n’est pas chiffré : préférez une adresse privée — réseau privé de l’hébergeur, VLAN, WireGuard.',
+  'link.none': 'Aucun autre reverse proxy pour l’instant.',
+  'link.remoteGroup': 'Hors des cibles',
   'link.proxy': 'Reverse proxy',
   'link.address': 'Adresse de cette machine, vue de celle du proxy',
   'link.address.help':
@@ -104,6 +109,7 @@ const fr = {
   'link.reached':
     'Connexion éprouvée : « {target} » a joint cette machine sur un port de la plage des applications. Elle l’est de nouveau avant chaque déploiement.',
   'link.via': 'Servie par le reverse proxy de « {target} »',
+  'link.viaRemote': 'Servie par « {target} »',
   'link.addresses': 'Le proxy joint cette machine à {address}.',
   'link.source':
     ' Il arrive depuis {source} : le port des applications ne s’ouvre qu’à cette adresse.',
@@ -121,6 +127,48 @@ const fr = {
   'action.link': 'Relier',
   'action.linkCheck': 'Tester la liaison',
   'action.unlink': 'Délier',
+  'action.connectNpm': 'Connecter un Nginx Proxy Manager',
+  'action.editRemote': 'Modifier la connexion',
+  'action.checkRemote': 'Tester le proxy',
+  'remote.checks': 'Dernier test du proxy',
+  'remote.checked': 'Test du proxy lancé',
+  // ── la connexion à Nginx Proxy Manager ───────────────────────────────────
+  'npm.title.new': 'Connecter un Nginx Proxy Manager',
+  'npm.title.edit': 'Modifier la connexion',
+  'npm.kind': 'Reverse proxy distant',
+  'npm.lead':
+    'Pupitre ne pilote pas sa machine : il parle à son API, avec un compte à lui, et ne touche qu’aux hôtes qu’il a posés.',
+  'npm.section.api': 'Son interface',
+  'npm.url': 'Adresse de l’interface',
+  'npm.url.help':
+    'Celle de l’administration de NPM, qui porte aussi son API — souvent le port 81. En HTTP, sur un réseau privé seulement : le mot de passe y passe.',
+  'npm.section.account': 'Le compte de Pupitre',
+  'npm.account.help':
+    'Créez-lui un compte dans NPM (Users), sans double authentification, avec « Manage » sur les Proxy Hosts et les SSL Certificates. En visibilité « Created Items », il ne voit que ce qu’il pose.',
+  'npm.email': 'E-mail du compte',
+  'npm.password': 'Mot de passe',
+  'npm.password.keep': 'Laissez vide pour garder celui enregistré.',
+  'npm.section.entrypoint': 'Où il reçoit les visiteurs',
+  'npm.entrypoint.help':
+    'Pupitre y sonde les domaines, depuis le panel. Vide : la machine de l’interface, ports 80 et 443.',
+  'npm.entrypoint.host': 'Adresse',
+  'npm.entrypoint.http': 'Port HTTP',
+  'npm.entrypoint.https': 'Port HTTPS',
+  'npm.name': 'Nom',
+  'npm.name.help': 'Pour le reconnaître dans les listes.',
+  'npm.submit.new': 'Connecter',
+  'npm.submit.edit': 'Enregistrer',
+  'npm.testing': 'Test de la connexion…',
+  'npm.connected': 'Nginx Proxy Manager connecté',
+  'npm.updated': 'Connexion enregistrée',
+  'npm.checkFailed': 'Enregistrée, mais le test échoue — {problems}',
+  'npm.remove': 'Retirer cette connexion',
+  'npm.remove.help':
+    'Refusé tant que des domaines passent par lui. Les machines qu’il sert sans domaine en sont déliées ; rien n’est retiré de NPM.',
+  'npm.removed': 'Connexion retirée',
+  'npm.invalid.url': 'L’adresse de l’interface est requise.',
+  'npm.invalid.email': 'L’e-mail du compte est requis.',
+  'npm.invalid.password': 'Le mot de passe est requis.',
   'unlink.title': 'Délier « {target} » du reverse proxy de « {via} » ?',
   'unlink.consequence':
     'Ses prochains déploiements ne seront plus servis par ce proxy : leurs domaines ne pourront plus être posés.',
@@ -197,6 +245,9 @@ const en: Translated<typeof fr> = {
   'error.linkNeedsIp':
     'This reverse proxy reaches another machine by its IPv4 address: give an address, not a name.',
   'error.linkUnsupported': 'This reverse proxy cannot serve a machine other than its own.',
+  'error.notRemote':
+    'This kind of proxy runs on a machine: find or install it from the target’s page.',
+  'error.remoteCheckFailed': 'The connection does not work — {problems}',
 
   'card.title': 'Reverse proxy',
   'card.description':
@@ -256,9 +307,11 @@ const en: Translated<typeof fr> = {
   'remove.queued': 'Removal started',
   'connect.done': 'Proxy connected — test running',
 
-  'link.title': 'Or go through another machine’s reverse proxy',
+  'link.title': 'Or go through another reverse proxy',
   'link.help':
-    'It receives visitors and leads them here. Between the two machines, traffic is not encrypted: prefer a private address — the host’s private network, a VLAN, WireGuard.',
+    'Another machine’s, or a Nginx Proxy Manager connected to Pupitre. It receives visitors and leads them here. In between, traffic is not encrypted: prefer a private address — the host’s private network, a VLAN, WireGuard.',
+  'link.none': 'No other reverse proxy yet.',
+  'link.remoteGroup': 'Outside the targets',
   'link.proxy': 'Reverse proxy',
   'link.address': 'Address of this machine, as seen from the proxy’s',
   'link.address.help':
@@ -266,6 +319,7 @@ const en: Translated<typeof fr> = {
   'link.reached':
     'Connection tested: “{target}” reached this machine on a port of the application range. It is tested again before each deployment.',
   'link.via': 'Served by the reverse proxy of “{target}”',
+  'link.viaRemote': 'Served by “{target}”',
   'link.addresses': 'The proxy reaches this machine at {address}.',
   'link.source': ' It comes from {source}: application ports open to that address only.',
   'link.public':
@@ -282,6 +336,48 @@ const en: Translated<typeof fr> = {
   'action.link': 'Link',
   'action.linkCheck': 'Test the link',
   'action.unlink': 'Unlink',
+  'action.connectNpm': 'Connect a Nginx Proxy Manager',
+  'action.editRemote': 'Edit the connection',
+  'action.checkRemote': 'Test the proxy',
+  'remote.checks': 'Last proxy test',
+  'remote.checked': 'Proxy test started',
+  // ── the Nginx Proxy Manager connection ───────────────────────────────────
+  'npm.title.new': 'Connect a Nginx Proxy Manager',
+  'npm.title.edit': 'Edit the connection',
+  'npm.kind': 'Remote reverse proxy',
+  'npm.lead':
+    'Pupitre does not drive its machine: it talks to its API, with an account of its own, and only touches the hosts it set.',
+  'npm.section.api': 'Its interface',
+  'npm.url': 'Interface address',
+  'npm.url.help':
+    'The address of NPM’s admin, which also carries its API — often port 81. Over HTTP, on a private network only: the password goes through it.',
+  'npm.section.account': 'Pupitre’s account',
+  'npm.account.help':
+    'Create an account for it in NPM (Users), without two-factor authentication, with “Manage” on Proxy Hosts and SSL Certificates. With “Created Items” visibility, it only sees what it sets.',
+  'npm.email': 'Account e-mail',
+  'npm.password': 'Password',
+  'npm.password.keep': 'Leave empty to keep the stored one.',
+  'npm.section.entrypoint': 'Where it receives visitors',
+  'npm.entrypoint.help':
+    'Pupitre probes domains there, from the panel. Empty: the interface’s machine, ports 80 and 443.',
+  'npm.entrypoint.host': 'Address',
+  'npm.entrypoint.http': 'HTTP port',
+  'npm.entrypoint.https': 'HTTPS port',
+  'npm.name': 'Name',
+  'npm.name.help': 'To recognise it in lists.',
+  'npm.submit.new': 'Connect',
+  'npm.submit.edit': 'Save',
+  'npm.testing': 'Testing the connection…',
+  'npm.connected': 'Nginx Proxy Manager connected',
+  'npm.updated': 'Connection saved',
+  'npm.checkFailed': 'Saved, but the test fails — {problems}',
+  'npm.remove': 'Remove this connection',
+  'npm.remove.help':
+    'Refused while domains go through it. Machines it serves without a domain are unlinked; nothing is removed from NPM.',
+  'npm.removed': 'Connection removed',
+  'npm.invalid.url': 'The interface address is required.',
+  'npm.invalid.email': 'The account e-mail is required.',
+  'npm.invalid.password': 'The password is required.',
   'unlink.title': 'Unlink “{target}” from the reverse proxy of “{via}”?',
   'unlink.consequence':
     'Its next deployments will no longer be served by this proxy: their domains can no longer be set.',

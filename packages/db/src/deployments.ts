@@ -1,10 +1,12 @@
 import {
   DEPLOYMENT_STEPS,
+  proxyKindSchema,
   scanConfigSchema,
   workspaceNameFor,
   type AppSpec,
   type DeploymentStatus,
   type DeploymentStepKey,
+  type ProxyKind,
   type ScanConfig,
   type StepStatus,
 } from '@pupitre/core';
@@ -46,7 +48,7 @@ export type DeploymentSummary = {
   number: number;
   status: DeploymentStatus;
   runtime: 'docker' | 'k3s';
-  proxy: 'traefik' | 'bunkerweb';
+  proxy: ProxyKind;
   version: number;
   url: string | null;
   publishedPort: number | null;
@@ -116,7 +118,7 @@ export const createDeploymentSchema = z.object({
   applicationId: z.string().uuid(),
   targetId: z.string().uuid(),
   runtime: z.enum(['docker', 'k3s']),
-  proxy: z.enum(['traefik', 'bunkerweb']).default('traefik'),
+  proxy: proxyKindSchema.default('traefik'),
   /**
    * Scanners et seuil de blocage.
    *

@@ -1,6 +1,6 @@
 import { Resolver } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { hostnameSchema } from '@pupitre/core';
+import { hostnameSchema, proxyEntrypointHost } from '@pupitre/core';
 import { getTarget, resolveServingProxy } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -44,10 +44,15 @@ export const GET = apiRoute<Context>(async (request, context) => {
     serving?.link && serving.proxy.hostTargetId
       ? await getTarget(serving.proxy.hostTargetId)
       : null;
-  const receiving = proxyHost ?? target;
+  // Un proxy distant reçoit sur sa propre entrée, hors des cibles.
+  const remoteHost =
+    serving?.link && !serving.proxy.hostTargetId
+      ? proxyEntrypointHost(serving.proxy.kind, serving.proxy.config)
+      : null;
+  const receiving = proxyHost?.host ?? remoteHost ?? target.host;
   const [addresses, targetAddresses] = await Promise.all([
     addressesOf(hostname),
-    addressesOf(receiving.host),
+    addressesOf(receiving),
   ]);
   return NextResponse.json({
     hostname,
@@ -55,7 +60,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     targetAddresses,
     resolves: addresses.length > 0,
     matches: addresses.some((address) => targetAddresses.includes(address)),
-    /** La machine du proxy, quand ce n'est pas celle-ci. */
-    via: proxyHost?.name ?? null,
+    /** Le proxy, quand il n'est pas sur celle-ci. */
+    via: proxyHost?.name ?? (remoteHost ? serving!.proxy.name : null),
   });
 });

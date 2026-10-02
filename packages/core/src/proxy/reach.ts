@@ -4,6 +4,7 @@ import type { LogSink, TargetContext } from '../drivers/types.js';
 import { ufwState, UFW_MARKER } from '../drivers/ufw.js';
 import type { PortRange } from '../ports.js';
 import { exec } from '../ssh/client.js';
+import type { ReachAttempt } from './types.js';
 
 /**
  * La machine d'un proxy joint-elle vraiment celle qu'il doit servir ?
@@ -64,6 +65,52 @@ export type ReachResult = {
   /** La phrase à montrer : ce qui a été éprouvé, ou ce qui bloque. */
   detail: string;
 };
+
+/**
+ * D'où l'on éprouve le chemin : la machine du proxy, par SSH — ou, pour un
+ * proxy distant que Pupitre ne pilote pas, le proxy lui-même, qui relaie la
+ * requête comme il relaiera les visiteurs.
+ */
+export type ReachOrigin = {
+  /** Comment le nommer dans les messages : la machine, ou la connexion. */
+  name: string;
+  /**
+   * L'adresse de départ vers `address` selon la table de routage. `null` :
+   * aucune route ; `undefined` : sans objet — un proxy distant ne la dit pas.
+   */
+  routeSource(address: string): Promise<string | null | undefined>;
+  /** `GET /{token}` vers `address:port`, rendu dans le vocabulaire de curl. */
+  connect(address: string, port: number, token: string): Promise<ReachAttempt>;
+};
+
+/** Éprouver depuis la machine du proxy : `ip route get`, puis `curl`. */
+export function sshReachOrigin(proxyHost: TargetContext): ReachOrigin {
+  return {
+    name: proxyHost.target.name,
+    async routeSource(address) {
+      const quoted = shellQuote(address);
+      const route = await exec(
+        proxyHost.sshSession,
+        `(ip route get ${quoted} || ip -6 route get ${quoted}) 2>/dev/null | head -1`,
+        { timeout: SHORT_MS },
+      );
+      return /\bsrc\s+(\S+)/.exec(route.stdout)?.[1] ?? null;
+    },
+    async connect(address, port, token) {
+      const host = address.includes(':') ? `[${address}]` : address;
+      const connect = await exec(
+        proxyHost.sshSession,
+        // Le code de curl, pris aussitôt : celui d'un `echo` ne dirait rien.
+        `curl -s -m ${CONNECT_TIMEOUT_S} http://${host}:${port}/${token}; code=$?; echo; echo "curl=$code"`,
+        { timeout: (CONNECT_TIMEOUT_S + 10) * 1000 },
+      );
+      return {
+        curlCode: Number(/curl=(\d+)\s*$/.exec(connect.stdout)?.[1] ?? '1'),
+        body: connect.stdout,
+      };
+    },
+  };
+}
 
 /** L'adresse d'arrivée à retenir pour le pare-feu : celle observée, sinon celle de la route. */
 export function reachSource(result: ReachResult): string | null {
@@ -235,8 +282,8 @@ function firstLine(value: string): string | null {
 // ─── l'épreuve ───────────────────────────────────────────────────────────────
 
 export async function checkReach(input: {
-  /** Une session vers la machine du proxy. */
-  proxyHost: TargetContext;
+  /** D'où l'on éprouve : la machine du proxy (`sshReachOrigin`), ou le proxy distant. */
+  origin: ReachOrigin;
   /** Une session vers la machine servie. */
   served: TargetContext;
   /** L'adresse de la machine servie, vue de celle du proxy. */
@@ -247,10 +294,9 @@ export async function checkReach(input: {
   reserved?: ReadonlySet<number>;
   onLog?: LogSink;
 }): Promise<ReachResult> {
-  const { proxyHost, served, address } = input;
+  const { origin, served, address } = input;
   const onLog = input.onLog ?? (() => {});
-  const proxyName = proxyHost.target.name;
-  const quoted = shellQuote(address);
+  const proxyName = origin.name;
   const base: ReachResult = {
     ok: false,
     address,
@@ -262,21 +308,17 @@ export async function checkReach(input: {
     detail: '',
   };
 
-  // 1. La route, depuis la machine du proxy.
-  const route = await exec(
-    proxyHost.sshSession,
-    `(ip route get ${quoted} || ip -6 route get ${quoted}) 2>/dev/null | head -1`,
-    { timeout: SHORT_MS },
-  );
-  const routeSource = /\bsrc\s+(\S+)/.exec(route.stdout)?.[1] ?? null;
-  if (!routeSource) {
+  // 1. La route, depuis la machine du proxy — quand on la connaît.
+  const found = await origin.routeSource(address);
+  if (found === null) {
     return {
       ...base,
       failure: 'no_route',
       detail: `« ${proxyName} » n'a aucune route vers ${address}`,
     };
   }
-  onLog(`route de « ${proxyName} » vers ${address} : depuis ${routeSource}`);
+  const routeSource = found ?? null;
+  if (routeSource) onLog(`route de « ${proxyName} » vers ${address} : depuis ${routeSource}`);
 
   // 2. L'adresse est-elle à la machine servie ? On écoute alors sur elle seule.
   const addresses = await exec(
@@ -360,18 +402,11 @@ export async function checkReach(input: {
         };
       }
 
-      // 5. La connexion, depuis la machine du proxy.
-      const host = address.includes(':') ? `[${address}]` : address;
-      const connect = await exec(
-        proxyHost.sshSession,
-        // Le code de curl, pris aussitôt : celui d'un `echo` ne dirait rien.
-        `curl -s -m ${CONNECT_TIMEOUT_S} http://${host}:${port}/${token}; code=$?; echo; echo "curl=$code"`,
-        { timeout: (CONNECT_TIMEOUT_S + 10) * 1000 },
-      );
-      const curlCode = Number(/curl=(\d+)\s*$/.exec(connect.stdout)?.[1] ?? '1');
+      // 5. La connexion, depuis le proxy.
+      const connect = await origin.connect(address, port, token);
       const verdict = interpretReach({
-        curlCode,
-        body: connect.stdout,
+        curlCode: connect.curlCode,
+        body: connect.body,
         token,
         address,
         port,
@@ -384,16 +419,22 @@ export async function checkReach(input: {
       });
       const observedSource =
         verdict.failure === null ? normalizePeer(firstLine(peer.stdout)) : null;
-      if (observedSource && observedSource !== routeSource) {
+      if (observedSource && routeSource && observedSource !== routeSource) {
         onLog(`arrivée vue de « ${served.target.name} » : ${observedSource} (NAT entre les deux)`);
       }
+      // Ni l'écouteur (nc ne la note pas) ni la route (un proxy distant ne la
+      // dit pas) : on ne sait pas d'où il arrive, et on le dit — le port des
+      // applications ne pourra pas être ouvert à lui seul.
+      const unknownSource = verdict.failure === null && !observedSource && !routeSource;
       return {
         ...withRoute,
         ok: verdict.failure === null,
         port,
         observedSource,
         failure: verdict.failure,
-        detail: verdict.detail,
+        detail: unknownSource
+          ? `${verdict.detail} — d'où il arrive n'a pas pu être relevé (ni python3 ni perl sur « ${served.target.name} ») : le port des applications ne sera pas restreint au proxy`
+          : verdict.detail,
       };
     } finally {
       await exec(

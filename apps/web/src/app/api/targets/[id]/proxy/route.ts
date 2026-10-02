@@ -13,6 +13,7 @@ import {
   getTargetLink,
   listProxyLinks,
   listRoutes,
+  listRemoteProxies,
   listTargetProxies,
   listTargets,
   logAudit,
@@ -48,10 +49,11 @@ export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'target:read');
   const { id } = paramsSchema.parse(await context.params);
   const target = await targetOr404(id);
-  const [proxy, link, all, targets] = await Promise.all([
+  const [proxy, link, all, remote, targets] = await Promise.all([
     getProxyForTarget(id),
     getTargetLink(id),
     listTargetProxies(),
+    listRemoteProxies(),
     listTargets(),
   ]);
   const nameOf = new Map(targets.map((target) => [target.id, target.name]));
@@ -69,7 +71,11 @@ export const GET = apiRoute<Context>(async (request, context) => {
     proxy: proxy ? proxyViewForUi(proxy) : null,
     link:
       link && linkedProxy
-        ? linkViewForUi(link, linkedProxy, nameOf.get(linkedProxy.hostTargetId ?? '') ?? '?')
+        ? linkViewForUi(
+            link,
+            linkedProxy,
+            nameOf.get(linkedProxy.hostTargetId ?? '') ?? linkedProxy.name,
+          )
         : null,
     served: served.map((entry) => ({
       targetId: entry.targetId,
@@ -77,15 +83,24 @@ export const GET = apiRoute<Context>(async (request, context) => {
       address: entry.address,
       status: entry.status,
     })),
-    candidates: [...all.entries()]
-      .filter(([hostId, candidate]) => hostId !== id && candidate.status !== 'installing')
-      .map(([hostId, candidate]) => ({
+    candidates: [
+      ...[...all.entries()]
+        .filter(([hostId, candidate]) => hostId !== id && candidate.status !== 'installing')
+        .map(([hostId, candidate]) => ({
+          proxyId: candidate.id,
+          targetId: hostId as string | null,
+          targetName: nameOf.get(hostId) ?? hostId,
+          description: proxyViewForUi(candidate).description,
+        }))
+        .sort((a, b) => a.targetName.localeCompare(b.targetName)),
+      // Les proxies distants, hors des cibles : à la suite.
+      ...remote.map((candidate) => ({
         proxyId: candidate.id,
-        targetId: hostId,
-        targetName: nameOf.get(hostId) ?? hostId,
+        targetId: null,
+        targetName: candidate.name,
         description: proxyViewForUi(candidate).description,
-      }))
-      .sort((a, b) => a.targetName.localeCompare(b.targetName)),
+      })),
+    ],
     suggestedAddress: target.host,
     routes: routes.map(routeViewForUi),
   });

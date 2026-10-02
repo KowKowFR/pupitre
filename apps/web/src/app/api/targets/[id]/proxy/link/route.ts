@@ -43,8 +43,9 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const input = await readJsonBody(request, putSchema);
 
   if (await getProxyForTarget(id)) throw new ConflictError(msg(messages, 'error.hasOwnProxy'));
+  // Le proxy d'une autre machine, ou un proxy distant (sans machine).
   const proxy = await getProxy(input.proxyId);
-  if (!proxy?.hostTargetId) throw new NotFoundError(msg(messages, 'error.proxyNotFound'));
+  if (!proxy) throw new NotFoundError(msg(messages, 'error.proxyNotFound'));
   if (proxy.hostTargetId === id) throw new ConflictError(msg(messages, 'error.hasOwnProxy'));
   if (proxy.status === 'installing') throw new ConflictError(msg(messages, 'error.installing'));
   // Ce que ce proxy sait joindre hors de sa machine — le Traefik d'un cluster,
@@ -66,14 +67,14 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   });
   const job = await getOpsQueue().add(PROXY_LINK_CHECK_JOB, { targetId: id });
   if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.jobNoId'));
-  const host = await getTarget(proxy.hostTargetId);
+  const host = proxy.hostTargetId ? await getTarget(proxy.hostTargetId) : null;
   await logAudit({
     actorId: auth.userId,
     action: 'proxy.linked',
     resourceType: 'target',
     resourceId: id,
     before: before ? { proxyId: before.proxyId, address: before.address } : null,
-    after: { proxyId: proxy.id, via: host?.name ?? proxy.hostTargetId, address: input.address },
+    after: { proxyId: proxy.id, via: host?.name ?? proxy.name, address: input.address },
     ip: auth.ip,
   });
   return NextResponse.json({ jobId: job.id });

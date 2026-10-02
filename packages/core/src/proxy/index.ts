@@ -1,34 +1,65 @@
 import { BunkerWebProvider } from './bunkerweb/provider.js';
 import type { ProxyKind } from './model.js';
+import { NginxProxyManagerProvider } from './npm/provider.js';
 import { TraefikProvider } from './traefik/provider.js';
-import { ProxyError, type ProxyProvider } from './types.js';
+import { ProxyError, type ProxyProvider, type RemoteProxyProvider } from './types.js';
 
 /**
  * Les reverse proxies que le panel sait piloter. Une entrée par genre : en
  * ajouter un, c'est écrire sa classe et la déclarer ici — rien d'autre ne change.
- * `null` : le genre est connu de la base, son provider n'existe pas encore.
+ * Ceux qui tournent sur une machine pilotée en SSH d'un côté, ceux qu'on joint
+ * par leur API de l'autre : deux contrats, parce que les seconds n'ont ni
+ * machine à inspecter ni rien à y installer.
  */
-const registry: Record<ProxyKind, (() => ProxyProvider) | null> = {
+const onTargets: Partial<Record<ProxyKind, () => ProxyProvider>> = {
   traefik: () => new TraefikProvider(),
   bunkerweb: () => new BunkerWebProvider(),
 };
 
+const remote: Partial<Record<ProxyKind, () => RemoteProxyProvider>> = {
+  npm: () => new NginxProxyManagerProvider(),
+};
+
 export function getProxyProvider(kind: ProxyKind): ProxyProvider {
-  const make = registry[kind];
-  if (!make)
-    throw new ProxyError(`le proxy « ${kind} » n'a pas encore d'implémentation`, kind, 'registry');
+  const make = onTargets[kind];
+  if (!make) {
+    throw new ProxyError(`le proxy « ${kind} » ne tourne pas sur une cible`, kind, 'registry');
+  }
   return make();
 }
 
+export function getRemoteProxyProvider(kind: ProxyKind): RemoteProxyProvider {
+  const make = remote[kind];
+  if (!make) throw new ProxyError(`le proxy « ${kind} » n'est pas distant`, kind, 'registry');
+  return make();
+}
+
+/** Les genres qu'on peut trouver ou installer sur une machine. */
 export function implementedProxyKinds(): ProxyKind[] {
-  return (Object.keys(registry) as ProxyKind[]).filter((kind) => registry[kind] !== null);
+  return Object.keys(onTargets) as ProxyKind[];
 }
 
 export * from './catalog.js';
+export * from './direct-probe.js';
 export * from './model.js';
 export * from './bunkerweb/config.js';
 export * from './bunkerweb/render.js';
 export { BunkerWebProvider } from './bunkerweb/provider.js';
+export * from './npm/config.js';
+export {
+  NpmClient,
+  npmHealth,
+  type NpmCertificate,
+  type NpmHost,
+  type NpmMark,
+} from './npm/api.js';
+export {
+  NginxProxyManagerProvider,
+  certificateCovers,
+  coveringCertificate,
+  npmDate,
+  plainOnPublicAddress,
+} from './npm/provider.js';
 export * from './traefik/config.js';
 export * from './probe.js';
 export * from './reach.js';

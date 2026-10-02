@@ -23,6 +23,7 @@
     "test:catalog": "tsx --env-file-if-exists=.env scripts/test-catalog.ts",
     "test:source-isolation": "tsx --env-file-if-exists=.env scripts/test-source-isolation.ts",
     "test:rollback": "tsx --env-file-if-exists=.env scripts/test-rollback.ts",
+    "test:npm": "tsx --env-file-if-exists=.env scripts/test-npm.ts",
     "test:schedule": "tsx scripts/test-schedule.ts",
     "test:ai": "pnpm build:packages && tsx scripts/test-ai.ts"
   },

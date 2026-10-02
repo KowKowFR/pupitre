@@ -216,6 +216,37 @@ services:
       - "127.0.0.1:8055:8055"
     restart: unless-stopped
 
+  # ── Nginx Proxy Manager de test, hors du démarrage normal ───────────────────
+  # Un proxy **distant** : hors des cibles, que Pupitre ne pilote que par son
+  # API. `pnpm test:npm` le connecte, y relie les deux cibles de test et y pose
+  # des domaines, certificats compris — émis par Pebble (`LE_SERVER`), dont
+  # l'autorité est donnée à certbot. Ses ports sont publiés sur la boucle
+  # locale : c'est par là que le panel le sonde, comme il sonderait un NPM à
+  # part sur le réseau.
+  #
+  #   docker compose --profile test up -d pebble pebble-dns npm-proxy
+  npm-proxy:
+    profiles: ["test"]
+    image: jc21/nginx-proxy-manager:2.16.0
+    environment:
+      # Le compte d'administration de cette instance jetable — `test:npm`
+      # l'emploie pour créer celui de Pupitre, aux droits restreints.
+      INITIAL_ADMIN_EMAIL: admin@npm.pupitre.test
+      INITIAL_ADMIN_PASSWORD: ${NPM_TEST_ADMIN_PASSWORD:-npm-test-admin}
+      LE_SERVER: https://pebble:14000/dir
+      REQUESTS_CA_BUNDLE: /acme/pebble.minica.pem
+      DISABLE_IPV6: "true"
+    volumes:
+      # NPM refuse de démarrer si ces deux dossiers ne sont pas des volumes.
+      - npm-test-data:/data
+      - npm-test-letsencrypt:/etc/letsencrypt
+      - ./scripts/test-acme/pebble.minica.pem:/acme/pebble.minica.pem:ro
+    ports:
+      - "127.0.0.1:${NPM_TEST_ADMIN_PORT:-8181}:81"
+      - "127.0.0.1:${NPM_TEST_HTTP_PORT:-8480}:80"
+      - "127.0.0.1:${NPM_TEST_HTTPS_PORT:-8443}:443"
+    restart: unless-stopped
+
   # ── Serveur SMTP jetable, hors du démarrage normal ───────────────────────────
   # Démarrage explicite :
   #   docker compose --profile test up -d mailpit
@@ -418,3 +449,6 @@ volumes:
   backups:
   k3s-data:
   dind-data:
+  # L'état du Nginx Proxy Manager de test : sa base et ses certificats.
+  npm-test-data:
+  npm-test-letsencrypt:

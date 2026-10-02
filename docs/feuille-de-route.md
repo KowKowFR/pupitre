@@ -106,14 +106,13 @@ BunkerWeb d'une machine Docker), un BunkerWeb installé en paquet système, et
 le réglage des certificats d'un BunkerWeb trouvé — Pupitre ne lui demande pas
 de certificats tant qu'aucun e-mail n'est réglé pour lui.
 
-### Nginx Proxy Manager, un proxy hors des cibles
+### Nginx Proxy Manager, au-delà de la connexion
 
-Le proxy central existe : une machine passe par le proxy d'une autre
-(`proxy_links`), et chaque driver publie l'application pour lui seul. Mais ce
-proxy tourne sur une cible que Pupitre pilote en SSH. Pour Nginx Proxy Manager,
-souvent ailleurs, il faudra le placement `remote` que le modèle porte déjà :
-une connexion par instance, son API et ses identifiants chiffrés, et une sonde
-des domaines qui ne passe plus par SSH.
+Pupitre se connecte à un Nginx Proxy Manager qui tourne, hors des cibles, et
+lui confie des hôtes par son API. Restent : l'installer lui-même sur une
+machine, lui faire demander un joker par défi DNS (aujourd'hui, un joker déjà
+présent dans NPM est repris), et relever l'adresse d'arrivée de NPM sur une
+machine sans python3 ni perl.
 
 ### Pas de certificat joker
 
