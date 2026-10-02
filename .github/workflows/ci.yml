@@ -6,7 +6,7 @@ name: CI
 #
 # Les 26 `scripts/verify-*.sh` ne sont pas ici : ils demandent la stack complète,
 # et pour la moitié d'entre eux une cible docker-in-docker privilégiée. Ils sont
-# dans `e2e.yml`, sur déclenchement manuel et une fois par nuit. Le détail du
+# dans `e2e.yml`, sur déclenchement manuel seulement. Le détail du
 # raisonnement est dans `.github/ci-local.md`.
 
 on:

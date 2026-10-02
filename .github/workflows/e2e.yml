@@ -14,7 +14,10 @@ name: Bout en bout (stack complète)
 #
 # Face aux ~23 s du socle, mettre cela sur chaque poussée ferait exactement ce
 # que l'on veut éviter : une CI que l'on cesse de regarder. D'où le partage —
-# le socle à chaque poussée, ceci sur demande et une fois par nuit.
+# le socle à chaque poussée, ceci sur demande seulement.
+#
+# Il n'y a plus de passage nocturne : le dépôt est privé, chaque minute est
+# facturée, et ces scripts tournent en local avant chaque PR (`.github/ci-local.md`).
 #
 # CE QUI N'EST PAS ICI, ET POURQUOI
 #
@@ -29,8 +32,8 @@ name: Bout en bout (stack complète)
 # Docker imbriqué ; `k3s-target` a même besoin d'un `cgroup: private` pour que
 # kubelet démarre. Elles n'ont jamais été éprouvées sur un runner GitHub, et
 # elles y déploient réellement des applications — plusieurs minutes chacune.
-# Les ajouter ici sans les avoir vues passer produirait un job rouge toutes les
-# nuits, c'est-à-dire un job muet au bout d'une semaine.
+# Les ajouter ici sans les avoir vues passer produirait un job rouge à chaque
+# lancement, c'est-à-dire un job que plus personne ne lit.
 #
 # `verify-export.sh` en est absent pour une autre raison : il exige un
 # déploiement portant déjà des journaux en base, ce qu'une instance neuve n'a
@@ -57,10 +60,6 @@ on:
           ex. « roles schedules »). Vide = tous.
         required: false
         default: ''
-  schedule:
-    # 03:00 UTC, les nuits qui précèdent un jour ouvré. Le dépôt est privé, donc
-    # les minutes sont facturées : inutile de payer un week-end sans poussée.
-    - cron: '0 3 * * 1-5'
 
 concurrency:
   group: e2e
