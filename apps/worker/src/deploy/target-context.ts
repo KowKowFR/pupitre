@@ -1,9 +1,10 @@
-import { decrypt, usableRuntimes } from '@pupitre/core';
+import { usableRuntimes } from '@pupitre/core';
 import type { TargetContext } from '@pupitre/core/drivers';
-import { connect, type SshSession, type SshTarget } from '@pupitre/core/ssh';
+import { connect, type SshSession } from '@pupitre/core/ssh';
 import { getTargetSecret } from '@pupitre/db';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
+import { sshTargetOf } from './ssh-target.js';
 
 export type OpenedTarget = {
   session: SshSession;
@@ -23,21 +24,8 @@ export async function openTargetContext(targetId: string): Promise<OpenedTarget>
   const record = await getTargetSecret(targetId);
   if (!record) throw new Error(`Cible « ${targetId} » introuvable`);
 
-  const { target, encryptedCredential } = record;
-  const secret = decrypt(encryptedCredential);
-
-  const sshTarget: SshTarget = {
-    host: target.host,
-    port: target.port,
-    username: target.sshUser,
-    sudoMethod: target.sudoMethod,
-    credentials:
-      target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: secret }
-        : { authMethod: 'password', password: secret },
-  };
-
-  const session = await connect(sshTarget, { logger });
+  const { target } = record;
+  const session = await connect(sshTargetOf(record), { logger });
 
   return {
     session,

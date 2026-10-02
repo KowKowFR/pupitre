@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { NodeSSH } from 'node-ssh';
 import type { SFTPWrapper, Stats } from 'ssh2';
+import { hostKeyFingerprint } from '../../ssh/client.js';
 import type { SftpDestinationConfig, SftpDestinationSecrets } from '../destinations.js';
 import { BackupStoreError, probeKey, type BackupStore, type StoredObject } from './types.js';
 
@@ -16,10 +16,6 @@ import { BackupStoreError, probeKey, type BackupStore, type StoredObject } from 
  */
 
 const READY_TIMEOUT_MS = 15_000;
-
-function fingerprintOf(key: Buffer): string {
-  return `SHA256:${createHash('sha256').update(key).digest('base64').replace(/=+$/, '')}`;
-}
 
 function call<T>(
   run: (done: (error: Error | null | undefined, value?: T) => void) => void,
@@ -59,7 +55,7 @@ export class SftpBackupStore implements BackupStore {
         ...(expected
           ? {
               hostVerifier: (key: Buffer) => {
-                presented = fingerprintOf(key);
+                presented = hostKeyFingerprint(key);
                 return presented === expected;
               },
             }

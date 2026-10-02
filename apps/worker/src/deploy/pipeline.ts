@@ -1,6 +1,5 @@
 import {
   DEPLOYMENT_STEPS,
-  decrypt,
   intersectPortRanges,
   parseAppSpec,
   parseScanConfig,
@@ -15,7 +14,7 @@ import {
   type DriverContext,
   type RenderedArtifacts,
 } from '@pupitre/core/drivers';
-import { connect, disconnect, type SshTarget } from '@pupitre/core/ssh';
+import { connect, disconnect } from '@pupitre/core/ssh';
 import {
   createPortAllocator,
   finishDeployment,
@@ -40,6 +39,7 @@ import { logger } from '../logger.js';
 import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
 import { runSecurityScan } from './scan.js';
+import { sshTargetOf } from './ssh-target.js';
 import { backupApplication } from '../backup/application.js';
 import { verifyLinkBeforeDeploy } from '../proxy/link.js';
 import { applyCoupleRoutes, exposureFor, seedRouteFromSpec } from '../proxy/routes.js';
@@ -103,19 +103,7 @@ export async function runDeploymentPipeline(
   const secret = await getTargetSecret(deployment.targetId);
   if (!secret) throw new Error(`Cible « ${deployment.targetId} » introuvable`);
 
-  const credential = decrypt(secret.encryptedCredential);
-  const sshTarget: SshTarget = {
-    host: secret.target.host,
-    port: secret.target.port,
-    username: secret.target.sshUser,
-    sudoMethod: secret.target.sudoMethod,
-    credentials:
-      secret.target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: credential }
-        : { authMethod: 'password', password: credential },
-  };
-
-  const session = await connect(sshTarget, { logger: log });
+  const session = await connect(sshTargetOf(secret), { logger: log });
 
   const previous = record.deployment.previousDeploymentId
     ? await getDeploymentForRun(record.deployment.previousDeploymentId)

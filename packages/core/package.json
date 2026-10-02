@@ -87,6 +87,7 @@
   "devDependencies": {
     "@types/node": "^24.13.4",
     "@types/ssh2": "^1.15.6",
+    "ssh2": "^1.17.0",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3"
   }

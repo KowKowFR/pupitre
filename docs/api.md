@@ -96,6 +96,7 @@ la navigation métier.
 | `/api/targets` | GET / POST | `target:read` / `target:create` — credential chiffré avant insertion |
 | `/api/targets/:id` | GET / PATCH / DELETE | `target:read` / `target:update` / `target:delete` |
 | `/api/targets/:id/preflight` | POST | `target:update` — enfile, rend `202 { jobId }` |
+| `/api/targets/:id/host-key` | POST | `target:update` — `{ decision: accept \| dismiss }` : trancher une clé d'hôte inattendue — l'accepter (machine réinstallée) ou garder l'ancienne ; 409 si rien n'est en attente. Tracé avec les deux empreintes |
 | `/api/targets/:id/metrics` | GET | `target:read` — relevé d'hôte, par la file |
 | `/api/targets/:id/ports` | GET | `target:read` — plage, alloués, libres, et par qui |
 | `/api/targets/:id/workloads` | GET | `workload:read` |

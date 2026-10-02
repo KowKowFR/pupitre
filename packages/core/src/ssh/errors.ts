@@ -21,6 +21,28 @@ export class SshConnectionError extends SshError {
   override readonly name = 'SshConnectionError';
 }
 
+/**
+ * La machine présente une autre clé d'hôte que celle retenue. **Jamais**
+ * rejouée : ce n'est pas un incident réseau — la machine a été réinstallée, ou
+ * quelqu'un se fait passer pour elle. Seul un humain peut trancher.
+ */
+export class SshHostKeyError extends SshError {
+  override readonly name = 'SshHostKeyError';
+
+  constructor(
+    host: string,
+    readonly expected: string,
+    readonly presented: string,
+  ) {
+    super(
+      `La clé d'hôte de ${host} a changé : attendue ${expected}, présentée ${presented}. ` +
+        'Si la machine a été réinstallée, acceptez la nouvelle clé sur la page de la cible ; ' +
+        'sinon, une autre machine se fait peut-être passer pour elle — connexion refusée.',
+      host,
+    );
+  }
+}
+
 /** Commande dépassant son délai. */
 export class SshTimeoutError extends SshError {
   override readonly name = 'SshTimeoutError';

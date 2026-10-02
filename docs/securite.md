@@ -179,6 +179,32 @@ CSP s'arrête volontairement à ces directives : `script-src` demanderait des
 nonces sur les scripts de Next, et `form-action 'self'` casserait la création
 de l'App GitHub, qui poste un vrai formulaire vers github.com.
 
+### La clé d'hôte des cibles
+
+Sans vérification de la clé d'hôte, n'importe quelle machine intercalée sur le
+réseau entre le worker et une cible pourrait se faire passer pour elle, recevoir
+le mot de passe SSH ou sudo, voir et modifier les commandes. Le client SSH
+(`connect()`, `packages/core/src/ssh/client.ts`) reçoit donc une politique de
+clé (`SshTarget.hostKey`), et le worker la donne toujours : une seule fonction,
+`sshTargetOf()` (`apps/worker/src/deploy/ssh-target.ts`), fabrique la connexion
+d'une cible.
+
+- **Confiance au premier contact** : une cible jamais jointe voit sa clé retenue
+  (`targets.host_key_fingerprint`, `target.host_key.recorded` au journal).
+- Ensuite, **une autre clé fait refuser la connexion**, sans nouvel essai
+  (`SshHostKeyError`) : ce n'est pas un incident réseau. La clé présentée est
+  notée en attente (`targets.host_key_pending`), et le journal le dit une fois
+  par clé (`target.host_key.mismatch`), ce qui alimente l'événement de
+  notification `security.host_key_changed` — pas à chaque relevé refusé.
+- **Seul un humain tranche**, sur la page de la cible (`target:update`) :
+  accepter la nouvelle clé ou garder l'ancienne, tracé
+  (`target.host_key.accepted` / `.dismissed`, avec les deux empreintes).
+- Changer l'adresse ou le port d'une cible oublie sa clé : c'est une autre
+  machine.
+
+Les outils de test (`scripts/test-*.ts`) ne donnent pas de politique : ils visent
+des machines jetables, dont la clé change à chaque recréation.
+
 ### Les adresses que le worker appelle pour vous
 
 L'API d'un Nginx Proxy Manager, un webhook de notification, un stockage S3 : le

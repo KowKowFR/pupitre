@@ -1,12 +1,12 @@
 import {
-  decrypt,
   targetPreflightJobDataSchema,
   usableRuntimes,
   type TargetPreflightJobResult,
 } from '@pupitre/core';
-import { runPreflight, type SshTarget } from '@pupitre/core/ssh';
+import { runPreflight } from '@pupitre/core/ssh';
 import { getTargetSecret, logAudit, savePreflightResult } from '@pupitre/db';
 import type { Job } from 'bullmq';
+import { sshTargetOf } from '../deploy/ssh-target.js';
 import { logger } from '../logger.js';
 
 /**
@@ -29,19 +29,7 @@ export async function handleTargetPreflight(
   const { target, encryptedCredential } = record;
   log.info({ host: target.host, port: target.port }, 'preflight démarré');
 
-  const secret = decrypt(encryptedCredential);
-  const sshTarget: SshTarget = {
-    host: target.host,
-    port: target.port,
-    username: target.sshUser,
-    sudoMethod: target.sudoMethod,
-    credentials:
-      target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: secret }
-        : { authMethod: 'password', password: secret },
-  };
-
-  const report = await runPreflight(sshTarget, log);
+  const report = await runPreflight(sshTargetOf({ target, encryptedCredential }), log);
   await savePreflightResult(data.targetId, report);
 
   const runtimes = usableRuntimes(report.runtimes);

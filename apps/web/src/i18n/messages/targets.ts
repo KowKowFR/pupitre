@@ -237,6 +237,24 @@ const fr = {
   'value.sudo.password': 'avec mot de passe',
   'field.credential': 'Credential',
   'value.credential': 'chiffré en base, non exposé',
+  'field.hostKey': 'Clé d’hôte',
+  'hostKey.recorded': 'relevée le {date}',
+  'hostKey.none': 'pas encore relevée — elle le sera à la prochaine connexion',
+  'hostKey.changed.title': 'La clé d’hôte de cette machine a changé.',
+  'hostKey.changed.body':
+    'Le {date}, elle a présenté une autre clé SSH que celle retenue. Pupitre refuse de s’y connecter : plus de déploiement, de preflight ni de relevé tant que ce n’est pas tranché. Si elle a été réinstallée, acceptez la nouvelle clé ; sinon, une autre machine se fait peut-être passer pour elle.',
+  'hostKey.changed.verify':
+    'Pour vérifier : sur la machine, lancez ssh-keygen -lf sur les clés de /etc/ssh/ — l’empreinte présentée doit y figurer.',
+  'hostKey.expected': 'Retenue',
+  'hostKey.presented': 'Présentée',
+  'hostKey.accept': 'Accepter la nouvelle clé',
+  'hostKey.dismiss': 'Garder l’ancienne',
+  'hostKey.accept.title': 'Accepter la nouvelle clé de « {target} » ?',
+  'hostKey.accept.consequence':
+    'Pupitre se connectera de nouveau à cette machine, avec cette clé. Ne le faites qu’après avoir vérifié l’empreinte sur la machine elle-même.',
+  'hostKey.accepted': 'Nouvelle clé acceptée',
+  'hostKey.dismissed':
+    'Ancienne clé gardée — les connexions restent refusées tant que la machine présente l’autre',
   'field.portRangeShort': 'Plage de ports',
 
   // ── Les ports alloués ───────────────────────────────────────────────────
@@ -388,6 +406,7 @@ const fr = {
 
   // ── Les refus de l'API ──────────────────────────────────────────────────
   'error.notFound': 'Cible « {id} » introuvable',
+  'error.noPendingHostKey': 'Aucune nouvelle clé d’hôte en attente pour cette cible.',
   'error.nameTaken': 'Une cible se nomme déjà « {name} »',
   'error.endpointTaken': 'Une cible pointe déjà vers {user}@{host}:{port}',
   'error.nameTakenShort': 'Ce nom de cible est déjà pris',
@@ -633,6 +652,24 @@ const en: Translated<typeof fr> = {
   'value.sudo.password': 'password required',
   'field.credential': 'Credential',
   'value.credential': 'encrypted in the database, never exposed',
+  'field.hostKey': 'Host key',
+  'hostKey.recorded': 'recorded on {date}',
+  'hostKey.none': 'not recorded yet — it will be at the next connection',
+  'hostKey.changed.title': 'This machine’s host key has changed.',
+  'hostKey.changed.body':
+    'On {date}, it presented another SSH key than the recorded one. Pupitre refuses to connect: no deployment, preflight or readout until this is settled. If it was reinstalled, accept the new key; otherwise, another machine may be impersonating it.',
+  'hostKey.changed.verify':
+    'To check: on the machine, run ssh-keygen -lf on the keys in /etc/ssh/ — the presented fingerprint must be among them.',
+  'hostKey.expected': 'Recorded',
+  'hostKey.presented': 'Presented',
+  'hostKey.accept': 'Accept the new key',
+  'hostKey.dismiss': 'Keep the old one',
+  'hostKey.accept.title': 'Accept the new key of “{target}”?',
+  'hostKey.accept.consequence':
+    'Pupitre will connect to this machine again, with this key. Only do it after checking the fingerprint on the machine itself.',
+  'hostKey.accepted': 'New key accepted',
+  'hostKey.dismissed':
+    'Old key kept — connections stay refused while the machine presents the other one',
   'field.portRangeShort': 'Port range',
 
   'ports.title': 'Allocated ports',
@@ -769,6 +806,7 @@ const en: Translated<typeof fr> = {
 
 
   'error.notFound': 'Target “{id}” not found',
+  'error.noPendingHostKey': 'No new host key awaiting a decision for this target.',
   'error.nameTaken': 'A target is already named “{name}”',
   'error.endpointTaken': 'A target already points to {user}@{host}:{port}',
   'error.nameTakenShort': 'That target name is taken',

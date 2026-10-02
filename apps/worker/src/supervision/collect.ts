@@ -1,6 +1,7 @@
-import { decrypt, type HostMetrics } from '@pupitre/core';
-import { collectHostMetrics, type SshTarget } from '@pupitre/core/ssh';
+import type { HostMetrics } from '@pupitre/core';
+import { collectHostMetrics } from '@pupitre/core/ssh';
 import { getTargetSecret, recordTargetSample, type SampleSource } from '@pupitre/db';
+import { sshTargetOf } from '../deploy/ssh-target.js';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
 
@@ -23,23 +24,7 @@ export async function collectAndRecord(
   const record = await getTargetSecret(targetId);
   if (!record) throw new Error(`Cible « ${targetId} » introuvable`);
 
-  const { target, encryptedCredential } = record;
-  // Un des rares endroits où un credential est déchiffré : il ne quitte pas la
-  // portée de cette fonction et n'entre dans aucun log.
-  const secret = decrypt(encryptedCredential);
-
-  const sshTarget: SshTarget = {
-    host: target.host,
-    port: target.port,
-    username: target.sshUser,
-    sudoMethod: target.sudoMethod,
-    credentials:
-      target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: secret }
-        : { authMethod: 'password', password: secret },
-  };
-
-  const metrics = await collectHostMetrics(targetId, sshTarget, {
+  const metrics = await collectHostMetrics(targetId, sshTargetOf(record), {
     rootPath: env.DRIVER_ROOT_PATH,
     logger,
   });

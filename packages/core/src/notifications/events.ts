@@ -26,6 +26,7 @@ import {
  *   deployment.rolled_back    le panel est revenu tout seul à la version d'avant
  *   security.two_factor_reset une protection de compte a été levée
  *   security.role_changed     quelqu'un a gagné ou perdu des droits
+ *   security.host_key_changed une cible présente une autre clé d'hôte : connexion refusée
  *   monitor.down              un site supervisé est tombé, panne confirmée
  *   monitor.recovered         ce site est revenu
  *   image.update.available    une image déployée a été republiée, ou dépassée
@@ -86,6 +87,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'deployment.rolled_back',
   'security.two_factor_reset',
   'security.role_changed',
+  'security.host_key_changed',
   'monitor.down',
   'monitor.recovered',
   'target.threshold.breached',
@@ -236,6 +238,22 @@ const fr = {
   'security.role_changed.title': 'Rôle d’un utilisateur modifié',
   'security.role_changed.body': 'Le compte {account} passe de « {before} » à « {after} ».',
   'security.summary': 'compte {account}',
+
+  // ── security.host_key_changed ──────────────────────────────────────────
+  'security.host_key_changed.label': 'Clé d’hôte d’une cible changée',
+  'security.host_key_changed.description':
+    'Une cible a présenté une autre clé SSH que celle retenue : Pupitre refuse de s’y connecter.',
+  'security.host_key_changed.rationale':
+    'Soit la machine a été réinstallée, soit une autre se fait passer pour elle. ' +
+    'Dans les deux cas, plus rien n’y est déployé tant que quelqu’un n’a pas tranché.',
+  'security.host_key_changed.title': 'Clé d’hôte changée sur « {machine} »',
+  'security.host_key_changed.body':
+    'La cible {machine} ({host}) a présenté une autre clé SSH que celle retenue. ' +
+    'Pupitre refuse de s’y connecter. Si elle a été réinstallée, acceptez la nouvelle clé ' +
+    'sur sa page ; sinon, cherchez qui se fait passer pour elle.',
+  'security.host_key_changed.summary': 'cible {machine}',
+  'field.expectedKey': 'Clé retenue',
+  'field.presentedKey': 'Clé présentée',
 
   // ── monitor.down ───────────────────────────────────────────────────────
   'monitor.down.label': 'Site en panne',
@@ -482,6 +500,21 @@ const en: Translated<typeof fr> = {
   'security.role_changed.title': 'User role changed',
   'security.role_changed.body': 'Account {account} moves from “{before}” to “{after}”.',
   'security.summary': 'account {account}',
+
+  'security.host_key_changed.label': 'Target host key changed',
+  'security.host_key_changed.description':
+    'A target presented another SSH key than the recorded one: Pupitre refuses to connect.',
+  'security.host_key_changed.rationale':
+    'Either the machine was reinstalled, or another one is impersonating it. ' +
+    'Either way, nothing is deployed there until someone decides.',
+  'security.host_key_changed.title': 'Host key changed on “{machine}”',
+  'security.host_key_changed.body':
+    'Target {machine} ({host}) presented another SSH key than the recorded one. ' +
+    'Pupitre refuses to connect. If it was reinstalled, accept the new key on its page; ' +
+    'otherwise, find out who is impersonating it.',
+  'security.host_key_changed.summary': 'target {machine}',
+  'field.expectedKey': 'Recorded key',
+  'field.presentedKey': 'Presented key',
 
   'monitor.down.label': 'Site down',
   'monitor.down.description':
@@ -996,6 +1029,34 @@ const CATALOG = {
         path: '/admin/users',
         summary: t(lang, 'security.summary', { account }),
         summaryDetail: `${optional(before.roles) ?? none} → ${text(after.roles, '?')}`,
+      };
+    },
+  },
+  'security.host_key_changed': {
+    key: 'security.host_key_changed',
+    severity: 'critical',
+    auditAction: 'target.host_key.mismatch',
+    digestPath: '/targets',
+    matches: () => true,
+    // Une clé inattendue par message : le worker ne l'écrit qu'une fois par clé.
+    dedupDiscriminator: (entry) => optional(record(entry.after).presented),
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const before = record(entry.before);
+      const lang = ctx.language;
+      const machine = text(after.name, entry.resourceId ?? '?');
+      const host = text(after.host, '?');
+      return {
+        title: t(lang, 'security.host_key_changed.title', { machine }),
+        body: t(lang, 'security.host_key_changed.body', { machine, host }),
+        fields: fieldsOf([
+          [t(lang, 'field.target'), machine],
+          [t(lang, 'field.expectedKey'), optional(before.fingerprint)],
+          [t(lang, 'field.presentedKey'), optional(after.presented)],
+        ]),
+        path: entry.resourceId ? `/targets/${entry.resourceId}` : '/targets',
+        summary: t(lang, 'security.host_key_changed.summary', { machine }),
+        summaryDetail: text(after.presented, '?'),
       };
     },
   },
