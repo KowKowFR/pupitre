@@ -8,7 +8,7 @@ name: Bout en bout (stack complète)
 #
 #   docker build --no-cache de l'image du panel        84 s
 #   docker compose up -d --wait (image déjà là)        13 s  (migrations + seed inclus)
-#   les 9 scripts retenus ci-dessous, enchaînés       281 s
+#   les 9 premiers scripts retenus, enchaînés         281 s
 #                                                     ─────
 #                                                     ~6 min ici, ~12 min sur un runner
 #
@@ -166,6 +166,11 @@ jobs:
         if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'roles')) }}
         run: ./scripts/verify-roles.sh
 
+      - name: 'verify-api-tokens.sh — jetons d’API'
+        id: s_api_tokens
+        if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'api-tokens')) }}
+        run: ./scripts/verify-api-tokens.sh
+
       - name: 'verify-account.sh — compte et 2FA'
         id: s_account
         if: ${{ !cancelled() && steps.stack.outcome == 'success' && (inputs.only == '' || contains(inputs.only, 'account')) }}
@@ -220,6 +225,7 @@ jobs:
             echo "| verify-rbac-audit.sh | ${{ steps.s_rbac_audit.outcome }} |"
             echo "| verify-onboarding.sh | ${{ steps.s_onboarding.outcome }} |"
             echo "| verify-roles.sh | ${{ steps.s_roles.outcome }} |"
+            echo "| verify-api-tokens.sh | ${{ steps.s_api_tokens.outcome }} |"
             echo "| verify-account.sh | ${{ steps.s_account.outcome }} |"
             echo "| verify-2fa-reset.sh | ${{ steps.s_2fa.outcome }} |"
             echo "| verify-settings.sh | ${{ steps.s_settings.outcome }} |"

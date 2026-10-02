@@ -218,6 +218,12 @@ const fr = {
   'error.notFound': 'Déploiement « {id} » introuvable',
   'error.applicationNotFound': 'Application « {id} » introuvable',
   'error.targetNotFound': 'Cible « {id} » introuvable',
+  'error.images.unknownService': 'Le service « {service} » n’existe pas dans « {application} »',
+  'error.images.notImage':
+    'Le service « {service} » se construit depuis un Dockerfile : il n’a pas d’image à remplacer',
+  'error.images.invalid': '« {ref} » n’est pas une référence d’image valable',
+  'error.images.synced':
+    'L’AppSpec de « {application} » vient de son dépôt : changez l’image dans pupitre.json',
   'error.scanNotFound': 'Scan « {id} » introuvable',
   'error.enqueueFailed': "La tâche n'a pas reçu d'identifiant",
   'error.running': 'Ce déploiement est en cours. Attendez qu’il se termine.',
@@ -449,6 +455,12 @@ const en: Translated<typeof fr> = {
   'error.notFound': 'Deployment “{id}” not found',
   'error.applicationNotFound': 'Application “{id}” not found',
   'error.targetNotFound': 'Target “{id}” not found',
+  'error.images.unknownService': 'Service “{service}” does not exist in “{application}”',
+  'error.images.notImage':
+    'Service “{service}” is built from a Dockerfile: it has no image to replace',
+  'error.images.invalid': '“{ref}” is not a valid image reference',
+  'error.images.synced':
+    'The AppSpec of “{application}” comes from its repository: change the image in pupitre.json',
   'error.scanNotFound': 'Scan “{id}” not found',
   'error.enqueueFailed': 'The job got no ID',
   'error.running': 'This deployment is running. Wait for it to finish.',

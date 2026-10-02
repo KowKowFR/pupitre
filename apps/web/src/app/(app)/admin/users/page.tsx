@@ -8,6 +8,8 @@ import {
   listRoles,
   users,
 } from '@pupitre/db';
+import { InstanceTokensCard } from '@/components/api-tokens/instance-tokens-card';
+import { apiTokenRows } from '@/lib/api-token-rows';
 import { accountStateOf, accountStates } from '@/lib/account-state';
 import { mailChannelName } from '@/lib/account-mail';
 import { formatSettingsOf } from '@/lib/format';
@@ -51,21 +53,26 @@ export default async function UsersPage() {
     };
   });
 
+  const tokens = auth.can('user:read') ? await apiTokenRows({}, formatSettingsOf(settings)) : null;
+
   return (
-    <UsersView
-      items={items}
-      currentUserId={auth.userId}
-      currentUserName={rows.find((row) => row.id === auth.userId)?.name ?? ''}
-      instanceName={settings.instanceName}
-      roles={roleRows.map((role) => ({
-        key: role.key as RoleKey,
-        label: role.label,
-        description: role.description,
-      }))}
-      channel={channel}
-      passwordMinLength={PASSWORD_MIN_LENGTH}
-      canResetTwoFactor={auth.can('user:reset-2fa')}
-      format={formatSettingsOf(settings)}
-    />
+    <>
+      <UsersView
+        items={items}
+        currentUserId={auth.userId}
+        currentUserName={rows.find((row) => row.id === auth.userId)?.name ?? ''}
+        instanceName={settings.instanceName}
+        roles={roleRows.map((role) => ({
+          key: role.key as RoleKey,
+          label: role.label,
+          description: role.description,
+        }))}
+        channel={channel}
+        passwordMinLength={PASSWORD_MIN_LENGTH}
+        canResetTwoFactor={auth.can('user:reset-2fa')}
+        format={formatSettingsOf(settings)}
+      />
+      {tokens ? <InstanceTokensCard rows={tokens} /> : null}
+    </>
   );
 }

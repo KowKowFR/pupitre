@@ -4,6 +4,8 @@ import {
   deploymentJobDataSchema,
   scanConfigFromSettings,
   parseAppSpec,
+  parseImageReference,
+  type AppSpec,
   proxyCapabilities,
   routeListSchema,
   usableRuntimes,
@@ -20,6 +22,7 @@ import {
   listDeployments,
   logAudit,
   replaceRoutes,
+  updateApplication,
   resolveServingProxy,
   RouteTakenError,
   saveBackupPolicy,
@@ -34,7 +37,7 @@ import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { assertServable } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
-import { requirePermission } from '@/lib/rbac';
+import { requireApplicationScope, requirePermission, type AuthContext } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -58,7 +61,79 @@ const createBodySchema = createDeploymentSchema.extend({
    * l'AppSpec.
    */
   domains: routeListSchema.optional(),
+  /**
+   * Les images à déployer, service par service — ce qu'une CI passe après avoir
+   * construit et poussé un tag : `{ "web": "ghcr.io/acme/web:4f2c1e9" }`.
+   * L'AppSpec de l'application est mise à jour avec : sa fiche dit ce qui
+   * tourne, et le déploiement suivant repart de là. Changer l'application
+   * demande `application:update`, en plus de `deployment:create`.
+   */
+  images: z.record(z.string().min(1).max(48), z.string().min(1).max(512)).optional(),
 });
+
+/**
+ * Remplace les images demandées dans l'AppSpec et l'enregistre sur
+ * l'application. Ne touche qu'aux services qui se déploient depuis une image :
+ * un service construit depuis un Dockerfile n'a pas d'image à remplacer.
+ */
+async function applyImages(
+  auth: AuthContext,
+  application: { id: string; slug: string; appSpec: AppSpec },
+  images: Record<string, string>,
+  synced: boolean,
+): Promise<AppSpec> {
+  if (!auth.can('application:update')) throw new ForbiddenError('application:update');
+  // Le dépôt dit quoi (règle n° 9) : une image changée ici serait effacée par
+  // le prochain commit, et la fiche mentirait d'ici là.
+  if (synced) {
+    throw new ConflictError(
+      msg(messages, 'error.images.synced', { application: application.slug }),
+    );
+  }
+  const spec = parseAppSpec(application.appSpec);
+  const changed: Record<string, { before: string; after: string }> = {};
+  for (const [service, ref] of Object.entries(images)) {
+    const found = spec.services.find((candidate) => candidate.name === service);
+    if (!found) {
+      throw new HttpError(
+        422,
+        'unknown_service',
+        msg(messages, 'error.images.unknownService', { service, application: application.slug }),
+      );
+    }
+    if (found.source.type !== 'image') {
+      throw new HttpError(422, 'not_an_image', msg(messages, 'error.images.notImage', { service }));
+    }
+    if (!parseImageReference(ref)) {
+      throw new HttpError(422, 'invalid_image', msg(messages, 'error.images.invalid', { ref }));
+    }
+    if (found.source.ref !== ref) changed[service] = { before: found.source.ref, after: ref };
+  }
+  if (Object.keys(changed).length === 0) return spec;
+
+  const next = parseAppSpec({
+    ...spec,
+    services: spec.services.map((service) =>
+      changed[service.name]
+        ? { ...service, source: { type: 'image', ref: changed[service.name]!.after } }
+        : service,
+    ),
+  });
+  await updateApplication(application.id, { appSpec: next });
+  await logAudit({
+    actorId: auth.userId,
+    action: 'application.updated',
+    resourceType: 'application',
+    resourceId: application.id,
+    before: { images: Object.fromEntries(Object.entries(changed).map(([k, v]) => [k, v.before])) },
+    after: {
+      images: Object.fromEntries(Object.entries(changed).map(([k, v]) => [k, v.after])),
+      origin: 'deployment',
+    },
+    ip: auth.ip,
+  });
+  return next;
+}
 
 /**
  * Crée le déploiement et ses huit étapes en `pending`, puis enfile le job.
@@ -67,8 +142,14 @@ const createBodySchema = createDeploymentSchema.extend({
  * et le suivi se fait par `GET /api/deployments/:id/logs`.
  */
 export const POST = apiRoute(async (request) => {
-  const auth = await requirePermission(request, 'deployment:create');
-  const { backup: backupChoice, domains, ...input } = await readJsonBody(request, createBodySchema);
+  const auth = await requirePermission(request, 'deployment:create', { applicationScoped: true });
+  const {
+    backup: backupChoice,
+    domains,
+    images,
+    ...input
+  } = await readJsonBody(request, createBodySchema);
+  await requireApplicationScope(request, auth, input.applicationId);
 
   // Choisir les scanners et le seuil est une décision de sécurité : elle a sa
   // propre permission. Ne rien demander n'en réclame aucune — c'est la
@@ -123,9 +204,16 @@ export const POST = apiRoute(async (request) => {
     );
   }
 
+  // Une application qui vient d'un dépôt : son AppSpec est celle d'un commit,
+  // et c'est le code de ce commit qui se construit — où qu'on la déploie.
+  const synced = await getSyncedSource(input.applicationId);
+
   // L'AppSpec est figée dans le déploiement : l'application peut évoluer
   // ensuite sans rendre ce déploiement illisible.
-  const appSpec = parseAppSpec(application.appSpec);
+  const appSpec =
+    images && Object.keys(images).length > 0
+      ? await applyImages(auth, application, images, synced !== null)
+      : parseAppSpec(application.appSpec);
 
   // Le choix fait au premier déploiement : il pose la politique de sauvegarde
   // de l'application, s'il n'y en a pas encore. Ensuite, elle se règle sur sa
@@ -180,9 +268,6 @@ export const POST = apiRoute(async (request) => {
     }
   }
 
-  // Une application qui vient d'un dépôt : son AppSpec est celle d'un commit,
-  // et c'est le code de ce commit qui se construit — où qu'on la déploie.
-  const synced = await getSyncedSource(input.applicationId);
   const { deployment, steps } = await createDeploymentWithSteps({
     ...input,
     // Après `...input` : c'est la configuration effective qui est gelée.

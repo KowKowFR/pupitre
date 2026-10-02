@@ -16,9 +16,13 @@ async function requestFromHeaders(pathname: string): Promise<Request> {
   const incoming = await headers();
   const host = incoming.get('host') ?? 'localhost';
   const protocol = incoming.get('x-forwarded-proto') ?? 'http';
+  // Une page ne se lit qu'avec une session de navigateur : un jeton d'API
+  // ouvre l'API, pas l'interface.
+  const forwarded = new Headers(incoming);
+  forwarded.delete('authorization');
   return new Request(`${protocol}://${host}${pathname}`, {
     method: 'GET',
-    headers: incoming,
+    headers: forwarded,
   });
 }
 

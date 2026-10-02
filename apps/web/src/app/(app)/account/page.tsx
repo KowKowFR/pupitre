@@ -1,17 +1,28 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
-import { eq, getAppSettingsValue, getDb, lastSignIn, listRoles, users } from '@pupitre/db';
+import {
+  eq,
+  getAppSettingsValue,
+  getDb,
+  lastSignIn,
+  listApplications,
+  listRoles,
+  users,
+} from '@pupitre/db';
 import { PageHeader } from '@/components/page-header';
 import { Crumb } from '@/components/shell/breadcrumb';
 import { account as messages } from '@/i18n/messages/account';
 import { common } from '@/i18n/messages/common';
 import { getT } from '@/i18n/server';
 import { listAccountSessions } from '@/lib/account-sessions';
+import { apiTokenRows, delegablePermissionGroups } from '@/lib/api-token-rows';
 import { formatDateTime, formatDateTimeWith, formatSettingsOf } from '@/lib/format';
 import { compactIp } from '@/lib/ip';
 import { requirePageSession } from '@/lib/page-auth';
+import { isTeamMember } from '@/lib/rbac';
 import { relativeTime } from '@/lib/relative-time';
 import { AccountOverview } from './account-overview';
+import { ApiTokensCard } from './api-tokens-card';
 import { PasswordForm } from './password-form';
 import { SessionsCard } from './sessions-card';
 import { TwoFactorPanel } from './two-factor-panel';
@@ -44,6 +55,14 @@ export default async function AccountPage() {
   ]);
   const format = formatSettingsOf(settings);
   const twoFactorEnabled = row?.twoFactorEnabled ?? false;
+  // Un jeton ne délègue que des permissions : sans aucune, rien à déléguer.
+  const tokens = isTeamMember(auth)
+    ? await Promise.all([
+        apiTokenRows({ userId: auth.userId }, format),
+        delegablePermissionGroups(auth.permissions),
+        auth.can('application:read') ? listApplications() : Promise.resolve([]),
+      ])
+    : null;
   const roleLabels = auth.roles.map((key) => roles.find((role) => role.key === key)?.label ?? key);
 
   return (
@@ -111,6 +130,17 @@ export default async function AccountPage() {
           lastActive: relativeTime(session.updatedAt, tc),
         }))}
       />
+
+      {tokens ? (
+        <ApiTokensCard
+          rows={tokens[0]}
+          groups={tokens[1]}
+          applications={tokens[2].map((application) => ({
+            id: application.id,
+            name: application.name,
+          }))}
+        />
+      ) : null}
     </>
   );
 }

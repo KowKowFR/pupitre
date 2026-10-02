@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { and, asc, count, desc, eq, gte, lt, lte, or, sql } from 'drizzle-orm';
 import { getDb, type Database } from './client.js';
 import { auditLogs } from './schema/ops.js';
+import { apiTokens } from './schema/api-tokens.js';
 import { users } from './schema/auth.js';
 
 /**
@@ -86,7 +87,9 @@ declare global {
 
 /**
  * Ce que la requête en cours dit d'elle-même, pour les entrées qui ne le
- * précisent pas : aujourd'hui, le `User-Agent`.
+ * précisent pas : le `User-Agent`, et le jeton d'API par lequel elle s'est
+ * authentifiée — c'est ce qui distingue, au journal, ce qu'une personne a fait
+ * de ce que sa CI a fait en son nom.
  *
  * Un fournisseur plutôt qu'un champ ajouté à chaque appel : `logAudit()` est
  * appelé depuis une centaine d'endroits, et un navigateur oublié à l'un d'eux
@@ -95,7 +98,10 @@ declare global {
  * — ses actions n'ont pas de requête derrière elles. Même rangement que
  * l'observateur, sur `globalThis`, et pour la même raison.
  */
-export type AuditContextProvider = () => Promise<{ userAgent: string | null }>;
+export type AuditContextProvider = () => Promise<{
+  userAgent: string | null;
+  apiTokenId?: string | null;
+}>;
 
 declare global {
   var __tpAuditContext: AuditContextProvider | undefined;
@@ -105,13 +111,14 @@ export function setAuditContextProvider(provider: AuditContextProvider | null): 
   globalThis.__tpAuditContext = provider ?? undefined;
 }
 
-async function contextUserAgent(): Promise<string | null> {
+async function requestContext(): Promise<{ userAgent: string | null; apiTokenId: string | null }> {
   const provider = globalThis.__tpAuditContext;
-  if (!provider) return null;
+  if (!provider) return { userAgent: null, apiTokenId: null };
   try {
-    return (await provider()).userAgent;
+    const context = await provider();
+    return { userAgent: context.userAgent, apiTokenId: context.apiTokenId ?? null };
   } catch {
-    return null;
+    return { userAgent: null, apiTokenId: null };
   }
 }
 
@@ -156,8 +163,9 @@ export async function logAudit(
 ): Promise<AuditLogRow | null> {
   try {
     const parsed = auditEntrySchema.parse(entry);
+    const context = await requestContext();
     const userAgent =
-      parsed.userAgent !== undefined ? parsed.userAgent : (await contextUserAgent())?.slice(0, 512);
+      parsed.userAgent !== undefined ? parsed.userAgent : context.userAgent?.slice(0, 512);
     const [row] = await db
       .insert(auditLogs)
       .values({
@@ -169,6 +177,7 @@ export async function logAudit(
         after: parsed.after ?? null,
         ip: parsed.ip,
         userAgent: userAgent ?? null,
+        apiTokenId: context.apiTokenId,
       })
       .returning();
     // `notifyObserver` n'échoue jamais : le placer ici plutôt qu'après le
@@ -213,7 +222,14 @@ function auditWhere(filter: AuditFilter) {
 }
 
 export type AuditLogPage = {
-  items: Array<AuditLogRow & { actorEmail: string | null; actorName: string | null }>;
+  items: Array<
+    AuditLogRow & {
+      actorEmail: string | null;
+      actorName: string | null;
+      /** Le nom du jeton d'API qui a porté l'action, s'il y en a eu un. */
+      apiTokenName: string | null;
+    }
+  >;
   page: number;
   pageSize: number;
   total: number;
@@ -233,9 +249,11 @@ export async function listAuditLogs(
         auditLog: auditLogs,
         actorEmail: users.email,
         actorName: users.name,
+        apiTokenName: apiTokens.name,
       })
       .from(auditLogs)
       .leftJoin(users, eq(users.id, auditLogs.actorId))
+      .leftJoin(apiTokens, eq(apiTokens.id, auditLogs.apiTokenId))
       .where(where)
       .orderBy(orderBy)
       .limit(query.pageSize)
@@ -248,6 +266,7 @@ export async function listAuditLogs(
       ...row.auditLog,
       actorEmail: row.actorEmail,
       actorName: row.actorName,
+      apiTokenName: row.apiTokenName,
     })),
     page: query.page,
     pageSize: query.pageSize,
@@ -262,7 +281,10 @@ export async function countAuditLogs(filter: AuditFilter, db: Database = getDb()
   return row?.value ?? 0;
 }
 
-export type AuditExportRow = AuditLogRow & { actorEmail: string | null };
+export type AuditExportRow = AuditLogRow & {
+  actorEmail: string | null;
+  apiTokenName: string | null;
+};
 
 /**
  * Toutes les entrées qui répondent aux filtres, par lots, de la plus récente à
@@ -283,10 +305,15 @@ export async function* iterateAuditLogs(
 
   while (remaining > 0) {
     const where = auditWhere(filter);
-    const rows: Array<{ auditLog: AuditLogRow; actorEmail: string | null }> = await db
-      .select({ auditLog: auditLogs, actorEmail: users.email })
+    const rows: Array<{
+      auditLog: AuditLogRow;
+      actorEmail: string | null;
+      apiTokenName: string | null;
+    }> = await db
+      .select({ auditLog: auditLogs, actorEmail: users.email, apiTokenName: apiTokens.name })
       .from(auditLogs)
       .leftJoin(users, eq(users.id, auditLogs.actorId))
+      .leftJoin(apiTokens, eq(apiTokens.id, auditLogs.apiTokenId))
       .where(
         cursor === null
           ? where
@@ -302,7 +329,11 @@ export async function* iterateAuditLogs(
       .limit(Math.min(batchSize, remaining));
 
     if (rows.length === 0) return;
-    yield rows.map((row) => ({ ...row.auditLog, actorEmail: row.actorEmail }));
+    yield rows.map((row) => ({
+      ...row.auditLog,
+      actorEmail: row.actorEmail,
+      apiTokenName: row.apiTokenName,
+    }));
     remaining -= rows.length;
     const last = rows[rows.length - 1]!.auditLog;
     cursor = { createdAt: last.createdAt, id: last.id };

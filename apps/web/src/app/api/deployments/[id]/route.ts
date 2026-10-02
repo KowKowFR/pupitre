@@ -6,7 +6,7 @@ import { deployments as messages } from '@/i18n/messages/deployments';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
-import { requirePermission } from '@/lib/rbac';
+import { requireApplicationScope, requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,11 +15,12 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 export const GET = apiRoute<Context>(async (request, context) => {
-  await requirePermission(request, 'deployment:read');
+  const auth = await requirePermission(request, 'deployment:read', { applicationScoped: true });
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
   if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
+  await requireApplicationScope(request, auth, deployment.applicationId);
 
   return NextResponse.json({ ...deployment, steps: await listSteps(id) });
 });

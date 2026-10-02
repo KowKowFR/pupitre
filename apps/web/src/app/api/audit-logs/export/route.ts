@@ -53,6 +53,7 @@ export const GET = apiRoute(async (request) => {
           resourceId: entry.resourceId,
           ip: entry.ip,
           userAgent: entry.userAgent,
+          apiToken: entry.apiTokenName,
           before: entry.before,
           after: entry.after,
         })}\n`;

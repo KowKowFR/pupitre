@@ -20,7 +20,7 @@ import { ConflictError, ForbiddenError, HttpError, NotFoundError, msg } from '@/
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import { getOpsQueue } from '@/lib/queue';
-import { requirePermission } from '@/lib/rbac';
+import { requireApplicationScope, requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,8 +45,9 @@ const bodySchema = z.object({
  * ou après un `destroy`.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
-  const auth = await requirePermission(request, 'deployment:create');
+  const auth = await requirePermission(request, 'deployment:create', { applicationScoped: true });
   const { id } = paramsSchema.parse(await context.params);
+  await requireApplicationScope(request, auth, id);
   const input = await readJsonBody(request, bodySchema);
 
   const application = await getApplication(id);

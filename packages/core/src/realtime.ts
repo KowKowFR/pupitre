@@ -122,6 +122,7 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   job: 'jobs',
   user: 'users',
   role: 'users',
+  api_token: 'users',
   settings: 'settings',
   source_connection: 'settings',
   notification_channel: 'settings',

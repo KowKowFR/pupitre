@@ -45,6 +45,8 @@ export type AuditEntry = {
   ip: string | null;
   /** Le navigateur de la requête, tel qu'il s'annonce ; `null` pour le worker. */
   userAgent: string | null;
+  /** Le jeton d'API par lequel l'acteur a agi ; `null` depuis le panel. */
+  apiTokenName: string | null;
   before: unknown;
   after: unknown;
 };
@@ -243,6 +245,11 @@ export function AuditView({
                   {item.actorEmail ?? (
                     <span className="text-text-3 italic">{t('logs.anonymous')}</span>
                   )}
+                  {item.apiTokenName ? (
+                    <span className="t-cap block text-text-3">
+                      {t('logs.viaToken', { name: item.apiTokenName })}
+                    </span>
+                  ) : null}
                 </TableCell>
                 <TableCell>
                   <ActionBadge action={item.action} />
@@ -371,6 +378,9 @@ function EntryDrawer({
                   <span className="text-text-3 italic">{t('logs.anonymous')}</span>
                 ),
               },
+              ...(entry.apiTokenName
+                ? [{ term: t('logs.column.token'), value: entry.apiTokenName }]
+                : []),
               {
                 term: t('logs.column.action'),
                 value: <span className="mono">{entry.action}</span>,
