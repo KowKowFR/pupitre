@@ -1,5 +1,11 @@
 import { notFound } from 'next/navigation';
-import { checkableImages, defaultWatchPaths, usableRuntimes } from '@pupitre/core';
+import {
+  checkDockerfiles,
+  checkableImages,
+  defaultWatchPaths,
+  expectedDockerfiles,
+  usableRuntimes,
+} from '@pupitre/core';
 import {
   getApplication,
   getAppSettings,
@@ -9,6 +15,7 @@ import {
   listApplicationVersions,
   listImageUpdates,
   listPendingProposals,
+  listSourceArchives,
   listTargets,
 } from '@pupitre/db';
 import { z } from 'zod';
@@ -29,6 +36,7 @@ import { ServiceChips } from '../applications-view';
 import { ingressOf, serviceRows } from '../rows';
 import { ServiceList } from '../service-list';
 import { ApplicationActions } from './application-actions';
+import { ApplicationArchive, type ArchiveView } from './application-archive';
 import { ApplicationBackups } from './application-backups';
 import { ApplicationDomains } from './application-domains';
 import { ApplicationImages } from './application-images';
@@ -57,7 +65,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const application = await getApplication(parsed.data.id);
   if (!application) notFound();
 
-  const [versions, targets, storedSecrets, sources, proposals, connection, imageRows] =
+  const [versions, targets, storedSecrets, sources, proposals, connection, imageRows, archives] =
     await Promise.all([
       listApplicationVersions(application.id),
       listTargets(),
@@ -66,6 +74,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       listPendingProposals(application.id),
       getSourceConnection('github'),
       listImageUpdates(application.id),
+      listSourceArchives(application.id),
     ]);
   const lastImageCheck =
     imageRows
@@ -74,9 +83,20 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       .at(-1) ?? null;
 
   const rows: VersionRow[] = versions.map(
-    ({ sourceRepository, sourceRef, sourceSha, ...version }) => ({
+    ({
+      sourceRepository,
+      sourceRef,
+      sourceSha,
+      sourceArchiveName,
+      sourceArchiveSha256,
+      ...version
+    }) => ({
       ...version,
       source: commitSourceOf({ sourceRepository, sourceRef, sourceSha }),
+      archive:
+        sourceArchiveName && sourceArchiveSha256
+          ? { name: sourceArchiveName, sha256: sourceArchiveSha256 }
+          : null,
       createdAt: version.createdAt.toISOString(),
       finishedAt: version.finishedAt?.toISOString() ?? null,
     }),
@@ -126,6 +146,31 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
   const spec = application.appSpec;
   const services = serviceRows(spec);
+
+  // Le code téléversé : seulement sans dépôt lié, et quand il sert — un service
+  // qui se construit, ou des archives déjà envoyées.
+  const builds = expectedDockerfiles(spec).length > 0;
+  const archiveViews: ArchiveView[] = archives.map((archive) => ({
+    id: archive.id,
+    name: archive.name,
+    status: archive.status,
+    uploadedBytes: archive.uploadedBytes,
+    sha256: archive.sha256,
+    files: archive.report?.files ?? null,
+    unpackedBytes: archive.report?.unpackedBytes ?? null,
+    strippedRoot: archive.report?.strippedRoot ?? null,
+    skippedEntries: archive.report?.skippedEntries ?? 0,
+    rejection: archive.rejection
+      ? { code: archive.rejection, detail: archive.rejectionDetail }
+      : null,
+    uploadedByName: archive.uploadedByName,
+    ago: relativeTime(archive.createdAt, tc),
+  }));
+  const currentArchive = archives.find((archive) => archive.status !== 'receiving');
+  const archiveChecks =
+    currentArchive?.status === 'ready' && currentArchive.report
+      ? checkDockerfiles(spec, currentArchive.report.dockerfiles)
+      : [];
 
   return (
     <>
@@ -209,6 +254,16 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
           canRestore={auth.can('backup:restore')}
           canConfigure={auth.can('settings:manage')}
           format={formatSettingsOf(settings)}
+        />
+      ) : null}
+
+      {sources.length === 0 && (builds || archives.length > 0) ? (
+        <ApplicationArchive
+          applicationId={application.id}
+          archives={archiveViews}
+          checks={archiveChecks}
+          builds={builds}
+          canEdit={auth.can('application:update')}
         />
       ) : null}
 

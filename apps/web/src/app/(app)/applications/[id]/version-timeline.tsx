@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Check, Minus, RotateCcw, X } from 'lucide-react';
+import { Archive, Check, Minus, RotateCcw, X } from 'lucide-react';
 import type { DeploymentStatus } from '@pupitre/core';
 import { CommitRef } from '@/components/commit-ref';
 import { Alert } from '@/components/ui/alert';
@@ -33,6 +33,8 @@ export type VersionRow = {
   triggeredByEmail: string | null;
   /** Le commit de cette version, quand elle vient d'un dépôt lié. */
   source: CommitSource | null;
+  /** L'archive téléversée qu'elle a construite, quand le code venait de là. */
+  archive: { name: string; sha256: string } | null;
   createdAt: string;
   finishedAt: string | null;
   redeployable: boolean;
@@ -156,6 +158,16 @@ export function VersionTimeline({
                 <div className="t-cap flex flex-wrap gap-x-3 text-text-3">
                   {version.triggeredByEmail ? <span>{version.triggeredByEmail}</span> : null}
                   {version.source ? <CommitRef source={version.source} /> : null}
+                  {version.archive ? (
+                    <span
+                      className="mono inline-flex min-w-0 items-baseline gap-x-1.5"
+                      title={version.archive.sha256}
+                    >
+                      <Archive aria-hidden className="size-3 shrink-0 self-center" />
+                      <span className="truncate">{version.archive.name}</span>
+                      <span>{version.archive.sha256.slice(0, 7)}</span>
+                    </span>
+                  ) : null}
                   {version.imageTag ? (
                     <span className="mono truncate">{version.imageTag}</span>
                   ) : null}

@@ -1,11 +1,12 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AppSpec } from '@pupitre/core';
+import { SOURCE_ARCHIVES_KEPT, type AppSpec } from '@pupitre/core';
 import type { SourceArchive } from '@pupitre/core/drivers';
 import { SOURCE_ARCHIVE_MAX_BYTES } from '@pupitre/core/sources';
-import { getApplicationSource, type Deployment } from '@pupitre/db';
+import { getApplicationSource, getSourceArchive, type Deployment } from '@pupitre/db';
 import { getSourceProvider } from './provider.js';
+import { exportArchiveChunks } from './stored-archive.js';
 
 /**
  * L'archive du commit d'un run, téléchargée juste avant l'étape `upload`.
@@ -16,15 +17,51 @@ import { getSourceProvider } from './provider.js';
  * dès le dépôt terminé ; elle ne reste nulle part.
  */
 /**
- * Ce run apporte-t-il le code d'un dépôt ? La même réponse décide du
- * téléchargement ci-dessous et, dès le rendu, de l'endroit où les contextes de
- * construction se résolvent (`DriverContext.sourceInRelease`).
+ * Ce run apporte-t-il du code — celui d'un commit, ou une archive téléversée ?
+ * La même réponse décide du téléchargement ci-dessous et, dès le rendu, de
+ * l'endroit où les contextes de construction se résolvent
+ * (`DriverContext.sourceInRelease`).
  */
 export function carriesSourceCode(deployment: Deployment, spec: AppSpec): boolean {
-  return (
-    Boolean(deployment.sourceSha && deployment.sourceRepository) &&
-    spec.services.some((service) => service.source.type === 'dockerfile')
-  );
+  const code =
+    Boolean(deployment.sourceSha && deployment.sourceRepository) ||
+    Boolean(deployment.sourceArchiveSha256);
+  return code && spec.services.some((service) => service.source.type === 'dockerfile');
+}
+
+/**
+ * L'archive téléversée d'un run, relue depuis la base : l'archive propre que
+ * le worker a refaite à la réception, jamais les octets envoyés.
+ */
+async function storedArchive(
+  deployment: Deployment,
+  onLog: (line: string) => void,
+): Promise<{ archive: SourceArchive; cleanup: () => Promise<void> }> {
+  const name = deployment.sourceArchiveName ?? 'archive';
+  const stored = deployment.sourceArchiveId
+    ? await getSourceArchive(deployment.sourceArchiveId)
+    : null;
+  if (!stored || stored.status !== 'ready' || stored.sha256 !== deployment.sourceArchiveSha256) {
+    throw new Error(
+      `l'archive « ${name} » de ce déploiement n'est plus conservée — Pupitre garde ` +
+        `les ${SOURCE_ARCHIVES_KEPT} dernières de chaque application : téléversez-la de nouveau`,
+    );
+  }
+
+  const directory = await mkdtemp(join(tmpdir(), 'pupitre-source-'));
+  const cleanup = () => rm(directory, { recursive: true, force: true });
+  const localPath = join(directory, 'source.tar.gz');
+  try {
+    const bytes = await exportArchiveChunks(stored.id, 'tree', localPath);
+    onLog(
+      `archive « ${name} » (sha256 ${stored.sha256?.slice(0, 12)}…) relue depuis le panel — ` +
+        `${(bytes / 1024 / 1024).toFixed(1)} Mio`,
+    );
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
+  return { archive: { localPath, stripComponents: 1 }, cleanup };
 }
 
 export async function prepareSourceArchive(
@@ -33,6 +70,7 @@ export async function prepareSourceArchive(
   onLog: (line: string) => void,
 ): Promise<{ archive: SourceArchive; cleanup: () => Promise<void> } | null> {
   if (!carriesSourceCode(deployment, spec)) return null;
+  if (deployment.sourceArchiveSha256) return storedArchive(deployment, onLog);
   if (!deployment.sourceSha || !deployment.sourceRepository) return null;
 
   const source = deployment.sourceId ? await getApplicationSource(deployment.sourceId) : null;

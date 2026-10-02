@@ -95,6 +95,7 @@ const JOB_TOPICS: Array<[RegExp, LiveTopic]> = [
   [/^target:(preflight|metrics|metrics_sweep)$/, 'targets'],
   [/^workload:(remove|update|control)$/, 'targets'],
   [/^images:check$/, 'applications'],
+  [/^source:archive-inspect$/, 'applications'],
   [/^backup:(application|restore|delete)$/, 'applications'],
   [/^backup:panel$/, 'settings'],
   // Une connexion de proxy se lit sur la cible ; un domaine, sur l'application.
@@ -116,6 +117,7 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   application: 'applications',
   application_secret: 'applications',
   application_source: 'applications',
+  source_archive: 'applications',
   target: 'targets',
   monitor: 'monitors',
   scheduled_job: 'jobs',

@@ -54,6 +54,9 @@ function routes(dir) {
  * l'application visée **avant** d'agir.
  */
 const SCOPED = [
+  // Une CI sans dépôt lié téléverse le code de son application, puis déploie.
+  'applications/[id]/archives/[archiveId]/route.ts',
+  'applications/[id]/archives/route.ts',
   'applications/[id]/redeploy/route.ts',
   'applications/[id]/route.ts',
   'deployments/[id]/logs/route.ts',

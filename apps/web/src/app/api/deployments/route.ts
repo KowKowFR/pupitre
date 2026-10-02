@@ -38,6 +38,7 @@ import { logger } from '@/lib/logger';
 import { assertServable } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requireApplicationScope, requirePermission, type AuthContext } from '@/lib/rbac';
+import { codeFromArchive } from '@/lib/source-archives';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -215,6 +216,11 @@ export const POST = apiRoute(async (request) => {
       ? await applyImages(auth, application, images, synced !== null)
       : parseAppSpec(application.appSpec);
 
+  // Sans dépôt, le code d'un service construit vient de la dernière archive
+  // téléversée. Refusé ici — rien n'est enfilé — si elle manque, est encore
+  // en lecture, a été refusée, ou n'a pas le Dockerfile qu'on attend.
+  const archive = synced?.syncedSha ? null : await codeFromArchive(application.id, appSpec);
+
   // Le choix fait au premier déploiement : il pose la politique de sauvegarde
   // de l'application, s'il n'y en a pas encore. Ensuite, elle se règle sur sa
   // fiche — un déploiement ne la réécrit jamais.
@@ -284,6 +290,7 @@ export const POST = apiRoute(async (request) => {
           },
         }
       : {}),
+    ...(archive ? { archive } : {}),
   });
 
   const jobData = deploymentJobDataSchema.parse({

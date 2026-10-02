@@ -194,6 +194,14 @@ export const SOURCE_POLL_JOB = 'source:poll' as const;
 export const SOURCE_DEPLOY_JOB = 'source:deploy' as const;
 
 /**
+ * Relire une archive de code téléversée : la juger entrée par entrée, puis en
+ * faire l'archive propre que les déploiements déposeront. Quelques secondes de
+ * disque et de CPU — rien qui ait sa place dans une route HTTP, ni qui doive
+ * attendre derrière un déploiement : sur `supervision`, comme le polling.
+ */
+export const SOURCE_ARCHIVE_INSPECT_JOB = 'source:archive-inspect' as const;
+
+/**
  * Images des applications déployées : ce qui tourne, comparé à ce que le
  * registre annonce pour le même tag. Toutes les six heures (scheduler BullMQ),
  * et à la demande par « Vérifier maintenant » avec un `applicationId`. Sur
@@ -436,6 +444,13 @@ export const sourceDeployJobDataSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 export type SourceDeployJobData = z.infer<typeof sourceDeployJobDataSchema>;
+
+export const sourceArchiveInspectJobDataSchema = z.object({
+  archiveId: z.string().uuid(),
+  actorId: z.string().min(1).nullable().default(null),
+  ip: z.string().min(1).nullable().default(null),
+});
+export type SourceArchiveInspectJobData = z.infer<typeof sourceArchiveInspectJobDataSchema>;
 
 export const monitorSweepJobDataSchema = z.object({
   /** Restreint le balayage à une sonde. Sert au déclenchement manuel. */

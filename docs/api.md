@@ -153,7 +153,9 @@ la navigation métier.
 | `/api/domains` | GET | `application:read` — tous les domaines de l'instance : proxy, état, certificat, `certificateDaysLeft`, et `attention` pour ceux qui ne répondent pas ou dont le certificat approche de l'échéance |
 | `/api/applications/:id` | GET / PATCH / DELETE | `application:read` ⓐ / `application:update` / `application:delete` |
 | `/api/applications/:id/cascade` | GET / POST | GET : `application:delete` · POST : **union** `deployment:destroy` + `deployment:purge` + `application:delete` |
-| `/api/applications/:id/redeploy` | POST | `deployment:create` ⓐ |
+| `/api/applications/:id/redeploy` | POST | `deployment:create` ⓐ — une version construite depuis une archive qui n'est plus gardée : 409 `archive_gone` |
+| `/api/applications/:id/archives` | GET / POST | `application:read` ⓐ / `application:update` ⓐ — le code téléversé. POST : le corps **est** l'archive (`.tar.gz`, `.tar`, `.zip`, reconnue à ses octets, 100 Mio au plus), son nom dans `x-archive-name` (encodé comme un composant d'URL) ; `202` avec `{ archive, jobId }`, le worker la lit ensuite (`status` : `pending` → `ready` ou `rejected`, avec `rejection` et `rejectionDetail`). 413 trop gros, 415 pas une archive, 409 application liée à un dépôt, 429 au-delà de 20 envois en dix minutes |
+| `/api/applications/:id/archives/:archiveId` | GET / DELETE | `application:read` ⓐ / `application:update` ⓐ — son état et le rapport de lecture (`report` : fichiers, taille décompressée, dossier de tête retiré, Dockerfiles trouvés) ; jamais ses octets. DELETE : 409 tant qu'un déploiement en cours la construit |
 | `/api/applications/:id/images` | GET | `application:read` — dernier constat des images, cible par cible |
 | `/api/applications/:id/images/check` | POST | `application:read` — « Vérifier maintenant », par la file, 6 par minute |
 | `/api/applications/:id/versions` | GET | `application:read` |
@@ -167,7 +169,7 @@ la navigation métier.
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` ⓐ (+ `scan:configure` si un `scanConfig` est fourni ; un `backup` n'est retenu qu'avec `backup:manage`, et seulement si l'application n'a pas encore de politique ; `domains` remplace les domaines de l'application sur la cible avant le déploiement ; `images` — `{ "web": "ghcr.io/acme/web:4f2c1e9" }` — remplace l'image de ces services et enregistre l'AppSpec, avec **`application:update`** en plus, refusé pour une application liée à un dépôt) |
+| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` ⓐ (+ `scan:configure` si un `scanConfig` est fourni ; un `backup` n'est retenu qu'avec `backup:manage`, et seulement si l'application n'a pas encore de politique ; `domains` remplace les domaines de l'application sur la cible avant le déploiement ; `images` — `{ "web": "ghcr.io/acme/web:4f2c1e9" }` — remplace l'image de ces services et enregistre l'AppSpec, avec **`application:update`** en plus, refusé pour une application liée à un dépôt). Sans dépôt lié, un service qui se construit prend la dernière archive téléversée ; sinon 409 `source_code_missing`, `archive_pending`, `archive_rejected` ou `archive_dockerfile_missing`, avant que rien ne parte. Le détail d'un déploiement nomme son archive (`sourceArchiveName`, `sourceArchiveSha256`) comme son commit |
 | `/api/deployments/:id` | GET / DELETE | `deployment:read` ⓐ / **`deployment:destroy`** |
 | `/api/deployments/:id/purge` | DELETE | **`deployment:purge`** |
 | `/api/deployments/purge` | POST | `deployment:purge` — en masse, `dryRun` compris |

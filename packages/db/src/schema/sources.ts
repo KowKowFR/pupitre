@@ -1,4 +1,10 @@
-import type { AppSpec, SpecChange } from '@pupitre/core';
+import type {
+  AppSpec,
+  SourceArchiveFormat,
+  SourceArchiveRejection,
+  SourceArchiveReport,
+  SpecChange,
+} from '@pupitre/core';
 import {
   bigint,
   boolean,
@@ -14,12 +20,14 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   runtimeEnum,
+  sourceArchiveStatusEnum,
   sourceDeployToEnum,
   sourceModeEnum,
   sourceProposalStatusEnum,
   sourceProviderEnum,
 } from '../enums.js';
 import { users } from './auth.js';
+import { bytea } from './columns.js';
 import { applications, targets } from './infra.js';
 
 /**
@@ -152,4 +160,61 @@ export const sourceProposals = pgTable(
     uniqueIndex('source_proposals_commit_idx').on(t.sourceId, t.sha),
     index('source_proposals_status_idx').on(t.status),
   ],
+);
+
+/**
+ * Le code d'une application, téléversé dans le panel : l'autre voie d'entrée
+ * du code, pour une application qui n'a pas de dépôt lié.
+ *
+ * Une ligne par envoi. La plus récente est le code de l'application : celui
+ * qu'un déploiement construit. Les précédentes restent, peu nombreuses
+ * (`SOURCE_ARCHIVES_KEPT`), pour qu'un redéploiement d'une version récente
+ * retrouve son code. Les octets vivent en base, par morceaux — ni le panel ni
+ * le worker n'ont de disque en commun, et une sauvegarde du panel les emporte.
+ */
+export const sourceArchives = pgTable(
+  'source_archives',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicationId: uuid('application_id')
+      .notNull()
+      .references(() => applications.id, { onDelete: 'cascade' }),
+    /** Le nom du fichier envoyé : une étiquette, rien ne s'écrit jamais sous ce nom. */
+    name: text('name').notNull(),
+    /** Lu dans les octets à l'arrivée, jamais dans le nom ni dans l'en-tête. */
+    format: text('format').$type<SourceArchiveFormat>().notNull(),
+    status: sourceArchiveStatusEnum('status').notNull().default('receiving'),
+    /** Les octets reçus et leur SHA-256 : ce qu'un `sha256sum` local doit retrouver. */
+    uploadedBytes: bigint('uploaded_bytes', { mode: 'number' }).notNull().default(0),
+    sha256: text('sha256'),
+    /** L'archive propre, refaite par le worker : celle que les déploiements déposent. */
+    archiveBytes: bigint('archive_bytes', { mode: 'number' }),
+    report: jsonb('report').$type<SourceArchiveReport>(),
+    /** Pourquoi elle est refusée : un code, et le chemin en cause. */
+    rejection: text('rejection').$type<SourceArchiveRejection>(),
+    rejectionDetail: text('rejection_detail'),
+    uploadedBy: text('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    inspectedAt: timestamp('inspected_at', { withTimezone: true }),
+  },
+  (t) => [index('source_archives_application_idx').on(t.applicationId, t.createdAt)],
+);
+
+/**
+ * Les octets d'une archive, par morceaux d'un mégaoctet : on les écrit au fil
+ * de l'envoi et on les relit un à un, sans jamais tenir l'archive entière en
+ * mémoire. `upload` : ce qui a été reçu, le temps de la lecture. `tree` :
+ * l'archive propre, seule à servir ensuite.
+ */
+export const sourceArchiveChunks = pgTable(
+  'source_archive_chunks',
+  {
+    archiveId: uuid('archive_id')
+      .notNull()
+      .references(() => sourceArchives.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'upload' | 'tree'>().notNull(),
+    seq: integer('seq').notNull(),
+    data: bytea('data').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.archiveId, t.kind, t.seq] })],
 );

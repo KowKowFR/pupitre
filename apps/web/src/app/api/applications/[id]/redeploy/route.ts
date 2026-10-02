@@ -1,5 +1,6 @@
 import {
   DEPLOYMENT_RUN_JOB,
+  SOURCE_ARCHIVES_KEPT,
   applySecuritySettings,
   deploymentJobDataSchema,
   parseAppSpec,
@@ -10,12 +11,14 @@ import {
   getAppSettings,
   getApplication,
   getDeploymentForRun,
+  getSourceArchive,
   getTarget,
   logAudit,
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { applications as messages } from '@/i18n/messages/applications';
+import { archives as archiveMessages } from '@/i18n/messages/archives';
 import { ConflictError, ForbiddenError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { logger } from '@/lib/logger';
@@ -104,6 +107,26 @@ export const POST = apiRoute<Context>(async (request, context) => {
 
   const appSpec = parseAppSpec(source.deployment.appSpec);
 
+  // Une version construite depuis une archive téléversée en a besoin : on ne
+  // garde que les dernières, et rien d'autre ne la remplacerait.
+  const archive = source.deployment.sourceArchiveSha256
+    ? {
+        id: source.deployment.sourceArchiveId,
+        name: source.deployment.sourceArchiveName ?? 'archive',
+        sha256: source.deployment.sourceArchiveSha256,
+      }
+    : null;
+  if (archive) {
+    const stored = archive.id ? await getSourceArchive(archive.id) : null;
+    if (!stored || stored.status !== 'ready' || stored.sha256 !== archive.sha256) {
+      throw new HttpError(
+        409,
+        'archive_gone',
+        msg(archiveMessages, 'redeploy.gone', { name: archive.name, count: SOURCE_ARCHIVES_KEPT }),
+      );
+    }
+  }
+
   const { deployment, steps } = await createDeploymentWithSteps({
     applicationId: id,
     targetId: input.targetId,
@@ -124,6 +147,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
           },
         }
       : {}),
+    ...(archive ? { archive } : {}),
   });
 
   const job = await getOpsQueue().add(

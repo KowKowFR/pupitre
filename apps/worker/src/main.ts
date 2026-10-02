@@ -27,6 +27,7 @@ import {
   MONITOR_CAPTURE_JOB,
   MONITOR_SWEEP_EVERY_MS,
   MONITOR_SWEEP_JOB,
+  SOURCE_ARCHIVE_INSPECT_JOB,
   SOURCE_DEPLOY_JOB,
   SOURCE_POLL_EVERY_MS,
   SOURCE_POLL_JOB,
@@ -106,6 +107,7 @@ import {
   handleBackupRestore,
 } from './handlers/backup.js';
 import { handleSourceDeploy, handleSourcePoll } from './handlers/source.js';
+import { handleSourceArchiveInspect } from './handlers/source-archive.js';
 import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
 import { logger } from './logger.js';
 import { closeOpsQueue, getOpsQueue, getSupervisionQueue } from './queue.js';
@@ -195,6 +197,9 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // lui-même part sur `ops`, comme tous les autres.
   [SOURCE_POLL_JOB]: handleSourcePoll,
   [SOURCE_DEPLOY_JOB]: handleSourceDeploy,
+  // Une archive de code téléversée : la juger, la refaire propre. Quelques
+  // secondes de disque, qui ne doivent pas attendre derrière un déploiement.
+  [SOURCE_ARCHIVE_INSPECT_JOB]: handleSourceArchiveInspect,
   // Images déployées contre leurs registres : des HEAD HTTP et un
   // `docker inspect` par application, rien qui doive attendre un déploiement.
   [IMAGE_CHECK_JOB]: handleImageCheck,
