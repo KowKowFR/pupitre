@@ -1,4 +1,4 @@
-import type { RoleKey } from '@pupitre/core';
+import { requiresTwoFactor, type RoleKey } from '@pupitre/core';
 import {
   asc,
   getAppSettingsValue,
@@ -6,6 +6,7 @@ import {
   getTwoFactorStates,
   getUserGrants,
   listRoles,
+  listTwoFactorExposure,
   users,
 } from '@pupitre/db';
 import { InstanceTokensCard } from '@/components/api-tokens/instance-tokens-card';
@@ -31,6 +32,10 @@ export default async function UsersPage() {
   const twoFactor = await getTwoFactorStates(db);
   const settings = await getAppSettingsValue(db);
   const states = await accountStates(db);
+  // Un compte sans mot de passe n'entre que par la connexion unique : jamais tenu (`rbac.ts`).
+  const withPassword = new Set(
+    (await listTwoFactorExposure(db)).filter((entry) => entry.hasPassword).map((e) => e.userId),
+  );
 
   // Le nom du canal, pas seulement « oui / non » : l'écran peut alors dire *par
   // quoi* l'invitation partira, ce qui vaut mieux qu'un « c'est configuré ».
@@ -47,6 +52,9 @@ export default async function UsersPage() {
       banReason: row.banReason,
       roles: grants[index]?.roles ?? [],
       twoFactor: twoFactor.get(row.id) ?? 'none',
+      twoFactorRequired:
+        withPassword.has(row.id) &&
+        requiresTwoFactor(grants[index]?.permissions ?? [], settings.accounts.twoFactorPolicy),
       state: accountStateOf(state),
       invitationExpiresAt: state?.invitationExpiresAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),

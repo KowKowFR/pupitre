@@ -28,6 +28,13 @@ tentative est notée (`auth.admin_route.refused`). Le serveur garde l'usage du
 plugin (`getAuth().api.createUser`…), qui ne passe pas par HTTP ; le client ne
 charge plus `adminClient()`.
 
+Même chose pour **les routes du plugin `twoFactor`** (`/api/auth/two-factor/*`)
+hors des deux vérifications de la connexion (`verify-totp`,
+`verify-backup-code`) : activer, désactiver, régénérer les codes passe par
+`/api/account/two-factor/*`, qui écrit au journal et refuse de retirer un second
+facteur que le rôle exige. Ouvertes, elles contourneraient l'un et l'autre :
+404, et `auth.two_factor_route.refused` au journal.
+
 ### Connexion unique (OpenID Connect)
 
 Keycloak, Authentik, Google, Microsoft Entra : tout fournisseur qui publie une
@@ -109,6 +116,56 @@ préservée. Il ne gagne aucun accès qu'il n'ait déjà, et il évite d'ouvrir 
 client SQL. Réinitialiser un compte qui n'a pas de second facteur rend un `409`.
 
 L'action `user.2fa.reset` déclenche aussi une notification `security.two_factor_reset`.
+
+### Le second facteur exigé
+
+**Paramètres → Comptes et sessions** (`settings:manage`) règle qui doit en
+porter un :
+
+- **non** (le défaut) — chacun l'active, ou non, depuis « Mon compte » ;
+- **pour les droits sensibles** — tout rôle qui porte au moins une permission
+  de `SENSITIVE_PERMISSIONS` (`packages/core/src/permissions.ts`) : administrer
+  comptes et rôles, régler l'instance, créer ou modifier une cible, piloter ses
+  charges, créer une application ou la déployer, détruire, purger, restaurer.
+  L'administrateur l'est toujours ; l'auditeur et l'observateur, qui ne font que
+  lire, ne le sont pas ;
+- **pour tous les comptes**.
+
+Un compte tenu qui ne l'a pas encore **n'a accès qu'à l'écran qui l'active**
+(`/two-factor-setup`), où toutes les pages le renvoient : chaque route protégée
+répond `403 two_factor_required` (`permission.denied`, raison
+`two_factor_required`), `can()` répond non à tout, la discussion et la présence
+lui sont fermées — et **un jeton d'API de ce compte ne vaut pas mieux que lui**.
+Seules les routes de son compte restent ouvertes. Cet écran vit hors du groupe
+de routes `(app)`, comme l'assistant de démarrage : une redirection posée par
+le layout `(app)` vers une page qu'il enveloppe ferait boucler le routeur
+client de Next.
+Une fois armé, il ne se désactive plus (`409 two_factor_locked`) : un appareil
+perdu se règle par la réinitialisation ci-dessus, et le compte le réactive à la
+connexion suivante.
+
+**Un compte sans mot de passe**, qui n'entre que par la connexion unique, n'y
+est pas tenu : il ne pourrait pas l'activer (Better Auth le demande avec le mot
+de passe), et son second facteur est l'affaire du fournisseur d'identité.
+
+L'écran dit, avant d'enregistrer, quels rôles la politique toucherait et combien
+de comptes elle tiendrait à l'écart. Elle refuse d'exiger de son auteur un
+second facteur qu'il n'a pas (`409 two_factor_self`) : l'enregistrement lui
+fermerait aussitôt le panel.
+
+### La durée des sessions
+
+Même écran : une session se ferme **après une durée sans activité** — une heure,
+huit heures, un jour, sept jours (le défaut) ou trente — et, si on le veut,
+**après une durée absolue**, même active : un, sept ou trente jours, comptés
+depuis la connexion.
+
+La première est celle de Better Auth (`session.expiresIn`), qui prolonge une
+session utilisée ; `getAuth()` reconstruit son instance quand elle change
+(`lib/session-policy.ts`). La raccourcir vaut aussi pour les sessions déjà
+ouvertes : leur échéance est ramenée à « maintenant plus la nouvelle durée ».
+Le plafond absolu est tenu par `requireSession()`, qui retire la session de la
+base et écrit `auth.session.expired` (raison `max_age`).
 
 ## RBAC — 34 permissions
 
@@ -232,6 +289,8 @@ et le même audit.
 Un jeton ne passe pas le second facteur : c'est la nature d'un accès sans
 navigateur. C'est pour cela qu'il se crée depuis une session — qui, elle, l'a
 passé —, qu'il est limité dans le temps par défaut, et que sa création prévient.
+Et quand l'instance exige un second facteur d'un compte qui ne l'a pas, ses
+jetons sont refusés comme lui (`403 two_factor_required`).
 
 ## Ce qui vient d'ailleurs que le panel
 

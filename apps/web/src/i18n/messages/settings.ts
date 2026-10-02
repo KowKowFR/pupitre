@@ -48,6 +48,12 @@ const fr = {
   'section.sso.governs':
     "Se connecter au panel par un fournisseur d'identité — Keycloak, Authentik, Google, Microsoft Entra : tout ce qui parle OpenID Connect. Les comptes naissent à la première connexion, et leurs rôles peuvent suivre les groupes du fournisseur.",
 
+  'section.accounts.label': 'Comptes et sessions',
+  'section.accounts.title': 'Comptes et sessions',
+  'section.accounts.short': 'second facteur, durée des sessions',
+  'section.accounts.governs':
+    'Qui doit présenter un second facteur pour entrer, et combien de temps une session reste ouverte.',
+
   'section.notifications.label': 'Notifications',
   'section.notifications.title': 'Notifications',
   'section.notifications.short': 'où partent les alertes',
@@ -276,7 +282,7 @@ const fr = {
   'sso.roles.title': 'Les rôles',
   'sso.groupsClaim.label': 'Champ des groupes',
   'sso.groupsClaim.help':
-    'Où lire les groupes dans le jeton : groups (mappeur « Group Membership » de Keycloak), ou realm_access.roles pour les rôles de realm.',
+    'Où lire les groupes dans le jeton d’identité : groups, avec le mappeur « Group Membership » de Keycloak. Les rôles de realm (realm_access.roles) n’y figurent que si leur mappeur les y ajoute.',
   'sso.syncRoles.label': 'Le fournisseur fait foi',
   'sso.syncRoles.help':
     'Le rôle est recalculé à chaque connexion. Décoché, il n’est posé qu’à la création du compte, puis se règle dans Pupitre. Le dernier administrateur n’est jamais rétrogradé par là.',
@@ -304,6 +310,51 @@ const fr = {
   'overview.sso.off': 'désactivée',
   'overview.sso.active': 'active',
   'overview.sso.error': 'indisponible',
+
+  // ── Comptes et sessions ─────────────────────────────────────────────────
+  'accounts.state.off': 'au choix',
+  'accounts.state.sensitive': 'exigé · droits sensibles',
+  'accounts.state.all': 'exigé · tous les comptes',
+  'accounts.twoFactor.title': 'Le second facteur',
+  'accounts.policy.label': 'Exiger un second facteur',
+  'accounts.policy.off': 'Non',
+  'accounts.policy.sensitive': 'Pour les droits sensibles',
+  'accounts.policy.all': 'Pour tous les comptes',
+  'accounts.policy.off.help': 'Chacun l’active, ou non, depuis « Mon compte ».',
+  'accounts.policy.sensitive.help':
+    'Exigé de tout rôle qui porte au moins une de ces permissions — l’administrateur toujours :',
+  'accounts.policy.all.help': 'Exigé de chaque compte, quel que soit son rôle.',
+  'accounts.affected.roles': 'Rôles concernés : {roles}',
+  'accounts.affected.none': 'Aucun rôle concerné.',
+  'accounts.missing': {
+    one: '{count} compte concerné n’a pas encore de second facteur : à sa prochaine page, il devra l’activer, et n’aura accès à rien d’autre d’ici là.',
+    other:
+      '{count} comptes concernés n’ont pas encore de second facteur : à leur prochaine page, ils devront l’activer, et n’auront accès à rien d’autre d’ici là.',
+  },
+  'accounts.missing.none': 'Tous les comptes concernés en ont déjà un.',
+  'accounts.sso.note':
+    'Un compte sans mot de passe, qui n’entre que par la connexion unique, n’y est pas tenu : son second facteur est l’affaire du fournisseur d’identité.',
+  'accounts.self.warning':
+    'Vous n’avez pas vous-même de second facteur : activez-le d’abord depuis « Mon compte ».',
+  'accounts.error.self':
+    'Activez d’abord votre propre second facteur, depuis « Mon compte » : cette politique vous l’exigerait.',
+  'accounts.sessions.title': 'Les sessions',
+  'accounts.idle.label': 'Fermer une session inactive après',
+  'accounts.idle.help':
+    'Chaque visite la prolonge. Raccourcir la durée vaut aussi pour les sessions déjà ouvertes.',
+  'accounts.max.label': 'Fermer toute session après',
+  'accounts.max.help':
+    'Même active : il faudra se reconnecter au moins à cet intervalle, compté depuis la connexion.',
+  'accounts.max.never': 'Jamais',
+  'accounts.hours': { one: '{count} heure', other: '{count} heures' },
+  'accounts.days': { one: '{count} jour', other: '{count} jours' },
+  'accounts.max.shorter':
+    'Le plafond est plus court que la durée sans activité : c’est lui qui fermera les sessions.',
+  'overview.term.twoFactorPolicy': 'Second facteur',
+  'overview.term.sessionIdle': 'Session inactive',
+  'overview.term.sessionMax': 'Plafond',
+  'overview.badge.twoFactorOn': '2FA exigée',
+  'overview.badge.twoFactorOff': '2FA au choix',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -334,6 +385,12 @@ const en: Translated<typeof fr> = {
   'section.sso.short': 'sign in with Keycloak',
   'section.sso.governs':
     'Sign in to the panel through an identity provider — Keycloak, Authentik, Google, Microsoft Entra: anything that speaks OpenID Connect. Accounts are created on first sign-in, and their roles can follow the provider’s groups.',
+
+  'section.accounts.label': 'Accounts and sessions',
+  'section.accounts.title': 'Accounts and sessions',
+  'section.accounts.short': 'second factor, session length',
+  'section.accounts.governs':
+    'Who must present a second factor to get in, and how long a session stays open.',
 
   'section.notifications.label': 'Notifications',
   'section.notifications.title': 'Notifications',
@@ -546,7 +603,7 @@ const en: Translated<typeof fr> = {
   'sso.roles.title': 'Roles',
   'sso.groupsClaim.label': 'Groups field',
   'sso.groupsClaim.help':
-    'Where to read groups in the token: groups (Keycloak’s “Group Membership” mapper), or realm_access.roles for realm roles.',
+    'Where to read groups in the ID token: groups, with Keycloak’s “Group Membership” mapper. Realm roles (realm_access.roles) only show up there if their mapper adds them.',
   'sso.syncRoles.label': 'The provider is authoritative',
   'sso.syncRoles.help':
     'The role is recomputed at every sign-in. Unticked, it is only set when the account is created, then managed in Pupitre. The last administrator is never demoted this way.',
@@ -573,6 +630,50 @@ const en: Translated<typeof fr> = {
   'overview.sso.off': 'off',
   'overview.sso.active': 'active',
   'overview.sso.error': 'unavailable',
+
+  'accounts.state.off': 'optional',
+  'accounts.state.sensitive': 'required · sensitive rights',
+  'accounts.state.all': 'required · every account',
+  'accounts.twoFactor.title': 'Second factor',
+  'accounts.policy.label': 'Require a second factor',
+  'accounts.policy.off': 'No',
+  'accounts.policy.sensitive': 'For sensitive rights',
+  'accounts.policy.all': 'For every account',
+  'accounts.policy.off.help': 'Everyone turns it on, or not, from “My account”.',
+  'accounts.policy.sensitive.help':
+    'Required of any role holding at least one of these permissions — the administrator always:',
+  'accounts.policy.all.help': 'Required of every account, whatever its role.',
+  'accounts.affected.roles': 'Roles concerned: {roles}',
+  'accounts.affected.none': 'No role concerned.',
+  'accounts.missing': {
+    one: '{count} account concerned has no second factor yet: on its next page, it will have to turn it on, with access to nothing else until then.',
+    other:
+      '{count} accounts concerned have no second factor yet: on their next page, they will have to turn it on, with access to nothing else until then.',
+  },
+  'accounts.missing.none': 'Every account concerned already has one.',
+  'accounts.sso.note':
+    'An account without a password, signing in only through single sign-on, is exempt: its second factor is the identity provider’s business.',
+  'accounts.self.warning':
+    'You have no second factor yourself: turn it on first from “My account”.',
+  'accounts.error.self':
+    'Turn on your own second factor first, from “My account”: this policy would require it of you.',
+  'accounts.sessions.title': 'Sessions',
+  'accounts.idle.label': 'Close an idle session after',
+  'accounts.idle.help':
+    'Every visit extends it. Shortening the duration also applies to sessions already open.',
+  'accounts.max.label': 'Close any session after',
+  'accounts.max.help':
+    'Even while active: signing in again is needed at least this often, counted from sign-in.',
+  'accounts.max.never': 'Never',
+  'accounts.hours': { one: '{count} hour', other: '{count} hours' },
+  'accounts.days': { one: '{count} day', other: '{count} days' },
+  'accounts.max.shorter':
+    'The cap is shorter than the idle duration: it is what will close sessions.',
+  'overview.term.twoFactorPolicy': 'Second factor',
+  'overview.term.sessionIdle': 'Idle session',
+  'overview.term.sessionMax': 'Cap',
+  'overview.badge.twoFactorOn': '2FA required',
+  'overview.badge.twoFactorOff': '2FA optional',
 };
 
 export const settings = { fr, en };

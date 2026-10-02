@@ -271,6 +271,65 @@ export const ROLE_DEFINITIONS: Record<
   },
 };
 
+/**
+ * Les permissions **sensibles** : celles qui donnent la main sur autre chose
+ * que des lectures — un compte ou un rôle, l'instance, une machine (ses accès
+ * SSH, ce qui y tourne), du code exécuté sur une machine, des données qu'on
+ * détruit ou qu'on remplace.
+ *
+ * C'est la liste qui décide, quand l'instance l'exige, qui doit porter un
+ * second facteur : un rôle qui en porte une seule y est soumis. Déployer en
+ * fait partie — déployer ce qu'on veut, c'est exécuter ce qu'on veut sur la
+ * machine.
+ */
+export const SENSITIVE_PERMISSIONS: readonly Permission[] = [
+  // comptes et rôles
+  'user:manage',
+  'user:reset-2fa',
+  'role:manage',
+  // l'instance
+  'settings:manage',
+  // les machines
+  'target:create',
+  'target:update',
+  'target:delete',
+  'workload:manage',
+  'workload:exec',
+  // du code exécuté sur une machine
+  'application:create',
+  'application:update',
+  'deployment:create',
+  // des données détruites ou remplacées
+  'application:delete',
+  'backup:restore',
+  'deployment:destroy',
+  'deployment:purge',
+];
+
+const SENSITIVE_SET: ReadonlySet<string> = new Set<string>(SENSITIVE_PERMISSIONS);
+
+export function isSensitivePermission(permission: string): boolean {
+  return SENSITIVE_SET.has(permission);
+}
+
+/** Quand l'instance exige un second facteur. */
+export const TWO_FACTOR_POLICIES = ['off', 'sensitive', 'all'] as const;
+export type TwoFactorPolicy = (typeof TWO_FACTOR_POLICIES)[number];
+
+/**
+ * Ce compte doit-il porter un second facteur ? Selon la politique de
+ * l'instance et les permissions qu'il tient : `sensitive` y soumet tout rôle
+ * qui en porte une seule sensible — l'administrateur toujours.
+ */
+export function requiresTwoFactor(
+  permissions: readonly string[],
+  policy: TwoFactorPolicy,
+): boolean {
+  if (policy === 'all') return true;
+  if (policy === 'off') return false;
+  return permissions.some(isSensitivePermission);
+}
+
 /** Découpe `ressource:action`. */
 export function splitPermission(permission: Permission): {
   resource: string;

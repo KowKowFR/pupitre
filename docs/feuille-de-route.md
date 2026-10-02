@@ -51,6 +51,20 @@ clé.
 
 ## Trous de couverture
 
+### Les rôles de Keycloak ne passent pas tels quels
+
+La connexion unique lit les groupes dans le **jeton d'identité**, par un seul
+champ (`sso.groupsClaim`, lu par `claimValues()` dans
+`packages/core/src/sso.ts`). Or Keycloak ne met ses rôles de realm
+(`realm_access.roles`) et de client (`resource_access.<client>.roles`) que dans
+le **jeton d'accès** : ni le jeton d'identité ni `userinfo` ne les portent par
+défaut. Aujourd'hui, il faut donc passer par des groupes (mappeur « Group
+Membership ») — ou cocher « Add to ID token » sur le mappeur des rôles.
+
+Ce qu'il faudrait : lire aussi le jeton d'accès (vérifié contre les mêmes
+clés), accepter plusieurs champs à la fois (groupes **et** rôles), et proposer
+`realm_access.roles` comme un choix de l'écran plutôt qu'un chemin à saisir.
+
 ### Trivy ne voit pas les images construites sur K3s
 
 Il cherche containerd sur `/run/containerd/containerd.sock`, namespace

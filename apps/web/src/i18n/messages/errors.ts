@@ -39,6 +39,9 @@ const fr = {
   'forbidden': 'Permission « {permission} » requise',
   'account_disabled': 'Compte désactivé',
   'no_access': 'Votre compte n’a encore accès à rien : un administrateur doit vous attribuer un rôle',
+  'two_factor_required':
+    'Votre rôle exige un second facteur : connectez-vous au panel pour l’activer',
+  'two_factor_locked': 'Votre rôle exige un second facteur : il ne se désactive pas',
   'token.invalid': 'Jeton d’API invalide',
   'token.revoked': 'Ce jeton d’API a été révoqué',
   'token.expired': 'Ce jeton d’API est échu',
@@ -69,6 +72,8 @@ const en: Translated<typeof fr> = {
   'forbidden': 'Permission “{permission}” required',
   'account_disabled': 'Account disabled',
   'no_access': 'Your account has no access yet: an administrator has to assign you a role',
+  'two_factor_required': 'Your role requires a second factor: sign in to the panel to turn it on',
+  'two_factor_locked': 'Your role requires a second factor: it cannot be turned off',
   'token.invalid': 'Invalid API token',
   'token.revoked': 'This API token was revoked',
   'token.expired': 'This API token has expired',

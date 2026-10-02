@@ -1,17 +1,28 @@
 import 'server-only';
-import { isPermission, type Permission, type RoleKey } from '@pupitre/core';
-import { findApiTokenByHash, getUserGrants, logAudit, touchApiToken } from '@pupitre/db';
+import { isPermission, requiresTwoFactor, type Permission, type RoleKey } from '@pupitre/core';
+import {
+  eq,
+  findApiTokenByHash,
+  getAppSettingsValue,
+  getDb,
+  getUserGrants,
+  logAudit,
+  sessions,
+  touchApiToken,
+} from '@pupitre/db';
 import { bearerToken, hashApiToken } from './api-token-format';
-import { getSession } from './auth';
+import { getSession, hasPassword } from './auth';
 import {
   AccountDisabledError,
   ApiTokenScopeError,
   ForbiddenError,
   InvalidApiTokenError,
   NoAccessError,
+  TwoFactorRequiredError,
   UnauthenticatedError,
 } from './errors';
 import { clientIp } from './http';
+import { sessionPolicy } from './session-policy';
 
 /**
  * Contrôle d'accès. Point d'entrée unique : `requirePermission()`.
@@ -34,7 +45,31 @@ export type AuthContext = {
    * navigateur. `applications` : celles qu'il couvre, `null` pour toutes.
    */
   token: { id: string; name: string; applications: ReadonlySet<string> | null } | null;
+  /**
+   * Le second facteur du compte, au regard de la politique de l'instance.
+   * `mustEnroll` : exigé et absent — le compte n'a accès qu'à « Mon compte »,
+   * le temps de l'activer : `can()` répond non à tout, `permissions` dit ce que
+   * ses rôles lui donneront.
+   */
+  twoFactor: { enabled: boolean; required: boolean; mustEnroll: boolean };
 };
+
+/**
+ * Le second facteur exigé et absent. Un compte sans mot de passe — qui n'entre
+ * que par la connexion unique — n'y est pas tenu : il ne pourrait pas
+ * l'activer (Better Auth le demande avec le mot de passe), et sa protection
+ * est l'affaire du fournisseur d'identité.
+ */
+async function twoFactorState(
+  userId: string,
+  permissions: readonly string[],
+  enabled: boolean,
+): Promise<AuthContext['twoFactor']> {
+  const policy = (await getAppSettingsValue()).accounts.twoFactorPolicy;
+  const required = requiresTwoFactor(permissions, policy);
+  const mustEnroll = required && !enabled && (await hasPassword(userId));
+  return { enabled, required, mustEnroll };
+}
 
 /**
  * Une route qui ne se fait que depuis le panel a reçu un jeton d'API : 403, dit
@@ -81,8 +116,31 @@ export async function requireSession(request: Request): Promise<AuthContext> {
     throw new AccountDisabledError();
   }
 
+  // Le plafond absolu : au-delà, même active, la session se ferme — et elle
+  // est retirée de la base, pas seulement refusée.
+  const { maxSeconds } = sessionPolicy();
+  const openedAt = new Date(session.session.createdAt).getTime();
+  if (maxSeconds !== null && Date.now() - openedAt > maxSeconds * 1000) {
+    await getDb().delete(sessions).where(eq(sessions.id, session.session.id));
+    await logAudit({
+      actorId: session.user.id,
+      action: 'auth.session.expired',
+      resourceType: 'session',
+      resourceId: session.session.id,
+      after: { reason: 'max_age', maxHours: maxSeconds / 3600 },
+      ip,
+    });
+    throw new UnauthenticatedError();
+  }
+
   const grants = await getUserGrants(session.user.id);
   const permissionSet = new Set<string>(grants.permissions);
+  const userTwoFactor = (session.user as { twoFactorEnabled?: boolean | null }).twoFactorEnabled;
+  const twoFactor = await twoFactorState(
+    session.user.id,
+    grants.permissions,
+    userTwoFactor === true,
+  );
 
   return {
     userId: session.user.id,
@@ -92,8 +150,9 @@ export async function requireSession(request: Request): Promise<AuthContext> {
     roles: grants.roles,
     permissions: grants.permissions,
     ip,
-    can: (permission) => permissionSet.has(permission),
+    can: (permission) => !twoFactor.mustEnroll && permissionSet.has(permission),
     token: null,
+    twoFactor,
   };
 }
 
@@ -155,6 +214,7 @@ async function authenticateToken(
     (key): key is Permission => isPermission(key) && held.has(key),
   );
   const permissionSet = new Set<string>(permissions);
+  const twoFactor = await twoFactorState(user.id, grants.permissions, user.twoFactorEnabled);
   await touchApiToken(token.id, ip);
 
   return {
@@ -165,12 +225,13 @@ async function authenticateToken(
     roles: grants.roles,
     permissions,
     ip,
-    can: (key) => permissionSet.has(key),
+    can: (key) => !twoFactor.mustEnroll && permissionSet.has(key),
     token: {
       id: token.id,
       name: token.name,
       applications: token.applicationIds ? new Set(token.applicationIds) : null,
     },
+    twoFactor,
   };
 }
 
@@ -180,15 +241,34 @@ async function authenticateToken(
  * La discussion et la présence ne demandent aucune permission — elles sont à
  * toute l'équipe —, mais un compte sans accès, typiquement une inscription qui
  * attend qu'on lui choisisse un rôle, n'en fait pas encore partie : il n'y lit
- * rien, et personne ne le voit en ligne.
+ * rien, et personne ne le voit en ligne. Un compte qui doit encore activer son
+ * second facteur non plus, le temps de le faire.
  */
-export function isTeamMember(auth: Pick<AuthContext, 'permissions'>): boolean {
-  return auth.permissions.length > 0;
+export function isTeamMember(auth: Pick<AuthContext, 'permissions' | 'twoFactor'>): boolean {
+  return auth.permissions.length > 0 && !auth.twoFactor.mustEnroll;
 }
 
-/** Session d'un membre de l'équipe : 401 sans session, 403 sans aucune permission. */
+/**
+ * Session d'un membre de l'équipe : 401 sans session, 403 sans aucune
+ * permission — ou tant que le second facteur exigé n'est pas activé.
+ */
 export async function requireTeamMember(request: Request): Promise<AuthContext> {
   const auth = await requireSession(request);
+  if (auth.twoFactor.mustEnroll) {
+    await logAudit({
+      actorId: auth.userId,
+      action: 'permission.denied',
+      resourceType: 'permission',
+      resourceId: null,
+      after: {
+        reason: 'two_factor_required',
+        method: request.method,
+        path: new URL(request.url).pathname,
+      },
+      ip: auth.ip,
+    });
+    throw new TwoFactorRequiredError();
+  }
   if (!isTeamMember(auth)) {
     await logAudit({
       actorId: auth.userId,
@@ -261,6 +341,24 @@ export async function requirePermission(
       });
     }
     throw error;
+  }
+
+  // Exigé et absent : rien d'autre que « Mon compte », le temps de l'activer.
+  // Un jeton de ce compte ne vaut pas mieux que lui.
+  if (auth.twoFactor.mustEnroll) {
+    await logAudit({
+      actorId: auth.userId,
+      action: 'permission.denied',
+      resourceType: 'permission',
+      resourceId: permission,
+      after: {
+        reason: 'two_factor_required',
+        method: request.method,
+        path: new URL(request.url).pathname,
+      },
+      ip: auth.ip,
+    });
+    throw new TwoFactorRequiredError();
   }
 
   if (!auth.can(permission)) {

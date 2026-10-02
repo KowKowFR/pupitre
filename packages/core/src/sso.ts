@@ -30,7 +30,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Les valeurs d'un champ du profil, par son chemin pointé : `groups`, ou
- * `realm_access.roles` pour les rôles de realm de Keycloak. Une chaîne seule
+ * `realm_access.roles` pour les rôles de realm de Keycloak — que celui-ci ne
+ * met dans le jeton d'identité que si son mappeur l'y ajoute. Une chaîne seule
  * compte pour une valeur ; tout le reste est ignoré.
  */
 export function claimValues(profile: unknown, path: string): string[] {

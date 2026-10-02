@@ -96,6 +96,8 @@ SETTINGS_PAGES="/admin/settings
 /admin/settings/identite
 /admin/settings/regionalisation
 /admin/settings/securite
+/admin/settings/connexion
+/admin/settings/comptes
 /admin/settings/notifications
 /admin/settings/ia
 /admin/settings/demarrage"
@@ -128,6 +130,7 @@ fingerprint() {
     },
     securite: .settings.security,
     ia: (.settings.ai + { cle: .aiApiKeyConfigured, last4: .aiApiKeyLast4 }),
+    comptes: .settings.accounts,
     demarrage: .settings.onboarding
   } | del(.[$skip])' "$file"
 }
@@ -499,13 +502,13 @@ pass "un scanner hors vocabulaire est refusé"
 
 step "11. Chaque sous-section est atteignable et rend ses champs"
 # /admin/settings n'est pas une redirection : c'est le sommaire, et il mène aux
-# six sections. `page` exige un 200 direct, ce qui le prouve.
+# sections. `page` exige un 200 direct, ce qui le prouve.
 page /admin/settings "$WORK/overview.html"
-for target in identite regionalisation securite notifications ia demarrage; do
+for target in identite regionalisation securite connexion comptes notifications ia demarrage; do
   grep -q "/admin/settings/$target" "$WORK/overview.html" \
     || fail "le sommaire ne mène pas à /admin/settings/$target"
 done
-pass "/admin/settings répond 200 et mène aux six sections"
+pass "/admin/settings répond 200 et mène aux huit sections vérifiées"
 
 # Une section « atteignable » qui ne rendrait pas ses champs serait une page
 # morte de plus : on nomme donc, pour chacune, les identifiants qu'elle doit
@@ -524,6 +527,8 @@ check_page /admin/settings/identite 'id="instanceName"' 'id="instanceTagline"'
 check_page /admin/settings/regionalisation \
   'id="timezone"' 'id="locale"' 'id="dateStyle"' 'id="timeStyle"' 'Europe/Paris'
 check_page /admin/settings/securite 'id="failOn"' 'Scanners' 'trivy'
+check_page /admin/settings/connexion 'id="sso-issuer"' 'id="sso-client"' '/api/auth/callback/oidc'
+check_page /admin/settings/comptes 'name="two-factor-policy"' 'id="session-idle"' 'id="session-max"'
 check_page /admin/settings/notifications 'Ajouter un canal' 'Notifications'
 check_page /admin/settings/ia 'id="aiProvider"' 'id="aiModel"' 'id="apiKey"' 'type="submit"'
 check_page /admin/settings/demarrage 'Relancer l' 'Assistant de d'
@@ -537,7 +542,8 @@ code=$(req PATCH /api/settings '{
   "instanceName":"Instance cloisonnée","instanceTagline":"témoin de cloisonnement",
   "timezone":"Asia/Tokyo","locale":"en-GB","dateStyle":"long","timeStyle":"short",
   "security":{"scanningEnabled":true,"disabledScanners":["syft"],"failOn":"HIGH"},
-  "ai":{"enabled":false,"provider":"openai","model":"gpt-4.1-mini","temperature":0.65,"maxTokens":1024}
+  "ai":{"enabled":false,"provider":"openai","model":"gpt-4.1-mini","temperature":0.65,"maxTokens":1024},
+  "accounts":{"sessionIdleHours":8}
 }')
 [ "$code" = "200" ] || fail "personnalisation préalable → HTTP $code : $(cat "$BODY")"
 jq -e '.settings.instanceTagline == "témoin de cloisonnement"
@@ -545,6 +551,7 @@ jq -e '.settings.instanceTagline == "témoin de cloisonnement"
        and .settings.security.disabledScanners == ["syft"]
        and .settings.security.failOn == "HIGH"
        and .settings.ai.temperature == 0.65 and .settings.ai.maxTokens == 1024
+       and .settings.accounts.sessionIdleHours == 8
        and .aiApiKeyConfigured == true' "$BODY" >/dev/null \
   || fail "la personnalisation préalable n'a pas pris : $(jq -c .settings "$BODY")"
 pass "les sections portent des valeurs distinctes de leurs défauts"
@@ -588,10 +595,15 @@ isolate ia \
    and .settings.ai.maxTokens == 1024 and .settings.ai.enabled == false
    and .aiApiKeyConfigured == true'
 
+isolate comptes \
+  '{"accounts":{"sessionMaxHours":168}}' \
+  '.settings.accounts == {"twoFactorPolicy":"off","sessionIdleHours":8,"sessionMaxHours":168}'
+
 step "13. Ménage"
 req PATCH /api/settings '{"aiApiKey":null}' >/dev/null
 # Réglage de sécurité rendu à son défaut : les autres scripts en dépendent.
 req PATCH /api/settings '{"security":{"scanningEnabled":true,"disabledScanners":[],"failOn":"NONE"}}' >/dev/null
+req PATCH /api/settings '{"accounts":{"twoFactorPolicy":"off","sessionIdleHours":168,"sessionMaxHours":null}}' >/dev/null
 # L'étape 12 a personnalisé l'IA pour que le cloisonnement se voie : on la rend.
 req PATCH /api/settings \
   '{"ai":{"enabled":true,"provider":"openrouter","model":"anthropic/claude-sonnet-4.5","baseUrl":"","temperature":0.2,"maxTokens":8192}}' >/dev/null

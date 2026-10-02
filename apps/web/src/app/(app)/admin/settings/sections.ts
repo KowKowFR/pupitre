@@ -8,6 +8,7 @@ import {
   ScanSearch,
   Signature,
   Sparkles,
+  UserLock,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -36,6 +37,7 @@ export type SettingsSectionId =
   | 'regional'
   | 'security'
   | 'sso'
+  | 'accounts'
   | 'notifications'
   | 'ai'
   | 'integrations'
@@ -55,6 +57,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { href: '/admin/settings/regionalisation', id: 'regional', icon: Globe },
   { href: '/admin/settings/securite', id: 'security', icon: ScanSearch },
   { href: '/admin/settings/connexion', id: 'sso', icon: LogIn },
+  { href: '/admin/settings/comptes', id: 'accounts', icon: UserLock },
   { href: '/admin/settings/notifications', id: 'notifications', icon: Bell },
   { href: '/admin/settings/ia', id: 'ai', icon: Sparkles },
   { href: '/admin/settings/integrations', id: 'integrations', icon: Plug },

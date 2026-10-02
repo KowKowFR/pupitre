@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { currentAuth, redirectToLogin } from '@/lib/page-auth';
+import { redirect } from 'next/navigation';
+import { currentAuth, redirectToLogin, TWO_FACTOR_ENROLL_PATH } from '@/lib/page-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,9 @@ export const dynamic = 'force-dynamic';
  */
 export default async function OnboardingLayout({ children }: { children: ReactNode }) {
   // Pas de session valide : direction la connexion (par `/logout` si un cookie périmé traîne).
-  if (!(await currentAuth())) await redirectToLogin();
+  const auth = (await currentAuth()) ?? (await redirectToLogin());
+  // Le second facteur exigé d'abord : comme partout ailleurs (`(app)/layout.tsx`).
+  if (auth.twoFactor.mustEnroll) redirect(TWO_FACTOR_ENROLL_PATH);
 
   return <div className="min-h-dvh bg-bg">{children}</div>;
 }

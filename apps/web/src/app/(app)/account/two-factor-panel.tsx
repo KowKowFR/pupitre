@@ -44,7 +44,12 @@ function readSecret(totpURI: string): string {
   }
 }
 
-export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
+/**
+ * `required` : la politique de l'instance l'exige pour ce compte. Absent, il
+ * s'active ; présent, il ne se retire pas — la route le refuserait de toute
+ * façon (`two_factor_locked`).
+ */
+export function TwoFactorPanel({ enabled, required }: { enabled: boolean; required: boolean }) {
   const t = useT(messages);
   const tc = useT(common);
   const router = useRouter();
@@ -141,6 +146,10 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
             <Badge variant="warn" dot>
               {t('twoFactor.badge.setup')}
             </Badge>
+          ) : required ? (
+            <Badge variant="warn" dot>
+              {t('twoFactor.badge.required')}
+            </Badge>
           ) : (
             <Badge>{t('twoFactor.badge.off')}</Badge>
           )
@@ -150,7 +159,11 @@ export function TwoFactorPanel({ enabled }: { enabled: boolean }) {
         <CardDescription>{t('twoFactor.description')}</CardDescription>
       </CardHeader>
 
-      {enabled ? (
+      {enabled && required ? (
+        <CardContent className="flex flex-1 flex-col gap-4">
+          <p className="t-sm text-text-2">{t('twoFactor.locked.body')}</p>
+        </CardContent>
+      ) : enabled ? (
         <form onSubmit={disable} className="contents">
           <CardContent className="flex flex-1 flex-col gap-4">
             {error ? <Alert variant="destructive">{error}</Alert> : null}

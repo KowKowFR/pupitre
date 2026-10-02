@@ -32,7 +32,7 @@ import {
   loadRecentDeployments,
   loadTargets,
 } from '@/lib/overview';
-import { currentAuth, redirectToLogin } from '@/lib/page-auth';
+import { currentAuth, redirectToLogin, TWO_FACTOR_ENROLL_PATH } from '@/lib/page-auth';
 import { isTeamMember } from '@/lib/rbac';
 import { parseTheme, THEME_COOKIE } from '@/lib/theme';
 import { workerStatus } from '@/lib/worker-status';
@@ -42,6 +42,13 @@ export const dynamic = 'force-dynamic';
 export default async function AppLayout({ children }: { children: ReactNode }) {
   // Pas de session valide : direction la connexion (par `/logout` si un cookie périmé traîne).
   const auth = (await currentAuth()) ?? (await redirectToLogin());
+
+  /**
+   * Un rôle qui exige le second facteur, un compte qui ne l'a pas : il ne voit
+   * que l'écran qui l'active. L'API le refuse de toute façon
+   * (`requirePermission`) — ceci n'en est que la face visible.
+   */
+  if (auth.twoFactor.mustEnroll) redirect(TWO_FACTOR_ENROLL_PATH);
 
   const { settings } = await getAppSettings();
 

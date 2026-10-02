@@ -20,7 +20,7 @@ export * from './schedules.js';
 export * from './settings.js';
 export * from './two-factor.js';
 export { seedRbac } from './seed.js';
-export { and, asc, count, desc, eq, gte, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
+export { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
 export * from './chat.js';
 export * from './images.js';
 export * from './avatars.js';

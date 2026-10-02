@@ -107,7 +107,14 @@ export async function findApiTokenByHash(
   db: Database = getDb(),
 ): Promise<{
   token: ApiTokenRow;
-  user: { id: string; email: string; name: string; image: string | null; banned: boolean };
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    image: string | null;
+    banned: boolean;
+    twoFactorEnabled: boolean;
+  };
 } | null> {
   const [row] = await db
     .select({
@@ -118,6 +125,7 @@ export async function findApiTokenByHash(
         name: users.name,
         image: users.image,
         banned: users.banned,
+        twoFactorEnabled: users.twoFactorEnabled,
       },
     })
     .from(apiTokens)

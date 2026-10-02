@@ -63,6 +63,8 @@ export type AdminUserRow = {
   banReason: string | null;
   roles: RoleKey[];
   twoFactor: TwoFactorState;
+  /** La politique de l'instance l'exige de ce compte (« Comptes et sessions »). */
+  twoFactorRequired: boolean;
   /** Invité (lien vivant), invitation périmée, ou compte actif. */
   state: AccountState;
   invitationExpiresAt: string | null;
@@ -296,7 +298,11 @@ export function UsersView({
                     <AccountState user={user} t={t} format={format} />
                   </TableCell>
                   <TableCell>
-                    <TwoFactorBadge state={user.twoFactor} t={t} />
+                    <TwoFactorBadge
+                      state={user.twoFactor}
+                      required={user.twoFactorRequired}
+                      t={t}
+                    />
                   </TableCell>
                   <TableActions>
                     <span className="inline-flex items-center gap-1.5">
@@ -663,7 +669,15 @@ function AccountState({ user, t, format }: { user: AdminUserRow; t: T; format: F
   return <Badge className="mono">{t('users.state.active')}</Badge>;
 }
 
-function TwoFactorBadge({ state, t }: { state: TwoFactorState; t: T }) {
+function TwoFactorBadge({
+  state,
+  required,
+  t,
+}: {
+  state: TwoFactorState;
+  required: boolean;
+  t: T;
+}) {
   if (state === 'active') {
     return (
       <Badge variant="ok">
@@ -676,6 +690,13 @@ function TwoFactorBadge({ state, t }: { state: TwoFactorState; t: T }) {
     return (
       <Badge variant="warn" title={t('users.2fa.pending.title')}>
         {t('users.2fa.pending')}
+      </Badge>
+    );
+  }
+  if (required) {
+    return (
+      <Badge variant="danger" title={t('users.2fa.missing.title')}>
+        {t('users.2fa.missing')}
       </Badge>
     );
   }
