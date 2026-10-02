@@ -19,6 +19,7 @@ export type SectionKey =
   | 'catalog'
   | 'servers'
   | 'deployments'
+  | 'domains'
   | 'monitoring'
   | 'jobs'
   | 'logs'
@@ -48,6 +49,9 @@ const NAVIGATION: readonly NavGroup[] = [
       { key: 'catalog', href: '/catalog', permission: 'application:create' },
       { key: 'servers', href: '/apps', permission: 'deployment:read' },
       { key: 'deployments', href: '/deployments', permission: 'deployment:read', shortcut: 'P' },
+      // Tous les domaines de l'instance : ce qui se voit d'un domaine se lit avec
+      // la permission qui donne déjà ses domaines sur la fiche d'une application.
+      { key: 'domains', href: '/domains', permission: 'application:read' },
       { key: 'monitoring', href: '/monitors', permission: 'monitor:read', shortcut: 'S' },
       { key: 'jobs', href: '/jobs', permission: 'job:read' },
     ],

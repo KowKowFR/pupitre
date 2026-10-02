@@ -39,6 +39,7 @@ inconnu : `401 token_revoked`, `token_expired`, `token_invalid`. Voir
 | `/apps/:id` | Une application en marche : santé, logs live, redémarrage | `deployment:read` |
 | `/deployments` | Journal des runs, filtres, purge en masse | `deployment:read` |
 | `/deployments/:id` | Pipeline, logs SSE, scans, rollback, destruction | `deployment:read` |
+| `/domains` | **Tous les domaines** : le proxy qui les sert, leur état, l'échéance de leur certificat ; filtre « À surveiller » (ne répond pas, ou certificat sous quatorze jours) | `application:read` |
 | `/monitors` | Sondes HTTP et TLS | `monitor:read` |
 | `/monitors/:id` | Historique de mesures et incidents d'une sonde | `monitor:read` |
 | `/jobs` | Tâches planifiées, cron traduit en français, historique déroulant | `job:read` |
@@ -63,7 +64,7 @@ inconnu : `401 token_revoked`, `token_expired`, `token_invalid`. Voir
 | `/forbidden` | Écran de refus, **nomme la permission manquante** | publique |
 
 Le rail de navigation porte deux groupes — « Exploitation » (Tableau de bord,
-Cibles, Applications, Supervision, Sondes, Déploiements, Tâches) et
+Cibles, Applications, Catalogue, Supervision, Déploiements, Domaines, Sondes, Tâches) et
 « Administration » (**Logs**, Utilisateurs, Rôles, Paramètres). Chaque entrée
 n'apparaît qu'avec la permission qui va avec ; un groupe vide ne s'affiche pas.
 « Mon compte » et « Déconnexion » vivent en pied de rail, volontairement hors de
@@ -143,6 +144,7 @@ la navigation métier.
 | `/api/applications/:id/sources` | GET / POST | `application:read` / `application:update` — les branches suivies ; POST relie une branche : `deployTo` (`targets` · `running` · `none`), cibles exigées pour `targets` |
 | `/api/applications/:id/sources/:sourceId` | PATCH / DELETE | `application:update` — 422 si `deployTo: targets` sans cible |
 | `/api/integrations/github/specs` | GET | `application:create` — les `pupitre.json` d'une branche (`repository`, `installationId`, `branch` facultative), avec le commit lu |
+| `/api/domains` | GET | `application:read` — tous les domaines de l'instance : proxy, état, certificat, `certificateDaysLeft`, et `attention` pour ceux qui ne répondent pas ou dont le certificat approche de l'échéance |
 | `/api/applications/:id` | GET / PATCH / DELETE | `application:read` ⓐ / `application:update` / `application:delete` |
 | `/api/applications/:id/cascade` | GET / POST | GET : `application:delete` · POST : **union** `deployment:destroy` + `deployment:purge` + `application:delete` |
 | `/api/applications/:id/redeploy` | POST | `deployment:create` ⓐ |
