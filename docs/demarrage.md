@@ -185,6 +185,7 @@ docker compose --profile test config --services   # + ssh-target k3s-target mail
 | `ssh-target` | `test` | cible Docker jetable (docker-in-docker) |
 | `k3s-target` | `test` | cible K3s jetable (vrai cluster) |
 | `mailpit` | `test` | serveur SMTP jetable, pour `verify-notifications.sh` — interface sur <http://localhost:8025> |
+| `keycloak` | `test` | fournisseur OpenID Connect jetable, realm `pupitre` importé, pour `verify-sso.sh` — <http://localhost:8180> (`admin` / `admin`) |
 
 Les trois services de test sont `privileged` ou exposent des ports : ils ne
 doivent jamais démarrer par accident, d'où le profil. `docker compose up -d`

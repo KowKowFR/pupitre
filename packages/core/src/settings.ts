@@ -258,6 +258,100 @@ export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
 };
 
 /**
+ * Connexion unique par OpenID Connect — Keycloak, Authentik, Google, Entra :
+ * tout fournisseur qui publie un document de découverte.
+ *
+ * Le secret du client n'est **pas** ici : comme la clé d'IA, il a sa colonne
+ * chiffrée (`app_settings.sso_client_secret_encrypted`). Ce qui est ici peut
+ * être lu, rendu par l'API et écrit au journal sans rien exposer.
+ *
+ * Mêmes champs sans défaut que les autres sections, pour la même raison : un
+ * PATCH qui ne parle que de `enabled` ne doit pas effacer les correspondances
+ * de rôles.
+ */
+const ssoFields = {
+  enabled: z.boolean(),
+  /** Le texte du bouton : « Se connecter avec Keycloak ». */
+  label: z.string().trim().min(1).max(40),
+  /**
+   * L'émetteur, tel que le fournisseur l'annonce : pour Keycloak,
+   * `https://auth.exemple.fr/realms/mon-realm`. La découverte est lue à
+   * `{issuer}/.well-known/openid-configuration`.
+   */
+  issuer: z.union([
+    z.literal(''),
+    z
+      .string()
+      .trim()
+      .max(300)
+      .url()
+      .refine((value) => /^https?:\/\//.test(value), { message: 'adresse http(s) attendue' }),
+  ]),
+  clientId: z.string().trim().max(200),
+  /** Les portées demandées, séparées par des espaces. `openid` est toujours ajoutée. */
+  scopes: z.string().trim().max(300),
+  /** Créer le compte à la première connexion. Sinon, seuls les comptes existants entrent. */
+  autoCreate: z.boolean(),
+  /**
+   * Lier la connexion à un compte existant de même e-mail — seulement quand le
+   * fournisseur déclare cet e-mail vérifié.
+   */
+  linkByEmail: z.boolean(),
+  /** Où lire les groupes dans le profil : `groups`, ou un chemin `realm_access.roles`. */
+  groupsClaim: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(/^[\w:-]+(\.[\w:-]+)*$/, 'chemin de champ attendu, ex. groups ou realm_access.roles'),
+  /** Groupe du fournisseur → rôle de Pupitre. La première qui correspond l'emporte. */
+  roleMappings: z
+    .array(
+      z.object({
+        group: z.string().trim().min(1).max(200),
+        role: z.string().trim().min(1).max(60),
+      }),
+    )
+    .max(50),
+  /** Le rôle de qui n'a aucun groupe reconnu. */
+  defaultRole: z.string().trim().min(1).max(60),
+  /** Réappliquer les correspondances à chaque connexion : le fournisseur fait foi. */
+  syncRoles: z.boolean(),
+};
+
+export const ssoSettingsSchema = z.object({
+  enabled: ssoFields.enabled.default(false),
+  label: ssoFields.label.default('Keycloak'),
+  issuer: ssoFields.issuer.default(''),
+  clientId: ssoFields.clientId.default(''),
+  scopes: ssoFields.scopes.default('openid profile email'),
+  autoCreate: ssoFields.autoCreate.default(true),
+  linkByEmail: ssoFields.linkByEmail.default(true),
+  groupsClaim: ssoFields.groupsClaim.default('groups'),
+  roleMappings: ssoFields.roleMappings.default([]),
+  defaultRole: ssoFields.defaultRole.default('no-access'),
+  syncRoles: ssoFields.syncRoles.default(true),
+});
+
+export const ssoSettingsPatchSchema = z.object({
+  enabled: ssoFields.enabled.optional(),
+  label: ssoFields.label.optional(),
+  issuer: ssoFields.issuer.optional(),
+  clientId: ssoFields.clientId.optional(),
+  scopes: ssoFields.scopes.optional(),
+  autoCreate: ssoFields.autoCreate.optional(),
+  linkByEmail: ssoFields.linkByEmail.optional(),
+  groupsClaim: ssoFields.groupsClaim.optional(),
+  roleMappings: ssoFields.roleMappings.optional(),
+  defaultRole: ssoFields.defaultRole.optional(),
+  syncRoles: ssoFields.syncRoles.optional(),
+});
+
+export type SsoSettings = z.infer<typeof ssoSettingsSchema>;
+
+export const DEFAULT_SSO_SETTINGS: SsoSettings = ssoSettingsSchema.parse({});
+
+/**
  * La politique de scan de l'instance, telle qu'elle s'applique à un
  * déploiement qui n'en demande aucune en particulier.
  *
@@ -670,6 +764,7 @@ export const appSettingsShape = {
   timeStyle: appSettingsFields.timeStyle.default(FIELD_DEFAULTS.timeStyle),
   ai: aiSettingsSchema.default(DEFAULT_AI_SETTINGS),
   security: securitySettingsSchema.default(DEFAULT_SECURITY_SETTINGS),
+  sso: ssoSettingsSchema.default(DEFAULT_SSO_SETTINGS),
   /**
    * Avancement de l'assistant de démarrage. Il est dans la forme de *lecture*
    * mais volontairement absent de `appSettingsPatchSchema` : `PATCH
@@ -701,6 +796,7 @@ export const appSettingsPatchSchema = z.object({
   timeStyle: appSettingsFields.timeStyle.optional(),
   ai: aiSettingsPatchSchema.optional(),
   security: securitySettingsPatchSchema.optional(),
+  sso: ssoSettingsPatchSchema.optional(),
 });
 
 export type AppSettingsPatch = z.infer<typeof appSettingsPatchSchema>;

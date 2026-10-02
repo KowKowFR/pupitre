@@ -28,6 +28,45 @@ tentative est notée (`auth.admin_route.refused`). Le serveur garde l'usage du
 plugin (`getAuth().api.createUser`…), qui ne passe pas par HTTP ; le client ne
 charge plus `adminClient()`.
 
+### Connexion unique (OpenID Connect)
+
+Keycloak, Authentik, Google, Microsoft Entra : tout fournisseur qui publie une
+découverte OpenID Connect, réglé depuis **Paramètres → Connexion unique**
+(`settings:manage`). Le mot de passe reste possible pour qui en a un.
+
+- **Le jeton d'identité est vérifié** contre les clés publiées par le fournisseur
+  (`requireIdTokenVerification`), avec PKCE et un `nonce` : les groupes, donc
+  les rôles, ne viennent que d'un jeton signé. L'émetteur annoncé par la
+  découverte doit être celui qu'on a saisi — « Tester » le vérifie avant
+  d'enregistrer, derrière la garde de sortie.
+- **Le secret du client est chiffré** (`app_settings.sso_client_secret_encrypted`,
+  sous `MASTER_KEY`), comme la clé d'IA : il ne ressort jamais de l'API, et le
+  journal ne garde qu'un marqueur (`(défini)`).
+- **Un compte local n'est lié que si le fournisseur déclare l'e-mail vérifié.**
+  Le fournisseur n'est pas marqué « de confiance » : sans `email_verified`, la
+  liaison est refusée (`account_not_linked`) — sans quoi quiconque peut se créer
+  chez lui une adresse qu'il ne possède pas prendrait le compte Pupitre qui la
+  porte. Côté Pupitre, la vérification locale n'est pas exigée : un compte créé
+  par un administrateur n'a jamais cliqué de lien, et il est le bon.
+- **Les rôles viennent des groupes**, par une liste ordonnée « groupe → rôle »
+  (la première qui correspond l'emporte) et un rôle par défaut — « Sans accès »
+  par défaut. Un compte naît directement avec le rôle de ses groupes. Si « le
+  fournisseur fait foi », le rôle est recalculé à chaque connexion ; un
+  changement s'écrit `user.role.changed` avec `source: 'sso'`, donc notifié
+  comme tout changement de rôle. **Le dernier administrateur n'est jamais
+  rétrogradé** par là (`auth.sso.role.kept`, `reason: 'last_admin'`).
+- **Un compte désactivé dans Pupitre n'entre pas** par le fournisseur
+  (`BANNED_USER`). Le second facteur de Pupitre ne s'applique pas à une
+  connexion unique : c'est au fournisseur d'exiger le sien.
+- **Tout est tracé** : `auth.sso.login.succeeded` (avec les groupes reçus),
+  `auth.sso.login.failed` (avec le code d'erreur), `user.created` avec
+  `origin: 'sso'`.
+
+Better Auth fige ses fournisseurs à sa construction : `getAuth()` reconstruit
+son instance quand la configuration effective change (`lib/sso.ts`). Les
+sessions vivent en base et leurs cookies sont signés par `BETTER_AUTH_SECRET` :
+une reconstruction ne déconnecte personne.
+
 ### Mon compte — `/account`
 
 Écran self-service, sans permission RBAC : une session suffit.

@@ -58,6 +58,18 @@ const fr = {
   // ── Connexion ───────────────────────────────────────────────────────────
   'login.title': 'Connexion',
   'login.description': "Avec l'adresse et le mot de passe de votre compte.",
+  'login.description.sso':
+    'Avec votre compte {label}, ou avec l’adresse et le mot de passe de votre compte Pupitre.',
+  'login.sso': 'Se connecter avec {label}',
+  'login.sso.or': 'ou avec votre mot de passe',
+  'login.sso.pending': 'Redirection…',
+  'login.sso.error.signup_disabled':
+    'Aucun compte Pupitre pour cette identité, et la création à la première connexion est désactivée : demandez à un administrateur.',
+  'login.sso.error.account_not_linked':
+    'Un compte existe déjà avec cet e-mail, et il n’a pas pu être lié — e-mail non vérifié chez le fournisseur, ou liaison désactivée. Connectez-vous avec votre mot de passe.',
+  'login.sso.error.banned': 'Ce compte est désactivé.',
+  'login.sso.error.generic':
+    'La connexion par le fournisseur d’identité a échoué ({error}). Réessayez, ou utilisez votre mot de passe.',
   'login.submit': 'Se connecter',
   'login.pending': 'Connexion…',
   /** Volontairement générique : ne pas révéler si le compte existe. */
@@ -217,6 +229,17 @@ const en: Translated<typeof fr> = {
 
   'login.title': 'Sign in',
   'login.description': 'With the address and password of your account.',
+  'login.description.sso': 'With your {label} account, or with your email and password.',
+  'login.sso': 'Sign in with {label}',
+  'login.sso.or': 'or with your password',
+  'login.sso.pending': 'Redirecting…',
+  'login.sso.error.signup_disabled':
+    'No Pupitre account for this identity, and creating one on first sign-in is disabled: ask an administrator.',
+  'login.sso.error.account_not_linked':
+    'An account already exists with this email, and it could not be linked — email not verified by the provider, or linking disabled. Sign in with your password.',
+  'login.sso.error.banned': 'This account is disabled.',
+  'login.sso.error.generic':
+    'Signing in through the identity provider failed ({error}). Try again, or use your password.',
   'login.submit': 'Sign in',
   'login.pending': 'Signing in…',
   'login.rejected': 'Invalid credentials.',

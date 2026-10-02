@@ -28,6 +28,7 @@ export * from './realtime.js';
 export * from './schedule.js';
 export * from './scan.js';
 export * from './settings.js';
+export * from './sso.js';
 export * from './sources/types.js';
 export * from './sources/spec-change.js';
 export * from './sources/spec-file.js';

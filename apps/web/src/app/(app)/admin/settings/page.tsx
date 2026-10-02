@@ -14,6 +14,7 @@ import { currentLanguage, getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { formatDateTime, formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
+import { currentSso } from '@/lib/sso';
 import { SETTINGS_SECTIONS } from './sections';
 import { AiStatusBadge } from './ai-status';
 
@@ -49,6 +50,7 @@ export default async function SettingsOverviewPage() {
     countApplicationSources(),
   ]);
   const activeChannels = channels.filter((channel) => channel.enabled);
+  const sso = await currentSso();
 
   const activeScanners = SCANNER_KEYS.filter(
     (key) => !settings.security.disabledScanners.includes(key),
@@ -96,6 +98,20 @@ export default async function SettingsOverviewPage() {
       {
         term: t('overview.term.failOn'),
         value: failOnLabel(settings.security.failOn, language),
+      },
+    ],
+    '/admin/settings/connexion': [
+      {
+        term: t('overview.term.ssoStatus'),
+        value: !settings.sso.enabled
+          ? t('overview.sso.off')
+          : sso.runtime
+            ? t('overview.sso.active')
+            : t('overview.sso.error'),
+      },
+      {
+        term: t('overview.term.ssoProvider'),
+        value: settings.sso.issuer ? <span className="mono">{settings.sso.label}</span> : '—',
       },
     ],
     '/admin/settings/notifications': [

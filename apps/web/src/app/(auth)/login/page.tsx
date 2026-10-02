@@ -3,6 +3,7 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { getT } from '@/i18n/server';
 import { canSendAccountMail } from '@/lib/account-mail';
 import { isSignupOpen } from '@/lib/auth';
+import { currentSso, ssoButton } from '@/lib/sso';
 import { LoginForm } from './login-form';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -14,9 +15,12 @@ export const dynamic = 'force-dynamic';
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, error } = await searchParams;
+  // Un fournisseur éteint au démarrage du panel est retenté ici, au plus une
+  // fois par minute : le bouton revient de lui-même.
+  await currentSso();
   // Ne redirige que vers un chemin interne : pas de redirection ouverte.
   const target = next?.startsWith('/') && !next.startsWith('//') ? next : '/';
 
@@ -34,6 +38,8 @@ export default async function LoginPage({
       next={target}
       canRecoverPassword={await canSendAccountMail()}
       signupOpen={await isSignupOpen()}
+      sso={ssoButton()}
+      ssoError={typeof error === 'string' ? error.slice(0, 80) : null}
     />
   );
 }

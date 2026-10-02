@@ -139,9 +139,11 @@ reste du premier modèle, où le proxy se choisissait par déploiement —, et
 `0034_roles_auditor_no_access`, qui ajoute les rôles `auditor` et `no-access` à
 une base existante et resserre `viewer` s'il n'a jamais été modifié, et
 `0035_api_tokens`, les jetons d'API (`api_tokens`, l'empreinte seule) et le jeton
-qui a porté chaque entrée du journal (`audit_logs.api_token_id`), et
+qui a porté chaque entrée du journal (`audit_logs.api_token_id`),
 `0036_alerts`, l'épisode « machine injoignable » (`targets.unreachable_since`)
-et l'échéance de certificat déjà signalée (`routes.certificate_alert`), se lisent dans
+et l'échéance de certificat déjà signalée (`routes.certificate_alert`), et
+`0037_sso`, le secret chiffré du client de connexion unique
+(`app_settings.sso_client_secret_encrypted`), se lisent dans
 `packages/db/migrations/`.
 
 ### Deux arbitrages qui se lisent dans le SQL

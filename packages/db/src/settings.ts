@@ -15,7 +15,8 @@ import { appSettings } from './schema/settings.js';
  * Accès aux paramètres d'instance.
  *
  * Règle absolue, calquée sur `targets.ts` : `ai_api_key_encrypted` ne sort d'ici
- * que par `getAiApiKey()`. Toutes les autres lectures rendent un
+ * que par `getAiApiKey()`, `sso_client_secret_encrypted` que par
+ * `getSsoClientSecret()`. Toutes les autres lectures rendent un
  * `AppSettingsRecord`, où la clé n'existe simplement pas — seulement le fait
  * qu'elle soit posée et ses quatre derniers caractères. Le secret ne peut donc
  * pas fuir par oubli de filtrage dans un handler.
@@ -30,6 +31,8 @@ export type AppSettingsRecord = {
   aiApiKeyConfigured: boolean;
   /** Quatre derniers caractères, pour reconnaître la clé sans la révéler. */
   aiApiKeyLast4: string | null;
+  /** Un secret de client OpenID Connect est-il enregistré ? Jamais le secret. */
+  ssoClientSecretConfigured: boolean;
   updatedAt: Date | null;
   updatedBy: string | null;
 };
@@ -38,6 +41,7 @@ const EMPTY_RECORD: AppSettingsRecord = {
   settings: DEFAULT_APP_SETTINGS,
   aiApiKeyConfigured: false,
   aiApiKeyLast4: null,
+  ssoClientSecretConfigured: false,
   updatedAt: null,
   updatedBy: null,
 };
@@ -110,6 +114,7 @@ function toRecord(row: typeof appSettings.$inferSelect | undefined): AppSettings
     settings: parseAppSettings(row.value),
     aiApiKeyConfigured: row.aiApiKeyEncrypted !== null,
     aiApiKeyLast4,
+    ssoClientSecretConfigured: row.ssoClientSecretEncrypted !== null,
     updatedAt: row.updatedAt,
     updatedBy: row.updatedBy,
   };
@@ -158,7 +163,21 @@ export async function getAiApiKey(db: Database = getDb()): Promise<string | null
  * D'où le test d'existence de la propriété plutôt qu'une comparaison à
  * `undefined`, qui confondrait « absent » et « explicitement vide ».
  */
-export type AppSettingsUpdate = AppSettingsPatch & { aiApiKey?: string | null };
+/** Le secret du client OpenID Connect, déchiffré — pour construire le fournisseur, rien d'autre. */
+export async function getSsoClientSecret(db: Database = getDb()): Promise<string | null> {
+  const [row] = await db
+    .select({ encrypted: appSettings.ssoClientSecretEncrypted })
+    .from(appSettings)
+    .where(eq(appSettings.id, SINGLETON_ID));
+
+  if (!row?.encrypted) return null;
+  return decrypt(row.encrypted);
+}
+
+export type AppSettingsUpdate = AppSettingsPatch & {
+  aiApiKey?: string | null;
+  ssoClientSecret?: string | null;
+};
 
 /** Ce qu'une écriture a fait de la clé — de quoi rédiger l'entrée d'audit. */
 export type AiApiKeyChange = 'unchanged' | 'set' | 'cleared';
@@ -167,6 +186,7 @@ export type AppSettingsUpdateResult = {
   before: AppSettingsRecord;
   after: AppSettingsRecord;
   keyChange: AiApiKeyChange;
+  ssoSecretChange: AiApiKeyChange;
 };
 
 /**
@@ -179,8 +199,9 @@ export async function updateAppSettings(
   actorId: string | null,
   db: Database = getDb(),
 ): Promise<AppSettingsUpdateResult> {
-  const { aiApiKey, ...settingsPatch } = patch;
+  const { aiApiKey, ssoClientSecret, ...settingsPatch } = patch;
   const keyProvided = Object.hasOwn(patch, 'aiApiKey');
+  const ssoSecretProvided = Object.hasOwn(patch, 'ssoClientSecret');
 
   // Lecture directe, sans passer par le cache : une écriture doit partir de
   // l'état réellement en base, pas d'un instantané vieux de cinq secondes.
@@ -201,12 +222,25 @@ export async function updateAppSettings(
     }
   }
 
+  let encryptedSsoSecret: string | null = currentRow?.ssoClientSecretEncrypted ?? null;
+  let ssoSecretChange: AiApiKeyChange = 'unchanged';
+  if (ssoSecretProvided) {
+    if (ssoClientSecret === null || ssoClientSecret === undefined) {
+      encryptedSsoSecret = null;
+      ssoSecretChange = 'cleared';
+    } else {
+      encryptedSsoSecret = encrypt(ssoClientSecret);
+      ssoSecretChange = 'set';
+    }
+  }
+
   const [row] = await db
     .insert(appSettings)
     .values({
       id: SINGLETON_ID,
       value,
       aiApiKeyEncrypted: encryptedKey,
+      ssoClientSecretEncrypted: encryptedSsoSecret,
       updatedAt: new Date(),
       updatedBy: actorId,
     })
@@ -215,6 +249,7 @@ export async function updateAppSettings(
       set: {
         value,
         aiApiKeyEncrypted: encryptedKey,
+        ssoClientSecretEncrypted: encryptedSsoSecret,
         updatedAt: new Date(),
         updatedBy: actorId,
       },
@@ -222,7 +257,7 @@ export async function updateAppSettings(
     .returning();
 
   invalidateAppSettingsCache();
-  return { before, after: toRecord(row), keyChange };
+  return { before, after: toRecord(row), keyChange, ssoSecretChange };
 }
 
 /**

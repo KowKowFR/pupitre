@@ -32,6 +32,12 @@ export const appSettings = pgTable(
      * clé n'y est pas.
      */
     aiApiKeyEncrypted: text('ai_api_key_encrypted'),
+    /**
+     * Secret du client OpenID Connect (connexion unique), même chiffrement et
+     * même rangement que la clé d'IA : hors de `value`, qui se lit, se rend et
+     * s'écrit au journal sans rien exposer.
+     */
+    ssoClientSecretEncrypted: text('sso_client_secret_encrypted'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     /**
      * `text` et non `uuid` : `users.id` est un identifiant Better Auth, de type

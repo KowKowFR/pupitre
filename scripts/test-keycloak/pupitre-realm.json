@@ -1,0 +1,82 @@
+{
+  "realm": "pupitre",
+  "displayName": "Pupitre — realm de test",
+  "enabled": true,
+  "sslRequired": "none",
+  "loginTheme": "keycloak",
+  "groups": [
+    { "name": "pupitre-admins" },
+    { "name": "pupitre-ops" },
+    { "name": "pupitre-lecture" }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@keycloak.test",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Exploitation",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Alice-Keycloak-2026", "temporary": false }],
+      "groups": ["/pupitre-ops"]
+    },
+    {
+      "username": "bruno",
+      "email": "bruno@keycloak.test",
+      "emailVerified": true,
+      "firstName": "Bruno",
+      "lastName": "Lecture",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Bruno-Keycloak-2026", "temporary": false }],
+      "groups": ["/pupitre-lecture"]
+    },
+    {
+      "username": "chloe",
+      "email": "chloe@keycloak.test",
+      "emailVerified": true,
+      "firstName": "Chloé",
+      "lastName": "Sans-groupe",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Chloe-Keycloak-2026", "temporary": false }]
+    },
+    {
+      "username": "damien",
+      "email": "damien@keycloak.test",
+      "emailVerified": false,
+      "firstName": "Damien",
+      "lastName": "Non-vérifié",
+      "enabled": true,
+      "credentials": [{ "type": "password", "value": "Damien-Keycloak-2026", "temporary": false }],
+      "groups": ["/pupitre-admins"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "pupitre",
+      "name": "Pupitre",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "secret-de-test-du-client-pupitre",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*", "http://localhost:3200/*"],
+      "webOrigins": ["+"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "protocolMappers": [
+        {
+          "name": "groupes",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

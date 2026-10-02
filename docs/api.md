@@ -77,7 +77,7 @@ la navigation métier.
 | Route | Méthodes | Permission |
 |---|---|---|
 | `/api/health` | GET | **publique** — `{ status, db, redis, ai }`, 200 ou 503 |
-| `/api/auth/[...all]` | GET POST | publique — Better Auth ; audite connexions et déconnexions. `/api/auth/admin/*` répond 404 : Pupitre a sa propre API d'administration |
+| `/api/auth/[...all]` | GET POST | publique — Better Auth ; audite connexions et déconnexions. `/api/auth/admin/*` répond 404 : Pupitre a sa propre API d'administration. La connexion unique part de `POST /api/auth/sign-in/social` (`{ provider: "oidc", callbackURL }`, rend l'adresse du fournisseur) et revient par `GET /api/auth/callback/oidc` ; un retour en échec repart vers `/login?error=…` et s'écrit `auth.sso.login.failed` |
 
 ### Compte
 
@@ -244,7 +244,8 @@ temps réel ne lui porte ni la discussion ni la présence.
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/settings` | GET / PATCH | `settings:read` / `settings:manage` — **une seule route pour les six sections** |
+| `/api/settings` | GET / PATCH | `settings:read` / `settings:manage` — **une seule route pour toutes les sections**. `ssoClientSecret` suit la convention d'`aiApiKey` (absent : inchangé, `null` : effacé) ; la lecture rend `ssoClientSecretConfigured` et `ssoStatus` (`active`, `error`, `callbackUrl`) — jamais le secret. Un rôle inconnu dans `sso.roleMappings` ou `sso.defaultRole` : 422 |
+| `/api/settings/sso/check` | POST | `settings:manage`, depuis le panel — « Tester » : `{ issuer }` → `{ ok, issuer, endpoints }` ou `{ ok: false, error }`, sans rien enregistrer |
 | `/api/notifications/channels` | GET / POST | `settings:read` / `settings:manage` |
 | `/api/notifications/channels/:id` | GET / PATCH / DELETE | `settings:read` / `settings:manage` / `settings:manage` |
 | `/api/notifications/channels/:id/test` | POST | `settings:manage` |

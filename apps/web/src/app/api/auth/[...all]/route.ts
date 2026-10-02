@@ -25,6 +25,8 @@ const SIGN_OUT = '/api/auth/sign-out';
 /** Second facteur : la connexion ne s'achève qu'ici quand le compte en porte un. */
 const VERIFY_TOTP = '/api/auth/two-factor/verify-totp';
 const VERIFY_BACKUP_CODE = '/api/auth/two-factor/verify-backup-code';
+/** Le retour du fournisseur d'identité. Une réussite est tracée par Better Auth (`afterSsoSignIn`). */
+const SSO_CALLBACK = '/api/auth/callback/';
 
 /** Lit un corps JSON sans casser si ce n'en est pas un. */
 async function safeJson(source: Request | Response): Promise<Record<string, unknown>> {
@@ -80,6 +82,24 @@ async function handle(request: Request): Promise<Response> {
       },
       { status: 403 },
     );
+  }
+
+  // Un retour du fournisseur qui échoue repart vers la connexion avec
+  // `?error=` : c'est là qu'on le lit, faute de compte à qui l'attribuer.
+  if (path.startsWith(SSO_CALLBACK) && request.method === 'GET') {
+    const response = await getAuth().handler(request);
+    const location = response.headers.get('location');
+    const error = location ? new URL(location, request.url).searchParams.get('error') : null;
+    if (error) {
+      await logAudit({
+        action: 'auth.sso.login.failed',
+        resourceType: 'session',
+        resourceId: null,
+        after: { error, status: response.status },
+        ip,
+      });
+    }
+    return response;
   }
 
   if (!isAudited || request.method !== 'POST') {

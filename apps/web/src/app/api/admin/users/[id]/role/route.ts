@@ -6,7 +6,7 @@ import { admin } from '@/i18n/messages/admin';
 import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
-import { countActiveAdmins } from '../../route';
+import { countActiveAdmins } from '@/lib/admins';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

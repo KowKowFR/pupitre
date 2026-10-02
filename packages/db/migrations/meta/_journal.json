@@ -253,6 +253,13 @@
       "when": 1790955071536,
       "tag": "0036_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790962119065,
+      "tag": "0037_sso",
+      "breakpoints": true
     }
   ]
 }

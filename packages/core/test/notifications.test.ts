@@ -155,6 +155,27 @@ describe('notifications — la table des événements', () => {
     assert.equal(message.url, 'https://panel.example.test/admin/users');
   });
 
+  it('un compte né d’une connexion unique le dit, et nomme le fournisseur', () => {
+    const created = entry({
+      action: 'user.created',
+      resourceType: 'user',
+      actorId: null,
+      after: {
+        email: 'chloe@example.test',
+        role: 'no-access',
+        origin: 'sso',
+        provider: 'Keycloak',
+      },
+    });
+    assert.equal(notifiableEventFor(created), 'security.signup_pending');
+    const message = buildNotificationMessage('security.signup_pending', created, {
+      ...CTX,
+      actor: null,
+    });
+    assert.ok(message.body.includes('Keycloak'));
+    assert.ok(!message.body.includes('inscription publique'));
+  });
+
   it('un déploiement réussi se nomme : application, version, machine, URL', () => {
     const succeeded = entry({
       action: 'deployment.succeeded',
