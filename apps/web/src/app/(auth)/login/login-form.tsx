@@ -27,16 +27,25 @@ function needsSecondFactor(data: unknown): boolean {
   );
 }
 
+/** Les refus que Better Auth renvoie au retour du fournisseur, et qu'on sait dire en clair. */
+const SSO_ERRORS = ['signup_disabled', 'account_not_linked', 'banned'] as const;
+
 export function LoginForm({
   next,
   canRecoverPassword,
   signupOpen,
+  sso,
+  ssoError,
 }: {
   next: string;
   /** L'instance sait-elle envoyer un e-mail ? Sinon le lien de secours est masqué. */
   canRecoverPassword: boolean;
   /** L'inscription est-elle ouverte ? Sinon le lien mènerait à un refus. */
   signupOpen: boolean;
+  /** La connexion unique, quand elle est active et que son fournisseur répond. */
+  sso: { label: string } | null;
+  /** Le code d'erreur d'un retour du fournisseur (`?error=`), s'il y en a un. */
+  ssoError: string | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -47,6 +56,38 @@ export function LoginForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [reveal, setReveal] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  // Better Auth écrit ses codes tantôt en minuscules (`signup_disabled`),
+  // tantôt en majuscules (`BANNED_USER`) : on les ramène à une forme.
+  const ssoCode = ssoError?.toLowerCase().replace(/^banned_user$/, 'banned') ?? null;
+  const ssoMessage = ssoCode
+    ? (SSO_ERRORS as readonly string[]).includes(ssoCode)
+      ? t(`login.sso.error.${ssoCode as (typeof SSO_ERRORS)[number]}`)
+      : t('login.sso.error.generic', { error: ssoError ?? '' })
+    : null;
+
+  /**
+   * Better Auth rend l'adresse du fournisseur (état et PKCE déjà posés dans un
+   * cookie) ; le navigateur y part. Au retour, la session est posée et l'on
+   * arrive sur `next` — ou sur `/login?error=…` si quelque chose a refusé.
+   */
+  async function signInWithSso() {
+    setRedirecting(true);
+    setError(null);
+    const response = await fetch('/api/auth/sign-in/social', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'oidc', callbackURL: next, errorCallbackURL: '/login' }),
+    }).catch(() => null);
+    const body = (await response?.json().catch(() => null)) as { url?: string } | null;
+    if (!response?.ok || !body?.url) {
+      setRedirecting(false);
+      setError(t('login.sso.error.generic', { error: String(response?.status ?? '—') }));
+      return;
+    }
+    window.location.href = body.url;
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,11 +199,30 @@ export function LoginForm({
   }
 
   return (
-    <AuthCard title={t('login.title')} description={t('login.description')}>
+    <AuthCard
+      title={t('login.title')}
+      description={sso ? t('login.description.sso', { label: sso.label }) : t('login.description')}
+    >
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         {error ? <Alert variant="destructive">{error}</Alert> : null}
+        {ssoMessage && !error ? <Alert variant="destructive">{ssoMessage}</Alert> : null}
+        {sso ? (
+          <>
+            <Button
+              type="button"
+              size="lg"
+              variant="secondary"
+              className="btn-block"
+              loading={redirecting}
+              onClick={() => void signInWithSso()}
+            >
+              {redirecting ? t('login.sso.pending') : t('login.sso', { label: sso.label })}
+            </Button>
+            <p className="t-cap text-center text-text-3">{t('login.sso.or')}</p>
+          </>
+        ) : null}
         <Field label={t('field.email')}>
-          <Input name="email" type="email" autoComplete="email" required autoFocus />
+          <Input name="email" type="email" autoComplete="email" required autoFocus={!sso} />
         </Field>
         <div className="field">
           <span className="flex items-center">

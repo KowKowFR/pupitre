@@ -26,4 +26,10 @@ export async function register(): Promise<void> {
   // Chaque action tracée réveille les écrans ouverts qu'elle concerne.
   const { installRealtimeAudit } = await import('./lib/realtime');
   installRealtimeAudit();
+
+  // La connexion unique se règle depuis le panel : sa configuration effective
+  // est lue ici, avant la première requête. Un fournisseur injoignable ne
+  // bloque pas le démarrage — l'écran de connexion retentera.
+  const { refreshSso } = await import('./lib/sso');
+  await refreshSso().catch(() => undefined);
 }

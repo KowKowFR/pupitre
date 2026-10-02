@@ -23,7 +23,10 @@ import { toast } from '@/lib/toast';
  * l'ajoute, et ses trois cas doivent survivre jusqu'ici — propriété absente =
  * clé inchangée, `null` = effacée, chaîne = remplacée.
  */
-export type SettingsPatchBody = AppSettingsPatch & { aiApiKey?: string | null };
+export type SettingsPatchBody = AppSettingsPatch & {
+  aiApiKey?: string | null;
+  ssoClientSecret?: string | null;
+};
 
 type ApiError = { error?: { message?: string } };
 

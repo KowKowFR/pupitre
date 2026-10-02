@@ -1,11 +1,22 @@
 import 'server-only';
-import { ROLE_DEFINITIONS, SIGNUP_ROLE, type RoleKey } from '@pupitre/core';
+import {
+  LOCKED_ROLE,
+  SIGNUP_ROLE,
+  SSO_PROVIDER_ID,
+  claimValues,
+  roleFromGroups,
+  ssoDiscoveryUrl,
+  ssoScopes,
+  type RoleKey,
+} from '@pupitre/core';
 import {
   accounts,
   and,
   count,
   eq,
   getDb,
+  getRoleByKey,
+  getUserGrants,
   isNotNull,
   logAudit,
   sessions,
@@ -17,13 +28,18 @@ import {
 } from '@pupitre/db';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { createAuthMiddleware } from 'better-auth/api';
 import { admin, twoFactor } from 'better-auth/plugins';
+import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultStatements, userAc } from 'better-auth/plugins/admin/access';
 import { INVITATION_TTL_MS, sendAccountMail } from './account-mail';
+import { countActiveAdmins } from './admins';
 import { getEnv } from './env';
+import { clientIp } from './http';
 import { PASSWORD_MIN_LENGTH } from './password-policy';
 import { logger } from './logger';
+import { peekSsoGroups, rememberSsoGroups, ssoState, takeSsoGroups, type SsoRuntime } from './sso';
 
 /**
  * Rôle attribué à un utilisateur créé sans rôle explicite — c'est-à-dire par
@@ -141,7 +157,67 @@ export async function isSignupOpen(): Promise<boolean> {
   return (await countUsers()) === 0;
 }
 
-function buildAuth() {
+/**
+ * Après une connexion par le fournisseur d'identité : la tracer, et — si le
+ * fournisseur fait foi — remettre le rôle d'accord avec ses groupes.
+ *
+ * Le dernier administrateur n'est jamais rétrogradé par là : un groupe mal
+ * nommé chez le fournisseur ne doit pas enfermer l'instance dehors. Le rôle
+ * est alors gardé, et le journal dit pourquoi.
+ */
+async function afterSsoSignIn(
+  sso: SsoRuntime,
+  user: { id: string; email: string },
+  ip: string | null,
+): Promise<void> {
+  const groups = takeSsoGroups(user.email);
+  const before = await getUserGrants(user.id);
+  let roles = before.roles;
+
+  if (sso.settings.syncRoles && groups !== null) {
+    const wanted = roleFromGroups(groups, sso.settings).role;
+    const current = before.roles.length === 1 ? before.roles[0] : null;
+    if (wanted !== current) {
+      const known = await getRoleByKey(wanted);
+      const losesAdmin = before.roles.includes(LOCKED_ROLE) && wanted !== LOCKED_ROLE;
+      if (!known) {
+        logger.warn({ role: wanted }, 'connexion unique : rôle inconnu, rôle actuel gardé');
+      } else if (losesAdmin && (await countActiveAdmins(user.id)) === 0) {
+        await logAudit({
+          actorId: null,
+          action: 'auth.sso.role.kept',
+          resourceType: 'user',
+          resourceId: user.id,
+          after: { email: user.email, roles: before.roles, wanted, reason: 'last_admin' },
+          ip,
+        });
+      } else {
+        await setUserRoles(user.id, [wanted]);
+        roles = [wanted];
+        await logAudit({
+          actorId: null,
+          action: 'user.role.changed',
+          resourceType: 'user',
+          resourceId: user.id,
+          before: { roles: before.roles },
+          after: { roles: [wanted], email: user.email, source: 'sso', groups },
+          ip,
+        });
+      }
+    }
+  }
+
+  await logAudit({
+    actorId: user.id,
+    action: 'auth.sso.login.succeeded',
+    resourceType: 'session',
+    resourceId: user.id,
+    after: { email: user.email, provider: sso.settings.label, groups, roles },
+    ip,
+  });
+}
+
+function buildAuth(sso: SsoRuntime | null) {
   const env = getEnv();
 
   return betterAuth({
@@ -337,23 +413,68 @@ function buildAuth() {
       updateAge: 60 * 60 * 24,
     },
 
+    /**
+     * Lier une connexion unique à un compte existant de même e-mail : seulement
+     * si le réglage le veut, et seulement quand **le fournisseur** déclare
+     * l'e-mail vérifié — le fournisseur n'est pas marqué « de confiance », ce
+     * qui obligerait Better Auth à le croire sur parole. Côté Pupitre, on
+     * n'exige pas la vérification : un compte créé par un administrateur n'a
+     * jamais cliqué de lien, et il est pourtant le bon.
+     */
+    account: {
+      accountLinking: {
+        enabled: sso?.settings.linkByEmail ?? false,
+        requireLocalEmailVerified: false,
+      },
+    },
+
+    hooks: sso
+      ? {
+          after: createAuthMiddleware(async (ctx) => {
+            // Le fournisseur générique passe par les routes « sociales » de
+            // Better Auth : son retour est `/callback/oidc`.
+            if (!ctx.path.startsWith('/callback')) return;
+            const user = ctx.context.newSession?.user;
+            if (!user) return;
+            try {
+              await afterSsoSignIn(
+                sso,
+                { id: user.id, email: user.email },
+                ctx.request ? clientIp(ctx.request) : null,
+              );
+            } catch (error) {
+              logger.error({ err: error, userId: user.id }, 'connexion unique : suite impossible');
+            }
+          }),
+        }
+      : undefined,
+
     databaseHooks: {
       user: {
         create: {
           async before(user) {
             // Le tout premier compte devient administrateur.
             const isFirstUser = (await countUsers()) === 0;
+            // Un compte qui naît d'une connexion unique reçoit d'emblée le rôle
+            // de ses groupes — pas « Sans accès » suivi d'un changement, qui
+            // ferait partir deux notifications pour une seule arrivée.
+            const groups = sso ? peekSsoGroups(user.email) : null;
+            const ssoRole = sso && groups ? roleFromGroups(groups, sso.settings).role : null;
             return {
               data: {
                 ...user,
-                role: isFirstUser ? ('admin' satisfies RoleKey) : (user.role ?? DEFAULT_ROLE),
+                role: isFirstUser
+                  ? ('admin' satisfies RoleKey)
+                  : (ssoRole ?? user.role ?? DEFAULT_ROLE),
               },
             };
           },
           async after(user) {
+            // Le rôle demandé doit exister en base : ceux de départ, ou un rôle
+            // créé depuis l'écran des rôles — c'est ce que peut désigner une
+            // correspondance de la connexion unique.
             const requested = typeof user.role === 'string' ? user.role : DEFAULT_ROLE;
-            const roleKey: RoleKey =
-              requested in ROLE_DEFINITIONS ? (requested as RoleKey) : DEFAULT_ROLE;
+            const roleKey: RoleKey = (await getRoleByKey(requested)) ? requested : DEFAULT_ROLE;
 
             try {
               await setUserRoles(user.id, [roleKey]);
@@ -369,7 +490,14 @@ function buildAuth() {
               action: 'user.created',
               resourceType: 'user',
               resourceId: user.id,
-              after: { email: user.email, name: user.name, role: roleKey },
+              after: {
+                email: user.email,
+                name: user.name,
+                role: roleKey,
+                ...(sso && peekSsoGroups(user.email) !== null
+                  ? { origin: 'sso', provider: sso.settings.label }
+                  : {}),
+              },
             });
           },
         },
@@ -389,18 +517,68 @@ function buildAuth() {
       twoFactor({
         issuer: 'Pupitre',
       }),
+      ...(sso
+        ? [
+            genericOAuth({
+              config: [
+                {
+                  providerId: SSO_PROVIDER_ID,
+                  name: sso.settings.label,
+                  discoveryUrl: ssoDiscoveryUrl(sso.settings.issuer),
+                  // Les groupes, donc les rôles, viennent du jeton d'identité :
+                  // il doit être vérifié contre les clés du fournisseur.
+                  requireIdTokenVerification: true,
+                  clientId: sso.settings.clientId,
+                  clientSecret: sso.clientSecret,
+                  scopes: ssoScopes(sso.settings.scopes),
+                  pkce: true,
+                  disableSignUp: !sso.settings.autoCreate,
+                  // Se déconnecter du panel ne déconnecte pas du fournisseur.
+                  disableProviderLogout: true,
+                  mapProfileToUser(profile) {
+                    // Le seul moment où le profil du fournisseur est visible :
+                    // ses groupes sont retenus pour la création du compte et
+                    // pour l'après-connexion (`afterSsoSignIn`).
+                    const groups = claimValues(profile, sso.settings.groupsClaim);
+                    if (typeof profile.email === 'string') rememberSsoGroups(profile.email, groups);
+                    return {};
+                  },
+                },
+              ],
+            }),
+          ]
+        : []),
     ],
   });
 }
 
 type Auth = ReturnType<typeof buildAuth>;
 
-let cached: Auth | null = null;
+declare global {
+  var __pupitreAuth: { key: string; auth: Auth } | undefined;
+}
 
-/** Instance Better Auth, construite à la première requête. */
+/**
+ * Propre à ce chargement du module. Une instance construite par une version
+ * précédente du code — rechargement à chaud de `next dev` — ne doit pas être
+ * réutilisée : ses crochets seraient ceux d'avant.
+ */
+const MODULE_LOAD = Math.random().toString(36).slice(2);
+
+/**
+ * Instance Better Auth, construite à la première requête — et reconstruite
+ * quand la connexion unique change (`lib/sso.ts`). Les sessions vivent en base
+ * et leurs cookies sont signés par `BETTER_AUTH_SECRET` : une reconstruction
+ * ne déconnecte personne.
+ */
 export function getAuth(): Auth {
-  cached ??= buildAuth();
-  return cached;
+  const sso = ssoState().runtime;
+  const key = `${MODULE_LOAD}:${sso?.key ?? 'sans-sso'}`;
+  const cached = globalThis.__pupitreAuth;
+  if (cached?.key === key) return cached.auth;
+  const auth = buildAuth(sso);
+  globalThis.__pupitreAuth = { key, auth };
+  return auth;
 }
 
 /** Session courante, ou `null`. Ne throw pas. */

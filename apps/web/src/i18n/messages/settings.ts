@@ -42,6 +42,12 @@ const fr = {
   'section.security.governs':
     "Le scan des images avant mise en ligne : quels scanners tournent, et à partir de quelle sévérité un finding empêche le déploiement. Le réglage vaut pour toute l'instance, y compris les déploiements lancés depuis l'API.",
 
+  'section.sso.label': 'Connexion unique',
+  'section.sso.title': 'Connexion unique (OpenID Connect)',
+  'section.sso.short': 'se connecter par Keycloak',
+  'section.sso.governs':
+    "Se connecter au panel par un fournisseur d'identité — Keycloak, Authentik, Google, Microsoft Entra : tout ce qui parle OpenID Connect. Les comptes naissent à la première connexion, et leurs rôles peuvent suivre les groupes du fournisseur.",
+
   'section.notifications.label': 'Notifications',
   'section.notifications.title': 'Notifications',
   'section.notifications.short': 'où partent les alertes',
@@ -81,7 +87,7 @@ const fr = {
   'page.description.before':
     "Réglages de l'instance, appliqués à chaud. Ils vivent dans une ligne unique de",
   'page.description.after':
-    "— un seul JSONB, pour qu'ajouter un réglage ne coûte pas une migration. La clé d'API, elle, est chiffrée dans sa propre colonne et ne ressort jamais d'ici.",
+    "— un seul JSONB, pour qu'ajouter un réglage ne coûte pas une migration. Les secrets — la clé d'IA, celui du client de connexion unique — sont chiffrés dans leurs propres colonnes et ne ressortent jamais d'ici.",
   'page.state.customized': 'personnalisés',
   'page.state.defaults': 'valeurs par défaut',
   'page.readonly.before': 'Lecture seule : la permission',
@@ -226,6 +232,78 @@ const fr = {
    */
   'threshold.error.targetNotFound': 'Cible « {id} » introuvable',
   'threshold.error.notSet': 'Aucun seuil posé à cette portée pour cette métrique',
+
+  // ── Connexion unique ────────────────────────────────────────────────────
+  'sso.badge.active': 'Active',
+  'sso.badge.off': 'Désactivée',
+  'sso.badge.error': 'Indisponible',
+  'sso.enabled.label': 'Proposer la connexion par le fournisseur d’identité',
+  'sso.enabled.help':
+    'Le bouton apparaît sur l’écran de connexion. Le mot de passe reste possible pour qui en a un.',
+  'sso.status.active':
+    'Le bouton « Se connecter avec {label} » est proposé sur l’écran de connexion.',
+  'sso.status.error': 'Activée, mais pas proposée : {error}',
+  'sso.provider.title': 'Le fournisseur',
+  'sso.label.label': 'Nom affiché',
+  'sso.label.help': 'Le texte du bouton : « Se connecter avec … ».',
+  'sso.issuer.label': 'Émetteur (issuer)',
+  'sso.issuer.help':
+    'Pour Keycloak : l’adresse du realm. Pupitre lit sa découverte à /.well-known/openid-configuration ; le panel comme les navigateurs doivent la joindre à cette même adresse.',
+  'sso.issuer.placeholder': 'https://auth.exemple.fr/realms/pupitre',
+  'sso.check': 'Tester',
+  'sso.check.ok': 'Le fournisseur répond : {issuer}',
+  'sso.check.failed': 'Le fournisseur ne répond pas : {error}',
+  'sso.clientId.label': 'Identifiant du client',
+  'sso.clientId.help': 'Le client OpenID Connect créé pour Pupitre, en accès confidentiel.',
+  'sso.clientSecret.label': 'Secret du client',
+  'sso.clientSecret.placeholder.set': '•••••••• enregistré — laisser vide pour le garder',
+  'sso.clientSecret.placeholder.none': 'Le secret de l’onglet « Credentials » du client',
+  'sso.clientSecret.help': 'Chiffré sous MASTER_KEY, jamais rendu par l’API.',
+  'sso.clientSecret.clear': 'Effacer le secret enregistré',
+  'sso.scopes.label': 'Portées',
+  'sso.scopes.help': 'Séparées par des espaces. openid est toujours demandée.',
+  'sso.callback.label': 'URL de retour à déclarer chez le fournisseur',
+  'sso.callback.help': 'Dans Keycloak : « Valid redirect URIs » du client.',
+  'sso.callback.copy': 'Copier',
+  'sso.callback.copied': 'URL copiée',
+  'sso.accounts.title': 'Les comptes',
+  'sso.autoCreate.label': 'Créer le compte à la première connexion',
+  'sso.autoCreate.help':
+    'Sinon, seules les personnes qui ont déjà un compte Pupitre peuvent entrer par le fournisseur.',
+  'sso.linkByEmail.label': 'Lier un compte existant de même e-mail',
+  'sso.linkByEmail.help':
+    'Seulement quand le fournisseur déclare l’e-mail vérifié. Sans liaison, une personne qui a déjà un compte garde son mot de passe.',
+  'sso.roles.title': 'Les rôles',
+  'sso.groupsClaim.label': 'Champ des groupes',
+  'sso.groupsClaim.help':
+    'Où lire les groupes dans le jeton : groups (mappeur « Group Membership » de Keycloak), ou realm_access.roles pour les rôles de realm.',
+  'sso.syncRoles.label': 'Le fournisseur fait foi',
+  'sso.syncRoles.help':
+    'Le rôle est recalculé à chaque connexion. Décoché, il n’est posé qu’à la création du compte, puis se règle dans Pupitre. Le dernier administrateur n’est jamais rétrogradé par là.',
+  'sso.mappings.label': 'Groupe → rôle',
+  'sso.mappings.help':
+    'La première ligne qui correspond l’emporte : mettez les groupes les plus puissants en haut.',
+  'sso.mappings.group': 'Groupe',
+  'sso.mappings.role': 'Rôle',
+  'sso.mappings.add': 'Ajouter une correspondance',
+  'sso.mappings.remove': 'Retirer la correspondance « {group} »',
+  'sso.mappings.up': 'Monter la correspondance « {group} »',
+  'sso.mappings.empty': 'Aucune correspondance : tout le monde reçoit le rôle par défaut.',
+  'sso.defaultRole.label': 'Rôle par défaut',
+  'sso.defaultRole.help':
+    'Pour qui n’a aucun groupe reconnu. « Sans accès » laisse la personne attendre qu’un administrateur choisisse.',
+  'sso.error.unknownRole': 'Rôle inconnu : « {key} »',
+  'sso.problem.missing': 'émetteur, identifiant ou secret du client manquant',
+  'sso.problem.http': 'la découverte répond {detail}',
+  'sso.problem.issuer': 'le fournisseur s’annonce « {detail} », pas comme l’émetteur saisi',
+  'sso.problem.incomplete': 'découverte incomplète : {detail} absent(s)',
+  'sso.problem.unreachable': 'fournisseur injoignable : {detail}',
+  'sso.problem.unreadable': 'configuration illisible',
+  'overview.term.ssoStatus': 'État',
+  'overview.term.ssoProvider': 'Fournisseur',
+  'overview.sso.off': 'désactivée',
+  'overview.sso.active': 'active',
+  'overview.sso.error': 'indisponible',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -250,6 +328,12 @@ const en: Translated<typeof fr> = {
   'section.security.short': 'what blocks a rollout',
   'section.security.governs':
     'Image scanning before going live: which scanners run, and from which severity a finding blocks the deployment. The setting holds for the whole instance, deployments launched from the API included.',
+
+  'section.sso.label': 'Single sign-on',
+  'section.sso.title': 'Single sign-on (OpenID Connect)',
+  'section.sso.short': 'sign in with Keycloak',
+  'section.sso.governs':
+    'Sign in to the panel through an identity provider — Keycloak, Authentik, Google, Microsoft Entra: anything that speaks OpenID Connect. Accounts are created on first sign-in, and their roles can follow the provider’s groups.',
 
   'section.notifications.label': 'Notifications',
   'section.notifications.title': 'Notifications',
@@ -288,7 +372,7 @@ const en: Translated<typeof fr> = {
   'page.title': 'Settings',
   'page.description.before': 'Instance settings, applied live. They live in a single row of',
   'page.description.after':
-    '— one JSONB, so that adding a setting costs no migration. The API key sits encrypted in its own column and never comes back out of here.',
+    '— one JSONB, so that adding a setting costs no migration. Secrets — the AI key, the single sign-on client’s — sit encrypted in their own columns and never come back out of here.',
   'page.state.customized': 'customized',
   'page.state.defaults': 'default values',
   'page.readonly.before': 'Read-only: permission',
@@ -420,6 +504,75 @@ const en: Translated<typeof fr> = {
 
   'threshold.error.targetNotFound': 'Target “{id}” not found',
   'threshold.error.notSet': 'No threshold set at this scope for this metric',
+
+  'sso.badge.active': 'Active',
+  'sso.badge.off': 'Off',
+  'sso.badge.error': 'Unavailable',
+  'sso.enabled.label': 'Offer sign-in through the identity provider',
+  'sso.enabled.help':
+    'The button shows on the sign-in screen. Passwords keep working for those who have one.',
+  'sso.status.active': 'The “Sign in with {label}” button is offered on the sign-in screen.',
+  'sso.status.error': 'Enabled, but not offered: {error}',
+  'sso.provider.title': 'The provider',
+  'sso.label.label': 'Display name',
+  'sso.label.help': 'The button text: “Sign in with …”.',
+  'sso.issuer.label': 'Issuer',
+  'sso.issuer.help':
+    'For Keycloak: the realm address. Pupitre reads its discovery at /.well-known/openid-configuration; the panel and browsers must both reach it at that same address.',
+  'sso.issuer.placeholder': 'https://auth.example.com/realms/pupitre',
+  'sso.check': 'Test',
+  'sso.check.ok': 'The provider answers: {issuer}',
+  'sso.check.failed': 'The provider does not answer: {error}',
+  'sso.clientId.label': 'Client ID',
+  'sso.clientId.help': 'The OpenID Connect client created for Pupitre, with confidential access.',
+  'sso.clientSecret.label': 'Client secret',
+  'sso.clientSecret.placeholder.set': '•••••••• saved — leave empty to keep it',
+  'sso.clientSecret.placeholder.none': 'The secret from the client’s “Credentials” tab',
+  'sso.clientSecret.help': 'Encrypted under MASTER_KEY, never returned by the API.',
+  'sso.clientSecret.clear': 'Clear the saved secret',
+  'sso.scopes.label': 'Scopes',
+  'sso.scopes.help': 'Space-separated. openid is always requested.',
+  'sso.callback.label': 'Callback URL to register with the provider',
+  'sso.callback.help': 'In Keycloak: the client’s “Valid redirect URIs”.',
+  'sso.callback.copy': 'Copy',
+  'sso.callback.copied': 'URL copied',
+  'sso.accounts.title': 'Accounts',
+  'sso.autoCreate.label': 'Create the account on first sign-in',
+  'sso.autoCreate.help':
+    'Otherwise, only people who already have a Pupitre account can come in through the provider.',
+  'sso.linkByEmail.label': 'Link an existing account with the same email',
+  'sso.linkByEmail.help':
+    'Only when the provider reports the email as verified. Without linking, someone who already has an account keeps their password.',
+  'sso.roles.title': 'Roles',
+  'sso.groupsClaim.label': 'Groups field',
+  'sso.groupsClaim.help':
+    'Where to read groups in the token: groups (Keycloak’s “Group Membership” mapper), or realm_access.roles for realm roles.',
+  'sso.syncRoles.label': 'The provider is authoritative',
+  'sso.syncRoles.help':
+    'The role is recomputed at every sign-in. Unticked, it is only set when the account is created, then managed in Pupitre. The last administrator is never demoted this way.',
+  'sso.mappings.label': 'Group → role',
+  'sso.mappings.help': 'The first matching line wins: put the most powerful groups on top.',
+  'sso.mappings.group': 'Group',
+  'sso.mappings.role': 'Role',
+  'sso.mappings.add': 'Add a mapping',
+  'sso.mappings.remove': 'Remove the “{group}” mapping',
+  'sso.mappings.up': 'Move the “{group}” mapping up',
+  'sso.mappings.empty': 'No mapping: everyone gets the default role.',
+  'sso.defaultRole.label': 'Default role',
+  'sso.defaultRole.help':
+    'For anyone with no recognised group. “No access” leaves them waiting for an administrator to choose.',
+  'sso.error.unknownRole': 'Unknown role: “{key}”',
+  'sso.problem.missing': 'issuer, client ID or client secret missing',
+  'sso.problem.http': 'discovery answers {detail}',
+  'sso.problem.issuer': 'the provider announces itself as “{detail}”, not as the entered issuer',
+  'sso.problem.incomplete': 'incomplete discovery: {detail} missing',
+  'sso.problem.unreachable': 'provider unreachable: {detail}',
+  'sso.problem.unreadable': 'unreadable configuration',
+  'overview.term.ssoStatus': 'State',
+  'overview.term.ssoProvider': 'Provider',
+  'overview.sso.off': 'off',
+  'overview.sso.active': 'active',
+  'overview.sso.error': 'unavailable',
 };
 
 export const settings = { fr, en };

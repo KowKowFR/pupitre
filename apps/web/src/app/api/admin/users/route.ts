@@ -1,4 +1,4 @@
-import { LOCKED_ROLE, translator, type RoleKey } from '@pupitre/core';
+import { translator, type RoleKey } from '@pupitre/core';
 import {
   asc,
   count,
@@ -10,7 +10,6 @@ import {
   logAudit,
   roleKeySchema,
   setUserRoles,
-  userRoles,
   users,
   type TwoFactorState,
 } from '@pupitre/db';
@@ -262,17 +261,4 @@ export async function inviteExistingUser(options: {
   });
 
   return { sent, channel, error };
-}
-
-/** Nombre d'administrateurs actifs — sert à interdire de retirer le dernier. */
-export async function countActiveAdmins(excludeUserId?: string): Promise<number> {
-  const db = getDb();
-  const rows = await db
-    .select({ userId: userRoles.userId, banned: users.banned, role: users.role })
-    .from(userRoles)
-    .innerJoin(users, eq(users.id, userRoles.userId));
-
-  return rows.filter(
-    (row) => row.role === LOCKED_ROLE && !row.banned && row.userId !== excludeUserId,
-  ).length;
 }

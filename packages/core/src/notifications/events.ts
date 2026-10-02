@@ -268,6 +268,9 @@ const fr = {
     'Le compte {account} vient d’être créé par l’inscription publique. Il n’a accès à rien ' +
     'tant qu’un administrateur ne lui a pas attribué de rôle.',
   'security.signup_pending.summary': 'en attente d’un rôle',
+  'security.signup_pending.bodySso':
+    'Le compte {account} vient d’être créé à sa première connexion par {provider}. Il n’a accès à rien ' +
+    'tant qu’un administrateur ne lui a pas attribué de rôle.',
 
   // ── security.api_token_created ─────────────────────────────────────────
   'security.api_token_created.label': 'Jeton d’API créé',
@@ -611,6 +614,9 @@ const en: Translated<typeof fr> = {
     'Account {account} was just created through public sign-up. It can reach nothing until ' +
     'an administrator assigns it a role.',
   'security.signup_pending.summary': 'awaiting a role',
+  'security.signup_pending.bodySso':
+    'Account {account} was just created on its first sign-in through {provider}. It can reach nothing ' +
+    'until an administrator assigns it a role.',
 
   'security.api_token_created.label': 'API token created',
   'security.api_token_created.description':
@@ -1252,7 +1258,13 @@ const CATALOG = {
       const account = text(after.email, entry.resourceId ?? '?');
       return {
         title: t(lang, 'security.signup_pending.title', { account }),
-        body: t(lang, 'security.signup_pending.body', { account }),
+        body:
+          after.origin === 'sso'
+            ? t(lang, 'security.signup_pending.bodySso', {
+                account,
+                provider: text(after.provider, '?'),
+              })
+            : t(lang, 'security.signup_pending.body', { account }),
         fields: fieldsOf([
           [t(lang, 'field.account'), account],
           [t(lang, 'field.name'), optional(after.name)],
