@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Info } from 'lucide-react';
+import { Hourglass, Info } from 'lucide-react';
 import { deploymentStepLabel, type Translate } from '@pupitre/core';
 import {
   activityPulse,
@@ -32,6 +32,7 @@ import {
 } from '@/components/chart';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { Led, Readout, ReadoutBar, type Tone } from '@/components/instrument';
+import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { DeployButton } from '@/components/shell/deploy-button';
 import { RuntimePill } from '@/components/ui/badge';
@@ -51,6 +52,7 @@ import {
   loadTargets,
 } from '@/lib/overview';
 import { currentAuth } from '@/lib/page-auth';
+import { isTeamMember } from '@/lib/rbac';
 import { AttentionPanel, Panel, PanelEmpty } from './attention';
 import { DeploymentStatusBadge } from './deployments/status-badge';
 
@@ -161,6 +163,18 @@ export default async function HomePage({
 }) {
   const auth = await currentAuth('/');
   const t = await getT(dashboard);
+
+  // Un compte sans aucune permission attend qu'un administrateur lui choisisse
+  // un rôle. Le gabarit écoute le sujet `users` : un rôle attribué relit la
+  // page, qui s'ouvre alors d'elle-même.
+  if (auth && !isTeamMember(auth)) {
+    return (
+      <>
+        <PageHeader title={t('page.title')} />
+        <EmptyState icon={Hourglass} title={t('noAccess.title')} hint={t('noAccess.hint')} />
+      </>
+    );
+  }
   const windowKey: WindowKey = (await searchParams).window === '7d' ? 'week' : 'day';
   const { hours, buckets } = WINDOWS[windowKey];
 

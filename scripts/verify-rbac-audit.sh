@@ -138,9 +138,11 @@ code=$(req GET /api/deployments "$VIEWER_JAR")
 [ "$code" = "200" ] || fail "viewer sur GET /api/deployments : attendu 200, reçu $code"
 pass "viewer garde la lecture → GET /api/deployments 200"
 
+# Le journal porte des adresses IP et des e-mails : il est à l'auditeur, pas à
+# l'observateur, qui ne lit que l'exploitation.
 code=$(req GET /api/audit-logs "$VIEWER_JAR")
-[ "$code" = "200" ] || fail "viewer sur GET /api/audit-logs : attendu 200 (audit:read), reçu $code"
-pass "viewer a audit:read → GET /api/audit-logs 200"
+[ "$code" = "403" ] || fail "viewer sur GET /api/audit-logs : attendu 403 (pas d'audit:read), reçu $code"
+pass "viewer n'a pas audit:read → GET /api/audit-logs 403"
 
 # Ce qui compte ici, c'est que l'administrateur FRANCHISSE la garde de
 # permission, pas ce qu'il obtient ensuite. La route a d'abord été un bouchon

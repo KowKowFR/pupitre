@@ -94,7 +94,7 @@ const fr = {
   'step.role.detail':
     "Un rôle est un jeu de permissions du type « ressource:action » — par exemple « deployment:create » ou « target:delete ». Les rôles sont des données, pas du code : vous pouvez en créer autant que nécessaire et modifier leurs permissions à chaud. Seul « administrateur » est verrouillé, pour qu'une instance ne puisse jamais se retrouver sans personne capable de la réparer.",
   'step.role.cost':
-    'Les trois rôles installés d’office (administrateur, opérateur, observateur) restent disponibles. Vous n’aurez simplement pas de rôle intermédiaire : toute personne à qui il faut plus que la lecture recevra les droits complets d’un opérateur.',
+    'Les rôles installés d’office (administrateur, opérateur, auditeur, observateur, sans accès) restent disponibles. Vous n’aurez simplement pas de rôle intermédiaire : toute personne à qui il faut plus que la lecture recevra les droits complets d’un opérateur.',
 
   'step.user.title': 'Un utilisateur',
   'step.user.summary': 'Un compte pour quelqu’un d’autre que vous.',
@@ -157,7 +157,7 @@ const fr = {
 
   // ── Étape « un rôle » ───────────────────────────────────────────────────
   'role.intro':
-    'Un utilisateur porte un rôle ; le rôle porte les permissions. Trois rôles sont déjà installés — {admin}, {operator}, {viewer}. Un rôle naît {noPermission} : on les coche ensuite, une par une, depuis {rolesLink}.',
+    'Un utilisateur porte un rôle ; le rôle porte les permissions. Cinq rôles sont déjà installés — {admin}, {operator}, {auditor}, {viewer} et {noAccess}, celui d’une inscription publique. Un rôle naît {noPermission} : on les coche ensuite, une par une, depuis {rolesLink}.',
   'role.intro.noPermission': 'sans aucune permission',
   'role.intro.link': 'Rôles',
 
@@ -315,7 +315,7 @@ const en: Translated<typeof fr> = {
   'step.role.detail':
     'A role is a set of “resource:action” permissions — “deployment:create” or “target:delete”, for instance. Roles are data, not code: create as many as you need, and change their permissions live. Only “administrator” is locked, so an instance can never end up with nobody able to repair it.',
   'step.role.cost':
-    'The three roles installed out of the box (administrator, operator, viewer) stay available. You simply get no middle ground: anyone who needs more than read access receives an operator’s full rights.',
+    'The roles installed out of the box (administrator, operator, auditor, viewer, no access) stay available. You simply get no middle ground: anyone who needs more than read access receives an operator’s full rights.',
 
   'step.user.title': 'A user',
   'step.user.summary': 'An account for someone other than you.',
@@ -366,7 +366,7 @@ const en: Translated<typeof fr> = {
   'target.tested': '“{name}” declared and tested.',
 
   'role.intro':
-    'A user carries a role; the role carries the permissions. Three roles come installed — {admin}, {operator}, {viewer}. A new role starts {noPermission}: you tick them afterwards, one by one, from {rolesLink}.',
+    'A user carries a role; the role carries the permissions. Five roles come installed — {admin}, {operator}, {auditor}, {viewer} and {noAccess}, the one public sign-up gets. A new role starts {noPermission}: you tick them afterwards, one by one, from {rolesLink}.',
   'role.intro.noPermission': 'with no permission at all',
   'role.intro.link': 'Roles',
 

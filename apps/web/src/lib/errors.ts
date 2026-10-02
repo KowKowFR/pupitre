@@ -101,6 +101,18 @@ export class ForbiddenError extends HttpError {
   }
 }
 
+/**
+ * Session sans aucune permission — typiquement une inscription publique qui
+ * attend qu'un administrateur lui choisisse un rôle : 403 sur ce qui est
+ * réservé à l'équipe (discussion, présence), qui ne demande pas de permission.
+ */
+export class NoAccessError extends HttpError {
+  constructor(message: string | MessageRef = msg(errors, 'no_access')) {
+    super(403, 'no_access', message);
+    this.name = 'NoAccessError';
+  }
+}
+
 /** Compte désactivé : 403, quelle que soit la permission demandée. */
 export class AccountDisabledError extends HttpError {
   constructor(message: string | MessageRef = msg(errors, 'account_disabled')) {

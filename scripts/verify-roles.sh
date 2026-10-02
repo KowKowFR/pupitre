@@ -170,9 +170,11 @@ jq -e --arg k "$ROLE_KEY" '[.items[] | select(.key == $k)] | length == 0' "$BODY
 pass "il a disparu de la liste"
 
 step "8. Le seed ne réécrit pas une personnalisation"
-before=$(psql_q "select count(*) from role_permissions rp
-  join roles r on r.id = rp.role_id where r.key = 'viewer';")
-info "viewer porte $before permission(s) avant modification"
+# Ses permissions d'avant, pour les lui rendre telles quelles à la fin.
+ORIGINAL=$(psql_q "select coalesce(json_agg(p.key order by p.key), '[]') from role_permissions rp
+  join roles r on r.id = rp.role_id join permissions p on p.id = rp.permission_id
+  where r.key = 'viewer';")
+info "viewer porte $(jq -r 'length' <<< "$ORIGINAL") permission(s) avant modification"
 
 code=$(req PATCH /api/admin/roles/viewer '{"permissions":["deployment:read"]}')
 [ "$code" = "200" ] || fail "PATCH viewer → HTTP $code : $(cat "$BODY")"
@@ -185,11 +187,9 @@ after=$(psql_q "select count(*) from role_permissions rp
 [ "$after" = "1" ] || fail "le seed a réécrit viewer : $after permission(s) au lieu de 1"
 pass "après un seed, viewer porte toujours 1 permission — la personnalisation survit"
 
-# Restaure viewer à toutes les permissions en lecture, quelles qu'elles soient.
-READ_ONLY=$(jq -c '[.vocabulary.permissions[].key | select(endswith(":read"))]' "$WORK/roles.json")
-code=$(req PATCH /api/admin/roles/viewer "{\"permissions\":$READ_ONLY}")
+code=$(req PATCH /api/admin/roles/viewer "{\"permissions\":$ORIGINAL}")
 [ "$code" = "200" ] || fail "restauration de viewer → HTTP $code"
-pass "viewer restauré à $(jq -r 'length' <<< "$READ_ONLY") permissions en lecture"
+pass "viewer restauré à ses $(jq -r 'length' <<< "$ORIGINAL") permission(s) d'avant"
 
 step "9. Traçabilité"
 code=$(req GET "/api/audit-logs?resourceType=role&pageSize=20")

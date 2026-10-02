@@ -132,6 +132,30 @@ describe('notifications — la table des événements', () => {
     }
   });
 
+  it('une inscription publique prévient, un compte créé par un administrateur non', () => {
+    const signup = entry({
+      action: 'user.created',
+      resourceType: 'user',
+      actorId: null,
+      after: { email: 'nouveau@example.test', name: 'Nouveau', role: 'no-access' },
+    });
+    assert.equal(notifiableEventFor(signup), 'security.signup_pending');
+    for (const role of ['viewer', 'operator', 'admin']) {
+      assert.equal(
+        notifiableEventFor({ ...signup, after: { email: 'x@example.test', role } }),
+        null,
+        role,
+      );
+    }
+    const message = buildNotificationMessage('security.signup_pending', signup, {
+      ...CTX,
+      actor: null,
+    });
+    notificationMessageSchema.parse(message);
+    assert.ok(message.title.includes('nouveau@example.test'));
+    assert.equal(message.url, 'https://panel.example.test/admin/users');
+  });
+
   it('une clé d’hôte inattendue sur une cible prévient, et nomme les deux clés', () => {
     const mismatch = entry({
       action: 'target.host_key.mismatch',

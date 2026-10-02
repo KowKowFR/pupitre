@@ -232,6 +232,13 @@
       "when": 1790943075562,
       "tag": "0033_drop_deployment_proxy",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790947871997,
+      "tag": "0034_roles_auditor_no_access",
+      "breakpoints": true
     }
   ]
 }

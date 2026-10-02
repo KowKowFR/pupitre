@@ -33,6 +33,7 @@ import {
   loadTargets,
 } from '@/lib/overview';
 import { currentAuth, redirectToLogin } from '@/lib/page-auth';
+import { isTeamMember } from '@/lib/rbac';
 import { parseTheme, THEME_COOKIE } from '@/lib/theme';
 import { workerStatus } from '@/lib/worker-status';
 
@@ -64,6 +65,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   const t = await getT(chrome);
   const tOnboarding = await getT(onboarding);
+  // Un compte sans aucune permission n'est pas encore de l'équipe : ni
+  // discussion, ni présence (`isTeamMember`).
+  const member = isTeamMember(auth);
   const groups = visibleNavigation(auth.can);
   const sections = groups.flatMap((group) =>
     group.sections.map((section) => ({
@@ -96,9 +100,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     workerStatus(),
     listRoles(),
     cookies(),
-    listChatMembers(),
-    countUnreadChat(auth.userId, CHAT_DEFAULT_CHANNEL),
-    countUnreadChatMentions(auth.userId, CHAT_DEFAULT_CHANNEL),
+    member ? listChatMembers() : Promise.resolve([]),
+    member ? countUnreadChat(auth.userId, CHAT_DEFAULT_CHANNEL) : Promise.resolve(0),
+    member ? countUnreadChatMentions(auth.userId, CHAT_DEFAULT_CHANNEL) : Promise.resolve(0),
   ]);
 
   const metas: Partial<Record<string, NavMeta>> = {};
@@ -170,13 +174,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                   metas={metas}
                   user={user}
                 />
-                <Topbar instanceName={settings.instanceName} sections={sections} worker={worker} />
+                <Topbar
+                  instanceName={settings.instanceName}
+                  sections={sections}
+                  worker={worker}
+                  team={member}
+                />
                 <main id="contenu" className="page">
                   {children}
                 </main>
               </div>
             </div>
-            <ChatDock canModerate={auth.can('user:manage')} format={formatSettingsOf(settings)} />
+            {member ? (
+              <ChatDock canModerate={auth.can('user:manage')} format={formatSettingsOf(settings)} />
+            ) : null}
             {/* Une photo de profil changée, un compte renommé : le visage et le nom
                 se mettent à jour dans le rail, la présence et la discussion. */}
             <LiveRefresh topics={['users']} />

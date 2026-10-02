@@ -19,6 +19,10 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   // ── En-tête ─────────────────────────────────────────────────────────────
+  // Un compte sans aucune permission : une inscription qui attend son rôle.
+  'noAccess.title': 'Votre compte n’a encore accès à rien',
+  'noAccess.hint':
+    'Un administrateur doit vous attribuer un rôle. Cette page s’ouvrira d’elle-même dès qu’il l’aura fait.',
   'page.title': "Vue d'ensemble",
   'page.deploy': 'Déployer',
   'window.label': "Fenêtre d'observation",
@@ -230,6 +234,9 @@ const fr = {
 } as const;
 
 const en: Translated<typeof fr> = {
+  'noAccess.title': 'Your account has no access yet',
+  'noAccess.hint':
+    'An administrator has to assign you a role. This page will open by itself as soon as they do.',
   'page.title': 'Overview',
   'page.deploy': 'Deploy',
   'window.label': 'Observation window',

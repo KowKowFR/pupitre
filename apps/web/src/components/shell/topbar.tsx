@@ -30,10 +30,13 @@ export function Topbar({
   instanceName,
   sections,
   worker,
+  team,
 }: {
   instanceName: string;
   sections: ShellSection[];
   worker: WorkerPill;
+  /** Faux pour un compte sans accès : il n'est pas encore de l'équipe. */
+  team: boolean;
 }) {
   const t = useT(chrome);
   const pathname = usePathname();
@@ -69,7 +72,7 @@ export function Topbar({
         ) : null}
       </nav>
       <div className="ml-auto flex items-center gap-2">
-        <TeamPresence />
+        {team ? <TeamPresence /> : null}
         <WorkerStatusPill worker={worker} />
         <IconButton label={t('shell.docs')} asChild>
           <a href={DOCS_URL} target="_blank" rel="noreferrer">

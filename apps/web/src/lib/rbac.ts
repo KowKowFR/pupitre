@@ -2,7 +2,12 @@ import 'server-only';
 import type { Permission, RoleKey } from '@pupitre/core';
 import { getUserGrants, logAudit } from '@pupitre/db';
 import { getSession } from './auth';
-import { AccountDisabledError, ForbiddenError, UnauthenticatedError } from './errors';
+import {
+  AccountDisabledError,
+  ForbiddenError,
+  NoAccessError,
+  UnauthenticatedError,
+} from './errors';
 import { clientIp } from './http';
 
 /**
@@ -57,6 +62,41 @@ export async function requireSession(request: Request): Promise<AuthContext> {
     ip,
     can: (permission) => permissionSet.has(permission),
   };
+}
+
+/**
+ * Membre de l'équipe : une session dont le rôle porte au moins une permission.
+ *
+ * La discussion et la présence ne demandent aucune permission — elles sont à
+ * toute l'équipe —, mais un compte sans accès, typiquement une inscription qui
+ * attend qu'on lui choisisse un rôle, n'en fait pas encore partie : il n'y lit
+ * rien, et personne ne le voit en ligne.
+ */
+export function isTeamMember(auth: Pick<AuthContext, 'permissions'>): boolean {
+  return auth.permissions.length > 0;
+}
+
+/** Session d'un membre de l'équipe : 401 sans session, 403 sans aucune permission. */
+export async function requireTeamMember(request: Request): Promise<AuthContext> {
+  const auth = await requireSession(request);
+  if (!isTeamMember(auth)) {
+    await logAudit({
+      actorId: auth.userId,
+      action: 'permission.denied',
+      resourceType: 'permission',
+      resourceId: null,
+      after: {
+        reason: 'no_access',
+        email: auth.email,
+        roles: auth.roles,
+        method: request.method,
+        path: new URL(request.url).pathname,
+      },
+      ip: auth.ip,
+    });
+    throw new NoAccessError();
+  }
+  return auth;
 }
 
 /**

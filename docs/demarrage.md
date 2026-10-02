@@ -28,6 +28,9 @@ sur le poste. Le panel et le worker, eux, se joignent par le réseau compose
 Le premier compte créé devient administrateur. Ensuite l'inscription publique
 dépend de `ALLOW_SIGNUP` (défaut `false`), mais reste **toujours ouverte tant
 qu'aucun compte n'existe** — sinon personne ne pourrait créer le premier admin.
+Un compte inscrit ensuite reçoit le rôle **Sans accès** (`no-access`) : il n'a
+accès à rien, ni à la discussion, tant qu'un administrateur ne lui a pas choisi
+de rôle. L'événement `security.signup_pending` prévient de son arrivée.
 
 ### Les deux secrets
 

@@ -160,7 +160,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = descriptionsF
  * l'autorité, à l'exécution, est la table `roles`. Un administrateur peut créer
  * d'autres rôles et modifier les permissions de ceux-ci.
  */
-export const SEEDED_ROLES = ['admin', 'operator', 'viewer'] as const;
+export const SEEDED_ROLES = ['admin', 'operator', 'auditor', 'viewer', 'no-access'] as const;
 
 export type SeededRoleKey = (typeof SEEDED_ROLES)[number];
 
@@ -185,8 +185,32 @@ export function isLockedRole(key: string): boolean {
 /** Clé de rôle : kebab-case, comme les slugs du reste du projet. */
 export const ROLE_KEY_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/**
+ * Le rôle d'un compte créé par l'inscription publique : aucune permission, en
+ * attendant qu'un administrateur en choisisse un. L'inscription ne dit rien de
+ * qui s'inscrit — lui ouvrir la moindre lecture, c'était la lui ouvrir à
+ * n'importe qui.
+ */
+export const SIGNUP_ROLE = 'no-access' satisfies SeededRoleKey;
+
 /** Toute permission dont l'action est `read`. */
 const READ_ONLY = PERMISSIONS.filter((p) => p.endsWith(':read'));
+
+/**
+ * Les lectures qui regardent l'administration de la plateforme plutôt que son
+ * exploitation : qui s'est connecté et d'où (le journal porte des adresses IP
+ * et des e-mails), qui a un compte, quels rôles existent, comment l'instance
+ * est réglée. Elles vont à l'auditeur, pas à l'observateur.
+ */
+const ADMINISTRATION_READS: ReadonlySet<Permission> = new Set<Permission>([
+  'user:read',
+  'role:read',
+  'audit:read',
+  'settings:read',
+]);
+
+/** Les lectures de l'exploitation : ce qui tourne, où, et dans quel état. */
+const OPERATION_READS = READ_ONLY.filter((p) => !ADMINISTRATION_READS.has(p));
 
 /**
  * Les rôles de départ. Leurs `label` et `description` ne sont **pas** des
@@ -228,10 +252,22 @@ export const ROLE_DEFINITIONS: Record<
       'scan:configure',
     ],
   },
+  auditor: {
+    label: 'Auditeur',
+    description: "Lecture seule sur toute la plateforme, journal d'activité et comptes compris",
+    permissions: READ_ONLY,
+  },
   viewer: {
     label: 'Observateur',
-    description: 'Lecture seule sur toute la plateforme',
-    permissions: READ_ONLY,
+    description:
+      "Lecture seule de l'exploitation : cibles, applications, déploiements, supervision",
+    permissions: OPERATION_READS,
+  },
+  'no-access': {
+    label: 'Sans accès',
+    description:
+      "Aucune permission : le rôle d'une inscription, en attendant qu'un administrateur en choisisse un",
+    permissions: [],
   },
 };
 

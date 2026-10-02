@@ -134,9 +134,10 @@ domaine (`routes.waf`, `block` par défaut), `0030_source_deploy_to`, où part
 le commit d'une branche liée et le commit dont l'application porte la version,
 `0031_proxy_npm`, le genre `npm` des proxies distants, et
 `0032_target_host_key`, la clé d'hôte retenue d'une cible et celle qui attend une
-décision, et `0033_drop_deployment_proxy`, qui retire `deployments.proxy` — un
-reste du premier modèle, où le proxy se choisissait par déploiement —
-se lisent dans
+décision, `0033_drop_deployment_proxy`, qui retire `deployments.proxy` — un
+reste du premier modèle, où le proxy se choisissait par déploiement —, et
+`0034_roles_auditor_no_access`, qui ajoute les rôles `auditor` et `no-access` à
+une base existante et resserre `viewer` s'il n'a jamais été modifié, se lisent dans
 `packages/db/migrations/`.
 
 ### Deux arbitrages qui se lisent dans le SQL

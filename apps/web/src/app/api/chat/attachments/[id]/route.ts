@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { chat as messages } from '@/i18n/messages/chat';
 import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
-import { requireSession } from '@/lib/rbac';
+import { requireTeamMember } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ type Context = { params: Promise<{ id: string }> };
  * effacé n'existe plus (404) : ses octets sont partis avec lui.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
-  await requireSession(request);
+  await requireTeamMember(request);
   const { id } = paramsSchema.parse(await context.params);
 
   const attachment = await getChatAttachmentData(id);

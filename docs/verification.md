@@ -29,13 +29,13 @@ TARGET_NAME=ma-vm ./scripts/verify-purge.sh
 
 | Script | Ce qu'il établit |
 |---|---|
-| `verify-rbac-audit.sh` | un viewer se prend un `403` sur `POST /api/deployments`, et le refus apparaît dans les logs d'activité avec l'acteur **et l'IP derrière le reverse proxy** |
+| `verify-rbac-audit.sh` | un viewer se prend un `403` sur `POST /api/deployments`, et le refus apparaît dans les logs d'activité avec l'acteur **et l'IP derrière le reverse proxy** ; il lit les déploiements, mais pas le journal |
 | `verify-targets-preflight.sh` | une cible est ajoutée avec une clé SSH, le preflight rapporte « Docker ✓ / K3s ✗ » sans recharger la page, le credential est illisible en base, et l'API ne le renvoie jamais — vérifié à toute profondeur du JSON |
 | `verify-roles.sh` | les rôles sont des données : on en crée un, on modifie ses permissions, `admin` refuse d'être touché, un rôle porté refuse d'être supprimé, et **le seed ne réécrit pas une personnalisation** au redémarrage |
 | `verify-account.sh` | mot de passe (l'ancien exigé, l'ancien meurt, les *autres* sessions tombent), TOTP en deux temps avec de vrais codes RFC 6238, un code de secours qui ne sert qu'une fois, et le secret absent de la base comme des logs |
 | `verify-2fa-reset.sh` | la porte de sortie de qui a perdu son téléphone : `403` sans `user:reset-2fa`, la ligne **et** le drapeau effacés dans le même geste, sessions fermées, anciens codes de secours morts, un admin qui se réinitialise garde sa session, et rien de secret dans l'audit |
 | `verify-onboarding.sh` | l'assistant redirige sur un état vierge et **ne cède pas au second passage**, la coquille est nue (aucun lien de navigation), quitter passe par une modale (cherchée jusque dans les chunks JS), une étape franchie survit à une reconnexion, passer ≠ terminer, et **une cible créée par l'assistant est identique en SQL à une cible créée par `/targets/new`** |
-| `verify-settings.sh` | défauts complets sur base vierge, fuseau inventé refusé, **un PATCH partiel ne réinitialise aucune autre section** (au bit près, par empreinte), la clé d'API absente de toutes les pages, et un viewer voit les sections sans pouvoir les modifier |
+| `verify-settings.sh` | défauts complets sur base vierge, fuseau inventé refusé, **un PATCH partiel ne réinitialise aucune autre section** (au bit près, par empreinte), la clé d'API absente de toutes les pages, et un auditeur voit les sections sans pouvoir les modifier |
 
 ### Déploiement
 
