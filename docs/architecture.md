@@ -419,13 +419,28 @@ pipeline complet — nouveau numéro, nouveaux scans — à partir de l'AppSpec 
 l'époque. C'est ce qui permet de rejouer une version sur une *autre* cible, ou
 après un `destroy`.
 
+**Une release par déploiement.** Sur la cible, chaque déploiement dépose sa
+release dans `{racine}/apps/{slug}/{version}-r{numéro}` (`releaseName()`), et les
+images qu'il construit portent la même étiquette : `app-{slug}/{service}:1.0.0-r12`.
+La version seule ne suffisait pas — un commit de code ne la change pas — : deux
+déploiements de `1.0.0` partageaient un répertoire et une étiquette, le second
+écrasait le premier, et revenir en arrière relançait le nouveau code. Le numéro
+est celui du déploiement, propre à l'application. Une release déposée avant ce
+nommage, sous la seule version, se retrouve encore : le rollback et les
+opérations courantes (journaux, santé, redémarrage) la cherchent à l'ancien nom
+quand le nouveau n'existe pas. Côté K3s, l'étiquette nouvelle change le gabarit
+des pods : ils sont remplacés, et `rollout undo` retrouve l'image d'avant.
+
 **Rétention : les cinq derniers répertoires de version**, ménage fait au
 déploiement suivant — le seul moment où l'on sait laquelle vient de devenir la
 courante. Le tri se fait sur la date de modification et non sur le nom : `1.10.0`
 précède `1.9.0` lexicographiquement, et c'est l'ordre de déploiement qui compte.
 La release pointée par `current` n'est jamais supprimée, même si elle est
 ancienne — ce qui est exactement le cas après un rollback. Elle s'ajoute alors
-aux cinq plus récentes : six répertoires au pire, jamais davantage.
+aux cinq plus récentes : six répertoires au pire, jamais davantage. Les images
+construites d'une release effacée partent avec elle (`docker image rm`,
+`crictl rmi`) — une étiquette par release, sans ménage, remplirait le disque ;
+une image encore employée est refusée, et c'est voulu.
 
 `pruneReleases()` est une **méthode de l'interface** et non un détail interne :
 la tâche planifiée `cleanup:versions` en a besoin depuis l'extérieur, et le

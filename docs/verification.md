@@ -162,6 +162,21 @@ le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que l
 de l'application n'est publié que sur la boucle locale. **45/45** au dernier
 passage pour Traefik, **30/30** pour BunkerWeb (`--proxy=bunkerweb`).
 
+## `pnpm test:rollback` — revenir en arrière retrouve le bon code
+
+Un commit de code ne change pas la version de l'AppSpec. Sur chaque runtime,
+une application construite depuis son code : la release A, puis la release B
+**de la même version** — chacune son répertoire et son image —, puis le retour
+en arrière, qui doit servir A de nouveau. Côté Docker, une release d'avant le
+nommage `{version}-r{numéro}` se retrouve encore, et une application déployée
+avant la mise à jour reste pilotable. Enfin, assez de déploiements pour que le
+ménage passe : les cinq releases les plus récentes restent, les autres partent
+avec leurs images construites. **10/10** au dernier passage.
+
+```bash
+pnpm test:rollback cible-docker-locale k3s-locale
+```
+
 ## `pnpm test:source-isolation` — un dépôt piégé ne passe pas
 
 Sur chaque runtime, une application construite depuis l'archive d'un « dépôt »

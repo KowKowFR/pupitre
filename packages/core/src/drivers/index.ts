@@ -6,6 +6,7 @@ export * from './types.js';
 export * from './probe.js';
 export * from './secrets.js';
 export * from './backoff.js';
+export * from './release.js';
 export * from './retention.js';
 export * from './ufw.js';
 export * from './listening.js';
