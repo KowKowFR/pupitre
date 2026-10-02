@@ -7,6 +7,8 @@ import {
   CircleX,
   Link2,
   LoaderCircle,
+  Network,
+  Pencil,
   PlugZap,
   ScanSearch,
   Trash2,
@@ -26,9 +28,15 @@ import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { proxy as messages } from '@/i18n/messages/proxy';
-import type { LinkViewForUi, ProxyViewForUi, RouteViewForUi } from '@/lib/proxy';
+import type {
+  LinkViewForUi,
+  ProxyViewForUi,
+  RemoteProxyViewForUi,
+  RouteViewForUi,
+} from '@/lib/proxy';
 import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
+import { NpmConnectionDrawer } from './npm-connection-drawer';
 
 /**
  * Le reverse proxy d'une machine : le trouver, l'installer, le tester, le
@@ -50,8 +58,16 @@ type Data = {
     address: string;
     status: LinkViewForUi['status'];
   }>;
-  /** Les proxies des autres machines, auxquels on peut relier celle-ci. */
-  candidates: Array<{ proxyId: string; targetId: string; targetName: string; description: string }>;
+  /**
+   * Les proxies auxquels on peut relier celle-ci : ceux des autres machines,
+   * puis les proxies distants (`targetId` nul) — Nginx Proxy Manager.
+   */
+  candidates: Array<{
+    proxyId: string;
+    targetId: string | null;
+    targetName: string;
+    description: string;
+  }>;
   /** L'adresse proposée pour la liaison : celle par laquelle Pupitre la joint. */
   suggestedAddress: string;
   routes: RouteViewForUi[];
@@ -103,8 +119,12 @@ export function ProxyPanel({
   const [removing, setRemoving] = useState(false);
   const [uninstall, setUninstall] = useState(true);
   // Un geste en cours : on relit jusqu'à ce que son test soit passé, c'est-à-dire
-  // jusqu'à ce que la date du dernier test change. `since` : celle d'avant.
-  const [watching, setWatching] = useState<{ since: string | null } | null>(null);
+  // jusqu'à ce que la date du dernier test change. `since` : celle d'avant ;
+  // `of` : le test d'un proxy distant, ou celui de la machine et de sa liaison.
+  const [watching, setWatching] = useState<{ since: string | null; of: CheckOf } | null>(null);
+  const [npmDrawer, setNpmDrawer] = useState<{
+    connection: RemoteProxyViewForUi | null;
+  } | null>(null);
   const [linkProxyId, setLinkProxyId] = useState('');
   const [linkAddress, setLinkAddress] = useState<string | null>(null);
   const [unlinking, setUnlinking] = useState(false);
@@ -149,7 +169,7 @@ export function ProxyPanel({
     const timer = window.setInterval(() => {
       void refresh().then((next) => {
         if (!next) return;
-        const checkedAt = lastCheckedAt(next);
+        const checkedAt = lastCheckedAt(next, watching?.of);
         const tested =
           next.proxy?.status !== 'installing' &&
           checkedAt !== null &&
@@ -160,8 +180,8 @@ export function ProxyPanel({
     return () => window.clearInterval(timer);
   }, [pending, refresh, watching]);
 
-  function watch() {
-    setWatching({ since: data ? lastCheckedAt(data) : null });
+  function watch(of: CheckOf = 'machine') {
+    setWatching({ since: data ? lastCheckedAt(data, of) : null, of });
   }
 
   async function call(url: string, init: RequestInit): Promise<Response | null> {
@@ -259,6 +279,15 @@ export function ProxyPanel({
     await refresh();
   }
 
+  async function checkRemote(proxyId: string) {
+    setBusy('remoteCheck');
+    const response = await call(`/api/proxies/${proxyId}/check`, { method: 'POST' });
+    setBusy(null);
+    if (!response) return;
+    toast({ title: t('remote.checked'), tone: 'accent' });
+    watch('remote');
+  }
+
   async function checkLink() {
     setBusy('linkCheck');
     const response = await call(`/api/targets/${targetId}/proxy/link/check`, { method: 'POST' });
@@ -284,6 +313,8 @@ export function ProxyPanel({
   const proxy = data.proxy;
   const linked = data.link;
   const chosenProxyId = linkProxyId || data.candidates[0]?.proxyId || '';
+  const machines = data.candidates.filter((candidate) => candidate.targetId !== null);
+  const remotes = data.candidates.filter((candidate) => candidate.targetId === null);
   const address = linkAddress ?? data.suggestedAddress;
   const serverLabel = (value: string) =>
     value === 'production' || value === 'staging' || value === 'zerossl' || value === 'custom'
@@ -297,6 +328,27 @@ export function ProxyPanel({
           canManage ? (
             linked ? (
               <span className="flex gap-2">
+                {linked.remote ? (
+                  <>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={busy === 'remoteCheck'}
+                      onClick={() => void checkRemote(linked.remote!.id)}
+                    >
+                      {busy === 'remoteCheck' ? null : <PlugZap aria-hidden />}
+                      {t('action.checkRemote')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setNpmDrawer({ connection: linked.remote })}
+                    >
+                      <Pencil aria-hidden />
+                      {t('action.editRemote')}
+                    </Button>
+                  </>
+                ) : null}
                 <Button
                   variant="secondary"
                   size="sm"
@@ -360,7 +412,9 @@ export function ProxyPanel({
           <>
             <div className="flex flex-wrap items-center gap-2">
               <span className="t-sm font-medium">
-                {t('link.via', { target: linked.hostTargetName })}
+                {t(linked.remote ? 'link.viaRemote' : 'link.via', {
+                  target: linked.hostTargetName,
+                })}
               </span>
               <Badge variant={STATUS_VARIANT[linked.status]} dot>
                 {pending ? <LoaderCircle aria-hidden className="size-3 animate-spin" /> : null}
@@ -386,6 +440,12 @@ export function ProxyPanel({
                 {linked.lastCheckError}
               </Alert>
             ) : null}
+            {linked.remote && linked.remote.checks.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="t-sm font-medium">{t('remote.checks')}</span>
+                <CheckList checks={linked.remote.checks} />
+              </div>
+            ) : null}
             {!linked.privateAddress ? (
               <Alert variant="warn">{t('link.public', { address: linked.address })}</Alert>
             ) : null}
@@ -409,43 +469,68 @@ export function ProxyPanel({
         ) : !proxy ? (
           <>
             <p className="t-sm text-text-2">{canManage ? t('card.none') : t('card.readOnly')}</p>
-            {canManage && data.candidates.length > 0 ? (
+            {canManage ? (
               <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
                 <span className="flex flex-col gap-0.5">
                   <span className="t-sm font-medium">{t('link.title')}</span>
                   <span className="help">{t('link.help')}</span>
                 </span>
-                <Field label={t('link.proxy')}>
-                  <Select
-                    value={chosenProxyId}
-                    onChange={(event) => setLinkProxyId(event.target.value)}
-                  >
-                    {data.candidates.map((candidate) => (
-                      <option key={candidate.proxyId} value={candidate.proxyId}>
-                        {candidate.targetName} — {candidate.description}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-                <Field label={t('link.address')} help={t('link.address.help')}>
-                  <Input
-                    className="mono"
-                    value={address}
-                    placeholder="10.0.0.12"
-                    onChange={(event) => setLinkAddress(event.target.value)}
-                  />
-                </Field>
-                <div className="flex justify-end">
+                {data.candidates.length === 0 ? (
+                  <p className="t-cap text-text-3">{t('link.none')}</p>
+                ) : (
+                  <>
+                    <Field label={t('link.proxy')}>
+                      <Select
+                        value={chosenProxyId}
+                        onChange={(event) => setLinkProxyId(event.target.value)}
+                      >
+                        {machines.map((candidate) => (
+                          <option key={candidate.proxyId} value={candidate.proxyId}>
+                            {candidate.targetName} — {candidate.description}
+                          </option>
+                        ))}
+                        {remotes.length > 0 ? (
+                          <optgroup label={t('link.remoteGroup')}>
+                            {remotes.map((candidate) => (
+                              <option key={candidate.proxyId} value={candidate.proxyId}>
+                                {candidate.description}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                      </Select>
+                    </Field>
+                    <Field label={t('link.address')} help={t('link.address.help')}>
+                      <Input
+                        className="mono"
+                        value={address}
+                        placeholder="10.0.0.12"
+                        onChange={(event) => setLinkAddress(event.target.value)}
+                      />
+                    </Field>
+                  </>
+                )}
+                <div className="flex flex-wrap justify-end gap-2">
                   <Button
                     size="sm"
-                    variant="secondary"
-                    loading={busy === 'link'}
-                    disabled={!chosenProxyId || !address.trim()}
-                    onClick={() => void link(chosenProxyId, address.trim())}
+                    variant="ghost"
+                    onClick={() => setNpmDrawer({ connection: null })}
                   >
-                    {busy === 'link' ? null : <Link2 aria-hidden />}
-                    {t('action.link')}
+                    <Network aria-hidden />
+                    {t('action.connectNpm')}
                   </Button>
+                  {data.candidates.length > 0 ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={busy === 'link'}
+                      disabled={!chosenProxyId || !address.trim()}
+                      onClick={() => void link(chosenProxyId, address.trim())}
+                    >
+                      {busy === 'link' ? null : <Link2 aria-hidden />}
+                      {t('action.link')}
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -630,21 +715,7 @@ export function ProxyPanel({
                   {t('checks.never')}
                 </p>
               ) : (
-                <ul className="flex flex-col gap-1">
-                  {proxy.checks.map((item) => (
-                    <li key={item.key} className="t-sm flex items-start gap-2">
-                      {item.ok ? (
-                        <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-ok-text" />
-                      ) : (
-                        <CircleX aria-hidden className="mt-0.5 size-4 shrink-0 text-danger-text" />
-                      )}
-                      <span>
-                        {item.label}
-                        {item.detail ? <span className="text-text-3"> — {item.detail}</span> : null}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <CheckList checks={proxy.checks} />
               )}
             </div>
 
@@ -739,12 +810,48 @@ export function ProxyPanel({
           await refresh();
         }}
       />
+
+      <NpmConnectionDrawer
+        open={npmDrawer !== null}
+        onClose={() => setNpmDrawer(null)}
+        connection={npmDrawer?.connection ?? null}
+        onSaved={(proxyId) => {
+          // Une connexion neuve est proposée d'emblée pour relier la machine.
+          if (proxyId && !npmDrawer?.connection) setLinkProxyId(proxyId);
+          void refresh();
+        }}
+      />
     </Card>
   );
 }
 
-function lastCheckedAt(data: Data): string | null {
+/** Le test qu'on attend : celui de la machine (son proxy, ou sa liaison), ou celui d'un proxy distant. */
+type CheckOf = 'machine' | 'remote';
+
+function lastCheckedAt(data: Data, of: CheckOf = 'machine'): string | null {
+  if (of === 'remote') return data.link?.remote?.lastCheckedAt ?? null;
   return data.proxy?.lastCheckedAt ?? data.link?.lastCheckedAt ?? null;
+}
+
+/** Les points d'un test, un par ligne. */
+function CheckList({ checks }: { checks: ProxyViewForUi['checks'] }) {
+  return (
+    <ul className="flex flex-col gap-1">
+      {checks.map((item) => (
+        <li key={item.key} className="t-sm flex items-start gap-2">
+          {item.ok ? (
+            <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-ok-text" />
+          ) : (
+            <CircleX aria-hidden className="mt-0.5 size-4 shrink-0 text-danger-text" />
+          )}
+          <span>
+            {item.label}
+            {item.detail ? <span className="text-text-3"> — {item.detail}</span> : null}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** Le jour seul, dans le fuseau et la langue de l'instance : une échéance de certificat. */

@@ -72,6 +72,7 @@ import {
   reachSource,
   registryFileName,
   REMOTE_NAMESPACE,
+  sshReachOrigin,
   traefikConfigSchema,
   traefikFileName,
   type ProxyContext,
@@ -383,7 +384,11 @@ type Installed = {
   kubernetes: boolean;
 };
 
-const PROXY_LABEL: Record<ProxyKind, string> = { traefik: 'Traefik', bunkerweb: 'BunkerWeb' };
+const PROXY_LABEL: Record<ProxyKind, string> = {
+  traefik: 'Traefik',
+  bunkerweb: 'BunkerWeb',
+  npm: 'Nginx Proxy Manager',
+};
 
 /**
  * Le relais `acme-front` : son adresse sur le réseau de test et son autorité,
@@ -685,7 +690,7 @@ async function reachBetween(from: Side, to: Side): Promise<Reach | null> {
   const reserved = new Set(report?.allocations.map((allocation) => allocation.port) ?? []);
   const result = await guarded(label, 'connexion éprouvée', () =>
     checkReach({
-      proxyHost: from.ctx,
+      origin: sshReachOrigin(from.ctx),
       served: to.ctx,
       address: address!,
       portRange,
@@ -708,7 +713,7 @@ async function unreachableIsSaid(from: Side, to: Side): Promise<void> {
   const label = `${from.runtime}→${to.runtime}`;
   const result = await guarded(label, 'adresse injoignable', () =>
     checkReach({
-      proxyHost: from.ctx,
+      origin: sshReachOrigin(from.ctx),
       served: to.ctx,
       // TEST-NET-1 (RFC 5737) : routée par défaut, jamais attribuée.
       address: '192.0.2.1',

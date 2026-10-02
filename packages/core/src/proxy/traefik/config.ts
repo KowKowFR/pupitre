@@ -64,6 +64,7 @@ export type TraefikKubernetesConfig = z.infer<typeof traefikKubernetesConfigSche
 
 export const traefikDescriptor: ProxyDescriptor<TraefikConfig> = {
   label: 'Traefik',
+  placement: 'target',
   parseConfig: (config) => traefikConfigSchema.parse(config),
   describe(config) {
     const tls = config.certResolver ? `certificats « ${config.certResolver} »` : 'sans ACME';

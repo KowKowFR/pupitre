@@ -4,17 +4,14 @@ import type {
   DriverContext,
   DriverExposure,
   LogSink,
-  TargetContext,
 } from '@pupitre/core/drivers';
 import { CERTIFICATE_RECHECK_DELAYS_MS, ROUTES_CHECK_JOB } from '@pupitre/core';
 import {
   getProxyProvider,
-  type ProxyContext,
   type ProxyRoute,
   type ProxyUpstream,
   type RouteProbe,
 } from '@pupitre/core/proxy';
-import { disconnect } from '@pupitre/core/ssh';
 import {
   deleteRoutesOf,
   listRoutes,
@@ -23,12 +20,11 @@ import {
   RouteTakenError,
   resolveServingProxy,
   setRouteStatus,
-  type ProxyView,
   type RouteView,
   type ServingProxy,
 } from '@pupitre/db';
-import { openTargetContext } from '../deploy/target-context.js';
 import { getSupervisionQueue } from '../queue.js';
+import { withProxy, type OpenProxy } from './connect.js';
 
 /**
  * Les domaines d'une application sur une cible, côté worker : les poser sur le
@@ -38,30 +34,6 @@ import { getSupervisionQueue } from '../queue.js';
  * changés sans redéploiement), par la destruction et par la sonde périodique.
  * Aucun runtime n'est nommé ici : l'amont vient du driver, la route du proxy.
  */
-
-export function proxyContextOf(proxy: ProxyView, host: TargetContext): ProxyContext {
-  return { ...host, config: proxy.config };
-}
-
-/**
- * Une session vers la machine **du proxy**. Pour le proxy de la machine même,
- * c'est celle qu'on a déjà ; pour celui d'une autre — le proxy central —, on
- * l'ouvre le temps du geste.
- */
-async function withProxyHost<T>(
-  serving: ServingProxy,
-  local: TargetContext,
-  run: (ctx: ProxyContext) => Promise<T>,
-): Promise<T> {
-  if (!serving.link) return run(proxyContextOf(serving.proxy, local));
-  if (!serving.proxy.hostTargetId) throw new Error('ce proxy ne tourne sur aucune machine connue');
-  const opened = await openTargetContext(serving.proxy.hostTargetId);
-  try {
-    return await run(proxyContextOf(serving.proxy, opened.ctx));
-  } finally {
-    await disconnect(opened.session);
-  }
-}
 
 /**
  * Ce qui distingue cette machine chez un proxy qui en sert plusieurs. Absent
@@ -74,7 +46,8 @@ function scopeOf(serving: ServingProxy, targetId: string): string | undefined {
 
 /**
  * Par où le proxy joint l'application : ce que le driver annonce, plus, pour
- * un proxy distant, l'adresse de la machine — il ne joint qu'un port publié.
+ * le proxy d'une autre machine ou un proxy distant, l'adresse de celle-ci — il
+ * ne joint qu'un port publié.
  */
 function upstreamOf(
   serving: ServingProxy,
@@ -263,13 +236,11 @@ export async function applyCoupleRoutes(input: {
     };
   }
   if (serving.link && routes.length > 0) {
-    onLog(`servie par le proxy d'une autre machine, qui la joint à ${serving.link.address}`);
+    onLog(`servie par le proxy « ${serving.proxy.name} », qui la joint à ${serving.link.address}`);
   }
 
-  const provider = getProxyProvider(serving.proxy.kind);
-  return withProxyHost(serving, ctx, async (proxyCtx) => {
-    await provider.apply(
-      proxyCtx,
+  return withProxy(serving.proxy, ctx, async (proxy) => {
+    await proxy.apply(
       {
         appSlug: ctx.appSlug,
         ...(scopeOf(serving, targetId) ? { scope: scopeOf(serving, targetId)! } : {}),
@@ -290,10 +261,10 @@ export async function applyCoupleRoutes(input: {
     let url: string | null = null;
     let certificatePending = false;
     for (const route of routes) {
-      let probe = await provider.probe(proxyCtx, toProxyRoute(route), path);
+      let probe = await proxy.probe(toProxyRoute(route), path);
       for (let attempt = 1; attempt < 10 && !probe.ok; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
-        probe = await provider.probe(proxyCtx, toProxyRoute(route), path);
+        probe = await proxy.probe(toProxyRoute(route), path);
       }
       await recordProbe(route, probe, { confirm: false });
       const certificate =
@@ -331,23 +302,20 @@ export async function applyCoupleRoutes(input: {
 
 /**
  * La sonde périodique : éprouve sans rien poser, et prévient des changements.
- * `proxyHost` : une session vers la machine du proxy — c'est de là qu'on sonde.
+ * `proxy` : le proxy ouvert — c'est à travers lui qu'on sonde.
  */
 export async function probeCoupleRoutes(input: {
   applicationId: string;
   targetId: string;
   spec: AppSpec;
-  serving: ServingProxy;
-  proxyHost: TargetContext;
+  proxy: OpenProxy;
 }): Promise<{ checked: number; failing: number }> {
   const routes = await listRoutes({ applicationId: input.applicationId, targetId: input.targetId });
   if (routes.length === 0) return { checked: 0, failing: 0 };
-  const provider = getProxyProvider(input.serving.proxy.kind);
-  const proxyCtx = proxyContextOf(input.serving.proxy, input.proxyHost);
   const path = routedHealthPath(input.spec);
   let failing = 0;
   for (const route of routes) {
-    const probe = await provider.probe(proxyCtx, toProxyRoute(route), path);
+    const probe = await input.proxy.probe(toProxyRoute(route), path);
     await recordProbe(route, probe, { confirm: true });
     if (!probe.ok) failing += 1;
   }
@@ -370,9 +338,8 @@ export async function removeCoupleRoutes(input: {
   const serving = await resolveServingProxy(input.targetId);
   if (serving) {
     try {
-      await withProxyHost(serving, input.ctx, (proxyCtx) =>
-        getProxyProvider(serving.proxy.kind).apply(
-          proxyCtx,
+      await withProxy(serving.proxy, input.ctx, (proxy) =>
+        proxy.apply(
           {
             appSlug: input.ctx.appSlug,
             ...(scopeOf(serving, input.targetId)

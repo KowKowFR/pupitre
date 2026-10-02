@@ -4,13 +4,14 @@ import {
   describeProxy,
   proxyAcme,
   proxyCapabilities,
+  proxyPlacement,
   type ProxyCapabilities,
   type ProxyKind,
   type RouteCertificate,
   isPrivateAddress,
 } from '@pupitre/core';
 import type { ProxyLinkRow, ProxyView, RouteView } from '@pupitre/db';
-import { QueueEvents } from 'bullmq';
+import { QueueEvents, type Job } from 'bullmq';
 import { proxy as messages } from '@/i18n/messages/proxy';
 import { ConflictError, msg } from './errors';
 import { getRedis } from './redis';
@@ -31,6 +32,31 @@ export function opsQueueEvents(): QueueEvents {
     connection: getRedis(),
   });
   return globalThis.__tpOpsQueueEvents;
+}
+
+/** Ce que rend le test d'un proxy (`ProxyCheck`), tel que l'écran le lit. */
+export type ProxyCheckResult = {
+  ok: boolean;
+  checks: Array<{ key: string; label: string; ok: boolean; detail: string | null }>;
+};
+
+/**
+ * 45 secondes : quelques requêtes vers l'API du proxy et son entrée, plus
+ * l'attente en file. Au-delà, `null` — le test finira, et l'écran le relira.
+ */
+const CHECK_TIMEOUT_MS = 45_000;
+
+/** L'issue du test d'un proxy, attendue — ou `null` s'il tarde. */
+export async function waitForProxyCheck(job: Job): Promise<ProxyCheckResult | null> {
+  try {
+    return ((await job.waitUntilFinished(opsQueueEvents(), CHECK_TIMEOUT_MS)) ??
+      null) as ProxyCheckResult | null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/timed out/i.test(message)) return null;
+    // Le test lui-même a échoué : c'est un résultat, pas une panne de la route.
+    return { ok: false, checks: [{ key: 'error', label: 'Test', ok: false, detail: message }] };
+  }
 }
 
 export type ProxyViewForUi = {
@@ -134,9 +160,27 @@ export function assertServable(
   }
 }
 
+/**
+ * Une connexion à un proxy distant, pour l'écran : sa configuration se montre
+ * — adresse, compte —, ses secrets jamais. `linkCount` : les machines qu'il sert.
+ */
+export type RemoteProxyViewForUi = ProxyViewForUi & {
+  config: Record<string, unknown>;
+  linkCount: number;
+};
+
+export function remoteProxyViewForUi(
+  proxy: ProxyView & { linkCount?: number },
+): RemoteProxyViewForUi {
+  return { ...proxyViewForUi(proxy), config: proxy.config, linkCount: proxy.linkCount ?? 0 };
+}
+
 export type LinkViewForUi = {
   proxy: ProxyViewForUi;
+  /** Un proxy distant, hors des cibles : sa connexion, pour la modifier. */
+  remote: RemoteProxyViewForUi | null;
   hostTargetId: string | null;
+  /** La machine du proxy — ou, pour un proxy distant, le nom de sa connexion. */
   hostTargetName: string;
   address: string;
   sourceAddress: string | null;
@@ -155,6 +199,7 @@ export function linkViewForUi(
 ): LinkViewForUi {
   return {
     proxy: proxyViewForUi(proxy),
+    remote: proxyPlacement(proxy.kind) === 'remote' ? remoteProxyViewForUi(proxy) : null,
     hostTargetId: proxy.hostTargetId,
     hostTargetName,
     address: link.address,

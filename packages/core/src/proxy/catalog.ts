@@ -1,5 +1,13 @@
 import { bunkerwebDescriptor } from './bunkerweb/config.js';
-import type { AcmeSettings, ProxyCapabilities, ProxyDescriptor, ProxyKind } from './model.js';
+import type {
+  AcmeSettings,
+  ProxyCapabilities,
+  ProxyDescriptor,
+  ProxyKind,
+  ProxyPlacement,
+} from './model.js';
+import { PROXY_KINDS } from './model.js';
+import { npmDescriptor } from './npm/config.js';
 import { traefikDescriptor } from './traefik/config.js';
 
 /**
@@ -11,6 +19,7 @@ import { traefikDescriptor } from './traefik/config.js';
 const descriptors: Record<ProxyKind, ProxyDescriptor<never>> = {
   traefik: traefikDescriptor as ProxyDescriptor<never>,
   bunkerweb: bunkerwebDescriptor as ProxyDescriptor<never>,
+  npm: npmDescriptor as ProxyDescriptor<never>,
 };
 
 function descriptorOf(kind: ProxyKind): ProxyDescriptor<unknown> {
@@ -20,6 +29,32 @@ function descriptorOf(kind: ProxyKind): ProxyDescriptor<unknown> {
 /** Le nom d'un genre de proxy, pour l'écran. */
 export function proxyKindLabel(kind: ProxyKind): string {
   return descriptorOf(kind).label;
+}
+
+/** Où tourne un genre de proxy : sur une machine pilotée en SSH, ou ailleurs, joint par son API. */
+export function proxyPlacement(kind: ProxyKind): ProxyPlacement {
+  return descriptorOf(kind).placement;
+}
+
+/** Les genres qu'on connecte par leur API, hors des cibles. */
+export function remoteProxyKinds(): ProxyKind[] {
+  return PROXY_KINDS.filter((kind) => descriptorOf(kind).placement === 'remote');
+}
+
+/**
+ * Les secrets d'une connexion à un proxy distant, validés selon son genre.
+ * Un genre qui n'en a pas les refuse : rien ne doit être rangé à leur place.
+ */
+export function parseProxySecrets(kind: ProxyKind, secrets: unknown): Record<string, string> {
+  const descriptor = descriptorOf(kind);
+  if (!descriptor.parseSecrets) throw new Error(`le proxy « ${kind} » n'a pas de secrets`);
+  return descriptor.parseSecrets(secrets);
+}
+
+/** Où un proxy distant reçoit les visiteurs ; `null` pour un proxy sur une machine. */
+export function proxyEntrypointHost(kind: ProxyKind, config: unknown): string | null {
+  const descriptor = descriptorOf(kind);
+  return descriptor.entrypointHost?.(descriptor.parseConfig(config)) ?? null;
 }
 
 /** La configuration d'une connexion, validée selon son genre. */

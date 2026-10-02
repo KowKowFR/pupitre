@@ -48,6 +48,9 @@ jamais de route ; le proxy ne sait pas sur quel runtime il route. Comment
 publier l'application pour son proxy — celui de la machine, ou celui d'une
 autre (proxy central, `proxy_links`) — est une intention (`DriverContext.exposure`)
 que chaque driver traduit : boucle locale, adresse privée, NodePort, pare-feu.
+Un proxy **hors des cibles**, joint par son API et jamais par SSH, remplit
+`RemoteProxyProvider` — `check() apply(routes) probe(route) reach()` :
+`NginxProxyManagerProvider`. Le worker ne voit que `openProxy()`.
 
 ### Scanner
 `run(image): Promise<ScanReport>` — rapport normalisé
@@ -116,6 +119,7 @@ pnpm db:migrate                   # applique les migrations
 pnpm test                         # tests unitaires de @pupitre/core
 pnpm test:parity <docker> <k3s>   # la même AppSpec sur les deux runtimes
 pnpm test:proxy <docker> <k3s>    # le reverse proxy de bout en bout, certificats compris
+pnpm test:npm <docker> <k3s>      # Nginx Proxy Manager, un proxy distant, de bout en bout
 pnpm test:catalog <cible>         # chaque modèle du catalogue déployé, sondé, détruit
 docker compose up -d              # stack complète
 ```

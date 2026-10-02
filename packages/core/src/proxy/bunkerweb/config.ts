@@ -49,6 +49,7 @@ const AUTHORITY: Record<string, string> = {
 
 export const bunkerwebDescriptor: ProxyDescriptor<BunkerWebConfig> = {
   label: 'BunkerWeb',
+  placement: 'target',
   parseConfig: (config) => bunkerwebConfigSchema.parse(config),
   describe(config) {
     const tls = config.acme ? `certificats ${AUTHORITY[config.acme.server]}` : 'sans ACME';

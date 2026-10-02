@@ -162,6 +162,34 @@ le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que l
 de l'application n'est publié que sur la boucle locale. **45/45** au dernier
 passage pour Traefik, **30/30** pour BunkerWeb (`--proxy=bunkerweb`).
 
+## `pnpm test:npm` — Nginx Proxy Manager, un proxy distant
+
+Contre une vraie instance (2.16, service `npm-proxy` du profil `test`, ses
+certificats émis par Pebble) et les deux cibles de test. Son administrateur
+crée le compte de Pupitre aux droits conseillés — *Manage* sur les hôtes et
+les certificats, visibilité *Created Items* —, puis : « Tester » passe, un
+mauvais mot de passe est refusé en le disant ; la liaison est éprouvée
+**à travers NPM** vers chaque cible (l'arrivée relevée sur Docker ; sur l'Alpine
+de K3s, l'écouteur `nc` ne la note pas, et le résultat doit le dire), une
+adresse qui ne mène nulle part est dite telle, aucun hôte de test ne reste ;
+sur chaque runtime, un domaine posé — HTTP renvoie vers HTTPS, certificat de
+Pebble, sondé depuis le panel ; deux certificats demandés en même temps sont
+obtenus tous deux ; le domaine d'un autre compte est refusé sans gêner les
+autres ; un joker déjà dans NPM est repris ; au retrait, les hôtes et les
+certificats de Pupitre partent, le joker et l'hôte de l'autre compte restent,
+et une machine ne touche pas aux domaines de l'autre. **15/15** au dernier
+passage.
+
+```bash
+docker compose --profile test up -d pebble pebble-dns npm-proxy
+pnpm test:npm cible-docker-locale k3s-locale
+```
+
+Le même parcours a été fait par le panel et son worker : connexion (refusée
+puis acceptée), liaison des deux cibles, déploiement à domaine sur chaque
+runtime par le pipeline, « Appliquer » qui redemande un certificat, sonde
+périodique, destruction qui retire hôtes et certificats de NPM.
+
 ## `pnpm test:rollback` — revenir en arrière retrouve le bon code
 
 Un commit de code ne change pas la version de l'AppSpec. Sur chaque runtime,

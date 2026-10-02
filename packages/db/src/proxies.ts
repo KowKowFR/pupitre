@@ -105,6 +105,84 @@ export async function saveTargetProxy(
   return view(row);
 }
 
+/**
+ * Une connexion à un proxy **distant** — hors des cibles, joint par son API
+ * (Nginx Proxy Manager). Ses identifiants sont chiffrés ici, et ne ressortent
+ * que par `resolveProxySecrets()`.
+ */
+export async function createRemoteProxy(
+  input: {
+    kind: ProxyKind;
+    name: string;
+    config: Record<string, unknown>;
+    secrets: Record<string, string>;
+    createdBy: string | null;
+  },
+  db: Database = getDb(),
+): Promise<ProxyView> {
+  const [row] = await db
+    .insert(proxies)
+    .values({
+      kind: input.kind,
+      name: input.name,
+      placement: 'remote',
+      hostTargetId: null,
+      config: input.config,
+      encryptedSecrets: encrypt(JSON.stringify(input.secrets)),
+      managed: false,
+      status: 'unknown',
+      createdBy: input.createdBy,
+    })
+    .returning();
+  if (!row) throw new Error("la connexion au proxy n'a pas été enregistrée");
+  return view(row);
+}
+
+/**
+ * Change une connexion distante. `secrets` absent : ceux d'avant restent — un
+ * formulaire n'a pas à renvoyer un mot de passe qu'il n'a jamais reçu.
+ */
+export async function updateRemoteProxy(
+  id: string,
+  input: {
+    name?: string;
+    config: Record<string, unknown>;
+    secrets?: Record<string, string>;
+  },
+  db: Database = getDb(),
+): Promise<ProxyView | null> {
+  const [row] = await db
+    .update(proxies)
+    .set({
+      ...(input.name ? { name: input.name } : {}),
+      config: input.config,
+      ...(input.secrets ? { encryptedSecrets: encrypt(JSON.stringify(input.secrets)) } : {}),
+      status: 'unknown',
+      lastCheckError: null,
+      lastCheck: null,
+      lastCheckedAt: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(proxies.id, id), eq(proxies.placement, 'remote')))
+    .returning();
+  return row ? view(row) : null;
+}
+
+/** Les proxies distants, chacun avec le nombre de machines qu'il sert. */
+export async function listRemoteProxies(
+  db: Database = getDb(),
+): Promise<Array<ProxyView & { linkCount: number }>> {
+  const rows = await db
+    .select({
+      proxy: proxies,
+      linkCount: sql<number>`(select count(*)::int from ${proxyLinks} where ${proxyLinks.proxyId} = ${proxies.id})`,
+    })
+    .from(proxies)
+    .where(eq(proxies.placement, 'remote'))
+    .orderBy(asc(proxies.name));
+  return rows.map((row) => ({ ...view(row.proxy), linkCount: row.linkCount }));
+}
+
 export async function setProxyStatus(
   id: string,
   update: {

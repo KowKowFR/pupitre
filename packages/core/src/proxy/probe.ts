@@ -74,7 +74,8 @@ export function routeProbeScript(
   ].join('\n');
 }
 
-type Probed = { code: number; noRoute: boolean };
+/** Ce qu'une requête à travers le proxy a donné : son code, et s'il ne connaît pas le nom. */
+export type Probed = { code: number; noRoute: boolean };
 
 function parseProbes(stdout: string): Record<'http' | 'https', Probed | undefined> {
   const result: Record<'http' | 'https', Probed | undefined> = {
@@ -146,13 +147,28 @@ export function interpretRouteProbe(
   signatures: ProbeSignatures,
   now = Date.now(),
 ): RouteProbe {
-  const probes = parseProbes(stdout);
+  return judgeRouteProbe(route, {
+    ...parseProbes(stdout),
+    certificate: route.tls
+      ? parseCertificate(stdout, signatures, now)
+      : { status: 'none', subject: null, issuer: null, notAfter: null },
+  });
+}
+
+/**
+ * Le verdict d'une sonde, d'où qu'elle vienne : de la machine du proxy (le
+ * script ci-dessus), ou du panel pour un proxy distant (`probeDirect()`).
+ */
+export function judgeRouteProbe(
+  route: ProxyRoute,
+  probes: { http?: Probed | undefined; https?: Probed | undefined; certificate: RouteCertificate },
+): RouteProbe {
   const problems = [
     judge('HTTP', probes.http, route.tls && route.redirectHttps),
     route.tls ? judge('HTTPS', probes.https, false) : null,
   ].filter((problem): problem is string => problem !== null);
   const certificate: RouteCertificate = route.tls
-    ? parseCertificate(stdout, signatures, now)
+    ? probes.certificate
     : { status: 'none', subject: null, issuer: null, notAfter: null };
   const codes = [
     probes.http ? `HTTP ${probes.http.code}` : null,

@@ -12,6 +12,7 @@ import {
 } from '@pupitre/db';
 import { openTargetContext } from '../deploy/target-context.js';
 import { env } from '../env.js';
+import { openProxy } from './connect.js';
 
 /**
  * Le proxy central, éprouvé : la machine du proxy ouvre-t-elle vraiment une
@@ -23,7 +24,7 @@ import { env } from '../env.js';
 
 export type LinkCheck = {
   result: ReachResult;
-  /** Le nom de la machine du proxy, pour le dire. */
+  /** Le nom du proxy, pour le dire : sa machine, ou la connexion distante. */
   proxyHostName: string;
 };
 
@@ -38,7 +39,7 @@ export async function verifyTargetLink(input: {
   const link = await getTargetLink(input.targetId);
   if (!link) return null;
   const proxy = await getProxy(link.proxyId);
-  if (!proxy?.hostTargetId) throw new Error('le proxy de cette liaison a disparu');
+  if (!proxy) throw new Error('le proxy de cette liaison a disparu');
 
   // Un port libre de la plage, hors des réservations du panel : là où le
   // driver publiera, donc là où un pare-feu bloquerait l'application.
@@ -48,28 +49,28 @@ export async function verifyTargetLink(input: {
     input.portRange ?? intersectPortRanges(report.range, env.DRIVER_PORT_RANGE) ?? report.range;
   const reserved = new Set(report.allocations.map((allocation) => allocation.port));
 
-  const proxyHost = await openTargetContext(proxy.hostTargetId);
+  const opened = await openProxy(proxy);
   const served = input.served ? null : await openTargetContext(input.targetId);
   try {
     const result = await checkReach({
-      proxyHost: proxyHost.ctx,
+      origin: opened.reachOrigin(input.onLog),
       served: input.served ?? served!.ctx,
       address: link.address,
       portRange,
       reserved,
       ...(input.onLog ? { onLog: input.onLog } : {}),
     });
-    // Pas pu éprouver la connexion (ni python3 ni perl) : la liaison reste
-    // utilisable, l'avertissement est retenu à sa place.
+    // Pas pu éprouver la connexion, ou pas su d'où le proxy arrive : la
+    // liaison reste utilisable, l'avertissement est retenu à sa place.
     await setTargetLinkCheck(input.targetId, {
       status: result.ok === false ? 'failed' : 'ok',
       sourceAddress: reachSource(result),
       bindable: result.bindable,
-      error: result.ok === true ? null : result.detail,
+      error: result.ok === true && reachSource(result) !== null ? null : result.detail,
     });
-    return { result, proxyHostName: proxyHost.name };
+    return { result, proxyHostName: opened.name };
   } finally {
-    await disconnect(proxyHost.session);
+    await opened.close();
     if (served) await disconnect(served.session);
   }
 }

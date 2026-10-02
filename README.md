@@ -262,7 +262,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | | Où c'est décrit |
 |---|---|
 | Machines cibles, preflight, charges distantes, suppression et purge | [`docs/exploitation.md`](docs/exploitation.md) |
-| Reverse proxy (Traefik repris ou installé), domaines et certificats Let's Encrypt au déploiement | [`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines) |
+| Reverse proxy (Traefik ou BunkerWeb repris ou installés, Nginx Proxy Manager connecté par son API), domaines et certificats Let's Encrypt au déploiement | [`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines) |
 | Sauvegardes chiffrées vers S3, SFTP ou un dossier monté, restauration, reprise après sinistre | [`docs/exploitation.md`](docs/exploitation.md#sauvegardes) |
 | RBAC (34 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Scanners Trivy / Grype / Syft et politique de blocage | [`docs/securite.md`](docs/securite.md#scanners-de-sécurité) |

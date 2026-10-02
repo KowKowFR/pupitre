@@ -59,8 +59,10 @@ export const GET = apiRoute<Context>(async (request, context) => {
           name: target.name,
           live: live.some((couple) => couple.targetId === target.id && couple.inService),
           proxy: serving ? proxyViewForUi(serving.proxy) : null,
-          /** La machine du proxy, quand c'est celui d'une autre — le proxy central. */
-          via: serving?.link ? (nameOf.get(serving.proxy.hostTargetId ?? '') ?? null) : null,
+          /** Le proxy, quand c'est celui d'une autre machine ou un proxy distant. */
+          via: serving?.link
+            ? (nameOf.get(serving.proxy.hostTargetId ?? '') ?? serving.proxy.name)
+            : null,
           routes: routes.filter((route) => route.targetId === target.id).map(routeViewForUi),
         };
       }),

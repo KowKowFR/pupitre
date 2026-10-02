@@ -20,14 +20,15 @@ import { z } from 'zod';
  */
 
 /** Les genres connus de la base. Chacun déclare sa configuration dans `catalog.ts`. */
-export const PROXY_KINDS = ['traefik', 'bunkerweb'] as const;
+export const PROXY_KINDS = ['traefik', 'bunkerweb', 'npm'] as const;
 export const proxyKindSchema = z.enum(PROXY_KINDS);
 export type ProxyKind = z.infer<typeof proxyKindSchema>;
 
 /**
- * `target` : le proxy tourne sur la machine qu'il sert — le cas de Traefik.
- * `remote` : il est ailleurs et en sert plusieurs — prévu pour les proxies
- * centraux. Le modèle le porte dès maintenant pour ne pas avoir à le refaire.
+ * `target` : le proxy tourne sur une machine que Pupitre pilote en SSH — celle
+ * qu'il sert, ou une autre par une liaison (le proxy central).
+ * `remote` : il est ailleurs, hors des cibles, et Pupitre ne le joint que par
+ * son API — Nginx Proxy Manager. Il sert des machines par liaison, toujours.
  */
 export const PROXY_PLACEMENTS = ['target', 'remote'] as const;
 export const proxyPlacementSchema = z.enum(PROXY_PLACEMENTS);
@@ -227,7 +228,19 @@ export type ProxyCapabilities = {
 export type ProxyDescriptor<C = unknown> = {
   /** Le nom du genre, pour l'écran : « Traefik », « BunkerWeb ». */
   label: string;
+  /** Où il tourne : sur une machine pilotée en SSH, ou ailleurs, joint par son API. */
+  placement: ProxyPlacement;
   parseConfig(config: unknown): C;
+  /**
+   * Pour un proxy `remote` : ses secrets (identifiants d'API), validés. Ils sont
+   * chiffrés en base et ne ressortent que vers le worker.
+   */
+  parseSecrets?(secrets: unknown): Record<string, string>;
+  /**
+   * Pour un proxy `remote` : la machine où il reçoit les visiteurs — celle vers
+   * qui le DNS d'un domaine doit pointer.
+   */
+  entrypointHost?(config: C): string;
   /** Une ligne pour l'écran : de quoi reconnaître la connexion. */
   describe(config: C): string;
   capabilities(config: C): ProxyCapabilities;

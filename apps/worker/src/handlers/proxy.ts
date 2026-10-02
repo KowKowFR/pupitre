@@ -28,14 +28,15 @@ import {
   logAudit,
   resolveServingProxy,
   setProxyStatus,
-  type ServingProxy,
+  type ProxyView,
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
 import { openTargetContext } from '../deploy/target-context.js';
 import { logger } from '../logger.js';
+import { openProxy, proxyContextOf, withProxy } from '../proxy/connect.js';
 import { verifyTargetLink } from '../proxy/link.js';
-import { applyCoupleRoutes, probeCoupleRoutes, proxyContextOf } from '../proxy/routes.js';
+import { applyCoupleRoutes, probeCoupleRoutes } from '../proxy/routes.js';
 
 /**
  * Les reverse proxies, côté worker : regarder ce qu'une machine a déjà,
@@ -77,12 +78,10 @@ export async function handleProxyDetect(job: Job): Promise<{
 
 async function runCheck(proxyId: string): Promise<ProxyCheck | null> {
   const proxy = await getProxy(proxyId);
-  if (!proxy?.hostTargetId) return null;
-  const opened = await openTargetContext(proxy.hostTargetId);
+  if (!proxy) return null;
   try {
-    const check = await getProxyProvider(proxy.kind).check(
-      proxyContextOf(proxy, opened.ctx),
-      (line) => logger.info({ proxyId }, line),
+    const check = await withProxy(proxy, undefined, (open) =>
+      open.check((line) => logger.info({ proxyId }, line)),
     );
     const failed = check.checks.filter((item) => !item.ok);
     await setProxyStatus(proxyId, {
@@ -97,8 +96,6 @@ async function runCheck(proxyId: string): Promise<ProxyCheck | null> {
   } catch (error) {
     await setProxyStatus(proxyId, { status: 'failed', error: messageOf(error), check: null });
     throw error;
-  } finally {
-    await disconnect(opened.session);
   }
 }
 
@@ -226,8 +223,9 @@ export async function handleProxyApply(job: Job): Promise<{
 }
 
 /**
- * La sonde périodique : chaque domaine, à travers son proxy, depuis sa
- * machine. Une session par machine, pas par domaine.
+ * La sonde périodique : chaque domaine, à travers son proxy. Un proxy ouvert
+ * une fois pour tous les domaines qu'il sert — une session vers sa machine, ou
+ * une entrée dans son API.
  */
 export async function handleRoutesCheck(job: Job): Promise<{ checked: number; failing: number }> {
   const scope = routesCheckJobDataSchema.parse(job.data ?? {});
@@ -236,45 +234,41 @@ export async function handleRoutesCheck(job: Job): Promise<{ checked: number; fa
       (!scope.applicationId || couple.applicationId === scope.applicationId) &&
       (!scope.targetId || couple.targetId === scope.targetId),
   );
-  // On sonde depuis la machine du proxy — celle de la cible, ou celle du proxy
-  // central qui la sert : une session par machine de proxy.
-  const byHost = new Map<
+  // Les couples, par proxy qui les sert — le leur, ou celui d'une liaison.
+  const byProxy = new Map<
     string,
-    Array<{ applicationId: string; targetId: string; serving: ServingProxy }>
+    { proxy: ProxyView; couples: Array<{ applicationId: string; targetId: string }> }
   >();
   for (const couple of couples) {
     const serving = await resolveServingProxy(couple.targetId);
-    const host = serving?.proxy.hostTargetId;
-    if (!serving || !host) continue;
-    byHost.set(host, [...(byHost.get(host) ?? []), { ...couple, serving }]);
+    if (!serving) continue;
+    const entry = byProxy.get(serving.proxy.id) ?? { proxy: serving.proxy, couples: [] };
+    entry.couples.push(couple);
+    byProxy.set(serving.proxy.id, entry);
   }
   let checked = 0;
   let failing = 0;
-  for (const [hostTargetId, entries] of byHost) {
-    let opened: Awaited<ReturnType<typeof openTargetContext>> | null = null;
+  for (const { proxy, couples: served } of byProxy.values()) {
+    let open: Awaited<ReturnType<typeof openProxy>> | null = null;
     try {
-      opened = await openTargetContext(hostTargetId);
-      for (const { applicationId, targetId, serving } of entries) {
+      open = await openProxy(proxy);
+      for (const { applicationId, targetId } of served) {
         const [live] = await listLiveDeployments({ applicationId, targetId });
         if (!live?.inService || live.inService.stoppedAt) continue;
         const result = await probeCoupleRoutes({
           applicationId,
           targetId,
           spec: parseAppSpec(live.inService.appSpec),
-          serving,
-          proxyHost: opened.ctx,
+          proxy: open,
         });
         checked += result.checked;
         failing += result.failing;
       }
     } catch (error) {
-      // Une machine injoignable n'arrête pas la tournée : les autres sont sondées.
-      logger.warn(
-        { hostTargetId, err: error },
-        'sonde des domaines impossible depuis cette machine',
-      );
+      // Un proxy injoignable n'arrête pas la tournée : les autres sont sondés.
+      logger.warn({ proxyId: proxy.id, err: error }, 'sonde des domaines impossible par ce proxy');
     } finally {
-      if (opened) await disconnect(opened.session);
+      if (open) await open.close();
     }
   }
   return { checked, failing };
