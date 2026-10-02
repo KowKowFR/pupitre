@@ -249,7 +249,7 @@ export async function runPreflight(
       label: 'Connexion SSH',
       status: 'success',
       durationMs: Date.now() - connectStartedAt,
-      detail: `${session.latencyMs} ms`,
+      detail: `${session.latencyMs} ms${session.hostKey ? ` · clé ${session.hostKey}` : ''}`,
       error: null,
     });
   } catch (error) {

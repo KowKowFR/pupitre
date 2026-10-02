@@ -10,6 +10,24 @@ export type SshCredentials =
   | { authMethod: 'key'; privateKey: string; passphrase?: string }
   | { authMethod: 'password'; password: string };
 
+/**
+ * La clé d'hôte qu'on attend de la machine — sans quoi n'importe quelle machine
+ * intercalée sur le réseau pourrait se faire passer pour elle, recevoir le mot
+ * de passe SSH ou sudo, voir et modifier les commandes.
+ *
+ * Confiance au premier contact (TOFU), comme `ssh` et son `known_hosts` :
+ * `expected` vaut `null` pour une machine jamais jointe — la clé présentée est
+ * acceptée, et `onFirstSeen` la reçoit pour qu'on la retienne. Ensuite, une
+ * autre clé fait **refuser** la connexion, sans nouvel essai, et `onMismatch`
+ * reçoit la clé présentée pour qu'on la signale.
+ */
+export type HostKeyPolicy = {
+  /** L'empreinte retenue (`SHA256:…`), ou `null` : machine jamais jointe. */
+  expected: string | null;
+  onFirstSeen?: (fingerprint: string) => Promise<void> | void;
+  onMismatch?: (presented: string) => Promise<void> | void;
+};
+
 /** Tout ce qu'il faut pour joindre une machine cible. */
 export type SshTarget = {
   host: string;
@@ -17,6 +35,11 @@ export type SshTarget = {
   username: string;
   credentials: SshCredentials;
   sudoMethod: SudoMethod;
+  /**
+   * Absente : aucune vérification — réservé aux outils de test, qui visent des
+   * machines jetables. Le worker la donne toujours (`sshTargetOf()`).
+   */
+  hostKey?: HostKeyPolicy;
 };
 
 export type ExecResult = {

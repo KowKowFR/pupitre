@@ -130,8 +130,11 @@ La liste s'arrête aux treize premières ; les suivantes — jusqu'à
 `0027_reverse_proxy`, les connexions et les routes, avec la reprise de ce qui
 était routé avant, `0028_central_proxy`, les liaisons d'une machine au proxy
 d'une autre, `0029_route_waf`, l'enum `waf_mode` et la protection de chaque
-domaine (`routes.waf`, `block` par défaut), et `0030_source_deploy_to`, où part
-le commit d'une branche liée et le commit dont l'application porte la version —
+domaine (`routes.waf`, `block` par défaut), `0030_source_deploy_to`, où part
+le commit d'une branche liée et le commit dont l'application porte la version,
+`0031_proxy_npm`, le genre `npm` des proxies distants, et
+`0032_target_host_key`, la clé d'hôte retenue d'une cible et celle qui attend une
+décision —
 se lisent dans
 `packages/db/migrations/`.
 

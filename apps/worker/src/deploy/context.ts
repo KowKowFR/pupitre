@@ -1,17 +1,6 @@
-import {
-  decrypt,
-  intersectPortRanges,
-  parseAppSpec,
-  type PortRange,
-} from '@pupitre/core';
+import { intersectPortRanges, parseAppSpec, type PortRange } from '@pupitre/core';
 import type { DriverContext, SecretResolver } from '@pupitre/core/drivers';
-import {
-  connect,
-  disconnect,
-  type ConnectOptions,
-  type SshSession,
-  type SshTarget,
-} from '@pupitre/core/ssh';
+import { connect, disconnect, type ConnectOptions, type SshSession } from '@pupitre/core/ssh';
 import {
   createPortAllocator,
   ensureApplicationSecrets,
@@ -22,6 +11,7 @@ import {
 } from '@pupitre/db';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
+import { sshTargetOf } from './ssh-target.js';
 
 /**
  * Ouverture d'un contexte driver pour un déploiement existant.
@@ -86,19 +76,7 @@ export async function openDeploymentContext(
   const secret = await getTargetSecret(deployment.targetId);
   if (!secret) throw new Error(`Cible « ${deployment.targetId} » introuvable`);
 
-  const credential = decrypt(secret.encryptedCredential);
-  const sshTarget: SshTarget = {
-    host: secret.target.host,
-    port: secret.target.port,
-    username: secret.target.sshUser,
-    sudoMethod: secret.target.sudoMethod,
-    credentials:
-      secret.target.authMethod === 'key'
-        ? { authMethod: 'key', privateKey: credential }
-        : { authMethod: 'password', password: credential },
-  };
-
-  const session = await connect(sshTarget, { logger, ...options.connect });
+  const session = await connect(sshTargetOf(secret), { logger, ...options.connect });
 
   const previous = deployment.previousDeploymentId
     ? await getDeploymentForRun(deployment.previousDeploymentId)

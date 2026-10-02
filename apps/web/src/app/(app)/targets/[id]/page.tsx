@@ -26,6 +26,7 @@ import { targets as messages } from '@/i18n/messages/targets';
 import { formatDateTimeWith, formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { STATUS_TONE } from '../status';
+import { HostKeyAlert } from './host-key-alert';
 import { PortsPanel } from './ports-panel';
 import { ReportDetails } from './report-details';
 import { TargetActions } from './target-actions';
@@ -155,6 +156,16 @@ export default async function TargetDetailPage({
           </div>
         ) : null}
       </PageHeader>
+
+      {target.hostKeyPending ? (
+        <HostKeyAlert
+          target={{ id: target.id, name: target.name }}
+          expected={target.hostKeyFingerprint}
+          presented={target.hostKeyPending}
+          since={date(target.hostKeyPendingAt)}
+          canDecide={auth.can('target:update')}
+        />
+      ) : null}
 
       <Tabs label={t('detail.tabs')} asNav>
         {TABS.map((key) => (
@@ -347,6 +358,19 @@ export default async function TargetDetailPage({
                       : t('value.sudo.password'),
                 },
                 { term: t('field.credential'), value: t('value.credential') },
+                {
+                  term: t('field.hostKey'),
+                  value: target.hostKeyFingerprint ? (
+                    <span className="flex flex-col gap-0.5">
+                      <span className="mono break-all">{target.hostKeyFingerprint}</span>
+                      <span className="t-cap text-text-3">
+                        {t('hostKey.recorded', { date: date(target.hostKeyRecordedAt) })}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-text-3">{t('hostKey.none')}</span>
+                  ),
+                },
                 {
                   term: t('field.portRangeShort'),
                   value: (

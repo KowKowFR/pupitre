@@ -1,6 +1,6 @@
 import type { PreflightReport, RuntimesAvailable } from '@pupitre/core';
 import type { TargetLabels } from './schema/infra.js';
-import { count, eq, ne } from 'drizzle-orm';
+import { and, count, eq, isNull, ne, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { deployments } from './schema/deployments.js';
@@ -31,6 +31,10 @@ const publicColumns = {
   preflightReport: targets.preflightReport,
   lastPreflightAt: targets.lastPreflightAt,
   status: targets.status,
+  hostKeyFingerprint: targets.hostKeyFingerprint,
+  hostKeyRecordedAt: targets.hostKeyRecordedAt,
+  hostKeyPending: targets.hostKeyPending,
+  hostKeyPendingAt: targets.hostKeyPendingAt,
   createdAt: targets.createdAt,
   updatedAt: targets.updatedAt,
 } as const;
@@ -54,6 +58,12 @@ export type PublicTarget = {
   preflightReport: PreflightReport | null;
   lastPreflightAt: Date | null;
   status: 'unknown' | 'ok' | 'degraded' | 'unreachable';
+  /** L'empreinte de la clé d'hôte retenue — `null` avant le premier contact. */
+  hostKeyFingerprint: string | null;
+  hostKeyRecordedAt: Date | null;
+  /** Une autre clé présentée depuis, en attente d'une décision. */
+  hostKeyPending: string | null;
+  hostKeyPendingAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -242,6 +252,26 @@ export async function updateTarget(
     values.encryptedCredential = patch.encryptedCredential;
   }
 
+  // Une autre adresse, c'est une autre machine : sa clé n'est plus connue, et
+  // la prochaine connexion la relèvera. Sans cela, viser une nouvelle machine
+  // serait refusé comme une usurpation.
+  if (patch.host !== undefined || patch.port !== undefined) {
+    const [current] = await db
+      .select({ host: targets.host, port: targets.port })
+      .from(targets)
+      .where(eq(targets.id, id));
+    if (
+      current &&
+      ((patch.host !== undefined && patch.host !== current.host) ||
+        (patch.port !== undefined && patch.port !== current.port))
+    ) {
+      values.hostKeyFingerprint = null;
+      values.hostKeyRecordedAt = null;
+      values.hostKeyPending = null;
+      values.hostKeyPendingAt = null;
+    }
+  }
+
   const [row] = await db
     .update(targets)
     .set(values)
@@ -249,6 +279,78 @@ export async function updateTarget(
     .returning(publicColumns);
 
   return row ?? null;
+}
+
+// ─── la clé d'hôte ──────────────────────────────────────────────────────────
+
+/**
+ * Retient la clé d'une machine jamais jointe. Sans effet si une clé est déjà
+ * retenue — deux premières connexions simultanées n'en retiennent qu'une.
+ * `true` : elle vient d'être retenue.
+ */
+export async function recordTargetHostKey(
+  id: string,
+  fingerprint: string,
+  db: Database = getDb(),
+): Promise<boolean> {
+  const rows = await db
+    .update(targets)
+    .set({ hostKeyFingerprint: fingerprint, hostKeyRecordedAt: new Date() })
+    .where(and(eq(targets.id, id), isNull(targets.hostKeyFingerprint)))
+    .returning({ id: targets.id });
+  return rows.length > 0;
+}
+
+/**
+ * Note la clé inattendue qu'une machine vient de présenter. `true` si c'est
+ * nouveau — une autre clé que celle déjà notée : c'est là qu'on prévient, pas à
+ * chaque tentative de connexion qui suit.
+ */
+export async function setTargetHostKeyPending(
+  id: string,
+  presented: string,
+  db: Database = getDb(),
+): Promise<boolean> {
+  const rows = await db
+    .update(targets)
+    .set({ hostKeyPending: presented, hostKeyPendingAt: new Date() })
+    .where(
+      and(
+        eq(targets.id, id),
+        or(isNull(targets.hostKeyPending), ne(targets.hostKeyPending, presented)),
+      ),
+    )
+    .returning({ id: targets.id });
+  return rows.length > 0;
+}
+
+/**
+ * Tranche une clé en attente : `accept` la retient à la place de l'ancienne
+ * (la machine a été réinstallée), `dismiss` l'écarte et garde l'ancienne.
+ * `null` : rien n'était en attente.
+ */
+export async function resolveTargetHostKey(
+  id: string,
+  decision: 'accept' | 'dismiss',
+  db: Database = getDb(),
+): Promise<{ previous: string | null; pending: string } | null> {
+  const [current] = await db
+    .select({ fingerprint: targets.hostKeyFingerprint, pending: targets.hostKeyPending })
+    .from(targets)
+    .where(eq(targets.id, id));
+  if (!current?.pending) return null;
+  await db
+    .update(targets)
+    .set({
+      ...(decision === 'accept'
+        ? { hostKeyFingerprint: current.pending, hostKeyRecordedAt: new Date() }
+        : {}),
+      hostKeyPending: null,
+      hostKeyPendingAt: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(targets.id, id), eq(targets.hostKeyPending, current.pending)));
+  return { previous: current.fingerprint, pending: current.pending };
 }
 
 export async function deleteTarget(id: string, db: Database = getDb()): Promise<boolean> {

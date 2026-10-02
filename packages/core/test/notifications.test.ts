@@ -132,6 +132,31 @@ describe('notifications — la table des événements', () => {
     }
   });
 
+  it('une clé d’hôte inattendue sur une cible prévient, et nomme les deux clés', () => {
+    const mismatch = entry({
+      action: 'target.host_key.mismatch',
+      resourceType: 'target',
+      resourceId: '22222222-2222-2222-2222-222222222222',
+      actorId: null,
+      before: { fingerprint: 'SHA256:ancienne' },
+      after: { name: 'prod-1', host: '10.0.0.5', presented: 'SHA256:nouvelle' },
+    });
+    assert.equal(notifiableEventFor(mismatch), 'security.host_key_changed');
+    const message = buildNotificationMessage('security.host_key_changed', mismatch, CTX);
+    notificationMessageSchema.parse(message);
+    assert.equal(message.severity, 'critical');
+    assert.match(message.title, /prod-1/);
+    assert.ok(message.fields.some((field) => field.value === 'SHA256:ancienne'));
+    assert.ok(message.fields.some((field) => field.value === 'SHA256:nouvelle'));
+    assert.equal(
+      message.url,
+      'https://panel.example.test/targets/22222222-2222-2222-2222-222222222222',
+    );
+    // Accepter ou écarter une clé est un geste, pas une alerte.
+    assert.equal(notifiableEventFor(entry({ action: 'target.host_key.accepted' })), null);
+    assert.equal(notifiableEventFor(entry({ action: 'target.host_key.recorded' })), null);
+  });
+
   it('un rollback manuel n’est pas un rollback automatique', () => {
     assert.equal(notifiableEventFor(entry({ action: 'deployment.rolled_back' })), null);
   });

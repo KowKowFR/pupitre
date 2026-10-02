@@ -53,6 +53,19 @@ export const targets = pgTable(
      * worker, au moment d'ouvrir la session SSH.
      */
     encryptedCredential: text('encrypted_credential').notNull(),
+    /**
+     * L'empreinte de la clé d'hôte retenue (`SHA256:…`), relevée au premier
+     * contact — comme `known_hosts`. Une autre clé fait ensuite refuser la
+     * connexion. `NULL` : machine jamais jointe, ou dont l'adresse a changé.
+     */
+    hostKeyFingerprint: text('host_key_fingerprint'),
+    hostKeyRecordedAt: timestamp('host_key_recorded_at', { withTimezone: true }),
+    /**
+     * Une clé présentée qui n'était pas la retenue, en attente d'une décision :
+     * l'accepter (la machine a été réinstallée) ou l'écarter.
+     */
+    hostKeyPending: text('host_key_pending'),
+    hostKeyPendingAt: timestamp('host_key_pending_at', { withTimezone: true }),
     labels: jsonb('labels').$type<TargetLabels>().notNull().default({}),
     /** Résultat structuré du dernier preflight : versions comprises. */
     runtimesAvailable: jsonb('runtimes_available')

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Readable, Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { NodeSSH } from 'node-ssh';
@@ -6,6 +6,7 @@ import type { ClientChannel } from 'ssh2';
 import {
   SshConfigError,
   SshConnectionError,
+  SshHostKeyError,
   SshTimeoutError,
   isAuthFailure,
   SshAuthError,
@@ -31,6 +32,8 @@ export type SshSession = {
   readonly connectedAt: Date;
   /** Temps d'établissement de la connexion, en millisecondes. */
   readonly latencyMs: number;
+  /** L'empreinte de la clé d'hôte présentée (`SHA256:…`). */
+  readonly hostKey: string | null;
   /** @internal */
   readonly client: NodeSSH;
   /** @internal */
@@ -51,6 +54,14 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * L'empreinte d'une clé d'hôte, au format de `ssh-keygen -lf` :
+ * `SHA256:` puis le SHA-256 du blob de la clé publique, en base64 sans `=`.
+ */
+export function hostKeyFingerprint(key: Buffer): string {
+  return `SHA256:${createHash('sha256').update(key).digest('base64').replace(/=+$/, '')}`;
+}
+
+/**
  * Ouvre une session SSH.
  *
  * Rejoue jusqu'à `retries` fois avec un backoff exponentiel sur échec réseau.
@@ -65,12 +76,20 @@ export async function connect(
   const retries = options.retries ?? DEFAULT_RETRIES;
   const readyTimeout = options.readyTimeout ?? DEFAULT_READY_TIMEOUT_MS;
 
+  // La clé présentée, relevée à chaque tentative ; refusée si elle n'est pas
+  // celle qu'on attend — `ssh2` coupe alors la poignée de main.
+  const policy = target.hostKey;
+  let presented: string | null = null;
   const base = {
     host: target.host,
     port: target.port,
     username: target.username,
     readyTimeout,
     keepaliveInterval: 10_000,
+    hostVerifier: (key: Buffer) => {
+      presented = hostKeyFingerprint(key);
+      return !policy?.expected || presented === policy.expected;
+    },
   };
 
   const config =
@@ -89,10 +108,16 @@ export async function connect(
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     const client = new NodeSSH();
     const startedAt = Date.now();
+    presented = null;
 
     try {
       await client.connect(config);
       const latencyMs = Date.now() - startedAt;
+
+      // Une machine jamais jointe : sa clé est retenue, désormais attendue.
+      if (policy && policy.expected === null && presented) {
+        await policy.onFirstSeen?.(presented);
+      }
 
       logger.info(
         {
@@ -113,6 +138,7 @@ export async function connect(
         username: target.username,
         connectedAt: new Date(),
         latencyMs,
+        hostKey: presented,
         client,
         target,
         logger: options.logger,
@@ -120,6 +146,17 @@ export async function connect(
     } catch (error) {
       lastError = error;
       client.dispose();
+
+      // `presented` est réassigné par le vérificateur, appelé pendant `connect`.
+      const seen = presented as string | null;
+      if (policy?.expected && seen && seen !== policy.expected) {
+        logger.warn(
+          { host: target.host, expected: policy.expected, presented: seen },
+          "clé d'hôte inattendue — connexion refusée, aucune nouvelle tentative",
+        );
+        await policy.onMismatch?.(seen);
+        throw new SshHostKeyError(target.host, policy.expected, seen);
+      }
 
       if (isAuthFailure(error)) {
         logger.warn(
