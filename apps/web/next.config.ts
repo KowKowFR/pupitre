@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: monorepoRoot,
   reactStrictMode: true,
   typedRoutes: true,
+  // Rien à gagner à annoncer la pile : `X-Powered-By: Next.js` ne sert qu'à qui cherche une faille.
+  poweredByHeader: false,
   // `pg` et `ioredis` doivent rester des modules Node, jamais bundlés.
   serverExternalPackages: ['pg', 'ioredis', 'bullmq', 'pino', 'ssh2', 'node-ssh'],
   /**
@@ -41,6 +43,41 @@ const nextConfig: NextConfig = {
    * La clé de permission, elle, reste `audit:read` : c'est une donnée en base,
    * pas un libellé.
    */
+  /**
+   * Les en-têtes de protection, sur toutes les réponses.
+   *
+   * - Le panel ne s'affiche dans aucune iframe (`frame-ancestors 'none'`, et
+   *   `X-Frame-Options` pour les navigateurs qui ne lisent pas la CSP) : une
+   *   page tierce ne peut pas le recouvrir pour faire cliquer à l'insu de
+   *   quelqu'un sur « Détruire ».
+   * - La CSP s'arrête là, volontairement : `script-src` demanderait des nonces
+   *   sur les scripts que Next injecte, et `form-action 'self'` casserait la
+   *   création de l'App GitHub, qui poste un vrai formulaire vers github.com.
+   * - HSTS n'a d'effet qu'en HTTPS — un navigateur l'ignore sur une réponse en
+   *   clair — et sans `includeSubDomains` : le panel ne décide pas pour les
+   *   applications déployées sur les sous-domaines voisins.
+   */
+  headers() {
+    return Promise.resolve([
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+          },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+          },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+        ],
+      },
+    ]);
+  },
   redirects() {
     return Promise.resolve([
       { source: '/admin/audit', destination: '/admin/logs', permanent: true },

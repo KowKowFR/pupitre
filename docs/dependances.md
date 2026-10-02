@@ -10,6 +10,7 @@ Méthode : `npm view <pkg> dist-tags`, l'API tags du Docker Hub et
 retenue de mémoire.** Les relevés sont datés parce qu'ils périment.
 
 - [L'audit du 2026-09-09](#laudit-du-2026-09-09)
+- [Correctifs de sécurité du 2026-10-02](#correctifs-de-sécurité-du-2026-10-02)
 - [Images Docker](#images-docker)
 - [Outils de scan, installés sur la cible](#outils-de-scan-installés-sur-la-cible)
 - [Paquets d'IA](#paquets-dia)
@@ -46,6 +47,20 @@ retenue de mémoire.** Les relevés sont datés parce qu'ils périment.
 | `tsx` | 4.20.6 | 4.23.13 | non | ✅ 4.23.13 | aucun |
 | `@eslint/eslintrc` | 3.3.1 | 3.3.7 | non | ❌ **supprimé** | plus nécessaire avec le flat config natif |
 | `dotenv-cli` | — | 11.0.0 | — | ✅ 11.0.0 | nouvelle dépendance, voir « chargement du `.env` » |
+
+## Correctifs de sécurité du 2026-10-02
+
+`pnpm audit --prod` remontait deux failles dans des dépendances de production,
+corrigées par des montées de version corrective, sans changement de code :
+
+| Package | Avant | Après | Faille |
+|---|---|---|---|
+| `next` (et `eslint-config-next`) | 16.3.4 | **16.3.8** | critique : exécution de code dans `next/og` (`ImageResponse`). Pupitre ne s'en sert pas — pas exploitable ici, corrigé quand même |
+| `nodemailer` | 10.0.5 | **10.0.13** | haute : déni de service par le parseur d'adresses ; modérée : enveloppe malformée à partir d'une partie locale entre guillemets |
+
+Reste une alerte modérée sur `esbuild` (le serveur de développement répond à
+n'importe quel site) : elle vient de `drizzle-kit`, outil de développement de
+`@pupitre/db` qui génère les migrations. Rien de cela ne tourne en production.
 
 ## Images Docker
 

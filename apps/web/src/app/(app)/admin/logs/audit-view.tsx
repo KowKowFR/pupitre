@@ -58,7 +58,14 @@ type Filters = {
 };
 
 /** Les actions qui disent un refus : elles ressortent en rouge, et au mot. */
-const DENIAL_ACTIONS = new Set(['permission.denied', 'auth.login.failed', 'auth.signup.blocked']);
+const DENIAL_ACTIONS = new Set([
+  'permission.denied',
+  'auth.login.failed',
+  'auth.signup.blocked',
+  // Une écriture venue d'une autre origine, une route d'administration de Better Auth fermée.
+  'request.cross_site.refused',
+  'auth.admin_route.refused',
+]);
 
 /**
  * Le journal se lit, il ne se traduit pas.

@@ -10,6 +10,16 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const SIGN_IN = '/api/auth/sign-in/email';
+/**
+ * Les routes d'administration du plugin `admin` de Better Auth : lister, créer,
+ * bannir, supprimer des comptes, changer un mot de passe, se faire passer pour
+ * quelqu'un. Pupitre a sa propre API d'administration (`/api/admin/*`), qui
+ * passe par `requirePermission()`, tient ses garde-fous et écrit au journal ;
+ * celles-ci ne feraient rien de tout cela. Elles sont fermées. Le serveur
+ * garde l'usage du plugin (`getAuth().api.createUser`…), qui ne passe pas par
+ * HTTP.
+ */
+const ADMIN_PREFIX = '/api/auth/admin/';
 const SIGN_UP = '/api/auth/sign-up/email';
 const SIGN_OUT = '/api/auth/sign-out';
 /** Second facteur : la connexion ne s'achève qu'ici quand le compte en porte un. */
@@ -39,6 +49,17 @@ async function handle(request: Request): Promise<Response> {
   const ip = clientIp(request);
   const isSecondFactor = path === VERIFY_TOTP || path === VERIFY_BACKUP_CODE;
   const isAudited = path === SIGN_IN || path === SIGN_UP || path === SIGN_OUT || isSecondFactor;
+
+  if (path.startsWith(ADMIN_PREFIX)) {
+    await logAudit({
+      action: 'auth.admin_route.refused',
+      resourceType: 'request',
+      resourceId: path.slice(ADMIN_PREFIX.length) || null,
+      after: { method: request.method },
+      ip,
+    });
+    return NextResponse.json({ error: { code: 'NOT_FOUND' } }, { status: 404 });
+  }
 
   // L'inscription publique est refusée avant même d'atteindre Better Auth.
   if (path === SIGN_UP && request.method === 'POST' && !(await isSignupOpen())) {

@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { assertEgressAllowed, EgressRefusedError } from '../../egress.js';
 import type { S3DestinationConfig, S3DestinationSecrets } from '../destinations.js';
 import { BackupStoreError, probeKey, type BackupStore, type StoredObject } from './types.js';
 import { EMPTY_SHA256, encodeKeyPath, sha256Hex, signV4 } from './sigv4.js';
@@ -84,6 +85,12 @@ export class S3BackupStore implements BackupStore {
     delete headers.host;
     const search = new URLSearchParams(options.query ?? {}).toString().replace(/\+/g, '%20');
     const url = `${this.base.protocol}//${host}${path}${search ? `?${search}` : ''}`;
+    try {
+      await assertEgressAllowed(url);
+    } catch (error) {
+      if (!(error instanceof EgressRefusedError)) throw error;
+      throw new BackupStoreError(`stockage S3 : ${error.message}`, error);
+    }
     let response: Response;
     try {
       response = await this.doFetch(url, {

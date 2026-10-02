@@ -134,11 +134,20 @@ function activeKey(): Buffer {
  * répété. Aucune vraie clé ne tombe dans ce filet.
  */
 export function masterKeyWeakness(masterKey: string | undefined): string | null {
-  if (masterKey === undefined || masterKey === '') return null;
+  return secretWeakness(masterKey, 'MASTER_KEY');
+}
 
-  const distinct = new Set(masterKey).size;
+/**
+ * Le même jugement de **forme**, pour n'importe quel secret d'installation —
+ * `BETTER_AUTH_SECRET` aussi, dont le `.env.example` livre une phrase répétée.
+ * `name` sert seulement à la phrase rendue.
+ */
+export function secretWeakness(value: string | undefined, name: string): string | null {
+  if (value === undefined || value === '') return null;
+
+  const distinct = new Set(value).size;
   if (distinct <= 2) {
-    return `MASTER_KEY ne contient que ${distinct} caractère(s) distinct(s)`;
+    return `${name} ne contient que ${distinct} caractère(s) distinct(s)`;
   }
 
   // Un motif de 15 caractères ou moins, répété jusqu'au bout : c'est la forme
@@ -148,11 +157,11 @@ export function masterKeyWeakness(masterKey: string | undefined): string | null 
   // fait 39 caractères pour un motif de 10, sa dernière occurrence est tronquée.
   // Exiger une division exacte laissait donc passer la valeur même de l'exemple,
   // ce que le premier jet a fait.
-  for (let size = 1; size <= 15 && size * 2 <= masterKey.length; size += 1) {
-    const unit = masterKey.slice(0, size);
-    const tiled = unit.repeat(Math.ceil(masterKey.length / size)).slice(0, masterKey.length);
-    if (tiled === masterKey) {
-      return `MASTER_KEY répète le motif « ${unit} »`;
+  for (let size = 1; size <= 15 && size * 2 <= value.length; size += 1) {
+    const unit = value.slice(0, size);
+    const tiled = unit.repeat(Math.ceil(value.length / size)).slice(0, value.length);
+    if (tiled === value) {
+      return `${name} répète le motif « ${unit} »`;
     }
   }
 

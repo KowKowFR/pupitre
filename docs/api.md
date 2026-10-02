@@ -2,7 +2,10 @@
 
 Toutes les routes passent par `apiRoute()`, qui traduit les erreurs typées en
 réponses HTTP — sauf `/api/health` et `/api/auth/[...all]`. Aucune route ne
-fabrique de 401/403 à la main, et **tout refus est audité**.
+fabrique de 401/403 à la main, et **tout refus est audité**. Une écriture qu'un
+navigateur envoie depuis une autre origine que `BETTER_AUTH_URL` est refusée
+avant tout (`403 cross_site_request`) — voir
+[`securite.md`](securite.md#une-écriture-vient-du-panel-ou-elle-est-refusée).
 
 « session » veut dire : authentifié, sans permission particulière.
 
@@ -60,7 +63,7 @@ la navigation métier.
 | Route | Méthodes | Permission |
 |---|---|---|
 | `/api/health` | GET | **publique** — `{ status, db, redis, ai }`, 200 ou 503 |
-| `/api/auth/[...all]` | GET POST | publique — Better Auth ; audite connexions et déconnexions |
+| `/api/auth/[...all]` | GET POST | publique — Better Auth ; audite connexions et déconnexions. `/api/auth/admin/*` répond 404 : Pupitre a sa propre API d'administration |
 
 ### Compte
 

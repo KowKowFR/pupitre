@@ -1,3 +1,4 @@
+import { assertEgressAllowed, EgressRefusedError } from '../../egress.js';
 import { ProxyError } from '../types.js';
 
 /**
@@ -91,6 +92,12 @@ async function call<T>(
   path: string,
   options: { token?: string; body?: unknown; timeout?: number } = {},
 ): Promise<T> {
+  try {
+    await assertEgressAllowed(base);
+  } catch (error) {
+    if (error instanceof EgressRefusedError) throw new NpmApiError(error.message, step, 0);
+    throw error;
+  }
   let response: Response;
   try {
     response = await fetch(`${base}/api${path}`, {
