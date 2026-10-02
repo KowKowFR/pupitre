@@ -162,7 +162,9 @@ async function main(): Promise<void> {
   };
 
   const previousDeployment: DriverDeployment | undefined = options.rollbackTo
-    ? { id: 'previous', version: options.rollbackTo, sequence: 0 }
+    ? // Ce script déploie toujours sous le numéro 1 : la release visée est
+      // `{version}-r1`, ou `{version}` si elle date d'avant ce nommage.
+      { id: 'previous', version: options.rollbackTo, sequence: 1 }
     : undefined;
 
   const ctx: DriverContext = {

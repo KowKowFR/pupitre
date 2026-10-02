@@ -3,6 +3,7 @@ import type { Readable, Writable } from 'node:stream';
 import { storedSecretNames, topologicalOrder, type Service } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
+import { releaseCandidates, releaseName } from '../release.js';
 import { pruneReleases } from '../retention.js';
 import { buildContextPath, extractSourceArchive } from '../source-archive.js';
 import {
@@ -136,14 +137,24 @@ export class K3sDriver implements DeploymentDriver {
     return `${ctx.target.rootPath}/apps/${ctx.appSlug}`;
   }
 
-  /** `/opt/bootstrap/apps/{slug}/{version}` */
-  private releasePath(ctx: DriverContext, version = ctx.deployment.version): string {
-    return `${this.appPath(ctx)}/${version}`;
+  /** `/opt/bootstrap/apps/{slug}/{version}-r{numéro}` — voir `releaseName()`. */
+  private releasePath(ctx: DriverContext): string {
+    return `${this.appPath(ctx)}/${releaseName(ctx.deployment)}`;
   }
 
-  /** `/opt/bootstrap/apps/{slug}/{version}/k8s` */
-  private manifestPath(ctx: DriverContext, version = ctx.deployment.version): string {
-    return `${this.releasePath(ctx, version)}/${MANIFEST_DIR}`;
+  /** `…/{release}/k8s` */
+  private manifestPath(ctx: DriverContext): string {
+    return `${this.releasePath(ctx)}/${MANIFEST_DIR}`;
+  }
+
+  /**
+   * L'étiquette des images que cette release construit : la release même. Le
+   * gabarit des pods change donc à chaque déploiement qui construit — les pods
+   * sont remplacés —, et `rollout undo` retrouve l'image d'avant, pas la
+   * dernière construite sous la même étiquette.
+   */
+  private imageTag(ctx: DriverContext, service: string): string {
+    return builtImageTag(ctx.appSlug, service, releaseName(ctx.deployment));
   }
 
   private namespace(ctx: DriverContext): string {
@@ -472,7 +483,7 @@ export class K3sDriver implements DeploymentDriver {
       secretValues,
       publishedPort,
       allowFrom: ctx.exposure?.allowFrom ?? null,
-      release: ctx.deployment.id,
+      imageTag: releaseName(ctx.deployment),
     });
 
     return { projectName: this.namespace(ctx), files, publishedPort };
@@ -593,7 +604,7 @@ export class K3sDriver implements DeploymentDriver {
     for (const service of buildable) {
       const source = service.source;
       if (source.type !== 'dockerfile') continue;
-      const tag = builtImageTag(ctx.appSlug, service.name, ctx.spec.version);
+      const tag = this.imageTag(ctx, service.name);
       const context = `${release}/${buildContextPath(source.context, ctx.sourceInRelease)}`;
 
       onLog(`→ envoi du contexte de « ${service.name} » au constructeur`);
@@ -743,8 +754,10 @@ export class K3sDriver implements DeploymentDriver {
       'link',
     );
 
-    // Ménage des anciennes versions, une fois `current` à jour.
-    await pruneReleases(ctx, this.appPath(ctx), onLog);
+    // Ménage des anciennes versions, une fois `current` à jour — leurs images
+    // construites avec elles, sans quoi le disque du nœud se remplirait.
+    const pruned = await pruneReleases(ctx, this.appPath(ctx), onLog);
+    await this.removeBuiltImages(ctx, pruned, onLog);
 
     const url = this.buildUrl(ctx);
     onLog(`déploiement appliqué${url ? ` — ${url}` : ''}`);
@@ -778,9 +791,7 @@ export class K3sDriver implements DeploymentDriver {
    */
   async images(ctx: DriverContext): Promise<string[]> {
     return ctx.spec.services.map((service) =>
-      service.source.type === 'image'
-        ? service.source.ref
-        : builtImageTag(ctx.appSlug, service.name, ctx.spec.version),
+      service.source.type === 'image' ? service.source.ref : this.imageTag(ctx, service.name),
     );
   }
 
@@ -1024,19 +1035,33 @@ export class K3sDriver implements DeploymentDriver {
         );
       }
 
-      const manifests = this.manifestPath(ctx, previous.version);
-      const exists = await exec(ctx.sshSession, `test -d ${shellQuote(manifests)}`, {
-        timeout: SHORT_TIMEOUT_MS,
-      });
-      if (exists.code !== 0) {
+      // La release précédente, par son nom ; à défaut, sous le nom d'avant
+      // `-r{numéro}` — une release déposée avant la mise à jour.
+      let previousRelease: string | null = null;
+      for (const name of releaseCandidates(previous)) {
+        const candidate = `${this.appPath(ctx)}/${name}`;
+        const exists = await exec(
+          ctx.sshSession,
+          `test -d ${shellQuote(`${candidate}/${MANIFEST_DIR}`)}`,
+          {
+            timeout: SHORT_TIMEOUT_MS,
+          },
+        );
+        if (exists.code === 0) {
+          previousRelease = candidate;
+          break;
+        }
+      }
+      if (!previousRelease) {
         throw new DriverError(
-          `La version précédente ${previous.version} n'est plus sur la cible (${manifests})`,
+          `La version précédente ${releaseName(previous)} n'est plus sur la cible (${this.appPath(ctx)})`,
           this.runtime,
           'rollback',
         );
       }
+      const manifests = `${previousRelease}/${MANIFEST_DIR}`;
 
-      onLog(`→ réapplication des manifests de la version ${previous.version}`);
+      onLog(`→ réapplication des manifests de la release ${releaseName(previous)}`);
       await this.stream(
         ctx,
         this.kubectl(`apply -f ${shellQuote(manifests)} -n ${this.namespace(ctx)}`),
@@ -1047,7 +1072,7 @@ export class K3sDriver implements DeploymentDriver {
 
       await this.run(
         ctx,
-        `ln -sfn ${shellQuote(this.releasePath(ctx, previous.version))} ${shellQuote(`${this.appPath(ctx)}/current`)}`,
+        `ln -sfn ${shellQuote(previousRelease)} ${shellQuote(`${this.appPath(ctx)}/current`)}`,
         onLog,
         'link',
       );
@@ -1064,6 +1089,29 @@ export class K3sDriver implements DeploymentDriver {
     }
 
     onLog('✓ rollback confirmé');
+  }
+
+  /**
+   * Les images construites des releases qu'on vient d'effacer, retirées de
+   * containerd. Une image encore employée par un pod est refusée : c'est voulu.
+   */
+  private async removeBuiltImages(
+    ctx: DriverContext,
+    releases: readonly string[],
+    onLog: LogSink,
+  ): Promise<void> {
+    const built = ctx.spec.services.filter((service) => service.source.type === 'dockerfile');
+    if (releases.length === 0 || built.length === 0) return;
+    const tags = releases.flatMap((release) =>
+      built.map((service) => builtImageTag(ctx.appSlug, service.name, release)),
+    );
+    // Le socket de containerd n'est ouvert qu'à root, comme pour l'import.
+    await exec(
+      ctx.sshSession,
+      this.script([`k3s crictl rmi ${tags.map(shellQuote).join(' ')} >/dev/null 2>&1; true`]),
+      { timeout: SHORT_TIMEOUT_MS, sudo: true },
+    );
+    onLog(`images des releases effacées retirées : ${tags.length}`);
   }
 
   // ─── destroy ────────────────────────────────────────────────────────────────

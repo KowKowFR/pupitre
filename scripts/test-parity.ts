@@ -338,8 +338,9 @@ async function openSide(
     sshSession: session,
     appSlug: spec.name,
     applicationId,
-    // Le rollback ramène vers la même version : ce script ne déploie qu'une fois.
-    previousDeployment: { id: 'parity-previous', version: spec.version, sequence: 0 },
+    // Ce script ne déploie qu'une fois : le rollback ramène à cette même
+    // release — c'est le geste qu'il éprouve, sur les deux runtimes.
+    previousDeployment: deployment,
     portAllocator: createPortAllocator(),
     /**
      * Valeurs de remplissage pour les secrets déclarés.

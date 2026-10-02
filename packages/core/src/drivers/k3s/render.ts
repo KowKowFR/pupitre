@@ -164,16 +164,12 @@ export type RenderInput = {
    */
   allowFrom?: string | null;
   /**
-   * L'identifiant du déploiement. Une image construite garde son étiquette
-   * tant que la version de l'AppSpec ne change pas — le cas de tout commit de
-   * code : sans lui dans le gabarit des pods, `kubectl apply` ne verrait rien
-   * à changer et les pods garderaient l'ancien code.
+   * L'étiquette des images construites : la release (`releaseName()`), propre
+   * à chaque déploiement — le gabarit des pods change avec elle, et ils sont
+   * remplacés. Défaut : la version de l'AppSpec.
    */
-  release?: string;
+  imageTag?: string;
 };
-
-/** L'annotation du gabarit d'un pod construit : un déploiement, un remplacement des pods. */
-export const RELEASE_ANNOTATION = 'pupitre.io/release';
 
 /** Le nom de la NetworkPolicy qui réserve le point d'entrée au proxy. */
 export const PROXY_POLICY_NAME = 'pupitre-proxy-only';
@@ -363,7 +359,7 @@ function renderDeployment(input: RenderInput, service: Service): DeploymentManif
   const image =
     service.source.type === 'image'
       ? service.source.ref
-      : builtImageTag(appSlug, service.name, spec.version);
+      : builtImageTag(appSlug, service.name, input.imageTag ?? spec.version);
 
   const envFrom: EnvFromSource[] = [];
   if (Object.keys(service.env).length > 0) {
@@ -441,12 +437,7 @@ function renderDeployment(input: RenderInput, service: Service): DeploymentManif
       // n'aurait rien vers quoi revenir.
       revisionHistoryLimit: 10,
       template: {
-        metadata: {
-          labels: standardLabels(appSlug, service.name, spec.version),
-          ...(isOwnImage(service) && input.release
-            ? { annotations: { [RELEASE_ANNOTATION]: input.release } }
-            : {}),
-        },
+        metadata: { labels: standardLabels(appSlug, service.name, spec.version) },
         spec: {
           securityContext: podSecurityContext(service),
           containers: [container],

@@ -71,9 +71,18 @@ describe('le code d’un dépôt, à part dans la release', () => {
   });
 });
 
-describe('K3s — une image reconstruite sous la même étiquette remplace les pods', () => {
-  it('le gabarit d’un service construit porte le déploiement ; une image du registre, non', async () => {
-    const { renderManifests, RELEASE_ANNOTATION } = await import('../src/drivers/k3s/render.js');
+describe('une release par déploiement — le retour en arrière retrouve le bon code', () => {
+  it('nomme la release par la version et le numéro du déploiement, étiquette d’image comprise', async () => {
+    const { releaseName, releaseCandidates } = await import('../src/drivers/release.js');
+    assert.equal(releaseName({ version: '1.0.0', sequence: 12 }), '1.0.0-r12');
+    // Un `+` de version semver n'est pas permis dans une étiquette d'image.
+    assert.equal(releaseName({ version: '1.0.0+build.7', sequence: 3 }), '1.0.0-build.7-r3');
+    // Une release d'avant ce nommage se retrouve sous la seule version.
+    assert.deepEqual(releaseCandidates({ version: '1.0.0', sequence: 12 }), ['1.0.0-r12', '1.0.0']);
+  });
+
+  it('deux déploiements de la même version : deux images, sur les deux runtimes', async () => {
+    const { renderManifests } = await import('../src/drivers/k3s/render.js');
     const spec = parseAppSpec({
       name: 'bonjour',
       version: '1.0.0',
@@ -82,22 +91,27 @@ describe('K3s — une image reconstruite sous la même étiquette remplace les p
         { name: 'cache', source: { type: 'image', ref: 'redis:7' }, port: 6379 },
       ],
     });
-    const annotations = (release: string) =>
+    const images = (imageTag: string) =>
       Object.fromEntries(
-        renderManifests({ spec, appSlug: 'bonjour', release })
+        renderManifests({ spec, appSlug: 'bonjour', imageTag })
           .filter((manifest) => manifest.kind === 'Deployment')
           .map((manifest) => [
             manifest.metadata.name,
-            (
-              manifest as {
-                spec: { template: { metadata: { annotations?: Record<string, string> } } };
-              }
-            ).spec.template.metadata.annotations?.[RELEASE_ANNOTATION] ?? null,
+            (manifest as { spec: { template: { spec: { containers: Array<{ image: string }> } } } })
+              .spec.template.spec.containers[0]?.image,
           ]),
       );
-    assert.deepEqual(annotations('dep-1'), { web: 'dep-1', cache: null });
-    // Un autre déploiement, même version, même étiquette d'image : le gabarit change.
-    assert.equal(annotations('dep-2').web, 'dep-2');
+    assert.deepEqual(images('1.0.0-r1'), { web: 'app-bonjour/web:1.0.0-r1', cache: 'redis:7' });
+    assert.equal(images('1.0.0-r2').web, 'app-bonjour/web:1.0.0-r2');
+
+    const compose = renderComposeFile({
+      spec,
+      appSlug: 'bonjour',
+      publishedPort: 30001,
+      imageTag: '1.0.0-r2',
+    });
+    assert.equal(compose.services.web?.image, 'app-bonjour/web:1.0.0-r2');
+    assert.equal(compose.services.cache?.image, 'redis:7');
   });
 });
 

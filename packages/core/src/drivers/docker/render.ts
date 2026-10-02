@@ -269,6 +269,8 @@ export type RenderInput = {
   secretNames?: readonly string[];
   /** Le code d'un dépôt est sous `source/` : voir `DriverContext.sourceInRelease`. */
   sourceInRelease?: boolean;
+  /** L'étiquette des images construites : la release (`releaseName()`). Défaut : la version. */
+  imageTag?: string;
 };
 
 /** Le fichier Compose de Pupitre, toujours désigné par son nom (`-f`). */
@@ -291,7 +293,7 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
     const image =
       service.source.type === 'image'
         ? service.source.ref
-        : buildImageTag(appSlug, service.name, spec.version);
+        : buildImageTag(appSlug, service.name, input.imageTag ?? spec.version);
 
     const composeService: ComposeService = {
       image,

@@ -5,6 +5,7 @@ import { exec, execPipe, execStream, upload } from '../../ssh/client.js';
 import { exposedService, storedSecretNames, type AppSpec } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
 import { listeningPorts } from '../listening.js';
+import { releaseCandidates, releaseName } from '../release.js';
 import { pruneReleases } from '../retention.js';
 import { buildContextPath, extractSourceArchive } from '../source-archive.js';
 import { ufwAllow, ufwAllowPort, ufwComment, ufwDelete } from '../ufw.js';
@@ -100,9 +101,14 @@ export class DockerComposeDriver implements DeploymentDriver {
     return `${ctx.target.rootPath}/apps/${ctx.appSlug}`;
   }
 
-  /** `/opt/bootstrap/apps/{slug}/{version}` */
-  private releasePath(ctx: DriverContext, version = ctx.deployment.version): string {
-    return `${this.appPath(ctx)}/${version}`;
+  /** `/opt/bootstrap/apps/{slug}/{version}-r{numéro}` — voir `releaseName()`. */
+  private releasePath(ctx: DriverContext): string {
+    return `${this.appPath(ctx)}/${releaseName(ctx.deployment)}`;
+  }
+
+  /** L'étiquette des images que cette release construit : la release même. */
+  private imageTag(ctx: DriverContext, service: string): string {
+    return buildImageTag(ctx.appSlug, service, releaseName(ctx.deployment));
   }
 
   private project(ctx: DriverContext): string {
@@ -117,9 +123,16 @@ export class DockerComposeDriver implements DeploymentDriver {
    * application. La release n'est faite que de ce que Pupitre y dépose, mais
    * une release d'avant `source/` portait encore le code d'un dépôt à sa racine.
    */
-  private compose(ctx: DriverContext, args: string, version?: string): string {
+  private compose(ctx: DriverContext, args: string, releaseDir?: string): string {
+    // Une application déployée avant le nommage `-r{numéro}` vit encore sous
+    // la seule version : ses journaux, sa santé, ses redémarrages doivent
+    // continuer de marcher jusqu'à son prochain déploiement.
+    const into = releaseDir
+      ? `cd ${shellQuote(releaseDir)}`
+      : `{ cd ${shellQuote(this.releasePath(ctx))} 2>/dev/null || ` +
+        `cd ${shellQuote(`${this.appPath(ctx)}/${ctx.deployment.version}`)}; }`;
     return (
-      `cd ${shellQuote(this.releasePath(ctx, version))} && ` +
+      `${into} && ` +
       `docker compose -p ${shellQuote(this.project(ctx))} -f ${COMPOSE_FILE} ${args}`
     );
   }
@@ -365,6 +378,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       publishedPort,
       ...(ctx.exposure?.bindAddress ? { publishAddress: ctx.exposure.bindAddress } : {}),
       ...(ctx.sourceInRelease ? { sourceInRelease: true } : {}),
+      imageTag: releaseName(ctx.deployment),
       secretValues,
     });
 
@@ -438,9 +452,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     onLog(`docker compose build (${buildable.map((s) => s.name).join(', ')})`);
     await this.stream(ctx, this.compose(ctx, 'build --pull'), onLog, 'build', BUILD_TIMEOUT_MS);
 
-    return buildable.map((service) =>
-      buildImageTag(ctx.appSlug, service.name, ctx.spec.version),
-    );
+    return buildable.map((service) => this.imageTag(ctx, service.name));
   }
 
   // ─── images ─────────────────────────────────────────────────────────────────
@@ -451,9 +463,7 @@ export class DockerComposeDriver implements DeploymentDriver {
    */
   async images(ctx: DriverContext): Promise<string[]> {
     return ctx.spec.services.map((service) =>
-      service.source.type === 'image'
-        ? service.source.ref
-        : buildImageTag(ctx.appSlug, service.name, ctx.spec.version),
+      service.source.type === 'image' ? service.source.ref : this.imageTag(ctx, service.name),
     );
   }
 
@@ -493,8 +503,11 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
 
     // Ménage des anciennes versions, une fois `current` à jour : c'est le seul
-    // moment où l'on sait laquelle ne doit surtout pas partir.
-    await pruneReleases(ctx, this.appPath(ctx), onLog);
+    // moment où l'on sait laquelle ne doit surtout pas partir. Leurs images
+    // construites partent avec elles : une étiquette par release, sans ménage,
+    // le disque de la cible se remplirait.
+    const pruned = await pruneReleases(ctx, this.appPath(ctx), onLog);
+    await this.removeBuiltImages(ctx, pruned, onLog);
 
     const images = await this.listImages(ctx);
     const url = this.buildUrl(ctx, publishedPort);
@@ -722,6 +735,30 @@ export class DockerComposeDriver implements DeploymentDriver {
     return sections.length > 0 ? sections.join('\n\n') : null;
   }
 
+  /**
+   * Les images construites des releases qu'on vient d'effacer. Celles des
+   * services tirés d'un registre ne sont pas à nous : on n'y touche pas. Une
+   * image encore utilisée (un conteneur l'emploie) est refusée par Docker :
+   * c'est le comportement voulu, et pas une erreur.
+   */
+  private async removeBuiltImages(
+    ctx: DriverContext,
+    releases: readonly string[],
+    onLog: LogSink,
+  ): Promise<void> {
+    const built = ctx.spec.services.filter((service) => service.source.type === 'dockerfile');
+    if (releases.length === 0 || built.length === 0) return;
+    const tags = releases.flatMap((release) =>
+      built.map((service) => buildImageTag(ctx.appSlug, service.name, release)),
+    );
+    await exec(
+      ctx.sshSession,
+      `docker image rm ${tags.map(shellQuote).join(' ')} >/dev/null 2>&1; true`,
+      { timeout: SHORT_TIMEOUT_MS },
+    );
+    onLog(`images des releases effacées retirées : ${tags.length}`);
+  }
+
   // ─── rollback ───────────────────────────────────────────────────────────────
 
   async rollback(ctx: DriverContext, onLog: LogSink): Promise<void> {
@@ -734,22 +771,33 @@ export class DockerComposeDriver implements DeploymentDriver {
       );
     }
 
-    const target = this.releasePath(ctx, previous.version);
-    const exists = await exec(ctx.sshSession, `test -f ${shellQuote(`${target}/compose.yml`)}`, {
-      timeout: SHORT_TIMEOUT_MS,
-    });
-    if (exists.code !== 0) {
+    // La release précédente, par son nom ; à défaut, sous le nom d'avant
+    // `-r{numéro}` — une release déposée avant la mise à jour.
+    let target: string | null = null;
+    for (const name of releaseCandidates(previous)) {
+      const candidate = `${this.appPath(ctx)}/${name}`;
+      const exists = await exec(
+        ctx.sshSession,
+        `test -f ${shellQuote(`${candidate}/${COMPOSE_FILE}`)}`,
+        { timeout: SHORT_TIMEOUT_MS },
+      );
+      if (exists.code === 0) {
+        target = candidate;
+        break;
+      }
+    }
+    if (!target) {
       throw new DriverError(
-        `La version précédente ${previous.version} n'est plus sur la cible (${target})`,
+        `La version précédente ${releaseName(previous)} n'est plus sur la cible (${this.appPath(ctx)})`,
         this.runtime,
         'rollback',
       );
     }
 
-    onLog(`→ retour à la version ${previous.version}`);
+    onLog(`→ retour à la release ${releaseName(previous)}`);
     await this.stream(
       ctx,
-      this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300', previous.version),
+      this.compose(ctx, 'up -d --remove-orphans --wait --wait-timeout 300', target),
       onLog,
       'rollback',
       UP_TIMEOUT_MS,
@@ -761,7 +809,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       onLog,
       'link',
     );
-    onLog(`✓ revenu à la version ${previous.version}`);
+    onLog(`✓ revenu à la release ${releaseName(previous)}`);
   }
 
   // ─── destroy ────────────────────────────────────────────────────────────────
@@ -783,7 +831,8 @@ export class DockerComposeDriver implements DeploymentDriver {
     // `|| true` : détruire une app déjà absente doit rester idempotent.
     await this.stream(
       ctx,
-      `cd ${shellQuote(appPath)}/current 2>/dev/null && docker compose down -v --remove-orphans || true`,
+      `cd ${shellQuote(appPath)}/current 2>/dev/null && ` +
+        `docker compose -p ${shellQuote(this.project(ctx))} -f ${COMPOSE_FILE} down -v --remove-orphans || true`,
       onLog,
       'destroy',
       UP_TIMEOUT_MS,

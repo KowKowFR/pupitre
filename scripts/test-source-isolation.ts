@@ -17,7 +17,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { decrypt, parseAppSpec } from '@pupitre/core';
-import { getDriver, type DriverContext, type RuntimeKind } from '@pupitre/core/drivers';
+import {
+  getDriver,
+  releaseName,
+  type DriverContext,
+  type RuntimeKind,
+} from '@pupitre/core/drivers';
 import { connect, disconnect, exec, type SshSession, type SshTarget } from '@pupitre/core/ssh';
 import {
   applications,
@@ -155,7 +160,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     resolveSecrets: async () => ({}),
     sourceInRelease: true,
   };
-  const release = `${ctx.target.rootPath}/apps/${SPEC.name}/${SPEC.version}`;
+  const release = `${ctx.target.rootPath}/apps/${SPEC.name}/${releaseName(ctx.deployment)}`;
   try {
     await driver.allocatePort(ctx, log);
     const artifacts = await driver.render(ctx);
