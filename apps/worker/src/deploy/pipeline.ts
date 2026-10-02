@@ -30,7 +30,6 @@ import {
   resetUnsuccessfulSteps,
   skipPendingSteps,
   startStep,
-  type DeploymentStep,
 } from '@pupitre/db';
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
@@ -738,8 +737,3 @@ const OUTCOME_LABEL: Record<'healthy' | 'unhealthy' | 'unreachable', string> = {
   unhealthy: 'répond mais en erreur',
   unreachable: 'injoignable',
 };
-
-/** Étapes restantes après un point d'arrêt, pour l'affichage. */
-export function remainingSteps(steps: DeploymentStep[]): DeploymentStep[] {
-  return steps.filter((step) => step.status === 'pending');
-}

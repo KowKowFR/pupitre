@@ -78,7 +78,6 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
           target: deployment.targetName,
           host: deployment.targetHost,
           runtime: deployment.runtime,
-          proxy: deployment.proxy,
         })}
       />
 
@@ -87,7 +86,6 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
           id: deployment.id,
           status: deployment.status,
           runtime: deployment.runtime,
-          proxy: deployment.proxy,
           version: deployment.version,
           url: deployment.url,
           failedStep: deployment.failedStep,

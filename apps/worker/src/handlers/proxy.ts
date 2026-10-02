@@ -1,5 +1,6 @@
 import {
   describeProxy,
+  errorMessage,
   parseAppSpec,
   proxyApplyJobDataSchema,
   proxyCheckJobDataSchema,
@@ -47,10 +48,6 @@ import { applyCoupleRoutes, probeCoupleRoutes } from '../proxy/routes.js';
  * provider du genre enregistré, comme le pipeline demande au driver.
  */
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Ce que la machine porte déjà, et ce que Pupitre pourrait y installer. */
 export async function handleProxyDetect(job: Job): Promise<{
   detections: ProxyDetection[];
@@ -94,7 +91,7 @@ async function runCheck(proxyId: string): Promise<ProxyCheck | null> {
     });
     return check;
   } catch (error) {
-    await setProxyStatus(proxyId, { status: 'failed', error: messageOf(error), check: null });
+    await setProxyStatus(proxyId, { status: 'failed', error: errorMessage(error), check: null });
     throw error;
   }
 }
@@ -142,7 +139,7 @@ export async function handleProxyInstall(job: Job): Promise<{ ok: boolean; error
       ip: data.ip,
     });
   } catch (error) {
-    const message = messageOf(error);
+    const message = errorMessage(error);
     await setProxyStatus(proxy.id, { status: 'failed', error: message, check: null });
     await logAudit({
       actorId: data.actorId,

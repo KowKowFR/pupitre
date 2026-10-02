@@ -442,6 +442,10 @@ construites d'une release effacée partent avec elle (`docker image rm`,
 `crictl rmi`) — une étiquette par release, sans ménage, remplirait le disque ;
 une image encore employée est refusée, et c'est voulu.
 
+La **destruction** d'un déploiement retire de même toutes les images construites
+pour l'application, toutes releases confondues : celles dont le nom commence par
+`app-{slug}/`, sous Docker comme dans le containerd de K3s.
+
 `pruneReleases()` est une **méthode de l'interface** et non un détail interne :
 la tâche planifiée `cleanup:versions` en a besoin depuis l'extérieur, et le
 chemin des releases est une décision du driver, pas de l'appelant.

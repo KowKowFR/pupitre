@@ -37,7 +37,7 @@ export type NavSection = {
 
 export type NavGroup = { key: 'operations' | 'administration'; sections: NavSection[] };
 
-export const NAVIGATION: readonly NavGroup[] = [
+const NAVIGATION: readonly NavGroup[] = [
   {
     key: 'operations',
     sections: [
@@ -96,7 +96,7 @@ export function activeSection(
 export type CommandKey =
   'deploy' | 'testTargets' | 'newApp' | 'newTarget' | 'theme' | 'language' | 'shortcuts';
 
-export const COMMANDS: ReadonlyArray<{
+const COMMANDS: ReadonlyArray<{
   key: CommandKey;
   permission: Permission | null;
   group: 'suggestions' | 'preferences';

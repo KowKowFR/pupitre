@@ -11,13 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import {
-  deploymentStatusEnum,
-  healthStatusEnum,
-  proxyEnum,
-  runtimeEnum,
-  stepStatusEnum,
-} from '../enums.js';
+import { deploymentStatusEnum, healthStatusEnum, runtimeEnum, stepStatusEnum } from '../enums.js';
 import { users } from './auth.js';
 import { applications, targets } from './infra.js';
 import { applicationSources } from './sources.js';
@@ -44,7 +38,6 @@ export const deployments = pgTable(
       .notNull()
       .references(() => targets.id, { onDelete: 'restrict' }),
     runtime: runtimeEnum('runtime').notNull(),
-    proxy: proxyEnum('proxy').notNull().default('traefik'),
     status: deploymentStatusEnum('status').notNull().default('pending'),
     /** Numéro de version incrémental par application. */
     version: integer('version').notNull().default(1),

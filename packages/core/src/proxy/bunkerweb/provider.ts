@@ -2,14 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { ufwAllowPort, UFW_MARKER } from '../../drivers/ufw.js';
 import type { LogSink } from '../../drivers/types.js';
 import { exec } from '../../ssh/client.js';
-import {
-  ensureDirectory,
-  firstLine,
-  httpCode,
-  removeFile,
-  shellQuote,
-  writeFile,
-} from '../host.js';
+import { ensureDirectory, httpCode, removeFile, writeFile } from '../host.js';
+import { firstLine, shellQuote } from '../../shell.js';
 import { probeRoute } from '../probe.js';
 import {
   ProxyError,

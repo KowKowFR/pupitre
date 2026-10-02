@@ -111,29 +111,3 @@ export async function requirePermission(
 
   return auth;
 }
-
-/** Variante « au moins une parmi » — utile pour les pages d'index. */
-export async function requireAnyPermission(
-  request: Request,
-  candidates: readonly Permission[],
-): Promise<AuthContext> {
-  const auth = await requireSession(request);
-  if (candidates.some((permission) => auth.can(permission))) return auth;
-
-  const [first] = candidates;
-  await logAudit({
-    actorId: auth.userId,
-    action: 'permission.denied',
-    resourceType: 'permission',
-    resourceId: candidates.join('|'),
-    after: {
-      reason: 'missing_permission',
-      email: auth.email,
-      roles: auth.roles,
-      method: request.method,
-      path: new URL(request.url).pathname,
-    },
-    ip: auth.ip,
-  });
-  throw new ForbiddenError(first ?? ('audit:read' as Permission));
-}

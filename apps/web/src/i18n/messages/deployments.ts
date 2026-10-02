@@ -124,7 +124,7 @@ const fr = {
 
   // ── Suivi d'un run ──────────────────────────────────────────────────────
   'loading.label': 'Chargement du déploiement',
-  'detail.description': 'Déployé sur {target} ({host}) en {runtime}, derrière {proxy}.',
+  'detail.description': 'Déployé sur {target} ({host}) en {runtime}.',
   'tab.pipeline': 'Pipeline',
   'tab.security': 'Sécurité',
   'tab.spec': 'AppSpec figée',
@@ -358,7 +358,7 @@ const en: Translated<typeof fr> = {
   'verdict.running': 'running',
 
   'loading.label': 'Loading the deployment',
-  'detail.description': 'Deployed to {target} ({host}) on {runtime}, behind {proxy}.',
+  'detail.description': 'Deployed to {target} ({host}) on {runtime}.',
   'tab.pipeline': 'Pipeline',
   'tab.security': 'Security',
   'tab.spec': 'Frozen AppSpec',

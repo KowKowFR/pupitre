@@ -44,7 +44,7 @@ function templateFor(row: ScheduledJob): { name: string; data: ScheduledJobData 
 }
 
 /** Installe ou met à jour le scheduler d'une tâche. Idempotent. */
-export async function upsertScheduler(queue: Queue, row: ScheduledJob): Promise<void> {
+async function upsertScheduler(queue: Queue, row: ScheduledJob): Promise<void> {
   const template = templateFor(row);
   // Même appel que dans `apps/web/src/lib/schedules.ts`, `tz` compris : les deux
   // producteurs écrivent le même scheduler, ils ne peuvent pas diverger sur le
@@ -68,7 +68,7 @@ export async function upsertScheduler(queue: Queue, row: ScheduledJob): Promise<
   );
 }
 
-export async function removeScheduler(queue: Queue, key: string): Promise<void> {
+async function removeScheduler(queue: Queue, key: string): Promise<void> {
   await queue.removeJobScheduler(key);
 }
 

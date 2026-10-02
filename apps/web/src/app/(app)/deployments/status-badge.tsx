@@ -1,12 +1,10 @@
 'use client';
 
-import { Check, Minus, X } from 'lucide-react';
-import type { DeploymentStatus, StepStatus } from '@pupitre/core';
+import type { DeploymentStatus } from '@pupitre/core';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { useT } from '@/i18n/client';
 import { deployments as messages } from '@/i18n/messages/deployments';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
 /**
  * Les six libellés de statut, dans la langue de l'instance.
@@ -16,7 +14,7 @@ import { cn } from '@/lib/utils';
  * aussi ce qui fait passer ce fichier côté client — le badge est déjà rendu
  * dans des composants clients, et le tableau de bord peut l'afficher tel quel.
  */
-export function useDeploymentLabels(): Record<DeploymentStatus, string> {
+function useDeploymentLabels(): Record<DeploymentStatus, string> {
   const t = useT(messages);
   return {
     pending: t('status.pending'),
@@ -55,54 +53,6 @@ export function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) 
     <Badge variant={DEPLOYMENT_VARIANT[status]} dot>
       {label[status]}
     </Badge>
-  );
-}
-
-export function StepIcon({ status, className }: { status: StepStatus; className?: string }) {
-  const t = useT(messages);
-  const base = 'inline-flex size-[1.125rem] shrink-0 items-center justify-center rounded-full';
-
-  if (status === 'running') {
-    return (
-      <span aria-label={t('step.running')} className={cn(base, 'relative', className)}>
-        <span className="absolute inset-0 rounded-full border-2 border-accent/25" />
-        <span className="absolute inset-0 animate-spin rounded-full border-2 border-accent border-t-transparent border-r-transparent" />
-      </span>
-    );
-  }
-
-  if (status === 'success') {
-    return (
-      <span aria-label={t('step.success')} className={cn(base, 'bg-ok text-white', className)}>
-        <Check className="size-3" strokeWidth={3.5} />
-      </span>
-    );
-  }
-
-  if (status === 'failed') {
-    return (
-      <span aria-label={t('step.failed')} className={cn(base, 'bg-danger text-white', className)}>
-        <X className="size-3" strokeWidth={3.5} />
-      </span>
-    );
-  }
-
-  if (status === 'skipped') {
-    return (
-      <span
-        aria-label={t('step.skipped')}
-        className={cn(base, 'border border-dashed border-border-strong text-text-3', className)}
-      >
-        <Minus className="size-3" strokeWidth={3} />
-      </span>
-    );
-  }
-
-  return (
-    <span
-      aria-label={t('step.pending')}
-      className={cn(base, 'border-2 border-border-strong bg-transparent', className)}
-    />
   );
 }
 

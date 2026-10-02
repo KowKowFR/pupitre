@@ -46,6 +46,7 @@ import {
   renderFiles,
   volumeName,
 } from './render.js';
+import { firstLine, shellQuote } from '../../shell.js';
 
 /**
  * Driver Docker Compose.
@@ -839,6 +840,20 @@ export class DockerComposeDriver implements DeploymentDriver {
       false,
     );
 
+    // Les images construites pour l'application, toutes releases confondues :
+    // `down` ne les retire pas, et elles s'accumuleraient sur le disque. Une
+    // même image peut porter plusieurs étiquettes de release — d'où `-f`, sans
+    // risque : le motif ne désigne que les images de cette application.
+    const images = `${this.project(ctx)}/*`;
+    onLog(`→ retrait des images ${images}`);
+    await this.run(
+      ctx,
+      `ids=$(docker image ls -q --filter reference=${shellQuote(images)} | sort -u); ` +
+        '[ -z "$ids" ] || docker image rm -f $ids >/dev/null 2>&1; true',
+      onLog,
+      'destroy',
+    );
+
     onLog(`→ suppression de ${appPath}`);
     await this.run(ctx, `rm -rf ${shellQuote(appPath)}`, onLog, 'destroy');
 
@@ -1489,11 +1504,6 @@ export class DockerComposeDriver implements DeploymentDriver {
 
 // ─── utilitaires ──────────────────────────────────────────────────────────────
 
-/** Échappement POSIX en quotes simples. */
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
-
 /** Dernière ligne non vide — là où un outil dit pourquoi il s'arrête. */
 function lastLine(value: string): string | null {
   const lines = value
@@ -1511,11 +1521,6 @@ const BACKUP_HELPER_IMAGE = 'busybox:1.37';
 
 /** Vide le volume — fichiers cachés compris —, puis y extrait l'archive lue sur l'entrée. */
 const CLEAR_AND_EXTRACT = 'cd /data && rm -rf -- * .[!.]* ..?* 2>/dev/null; tar xzf - -C /data';
-
-function firstLine(value: string): string | null {
-  const line = value.split('\n').find((candidate) => candidate.trim().length > 0);
-  return line?.trim() ?? null;
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

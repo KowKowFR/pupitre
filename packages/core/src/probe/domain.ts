@@ -307,9 +307,9 @@ export function readRdapDomain(payload: unknown): RdapDomainFacts {
 
 // ─── verdict ──────────────────────────────────────────────────────────────────
 
-export const DAY_MS = 86_400_000;
+const DAY_MS = 86_400_000;
 
-export function daysUntil(iso: string, now: Date): number {
+function daysUntil(iso: string, now: Date): number {
   return Math.floor((new Date(iso).getTime() - now.getTime()) / DAY_MS);
 }
 

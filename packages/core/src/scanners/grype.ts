@@ -1,6 +1,7 @@
 import { SCANNERS, type Finding, type ScanReport, type Severity } from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
-import { cachePath, ensureBinary, shellQuote, toolPath } from './install.js';
+import { cachePath, ensureBinary, toolPath } from './install.js';
+import { shellQuote } from '../shell.js';
 import { parseJsonOutput, runTool, SCAN_TIMEOUT_MS } from './run.js';
 import type { ScanContext, ScanLogSink, Scanner } from './types.js';
 

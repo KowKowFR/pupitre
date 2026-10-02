@@ -43,7 +43,7 @@ function gib(kb: number): string {
   return (kb / 1024 / 1024).toFixed(kb / 1024 / 1024 < 10 ? 1 : 0);
 }
 
-export function formatUptime(seconds: number | null, t: T): string {
+function formatUptime(seconds: number | null, t: T): string {
   if (seconds === null) return t('unknown');
   const days = Math.floor(seconds / 86_400);
   const hours = Math.floor((seconds % 86_400) / 3600);

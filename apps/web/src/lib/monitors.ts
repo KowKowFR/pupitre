@@ -40,7 +40,7 @@ import { getEnv } from './env';
 
 let cachedCidrs: Cidr[] | null = null;
 
-export function allowedCidrs(): readonly Cidr[] {
+function allowedCidrs(): readonly Cidr[] {
   cachedCidrs ??= parseCidrList(getEnv().MONITOR_ALLOWED_CIDRS);
   return cachedCidrs;
 }

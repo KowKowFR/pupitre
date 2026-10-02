@@ -1,14 +1,15 @@
 import {
   classifySpecChange,
   defaultWatchPaths,
+  errorMessage,
   parseAppSpec,
   parseSourceSpec,
   sourceDeployJobDataSchema,
   sourcePollJobDataSchema,
   touchesWatchPaths,
   type AppSpec,
-  type SourceProvider,
   type RepositoryRef,
+  type SourceProvider,
 } from '@pupitre/core';
 import {
   claimSourceCommit,
@@ -53,10 +54,6 @@ import { panelUrl, reportCommitStatus, statusLanguage, statusText } from '../sou
 
 function repoOf(source: ApplicationSourceView): RepositoryRef {
   return { fullName: source.repository, installationId: source.installationId };
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 type ReadSpec =
@@ -267,7 +264,7 @@ export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
       // Une liaison en panne n'arrête pas les autres : l'erreur est écrite sur
       // elle, en clair, et la minute suivante réessaie.
       log.warn({ err: error }, 'vérification du dépôt impossible');
-      await recordSourceCheck(source.id, { error: messageOf(error) });
+      await recordSourceCheck(source.id, { error: errorMessage(error) });
     }
     checked += 1;
   }
@@ -370,7 +367,7 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
     await recordSourceCheck(source.id, { error: skippedSummary(result) });
     return { created: result.created.length };
   } catch (error) {
-    await recordSourceCheck(source.id, { error: messageOf(error) });
+    await recordSourceCheck(source.id, { error: errorMessage(error) });
     throw error;
   }
 }

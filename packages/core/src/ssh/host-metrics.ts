@@ -11,6 +11,7 @@ import { connect, disconnect, exec } from './client.js';
 import { SshAuthError } from './errors.js';
 import type { SshLogger, SshTarget } from './types.js';
 import type { SshSession } from './client.js';
+import { shellQuote } from '../shell.js';
 
 /**
  * Relevé des métriques d'une machine cible.
@@ -200,11 +201,6 @@ async function probeDisk(session: SshSession, rootPath: string): Promise<HostDis
     );
   }
   return parseDf(rest.join('\n'), measured.trim());
-}
-
-/** Échappement POSIX en quotes simples — le chemin vient de la configuration. */
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 export type HostMetricsOptions = {

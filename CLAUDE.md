@@ -120,6 +120,8 @@ pnpm test                         # tests unitaires de @pupitre/core
 pnpm test:parity <docker> <k3s>   # la même AppSpec sur les deux runtimes
 pnpm test:proxy <docker> <k3s>    # le reverse proxy de bout en bout, certificats compris
 pnpm test:npm <docker> <k3s>      # Nginx Proxy Manager, un proxy distant, de bout en bout
+pnpm test:rollback <docker> <k3s> # revenir en arrière retrouve le bon code, même version
+pnpm test:source-isolation <docker> <k3s>  # un dépôt piégé ne passe pas
 pnpm test:catalog <cible>         # chaque modèle du catalogue déployé, sondé, détruit
 docker compose up -d              # stack complète
 ```

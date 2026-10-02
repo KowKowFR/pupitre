@@ -28,8 +28,8 @@ export type ToastItem = ToastInput & {
   closing: boolean;
 };
 
-export const TOAST_LIFE_MS = 5000;
-export const TOAST_MAX = 3;
+const TOAST_LIFE_MS = 5000;
+const TOAST_MAX = 3;
 
 type Listener = () => void;
 

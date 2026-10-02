@@ -56,7 +56,7 @@ import { logger } from '../logger.js';
  * quatrième façon de se tromper — pour un arbitrage que 99 % des instances ne
  * rencontreront jamais.
  */
-export function pickTransactionalMailChannel(
+function pickTransactionalMailChannel(
   channels: NotificationChannelRecord[],
 ): NotificationChannelRecord | null {
   return (

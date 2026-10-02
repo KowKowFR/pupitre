@@ -5,12 +5,11 @@ import type { LogSink } from '../../drivers/types.js';
 import { exec, execPipe } from '../../ssh/client.js';
 import {
   ensureDirectory as ensureDirectoryAs,
-  firstLine,
   httpCode,
   removeFile as removeFileAs,
-  shellQuote,
   writeFile as writeFileAs,
 } from '../host.js';
+import { firstLine, shellQuote } from '../../shell.js';
 import { isIPv4 } from '../model.js';
 import {
   TRAEFIK_PROBE,

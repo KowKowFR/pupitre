@@ -1,6 +1,7 @@
 import { exec } from '../ssh/client.js';
 import type { RouteCertificate } from './model.js';
 import type { ProxyHostContext, ProxyRoute, RouteProbe } from './types.js';
+import { shellQuote } from '../shell.js';
 
 /**
  * La sonde d'une route, commune à tous les proxies qui écoutent sur les ports
@@ -32,10 +33,6 @@ export type ProbeSignatures = {
    */
   headerFile?: string;
 };
-
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
 
 export function routeProbeScript(
   route: ProxyRoute,

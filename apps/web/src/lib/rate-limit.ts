@@ -39,7 +39,7 @@ export type RateLimitVerdict = {
   resetSec: number;
 };
 
-export class RateLimitedError extends HttpError {
+class RateLimitedError extends HttpError {
   constructor(readonly verdict: RateLimitVerdict) {
     super(
       429,
@@ -61,7 +61,7 @@ export const APPSPEC_GENERATION_RULE: RateLimitRule = {
   windowSec: 600,
 };
 
-export async function consume(rule: RateLimitRule, subject: string): Promise<RateLimitVerdict> {
+async function consume(rule: RateLimitRule, subject: string): Promise<RateLimitVerdict> {
   const window = Math.floor(Date.now() / 1000 / rule.windowSec);
   const key = `ratelimit:${rule.name}:${subject}:${window}`;
 

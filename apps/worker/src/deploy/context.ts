@@ -1,6 +1,6 @@
 import { intersectPortRanges, parseAppSpec, type PortRange } from '@pupitre/core';
 import type { DriverContext, SecretResolver } from '@pupitre/core/drivers';
-import { connect, disconnect, type ConnectOptions, type SshSession } from '@pupitre/core/ssh';
+import { connect, type ConnectOptions, type SshSession } from '@pupitre/core/ssh';
 import {
   createPortAllocator,
   ensureApplicationSecrets,
@@ -124,5 +124,3 @@ export async function openDeploymentContext(
     },
   };
 }
-
-export { disconnect };

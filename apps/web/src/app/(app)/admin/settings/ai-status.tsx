@@ -19,7 +19,7 @@ import { settings as messages } from '@/i18n/messages/settings';
  * appel. Trois états, parce qu'il y a trois situations distinctes à distinguer
  * et qu'un booléen n'en couvre que deux.
  */
-export function aiReadiness(settings: AppSettings, storedApiKey: string | null) {
+function aiReadiness(settings: AppSettings, storedApiKey: string | null) {
   return resolveAiConfig({
     settings: settings.ai,
     settingsApiKey: storedApiKey ?? undefined,

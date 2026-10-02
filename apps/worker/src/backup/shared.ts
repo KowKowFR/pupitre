@@ -3,6 +3,7 @@ import { createWriteStream } from 'node:fs';
 import { PassThrough, Transform, type Readable, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
+import { errorMessage } from '@pupitre/core';
 import {
   createDecryptStream,
   createEncryptStream,
@@ -46,10 +47,6 @@ export async function openStore(destinationId?: string | null): Promise<OpenedSt
   return { id: resolved.id, name: resolved.name, store: openBackupStore(resolved.destination) };
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /**
  * Dépose un morceau : ce que `produce` écrit est (compressé,) chiffré, puis
  * envoyé à la destination, le tout en flux. Rend la taille et l'empreinte de ce
@@ -84,7 +81,7 @@ export async function storePiece(
   let cause: unknown;
   const first = (error: unknown) => {
     cause ??= error;
-    return error instanceof Error ? error : new Error(messageOf(error));
+    return error instanceof Error ? error : new Error(errorMessage(error));
   };
 
   const encoding = (
@@ -156,7 +153,7 @@ export async function applyRetention(
       removed.push(backup.id);
     } catch (error) {
       // Une suppression ratée reste dans l'index : elle sera retentée à la prochaine.
-      onLog(`rétention : « ${backup.location} » non effacée — ${messageOf(error)}`);
+      onLog(`rétention : « ${backup.location} » non effacée — ${errorMessage(error)}`);
     }
   }
   await deleteBackupRecords(removed);
@@ -165,5 +162,3 @@ export async function applyRetention(
   await pruneFailedBackups(scope, new Date(Date.now() - FAILED_BACKUPS_KEPT_MS));
   return removed.length;
 }
-
-export { messageOf };

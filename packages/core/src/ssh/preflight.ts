@@ -18,6 +18,7 @@ import { connect, disconnect, exec } from './client.js';
 import { SshAuthError } from './errors.js';
 import type { SshLogger, SshTarget } from './types.js';
 import type { SshSession } from './client.js';
+import { firstLine } from '../shell.js';
 
 /**
  * Preflight d'une machine cible.
@@ -60,12 +61,6 @@ async function runCheck<T>(
     });
     return fallback;
   }
-}
-
-/** Première ligne non vide, ou `null`. */
-function firstLine(value: string): string | null {
-  const line = value.split('\n').find((candidate) => candidate.trim().length > 0);
-  return line?.trim() ?? null;
 }
 
 function parseOsRelease(content: string): { name: string | null; version: string | null; prettyName: string | null } {

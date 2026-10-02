@@ -87,7 +87,7 @@ let notificationsQueue: Queue | null = null;
  * producteur : c'est lui qui trace les déploiements en échec, donc lui qui
  * enfile les distributions correspondantes.
  */
-export function getNotificationsQueue(): Queue {
+function getNotificationsQueue(): Queue {
   notificationsQueue ??= new Queue(NOTIFICATIONS_QUEUE, {
     connection: createRedisConnection(),
     defaultJobOptions: {

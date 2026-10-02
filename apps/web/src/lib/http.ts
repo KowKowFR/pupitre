@@ -36,7 +36,7 @@ export type ApiError = {
   error: { code: string; message: string; details?: unknown };
 };
 
-export function jsonError(
+function jsonError(
   status: number,
   code: string,
   message: string,
@@ -97,37 +97,6 @@ export function apiRoute<Context>(
       return jsonError(500, 'internal_error', await localizeKey('internal'));
     }
   };
-}
-
-/** Lit et valide le corps JSON d'une requête. Aucun input non validé ne passe. */
-export async function parseJsonBody<T extends z.ZodTypeAny>(
-  request: Request,
-  schema: T,
-): Promise<{ ok: true; data: z.infer<T> } | { ok: false; response: NextResponse<ApiError> }> {
-  let raw: unknown;
-  try {
-    const text = await request.text();
-    raw = text.length === 0 ? {} : JSON.parse(text);
-  } catch {
-    return {
-      ok: false,
-      response: jsonError(400, 'invalid_json', await localizeKey('invalid_json')),
-    };
-  }
-
-  const parsed = schema.safeParse(raw);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      response: jsonError(
-        422,
-        'validation_failed',
-        await localizeKey('validation.body'),
-        z.flattenError(parsed.error),
-      ),
-    };
-  }
-  return { ok: true, data: parsed.data };
 }
 
 /** Variante qui throw : le wrapper `apiRoute()` traduit le `ZodError` en 422. */

@@ -31,14 +31,6 @@ export type OutcomePoint = {
   outcome: string;
 };
 
-/** Les trois états, dans l'ordre où on les lit : du bon au pire. */
-const OUTCOME_TONE: Record<string, string> = {
-  healthy: 'var(--ok)',
-  unhealthy: 'var(--warn)',
-  unreachable: 'var(--danger)',
-  unknown: 'var(--text-3)',
-};
-
 /**
  * L'heure d'un point, dans la locale de l'instance.
  *
@@ -162,28 +154,6 @@ export function StripAxis({
 
 function clockOf(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, { hour: '2-digit', minute: '2-digit' });
-}
-
-/** Légende de la frise. Nomme les couleurs : la teinte seule ne suffit jamais. */
-export function OutcomeLegend({ className }: { className?: string }) {
-  const t = useT(messages);
-  return (
-    <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1', className)}>
-      {(['healthy', 'unhealthy', 'unreachable'] as const).map((outcome) => (
-        <span
-          key={outcome}
-          className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-3"
-        >
-          <span
-            aria-hidden
-            className="inline-block h-2.5 w-1.5 rounded-[1px]"
-            style={{ backgroundColor: OUTCOME_TONE[outcome] }}
-          />
-          {t(`outcome.${outcome}`)}
-        </span>
-      ))}
-    </div>
-  );
 }
 
 // ─── courbe de latence ────────────────────────────────────────────────────────

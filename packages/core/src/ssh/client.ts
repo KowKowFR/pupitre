@@ -18,6 +18,7 @@ import type {
   SshLogger,
   SshTarget,
 } from './types.js';
+import { shellQuote } from '../shell.js';
 
 export const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 export const DEFAULT_READY_TIMEOUT_MS = 15_000;
@@ -218,11 +219,6 @@ function withSudo(session: SshSession, command: string): { command: string; stdi
     command: `sudo -S -p '' -- sh -c ${shellQuote(command)}`,
     stdin: `${session.target.credentials.password}\n`,
   };
-}
-
-/** Échappement POSIX en quotes simples. */
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 /**

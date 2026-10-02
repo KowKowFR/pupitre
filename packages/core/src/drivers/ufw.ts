@@ -1,5 +1,6 @@
 import { exec } from '../ssh/client.js';
 import type { DriverContext, LogSink, TargetContext } from './types.js';
+import { firstLine, shellQuote } from '../shell.js';
 
 /**
  * Pare-feu UFW sur la machine cible.
@@ -44,11 +45,6 @@ export const UFW_MARKERS = [UFW_MARKER, LEGACY_UFW_MARKER] as const;
 /** La ligne de `ufw status` appartient-elle au panel, toutes générations ? */
 export function isManagedUfwRule(line: string): boolean {
   return UFW_MARKERS.some((marker) => line.includes(`${marker}:`));
-}
-
-/** Échappement POSIX en quotes simples. */
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
 export type UfwState = 'active' | 'inactive' | 'absent';
@@ -182,9 +178,4 @@ export async function ufwDelete(
       ? `ufw delete allow ${port}/tcp (${comment})`
       : `ufw : plus aucune règle ${port}/tcp (${comment})`,
   );
-}
-
-function firstLine(value: string): string | null {
-  const line = value.split('\n').find((candidate) => candidate.trim().length > 0);
-  return line?.trim() ?? null;
 }

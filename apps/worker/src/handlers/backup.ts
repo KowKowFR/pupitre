@@ -4,6 +4,7 @@ import {
   backupDestinationCheckJobDataSchema,
   backupPanelJobDataSchema,
   backupRestoreJobDataSchema,
+  errorMessage,
   type BackupJobResult,
 } from '@pupitre/core';
 import {
@@ -16,7 +17,7 @@ import type { Job } from 'bullmq';
 import { backupApplication } from '../backup/application.js';
 import { backupPanel } from '../backup/panel.js';
 import { restoreApplicationBackup } from '../backup/restore.js';
-import { messageOf, openStore } from '../backup/shared.js';
+import { openStore } from '../backup/shared.js';
 import { logger } from '../logger.js';
 
 /**
@@ -109,13 +110,13 @@ export async function handleBackupDestinationCheck(
   const data = backupDestinationCheckJobDataSchema.parse(job.data);
   let error: string | null = null;
   const opened = await openStore(data.destinationId).catch((cause: unknown) => {
-    error = messageOf(cause);
+    error = errorMessage(cause);
     return null;
   });
   try {
     if (opened) await opened.store.check();
   } catch (cause) {
-    error = messageOf(cause);
+    error = errorMessage(cause);
   } finally {
     await opened?.store.close().catch(() => undefined);
   }

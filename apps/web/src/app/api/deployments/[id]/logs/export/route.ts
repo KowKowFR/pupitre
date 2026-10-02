@@ -228,7 +228,7 @@ function textHeader(
   // en un seul endroit, et le texte produit est identique.
   return `# Journal de déploiement — ${deployment.applicationSlug} v${deployment.version}
 # Déploiement : #${deployment.number} · ${deployment.id}
-# Cible : ${deployment.targetName} (${deployment.targetHost}) · ${deployment.runtime} · ${deployment.proxy}
+# Cible : ${deployment.targetName} (${deployment.targetHost}) · ${deployment.runtime}
 # Statut : ${deployment.status}${failure}
 # Démarré : ${started} · terminé : ${finished}
 # Journal complet tel qu'il est conservé en base, dans l'ordre des étapes.

@@ -11,25 +11,17 @@ document en est la contrepartie : ce qu'on ferait pour les faire disparaître.
 
 ## Ce qui bloque un usage réel
 
-### Fournir un contexte de build depuis le panel
+### Construire sans dépôt lié
 
-`AppSpec` accepte `source.type: "dockerfile"`, les deux drivers savent construire
-depuis un contexte, et le contexte leur arrive par `DriverContext.additionalFiles`.
-Or **rien dans `apps/web` ni dans `apps/worker` ne remplit ce champ** :
+Un service `dockerfile` se construit depuis le dépôt GitHub lié à l'application
+(son archive au commit déployé, extraite dans `source/` de la release). Une
+application créée par le formulaire, par l'IA, depuis le catalogue ou par import
+d'un `compose.yml` n'a pas de dépôt, donc pas de contexte de build : seuls ses
+services en `source.type: "image"` se déploient.
 
-```bash
-grep -rn "additionalFiles" apps packages scripts --include='*.ts' --include='*.tsx' | grep -v dist
-```
-
-Seul `scripts/test-parity.ts` en fabrique un, et il pilote les drivers en direct.
-Conséquence : **par le panel, seules les applications en `source.type: "image"`
-se déploient.** Un service `dockerfile` échoue à l'étape `build`, avec le message
-« Le contexte de build doit être fourni via `additionalFiles` ».
-
-Ce qu'il faut : une voie d'entrée pour le code source — dépôt Git cloné sur la
-cible, archive téléversée, ou montage — puis le remplissage du champ dans
-`apps/worker/src/deploy/context.ts`. C'est le chantier qui rendrait le mot
-« déployer » vrai au sens où l'entendent Coolify ou Dokploy.
+Ce qu'il faut : une autre voie d'entrée pour le code — une archive téléversée,
+ou un dépôt d'une autre forge (GitLab, Gitea, Forgejo) par un second
+`SourceProvider`.
 
 ### Un panel derrière un répartiteur
 
@@ -74,18 +66,6 @@ franchissent aucun seuil : une machine éteinte ne déclenche rien. La supervisi
 de **sites** a bien son hystérésis et ses alertes ; la supervision de
 **serveurs** n'a que ses seuils de charge, de mémoire et de disque, qui exigent
 un relevé réussi pour se prononcer.
-
-### Un mot de runtime hors d'un driver
-
-`packages/db/src/deployments.ts:1329` choisit « namespace » ou « projet Compose »
-dans le message d'un déploiement abandonné. Aucun chemin d'exécution n'en dépend,
-mais c'est la seule ligne du dépôt qui fait sortir du vocabulaire de runtime d'un
-driver. Le driver devrait exposer ce mot ; le message se contenterait de le lire.
-
-### `destroy()` ne nettoie pas containerd
-
-Le driver K3s ne retire pas de containerd les images qu'il a fait construire.
-Symétrique du driver Docker, mais ça s'accumule sur le nœud.
 
 ### Le constructeur BuildKit reste en place
 
@@ -133,6 +113,9 @@ domaine. Aujourd'hui, seul HTTP-01 est réglé par Pupitre.
 
 ## Interface bilingue
 
-Le français est la langue du projet et de son code. Un système FR/EN est prévu
-pour l'interface ; il n'existe pas encore, et rien dans `apps/web` n'est
-externalisé aujourd'hui.
+Le français est la langue du projet et de son code. L'interface, elle, est
+bilingue : chaque écran tire ses textes de `apps/web/src/i18n/messages/`, en
+français et en anglais, et la langue se règle pour l'instance
+(Paramètres → Régionalisation). Une garde des tests refuse un texte français écrit
+en dur dans le code du panel. Les messages du worker et des drivers — journaux de
+déploiement, erreurs remontées par la machine — restent en français.

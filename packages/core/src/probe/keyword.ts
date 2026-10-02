@@ -119,7 +119,7 @@ export function stripMarkup(html: string): string {
 }
 
 /** Le texte dans lequel on cherchera, selon la portée demandée. */
-export function haystackOf(body: string, scope: KeywordScope): string {
+function haystackOf(body: string, scope: KeywordScope): string {
   return scope === 'text' ? stripMarkup(body) : body;
 }
 

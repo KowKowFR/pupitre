@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { exec, upload } from '../ssh/client.js';
 import type { ProxyKind } from './model.js';
 import { ProxyError, type ProxyHostContext } from './types.js';
+import { firstLine, shellQuote } from '../shell.js';
 
 /**
  * Les gestes sur la machine d'un proxy que tous les providers partagent :
@@ -10,20 +11,6 @@ import { ProxyError, type ProxyHostContext } from './types.js';
  */
 
 const SHORT_MS = 30_000;
-
-export function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
-
-export function firstLine(text: string): string | null {
-  return (
-    text
-      .trim()
-      .split('\n')
-      .find((line) => line.trim().length > 0)
-      ?.trim() ?? null
-  );
-}
 
 /** Crée un dossier ; par sudo, en le rendant au compte de déploiement, si besoin. */
 export async function ensureDirectory(

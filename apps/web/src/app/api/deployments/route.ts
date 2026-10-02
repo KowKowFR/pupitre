@@ -221,7 +221,6 @@ export const POST = apiRoute(async (request) => {
       applicationSlug: application.slug,
       targetName: target.name,
       runtime: input.runtime,
-      proxy: input.proxy,
       number: deployment.number,
       version: deployment.version,
       scanners: scanConfig.scanners,
