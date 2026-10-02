@@ -31,6 +31,7 @@ export * from './sources/spec-change.js';
 export * from './sources/spec-file.js';
 export * from './sources/watch.js';
 export * from './proxy/model.js';
+export * from './proxy/catalog.js';
 export * from './spec/index.js';
 export * from './supervision.js';
 export * from './workloads.js';

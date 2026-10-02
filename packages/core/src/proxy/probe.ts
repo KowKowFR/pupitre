@@ -14,24 +14,47 @@ import type { ProxyHostContext, ProxyRoute, RouteProbe } from './types.js';
 
 const PROBE_TIMEOUT_MS = 60_000;
 
-/** Ce que Traefik répond quand aucune route ne correspond au nom. */
-const NO_ROUTE_BODY = '404 page not found';
+/**
+ * Ce qui trahit un proxy qui ne connaît pas le nom demandé, ou qui n'a pas
+ * encore de vrai certificat. Chacun a les siens : Traefik répond 404 avec un
+ * corps à lui, BunkerWeb sert sa page par défaut **en 200**. Sans signature,
+ * une route absente passerait pour une route qui répond.
+ */
+export type ProbeSignatures = {
+  /** Un extrait du corps que le proxy rend pour un nom qu'il ne connaît pas. */
+  noRouteBody: string;
+  /** Le certificat qu'il présente tant qu'il n'en a pas obtenu un vrai. */
+  placeholderCertificate: RegExp;
+  /**
+   * Un fichier de la machine du proxy qui porte un en-tête à joindre aux
+   * sondes (`Nom: valeur`) — celui qui les fait passer la liste blanche d'un
+   * WAF. Lu par `curl -H @fichier` : la valeur n'apparaît dans aucun argument.
+   */
+  headerFile?: string;
+};
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
-export function routeProbeScript(route: ProxyRoute, path: string): string {
+export function routeProbeScript(
+  route: ProxyRoute,
+  path: string,
+  signatures: ProbeSignatures,
+): string {
   const host = shellQuote(route.hostname);
   const target = shellQuote(path.startsWith('/') ? path : `/${path}`);
   return [
     `H=${host}`,
     `P=${target}`,
     'B=$(mktemp)',
+    // Un en-tête de la machine, s'il y en a un : sa valeur reste dans le fichier.
+    `F=${signatures.headerFile ? shellQuote(signatures.headerFile) : "''"}`,
+    '[ -n "$F" ] && [ -r "$F" ] || F=/dev/null',
     'probe() {',
-    `  code=$(curl -s -k -o "$B" -w '%{http_code}' -m 10 --resolve "$H:$2:127.0.0.1" "$1://$H$P" 2>/dev/null) || true`,
+    `  code=$(curl -s -k -o "$B" -w '%{http_code}' -m 10 -H "@$F" --resolve "$H:$2:127.0.0.1" "$1://$H$P" 2>/dev/null) || true`,
     '  [ -n "$code" ] || code=000',
-    `  if grep -q ${shellQuote(NO_ROUTE_BODY)} "$B" 2>/dev/null; then nf=1; else nf=0; fi`,
+    `  if grep -qF ${shellQuote(signatures.noRouteBody)} "$B" 2>/dev/null; then nf=1; else nf=0; fi`,
     '  echo "probe $1 $code $nf"',
     '}',
     'probe http 80',
@@ -83,13 +106,17 @@ function parseDate(value: string | null): string | null {
   return Number.isNaN(time) ? null : new Date(time).toISOString();
 }
 
-export function parseCertificate(stdout: string, now = Date.now()): RouteCertificate {
+export function parseCertificate(
+  stdout: string,
+  signatures: Pick<ProbeSignatures, 'placeholderCertificate'>,
+  now = Date.now(),
+): RouteCertificate {
   const subject = field(stdout, ['subject']);
   const issuer = field(stdout, ['issuer']);
   const notAfter = parseDate(field(stdout, ['notafter', 'expire date']));
   if (!subject && !issuer) return { status: 'unknown', subject: null, issuer: null, notAfter };
-  // Traefik présente ce certificat tant qu'il n'en a pas obtenu un vrai.
-  const isDefault = /TRAEFIK DEFAULT CERT/i.test(`${subject ?? ''} ${issuer ?? ''}`);
+  // Le certificat d'attente du proxy : l'émission n'a pas encore abouti.
+  const isDefault = signatures.placeholderCertificate.test(`${subject ?? ''} ${issuer ?? ''}`);
   const expired = notAfter !== null && Date.parse(notAfter) < now;
   return {
     status: isDefault ? 'pending' : expired ? 'invalid' : 'valid',
@@ -103,7 +130,7 @@ function judge(name: string, probed: Probed | undefined, redirectExpected: boole
   if (!probed) return `${name} : aucune réponse lisible`;
   const { code, noRoute } = probed;
   if (code === 0) return `${name} : le proxy ne répond pas sur ce port`;
-  if (code === 404 && noRoute) return `${name} : le proxy ne connaît pas ce domaine (404)`;
+  if (noRoute) return `${name} : le proxy ne connaît pas ce domaine (${code})`;
   if (code === 502 || code === 503 || code === 504) {
     return `${name} : le proxy ne joint pas l'application (${code})`;
   }
@@ -116,6 +143,7 @@ function judge(name: string, probed: Probed | undefined, redirectExpected: boole
 export function interpretRouteProbe(
   route: ProxyRoute,
   stdout: string,
+  signatures: ProbeSignatures,
   now = Date.now(),
 ): RouteProbe {
   const probes = parseProbes(stdout);
@@ -124,7 +152,7 @@ export function interpretRouteProbe(
     route.tls ? judge('HTTPS', probes.https, false) : null,
   ].filter((problem): problem is string => problem !== null);
   const certificate: RouteCertificate = route.tls
-    ? parseCertificate(stdout, now)
+    ? parseCertificate(stdout, signatures, now)
     : { status: 'none', subject: null, issuer: null, notAfter: null };
   const codes = [
     probes.http ? `HTTP ${probes.http.code}` : null,
@@ -143,9 +171,10 @@ export async function probeRoute(
   ctx: ProxyHostContext,
   route: ProxyRoute,
   path: string,
+  signatures: ProbeSignatures,
 ): Promise<RouteProbe> {
-  const result = await exec(ctx.sshSession, routeProbeScript(route, path), {
+  const result = await exec(ctx.sshSession, routeProbeScript(route, path, signatures), {
     timeout: PROBE_TIMEOUT_MS,
   });
-  return interpretRouteProbe(route, result.stdout);
+  return interpretRouteProbe(route, result.stdout, signatures);
 }

@@ -41,7 +41,7 @@ Implémentations : `DockerComposeDriver`, `K3sDriver`.
 
 ### ProxyProvider
 `detect() install() check() apply(routes) probe(route) uninstall()`
-Implémentations : `TraefikProvider` (défaut), `BunkerWebProvider` (P1).
+Implémentations : `TraefikProvider` (défaut), `BunkerWebProvider` (WAF, par son API).
 Un domaine est une **route** posée par le proxy vers l'amont que le driver
 annonce (`upstream()` : port publié, Service du cluster). Le driver ne pose
 jamais de route ; le proxy ne sait pas sur quel runtime il route. Comment
@@ -105,7 +105,7 @@ Conséquence : la même app se redéploie sur l'autre runtime en changeant un ch
 - Build des images **sur la machine cible** via SSH, pas de registry
 - **Pas d'Ansible**
 - **Pas de cron Linux** — BullMQ repeatable jobs
-- Traefik par défaut sur les deux runtimes ; BunkerWeb est P1
+- Traefik par défaut sur les deux runtimes ; BunkerWeb en conteneur Docker, par son API
 
 ## Commandes
 

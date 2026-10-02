@@ -58,7 +58,11 @@ type Data = {
 };
 type Detected = { detections: ProxyDetection[]; installOptions: ProxyInstallOption[] };
 type ApiError = { error?: { message?: string } };
-type AcmeServer = 'production' | 'staging' | 'custom';
+type AcmeServer = ProxyInstallOption['acmeServers'][number];
+
+/** Une option d'installation, nommée avec son genre : deux proxies peuvent avoir la même clé. */
+const optionId = (candidate: Pick<ProxyInstallOption, 'kind' | 'key'>) =>
+  `${candidate.kind}:${candidate.key}`;
 
 const STATUS_VARIANT = {
   unknown: 'idle',
@@ -181,14 +185,23 @@ export function ProxyPanel({
     if (!response) return;
     const body = (await response.json()) as Detected;
     setDetected(body);
-    setOption(body.installOptions.find((candidate) => candidate.available)?.key ?? null);
+    const first = body.installOptions.find((candidate) => candidate.available);
+    choose(first ?? null);
+  }
+
+  /** Choisir une option, et une autorité qu'elle sait interroger. */
+  function choose(candidate: ProxyInstallOption | null) {
+    setOption(candidate ? optionId(candidate) : null);
+    if (candidate && !candidate.acmeServers.includes(server)) {
+      setServer(candidate.acmeServers[0] ?? 'production');
+    }
   }
 
   async function use(detection: ProxyDetection) {
     setBusy('use');
     const response = await call(`/api/targets/${targetId}/proxy`, {
       method: 'PUT',
-      body: JSON.stringify({ kind: 'traefik', config: detection.config }),
+      body: JSON.stringify({ kind: detection.kind, config: detection.config }),
     });
     setBusy(null);
     if (!response) return;
@@ -199,12 +212,14 @@ export function ProxyPanel({
   }
 
   async function install() {
-    if (!option) return;
+    const chosen = detected?.installOptions.find((candidate) => optionId(candidate) === option);
+    if (!chosen) return;
     setBusy('install');
     const response = await call(`/api/targets/${targetId}/proxy/install`, {
       method: 'POST',
       body: JSON.stringify({
-        option,
+        kind: chosen.kind,
+        option: chosen.key,
         acme: {
           email,
           server,
@@ -271,7 +286,7 @@ export function ProxyPanel({
   const chosenProxyId = linkProxyId || data.candidates[0]?.proxyId || '';
   const address = linkAddress ?? data.suggestedAddress;
   const serverLabel = (value: string) =>
-    value === 'production' || value === 'staging' || value === 'custom'
+    value === 'production' || value === 'staging' || value === 'zerossl' || value === 'custom'
       ? t(`install.server.${value}`)
       : value;
 
@@ -382,7 +397,12 @@ export function ProxyPanel({
               {data.routes.length === 0 ? (
                 <p className="t-cap text-text-3">{t('routes.none')}</p>
               ) : (
-                <RouteList routes={data.routes} format={format} showApplication />
+                <RouteList
+                  routes={data.routes}
+                  format={format}
+                  showApplication
+                  showWaf={linked.proxy.capabilities.waf}
+                />
               )}
             </div>
           </>
@@ -439,7 +459,7 @@ export function ProxyPanel({
                     <ul className="flex flex-col divide-y divide-border-subtle rounded-lg border border-border">
                       {detected.detections.map((detection) => (
                         <li
-                          key={detection.summary}
+                          key={`${detection.kind}:${detection.summary}`}
                           className="flex flex-wrap items-start gap-3 px-3 py-2"
                         >
                           <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -472,7 +492,7 @@ export function ProxyPanel({
                   <span className="t-sm font-medium">{t('detect.install')}</span>
                   <ul className="flex flex-col gap-1.5">
                     {detected.installOptions.map((candidate) => (
-                      <li key={candidate.key}>
+                      <li key={optionId(candidate)}>
                         <label
                           className={`flex items-start gap-2 ${candidate.available ? '' : 'opacity-60'}`}
                         >
@@ -480,16 +500,12 @@ export function ProxyPanel({
                             type="radio"
                             name={`proxy-option-${targetId}`}
                             className="mt-1"
-                            checked={option === candidate.key}
+                            checked={option === optionId(candidate)}
                             disabled={!candidate.available}
-                            onChange={() => setOption(candidate.key)}
+                            onChange={() => choose(candidate)}
                           />
                           <span className="flex flex-col">
-                            <span className="t-sm font-medium">
-                              {candidate.key === 'kubernetes'
-                                ? t('install.kubernetes')
-                                : t('install.container')}
-                            </span>
+                            <span className="t-sm font-medium">{candidate.title}</span>
                             <span className="t-cap text-text-3">{candidate.detail}</span>
                           </span>
                         </label>
@@ -511,15 +527,18 @@ export function ProxyPanel({
                         <SegmentedControl
                           label={t('install.server')}
                           value={server}
-                          options={[
-                            { value: 'production', label: t('install.server.production') },
-                            { value: 'staging', label: t('install.server.staging') },
-                            { value: 'custom', label: t('install.server.custom') },
-                          ]}
+                          // Seulement les autorités que l'installation choisie sait interroger.
+                          options={(
+                            detected.installOptions.find(
+                              (candidate) => optionId(candidate) === option,
+                            )?.acmeServers ?? ['production']
+                          ).map((value) => ({ value, label: t(`install.server.${value}`) }))}
                           onChange={setServer}
                         />
                         {server === 'staging' ? (
                           <span className="help">{t('install.server.staging.help')}</span>
+                        ) : server === 'zerossl' ? (
+                          <span className="help">{t('install.server.zerossl.help')}</span>
                         ) : server === 'custom' ? (
                           <span className="help">{t('install.server.custom.help')}</span>
                         ) : null}
@@ -583,8 +602,8 @@ export function ProxyPanel({
                     server: serverLabel(proxy.acme.server),
                     email: proxy.acme.email,
                   })
-                : proxy.certResolver
-                  ? proxy.description
+                : proxy.capabilities.autoTls
+                  ? t('acme.own')
                   : t('acme.none')}
             </p>
             {proxy.status === 'installing' ? (
@@ -639,6 +658,7 @@ export function ProxyPanel({
                   format={format}
                   showApplication
                   hostTargetId={targetId}
+                  showWaf={proxy.capabilities.waf}
                 />
               )}
             </div>
@@ -741,12 +761,15 @@ export function RouteList({
   format,
   showApplication = false,
   hostTargetId,
+  showWaf = false,
 }: {
   routes: RouteViewForUi[];
   format: FormatSettings;
   showApplication?: boolean;
   /** La machine du proxy : les domaines d'une autre machine qu'il sert disent laquelle. */
   hostTargetId?: string;
+  /** Le proxy est aussi un WAF : chaque domaine dit sa protection. */
+  showWaf?: boolean;
 }) {
   const t = useT(messages);
   return (
@@ -761,6 +784,11 @@ export function RouteList({
               <Badge variant={ROUTE_VARIANT[route.status]} dot>
                 {t(`route.status.${route.status}`)}
               </Badge>
+              {showWaf ? (
+                <Badge variant={route.waf === 'block' ? 'idle' : 'warn'}>
+                  {t('route.waf', { mode: t(`waf.${route.waf}`) })}
+                </Badge>
+              ) : null}
               <span className="t-cap text-text-3">
                 {route.certificate && route.certificate.status !== 'none'
                   ? route.certificate.status === 'valid'

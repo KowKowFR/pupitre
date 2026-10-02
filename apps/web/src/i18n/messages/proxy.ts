@@ -31,7 +31,8 @@ const fr = {
   'error.proxyNotFound': 'Ce reverse proxy n’existe plus.',
   'error.noLink': 'Cette machine n’est reliée à aucun autre proxy.',
   'error.linkNeedsIp':
-    'Le Traefik d’un cluster joint une autre machine par son adresse IPv4 : donnez une adresse, pas un nom.',
+    'Ce reverse proxy joint une autre machine par son adresse IPv4 : donnez une adresse, pas un nom.',
+  'error.linkUnsupported': 'Ce reverse proxy ne sait pas servir une autre machine que la sienne.',
 
   // ── la carte de la cible ─────────────────────────────────────────────────
   'card.title': 'Reverse proxy',
@@ -51,8 +52,6 @@ const fr = {
   'detect.none': 'Aucun reverse proxy reconnu sur cette machine.',
   'detect.unusable': 'Pupitre ne peut pas s’en servir tel quel.',
   'detect.install': 'Installer avec Pupitre',
-  'install.container': 'Traefik en conteneur',
-  'install.kubernetes': 'Le Traefik de K3s',
   'install.email': 'E-mail pour Let’s Encrypt',
   'install.email.help':
     'Let’s Encrypt y écrit avant l’expiration d’un certificat qui n’aurait pas été renouvelé.',
@@ -60,6 +59,9 @@ const fr = {
   'install.server.production': 'Let’s Encrypt',
   'install.server.staging': 'Let’s Encrypt (essai)',
   'install.server.custom': 'Autre serveur ACME',
+  'install.server.zerossl': 'ZeroSSL',
+  'install.server.zerossl.help':
+    'Une autre autorité gratuite, reconnue par les navigateurs. Le compte est créé à partir de l’e-mail.',
   'install.server.staging.help':
     'Certificats non reconnus par les navigateurs, sans limite de volume : pour essayer sans risque.',
   'install.server.custom.help':
@@ -76,6 +78,7 @@ const fr = {
   'badge.found': 'trouvé sur la machine',
   'acme.line': 'Certificats : {server}, au nom de {email}.',
   'acme.none': 'Pas de certificats automatiques : HTTPS avec le certificat par défaut du proxy.',
+  'acme.own': 'Certificats obtenus par le proxy, selon ses propres réglages.',
   'checks.title': 'Dernier test',
   'checks.never': 'Pas encore testé.',
   'checks.queued': 'Test lancé',
@@ -124,6 +127,13 @@ const fr = {
   'served.title': 'Machines servies',
   'served.help': 'Leurs domaines passent par ce proxy, qui les joint à l’adresse indiquée.',
   'domains.via': 'sur « {target} »',
+  'domains.waf': 'Protection du domaine',
+  'domains.helpWaf':
+    'BunkerWeb est aussi un pare-feu applicatif : « Protection » bloque les attaques reconnues et limite les abus, « Détection seule » les journalise sans rien bloquer — pour vérifier qu’une application n’en souffre pas —, « Sans WAF » relaie seulement.',
+  'waf.block': 'Protection',
+  'waf.detect': 'Détection seule',
+  'waf.off': 'Sans WAF',
+  'route.waf': 'WAF : {mode}',
 
   // ── les domaines ─────────────────────────────────────────────────────────
   'domains.title': 'Domaines',
@@ -185,7 +195,8 @@ const en: Translated<typeof fr> = {
   'error.proxyNotFound': 'This reverse proxy no longer exists.',
   'error.noLink': 'This machine is not linked to another proxy.',
   'error.linkNeedsIp':
-    'A cluster’s Traefik reaches another machine by its IPv4 address: give an address, not a name.',
+    'This reverse proxy reaches another machine by its IPv4 address: give an address, not a name.',
+  'error.linkUnsupported': 'This reverse proxy cannot serve a machine other than its own.',
 
   'card.title': 'Reverse proxy',
   'card.description':
@@ -204,8 +215,6 @@ const en: Translated<typeof fr> = {
   'detect.none': 'No known reverse proxy on this machine.',
   'detect.unusable': 'Pupitre cannot use it as it is.',
   'detect.install': 'Install with Pupitre',
-  'install.container': 'Traefik in a container',
-  'install.kubernetes': 'The Traefik of K3s',
   'install.email': 'E-mail for Let’s Encrypt',
   'install.email.help':
     'Let’s Encrypt writes there before a certificate that was not renewed expires.',
@@ -213,6 +222,9 @@ const en: Translated<typeof fr> = {
   'install.server.production': 'Let’s Encrypt',
   'install.server.staging': 'Let’s Encrypt (staging)',
   'install.server.custom': 'Other ACME server',
+  'install.server.zerossl': 'ZeroSSL',
+  'install.server.zerossl.help':
+    'Another free authority trusted by browsers. The account is created from the e-mail.',
   'install.server.staging.help':
     'Certificates not trusted by browsers, without volume limits: to try things safely.',
   'install.server.custom.help':
@@ -229,6 +241,7 @@ const en: Translated<typeof fr> = {
   'badge.found': 'found on the machine',
   'acme.line': 'Certificates: {server}, registered to {email}.',
   'acme.none': 'No automatic certificates: HTTPS with the proxy’s default certificate.',
+  'acme.own': 'Certificates obtained by the proxy, per its own settings.',
   'checks.title': 'Last test',
   'checks.never': 'Not tested yet.',
   'checks.queued': 'Test started',
@@ -275,6 +288,13 @@ const en: Translated<typeof fr> = {
   'served.title': 'Machines served',
   'served.help': 'Their domains go through this proxy, which reaches them at the address shown.',
   'domains.via': 'on “{target}”',
+  'domains.waf': 'Domain protection',
+  'domains.helpWaf':
+    'BunkerWeb is also a web application firewall: “Protection” blocks known attacks and limits abuse, “Detection only” logs them without blocking anything — to check an application does not suffer from it —, “No WAF” only relays.',
+  'waf.block': 'Protection',
+  'waf.detect': 'Detection only',
+  'waf.off': 'No WAF',
+  'route.waf': 'WAF: {mode}',
 
   'domains.title': 'Domains',
   'domains.help': 'Served by the reverse proxy of “{target}” ({proxy}).',

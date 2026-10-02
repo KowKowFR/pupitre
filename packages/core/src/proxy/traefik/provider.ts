@@ -2,14 +2,23 @@ import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { ufwAllowPort, UFW_MARKER } from '../../drivers/ufw.js';
 import type { LogSink } from '../../drivers/types.js';
-import { exec, execPipe, upload } from '../../ssh/client.js';
+import { exec, execPipe } from '../../ssh/client.js';
 import {
-  isIPv4,
+  ensureDirectory as ensureDirectoryAs,
+  firstLine,
+  httpCode,
+  removeFile as removeFileAs,
+  shellQuote,
+  writeFile as writeFileAs,
+} from '../host.js';
+import { isIPv4 } from '../model.js';
+import {
+  TRAEFIK_PROBE,
   traefikConfigSchema,
   type TraefikConfig,
   type TraefikFileConfig,
   type TraefikKubernetesConfig,
-} from '../model.js';
+} from './config.js';
 import { probeRoute } from '../probe.js';
 import {
   ProxyError,
@@ -53,6 +62,16 @@ import {
   traefikFileName,
 } from './render.js';
 
+function fail(step: string, message: string): never {
+  throw new ProxyError(message, 'traefik', step);
+}
+
+const ensureDirectory = (ctx: ProxyHostContext, directory: string) =>
+  ensureDirectoryAs(ctx, directory, 'traefik');
+const writeFile = (ctx: ProxyHostContext, path: string, content: string) =>
+  writeFileAs(ctx, path, content, 'traefik');
+const removeFile = (ctx: ProxyHostContext, path: string) => removeFileAs(ctx, path, 'traefik');
+
 /**
  * Traefik, piloté par ses propres fournisseurs : un dossier surveillé (mode
  * `file`) ou des objets Ingress (mode `kubernetes`). Voir `model.ts` pour le
@@ -72,81 +91,6 @@ function kubectl(args: string): string {
   return `${KUBECONFIG_SETUP}\nkubectl ${args}`;
 }
 
-function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'\\''`)}'`;
-}
-
-function firstLine(text: string): string | null {
-  return (
-    text
-      .trim()
-      .split('\n')
-      .find((line) => line.trim().length > 0)
-      ?.trim() ?? null
-  );
-}
-
-function fail(step: string, message: string): never {
-  throw new ProxyError(message, 'traefik', step);
-}
-
-// ─── fichiers sur la machine ─────────────────────────────────────────────────
-
-/** Crée un dossier ; par sudo, en le rendant au compte de déploiement, si besoin. */
-async function ensureDirectory(ctx: ProxyHostContext, directory: string): Promise<void> {
-  const direct = await exec(ctx.sshSession, `mkdir -p ${shellQuote(directory)}`, {
-    timeout: SHORT_MS,
-  });
-  if (direct.code === 0) return;
-  const identity = await exec(ctx.sshSession, 'echo "$(id -u):$(id -g)"', { timeout: SHORT_MS });
-  const owner = identity.stdout.trim();
-  const elevated = await exec(
-    ctx.sshSession,
-    `mkdir -p ${shellQuote(directory)} && chown ${owner} ${shellQuote(directory)}`,
-    { sudo: true, timeout: SHORT_MS },
-  );
-  if (elevated.code !== 0) {
-    fail(
-      'directory',
-      `${directory} : ${firstLine(elevated.stderr) ?? firstLine(direct.stderr) ?? 'création impossible'}`,
-    );
-  }
-}
-
-/**
- * Écrit un fichier. Directement d'abord ; un dossier qui appartient à root —
- * celui d'un Traefik installé à la main, typiquement — passe par un fichier
- * temporaire et `sudo install`.
- */
-async function writeFile(ctx: ProxyHostContext, path: string, content: string): Promise<void> {
-  try {
-    await upload(ctx.sshSession, Buffer.from(content, 'utf8'), path);
-    return;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!/permission denied|eacces/i.test(message)) throw error;
-  }
-  const temporary = `/tmp/pupitre-${randomBytes(6).toString('hex')}`;
-  await upload(ctx.sshSession, Buffer.from(content, 'utf8'), temporary);
-  const moved = await exec(
-    ctx.sshSession,
-    `install -m 0644 ${shellQuote(temporary)} ${shellQuote(path)}; code=$?; rm -f ${shellQuote(temporary)}; exit $code`,
-    { sudo: true, timeout: SHORT_MS },
-  );
-  if (moved.code !== 0) fail('write', `${path} : ${firstLine(moved.stderr) ?? 'écriture refusée'}`);
-}
-
-async function removeFile(ctx: ProxyHostContext, path: string): Promise<void> {
-  const direct = await exec(ctx.sshSession, `rm -f ${shellQuote(path)}`, { timeout: SHORT_MS });
-  if (direct.code === 0) return;
-  const elevated = await exec(ctx.sshSession, `rm -f ${shellQuote(path)}`, {
-    sudo: true,
-    timeout: SHORT_MS,
-  });
-  if (elevated.code !== 0)
-    fail('remove', `${path} : ${firstLine(elevated.stderr) ?? 'suppression refusée'}`);
-}
-
 /** `kubectl apply -f -`, le manifeste sur l'entrée standard : rien ne traîne sur le disque. */
 async function kubectlApply(ctx: ProxyHostContext, manifest: string, step: string): Promise<void> {
   const result = await execPipe(ctx.sshSession, kubectl('apply -f -'), {
@@ -155,17 +99,6 @@ async function kubectlApply(ctx: ProxyHostContext, manifest: string, step: strin
   });
   if (result.code !== 0)
     fail(step, `kubectl apply : ${firstLine(result.stderr) ?? `code ${result.code}`}`);
-}
-
-/** Un code HTTP lu sur la machine, `0` quand rien ne répond. */
-async function httpCode(ctx: ProxyHostContext, url: string, host?: string): Promise<number> {
-  const header = host ? ` -H ${shellQuote(`Host: ${host}`)}` : '';
-  const result = await exec(
-    ctx.sshSession,
-    `curl -s -k -o /dev/null -w '%{http_code}' -m 5${header} ${shellQuote(url)} || true`,
-    { timeout: SHORT_MS },
-  );
-  return Number(result.stdout.trim()) || 0;
 }
 
 // ─── le provider ─────────────────────────────────────────────────────────────
@@ -218,7 +151,12 @@ export class TraefikProvider implements ProxyProvider {
       );
       const finding = interpretTraefikContainer(container, read.stdout.trim() || null);
       onLog(`conteneur ${container.Name ?? id} : ${finding.summary}`);
-      found.push({ config: finding.config, summary: finding.summary, warnings: finding.warnings });
+      found.push({
+        kind: 'traefik',
+        config: finding.config,
+        summary: finding.summary,
+        warnings: finding.warnings,
+      });
     }
 
     // Un Traefik installé en binaire, hors conteneur. Les processus d'un
@@ -253,7 +191,12 @@ export class TraefikProvider implements ProxyProvider {
         read.stdout.trim() || null,
       );
       onLog(`processus : ${finding.summary}`);
-      found.push({ config: finding.config, summary: finding.summary, warnings: finding.warnings });
+      found.push({
+        kind: 'traefik',
+        config: finding.config,
+        summary: finding.summary,
+        warnings: finding.warnings,
+      });
     }
 
     // Le Traefik d'un cluster Kubernetes — celui que K3s livre.
@@ -276,7 +219,12 @@ export class TraefikProvider implements ProxyProvider {
         parseTraefikDeployment(deployments.stdout),
       );
       onLog(`cluster : ${finding.summary}`);
-      found.push({ config: finding.config, summary: finding.summary, warnings: finding.warnings });
+      found.push({
+        kind: 'traefik',
+        config: finding.config,
+        summary: finding.summary,
+        warnings: finding.warnings,
+      });
     }
 
     if (found.length === 0) onLog('aucun Traefik sur cette machine');
@@ -314,7 +262,10 @@ export class TraefikProvider implements ProxyProvider {
     if (value('class')) {
       const foreign = value('helmexists') && value('helm') !== 'pupitre';
       options.push({
+        kind: 'traefik',
         key: 'kubernetes',
+        title: 'Le Traefik de K3s',
+        acmeServers: ['production', 'staging', 'custom'],
         available: !foreign,
         detail: foreign
           ? 'une HelmChartConfig « traefik » existe déjà dans kube-system : Pupitre ne l’écrase pas'
@@ -324,7 +275,10 @@ export class TraefikProvider implements ProxyProvider {
     const docker = value('docker') === '1';
     const managed = value('managed') === MANAGED_CONTAINER;
     options.push({
+      kind: 'traefik',
       key: 'container',
+      title: 'Traefik en conteneur',
+      acmeServers: ['production', 'staging', 'custom'],
       available: docker && (managed || busy.length === 0),
       detail: !docker
         ? 'Docker est absent ou inaccessible sur cette machine'
@@ -744,7 +698,7 @@ export class TraefikProvider implements ProxyProvider {
   }
 
   async probe(ctx: ProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe> {
-    return probeRoute(ctx, route, path);
+    return probeRoute(ctx, route, path, TRAEFIK_PROBE);
   }
 }
 

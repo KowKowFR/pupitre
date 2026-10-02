@@ -137,9 +137,22 @@ domaines répondent à travers le proxy de l'autre machine, certificat émis, pu
 tout est retiré et rien ne doit rester chez le proxy. Enfin, tout est détruit et
 Traefik désinstallé.
 
+Avec **`--proxy=bunkerweb`**, le même déroulé éprouve BunkerWeb : installé en
+conteneur sur la machine Docker — sur la machine K3s, l'option doit se dire
+indisponible et renvoyer vers la liaison —, testé, détecté, deux domaines,
+puis son **WAF éprouvé depuis l'autre machine**, une adresse qu'aucune liste
+blanche ne couvre : une injection SQL refusée (403) en « Protection », vingt
+requêtes simultanées toutes servies, la même injection qui passe en «
+Détection seule ». BunkerWeb n'acceptant que Let's Encrypt, ses certificats
+viennent de Pebble par le relais `acme-front` (Caddy), dont le script fait
+connaître les noms et l'autorité **au seul conteneur de test** — rien de cela
+dans le code du produit. Le proxy central : le BunkerWeb de la machine Docker
+sert l'application K3s, NetworkPolicy comprise.
+
 ```bash
-docker compose --profile test up -d pebble pebble-dns
+docker compose --profile test up -d pebble pebble-dns acme-front
 pnpm test:proxy cible-docker-locale k3s-locale
+pnpm test:proxy cible-docker-locale k3s-locale --proxy=bunkerweb
 ```
 
 Les certificats viennent de **Pebble**, le serveur ACME de test de l'équipe Let's
@@ -147,13 +160,17 @@ Encrypt : il valide réellement le défi HTTP-01 sur le port 80 de la cible, et
 `pebble-dns` résout les domaines de test vers elle. Sans eux (`--no-acme`), tout
 le reste est vérifié, sauf l'émission. Côté Docker, il vérifie aussi que le port
 de l'application n'est publié que sur la boucle locale. **45/45** au dernier
-passage.
+passage pour Traefik, **30/30** pour BunkerWeb (`--proxy=bunkerweb`).
 
 ## Ce qui n'est pas vérifié
 
 - **Aucun vrai modèle d'IA n'a répondu sur cette instance.** Voir
   [`ia.md`](ia.md#sans-clé).
-- **`BunkerWebProvider` n'existe pas**, donc rien ne le teste.
+- **Un vrai certificat Let's Encrypt par BunkerWeb.** `test:proxy
+  --proxy=bunkerweb` obtient de vrais certificats, mais de Pebble, que le
+  relais `acme-front` fait passer pour Let's Encrypt dans le conteneur de test.
+  Un certificat de la vraie autorité demande un domaine public pointé sur une
+  machine ouverte à Internet.
 - **Le déploiement d'un service construit depuis un Dockerfile, par le panel.**
   Les deux drivers savent le faire, et `pnpm test:parity` le prouve — mais en
   pilotant les drivers en direct, avec un contexte de build qu'il fabrique

@@ -11,7 +11,13 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { proxyEnum, proxyPlacementEnum, proxyStatusEnum, routeStatusEnum } from '../enums.js';
+import {
+  proxyEnum,
+  proxyPlacementEnum,
+  proxyStatusEnum,
+  routeStatusEnum,
+  wafModeEnum,
+} from '../enums.js';
 import { users } from './auth.js';
 import { applications, targets } from './infra.js';
 
@@ -80,6 +86,8 @@ export const routes = pgTable(
     hostname: text('hostname').notNull().unique(),
     tls: boolean('tls').notNull().default(true),
     redirectHttps: boolean('redirect_https').notNull().default(true),
+    /** Pour un proxy qui est aussi un WAF : bloquer, seulement détecter, ou relayer. */
+    waf: wafModeEnum('waf').notNull().default('block'),
     status: routeStatusEnum('status').notNull().default('pending'),
     lastError: text('last_error'),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),

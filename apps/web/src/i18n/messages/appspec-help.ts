@@ -161,7 +161,8 @@ const fr = {
   'mapping.dependsOn.docker': '`depends_on` avec `condition: service_healthy`',
   'mapping.dependsOn.k3s': 'ordre d’application des manifests ; la readiness fait le reste',
   'mapping.ingress.field': '`ingress.host` / `tls`',
-  'mapping.ingress.docker': 'route Traefik posée par le ProxyProvider, hors du compose',
+  'mapping.ingress.docker':
+    'route posée par le reverse proxy de la cible (Traefik, BunkerWeb), hors du compose',
   'mapping.ingress.k3s': '`Ingress` de classe `traefik`, bloc `tls` si demandé',
 
   'mapping.note':
@@ -387,7 +388,8 @@ const en: Translated<typeof fr> = {
   'mapping.dependsOn.docker': '`depends_on` with `condition: service_healthy`',
   'mapping.dependsOn.k3s': 'the order manifests are applied; readiness does the rest',
   'mapping.ingress.field': '`ingress.host` / `tls`',
-  'mapping.ingress.docker': 'Traefik route set by the ProxyProvider, outside the compose file',
+  'mapping.ingress.docker':
+    'route set by the target’s reverse proxy (Traefik, BunkerWeb), outside the compose file',
   'mapping.ingress.k3s': '`Ingress` of class `traefik`, `tls` block if asked for',
 
   'mapping.note':

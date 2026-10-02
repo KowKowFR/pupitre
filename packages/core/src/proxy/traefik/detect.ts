@@ -1,5 +1,5 @@
 import { parse as parseYaml } from 'yaml';
-import type { TraefikFileConfig, TraefikKubernetesConfig } from '../model.js';
+import type { TraefikFileConfig, TraefikKubernetesConfig } from './config.js';
 
 /**
  * Lire un Traefik déjà en place, sans rien y toucher.

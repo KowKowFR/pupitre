@@ -293,8 +293,8 @@ export async function checkReach(input: {
   // 3. Un port libre de la plage : ni réservé par le panel, ni déjà en écoute.
   const listening = await listeningPorts(served);
   const taken = new Set<number>([...(input.reserved ?? []), ...(listening ?? [])]);
-  const [port] = reachCandidates(input.portRange, taken);
-  if (port === undefined) {
+  const candidates = reachCandidates(input.portRange, taken);
+  if (candidates.length === 0) {
     return {
       ...withRoute,
       failure: 'no_listener',
@@ -302,108 +302,122 @@ export async function checkReach(input: {
     };
   }
 
-  const token = randomBytes(8).toString('hex');
-  const stem = `/tmp/pupitre-reach-${token}`;
-  const listenOn = bindable ? address : address.includes(':') ? '::' : '0.0.0.0';
-  let ruleAdded = false;
-  try {
-    // Le pare-feu de la machine ne doit pas fausser l'épreuve : le port d'une
-    // application publiée par Docker ou par un NodePort passe avant lui. Le
-    // temps du test, ce port-là est ouvert — puis refermé.
-    if ((await ufwState(served)) === 'active') {
-      const opened = await exec(
+  const attempt = async (port: number): Promise<ReachResult> => {
+    const token = randomBytes(8).toString('hex');
+    const stem = `/tmp/pupitre-reach-${token}`;
+    const listenOn = bindable ? address : address.includes(':') ? '::' : '0.0.0.0';
+    let ruleAdded = false;
+    try {
+      // Le pare-feu de la machine ne doit pas fausser l'épreuve : le port d'une
+      // application publiée par Docker ou par un NodePort passe avant lui. Le
+      // temps du test, ce port-là est ouvert — puis refermé.
+      if ((await ufwState(served)) === 'active') {
+        const opened = await exec(
+          served.sshSession,
+          `ufw allow ${port}/tcp comment ${shellQuote(REACH_UFW_COMMENT)}`,
+          { sudo: true, timeout: SHORT_MS },
+        );
+        ruleAdded = opened.code === 0;
+      }
+
+      // 4. L'écouteur, détaché : il s'arrête seul au bout de LISTENER_LIFETIME_S.
+      const started = await exec(
         served.sshSession,
-        `ufw allow ${port}/tcp comment ${shellQuote(REACH_UFW_COMMENT)}`,
-        { sudo: true, timeout: SHORT_MS },
+        [
+          `printf '%s' '${base64(LISTENER_PY)}' | base64 -d > ${stem}.py`,
+          `printf '%s' '${base64(LISTENER_PL)}' | base64 -d > ${stem}.pl`,
+          `printf '%s' '${base64(LISTENER_SH)}' | base64 -d > ${stem}.sh`,
+          `if command -v python3 >/dev/null 2>&1; then runner="python3 ${stem}.py";`,
+          `elif command -v perl >/dev/null 2>&1 && [ "${listenOn.includes(':') ? 'v6' : 'v4'}" = v4 ]; then runner="perl ${stem}.pl";`,
+          `elif command -v nc >/dev/null 2>&1; then runner="sh ${stem}.sh";`,
+          `else echo none; exit 0; fi`,
+          `nohup $runner ${shellQuote(listenOn)} ${port} ${token} ${stem}.peer >/dev/null 2>&1 &`,
+          `pid=$!; echo "$pid" > ${stem}.pid`,
+          // Prêt quand le port écoute ; mort s'il n'a pas pu s'y attacher.
+          `for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do`,
+          `  kill -0 "$pid" 2>/dev/null || { echo dead; exit 0; }`,
+          `  (ss -tlnH 2>/dev/null || netstat -tln 2>/dev/null) | grep -qE '[:.]${port}[[:space:]]' && { echo up; exit 0; }`,
+          `  sleep 0.2;`,
+          `done; echo unsure`,
+        ].join('\n'),
+        { timeout: SHORT_MS },
       );
-      ruleAdded = opened.code === 0;
-    }
+      const state = firstLine(started.stdout);
+      if (state === 'none') {
+        return {
+          ...withRoute,
+          ok: null,
+          port,
+          detail: `ni python3, ni perl, ni nc sur « ${served.target.name} » : la connexion n'a pas pu être éprouvée, seule la route l'a été`,
+        };
+      }
+      if (state === 'dead') {
+        return {
+          ...withRoute,
+          port,
+          failure: 'no_listener',
+          detail: `impossible d'écouter sur ${listenOn}:${port} sur « ${served.target.name} »`,
+        };
+      }
 
-    // 4. L'écouteur, détaché : il s'arrête seul au bout de LISTENER_LIFETIME_S.
-    const started = await exec(
-      served.sshSession,
-      [
-        `printf '%s' '${base64(LISTENER_PY)}' | base64 -d > ${stem}.py`,
-        `printf '%s' '${base64(LISTENER_PL)}' | base64 -d > ${stem}.pl`,
-        `printf '%s' '${base64(LISTENER_SH)}' | base64 -d > ${stem}.sh`,
-        `if command -v python3 >/dev/null 2>&1; then runner="python3 ${stem}.py";`,
-        `elif command -v perl >/dev/null 2>&1 && [ "${listenOn.includes(':') ? 'v6' : 'v4'}" = v4 ]; then runner="perl ${stem}.pl";`,
-        `elif command -v nc >/dev/null 2>&1; then runner="sh ${stem}.sh";`,
-        `else echo none; exit 0; fi`,
-        `nohup $runner ${shellQuote(listenOn)} ${port} ${token} ${stem}.peer >/dev/null 2>&1 &`,
-        `pid=$!; echo "$pid" > ${stem}.pid`,
-        // Prêt quand le port écoute ; mort s'il n'a pas pu s'y attacher.
-        `for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do`,
-        `  kill -0 "$pid" 2>/dev/null || { echo dead; exit 0; }`,
-        `  (ss -tlnH 2>/dev/null || netstat -tln 2>/dev/null) | grep -qE '[:.]${port}[[:space:]]' && { echo up; exit 0; }`,
-        `  sleep 0.2;`,
-        `done; echo unsure`,
-      ].join('\n'),
-      { timeout: SHORT_MS },
-    );
-    const state = firstLine(started.stdout);
-    if (state === 'none') {
-      return {
-        ...withRoute,
-        ok: null,
+      // 5. La connexion, depuis la machine du proxy.
+      const host = address.includes(':') ? `[${address}]` : address;
+      const connect = await exec(
+        proxyHost.sshSession,
+        // Le code de curl, pris aussitôt : celui d'un `echo` ne dirait rien.
+        `curl -s -m ${CONNECT_TIMEOUT_S} http://${host}:${port}/${token}; code=$?; echo; echo "curl=$code"`,
+        { timeout: (CONNECT_TIMEOUT_S + 10) * 1000 },
+      );
+      const curlCode = Number(/curl=(\d+)\s*$/.exec(connect.stdout)?.[1] ?? '1');
+      const verdict = interpretReach({
+        curlCode,
+        body: connect.stdout,
+        token,
+        address,
         port,
-        detail: `ni python3, ni perl, ni nc sur « ${served.target.name} » : la connexion n'a pas pu être éprouvée, seule la route l'a été`,
-      };
-    }
-    if (state === 'dead') {
-      return {
-        ...withRoute,
-        port,
-        failure: 'no_listener',
-        detail: `impossible d'écouter sur ${listenOn}:${port} sur « ${served.target.name} »`,
-      };
-    }
+        proxyName,
+      });
 
-    // 5. La connexion, depuis la machine du proxy.
-    const host = address.includes(':') ? `[${address}]` : address;
-    const connect = await exec(
-      proxyHost.sshSession,
-      // Le code de curl, pris aussitôt : celui d'un `echo` ne dirait rien.
-      `curl -s -m ${CONNECT_TIMEOUT_S} http://${host}:${port}/${token}; code=$?; echo; echo "curl=$code"`,
-      { timeout: (CONNECT_TIMEOUT_S + 10) * 1000 },
-    );
-    const curlCode = Number(/curl=(\d+)\s*$/.exec(connect.stdout)?.[1] ?? '1');
-    const verdict = interpretReach({
-      curlCode,
-      body: connect.stdout,
-      token,
-      address,
-      port,
-      proxyName,
-    });
-
-    // 6. D'où la connexion est arrivée, vue d'ici.
-    const peer = await exec(served.sshSession, `cat ${stem}.peer 2>/dev/null || true`, {
-      timeout: SHORT_MS,
-    });
-    const observedSource = verdict.failure === null ? normalizePeer(firstLine(peer.stdout)) : null;
-    if (observedSource && observedSource !== routeSource) {
-      onLog(`arrivée vue de « ${served.target.name} » : ${observedSource} (NAT entre les deux)`);
-    }
-    return {
-      ...withRoute,
-      ok: verdict.failure === null,
-      port,
-      observedSource,
-      failure: verdict.failure,
-      detail: verdict.detail,
-    };
-  } finally {
-    await exec(
-      served.sshSession,
-      `kill "$(cat ${stem}.pid 2>/dev/null)" 2>/dev/null; rm -f ${stem}.py ${stem}.pl ${stem}.sh ${stem}.pid ${stem}.peer; true`,
-      { timeout: SHORT_MS },
-    ).catch(() => undefined);
-    if (ruleAdded) {
-      await exec(served.sshSession, `ufw --force delete allow ${port}/tcp`, {
-        sudo: true,
+      // 6. D'où la connexion est arrivée, vue d'ici.
+      const peer = await exec(served.sshSession, `cat ${stem}.peer 2>/dev/null || true`, {
         timeout: SHORT_MS,
-      }).catch(() => undefined);
+      });
+      const observedSource =
+        verdict.failure === null ? normalizePeer(firstLine(peer.stdout)) : null;
+      if (observedSource && observedSource !== routeSource) {
+        onLog(`arrivée vue de « ${served.target.name} » : ${observedSource} (NAT entre les deux)`);
+      }
+      return {
+        ...withRoute,
+        ok: verdict.failure === null,
+        port,
+        observedSource,
+        failure: verdict.failure,
+        detail: verdict.detail,
+      };
+    } finally {
+      await exec(
+        served.sshSession,
+        `kill "$(cat ${stem}.pid 2>/dev/null)" 2>/dev/null; rm -f ${stem}.py ${stem}.pl ${stem}.sh ${stem}.pid ${stem}.peer; true`,
+        { timeout: SHORT_MS },
+      ).catch(() => undefined);
+      if (ruleAdded) {
+        await exec(served.sshSession, `ufw --force delete allow ${port}/tcp`, {
+          sudo: true,
+          timeout: SHORT_MS,
+        }).catch(() => undefined);
+      }
     }
+  };
+
+  let result = await attempt(candidates[0]!);
+  // Un port d'essai peut être détourné par un service que Pupitre ne connaît
+  // pas — le NodePort d'un autre déploiement : une autre application répond.
+  // On réessaie ailleurs avant de conclure ; une adresse qui mène vraiment
+  // ailleurs échoue deux fois.
+  if (result.failure === 'mismatch' && candidates[1] !== undefined) {
+    onLog(`${result.detail} — nouvel essai sur un autre port`);
+    result = await attempt(candidates[1]);
   }
+  return result;
 }

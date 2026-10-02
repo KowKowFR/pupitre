@@ -93,7 +93,12 @@ function upstreamOf(
 }
 
 function toProxyRoute(route: RouteView): ProxyRoute {
-  return { hostname: route.hostname, tls: route.tls, redirectHttps: route.redirectHttps };
+  return {
+    hostname: route.hostname,
+    tls: route.tls,
+    redirectHttps: route.redirectHttps,
+    waf: route.waf,
+  };
 }
 
 /** Le chemin de santé du service routé — celui que l'on interroge à travers le proxy. */
@@ -127,7 +132,8 @@ export async function seedRouteFromSpec(
   try {
     const tls = spec.ingress?.tls ?? false;
     await replaceRoutes(applicationId, targetId, [
-      { hostname: host.toLowerCase(), tls, redirectHttps: tls },
+      // La protection par défaut : celle d'un proxy qui est un WAF, ignorée sinon.
+      { hostname: host.toLowerCase(), tls, redirectHttps: tls, waf: 'block' },
     ]);
     onLog(`domaine de l'AppSpec retenu : ${host}`);
   } catch (error) {
@@ -149,7 +155,8 @@ export async function exposureFor(
   targetId: string,
 ): Promise<DriverExposure | undefined> {
   const serving = await resolveServingProxy(targetId);
-  if (!serving) return undefined;
+  // Un proxy en cours d'installation n'a pas encore sa configuration.
+  if (!serving || serving.proxy.status === 'installing') return undefined;
   const routes = await listRoutes({ applicationId, targetId });
   if (routes.length === 0) return undefined;
   if (!serving.link) {
@@ -246,6 +253,14 @@ export async function applyCoupleRoutes(input: {
         ? `aucun reverse proxy ne sert cette cible : ${routes.map((route) => route.hostname).join(', ')} non routé(s)`
         : 'aucun reverse proxy ne sert cette cible — application jointe par son port';
     return { skipped: reason, url: null, problems: [] };
+  }
+  if (serving.proxy.status === 'installing') {
+    return {
+      skipped:
+        'le reverse proxy est en cours d’installation — domaines posés au prochain déploiement',
+      url: null,
+      problems: [],
+    };
   }
   if (serving.link && routes.length > 0) {
     onLog(`servie par le proxy d'une autre machine, qui la joint à ${serving.link.address}`);

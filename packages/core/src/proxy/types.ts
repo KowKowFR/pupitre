@@ -1,5 +1,6 @@
 import type { LogSink, TargetContext } from '../drivers/types.js';
 import type {
+  AcmeServer,
   AcmeSettings,
   ProxyKind,
   ProxyUpstream,
@@ -53,6 +54,7 @@ export type ProxyCheck = {
 
 /** Une installation trouvée sur la machine, prête à devenir une connexion. */
 export type ProxyDetection = {
+  kind: ProxyKind;
   /** La configuration déduite — à relire et confirmer par l'utilisateur. */
   config: unknown;
   /** Ce qui a été trouvé, en une phrase. */
@@ -63,7 +65,13 @@ export type ProxyDetection = {
 
 /** Une façon d'installer ce proxy sur cette machine, et si elle est possible. */
 export type ProxyInstallOption = {
+  kind: ProxyKind;
+  /** Unique pour un genre : la requête d'installation la nomme avec lui. */
   key: string;
+  /** Ce qu'on installe, en quelques mots : « Traefik en conteneur ». */
+  title: string;
+  /** Les autorités de certification que cette installation sait interroger. */
+  acmeServers: AcmeServer[];
   available: boolean;
   /** Pourquoi elle ne l'est pas, ou ce qu'elle fera. */
   detail: string;

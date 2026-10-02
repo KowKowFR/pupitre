@@ -161,7 +161,12 @@ export const POST = apiRoute(async (request) => {
     if (!proxy && domains.length > 0) {
       throw new ConflictError(msg(proxyMessages, 'error.noProxy', { target: target.name }));
     }
-    if (proxy) assertServable(domains, proxyCapabilities(proxy.kind, proxy.config));
+    if (proxy?.status === 'installing' && domains.length > 0) {
+      throw new ConflictError(msg(proxyMessages, 'error.installing'));
+    }
+    if (proxy && proxy.status !== 'installing') {
+      assertServable(domains, proxyCapabilities(proxy.kind, proxy.config));
+    }
     try {
       await replaceRoutes(
         application.id,

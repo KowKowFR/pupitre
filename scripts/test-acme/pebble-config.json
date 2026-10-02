@@ -8,10 +8,20 @@
     "tlsPort": 443,
     "ocspResponderURL": "",
     "externalAccountBindingRequired": false,
-    "retryAfter": { "authz": 3, "order": 5 },
+    "retryAfter": {
+      "authz": 3,
+      "order": 5
+    },
     "keyAlgorithm": "ecdsa",
     "profiles": {
-      "default": { "description": "Certificats de test, 90 jours", "validityPeriod": 7776000 }
+      "default": {
+        "description": "Certificats de test, 90 jours",
+        "validityPeriod": 7776000
+      },
+      "classic": {
+        "description": "Le profil que BunkerWeb demande (certbot --preferred-profile classic)",
+        "validityPeriod": 7776000
+      }
     }
   }
 }

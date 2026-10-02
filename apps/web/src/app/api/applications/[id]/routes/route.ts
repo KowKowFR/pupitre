@@ -89,13 +89,19 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   if (!proxy && input.routes.length > 0) {
     throw new ConflictError(msg(messages, 'error.noProxy', { target: target.name }));
   }
-  if (proxy) assertServable(input.routes, proxyCapabilities(proxy.kind, proxy.config));
+  if (proxy?.status === 'installing' && input.routes.length > 0) {
+    throw new ConflictError(msg(messages, 'error.installing'));
+  }
+  if (proxy && proxy.status !== 'installing') {
+    assertServable(input.routes, proxyCapabilities(proxy.kind, proxy.config));
+  }
 
   const before = await listRoutes({ applicationId: id, targetId: input.targetId });
   const normalized = input.routes.map((route) => ({
     hostname: route.hostname,
     tls: route.tls,
     redirectHttps: route.tls && route.redirectHttps,
+    waf: route.waf,
   }));
   try {
     await replaceRoutes(id, input.targetId, normalized);
@@ -121,8 +127,16 @@ export const PUT = apiRoute<Context>(async (request, context) => {
     action: 'application.routes.updated',
     resourceType: 'application',
     resourceId: id,
-    before: { target: target.name, domains: before.map((route) => route.hostname) },
-    after: { target: target.name, domains: normalized.map((route) => route.hostname) },
+    before: {
+      target: target.name,
+      domains: before.map((route) => route.hostname),
+      protection: Object.fromEntries(before.map((route) => [route.hostname, route.waf])),
+    },
+    after: {
+      target: target.name,
+      domains: normalized.map((route) => route.hostname),
+      protection: Object.fromEntries(normalized.map((route) => [route.hostname, route.waf])),
+    },
     ip: auth.ip,
   });
   const routes = await listRoutes({ applicationId: id, targetId: input.targetId });

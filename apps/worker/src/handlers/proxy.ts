@@ -1,4 +1,5 @@
 import {
+  describeProxy,
   parseAppSpec,
   proxyApplyJobDataSchema,
   proxyCheckJobDataSchema,
@@ -11,6 +12,7 @@ import {
 import { getDriver } from '@pupitre/core/drivers';
 import {
   getProxyProvider,
+  implementedProxyKinds,
   reachSource,
   type ProxyCheck,
   type ProxyDetection,
@@ -58,10 +60,15 @@ export async function handleProxyDetect(job: Job): Promise<{
   const opened = await openTargetContext(data.targetId);
   const lines: string[] = [];
   try {
-    // Un seul genre aujourd'hui ; demain, chaque provider regardera à son tour.
-    const provider = getProxyProvider('traefik');
-    const detections = await provider.detect(opened.ctx, (line) => lines.push(line));
-    const installOptions = await provider.installOptions(opened.ctx);
+    // Chaque proxy que Pupitre sait piloter regarde à son tour : ce qui est
+    // déjà là, et ce qu'il pourrait installer.
+    const detections: ProxyDetection[] = [];
+    const installOptions: ProxyInstallOption[] = [];
+    for (const kind of implementedProxyKinds()) {
+      const provider = getProxyProvider(kind);
+      detections.push(...(await provider.detect(opened.ctx, (line) => lines.push(line))));
+      installOptions.push(...(await provider.installOptions(opened.ctx)));
+    }
     return { detections, installOptions, lines };
   } finally {
     await disconnect(opened.session);
@@ -121,6 +128,8 @@ export async function handleProxyInstall(job: Job): Promise<{ ok: boolean; error
       error: null,
       config: config as Record<string, unknown>,
       managed: true,
+      // Le nom tel que la configuration installée le dit : « Traefik du cluster »…
+      name: describeProxy(proxy.kind, config).split(' · ')[0] ?? proxy.name,
     });
     await logAudit({
       actorId: data.actorId,

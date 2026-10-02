@@ -1,3 +1,4 @@
+import { BunkerWebProvider } from './bunkerweb/provider.js';
 import type { ProxyKind } from './model.js';
 import { TraefikProvider } from './traefik/provider.js';
 import { ProxyError, type ProxyProvider } from './types.js';
@@ -9,7 +10,7 @@ import { ProxyError, type ProxyProvider } from './types.js';
  */
 const registry: Record<ProxyKind, (() => ProxyProvider) | null> = {
   traefik: () => new TraefikProvider(),
-  bunkerweb: null,
+  bunkerweb: () => new BunkerWebProvider(),
 };
 
 export function getProxyProvider(kind: ProxyKind): ProxyProvider {
@@ -23,7 +24,12 @@ export function implementedProxyKinds(): ProxyKind[] {
   return (Object.keys(registry) as ProxyKind[]).filter((kind) => registry[kind] !== null);
 }
 
+export * from './catalog.js';
 export * from './model.js';
+export * from './bunkerweb/config.js';
+export * from './bunkerweb/render.js';
+export { BunkerWebProvider } from './bunkerweb/provider.js';
+export * from './traefik/config.js';
 export * from './probe.js';
 export * from './reach.js';
 export * from './types.js';

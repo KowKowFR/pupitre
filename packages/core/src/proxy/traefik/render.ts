@@ -1,5 +1,5 @@
 import { stringify } from 'yaml';
-import type { TraefikFileConfig, TraefikKubernetesConfig } from '../model.js';
+import type { TraefikFileConfig, TraefikKubernetesConfig } from './config.js';
 import type { ProxyRoute } from '../types.js';
 
 /**

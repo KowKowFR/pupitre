@@ -309,8 +309,10 @@ export class DockerComposeDriver implements DeploymentDriver {
 
   async openFirewall(ctx: DriverContext, port: number, onLog?: LogSink): Promise<void> {
     const exposure = ctx.exposure;
-    if (exposure?.bindAddress && isLoopback(exposure.bindAddress)) {
-      // Publié sur la boucle locale : seul le proxy de la machine le joint.
+    if (exposure?.bindAddress && (isLoopback(exposure.bindAddress) || !exposure.byPort)) {
+      // Publié pour le proxy de la machine seulement — sur la boucle locale, ou
+      // sur la passerelle Docker qu'un proxy en conteneur joint : personne
+      // d'autre n'y arrive, rien à ouvrir.
       onLog?.(`port ${port} publié sur ${exposure.bindAddress} seulement — rien à ouvrir`);
       return;
     }

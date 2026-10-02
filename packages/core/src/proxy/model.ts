@@ -19,7 +19,7 @@ import { z } from 'zod';
  *                  que lui seul sait comment il expose.
  */
 
-/** Les genres connus de la base. Seul Traefik a une implémentation aujourd'hui. */
+/** Les genres connus de la base. Chacun déclare sa configuration dans `catalog.ts`. */
 export const PROXY_KINDS = ['traefik', 'bunkerweb'] as const;
 export const proxyKindSchema = z.enum(PROXY_KINDS);
 export type ProxyKind = z.infer<typeof proxyKindSchema>;
@@ -73,6 +73,18 @@ export const hostnameSchema = z
     if (problem) context.addIssue({ code: 'custom', message: `« ${host} » : ${problem}` });
   });
 
+/**
+ * La protection d'un domaine par un proxy qui est aussi un pare-feu applicatif
+ * (WAF). Sans objet pour un proxy qui n'en est pas un — il l'ignore.
+ *   block   les attaques reconnues sont bloquées, les abus limités ;
+ *   detect  tout est inspecté et journalisé, rien n'est bloqué — pour
+ *           s'assurer qu'une application n'en souffre pas avant de bloquer ;
+ *   off     le proxy relaie, sans inspecter.
+ */
+export const WAF_MODES = ['block', 'detect', 'off'] as const;
+export const wafModeSchema = z.enum(WAF_MODES);
+export type WafMode = z.infer<typeof wafModeSchema>;
+
 /** Ce qu'on demande pour un domaine : le reste se déduit du proxy. */
 export const routeInputSchema = z.object({
   hostname: hostnameSchema,
@@ -80,6 +92,8 @@ export const routeInputSchema = z.object({
   tls: z.boolean().default(true),
   /** HTTP renvoie vers HTTPS. Sans objet sans `tls`. */
   redirectHttps: z.boolean().default(true),
+  /** La protection du domaine, pour un proxy qui est aussi un WAF. */
+  waf: wafModeSchema.default('block'),
 });
 export type RouteInput = z.infer<typeof routeInputSchema>;
 
@@ -149,17 +163,15 @@ export function isIPv4(address: string): boolean {
   return /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(address);
 }
 
-// ─── Traefik ─────────────────────────────────────────────────────────────────
+// ─── les certificats ─────────────────────────────────────────────────────────
 
-const entryPointsSchema = z.object({
-  /** Le point d'entrée HTTP (port 80) : `web` par convention. */
-  http: z.string().min(1).max(64).default('web'),
-  /** Le point d'entrée HTTPS (port 443), ou `null` si ce Traefik n'en a pas. */
-  https: z.string().min(1).max(64).nullable().default('websecure'),
-});
-
-/** Le serveur ACME qu'un Traefik installé par Pupitre interroge. */
-export const ACME_SERVERS = ['production', 'staging', 'custom'] as const;
+/**
+ * L'autorité de certification qu'un proxy installé par Pupitre interroge.
+ * Tous ne les acceptent pas toutes : chaque option d'installation dit
+ * lesquelles (`ProxyInstallOption.acmeServers`).
+ */
+export const ACME_SERVERS = ['production', 'staging', 'zerossl', 'custom'] as const;
+export type AcmeServer = (typeof ACME_SERVERS)[number];
 export const acmeSettingsSchema = z.object({
   email: z.string().email().max(254),
   server: z.enum(ACME_SERVERS).default('production'),
@@ -170,9 +182,10 @@ export const acmeSettingsSchema = z.object({
 });
 export type AcmeSettings = z.infer<typeof acmeSettingsSchema>;
 
-export const ACME_DIRECTORIES: Record<Exclude<AcmeSettings['server'], 'custom'>, string> = {
+export const ACME_DIRECTORIES: Record<Exclude<AcmeServer, 'custom'>, string> = {
   production: 'https://acme-v02.api.letsencrypt.org/directory',
   staging: 'https://acme-staging-v02.api.letsencrypt.org/directory',
+  zerossl: 'https://acme.zerossl.com/v2/DV90',
 };
 
 export function acmeDirectory(acme: AcmeSettings): string {
@@ -183,64 +196,12 @@ export function acmeDirectory(acme: AcmeSettings): string {
   return ACME_DIRECTORIES[acme.server];
 }
 
-/**
- * Traefik, deux façons d'être piloté — ce sont ses propres « providers » :
- *   file        un dossier surveillé par Traefik ; Pupitre y dépose un fichier
- *               par application. Traefik en conteneur ou en binaire.
- *   kubernetes  des objets Ingress dans le cluster ; le Traefik de K3s.
- * Le choix suit l'installation trouvée sur la machine, pas le runtime des
- * applications : c'est une propriété du proxy.
- */
-const traefikCommon = {
-  entryPoints: entryPointsSchema.default({ http: 'web', https: 'websecure' }),
-  /** Le résolveur de certificats à demander, ou `null` : HTTPS avec le certificat par défaut. */
-  certResolver: z.string().min(1).max(64).nullable().default(null),
-  /** Renseigné quand Pupitre a installé (ou configuré) ce Traefik. */
-  acme: acmeSettingsSchema.nullable().default(null),
-};
-
-export const traefikFileConfigSchema = z.object({
-  mode: z.literal('file'),
-  /** Dossier surveillé, sur la machine. `null` : `{racine du driver}/proxy/dynamic`. */
-  directory: z.string().min(1).max(500).nullable().default(null),
-  /**
-   * L'adresse à laquelle Traefik joint un port publié : `127.0.0.1` pour un
-   * Traefik en réseau hôte, la passerelle de son réseau sinon.
-   */
-  upstreamHost: z.string().min(1).max(255).default('127.0.0.1'),
-  /** Le conteneur, quand Traefik en est un — pour le retrouver et le dire. */
-  container: z.string().max(128).nullable().default(null),
-  /** Image du Traefik installé par Pupitre. */
-  image: z.string().max(200).nullable().default(null),
-  ...traefikCommon,
-});
-
-export const traefikKubernetesConfigSchema = z.object({
-  mode: z.literal('kubernetes'),
-  ingressClass: z.string().min(1).max(253).default('traefik'),
-  /** Où vit le déploiement de Traefik, pour le sonder. */
-  namespace: z.string().min(1).max(63).default('kube-system'),
-  ...traefikCommon,
-});
-
-export const traefikConfigSchema = z.discriminatedUnion('mode', [
-  traefikFileConfigSchema,
-  traefikKubernetesConfigSchema,
-]);
-export type TraefikConfig = z.infer<typeof traefikConfigSchema>;
-export type TraefikFileConfig = z.infer<typeof traefikFileConfigSchema>;
-export type TraefikKubernetesConfig = z.infer<typeof traefikKubernetesConfigSchema>;
-
-/** La configuration d'une connexion, selon son genre. */
-export function parseProxyConfig(kind: ProxyKind, config: unknown): TraefikConfig {
-  if (kind !== 'traefik') throw new Error(`le proxy « ${kind} » n'a pas encore d'implémentation`);
-  return traefikConfigSchema.parse(config);
-}
+// ─── ce qu'un proxy sait faire ───────────────────────────────────────────────
 
 /**
- * Ce qu'un proxy sait faire, pour que l'écran ne propose que cela. On demande
- * au proxy ce qu'il sait faire, pas lequel il est — même règle que pour le
- * pare-feu des drivers.
+ * Ce qu'un proxy sait faire, pour que l'écran ne propose que cela et que l'API
+ * refuse le reste. On demande au proxy ce qu'il sait faire, pas lequel il
+ * est — même règle que pour le pare-feu des drivers.
  */
 export type ProxyCapabilities = {
   /** Il obtient lui-même les certificats (ACME). */
@@ -249,21 +210,27 @@ export type ProxyCapabilities = {
   https: boolean;
   /** Il sait renvoyer HTTP vers HTTPS. */
   redirectHttps: boolean;
+  /** Il est aussi un pare-feu applicatif : chaque domaine a sa protection (`WafMode`). */
+  waf: boolean;
+  /**
+   * Comment il joint une autre machine — le proxy central : par toute adresse,
+   * par une IPv4 seulement, ou pas du tout.
+   */
+  remoteUpstream: 'any' | 'ipv4' | 'none';
 };
 
-export function proxyCapabilities(kind: ProxyKind, config: unknown): ProxyCapabilities {
-  const parsed = parseProxyConfig(kind, config);
-  const https = parsed.entryPoints.https !== null;
-  return { autoTls: https && parsed.certResolver !== null, https, redirectHttps: https };
-}
-
-/** Une ligne pour l'écran : de quoi reconnaître la connexion. */
-export function describeProxy(kind: ProxyKind, config: unknown): string {
-  const parsed = parseProxyConfig(kind, config);
-  const tls = parsed.certResolver ? `certificats « ${parsed.certResolver} »` : 'sans ACME';
-  if (parsed.mode === 'kubernetes') {
-    return `Traefik du cluster · IngressClass ${parsed.ingressClass} · ${tls}`;
-  }
-  const where = parsed.container ? `conteneur ${parsed.container}` : 'fichiers';
-  return `Traefik · ${where} · ${tls}`;
-}
+/**
+ * Ce qu'un genre de proxy déclare de lui-même, sans rien exécuter : lire sa
+ * configuration, se décrire, dire ce qu'il sait faire. L'écran et l'API s'en
+ * servent ; ajouter un proxy, c'est en écrire un (`catalog.ts`).
+ */
+export type ProxyDescriptor<C = unknown> = {
+  /** Le nom du genre, pour l'écran : « Traefik », « BunkerWeb ». */
+  label: string;
+  parseConfig(config: unknown): C;
+  /** Une ligne pour l'écran : de quoi reconnaître la connexion. */
+  describe(config: C): string;
+  capabilities(config: C): ProxyCapabilities;
+  /** L'autorité de certification réglée par Pupitre, pour la dire ; `null` sinon. */
+  acme(config: C): Pick<AcmeSettings, 'email' | 'server'> | null;
+};
