@@ -35,7 +35,7 @@ import {
 } from '@pupitre/db';
 import type { Redis } from 'ioredis';
 import { env } from '../env.js';
-import { prepareSourceArchive } from '../sources/archive.js';
+import { carriesSourceCode, prepareSourceArchive } from '../sources/archive.js';
 import { logger } from '../logger.js';
 import { secretResolverFor } from './context.js';
 import { DeployLogStream } from './log-stream.js';
@@ -173,6 +173,9 @@ export async function runDeploymentPipeline(
     // Les valeurs des secrets viennent du magasin de l'application, pas du
     // déploiement : elles doivent être les mêmes à chaque mise en ligne.
     resolveSecrets: secretResolverFor(deployment.applicationId),
+    // Le code d'un dépôt ira dans `source/` de la release : le rendu doit le
+    // savoir pour y résoudre les contextes de construction.
+    ...(carriesSourceCode(deployment, spec) ? { sourceInRelease: true } : {}),
   };
 
   const driver = getDriver(deployment.runtime);

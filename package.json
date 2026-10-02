@@ -21,6 +21,7 @@
     "test:parity": "tsx --env-file-if-exists=.env scripts/test-parity.ts",
     "test:proxy": "tsx --env-file-if-exists=.env scripts/test-proxy.ts",
     "test:catalog": "tsx --env-file-if-exists=.env scripts/test-catalog.ts",
+    "test:source-isolation": "tsx --env-file-if-exists=.env scripts/test-source-isolation.ts",
     "test:schedule": "tsx scripts/test-schedule.ts",
     "test:ai": "pnpm build:packages && tsx scripts/test-ai.ts"
   },

@@ -6,7 +6,7 @@ import { exposedService, storedSecretNames, type AppSpec } from '../../spec/inde
 import { backoffMs } from '../backoff.js';
 import { listeningPorts } from '../listening.js';
 import { pruneReleases } from '../retention.js';
-import { extractSourceArchive } from '../source-archive.js';
+import { buildContextPath, extractSourceArchive } from '../source-archive.js';
 import { ufwAllow, ufwAllowPort, ufwComment, ufwDelete } from '../ufw.js';
 import {
   DriverError,
@@ -37,7 +37,14 @@ import {
   type WorkloadExecOptions,
   type WorkloadExecResult,
 } from '../workload-exec.js';
-import { PROJECT_PREFIX, buildImageTag, projectName, renderFiles, volumeName } from './render.js';
+import {
+  COMPOSE_FILE,
+  PROJECT_PREFIX,
+  buildImageTag,
+  projectName,
+  renderFiles,
+  volumeName,
+} from './render.js';
 
 /**
  * Driver Docker Compose.
@@ -83,7 +90,7 @@ export class DockerComposeDriver implements DeploymentDriver {
   manualCleanup(appSlug: string, rootPath: string): string[] {
     const appPath = `${rootPath}/apps/${appSlug}`;
     return [
-      `cd ${appPath}/current && docker compose down -v --remove-orphans`,
+      `cd ${appPath}/current && docker compose -p ${projectName(appSlug)} -f ${COMPOSE_FILE} down -v --remove-orphans`,
       `rm -rf ${appPath}`,
     ];
   }
@@ -102,9 +109,19 @@ export class DockerComposeDriver implements DeploymentDriver {
     return projectName(ctx.appSlug);
   }
 
-  /** `docker compose` exécuté dans le répertoire d'une release. */
+  /**
+   * `docker compose` exécuté dans le répertoire d'une release — toujours sur
+   * **son** fichier et **son** projet, nommés : sans `-f`, Compose fusionnerait
+   * un `compose.override.yml` trouvé là ; sans `-p`, un `.env` pourrait lui
+   * donner un autre nom de projet, et un `down -v` viserait une autre
+   * application. La release n'est faite que de ce que Pupitre y dépose, mais
+   * une release d'avant `source/` portait encore le code d'un dépôt à sa racine.
+   */
   private compose(ctx: DriverContext, args: string, version?: string): string {
-    return `cd ${shellQuote(this.releasePath(ctx, version))} && docker compose ${args}`;
+    return (
+      `cd ${shellQuote(this.releasePath(ctx, version))} && ` +
+      `docker compose -p ${shellQuote(this.project(ctx))} -f ${COMPOSE_FILE} ${args}`
+    );
   }
 
   // ─── preflight ──────────────────────────────────────────────────────────────
@@ -347,6 +364,7 @@ export class DockerComposeDriver implements DeploymentDriver {
       appSlug: ctx.appSlug,
       publishedPort,
       ...(ctx.exposure?.bindAddress ? { publishAddress: ctx.exposure.bindAddress } : {}),
+      ...(ctx.sourceInRelease ? { sourceInRelease: true } : {}),
       secretValues,
     });
 
@@ -392,11 +410,13 @@ export class DockerComposeDriver implements DeploymentDriver {
     }
     await this.run(ctx, `mkdir -p ${shellQuote(release)}`, onLog, 'upload');
 
-    // Le code d'un dépôt lié d'abord : les artefacts rendus passent après, et
-    // l'emportent sur un fichier du dépôt qui porterait le même nom.
+    // Le code d'un dépôt lié va dans `source/`, à part. Le `.env` d'un
+    // déploiement précédent de la même version ne doit pas survivre à un rendu
+    // qui n'en a plus : il est réécrit s'il y a lieu.
     if (ctx.sourceArchive) {
       await extractSourceArchive(ctx.sshSession, release, ctx.sourceArchive, onLog, this.runtime);
     }
+    await this.run(ctx, `rm -f ${shellQuote(`${release}/.env`)}`, onLog, 'upload');
 
     const files: RenderedFile[] = [...(ctx.additionalFiles ?? []), ...artifacts.files];
     for (const file of files) {
@@ -506,7 +526,8 @@ export class DockerComposeDriver implements DeploymentDriver {
     for (const service of ctx.spec.services) {
       if (service.source.type !== 'dockerfile') continue;
 
-      const dockerfile = `${release}/${service.source.context}/${service.source.dockerfile}`;
+      const context = buildContextPath(service.source.context, ctx.sourceInRelease);
+      const dockerfile = `${release}/${context}/${service.source.dockerfile}`;
       const check = await exec(ctx.sshSession, `test -f ${shellQuote(dockerfile)}`, {
         timeout: SHORT_TIMEOUT_MS,
       });
@@ -514,8 +535,10 @@ export class DockerComposeDriver implements DeploymentDriver {
         onLog(`✗ contexte de build absent pour « ${service.name} » : ${dockerfile}`);
         throw new DriverError(
           `Le service « ${service.name} » se construit depuis ${service.source.dockerfile}, ` +
-            `mais le fichier est absent de ${release}/${service.source.context}. ` +
-            'Le contexte de build doit être fourni via `additionalFiles`.',
+            `mais le fichier est absent de ${release}/${context}. ` +
+            (ctx.sourceInRelease
+              ? 'Le contexte est relatif à la racine du dépôt.'
+              : 'Le contexte de build doit être fourni via `additionalFiles`.'),
           this.runtime,
           'build_context',
         );

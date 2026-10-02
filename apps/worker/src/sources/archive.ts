@@ -15,13 +15,25 @@ import { getSourceProvider } from './provider.js';
  * déjà les images. L'archive vit dans un dossier temporaire du worker, effacé
  * dès le dépôt terminé ; elle ne reste nulle part.
  */
+/**
+ * Ce run apporte-t-il le code d'un dépôt ? La même réponse décide du
+ * téléchargement ci-dessous et, dès le rendu, de l'endroit où les contextes de
+ * construction se résolvent (`DriverContext.sourceInRelease`).
+ */
+export function carriesSourceCode(deployment: Deployment, spec: AppSpec): boolean {
+  return (
+    Boolean(deployment.sourceSha && deployment.sourceRepository) &&
+    spec.services.some((service) => service.source.type === 'dockerfile')
+  );
+}
+
 export async function prepareSourceArchive(
   deployment: Deployment,
   spec: AppSpec,
   onLog: (line: string) => void,
 ): Promise<{ archive: SourceArchive; cleanup: () => Promise<void> } | null> {
+  if (!carriesSourceCode(deployment, spec)) return null;
   if (!deployment.sourceSha || !deployment.sourceRepository) return null;
-  if (!spec.services.some((service) => service.source.type === 'dockerfile')) return null;
 
   const source = deployment.sourceId ? await getApplicationSource(deployment.sourceId) : null;
   if (!source) {

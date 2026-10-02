@@ -39,12 +39,30 @@ export const imageSourceSchema = z.object({
  * Sources à construire. Le build a lieu sur la machine cible, quel que soit le
  * runtime : c'est une propriété de l'application, pas du moteur d'exécution.
  */
+/**
+ * Un chemin de construction reste **dans** ce qui est envoyé : ni absolu, ni
+ * `..`. Un `pupitre.json` vient parfois d'un dépôt — c'est-à-dire de quiconque
+ * peut y pousser — : un contexte `../..` irait chercher les dossiers des
+ * autres applications de la machine, leurs `.env` de secrets compris, et les
+ * embarquerait dans une image.
+ */
+const confinedPath = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine((path) => !path.startsWith('/') && !path.split(/[\\/]+/).includes('..'), {
+    message: 'chemin relatif attendu, sans « .. » ni « / » au début',
+  });
+
 export const dockerfileSourceSchema = z.object({
   type: z.literal('dockerfile'),
-  /** Répertoire de build, relatif à la racine du bundle envoyé sur la cible. */
-  context: z.string().min(1).max(512),
+  /**
+   * Répertoire de build, relatif à la racine du code envoyé sur la cible —
+   * celle du dépôt pour une application liée à un dépôt.
+   */
+  context: confinedPath,
   /** Chemin du Dockerfile, relatif au `context`. */
-  dockerfile: z.string().min(1).max(512).default('Dockerfile'),
+  dockerfile: confinedPath.default('Dockerfile'),
 });
 
 export const sourceSchema = z.discriminatedUnion('type', [

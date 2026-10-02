@@ -1,3 +1,4 @@
+import { buildContextPath } from '../source-archive.js';
 import { stringify } from 'yaml';
 import { WORKSPACE_PREFIX } from '../../naming.js';
 import {
@@ -266,7 +267,12 @@ export type RenderInput = {
   publishAddress?: string;
   /** Noms des secrets dont la valeur sera fournie par le fichier `.env`. */
   secretNames?: readonly string[];
+  /** Le code d'un dépôt est sous `source/` : voir `DriverContext.sourceInRelease`. */
+  sourceInRelease?: boolean;
 };
+
+/** Le fichier Compose de Pupitre, toujours désigné par son nom (`-f`). */
+export const COMPOSE_FILE = 'compose.yml';
 
 export function renderComposeFile(input: RenderInput): ComposeFile {
   const { spec, appSlug, publishedPort } = input;
@@ -307,7 +313,7 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
 
     if (service.source.type === 'dockerfile') {
       composeService.build = {
-        context: service.source.context,
+        context: buildContextPath(service.source.context, input.sourceInRelease),
         dockerfile: service.source.dockerfile,
       };
     }
@@ -409,7 +415,7 @@ export function renderFiles(
 ): RenderedFile[] {
   const files: RenderedFile[] = [
     {
-      path: 'compose.yml',
+      path: COMPOSE_FILE,
       content: serializeComposeFile(renderComposeFile(input)),
       mode: 0o644,
     },
