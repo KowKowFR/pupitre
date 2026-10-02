@@ -25,6 +25,7 @@ import { common } from '@/i18n/messages/common';
 import { appSpecSchema, hasBackupData, storedSecretNames } from '@pupitre/core';
 import { applications as messages } from '@/i18n/messages/applications';
 import { ComposeImport } from './compose-import';
+import { RepositoryImport } from './repository-import';
 
 /**
  * Création d'une application, par deux chemins qui aboutissent au même endroit.
@@ -71,7 +72,7 @@ type DeployTarget = {
   proxy: { description: string; capabilities: ProxyCapabilities; via?: string | null } | null;
 };
 
-type Tab = 'prompt' | 'json' | 'compose';
+type Tab = 'prompt' | 'json' | 'compose' | 'repository';
 
 type Props = {
   /** `false` quand aucune clé n'est configurée, ou que l'IA est coupée. */
@@ -625,19 +626,26 @@ export function NewApplicationForm({
 
   // ─── Blocs communs aux deux cadres ─────────────────────────────────────────
 
+  const tabs = (
+    <Tabs label={t('new.card.title')}>
+      <Tab selected={tab === 'prompt'} disabled={!aiEnabled} onClick={() => setTab('prompt')}>
+        {t('tab.fromPrompt')}
+      </Tab>
+      <Tab selected={tab === 'repository'} onClick={() => setTab('repository')}>
+        {t('tab.fromRepository')}
+      </Tab>
+      <Tab selected={tab === 'compose'} onClick={() => setTab('compose')}>
+        {t('tab.fromCompose')}
+      </Tab>
+      <Tab selected={tab === 'json'} onClick={() => setTab('json')}>
+        {t('tab.fromJson')}
+      </Tab>
+    </Tabs>
+  );
+
   const describe = (
     <>
-      <Tabs label={t('new.card.title')}>
-        <Tab selected={tab === 'prompt'} disabled={!aiEnabled} onClick={() => setTab('prompt')}>
-          {t('tab.fromPrompt')}
-        </Tab>
-        <Tab selected={tab === 'compose'} onClick={() => setTab('compose')}>
-          {t('tab.fromCompose')}
-        </Tab>
-        <Tab selected={tab === 'json'} onClick={() => setTab('json')}>
-          {t('tab.fromJson')}
-        </Tab>
-      </Tabs>
+      {tabs}
 
       {tab === 'prompt' ? (
         <form onSubmit={onGenerate} className="flex flex-col gap-4">
@@ -877,6 +885,12 @@ export function NewApplicationForm({
   );
 
   // ─── Tout empilé dans le tiroir, l'enregistrement dans son pied ────────────
+
+  // Depuis un dépôt : l'AppSpec vient du dépôt et ne s'édite pas ici — un
+  // parcours à part, avec son propre pied.
+  if (tab === 'repository') {
+    return <RepositoryImport tabs={tabs} onSaved={onSaved} onCancel={onCancel} />;
+  }
 
   return (
     <>

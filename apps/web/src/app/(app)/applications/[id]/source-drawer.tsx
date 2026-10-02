@@ -35,6 +35,9 @@ export type DeployTarget = { id: string; name: string; runtimes: Runtime[] };
 
 const MODES: readonly SourceMode[] = ['auto_unless_infra', 'auto', 'manual'];
 
+type DeployTo = SourceView['deployTo'];
+const DEPLOY_TO: readonly DeployTo[] = ['none', 'running', 'targets'];
+
 /**
  * Relier un dépôt, ou modifier une liaison, dans un tiroir au-dessus de la
  * fiche.
@@ -116,6 +119,7 @@ function SourceForm({
     Object.fromEntries((source?.targets ?? []).map((target) => [target.targetId, target.runtime])),
   );
   const [mode, setMode] = useState<SourceMode>(source?.mode ?? 'auto_unless_infra');
+  const [deployTo, setDeployTo] = useState<DeployTo>(source?.deployTo ?? 'none');
   const [enabled, setEnabled] = useState(source?.enabled ?? true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,7 +181,7 @@ function SourceForm({
       ? t('drawer.invalid.repository')
       : branch.trim() === ''
         ? t('drawer.invalid.branch')
-        : Object.keys(chosen).length === 0
+        : deployTo === 'targets' && Object.keys(chosen).length === 0
           ? t('drawer.invalid.targets')
           : null;
 
@@ -194,8 +198,14 @@ function SourceForm({
         .map((line) => line.trim())
         .filter(Boolean),
       mode,
+      deployTo,
       enabled,
-      targets: Object.entries(chosen).map(([targetId, runtime]) => ({ targetId, runtime })),
+      // Les cibles ne valent que pour « sur des cibles choisies » ; ailleurs,
+      // c'est l'instant du commit qui dit où elle tourne.
+      targets:
+        deployTo === 'targets'
+          ? Object.entries(chosen).map(([targetId, runtime]) => ({ targetId, runtime }))
+          : [],
     };
     const response = source
       ? await fetch(`/api/applications/${applicationId}/sources/${source.id}`, {
@@ -308,55 +318,13 @@ function SourceForm({
           </Field>
         </DrawerSection>
 
-        <DrawerSection title={t('field.targets')}>
-          <p className="help">{t('field.targets.help')}</p>
-          {offered.length === 0 ? (
-            <Alert variant="warn">{t('field.targets.none')}</Alert>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {offered.map((target) => {
-                const runtime = chosen[target.id];
-                return (
-                  <li key={target.id} className="flex flex-wrap items-center gap-3">
-                    <CheckboxField
-                      className="min-w-0 flex-1"
-                      label={target.name}
-                      checked={runtime !== undefined}
-                      onChange={(event) => toggleTarget(target, event.target.checked)}
-                    />
-                    {runtime !== undefined && target.runtimes.length > 1 ? (
-                      <Select
-                        aria-label={t('field.targets.runtime', { target: target.name })}
-                        className="w-auto"
-                        value={runtime}
-                        onChange={(event) =>
-                          setChosen((current) => ({
-                            ...current,
-                            [target.id]: event.target.value as Runtime,
-                          }))
-                        }
-                      >
-                        {target.runtimes.map((option) => (
-                          <option key={option} value={option}>
-                            {ta(`runtime.${option}`)}
-                          </option>
-                        ))}
-                      </Select>
-                    ) : (
-                      <Badge variant="outline">
-                        {ta(`runtime.${runtime ?? target.runtimes[0] ?? 'docker'}`)}
-                      </Badge>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </DrawerSection>
-
-        <DrawerSection title={t('field.mode')}>
-          <div role="radiogroup" aria-label={t('field.mode')} className="flex flex-col gap-2">
-            {MODES.map((option) => (
+        <DrawerSection title={t('import.section.commits')}>
+          <div
+            role="radiogroup"
+            aria-label={t('import.section.commits')}
+            className="flex flex-col gap-2"
+          >
+            {DEPLOY_TO.map((option) => (
               <label
                 key={option}
                 className={cn(
@@ -368,21 +336,103 @@ function SourceForm({
                 <span className="flex items-center gap-2">
                   <input
                     type="radio"
-                    name="source-mode"
+                    name="source-deploy-to"
                     className="rd"
                     value={option}
-                    checked={mode === option}
-                    onChange={() => setMode(option)}
+                    checked={deployTo === option}
+                    onChange={() => setDeployTo(option)}
                   />
-                  <span className="t-sm font-semibold text-text">{t(`mode.${option}.title`)}</span>
-                  {option === 'auto_unless_infra' ? (
-                    <Badge variant="accent">{t('mode.recommended')}</Badge>
-                  ) : null}
+                  <span className="t-sm font-semibold text-text">{t(`deployTo.${option}`)}</span>
                 </span>
-                <span className="t-sm pl-6 text-text-2">{t(`mode.${option}.body`)}</span>
+                <span className="t-sm pl-6 text-text-2">{t(`deployTo.${option}.help`)}</span>
               </label>
             ))}
           </div>
+        </DrawerSection>
+
+        {deployTo === 'targets' ? (
+          <DrawerSection title={t('field.targets')}>
+            <p className="help">{t('field.targets.help')}</p>
+            {offered.length === 0 ? (
+              <Alert variant="warn">{t('field.targets.none')}</Alert>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {offered.map((target) => {
+                  const runtime = chosen[target.id];
+                  return (
+                    <li key={target.id} className="flex flex-wrap items-center gap-3">
+                      <CheckboxField
+                        className="min-w-0 flex-1"
+                        label={target.name}
+                        checked={runtime !== undefined}
+                        onChange={(event) => toggleTarget(target, event.target.checked)}
+                      />
+                      {runtime !== undefined && target.runtimes.length > 1 ? (
+                        <Select
+                          aria-label={t('field.targets.runtime', { target: target.name })}
+                          className="w-auto"
+                          value={runtime}
+                          onChange={(event) =>
+                            setChosen((current) => ({
+                              ...current,
+                              [target.id]: event.target.value as Runtime,
+                            }))
+                          }
+                        >
+                          {target.runtimes.map((option) => (
+                            <option key={option} value={option}>
+                              {ta(`runtime.${option}`)}
+                            </option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <Badge variant="outline">
+                          {ta(`runtime.${runtime ?? target.runtimes[0] ?? 'docker'}`)}
+                        </Badge>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </DrawerSection>
+        ) : null}
+
+        <DrawerSection title={t('field.mode')}>
+          {deployTo === 'none' ? (
+            <p className="help">{t('field.mode.none')}</p>
+          ) : (
+            <div role="radiogroup" aria-label={t('field.mode')} className="flex flex-col gap-2">
+              {MODES.map((option) => (
+                <label
+                  key={option}
+                  className={cn(
+                    'flex cursor-pointer flex-col gap-1 rounded-[10px] border border-border p-3',
+                    'has-[:checked]:border-accent-line has-[:checked]:bg-accent-soft',
+                    'has-[:focus-visible]:shadow-focus',
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="source-mode"
+                      className="rd"
+                      value={option}
+                      checked={mode === option}
+                      onChange={() => setMode(option)}
+                    />
+                    <span className="t-sm font-semibold text-text">
+                      {t(`mode.${option}.title`)}
+                    </span>
+                    {option === 'auto_unless_infra' ? (
+                      <Badge variant="accent">{t('mode.recommended')}</Badge>
+                    ) : null}
+                  </span>
+                  <span className="t-sm pl-6 text-text-2">{t(`mode.${option}.body`)}</span>
+                </label>
+              ))}
+            </div>
+          )}
           <SwitchField
             label={t('field.enabled')}
             help={t('field.enabled.help')}

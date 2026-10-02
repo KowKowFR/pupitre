@@ -70,3 +70,50 @@ describe('le code d’un dépôt, à part dans la release', () => {
     }
   });
 });
+
+describe('K3s — une image reconstruite sous la même étiquette remplace les pods', () => {
+  it('le gabarit d’un service construit porte le déploiement ; une image du registre, non', async () => {
+    const { renderManifests, RELEASE_ANNOTATION } = await import('../src/drivers/k3s/render.js');
+    const spec = parseAppSpec({
+      name: 'bonjour',
+      version: '1.0.0',
+      services: [
+        { name: 'web', source: { type: 'dockerfile', context: 'app' }, port: 8080, exposed: true },
+        { name: 'cache', source: { type: 'image', ref: 'redis:7' }, port: 6379 },
+      ],
+    });
+    const annotations = (release: string) =>
+      Object.fromEntries(
+        renderManifests({ spec, appSlug: 'bonjour', release })
+          .filter((manifest) => manifest.kind === 'Deployment')
+          .map((manifest) => [
+            manifest.metadata.name,
+            (
+              manifest as {
+                spec: { template: { metadata: { annotations?: Record<string, string> } } };
+              }
+            ).spec.template.metadata.annotations?.[RELEASE_ANNOTATION] ?? null,
+          ]),
+      );
+    assert.deepEqual(annotations('dep-1'), { web: 'dep-1', cache: null });
+    // Un autre déploiement, même version, même étiquette d'image : le gabarit change.
+    assert.equal(annotations('dep-2').web, 'dep-2');
+  });
+});
+
+describe('K3s — la santé ne compte pas les pods qui s’en vont', () => {
+  it('un pod en cours de suppression n’empêche pas la nouvelle version d’être prête', async () => {
+    const { parsePodReadiness } = await import('../src/drivers/k3s/driver.js');
+    const ready = { type: 'Ready', status: 'True' };
+    const output = JSON.stringify({
+      items: [
+        { metadata: { name: 'web-neuf' }, status: { phase: 'Running', conditions: [ready] } },
+        {
+          metadata: { name: 'web-epave', deletionTimestamp: '2026-10-01T16:50:00Z' },
+          status: { phase: 'Pending', conditions: [{ type: 'Ready', status: 'False' }] },
+        },
+      ],
+    });
+    assert.deepEqual(parsePodReadiness(output), { total: 1, ready: 1, pending: [] });
+  });
+});

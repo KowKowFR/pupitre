@@ -54,7 +54,7 @@ que chaque driver traduit : boucle locale, adresse privée, NodePort, pare-feu.
 Implémentations : `TrivyScanner`, `GrypeScanner`, `SyftSBOM`.
 
 ### SourceProvider
-`resolveHead() compare() readFile() commit() downloadArchive() reportStatus() listRepositories()`
+`resolveHead() compare() readFile() findFiles() commit() downloadArchive() reportStatus() listRepositories()`
 Implémentation : `GitHubSourceProvider` (GitHub App, polling — jamais de webhook).
 
 **Critère de qualité :** ajouter un runtime, un proxy, un scanner ou un fournisseur

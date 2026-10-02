@@ -129,8 +129,10 @@ désigne toujours l'endroit où sont vraiment les fichiers.
 La liste s'arrête aux treize premières ; les suivantes — jusqu'à
 `0027_reverse_proxy`, les connexions et les routes, avec la reprise de ce qui
 était routé avant, `0028_central_proxy`, les liaisons d'une machine au proxy
-d'une autre, et `0029_route_waf`, l'enum `waf_mode` et la protection de chaque
-domaine (`routes.waf`, `block` par défaut) — se lisent dans
+d'une autre, `0029_route_waf`, l'enum `waf_mode` et la protection de chaque
+domaine (`routes.waf`, `block` par défaut), et `0030_source_deploy_to`, où part
+le commit d'une branche liée et le commit dont l'application porte la version —
+se lisent dans
 `packages/db/migrations/`.
 
 ### Deux arbitrages qui se lisent dans le SQL

@@ -23,7 +23,12 @@ import {
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
-import { deployFromSource, skippedSummary } from '../sources/deploy.js';
+import {
+  bindingsFor,
+  deployFromSource,
+  skippedSummary,
+  syncFromSource,
+} from '../sources/deploy.js';
 import { getSourceProvider } from '../sources/provider.js';
 import { panelUrl, reportCommitStatus, statusLanguage, statusText } from '../sources/status.js';
 
@@ -94,14 +99,24 @@ async function rejectCommit(
   });
 }
 
-/** Un commit neuf et pertinent : il part, ou il attend un humain. */
+/**
+ * Un commit neuf et pertinent : l'application le prend sans être déployée, il
+ * part sur ses cibles, ou il attend un humain.
+ */
 async function takeCommit(
   provider: SourceProvider,
   source: ApplicationSourceView,
   sha: string,
   spec: AppSpec,
   current: AppSpec | null,
-): Promise<'deployed' | 'proposed'> {
+): Promise<'synced' | 'deployed' | 'proposed'> {
+  // « Mettre à jour seulement » : rien ne part, on déploie où l'on veut.
+  if (source.deployTo === 'none') {
+    await syncFromSource({ source, sha, spec, trigger: 'auto', actorId: null, ip: null });
+    await recordSourceCheck(source.id, { error: null });
+    return 'synced';
+  }
+
   const commit = await provider.commit(repoOf(source), sha);
   const report = classifySpecChange(current, spec);
   const needsApproval =
@@ -143,12 +158,29 @@ async function takeCommit(
     return 'proposed';
   }
 
+  const bindings = await bindingsFor(source);
+  if (bindings.length === 0) {
+    // « Là où elle tourne », et elle ne tourne nulle part : la version est
+    // prise, le prochain déploiement à la main l'emportera.
+    await syncFromSource({
+      source,
+      sha,
+      spec,
+      trigger: 'auto',
+      idle: true,
+      actorId: null,
+      ip: null,
+    });
+    await recordSourceCheck(source.id, { error: null });
+    return 'synced';
+  }
   const result = await deployFromSource({
     source,
     sha,
     spec,
     commit,
     trigger: 'auto',
+    bindings,
     actorId: null,
     ip: null,
   });
@@ -256,6 +288,22 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
     if (!proposal || proposal.status !== 'approved') return { created: 0 };
     const source = await getApplicationSource(proposal.sourceId);
     if (!source) return { created: 0 };
+    // Où part un commit validé se décide maintenant : là où l'application
+    // tourne au moment de la validation, pas au moment de sa réception.
+    const bindings = await bindingsFor(source);
+    if (bindings.length === 0) {
+      await syncFromSource({
+        source,
+        sha: proposal.sha,
+        spec: parseAppSpec(proposal.appSpec),
+        trigger: 'proposal',
+        idle: source.deployTo === 'running',
+        proposalId: proposal.id,
+        actorId: data.actorId,
+        ip: data.ip,
+      });
+      return { created: 0 };
+    }
     const result = await deployFromSource({
       source,
       sha: proposal.sha,
@@ -267,6 +315,7 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
         url: proposal.commitUrl,
       },
       trigger: 'proposal',
+      bindings,
       proposalId: proposal.id,
       actorId: data.actorId,
       ip: data.ip,
@@ -288,6 +337,23 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
       await rejectCommit(source, head.sha, read.issues);
       return { created: 0 };
     }
+    const bindings = await bindingsFor(source);
+    if (bindings.length === 0) {
+      // « Mettre à jour depuis le dépôt » : la tête devient la version de
+      // l'application, sans déploiement.
+      await syncFromSource({
+        source,
+        sha: head.sha,
+        spec: read.spec,
+        trigger: 'manual',
+        idle: source.deployTo === 'running',
+        actorId: data.actorId,
+        ip: data.ip,
+      });
+      await claimSourceCommit(source.id, source.lastSeenSha, head.sha, head.etag);
+      await recordSourceCheck(source.id, { error: null });
+      return { created: 0 };
+    }
     const commit = await access.provider.commit(repoOf(source), head.sha);
     const result = await deployFromSource({
       source,
@@ -295,6 +361,7 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
       spec: read.spec,
       commit,
       trigger: 'manual',
+      bindings,
       actorId: data.actorId,
       ip: data.ip,
     });

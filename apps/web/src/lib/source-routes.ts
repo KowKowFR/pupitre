@@ -7,6 +7,8 @@ import {
   usableRuntimes,
   type SourceDeployJobData,
   type SourcePollJobData,
+  type SourceProvider,
+  type SourceRepository,
 } from '@pupitre/core';
 import {
   getApplication,
@@ -17,6 +19,7 @@ import {
 } from '@pupitre/db';
 import { sources as messages } from '@/i18n/messages/sources';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
+import { providerError } from '@/lib/sources';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
 /**
@@ -91,12 +94,34 @@ export function sourceJson(source: ApplicationSourceView) {
     specPath: source.specPath,
     watchPaths: source.watchPaths,
     mode: source.mode,
+    deployTo: source.deployTo,
     enabled: source.enabled,
     lastSeenSha: source.lastSeenSha,
+    syncedSha: source.syncedSha,
+    syncedAt: source.syncedAt?.toISOString() ?? null,
     lastCheckedAt: source.lastCheckedAt?.toISOString() ?? null,
     lastChangeAt: source.lastChangeAt?.toISOString() ?? null,
     lastError: source.lastError,
     targets: source.targets,
     pendingProposals: source.pendingProposals,
   };
+}
+
+/**
+ * Le dépôt, tel que l'App le voit — vérifié auprès de GitHub : un identifiant
+ * d'installation venu d'un formulaire ne se croit pas sur parole.
+ */
+export async function accessibleRepository(
+  provider: SourceProvider,
+  repository: string,
+  installationId: number,
+): Promise<SourceRepository> {
+  const repositories = await provider.listRepositories().catch(providerError);
+  const found = repositories.find(
+    (repo) => repo.fullName === repository && repo.installationId === installationId,
+  );
+  if (!found) {
+    throw new ConflictError(msg(messages, 'error.repositoryUnavailable', { repository }));
+  }
+  return found;
 }

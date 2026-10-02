@@ -163,7 +163,17 @@ export type RenderInput = {
    * machine : c'est une NetworkPolicy qui le restreint.
    */
   allowFrom?: string | null;
+  /**
+   * L'identifiant du déploiement. Une image construite garde son étiquette
+   * tant que la version de l'AppSpec ne change pas — le cas de tout commit de
+   * code : sans lui dans le gabarit des pods, `kubectl apply` ne verrait rien
+   * à changer et les pods garderaient l'ancien code.
+   */
+  release?: string;
 };
+
+/** L'annotation du gabarit d'un pod construit : un déploiement, un remplacement des pods. */
+export const RELEASE_ANNOTATION = 'pupitre.io/release';
 
 /** Le nom de la NetworkPolicy qui réserve le point d'entrée au proxy. */
 export const PROXY_POLICY_NAME = 'pupitre-proxy-only';
@@ -431,7 +441,12 @@ function renderDeployment(input: RenderInput, service: Service): DeploymentManif
       // n'aurait rien vers quoi revenir.
       revisionHistoryLimit: 10,
       template: {
-        metadata: { labels: standardLabels(appSlug, service.name, spec.version) },
+        metadata: {
+          labels: standardLabels(appSlug, service.name, spec.version),
+          ...(isOwnImage(service) && input.release
+            ? { annotations: { [RELEASE_ANNOTATION]: input.release } }
+            : {}),
+        },
         spec: {
           securityContext: podSecurityContext(service),
           containers: [container],

@@ -255,6 +255,31 @@ describe('client GitHub', () => {
     assert.equal((await github.compare(REPO, 'd'.repeat(40), SHA)).kind, 'unknown');
   });
 
+  it('trouve les pupitre.json de l’arbre du commit, et seulement eux', async () => {
+    const { fetchImpl, calls } = fakeGitHub([
+      TOKEN_ROUTE,
+      [
+        /\/git\/trees\/a{40}\?recursive=1$/,
+        () =>
+          Response.json({
+            tree: [
+              { path: 'pupitre.json', type: 'blob' },
+              { path: 'examples/bonjour/pupitre.json', type: 'blob' },
+              { path: 'examples/bonjour', type: 'tree' },
+              { path: 'docs/pupitre.json.md', type: 'blob' },
+              { path: 'apps/api/not-pupitre.json', type: 'blob' },
+            ],
+          }),
+      ],
+    ]);
+    const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
+    assert.deepEqual(await github.findFiles(REPO, SHA, 'pupitre.json'), [
+      'examples/bonjour/pupitre.json',
+      'pupitre.json',
+    ]);
+    assert.ok(calls.some((call) => call.url.includes('/repos/acme/api/git/trees/')));
+  });
+
   it('un fichier absent au commit vaut `null`, pas une erreur', async () => {
     const { fetchImpl } = fakeGitHub([TOKEN_ROUTE]);
     const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);

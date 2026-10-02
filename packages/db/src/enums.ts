@@ -136,6 +136,14 @@ export const sourceProviderEnum = pgEnum('source_provider', ['github']);
  */
 export const sourceModeEnum = pgEnum('source_mode', ['auto', 'auto_unless_infra', 'manual']);
 
+/**
+ * Où va un nouveau commit d'une branche liée :
+ * `targets` sur les cibles de la liaison ; `running` là où l'application tourne
+ * à ce moment-là ; `none` nulle part — l'application prend la nouvelle version,
+ * et on la déploie où l'on veut, quand on veut.
+ */
+export const sourceDeployToEnum = pgEnum('source_deploy_to', ['targets', 'running', 'none']);
+
 /** Un commit en attente de validation, et ce qu'il est devenu. */
 export const sourceProposalStatusEnum = pgEnum('source_proposal_status', [
   'pending',

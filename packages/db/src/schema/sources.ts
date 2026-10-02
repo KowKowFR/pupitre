@@ -14,6 +14,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   runtimeEnum,
+  sourceDeployToEnum,
   sourceModeEnum,
   sourceProposalStatusEnum,
   sourceProviderEnum,
@@ -77,9 +78,18 @@ export const applicationSources = pgTable(
     /** Motifs de chemins dont un changement concerne l'application (monorepo). */
     watchPaths: jsonb('watch_paths').$type<string[]>().notNull().default([]),
     mode: sourceModeEnum('mode').notNull().default('auto_unless_infra'),
+    /** Où part un nouveau commit — voir `sourceDeployToEnum`. */
+    deployTo: sourceDeployToEnum('deploy_to').notNull().default('targets'),
     enabled: boolean('enabled').notNull().default(true),
     /** Le dernier commit traité : la prochaine comparaison part de lui. */
     lastSeenSha: text('last_seen_sha'),
+    /**
+     * Le commit dont l'application porte l'AppSpec — celui dont un déploiement
+     * lancé à la main construit le code. Peut précéder `lastSeenSha` : un
+     * commit en attente de validation n'est pas encore celui de l'application.
+     */
+    syncedSha: text('synced_sha'),
+    syncedAt: timestamp('synced_at', { withTimezone: true }),
     /** L'ETag de la dernière réponse : « rien de neuf » ne coûte alors rien. */
     lastEtag: text('last_etag'),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),

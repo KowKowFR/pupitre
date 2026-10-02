@@ -12,9 +12,10 @@ import {
   createDeploymentSchema,
   createDeploymentWithSteps,
   deploymentQuerySchema,
-  getAppSettings,
   getApplication,
+  getAppSettings,
   getBackupPolicy,
+  getSyncedSource,
   getTarget,
   listDeployments,
   logAudit,
@@ -179,12 +180,25 @@ export const POST = apiRoute(async (request) => {
     }
   }
 
+  // Une application qui vient d'un dépôt : son AppSpec est celle d'un commit,
+  // et c'est le code de ce commit qui se construit — où qu'on la déploie.
+  const synced = await getSyncedSource(input.applicationId);
   const { deployment, steps } = await createDeploymentWithSteps({
     ...input,
     // Après `...input` : c'est la configuration effective qui est gelée.
     scanConfig,
     appSpec,
     triggeredBy: auth.userId,
+    ...(synced?.syncedSha
+      ? {
+          source: {
+            sourceId: synced.id,
+            repository: synced.repository,
+            ref: synced.branch,
+            sha: synced.syncedSha,
+          },
+        }
+      : {}),
   });
 
   const jobData = deploymentJobDataSchema.parse({
