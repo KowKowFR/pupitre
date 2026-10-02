@@ -129,6 +129,19 @@ export const notificationChannelKindEnum = pgEnum('notification_channel_kind', [
 export const sourceProviderEnum = pgEnum('source_provider', ['github']);
 
 /**
+ * Où en est une archive de code téléversée :
+ * `receiving` ses octets arrivent ; `pending` reçue, en attente de lecture par
+ * le worker ; `ready` lue et refaite propre, déployable ; `rejected` refusée —
+ * la raison est à côté.
+ */
+export const sourceArchiveStatusEnum = pgEnum('source_archive_status', [
+  'receiving',
+  'pending',
+  'ready',
+  'rejected',
+]);
+
+/**
  * Ce que fait un nouveau commit sur une branche liée :
  * `auto` le déploie ; `auto_unless_infra` le déploie sauf s'il touche à
  * l'infrastructure (port, domaine, volumes, secrets…) ; `manual` attend toujours

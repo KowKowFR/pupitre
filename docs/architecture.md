@@ -121,6 +121,43 @@ La première vérification d'une liaison enregistre le commit en tête sans
 déployer : lier un dépôt ne doit pas redéployer ce qui tourne. « Déployer ce
 commit » le fait à la demande.
 
+## Le code téléversé
+
+L'autre voie d'entrée du code, pour une application **sans dépôt lié** — créée
+par le formulaire, par l'IA, depuis le catalogue ou par import d'un
+`compose.yml` — dont un service se construit depuis un Dockerfile. Sa fiche
+porte une carte « Code de l'application » : on y téléverse une archive
+`.tar.gz`, `.tar` ou `.zip` (100 Mio au plus), et une CI peut faire de même
+avec un jeton (`POST /api/applications/:id/archives`).
+
+- **Elle n'apporte que le code.** L'AppSpec reste celle du panel ; un
+  `pupitre.json` dans l'archive est ignoré. Ce n'est pas un `SourceProvider` :
+  il n'y a ni branche à suivre, ni commit à interroger — un humain ou une CI
+  envoie, c'est tout.
+- **La route range, le worker juge.** Le panel reconnaît le format aux premiers
+  octets, range l'envoi en base par morceaux d'un mégaoctet avec son SHA-256,
+  et rend `202`. Le worker (`source:archive-inspect`, file de supervision) relit
+  l'archive entrée par entrée (`@pupitre/core/source-upload`), refuse ce qui
+  sortirait du dossier, retire un dossier de tête unique (`mon-app/…`), écarte
+  `.git/` et `__MACOSX/`, et range **une archive refaite** à la place de
+  l'envoi : c'est elle, et elle seule, qui part sur les machines.
+- **Ni le panel ni le worker n'ont de disque en commun** : les octets vivent dans
+  `source_archive_chunks`. Rien ne tient en mémoire en entier, et une sauvegarde
+  du panel les emporte.
+- **Le code de l'application est sa dernière archive.** Un déploiement emporte
+  son identifiant, son nom et son empreinte ; le worker la relit et la passe au
+  driver exactement comme l'archive d'un commit (`DriverContext.sourceArchive`,
+  décompressée dans `source/`). Les drivers n'ont pas changé d'une ligne.
+- **Refusé tôt.** Sans archive, avec une archive encore en lecture ou refusée,
+  ou quand un Dockerfile attendu n'y est pas, `POST /api/deployments` répond 409
+  sans rien enfiler — plutôt qu'un échec à l'étape `build`.
+- **Les cinq dernières** sont gardées : redéployer une version récente
+  reconstruit **son** code. Au-delà, la version garde le nom et l'empreinte de
+  son archive, mais ne se redéploie plus (409 `archive_gone`). Le retour arrière,
+  lui, n'en a pas besoin : il remet en service une release déjà sur la machine.
+- Une application liée à un dépôt n'accepte pas d'archive (409) : son code vient
+  du commit.
+
 ## AppSpec — la spec neutre
 
 `packages/core/src/spec/app-spec.ts`. **Aucun champ ne peut être rattaché à un

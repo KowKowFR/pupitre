@@ -408,6 +408,36 @@ restent au panel, sous RBAC. Le code du commit n'est qu'une entrée du build :
 
 `pnpm test:source-isolation` le vérifie sur les deux runtimes avec un dépôt piégé.
 
+### Une archive téléversée
+
+Le code téléversé suit les mêmes règles — il finit dans `source/`, par le même
+chemin —, et une de plus : **l'archive envoyée ne part jamais telle quelle sur
+une machine.** Le worker la relit entrée par entrée, en écrivant lui-même chaque
+fichier, et la refuse entière au premier de ces pièges :
+
+- un chemin absolu, ou qui remonte (`..`) ;
+- un lien symbolique qui pointe hors du code — y compris **une fois le dossier
+  de tête retiré** : dans `mon-app/`, `lien → ../compose.yml` reste dans
+  l'archive mais viserait les fichiers de pilotage de la release ;
+- une entrée écrite à travers un lien de l'archive (`cache → …` puis
+  `cache/piege`) ;
+- un lien dur, un périphérique, un tube nommé, une entrée chiffrée ;
+- deux entrées au même chemin, un fichier qui servirait de dossier ;
+- plus de 50 000 entrées, ou plus de 1 Gio une fois décompressée — une archive
+  qui gonfle s'arrête là, pendant la lecture.
+
+Les droits sont ramenés à `0644` ou `0755` : le bit d'exécution survit, `setuid`
+et `setgid` non. Les liens symboliques ne sont créés qu'une fois tout le reste
+écrit. L'archive rendue, refaite par le worker, est la seule qui serve ensuite ;
+les octets reçus sont effacés, refusés ou non.
+
+Le format se lit dans les octets (jamais dans le nom ni dans l'en-tête), le nom
+n'est qu'une étiquette — rien ne s'écrit sous ce nom —, l'envoi est borné à
+100 Mio pendant le transfert, et `application:update` est exigé : téléverser du
+code, c'est changer ce qui s'exécutera. Les tests unitaires
+(`packages/core/test/source-upload.test.ts`) fabriquent ces archives piégées
+octet par octet ; `scripts/verify-source-archive.sh` en envoie une par l'API.
+
 ## Chiffrement
 
 `packages/core/src/crypto.ts` — **AES-256-GCM**, clé dérivée de `MASTER_KEY` par

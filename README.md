@@ -175,10 +175,11 @@ la comparaison telle qu'elle est.
 
 **Ce sur quoi il est en retrait, et de loin**
 
-- **Il ne déploie pas depuis un dépôt Git.** Pas de webhook, pas de « push to
-  deploy », pas de branche de préproduction. C'est la fonction centrale des
-  autres, et elle n'existe pas ici — voir la limite sur le contexte de build
-  ci-dessous.
+- **Un seul fournisseur de code, et pas de prévisualisation par branche.**
+  Pupitre suit une branche GitHub en l'interrogeant chaque minute — jamais de
+  webhook : le panel reste privé — et accepte une archive du code pour une
+  application sans dépôt. Ni GitLab ni Gitea, ni déploiement temporaire par pull
+  request — voir la limite sur le contexte de build ci-dessous.
 - **Aucun catalogue d'applications prêtes à l'emploi.** Là où Coolify propose des
   centaines de services en un clic, ici vous écrivez l'AppSpec.
 - **Pas de gestion d'équipes ni de multi-tenance.** Un RBAC sur une instance,
@@ -265,6 +266,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Reverse proxy (Traefik ou BunkerWeb repris ou installés, Nginx Proxy Manager connecté par son API), domaines et certificats Let's Encrypt au déploiement, tous les domaines et leurs échéances sur une page | [`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines) |
 | Sauvegardes chiffrées vers S3, SFTP ou un dossier monté, restauration, reprise après sinistre | [`docs/exploitation.md`](docs/exploitation.md#sauvegardes) |
 | Déployer depuis une CI (GitHub Actions, GitLab CI) avec un jeton d'API limité à ses applications | [`docs/exploitation.md`](docs/exploitation.md#déployer-depuis-une-ci) |
+| Le code d'une application sans dépôt : une archive téléversée, relue entrée par entrée et refaite propre avant de partir sur la machine | [`docs/exploitation.md`](docs/exploitation.md#le-code-dune-application-sans-dépôt) |
 | RBAC (34 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Second facteur exigé (droits sensibles ou tous les comptes), durée des sessions réglable | [`docs/securite.md`](docs/securite.md#le-second-facteur-exigé) |
 | Connexion unique OpenID Connect (Keycloak, Authentik, Google, Entra), rôles tirés des groupes | [`docs/exploitation.md`](docs/exploitation.md#connexion-unique-par-keycloak) |
@@ -339,18 +341,20 @@ non 80, parce que nos images tournent en uid 1000 sans `CAP_NET_BIND_SERVICE` �
 ce n'est pas un contournement du test, c'est la conséquence directe du
 durcissement décrit plus bas.
 
-### Un Dockerfile ne se construit que depuis un dépôt lié
+### Le code d'un Dockerfile vient de GitHub ou d'une archive
 
 Les deux drivers construisent une image depuis un Dockerfile, à partir d'un
-contexte de build. Ce contexte n'arrive aujourd'hui que par un chemin : le
-**dépôt GitHub lié** à l'application, dont l'archive au commit déployé est
-extraite dans `source/` de la release — voir
-[`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt-github).
+contexte de build extrait dans `source/` de la release. Il arrive par deux
+chemins : le **dépôt GitHub lié** à l'application, à son commit exact — voir
+[`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt-github) —,
+ou, pour une application sans dépôt, une **archive téléversée** depuis sa fiche
+ou par une CI — voir
+[`docs/exploitation.md`](docs/exploitation.md#le-code-dune-application-sans-dépôt).
 
-Une application créée par le formulaire, par l'IA, depuis le catalogue ou par
-l'import d'un `compose.yml` n'a pas de dépôt : un service `dockerfile` y échoue
-à l'étape `build` (« Le contexte de build doit être fourni »). Par ces voies-là,
-seuls les services en `source.type: "image"` se déploient.
+L'archive est bornée à 100 Mio (1 Gio décompressée), et seules les cinq
+dernières de chaque application sont gardées : au-delà, une version reste dans
+l'historique mais ne se redéploie plus. Un dépôt GitLab ou Gitea ne se suit pas
+encore.
 
 ### Compose ne sait pas publier un port derrière plusieurs répliques
 

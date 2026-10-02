@@ -14,7 +14,7 @@ import {
 import { deploymentStatusEnum, healthStatusEnum, runtimeEnum, stepStatusEnum } from '../enums.js';
 import { users } from './auth.js';
 import { applications, targets } from './infra.js';
-import { applicationSources } from './sources.js';
+import { applicationSources, sourceArchives } from './sources.js';
 
 export const deployments = pgTable(
   'deployments',
@@ -113,6 +113,16 @@ export const deployments = pgTable(
     sourceRepository: text('source_repository'),
     sourceRef: text('source_ref'),
     sourceSha: text('source_sha'),
+    /**
+     * L'archive de code téléversée que ce run construit — l'autre origine du
+     * code. Son nom et son empreinte sont recopiés pour la même raison que le
+     * dépôt : une archive écartée ne rend pas l'historique muet.
+     */
+    sourceArchiveId: uuid('source_archive_id').references(() => sourceArchives.id, {
+      onDelete: 'set null',
+    }),
+    sourceArchiveName: text('source_archive_name'),
+    sourceArchiveSha256: text('source_archive_sha256'),
     error: text('error'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),

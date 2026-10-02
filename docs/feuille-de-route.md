@@ -11,17 +11,13 @@ document en est la contrepartie : ce qu'on ferait pour les faire disparaître.
 
 ## Ce qui bloque un usage réel
 
-### Construire sans dépôt lié
+### Le code d'une autre forge que GitHub
 
-Un service `dockerfile` se construit depuis le dépôt GitHub lié à l'application
-(son archive au commit déployé, extraite dans `source/` de la release). Une
-application créée par le formulaire, par l'IA, depuis le catalogue ou par import
-d'un `compose.yml` n'a pas de dépôt, donc pas de contexte de build : seuls ses
-services en `source.type: "image"` se déploient.
-
-Ce qu'il faut : une autre voie d'entrée pour le code — une archive téléversée,
-ou un dépôt d'une autre forge (GitLab, Gitea, Forgejo) par un second
-`SourceProvider`.
+Une application sans dépôt reçoit son code par une **archive téléversée** —
+depuis sa fiche, ou par une CI (`POST /api/applications/:id/archives`). Ce qui
+manque : suivre un dépôt GitLab, Gitea ou Forgejo comme on suit un dépôt GitHub,
+par un second `SourceProvider` (`packages/core/src/sources/types.ts`) — polling,
+`pupitre.json`, état renvoyé sur le commit.
 
 ### Un panel derrière un répartiteur
 
