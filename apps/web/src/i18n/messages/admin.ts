@@ -103,6 +103,9 @@ const fr = {
   'users.2fa.pending': 'configuration en cours',
   'users.2fa.pending.title': 'Secret généré, jamais confirmé par un code',
   'users.2fa.none': 'aucun',
+  'users.2fa.missing': 'exigé, absent',
+  'users.2fa.missing.title':
+    'Son rôle exige un second facteur : il n’a accès à rien d’autre tant qu’il ne l’a pas activé',
 
   'users.invitation.revoked': {
     one: 'Invitation de {email} annulée : {count} lien ne fonctionne plus. Le compte reste, sans mot de passe.',
@@ -350,6 +353,9 @@ const en: Translated<typeof fr> = {
   'users.2fa.pending': 'setup under way',
   'users.2fa.pending.title': 'Secret generated, never confirmed by a code',
   'users.2fa.none': 'none',
+  'users.2fa.missing': 'required, missing',
+  'users.2fa.missing.title':
+    'Their role requires a second factor: they can reach nothing else until they turn it on',
 
   'users.invitation.revoked': {
     one: 'Invitation for {email} canceled: {count} link no longer works. The account stays, with no password.',

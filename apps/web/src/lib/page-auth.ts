@@ -3,7 +3,7 @@ import type { Permission } from '@pupitre/core';
 import { getSessionCookie } from 'better-auth/cookies';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { ForbiddenError, UnauthenticatedError } from './errors';
+import { ForbiddenError, TwoFactorRequiredError, UnauthenticatedError } from './errors';
 import { requirePermission, requireSession, type AuthContext } from './rbac';
 
 /**
@@ -45,6 +45,14 @@ export async function redirectToLogin(pathname?: string): Promise<never> {
   redirect(`${stale ? '/logout' : '/login'}${query}`);
 }
 
+/**
+ * Où va un compte dont le rôle exige un second facteur qu'il n'a pas encore.
+ * Hors du groupe `(app)`, comme l'assistant de démarrage : une redirection
+ * posée par le layout `(app)` vers une page qu'il enveloppe ferait boucler le
+ * routeur client — il croirait le layout déjà rendu et ne le redemanderait pas.
+ */
+export const TWO_FACTOR_ENROLL_PATH = '/two-factor-setup';
+
 /** Contexte courant, ou `null` si non authentifié. Ne redirige pas. */
 export async function currentAuth(pathname = '/'): Promise<AuthContext | null> {
   try {
@@ -73,6 +81,7 @@ export async function requirePagePermission(
     return await requirePermission(await requestFromHeaders(pathname), permission);
   } catch (error) {
     if (error instanceof UnauthenticatedError) await redirectToLogin(pathname);
+    if (error instanceof TwoFactorRequiredError) redirect(TWO_FACTOR_ENROLL_PATH);
     if (error instanceof ForbiddenError) {
       redirect(`/forbidden?permission=${encodeURIComponent(permission)}`);
     }

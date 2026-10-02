@@ -1,4 +1,4 @@
-import type { Permission } from './permissions.js';
+import { TWO_FACTOR_POLICIES, type Permission } from './permissions.js';
 import {
   SCANNER_KEYS,
   failOnSchema,
@@ -350,6 +350,60 @@ export const ssoSettingsPatchSchema = z.object({
 export type SsoSettings = z.infer<typeof ssoSettingsSchema>;
 
 export const DEFAULT_SSO_SETTINGS: SsoSettings = ssoSettingsSchema.parse({});
+
+/**
+ * Les comptes et leurs sessions : qui doit porter un second facteur, et combien
+ * de temps une session reste ouverte.
+ *
+ * Les durées sont en heures, choisies dans une liste courte : une durée libre
+ * invite à des valeurs qu'on ne relit jamais (une session de 9 999 heures).
+ */
+export const SESSION_IDLE_HOURS = [1, 8, 24, 168, 720] as const;
+export const SESSION_MAX_HOURS = [24, 168, 720] as const;
+
+const accountsFields = {
+  /**
+   * `off` : personne n'y est tenu. `sensitive` : tout rôle qui porte une
+   * permission sensible (`SENSITIVE_PERMISSIONS`). `all` : tous les comptes.
+   */
+  twoFactorPolicy: z.enum(TWO_FACTOR_POLICIES),
+  /** Sans activité pendant cette durée, la session se ferme. Toute requête la prolonge. */
+  sessionIdleHours: z.union(
+    SESSION_IDLE_HOURS.map((hours) => z.literal(hours)) as unknown as [
+      z.ZodLiteral<1>,
+      z.ZodLiteral<8>,
+      z.ZodLiteral<24>,
+      z.ZodLiteral<168>,
+      z.ZodLiteral<720>,
+    ],
+  ),
+  /** Au-delà, la session se ferme même active : on se reconnecte. `null` : pas de plafond. */
+  sessionMaxHours: z
+    .union(
+      SESSION_MAX_HOURS.map((hours) => z.literal(hours)) as unknown as [
+        z.ZodLiteral<24>,
+        z.ZodLiteral<168>,
+        z.ZodLiteral<720>,
+      ],
+    )
+    .nullable(),
+};
+
+export const accountsSettingsSchema = z.object({
+  twoFactorPolicy: accountsFields.twoFactorPolicy.default('off'),
+  sessionIdleHours: accountsFields.sessionIdleHours.default(168),
+  sessionMaxHours: accountsFields.sessionMaxHours.default(null),
+});
+
+export const accountsSettingsPatchSchema = z.object({
+  twoFactorPolicy: accountsFields.twoFactorPolicy.optional(),
+  sessionIdleHours: accountsFields.sessionIdleHours.optional(),
+  sessionMaxHours: accountsFields.sessionMaxHours.optional(),
+});
+
+export type AccountsSettings = z.infer<typeof accountsSettingsSchema>;
+
+export const DEFAULT_ACCOUNTS_SETTINGS: AccountsSettings = accountsSettingsSchema.parse({});
 
 /**
  * La politique de scan de l'instance, telle qu'elle s'applique à un
@@ -765,6 +819,7 @@ export const appSettingsShape = {
   ai: aiSettingsSchema.default(DEFAULT_AI_SETTINGS),
   security: securitySettingsSchema.default(DEFAULT_SECURITY_SETTINGS),
   sso: ssoSettingsSchema.default(DEFAULT_SSO_SETTINGS),
+  accounts: accountsSettingsSchema.default(DEFAULT_ACCOUNTS_SETTINGS),
   /**
    * Avancement de l'assistant de démarrage. Il est dans la forme de *lecture*
    * mais volontairement absent de `appSettingsPatchSchema` : `PATCH
@@ -797,6 +852,7 @@ export const appSettingsPatchSchema = z.object({
   ai: aiSettingsPatchSchema.optional(),
   security: securitySettingsPatchSchema.optional(),
   sso: ssoSettingsPatchSchema.optional(),
+  accounts: accountsSettingsPatchSchema.optional(),
 });
 
 export type AppSettingsPatch = z.infer<typeof appSettingsPatchSchema>;

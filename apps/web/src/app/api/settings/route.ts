@@ -2,6 +2,7 @@ import {
   DATE_STYLES,
   SUPPORTED_LOCALES,
   appSettingsPatchSchema,
+  requiresTwoFactor,
   ssoCallbackUrl,
   supportedTimeZones,
 } from '@pupitre/core';
@@ -15,11 +16,13 @@ import {
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { settings as messages } from '@/i18n/messages/settings';
+import { hasPassword } from '@/lib/auth';
 import { getEnv } from '@/lib/env';
 import { HttpError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 import { getT } from '@/i18n/server';
+import { clampOpenSessions, refreshSessionPolicy } from '@/lib/session-policy';
 import { refreshSso, ssoState } from '@/lib/sso';
 import { describeSsoProblem } from '@/lib/sso-problem';
 
@@ -103,10 +106,30 @@ export const PATCH = apiRoute(async (request) => {
     }
   }
 
+  // Exiger le second facteur sans l'avoir soi-même : l'enregistrement fermerait
+  // aussitôt le panel à celui qui l'a fait. On le dit plutôt ici.
+  const policy = patch.accounts?.twoFactorPolicy;
+  if (
+    policy &&
+    requiresTwoFactor(auth.permissions, policy) &&
+    !auth.twoFactor.enabled &&
+    (await hasPassword(auth.userId))
+  ) {
+    throw new HttpError(409, 'two_factor_self', msg(messages, 'accounts.error.self'));
+  }
+
   const { before, after, keyChange, ssoSecretChange } = await updateAppSettings(patch, auth.userId);
   // La connexion unique se reconstruit sur ce qui vient d'être écrit — et dit
   // tout de suite, dans la réponse, si le fournisseur répond.
   if (patch.sso || Object.hasOwn(patch, 'ssoClientSecret')) await refreshSso();
+  // La durée des sessions est lue par Better Auth à sa construction : la
+  // politique relue, `getAuth()` reconstruit son instance.
+  if (patch.accounts) {
+    const policy = await refreshSessionPolicy();
+    if (after.settings.accounts.sessionIdleHours < before.settings.accounts.sessionIdleHours) {
+      await clampOpenSessions(policy.idleSeconds);
+    }
+  }
 
   /**
    * L'audit porte les réglages en clair — ils n'ont rien de secret — mais la

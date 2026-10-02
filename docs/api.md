@@ -22,6 +22,12 @@ inconnu : `401 token_revoked`, `token_expired`, `token_invalid`. Voir
 [`securite.md`](securite.md#jetons-dapi) et
 [`exploitation.md`](exploitation.md#déployer-depuis-une-ci).
 
+**Quand l'instance exige un second facteur** d'un compte qui ne l'a pas encore
+(« Comptes et sessions »), toute route gardée par une permission — et la
+discussion, la présence, les jetons — lui répond `403 two_factor_required`,
+à lui comme à ses jetons d'API. Seules les routes du compte restent ouvertes,
+le temps de l'activer. Voir [`securite.md`](securite.md#le-second-facteur-exigé).
+
 ## Pages
 
 ### Exploitation
@@ -52,7 +58,7 @@ inconnu : `401 token_revoked`, `token_expired`, `token_invalid`. Voir
 | `/admin/users` | Comptes : création, statut, rôle, réinitialisation du 2FA | `user:manage` |
 | `/admin/roles` | Rôles et leurs permissions | `role:read` |
 | `/admin/settings` | Sommaire, en lecture seule | `settings:read` |
-| `/admin/settings/{identite,regionalisation,securite,notifications,ia,integrations,sauvegardes,demarrage}` | Les huit sections | `settings:read` — écriture `settings:manage` |
+| `/admin/settings/{identite,regionalisation,securite,connexion,comptes,notifications,ia,integrations,sauvegardes,demarrage}` | Les dix sections | `settings:read` — écriture `settings:manage` |
 
 ### Hors navigation
 
@@ -77,7 +83,7 @@ la navigation métier.
 | Route | Méthodes | Permission |
 |---|---|---|
 | `/api/health` | GET | **publique** — `{ status, db, redis, ai }`, 200 ou 503 |
-| `/api/auth/[...all]` | GET POST | publique — Better Auth ; audite connexions et déconnexions. `/api/auth/admin/*` répond 404 : Pupitre a sa propre API d'administration. La connexion unique part de `POST /api/auth/sign-in/social` (`{ provider: "oidc", callbackURL }`, rend l'adresse du fournisseur) et revient par `GET /api/auth/callback/oidc` ; un retour en échec repart vers `/login?error=…` et s'écrit `auth.sso.login.failed` |
+| `/api/auth/[...all]` | GET POST | publique — Better Auth ; audite connexions et déconnexions. `/api/auth/admin/*` répond 404 : Pupitre a sa propre API d'administration ; `/api/auth/two-factor/*` aussi, hors `verify-totp` et `verify-backup-code` — le second facteur s'active et se retire par `/api/account/two-factor/*`. La connexion unique part de `POST /api/auth/sign-in/social` (`{ provider: "oidc", callbackURL }`, rend l'adresse du fournisseur) et revient par `GET /api/auth/callback/oidc` ; un retour en échec repart vers `/login?error=…` et s'écrit `auth.sso.login.failed` |
 
 ### Compte
 
@@ -86,7 +92,7 @@ la navigation métier.
 | `/api/account/password` | POST | session — `currentPassword` obligatoire |
 | `/api/account/two-factor/setup` | POST | session |
 | `/api/account/two-factor/activate` | POST | session |
-| `/api/account/two-factor/disable` | POST | session |
+| `/api/account/two-factor/disable` | POST | session — `409 two_factor_locked` quand la politique de l'instance l'exige de ce compte |
 | `/api/account/avatar` | PUT / DELETE | session — le corps **est** l'image (`content-type: image/…`), 512 Kio au plus, recadrée par le navigateur ; format et dimensions relus dans les octets |
 | `/api/users/:id/avatar` | GET | session — immuable avec `?v=`, l'URL que porte `users.image` |
 | `/api/tokens` | GET / POST | membre de l'équipe¹, depuis le panel — ses jetons ; POST `{ name, permissions, applicationIds?, expiresInDays? }` (30, 90 ou 365, `null` sans échéance ; 90 par défaut) rend le jeton **une seule fois**. Une permission que l'auteur n'a pas : `403`. 25 jetons en service au plus |
@@ -244,7 +250,7 @@ temps réel ne lui porte ni la discussion ni la présence.
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/settings` | GET / PATCH | `settings:read` / `settings:manage` — **une seule route pour toutes les sections**. `ssoClientSecret` suit la convention d'`aiApiKey` (absent : inchangé, `null` : effacé) ; la lecture rend `ssoClientSecretConfigured` et `ssoStatus` (`active`, `error`, `callbackUrl`) — jamais le secret. Un rôle inconnu dans `sso.roleMappings` ou `sso.defaultRole` : 422 |
+| `/api/settings` | GET / PATCH | `settings:read` / `settings:manage` — **une seule route pour toutes les sections**. `ssoClientSecret` suit la convention d'`aiApiKey` (absent : inchangé, `null` : effacé) ; la lecture rend `ssoClientSecretConfigured` et `ssoStatus` (`active`, `error`, `callbackUrl`) — jamais le secret. Un rôle inconnu dans `sso.roleMappings` ou `sso.defaultRole` : 422. `accounts` : `twoFactorPolicy` (`off`, `sensitive`, `all`), `sessionIdleHours` (1, 8, 24, 168, 720), `sessionMaxHours` (24, 168, 720 ou `null`) ; une politique qui exigerait de son auteur un second facteur qu'il n'a pas : `409 two_factor_self` |
 | `/api/settings/sso/check` | POST | `settings:manage`, depuis le panel — « Tester » : `{ issuer }` → `{ ok, issuer, endpoints }` ou `{ ok: false, error }`, sans rien enregistrer |
 | `/api/notifications/channels` | GET / POST | `settings:read` / `settings:manage` |
 | `/api/notifications/channels/:id` | GET / PATCH / DELETE | `settings:read` / `settings:manage` / `settings:manage` |

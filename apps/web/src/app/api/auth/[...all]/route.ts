@@ -25,6 +25,14 @@ const SIGN_OUT = '/api/auth/sign-out';
 /** Second facteur : la connexion ne s'achève qu'ici quand le compte en porte un. */
 const VERIFY_TOTP = '/api/auth/two-factor/verify-totp';
 const VERIFY_BACKUP_CODE = '/api/auth/two-factor/verify-backup-code';
+/**
+ * Le reste du plugin `twoFactor` — activer, désactiver, régénérer les codes de
+ * secours — passe par `/api/account/two-factor/*`, qui écrit au journal et
+ * refuse de retirer un second facteur que le rôle exige. Ouvertes ici, ces
+ * routes contourneraient l'un et l'autre : seules les deux vérifications de la
+ * connexion restent joignables.
+ */
+const TWO_FACTOR_PREFIX = '/api/auth/two-factor/';
 /** Le retour du fournisseur d'identité. Une réussite est tracée par Better Auth (`afterSsoSignIn`). */
 const SSO_CALLBACK = '/api/auth/callback/';
 
@@ -57,6 +65,17 @@ async function handle(request: Request): Promise<Response> {
       action: 'auth.admin_route.refused',
       resourceType: 'request',
       resourceId: path.slice(ADMIN_PREFIX.length) || null,
+      after: { method: request.method },
+      ip,
+    });
+    return NextResponse.json({ error: { code: 'NOT_FOUND' } }, { status: 404 });
+  }
+
+  if (path.startsWith(TWO_FACTOR_PREFIX) && !isSecondFactor) {
+    await logAudit({
+      action: 'auth.two_factor_route.refused',
+      resourceType: 'request',
+      resourceId: path.slice(TWO_FACTOR_PREFIX.length) || null,
       after: { method: request.method },
       ip,
     });

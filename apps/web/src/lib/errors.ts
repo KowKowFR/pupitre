@@ -141,6 +141,17 @@ export class NoAccessError extends HttpError {
   }
 }
 
+/**
+ * La politique de l'instance exige un second facteur de ce compte, et il n'en
+ * a pas : 403 partout, sauf sur « Mon compte », où il s'active.
+ */
+export class TwoFactorRequiredError extends HttpError {
+  constructor(message: string | MessageRef = msg(errors, 'two_factor_required')) {
+    super(403, 'two_factor_required', message);
+    this.name = 'TwoFactorRequiredError';
+  }
+}
+
 /** Compte désactivé : 403, quelle que soit la permission demandée. */
 export class AccountDisabledError extends HttpError {
   constructor(message: string | MessageRef = msg(errors, 'account_disabled')) {

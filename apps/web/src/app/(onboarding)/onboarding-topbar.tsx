@@ -19,9 +19,10 @@ export function OnboardingTopbar({
     <header className="sticky top-0 z-30 border-b border-border-subtle bg-surface">
       <div className="flex h-14 items-center gap-2.5 px-6">
         <BrandMark size={26} />
-        <span className="text-[14px] font-semibold text-text">{instanceName}</span>
-        <span className="t-sm text-text-3">{eyebrow}</span>
-        <span className="ml-auto flex items-center gap-3">{children}</span>
+        <span className="min-w-0 truncate text-[14px] font-semibold text-text">{instanceName}</span>
+        {/* Sur un téléphone, la marque et le nom suffisent : la place va aux actions. */}
+        <span className="t-sm hidden shrink-0 text-text-3 sm:inline">{eyebrow}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-3">{children}</span>
       </div>
     </header>
   );

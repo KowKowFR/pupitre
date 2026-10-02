@@ -32,4 +32,8 @@ export async function register(): Promise<void> {
   // bloque pas le démarrage — l'écran de connexion retentera.
   const { refreshSso } = await import('./lib/sso');
   await refreshSso().catch(() => undefined);
+
+  // La durée des sessions se règle aussi depuis le panel.
+  const { refreshSessionPolicy } = await import('./lib/session-policy');
+  await refreshSessionPolicy();
 }

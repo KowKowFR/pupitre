@@ -63,6 +63,11 @@ export default async function SettingsOverviewPage() {
     completed: t('onboarding.status.completed'),
   } as const;
 
+  const duration = (hours: number) =>
+    hours % 24 === 0
+      ? t('accounts.days', { count: hours / 24 })
+      : t('accounts.hours', { count: hours });
+
   const readouts: Record<string, { term: string; value: ReactNode }[]> = {
     '/admin/settings/identite': [
       { term: t('overview.term.name'), value: settings.instanceName },
@@ -112,6 +117,23 @@ export default async function SettingsOverviewPage() {
       {
         term: t('overview.term.ssoProvider'),
         value: settings.sso.issuer ? <span className="mono">{settings.sso.label}</span> : '—',
+      },
+    ],
+    '/admin/settings/comptes': [
+      {
+        term: t('overview.term.twoFactorPolicy'),
+        value: t(`accounts.state.${settings.accounts.twoFactorPolicy}`),
+      },
+      {
+        term: t('overview.term.sessionIdle'),
+        value: duration(settings.accounts.sessionIdleHours),
+      },
+      {
+        term: t('overview.term.sessionMax'),
+        value:
+          settings.accounts.sessionMaxHours === null
+            ? t('accounts.max.never')
+            : duration(settings.accounts.sessionMaxHours),
       },
     ],
     '/admin/settings/notifications': [
@@ -169,6 +191,13 @@ export default async function SettingsOverviewPage() {
   };
 
   const badges: Record<string, ReactNode> = {
+    '/admin/settings/comptes': (
+      <Badge variant={settings.accounts.twoFactorPolicy === 'off' ? 'idle' : 'ok'} dot>
+        {settings.accounts.twoFactorPolicy === 'off'
+          ? t('overview.badge.twoFactorOff')
+          : t('overview.badge.twoFactorOn')}
+      </Badge>
+    ),
     '/admin/settings/securite': (
       <Badge variant={settings.security.scanningEnabled ? 'ok' : 'danger'} dot>
         {settings.security.scanningEnabled ? t('security.badge.on') : t('security.badge.off')}

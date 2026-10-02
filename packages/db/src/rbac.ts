@@ -7,11 +7,11 @@ import {
   type Permission,
   type RoleKey,
 } from '@pupitre/core';
-import { asc, count, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { permissions, rolePermissions, roles, userRoles } from './schema/rbac.js';
-import { users } from './schema/auth.js';
+import { accounts, users } from './schema/auth.js';
 
 /**
  * Rôles et permissions.
@@ -125,6 +125,53 @@ export async function listRolesWithPermissions(
     ...role,
     permissions: (byRole.get(role.id) ?? []).sort(),
     userCount: userCounts.get(role.id) ?? 0,
+  }));
+}
+
+/** Ce que la politique du second facteur doit savoir d'un compte actif. */
+export type TwoFactorExposure = {
+  userId: string;
+  twoFactorEnabled: boolean;
+  /** Sans mot de passe, le compte n'entre que par la connexion unique. */
+  hasPassword: boolean;
+  permissions: Permission[];
+};
+
+/**
+ * Les comptes actifs, leur second facteur et leurs permissions effectives : de
+ * quoi dire, avant de l'enregistrer, qui une politique tiendrait à l'écart.
+ */
+export async function listTwoFactorExposure(db: Database = getDb()): Promise<TwoFactorExposure[]> {
+  const [active, grants, passwords] = await Promise.all([
+    db
+      .select({ id: users.id, twoFactorEnabled: users.twoFactorEnabled })
+      .from(users)
+      .where(eq(users.banned, false)),
+    db
+      .select({ userId: userRoles.userId, key: permissions.key })
+      .from(userRoles)
+      .innerJoin(rolePermissions, eq(rolePermissions.roleId, userRoles.roleId))
+      .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId)),
+    db
+      .select({ userId: accounts.userId })
+      .from(accounts)
+      .where(and(eq(accounts.providerId, 'credential'), isNotNull(accounts.password))),
+  ]);
+
+  const byUser = new Map<string, Set<Permission>>();
+  for (const row of grants) {
+    if (!isPermission(row.key)) continue;
+    const bucket = byUser.get(row.userId) ?? new Set<Permission>();
+    bucket.add(row.key);
+    byUser.set(row.userId, bucket);
+  }
+  const withPassword = new Set(passwords.map((row) => row.userId));
+
+  return active.map((user) => ({
+    userId: user.id,
+    twoFactorEnabled: user.twoFactorEnabled,
+    hasPassword: withPassword.has(user.id),
+    permissions: [...(byUser.get(user.id) ?? [])],
   }));
 }
 

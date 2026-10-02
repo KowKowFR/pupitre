@@ -81,6 +81,17 @@ const fr = {
   'twoFactor.disabling': 'Désactivation…',
   'twoFactor.disabled':
     'Second facteur désactivé. La connexion ne demande plus que le mot de passe.',
+  'twoFactor.badge.required': 'exigé',
+
+  // ── L'activation exigée (`/two-factor-setup`) ──────────────────────────
+  'enroll.meta.title': 'Second facteur exigé — Pupitre',
+  'enroll.eyebrow': 'Second facteur',
+  'enroll.title': 'Votre rôle exige un second facteur',
+  'enroll.description':
+    'L’instance le demande avant d’ouvrir le panel. Activez-le ici : vous arrivez sur le panel aussitôt après.',
+  'enroll.logout': 'Se déconnecter',
+  'twoFactor.locked.body':
+    'Votre rôle l’exige : il ne se désactive pas. Appareil perdu ? Un administrateur peut le réinitialiser, et vous le réactiverez à la connexion suivante.',
 
   // ── L'activation, étape par étape ───────────────────────────────────────
   'setup.scan':
@@ -125,7 +136,11 @@ const fr = {
 
   'sessions.title': 'Sessions ouvertes',
   'sessions.description':
-    'Les navigateurs connectés à votre compte. Une session sans activité expire au bout de sept jours.',
+    'Les navigateurs connectés à votre compte. Une session sans activité expire au bout de {idle}.',
+  'sessions.description.max':
+    'Les navigateurs connectés à votre compte. Une session sans activité expire au bout de {idle}, et toute session au bout de {max}.',
+  'sessions.hours': { one: '{count} heure', other: '{count} heures' },
+  'sessions.days': { one: '{count} jour', other: '{count} jours' },
   'sessions.lastSignIn': 'Dernière connexion',
   'sessions.badge.current': 'cette session',
   'sessions.activeNow': 'active maintenant',
@@ -233,6 +248,16 @@ const en: Translated<typeof fr> = {
     'Every sign-in asks for a code. To drop this factor, confirm with your password.',
   'twoFactor.disabling': 'Disabling…',
   'twoFactor.disabled': 'Second factor off. Signing in asks for the password only.',
+  'twoFactor.badge.required': 'required',
+
+  'enroll.meta.title': 'Second factor required — Pupitre',
+  'enroll.eyebrow': 'Second factor',
+  'enroll.title': 'Your role requires a second factor',
+  'enroll.description':
+    'This instance asks for it before opening the panel. Turn it on here: you land on the panel right after.',
+  'enroll.logout': 'Sign out',
+  'twoFactor.locked.body':
+    'Your role requires it: it cannot be turned off. Lost your device? An administrator can reset it, and you will turn it back on at your next sign-in.',
 
   'setup.scan': 'Scan this code, or type the key by hand if your app cannot read a QR.',
   'setup.key': 'Setup key',
@@ -268,7 +293,11 @@ const en: Translated<typeof fr> = {
 
   'sessions.title': 'Open sessions',
   'sessions.description':
-    'The browsers signed in to your account. A session with no activity expires after seven days.',
+    'The browsers signed in to your account. A session with no activity expires after {idle}.',
+  'sessions.description.max':
+    'The browsers signed in to your account. A session with no activity expires after {idle}, and any session after {max}.',
+  'sessions.hours': { one: '{count} hour', other: '{count} hours' },
+  'sessions.days': { one: '{count} day', other: '{count} days' },
   'sessions.lastSignIn': 'Last sign-in',
   'sessions.badge.current': 'this session',
   'sessions.activeNow': 'active now',

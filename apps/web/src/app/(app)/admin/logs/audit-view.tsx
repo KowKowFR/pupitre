@@ -64,9 +64,10 @@ const DENIAL_ACTIONS = new Set([
   'permission.denied',
   'auth.login.failed',
   'auth.signup.blocked',
-  // Une écriture venue d'une autre origine, une route d'administration de Better Auth fermée.
+  // Une écriture venue d'une autre origine, une route de Better Auth fermée.
   'request.cross_site.refused',
   'auth.admin_route.refused',
+  'auth.two_factor_route.refused',
 ]);
 
 /**

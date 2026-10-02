@@ -39,6 +39,7 @@ import { getEnv } from './env';
 import { clientIp } from './http';
 import { PASSWORD_MIN_LENGTH } from './password-policy';
 import { logger } from './logger';
+import { sessionPolicy, type SessionPolicy } from './session-policy';
 import { peekSsoGroups, rememberSsoGroups, ssoState, takeSsoGroups, type SsoRuntime } from './sso';
 
 /**
@@ -217,7 +218,7 @@ async function afterSsoSignIn(
   });
 }
 
-function buildAuth(sso: SsoRuntime | null) {
+function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
   const env = getEnv();
 
   return betterAuth({
@@ -408,9 +409,17 @@ function buildAuth(sso: SsoRuntime | null) {
       },
     },
 
+    /**
+     * La durée sans activité se règle dans les paramètres (« Comptes et
+     * sessions »). Better Auth prolonge une session utilisée quand son
+     * dernier prolongement date de plus de `updateAge` : il doit donc rester
+     * bien en deçà de la durée elle-même — sinon une session d'une heure
+     * expirerait au bout d'une heure, active ou non. Le plafond absolu, lui,
+     * est tenu par `requireSession()`.
+     */
     session: {
-      expiresIn: 60 * 60 * 24 * 7,
-      updateAge: 60 * 60 * 24,
+      expiresIn: sessionLimits.idleSeconds,
+      updateAge: Math.min(60 * 60 * 24, Math.floor(sessionLimits.idleSeconds / 4)),
     },
 
     /**
@@ -573,10 +582,11 @@ const MODULE_LOAD = Math.random().toString(36).slice(2);
  */
 export function getAuth(): Auth {
   const sso = ssoState().runtime;
-  const key = `${MODULE_LOAD}:${sso?.key ?? 'sans-sso'}`;
+  const limits = sessionPolicy();
+  const key = `${MODULE_LOAD}:${sso?.key ?? 'sans-sso'}:${limits.idleSeconds}`;
   const cached = globalThis.__pupitreAuth;
   if (cached?.key === key) return cached.auth;
-  const auth = buildAuth(sso);
+  const auth = buildAuth(sso, limits);
   globalThis.__pupitreAuth = { key, auth };
   return auth;
 }

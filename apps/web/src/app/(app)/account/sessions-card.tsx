@@ -48,7 +48,14 @@ function DeviceIcon({ device }: { device: string | null }) {
   );
 }
 
-export function SessionsCard({ sessions }: { sessions: SessionRow[] }) {
+/** `description` : la durée des sessions, réglée pour l'instance, dite en clair par la page. */
+export function SessionsCard({
+  sessions,
+  description,
+}: {
+  sessions: SessionRow[];
+  description: string;
+}) {
   const t = useT(messages);
   const router = useRouter();
   const [target, setTarget] = useState<Target | null>(null);
@@ -113,7 +120,7 @@ export function SessionsCard({ sessions }: { sessions: SessionRow[] }) {
         }
       >
         <CardTitle>{t('sessions.title')}</CardTitle>
-        <CardDescription>{t('sessions.description')}</CardDescription>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <ul className="list">
         {sessions.map((session) => (

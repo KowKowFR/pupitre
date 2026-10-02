@@ -64,6 +64,11 @@ export default async function AccountPage() {
       ])
     : null;
   const roleLabels = auth.roles.map((key) => roles.find((role) => role.key === key)?.label ?? key);
+  const duration = (hours: number) =>
+    hours % 24 === 0
+      ? t('sessions.days', { count: hours / 24 })
+      : t('sessions.hours', { count: hours });
+  const { sessionIdleHours, sessionMaxHours } = settings.accounts;
 
   return (
     <>
@@ -118,10 +123,18 @@ export default async function AccountPage() {
       {/* Deux cartes de même hauteur : pas de vide sous la plus courte. */}
       <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
         <PasswordForm />
-        <TwoFactorPanel enabled={twoFactorEnabled} />
+        <TwoFactorPanel enabled={twoFactorEnabled} required={auth.twoFactor.required} />
       </div>
 
       <SessionsCard
+        description={
+          sessionMaxHours === null
+            ? t('sessions.description', { idle: duration(sessionIdleHours) })
+            : t('sessions.description.max', {
+                idle: duration(sessionIdleHours),
+                max: duration(sessionMaxHours),
+              })
+        }
         sessions={sessions.map((session) => ({
           id: session.id,
           current: session.current,
