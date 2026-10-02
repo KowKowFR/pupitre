@@ -230,7 +230,7 @@ serveur mal configuré.
 C'est **la seule voie e-mail de l'instance** : il n'existe aucun réglage SMTP
 global ailleurs.
 
-### Les quinze événements
+### Les seize événements
 
 Tous dérivés du journal d'activité :
 
@@ -241,6 +241,7 @@ Tous dérivés du journal d'activité :
 | `deployment.rolled_back` | warning | `deployment.rolled_back.automatic` |
 | `security.two_factor_reset` | warning | `user.2fa.reset` |
 | `security.role_changed` | warning | `user.role.changed` |
+| `security.api_token_created` | info | `api_token.created` — un jeton d'API créé : son nom, son préfixe, ce qu'il couvre, jamais le jeton |
 | `security.signup_pending` | info | `user.created` avec le rôle `no-access` — une inscription publique attend qu'on lui choisisse un rôle |
 | `security.host_key_changed` | critical | `target.host_key.mismatch` — une cible présente une autre clé d'hôte, une fois par clé |
 | `monitor.down` | critical | `monitor.down` |

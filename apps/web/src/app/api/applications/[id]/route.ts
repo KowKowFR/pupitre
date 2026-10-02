@@ -14,7 +14,7 @@ import { applications as messages } from '@/i18n/messages/applications';
 import { currentLanguage } from '@/i18n/server';
 import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
-import { requirePermission } from '@/lib/rbac';
+import { requireApplicationScope, requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,8 +23,9 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 export const GET = apiRoute<Context>(async (request, context) => {
-  await requirePermission(request, 'application:read');
+  const auth = await requirePermission(request, 'application:read', { applicationScoped: true });
   const { id } = paramsSchema.parse(await context.params);
+  await requireApplicationScope(request, auth, id);
 
   const application = await getApplication(id);
   if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));

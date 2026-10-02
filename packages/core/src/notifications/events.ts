@@ -28,6 +28,7 @@ import { SIGNUP_ROLE } from '../permissions.js';
  *   security.two_factor_reset une protection de compte a été levée
  *   security.role_changed     quelqu'un a gagné ou perdu des droits
  *   security.signup_pending   un compte s'est inscrit et attend qu'on lui choisisse un rôle
+ *   security.api_token_created un jeton d'API a été créé : un accès qui agit sans navigateur
  *   security.host_key_changed une cible présente une autre clé d'hôte : connexion refusée
  *   monitor.down              un site supervisé est tombé, panne confirmée
  *   monitor.recovered         ce site est revenu
@@ -90,6 +91,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'security.two_factor_reset',
   'security.role_changed',
   'security.signup_pending',
+  'security.api_token_created',
   'security.host_key_changed',
   'monitor.down',
   'monitor.recovered',
@@ -254,6 +256,22 @@ const fr = {
     'Le compte {account} vient d’être créé par l’inscription publique. Il n’a accès à rien ' +
     'tant qu’un administrateur ne lui a pas attribué de rôle.',
   'security.signup_pending.summary': 'en attente d’un rôle',
+
+  // ── security.api_token_created ─────────────────────────────────────────
+  'security.api_token_created.label': 'Jeton d’API créé',
+  'security.api_token_created.description':
+    'Quelqu’un a créé un jeton d’API : un accès qui agit en son nom, sans navigateur ni second facteur.',
+  'security.api_token_created.rationale':
+    'Un jeton fuit plus facilement qu’une session — dans un dépôt, un journal de CI. ' +
+    'Le voir naître, c’est savoir qu’il existe le jour où il faudra le couper.',
+  'security.api_token_created.title': 'Jeton d’API « {name} » créé',
+  'security.api_token_created.body':
+    'Le compte {account} a créé le jeton « {name} » : {permissions} permission(s), {applications}.',
+  'security.api_token_created.allApplications': 'toutes les applications',
+  'security.api_token_created.someApplications': '{count} application(s)',
+  'security.api_token_created.noExpiry': 'sans échéance',
+  'field.token': 'Jeton',
+  'field.expires': 'Échéance',
 
   // ── security.host_key_changed ──────────────────────────────────────────
   'security.host_key_changed.label': 'Clé d’hôte d’une cible changée',
@@ -528,6 +546,21 @@ const en: Translated<typeof fr> = {
     'Account {account} was just created through public sign-up. It can reach nothing until ' +
     'an administrator assigns it a role.',
   'security.signup_pending.summary': 'awaiting a role',
+
+  'security.api_token_created.label': 'API token created',
+  'security.api_token_created.description':
+    'Someone created an API token: access that acts on their behalf, without a browser or second factor.',
+  'security.api_token_created.rationale':
+    'A token leaks more easily than a session — into a repository, a CI log. ' +
+    'Seeing it appear means knowing it exists on the day it has to be cut off.',
+  'security.api_token_created.title': 'API token “{name}” created',
+  'security.api_token_created.body':
+    'Account {account} created token “{name}”: {permissions} permission(s), {applications}.',
+  'security.api_token_created.allApplications': 'all applications',
+  'security.api_token_created.someApplications': '{count} application(s)',
+  'security.api_token_created.noExpiry': 'no expiry',
+  'field.token': 'Token',
+  'field.expires': 'Expiry',
 
   'security.host_key_changed.label': 'Target host key changed',
   'security.host_key_changed.description':
@@ -1083,6 +1116,45 @@ const CATALOG = {
         path: '/admin/users',
         summary: t(lang, 'security.summary', { account }),
         summaryDetail: t(lang, 'security.signup_pending.summary'),
+      };
+    },
+  },
+  'security.api_token_created': {
+    key: 'security.api_token_created',
+    severity: 'info',
+    auditAction: 'api_token.created',
+    digestPath: '/admin/users',
+    matches: () => true,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const account = text(after.ownerEmail, ctx.actor ?? '?');
+      const name = text(after.name, '?');
+      const permissions = Array.isArray(after.permissions) ? after.permissions.length : 0;
+      const applications = Array.isArray(after.applicationIds)
+        ? t(lang, 'security.api_token_created.someApplications', {
+            count: after.applicationIds.length,
+          })
+        : t(lang, 'security.api_token_created.allApplications');
+      return {
+        title: t(lang, 'security.api_token_created.title', { name }),
+        body: t(lang, 'security.api_token_created.body', {
+          account,
+          name,
+          permissions,
+          applications,
+        }),
+        fields: fieldsOf([
+          [t(lang, 'field.account'), account],
+          [t(lang, 'field.token'), optional(after.prefix)],
+          [
+            t(lang, 'field.expires'),
+            optional(after.expiresAt) ?? t(lang, 'security.api_token_created.noExpiry'),
+          ],
+        ]),
+        path: '/admin/users',
+        summary: t(lang, 'security.summary', { account }),
+        summaryDetail: name,
       };
     },
   },

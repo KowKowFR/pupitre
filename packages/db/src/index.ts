@@ -2,6 +2,7 @@ export * from './schema/index.js';
 export * from './client.js';
 export * from './audit.js';
 export * from './rbac.js';
+export * from './api-tokens.js';
 export * from './targets.js';
 export * from './applications.js';
 export * from './application-secrets.js';

@@ -62,6 +62,7 @@ avant la ponctuation double. Les apostrophes anglaises sont `’`, pas `'`.
 | étape | step | stage |
 | rôle / permission | role / permission | — |
 | clé d'API | API key | token |
+| jeton d'API *(l'accès d'une CI au panel ; la clé d'API reste celle d'un fournisseur d'IA)* | API token | key, PAT |
 | second facteur | second factor | 2FA *(sauf en libellé court)* |
 | canal (de notification) | channel | destination |
 | résumé (digest) | digest | summary *(réservé à « récapitulatif »)* |

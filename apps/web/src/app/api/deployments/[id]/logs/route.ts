@@ -13,7 +13,7 @@ import { deployments as messages } from '@/i18n/messages/deployments';
 import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { logger } from '@/lib/logger';
-import { requirePermission } from '@/lib/rbac';
+import { requireApplicationScope, requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,11 +37,12 @@ const HEARTBEAT_MS = 15_000;
  * Lire l'historique après avoir vidé la file le doublonnerait.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
-  await requirePermission(request, 'deployment:read');
+  const auth = await requirePermission(request, 'deployment:read', { applicationScoped: true });
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
   if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
+  await requireApplicationScope(request, auth, deployment.applicationId);
 
   const channel = deployChannel(id);
   const encoder = new TextEncoder();

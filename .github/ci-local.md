@@ -145,7 +145,7 @@ Sur son poste, ces neuf scripts se lancent contre la stack habituelle :
 ```bash
 docker compose up -d --wait
 docker compose --profile test up -d mailpit
-for s in rbac-audit onboarding roles account 2fa-reset settings schedules notifications monitors; do
+for s in rbac-audit onboarding roles api-tokens account 2fa-reset settings schedules notifications monitors; do
   ./scripts/verify-$s.sh || echo "ÉCHEC : verify-$s.sh"
 done
 ```

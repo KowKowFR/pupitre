@@ -148,6 +148,8 @@ jobs:
           motifs="$motifs"'|sk-proj-[A-Za-z0-9_-]{40,}'
           motifs="$motifs"'|gh[pousr]_[A-Za-z0-9]{30,}'
           motifs="$motifs"'|AKIA[0-9A-Z]{16}'
+          # Les jetons d'API de Pupitre : `pup_` et 43 caractères base64url.
+          motifs="$motifs"'|pup_[A-Za-z0-9_-]{43}'
           trouve=$(git grep -nIE "$motifs" -- . ':(exclude)pnpm-lock.yaml' || true)
           if [ -n "$trouve" ]; then
             while IFS= read -r ligne; do

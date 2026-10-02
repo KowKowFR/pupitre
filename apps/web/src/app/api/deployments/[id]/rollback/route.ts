@@ -6,7 +6,7 @@ import { deployments as messages } from '@/i18n/messages/deployments';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
 import { getOpsQueue } from '@/lib/queue';
-import { requirePermission } from '@/lib/rbac';
+import { requireApplicationScope, requirePermission } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,11 +16,14 @@ type Context = { params: Promise<{ id: string }> };
 
 /** Redéploie la version précédente. Le travail réel appartient au worker. */
 export const POST = apiRoute<Context>(async (request, context) => {
-  const auth = await requirePermission(request, 'deployment:rollback');
+  const auth = await requirePermission(request, 'deployment:rollback', {
+    applicationScoped: true,
+  });
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
   if (!deployment) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
+  await requireApplicationScope(request, auth, deployment.applicationId);
 
   if (!deployment.previousDeploymentId) {
     throw new ConflictError(msg(messages, 'error.noPrevious'));

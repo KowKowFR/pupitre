@@ -264,6 +264,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Machines cibles, preflight, charges distantes, suppression et purge | [`docs/exploitation.md`](docs/exploitation.md) |
 | Reverse proxy (Traefik ou BunkerWeb repris ou installés, Nginx Proxy Manager connecté par son API), domaines et certificats Let's Encrypt au déploiement | [`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines) |
 | Sauvegardes chiffrées vers S3, SFTP ou un dossier monté, restauration, reprise après sinistre | [`docs/exploitation.md`](docs/exploitation.md#sauvegardes) |
+| Déployer depuis une CI (GitHub Actions, GitLab CI) avec un jeton d'API limité à ses applications | [`docs/exploitation.md`](docs/exploitation.md#déployer-depuis-une-ci) |
 | RBAC (34 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Scanners Trivy / Grype / Syft et politique de blocage | [`docs/securite.md`](docs/securite.md#scanners-de-sécurité) |
 | Sondes HTTP et TLS, métriques d'hôte, notifications, tâches planifiées | [`docs/supervision.md`](docs/supervision.md) |

@@ -156,6 +156,28 @@ describe('notifications — la table des événements', () => {
     assert.equal(message.url, 'https://panel.example.test/admin/users');
   });
 
+  it('un jeton d’API créé prévient, sans jamais porter le jeton', () => {
+    const created = entry({
+      action: 'api_token.created',
+      resourceType: 'api_token',
+      after: {
+        name: 'CI GitHub',
+        prefix: 'pup_AbCdEfGh',
+        ownerEmail: 'camille@example.test',
+        permissions: ['deployment:create', 'deployment:read'],
+        applicationIds: ['22222222-2222-2222-2222-222222222222'],
+        expiresAt: null,
+      },
+    });
+    assert.equal(notifiableEventFor(created), 'security.api_token_created');
+    const message = buildNotificationMessage('security.api_token_created', created, CTX);
+    notificationMessageSchema.parse(message);
+    assert.ok(message.title.includes('CI GitHub'));
+    assert.ok(message.body.includes('camille@example.test'));
+    assert.ok(message.body.includes('2 permission'));
+    assert.ok(message.fields.some((field) => field.value === 'pup_AbCdEfGh'));
+  });
+
   it('une clé d’hôte inattendue sur une cible prévient, et nomme les deux clés', () => {
     const mismatch = entry({
       action: 'target.host_key.mismatch',

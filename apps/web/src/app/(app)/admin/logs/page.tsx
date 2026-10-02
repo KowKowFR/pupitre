@@ -81,6 +81,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
           resourceId: item.resourceId,
           ip: item.ip,
           userAgent: item.userAgent,
+          apiTokenName: item.apiTokenName,
           before: item.before,
           after: item.after,
         }))}

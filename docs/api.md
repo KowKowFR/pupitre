@@ -7,7 +7,20 @@ navigateur envoie depuis une autre origine que `BETTER_AUTH_URL` est refusée
 avant tout (`403 cross_site_request`) — voir
 [`securite.md`](securite.md#une-écriture-vient-du-panel-ou-elle-est-refusée).
 
-« session » veut dire : authentifié, sans permission particulière.
+« session » veut dire : authentifié **par le navigateur**, sans permission
+particulière.
+
+**Une CI s'authentifie par un jeton d'API** — `Authorization: Bearer pup_…`,
+créé depuis « Mon compte ». Il agit au nom de son auteur, avec les permissions
+qu'on lui a données parmi les siennes, relues à chaque appel. Il est accepté
+par toute route gardée par une permission, et refusé (`403 token_refused`) par
+celles qui ne demandent qu'une session : compte, discussion, présence, gestion
+des jetons. Il n'ouvre pas l'interface. Limité à des applications, il n'est
+accepté que par les routes marquées ⓐ ci-dessous, qui vérifient l'application
+visée ; toutes les autres le refusent (`403 token_scope`). Révoqué, échu ou
+inconnu : `401 token_revoked`, `token_expired`, `token_invalid`. Voir
+[`securite.md`](securite.md#jetons-dapi) et
+[`exploitation.md`](exploitation.md#déployer-depuis-une-ci).
 
 ## Pages
 
@@ -75,6 +88,8 @@ la navigation métier.
 | `/api/account/two-factor/disable` | POST | session |
 | `/api/account/avatar` | PUT / DELETE | session — le corps **est** l'image (`content-type: image/…`), 512 Kio au plus, recadrée par le navigateur ; format et dimensions relus dans les octets |
 | `/api/users/:id/avatar` | GET | session — immuable avec `?v=`, l'URL que porte `users.image` |
+| `/api/tokens` | GET / POST | membre de l'équipe¹, depuis le panel — ses jetons ; POST `{ name, permissions, applicationIds?, expiresInDays? }` (30, 90 ou 365, `null` sans échéance ; 90 par défaut) rend le jeton **une seule fois**. Une permission que l'auteur n'a pas : `403`. 25 jetons en service au plus |
+| `/api/tokens/:id` | DELETE | le sien, ou `user:manage` — révoque ; le jeton reste en base, révoqué |
 
 ### Utilisateurs et rôles
 
@@ -88,6 +103,7 @@ la navigation métier.
 | `/api/admin/users/:id/avatar` | DELETE | `user:manage` — modération d'une photo, tracée à l'audit |
 | `/api/admin/roles` | GET / POST | `role:read` / `role:manage` |
 | `/api/admin/roles/:key` | GET / PATCH / DELETE | `role:read` / `role:manage` / `role:manage` |
+| `/api/admin/tokens` | GET | `user:read`, depuis le panel — tous les jetons de l'instance, avec leur auteur |
 
 ### Cibles
 
@@ -127,9 +143,9 @@ la navigation métier.
 | `/api/applications/:id/sources` | GET / POST | `application:read` / `application:update` — les branches suivies ; POST relie une branche : `deployTo` (`targets` · `running` · `none`), cibles exigées pour `targets` |
 | `/api/applications/:id/sources/:sourceId` | PATCH / DELETE | `application:update` — 422 si `deployTo: targets` sans cible |
 | `/api/integrations/github/specs` | GET | `application:create` — les `pupitre.json` d'une branche (`repository`, `installationId`, `branch` facultative), avec le commit lu |
-| `/api/applications/:id` | GET / PATCH / DELETE | `application:read` / `application:update` / `application:delete` |
+| `/api/applications/:id` | GET / PATCH / DELETE | `application:read` ⓐ / `application:update` / `application:delete` |
 | `/api/applications/:id/cascade` | GET / POST | GET : `application:delete` · POST : **union** `deployment:destroy` + `deployment:purge` + `application:delete` |
-| `/api/applications/:id/redeploy` | POST | `deployment:create` |
+| `/api/applications/:id/redeploy` | POST | `deployment:create` ⓐ |
 | `/api/applications/:id/images` | GET | `application:read` — dernier constat des images, cible par cible |
 | `/api/applications/:id/images/check` | POST | `application:read` — « Vérifier maintenant », par la file, 6 par minute |
 | `/api/applications/:id/versions` | GET | `application:read` |
@@ -143,12 +159,12 @@ la navigation métier.
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` (+ `scan:configure` si un `scanConfig` est fourni ; un `backup` n'est retenu qu'avec `backup:manage`, et seulement si l'application n'a pas encore de politique ; `domains` remplace les domaines de l'application sur la cible avant le déploiement) |
-| `/api/deployments/:id` | GET / DELETE | `deployment:read` / **`deployment:destroy`** |
+| `/api/deployments` | GET / POST | `deployment:read` / `deployment:create` ⓐ (+ `scan:configure` si un `scanConfig` est fourni ; un `backup` n'est retenu qu'avec `backup:manage`, et seulement si l'application n'a pas encore de politique ; `domains` remplace les domaines de l'application sur la cible avant le déploiement ; `images` — `{ "web": "ghcr.io/acme/web:4f2c1e9" }` — remplace l'image de ces services et enregistre l'AppSpec, avec **`application:update`** en plus, refusé pour une application liée à un dépôt) |
+| `/api/deployments/:id` | GET / DELETE | `deployment:read` ⓐ / **`deployment:destroy`** |
 | `/api/deployments/:id/purge` | DELETE | **`deployment:purge`** |
 | `/api/deployments/purge` | POST | `deployment:purge` — en masse, `dryRun` compris |
-| `/api/deployments/:id/rollback` | POST | `deployment:rollback` |
-| `/api/deployments/:id/logs` | GET | `deployment:read` — **SSE**, historique puis direct |
+| `/api/deployments/:id/rollback` | POST | `deployment:rollback` ⓐ |
+| `/api/deployments/:id/logs` | GET | `deployment:read` ⓐ — **SSE**, historique puis direct |
 | `/api/deployments/:id/logs/export` | GET | `deployment:read` — texte ou JSONL |
 | `/api/deployments/:id/scans` | GET | `scan:read` |
 

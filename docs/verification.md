@@ -30,6 +30,7 @@ TARGET_NAME=ma-vm ./scripts/verify-purge.sh
 | Script | Ce qu'il établit |
 |---|---|
 | `verify-rbac-audit.sh` | un viewer se prend un `403` sur `POST /api/deployments`, et le refus apparaît dans les logs d'activité avec l'acteur **et l'IP derrière le reverse proxy** ; il lit les déploiements, mais pas le journal |
+| `verify-api-tokens.sh` | un jeton d'API n'est montré qu'une fois et gardé en empreinte ; il ouvre l'API dans ses permissions, pas l'interface ni la fabrique de jetons ; **il perd ce que perd son auteur** et disparaît avec lui ; limité à une application, il est refusé partout ailleurs, même sur une route de sa propre application qui ne vérifie pas la portée ; révoqué, échu, inconnu : 401 ; le journal nomme le jeton et ne le contient jamais. Sans cible — **37/37** au dernier passage |
 | `verify-targets-preflight.sh` | une cible est ajoutée avec une clé SSH, le preflight rapporte « Docker ✓ / K3s ✗ » sans recharger la page, le credential est illisible en base, et l'API ne le renvoie jamais — vérifié à toute profondeur du JSON |
 | `verify-roles.sh` | les rôles sont des données : on en crée un, on modifie ses permissions, `admin` refuse d'être touché, un rôle porté refuse d'être supprimé, et **le seed ne réécrit pas une personnalisation** au redémarrage |
 | `verify-account.sh` | mot de passe (l'ancien exigé, l'ancien meurt, les *autres* sessions tombent), TOTP en deux temps avec de vrais codes RFC 6238, un code de secours qui ne sert qu'une fois, et le secret absent de la base comme des logs |

@@ -12,7 +12,7 @@ n'écrivent de SQL, et les drivers n'ont pas le droit de connaître une table.
 | Domaine | Tables |
 |---|---|
 | Authentification | `users` `sessions` `accounts` `verifications` `two_factors` `user_avatars` |
-| RBAC | `roles` `permissions` `role_permissions` `user_roles` |
+| RBAC | `roles` `permissions` `role_permissions` `user_roles` `api_tokens` |
 | Infrastructure | `targets` `applications` `application_secrets` |
 | Dépôts liés | `source_connections` `application_sources` `application_source_targets` `source_proposals` |
 | Déploiement | `deployments` `deployment_steps` `port_allocations` `image_updates` |
@@ -137,7 +137,9 @@ le commit d'une branche liée et le commit dont l'application porte la version,
 décision, `0033_drop_deployment_proxy`, qui retire `deployments.proxy` — un
 reste du premier modèle, où le proxy se choisissait par déploiement —, et
 `0034_roles_auditor_no_access`, qui ajoute les rôles `auditor` et `no-access` à
-une base existante et resserre `viewer` s'il n'a jamais été modifié, se lisent dans
+une base existante et resserre `viewer` s'il n'a jamais été modifié, et
+`0035_api_tokens`, les jetons d'API (`api_tokens`, l'empreinte seule) et le jeton
+qui a porté chaque entrée du journal (`audit_logs.api_token_id`), se lisent dans
 `packages/db/migrations/`.
 
 ### Deux arbitrages qui se lisent dans le SQL

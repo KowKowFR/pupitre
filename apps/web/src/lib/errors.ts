@@ -90,6 +90,34 @@ export class UnauthenticatedError extends HttpError {
   }
 }
 
+/**
+ * Jeton d'API refusé — mal formé, inconnu, révoqué ou échu : 401, comme une
+ * session absente. Le code dit lequel, pour qu'une CI sache s'il faut en
+ * refaire un.
+ */
+export class InvalidApiTokenError extends HttpError {
+  constructor(reason: 'invalid' | 'revoked' | 'expired') {
+    super(401, `token_${reason}`, msg(errors, `token.${reason}`));
+    this.name = 'InvalidApiTokenError';
+  }
+}
+
+/**
+ * Jeton d'API valide, mais hors de sa portée : une route qui ne vérifie pas
+ * l'application visée, une application qu'il ne couvre pas, ou une route qui
+ * n'accepte que le panel.
+ */
+export class ApiTokenScopeError extends HttpError {
+  constructor(reason: 'scope' | 'application' | 'sessionOnly') {
+    super(
+      403,
+      reason === 'sessionOnly' ? 'token_refused' : 'token_scope',
+      msg(errors, `token.${reason}`),
+    );
+    this.name = 'ApiTokenScopeError';
+  }
+}
+
 /** Session valide mais permission manquante : 403. */
 export class ForbiddenError extends HttpError {
   constructor(

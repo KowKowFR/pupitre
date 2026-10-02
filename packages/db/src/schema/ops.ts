@@ -8,6 +8,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { scheduledJobTypeEnum, stepStatusEnum } from '../enums.js';
+import { apiTokens } from './api-tokens.js';
 import { users } from './auth.js';
 
 /**
@@ -31,6 +32,12 @@ export const auditLogs = pgTable(
      * `null` pour une action du worker, qui n'a pas de requête derrière elle.
      */
     userAgent: text('user_agent'),
+    /**
+     * Le jeton d'API par lequel l'acteur a agi, ou `null` pour une session de
+     * navigateur (et pour le worker). Renseigné par le contexte de la requête,
+     * comme le navigateur : aucun appel à `logAudit()` n'a à y penser.
+     */
+    apiTokenId: uuid('api_token_id').references(() => apiTokens.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

@@ -152,6 +152,48 @@ Garde-fous métier : impossible de retirer le rôle admin au dernier
 administrateur actif, de le désactiver, de le supprimer, ni d'agir sur son propre
 compte.
 
+### Jetons d'API
+
+Une CI ne tient pas de session : elle présente un **jeton d'API**,
+`Authorization: Bearer pup_…`, créé depuis « Mon compte ». `requirePermission()`
+l'accepte à la place d'une session ; c'est toujours le même point de contrôle,
+et le même audit.
+
+- **Il agit au nom de son auteur, jamais au-delà.** Ses permissions sont prises
+  parmi celles de l'auteur à la création (en demander une qu'on n'a pas est
+  refusé, pas réduit en silence), puis **intersectées à chaque appel** avec ce
+  que l'auteur peut aujourd'hui : un rôle retiré le réduit, un compte désactivé
+  le coupe, un compte supprimé l'emporte (`on delete cascade`).
+- **Il n'est gardé qu'en empreinte.** SHA-256 du jeton, rien d'autre : il porte
+  256 bits d'aléa, il n'y a rien à deviner, donc rien à ralentir. Il n'est montré
+  qu'une fois, à sa création. Son préfixe `pup_` le rend reconnaissable dans un
+  dépôt ou un journal de CI.
+- **Il ouvre l'API, pas le panel.** Les pages retirent l'en-tête `Authorization`
+  avant de lire la session. Les routes qui ne demandent qu'une session — son
+  compte, son mot de passe, la discussion, la présence, **ses jetons** — le
+  refusent (`403 token_refused`) : un jeton ne fabrique pas d'autres jetons.
+- **Limité à des applications, il échoue fermé.** Il n'est accepté que par les
+  routes qui se déclarent `applicationScoped` et vérifient ensuite l'application
+  visée (`requireApplicationScope()`) : déployer, suivre un déploiement et ses
+  journaux, revenir en arrière, lire l'application, redéployer une version.
+  Toute autre route le refuse, même sur sa propre application. Une route qui
+  oublierait de vérifier ne peut pas le laisser passer — elle ne l'accepte pas.
+  Un test (`apps/web/test/api-tokens.test.mjs`) fige la liste de ces routes et
+  vérifie que chacune contrôle l'application.
+- **Le journal dit quel jeton a agi.** `audit_logs.api_token_id` est renseigné
+  par le contexte de la requête, comme le navigateur : aucun appel à
+  `logAudit()` n'a à y penser. Le journal affiche « par le jeton « CI GitHub » ».
+  Créer un jeton écrit `api_token.created` (son préfixe, jamais le jeton) et
+  prévient par `security.api_token_created` ; le révoquer écrit
+  `api_token.revoked`.
+- **Échéance par défaut : 90 jours.** 30 jours, un an, ou sans échéance au choix.
+  Un administrateur voit tous les jetons de l'instance sur « Utilisateurs » et
+  peut en révoquer un (`user:manage`).
+
+Un jeton ne passe pas le second facteur : c'est la nature d'un accès sans
+navigateur. C'est pour cela qu'il se crée depuis une session — qui, elle, l'a
+passé —, qu'il est limité dans le temps par défaut, et que sa création prévient.
+
 ## Ce qui vient d'ailleurs que le panel
 
 ### Une écriture vient du panel, ou elle est refusée

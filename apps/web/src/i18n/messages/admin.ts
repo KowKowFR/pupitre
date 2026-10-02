@@ -237,6 +237,8 @@ const fr = {
   'logs.column.agent': 'Agent',
   /** Une action sans acteur : le worker, le scheduler, ou un visiteur non connecté. */
   'logs.anonymous': 'système / anonyme',
+  'logs.viaToken': 'par le jeton « {name} »',
+  'logs.column.token': 'Jeton d’API',
   'logs.denial': 'refus',
   'logs.row.open': "Ouvrir l'entrée {action}",
   'logs.drawer.kind': 'Entrée du journal',
@@ -472,6 +474,8 @@ const en: Translated<typeof fr> = {
   'logs.column.ip': 'IP',
   'logs.column.agent': 'Agent',
   'logs.anonymous': 'system / anonymous',
+  'logs.viaToken': 'through token “{name}”',
+  'logs.column.token': 'API token',
   'logs.denial': 'denial',
   'logs.row.open': 'Open the entry {action}',
   'logs.drawer.kind': 'Log entry',
