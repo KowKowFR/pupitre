@@ -9,7 +9,7 @@
 #      d'AUCUNE des pages de réglages — /admin/settings/ia comprise
 #   5. poser une clé ; PATCH sans le champ → conservée ; PATCH `null` → effacée
 #   6. l'audit contient `settings.updated` et ne contient PAS la clé
-#   7. `settings:manage` est requis pour écrire, et un viewer voit les sections
+#   7. `settings:manage` est requis pour écrire, et un auditeur voit les sections
 #      sans pouvoir les modifier
 #   8. chaque sous-section est atteignable et rend ses champs
 #   9. enregistrer une section ne modifie AUCUNE autre section
@@ -365,9 +365,12 @@ jq -e '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey
   || fail "le marqueur de clé attendu est absent : $(jq -c '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey' "$BODY")"
 pass "la clé est réduite à un marqueur : $(jq -r '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey' "$BODY")"
 
-step "8. settings:manage pour écrire — un viewer voit, et ne touche à rien"
+# Le lecteur des paramètres est un auditeur : l'observateur ne lit que
+# l'exploitation, sans `settings:read`. Les variables gardent le nom « viewer »,
+# celui d'un compte en lecture seule.
+step "8. settings:manage pour écrire — un auditeur voit, et ne touche à rien"
 code=$(req POST /api/admin/users \
-  "{\"name\":\"Viewer paramètres\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
+  "{\"name\":\"Viewer paramètres\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"auditor\"}")
 case "$code" in
   201) pass "utilisateur viewer créé" ;;
   409) pass "utilisateur viewer déjà présent" ;;
@@ -377,18 +380,15 @@ esac
 viewer_id=$(psql_q "select id from users where email = '$VIEWER_EMAIL';")
 [ -n "$viewer_id" ] || fail "utilisateur viewer introuvable en base"
 
-# Le rôle « viewer » de cette base est antérieur aux permissions `settings:*` :
-# il ne porte donc pas `settings:read`. On le réaligne sur sa définition —
-# toutes les permissions en lecture, quelles qu'elles soient — exactement comme
-# le fait `verify-roles.sh` en fin de parcours. Le test qui suit porte bien sur
-# la frontière read/manage, pas sur un rôle mal provisionné.
+# Un compte déjà présent a pu garder un autre rôle d'un passage précédent.
+code=$(req PATCH "/api/admin/users/$viewer_id/role" '{"role":"auditor"}')
+[ "$code" = "200" ] || fail "rôle auditeur → HTTP $code : $(cat "$BODY")"
 code=$(req GET /api/admin/roles)
 [ "$code" = "200" ] || fail "GET /api/admin/roles → HTTP $code"
-READ_ONLY=$(jq -c '[.vocabulary.permissions[].key | select(endswith(":read"))]' "$BODY")
-jq -e 'index("settings:read") != null' <<< "$READ_ONLY" >/dev/null   || fail "« settings:read » absent du vocabulaire des permissions"
-code=$(req PATCH /api/admin/roles/viewer "{\"permissions\":$READ_ONLY}")
-[ "$code" = "200" ] || fail "réalignement de viewer → HTTP $code : $(cat "$BODY")"
-pass "rôle viewer réaligné sur $(jq -r 'length' <<< "$READ_ONLY") permissions en lecture, dont settings:read"
+jq -e '[.items[] | select(.key == "auditor") | .permissions[]] | index("settings:read") != null
+       and index("settings:manage") == null' "$BODY" >/dev/null \
+  || fail "le rôle auditor ne porte pas settings:read sans settings:manage — le test ne prouverait rien"
+pass "le compte est auditeur : settings:read, sans settings:manage"
 
 for _ in 1 2 3 4 5; do
   code=$(req POST /api/auth/sign-in/email \

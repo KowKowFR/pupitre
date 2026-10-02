@@ -106,7 +106,7 @@ cosmétiques :
 
 ### Les rôles sont des données, pas du code
 
-`SEEDED_ROLES` — `admin`, `operator`, `viewer` — ne sont que des **valeurs de
+`SEEDED_ROLES` — `admin`, `operator`, `auditor`, `viewer`, `no-access` — ne sont que des **valeurs de
 départ**. L'autorité à l'exécution est la table `roles`, et un administrateur
 peut créer d'autres rôles depuis `/admin/roles`. C'est pourquoi `RoleKey` est
 délibérément une `string` et non une union figée : une union obligerait à
@@ -116,11 +116,25 @@ recompiler le panel pour créer un rôle.
 |---|---|
 | `admin` | les 34 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
 | `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure`, sauvegardes sans restauration |
-| `viewer` | les 12 permissions en `:read` |
+| `auditor` | les 12 permissions en `:read` — journal d'activité, comptes, rôles et paramètres compris |
+| `viewer` | les 8 lectures de l'**exploitation** : cibles, applications, déploiements, sauvegardes, charges, scans, tâches, supervision. Ni `audit:read` (le journal porte des adresses IP et des e-mails), ni `user:read`, ni `role:read`, ni `settings:read` |
+| `no-access` | aucune — le rôle d'une **inscription publique** (`SIGNUP_ROLE`) |
 
 `admin` est le garde-fou qui empêche de se verrouiller hors de son propre panel.
 Le seed est idempotent et rejoué à chaque démarrage, mais **il ne réécrit pas une
-personnalisation** — `verify-roles.sh` le vérifie explicitement.
+personnalisation** — `verify-roles.sh` le vérifie explicitement. La migration
+`0034` suit la même règle sur une base existante : elle crée `auditor` et
+`no-access` si leur clé est libre, et ne resserre `viewer` que s'il porte encore
+exactement ses permissions d'origine.
+
+**Une inscription publique n'ouvre rien.** Elle ne dit rien de qui s'inscrit :
+avec `ALLOW_SIGNUP=true`, lui donner l'observateur ouvrait la lecture du parc à
+n'importe qui. Le compte naît `no-access` et l'événement
+`security.signup_pending` prévient les administrateurs. Sans aucune permission,
+il n'est pas non plus **membre de l'équipe** (`requireTeamMember()`) : la
+discussion et la présence, qui ne demandent aucune permission, lui répondent
+`403`, et le flux temps réel ne lui porte que les signaux d'écran. Un rôle donné
+ou retiré referme le flux à la relecture de session suivante (≈ 100 s).
 
 ### Un seul point de contrôle
 

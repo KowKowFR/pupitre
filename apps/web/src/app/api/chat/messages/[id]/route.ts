@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { chat as messages } from '@/i18n/messages/chat';
 import { ForbiddenError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute } from '@/lib/http';
-import { requireSession } from '@/lib/rbac';
+import { requireTeamMember } from '@/lib/rbac';
 import { publishRealtime } from '@/lib/realtime';
 
 export const runtime = 'nodejs';
@@ -18,7 +18,7 @@ type Context = { params: Promise<{ id: string }> };
  * `user:manage` — et alors c'est tracé, parce que c'est de la modération.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
-  const auth = await requireSession(request);
+  const auth = await requireTeamMember(request);
   const { id } = paramsSchema.parse(await context.params);
   const message = await getChatMessage(id);
   if (!message || message.deleted) throw new NotFoundError(msg(messages, 'error.notFound'));

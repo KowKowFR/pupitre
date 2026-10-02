@@ -2,7 +2,7 @@ import { listApplications, listChatMembers, listTargets } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import type { DirectoryEntry } from '@/lib/chat';
 import { apiRoute } from '@/lib/http';
-import { requireSession } from '@/lib/rbac';
+import { requireTeamMember } from '@/lib/rbac';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * aussi ce qui donne leur nom actuel aux mentions affichées.
  */
 export const GET = apiRoute(async (request) => {
-  const auth = await requireSession(request);
+  const auth = await requireTeamMember(request);
   const [members, targets, applications] = await Promise.all([
     listChatMembers(),
     auth.can('target:read') ? listTargets() : Promise.resolve([]),

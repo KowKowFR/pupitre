@@ -210,12 +210,17 @@ voir [`exploitation.md`](exploitation.md#restaurer-la-base-du-panel).
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/chat/messages` | GET / POST | session — POST en JSON, ou en `multipart/form-data` avec des images (champ `image`, quatre au plus, 3 Mo chacune) ; une image seule suffit |
+| `/api/chat/messages` | GET / POST | membre de l'équipe¹ — POST en JSON, ou en `multipart/form-data` avec des images (champ `image`, quatre au plus, 3 Mo chacune) ; une image seule suffit |
 | `/api/chat/messages/:id` | DELETE | l'auteur, ou `user:manage` — efface aussi les images |
-| `/api/chat/messages/:id/reactions` | POST | session |
-| `/api/chat/attachments/:id` | GET | session — immuable ; 404 si le message a été effacé |
-| `/api/chat/read` | POST | session |
-| `/api/chat/directory` | GET | session — ce que la session peut mentionner |
+| `/api/chat/messages/:id/reactions` | POST | membre de l'équipe¹ |
+| `/api/chat/attachments/:id` | GET | membre de l'équipe¹ — immuable ; 404 si le message a été effacé |
+| `/api/chat/read` | POST | membre de l'équipe¹ |
+| `/api/chat/directory` | GET | membre de l'équipe¹ — ce que la session peut mentionner |
+| `/api/presence` | POST | membre de l'équipe¹ |
+
+¹ Une session dont le rôle porte au moins une permission (`requireTeamMember()`). Un compte
+**Sans accès** — une inscription publique qui attend son rôle — reçoit `403 no_access`, et le flux
+temps réel ne lui porte ni la discussion ni la présence.
 
 ### Paramètres, notifications, journal
 

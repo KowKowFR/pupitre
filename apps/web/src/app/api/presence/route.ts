@@ -2,7 +2,7 @@ import { PRESENCE_CHOICES } from '@pupitre/core';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { apiRoute, readJsonBody } from '@/lib/http';
-import { requireSession } from '@/lib/rbac';
+import { requireTeamMember } from '@/lib/rbac';
 import { presenceInput, setPresenceChoice } from '@/lib/realtime';
 
 export const runtime = 'nodejs';
@@ -20,7 +20,7 @@ const bodySchema = z.union([
  * un état de quelques minutes, pas une action.
  */
 export const POST = apiRoute(async (request) => {
-  const auth = await requireSession(request);
+  const auth = await requireTeamMember(request);
   const body = await readJsonBody(request, bodySchema);
   const status =
     'input' in body

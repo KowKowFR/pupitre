@@ -15,7 +15,7 @@ import type { Translated } from '@pupitre/core';
  *
  * Même coupure pour les rôles : « verrouillé » est un libellé, `admin` est une
  * clé en base. Les libellés des rôles de départ (« Administrateur »,
- * « Opérateur », « Observateur ») restent français dans `@pupitre/core` — le
+ * « Opérateur », « Auditeur », « Observateur », « Sans accès ») restent français dans `@pupitre/core` — le
  * seed les **écrit** dans `roles.label`, où on peut ensuite les renommer.
  *
  * Les descriptions de permissions, elles, sont bien des libellés d'écran :

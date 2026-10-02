@@ -38,6 +38,7 @@ const fr = {
   'unauthenticated': 'Authentification requise',
   'forbidden': 'Permission « {permission} » requise',
   'account_disabled': 'Compte désactivé',
+  'no_access': 'Votre compte n’a encore accès à rien : un administrateur doit vous attribuer un rôle',
   'not_found': 'Ressource introuvable',
   /**
    * Deux clés plutôt qu'une variable : le français choisissait entre
@@ -61,6 +62,7 @@ const en: Translated<typeof fr> = {
   'unauthenticated': 'Authentication required',
   'forbidden': 'Permission “{permission}” required',
   'account_disabled': 'Account disabled',
+  'no_access': 'Your account has no access yet: an administrator has to assign you a role',
   'not_found': 'Resource not found',
   'rate_limited.window': 'Too many requests: {limit} per window. Try again in {seconds} s.',
   'rate_limited.period': 'Too many requests: {limit} per period. Try again in {seconds} s.',

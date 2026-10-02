@@ -724,7 +724,9 @@ function RoleStep({ roleKeys, onCreated }: { roleKeys: RoleKey[]; onCreated: () 
         {rich(t('role.intro'), {
           admin: <code className="mono">admin</code>,
           operator: <code className="mono">operator</code>,
+          auditor: <code className="mono">auditor</code>,
           viewer: <code className="mono">viewer</code>,
+          noAccess: <code className="mono">no-access</code>,
           noPermission: <strong className="text-text">{t('role.intro.noPermission')}</strong>,
           rolesLink: (
             <Link href="/admin/roles" className="link">

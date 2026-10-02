@@ -9,6 +9,7 @@ import {
   type NotificationMessage,
   type NotificationSeverity,
 } from './message.js';
+import { SIGNUP_ROLE } from '../permissions.js';
 
 /**
  * Ce qui mérite d'être notifié — et rien d'autre.
@@ -26,6 +27,7 @@ import {
  *   deployment.rolled_back    le panel est revenu tout seul à la version d'avant
  *   security.two_factor_reset une protection de compte a été levée
  *   security.role_changed     quelqu'un a gagné ou perdu des droits
+ *   security.signup_pending   un compte s'est inscrit et attend qu'on lui choisisse un rôle
  *   security.host_key_changed une cible présente une autre clé d'hôte : connexion refusée
  *   monitor.down              un site supervisé est tombé, panne confirmée
  *   monitor.recovered         ce site est revenu
@@ -87,6 +89,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'deployment.rolled_back',
   'security.two_factor_reset',
   'security.role_changed',
+  'security.signup_pending',
   'security.host_key_changed',
   'monitor.down',
   'monitor.recovered',
@@ -144,6 +147,7 @@ const fr = {
   'field.reason': 'Raison',
   'field.url': 'URL',
   'field.account': 'Compte',
+  'field.name': 'Nom',
   'field.selfReset': 'Réinitialisation par soi-même',
   'field.closedSessions': 'Sessions fermées',
   'field.before': 'Avant',
@@ -238,6 +242,18 @@ const fr = {
   'security.role_changed.title': 'Rôle d’un utilisateur modifié',
   'security.role_changed.body': 'Le compte {account} passe de « {before} » à « {after} ».',
   'security.summary': 'compte {account}',
+
+  // ── security.signup_pending ────────────────────────────────────────────
+  'security.signup_pending.label': 'Inscription en attente d’un rôle',
+  'security.signup_pending.description':
+    'Un compte s’est créé par l’inscription publique ; il n’a accès à rien tant qu’on ne lui a pas choisi de rôle.',
+  'security.signup_pending.rationale':
+    'Sans ce message, la personne attend devant un panel vide, et personne ne sait qu’elle est là.',
+  'security.signup_pending.title': 'Nouvelle inscription : {account}',
+  'security.signup_pending.body':
+    'Le compte {account} vient d’être créé par l’inscription publique. Il n’a accès à rien ' +
+    'tant qu’un administrateur ne lui a pas attribué de rôle.',
+  'security.signup_pending.summary': 'en attente d’un rôle',
 
   // ── security.host_key_changed ──────────────────────────────────────────
   'security.host_key_changed.label': 'Clé d’hôte d’une cible changée',
@@ -415,6 +431,7 @@ const en: Translated<typeof fr> = {
   'field.reason': 'Reason',
   'field.url': 'URL',
   'field.account': 'Account',
+  'field.name': 'Name',
   'field.selfReset': 'Reset by the account itself',
   'field.closedSessions': 'Sessions closed',
   'field.before': 'Before',
@@ -500,6 +517,17 @@ const en: Translated<typeof fr> = {
   'security.role_changed.title': 'User role changed',
   'security.role_changed.body': 'Account {account} moves from “{before}” to “{after}”.',
   'security.summary': 'account {account}',
+
+  'security.signup_pending.label': 'Sign-up awaiting a role',
+  'security.signup_pending.description':
+    'An account was created through public sign-up; it can reach nothing until someone picks its role.',
+  'security.signup_pending.rationale':
+    'Without this message, the person waits in front of an empty panel, and nobody knows they are there.',
+  'security.signup_pending.title': 'New sign-up: {account}',
+  'security.signup_pending.body':
+    'Account {account} was just created through public sign-up. It can reach nothing until ' +
+    'an administrator assigns it a role.',
+  'security.signup_pending.summary': 'awaiting a role',
 
   'security.host_key_changed.label': 'Target host key changed',
   'security.host_key_changed.description':
@@ -1029,6 +1057,32 @@ const CATALOG = {
         path: '/admin/users',
         summary: t(lang, 'security.summary', { account }),
         summaryDetail: `${optional(before.roles) ?? none} → ${text(after.roles, '?')}`,
+      };
+    },
+  },
+  'security.signup_pending': {
+    key: 'security.signup_pending',
+    severity: 'info',
+    auditAction: 'user.created',
+    digestPath: '/admin/users',
+    // Le hook de création écrit le rôle attribué. Seule l'inscription publique
+    // donne le rôle sans accès : un compte créé par un administrateur porte
+    // déjà le rôle qu'il a choisi, il n'attend personne.
+    matches: (entry) => record(entry.after).role === SIGNUP_ROLE,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const account = text(after.email, entry.resourceId ?? '?');
+      return {
+        title: t(lang, 'security.signup_pending.title', { account }),
+        body: t(lang, 'security.signup_pending.body', { account }),
+        fields: fieldsOf([
+          [t(lang, 'field.account'), account],
+          [t(lang, 'field.name'), optional(after.name)],
+        ]),
+        path: '/admin/users',
+        summary: t(lang, 'security.summary', { account }),
+        summaryDetail: t(lang, 'security.signup_pending.summary'),
       };
     },
   },

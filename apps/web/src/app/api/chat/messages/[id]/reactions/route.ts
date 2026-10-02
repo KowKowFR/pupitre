@@ -6,7 +6,7 @@ import { chat as messages } from '@/i18n/messages/chat';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { enforceRateLimit, type RateLimitRule } from '@/lib/rate-limit';
-import { requireSession } from '@/lib/rbac';
+import { requireTeamMember } from '@/lib/rbac';
 import { publishRealtime } from '@/lib/realtime';
 
 export const runtime = 'nodejs';
@@ -25,7 +25,7 @@ const bodySchema = z.object({ emoji: z.string().min(1).max(32) });
  * des réactions du message part en direct — le rejouer ne change rien.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
-  const auth = await requireSession(request);
+  const auth = await requireTeamMember(request);
   await enforceRateLimit(CHAT_REACT_RULE, auth.userId);
   const { id } = paramsSchema.parse(await context.params);
   const { emoji } = await readJsonBody(request, bodySchema);

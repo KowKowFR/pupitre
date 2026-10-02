@@ -1,5 +1,5 @@
 import 'server-only';
-import { ROLE_DEFINITIONS, type RoleKey } from '@pupitre/core';
+import { ROLE_DEFINITIONS, SIGNUP_ROLE, type RoleKey } from '@pupitre/core';
 import {
   accounts,
   and,
@@ -25,8 +25,12 @@ import { getEnv } from './env';
 import { PASSWORD_MIN_LENGTH } from './password-policy';
 import { logger } from './logger';
 
-/** Rôle attribué à un utilisateur créé sans rôle explicite. */
-const DEFAULT_ROLE: RoleKey = 'viewer';
+/**
+ * Rôle attribué à un utilisateur créé sans rôle explicite — c'est-à-dire par
+ * l'inscription publique : aucune permission, en attendant un administrateur.
+ * Un compte créé depuis `/admin/users` porte le rôle choisi par celui-ci.
+ */
+const DEFAULT_ROLE: RoleKey = SIGNUP_ROLE;
 
 /**
  * Durée de vie d'un lien de réinitialisation : une heure.
@@ -118,7 +122,9 @@ const accessControl = createAccessControl(defaultStatements);
 const authRoles = {
   admin: accessControl.newRole(adminAc.statements),
   operator: accessControl.newRole(userAc.statements),
+  auditor: accessControl.newRole({}),
   viewer: accessControl.newRole({}),
+  'no-access': accessControl.newRole({}),
 } satisfies Record<RoleKey, unknown>;
 
 async function countUsers(): Promise<number> {

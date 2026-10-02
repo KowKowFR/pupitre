@@ -21,7 +21,7 @@ import { resolveMentions } from '@/lib/chat';
 import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readLimitedFormData } from '@/lib/http';
 import { enforceRateLimit, type RateLimitRule } from '@/lib/rate-limit';
-import { requireSession } from '@/lib/rbac';
+import { requireTeamMember } from '@/lib/rbac';
 import { publishRealtime } from '@/lib/realtime';
 
 export const runtime = 'nodejs';
@@ -37,7 +37,7 @@ const querySchema = z.object({
 
 /** Une page du fil, la plus récente d'abord demandée, rendue dans l'ordre de lecture. */
 export const GET = apiRoute(async (request) => {
-  await requireSession(request);
+  await requireTeamMember(request);
   const query = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
   const items = await listChatMessages(CHAT_DEFAULT_CHANNEL, query);
   return NextResponse.json({ items, hasMore: items.length === query.limit });
@@ -113,7 +113,7 @@ async function readMessage(request: Request) {
  * message d'autrui, lui, est tracé.
  */
 export const POST = apiRoute(async (request) => {
-  const auth = await requireSession(request);
+  const auth = await requireTeamMember(request);
   await enforceRateLimit(CHAT_POST_RULE, auth.userId);
   const input = await readMessage(request);
 
