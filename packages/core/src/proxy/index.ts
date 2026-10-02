@@ -40,6 +40,7 @@ export function implementedProxyKinds(): ProxyKind[] {
 }
 
 export * from './catalog.js';
+export * from './certificate-expiry.js';
 export * from './direct-probe.js';
 export * from './model.js';
 export * from './bunkerweb/config.js';

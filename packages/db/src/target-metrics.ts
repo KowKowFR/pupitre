@@ -587,6 +587,78 @@ export async function evaluateThresholds(
   });
 }
 
+// ─── joignabilité ─────────────────────────────────────────────────────────────
+
+/**
+ * Relevés manqués de suite avant de déclarer une machine injoignable. Deux, et
+ * non un : un redémarrage, une coupure de quelques secondes ne réveillent
+ * personne. À la cadence du balayage, c'est cinq à dix minutes de silence.
+ */
+export const UNREACHABLE_CONFIRM_SAMPLES = 2;
+
+export type ReachabilityTransition =
+  | { kind: 'unreachable'; since: Date; at: Date; failures: number; error: string | null }
+  | { kind: 'reachable'; since: Date; at: Date };
+
+/**
+ * Applique la règle de joignabilité au relevé qui vient d'être écrit, et rend
+ * la bascule s'il y en a une.
+ *
+ * L'épisode vit sur la machine (`targets.unreachable_since`) : il s'ouvre au
+ * deuxième relevé manqué de suite, daté du premier, et se ferme au premier
+ * relevé réussi. La ligne de la machine est verrouillée le temps de décider :
+ * un balayage et un « Relever » qui concluraient à la même seconde ne font
+ * qu'une bascule, donc qu'une alerte.
+ *
+ * Comme `evaluateThresholds()`, elle constate et n'audite pas : c'est le
+ * worker qui fait de la bascule un message.
+ */
+export async function evaluateReachability(
+  targetId: string,
+  db: Database = getDb(),
+): Promise<ReachabilityTransition | null> {
+  return db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ since: targets.unreachableSince })
+      .from(targets)
+      .where(eq(targets.id, targetId))
+      .for('update');
+    if (!target) return null;
+
+    const recent = await tx
+      .select({
+        reachable: targetMetricSamples.reachable,
+        error: targetMetricSamples.error,
+        sampledAt: targetMetricSamples.sampledAt,
+      })
+      .from(targetMetricSamples)
+      .where(eq(targetMetricSamples.targetId, targetId))
+      .orderBy(desc(targetMetricSamples.sampledAt))
+      .limit(UNREACHABLE_CONFIRM_SAMPLES);
+    const latest = recent[0];
+    if (!latest) return null;
+
+    if (latest.reachable) {
+      if (!target.since) return null;
+      await tx.update(targets).set({ unreachableSince: null }).where(eq(targets.id, targetId));
+      return { kind: 'reachable', since: target.since, at: latest.sampledAt };
+    }
+
+    if (target.since) return null;
+    if (recent.length < UNREACHABLE_CONFIRM_SAMPLES) return null;
+    if (recent.some((sample) => sample.reachable)) return null;
+    const since = recent[recent.length - 1]!.sampledAt;
+    await tx.update(targets).set({ unreachableSince: since }).where(eq(targets.id, targetId));
+    return {
+      kind: 'unreachable',
+      since,
+      at: latest.sampledAt,
+      failures: recent.length,
+      error: latest.error,
+    };
+  });
+}
+
 // ─── balayage ─────────────────────────────────────────────────────────────────
 
 /**

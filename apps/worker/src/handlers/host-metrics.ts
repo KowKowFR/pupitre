@@ -4,6 +4,7 @@ import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { collectAndRecord } from '../supervision/collect.js';
 import { judgeAndAnnounce } from '../supervision/judge.js';
+import { judgeReachability } from '../supervision/reachability.js';
 import {
   hostSweepJobDataSchema,
   sweepHosts,
@@ -68,7 +69,10 @@ export async function handleTargetMetrics(
     // faut réveiller quelqu'un en est une autre.
     try {
       const target = await getTarget(data.targetId);
-      if (target) await judgeAndAnnounce({ id: target.id, name: target.name });
+      if (target) {
+        await judgeReachability({ id: target.id, name: target.name });
+        await judgeAndAnnounce({ id: target.id, name: target.name });
+      }
     } catch (error) {
       // Un seuil mal jugé ne doit pas priver l'écran de son relevé.
       log.error({ err: error }, 'évaluation des seuils impossible');

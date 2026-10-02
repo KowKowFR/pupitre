@@ -476,6 +476,15 @@ export async function replaceRoutes(
   }
 }
 
+/** L'échéance du certificat signalé pour cette route, ou `null` une fois renouvelé. */
+export async function setRouteCertificateAlert(
+  id: string,
+  notAfter: string | null,
+  db: Database = getDb(),
+): Promise<void> {
+  await db.update(routes).set({ certificateAlert: notAfter }).where(eq(routes.id, id));
+}
+
 export async function setRouteStatus(
   id: string,
   update: { status: RouteStatus; error: string | null; certificate?: RouteCertificate | null },

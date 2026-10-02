@@ -13,6 +13,7 @@ import { logger } from '../logger.js';
 import { getRedis } from '../redis.js';
 import { collectAndRecord } from './collect.js';
 import { judgeAndAnnounce } from './judge.js';
+import { judgeReachability } from './reachability.js';
 
 /**
  * Le balayage des serveurs — l'horloge qui donne une mémoire à la supervision.
@@ -125,6 +126,7 @@ async function sampleOne(target: { id: string; name: string }, counters: Counter
 
   if (!recorded) return;
 
+  await judgeReachability(target);
   const verdict = await judgeAndAnnounce(target);
   counters.breached += verdict.breached;
   counters.cleared += verdict.cleared;

@@ -424,9 +424,6 @@ un vrai modèle répondre sur cette instance.
 - **`MASTER_KEY` ne se fait pas tourner.** Le format
   `version:iv:authTag:ciphertext` existe pour le permettre un jour ; le code de
   rotation n'est pas écrit.
-- **Aucune alerte sur « machine injoignable ».** Les relevés en échec sont
-  enregistrés avec leur raison, mais ne franchissent aucun seuil : une machine
-  éteinte ne déclenche rien.
 
 Ce qu'il faudrait pour lever chacun de ces points est dans
 [`docs/feuille-de-route.md`](docs/feuille-de-route.md).

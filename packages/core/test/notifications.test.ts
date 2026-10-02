@@ -118,7 +118,6 @@ describe('notifications — la table des événements', () => {
 
   it('ignore tout le reste — c’est ce qui tient le volume', () => {
     for (const action of [
-      'deployment.succeeded',
       'deployment.created',
       'permission.denied',
       'auth.logout',
@@ -154,6 +153,97 @@ describe('notifications — la table des événements', () => {
     notificationMessageSchema.parse(message);
     assert.ok(message.title.includes('nouveau@example.test'));
     assert.equal(message.url, 'https://panel.example.test/admin/users');
+  });
+
+  it('un déploiement réussi se nomme : application, version, machine, URL', () => {
+    const succeeded = entry({
+      action: 'deployment.succeeded',
+      after: {
+        application: 'api-facturation',
+        targetName: 'prod-1',
+        version: 12,
+        status: 'success',
+        url: 'https://api.example.test',
+      },
+    });
+    assert.equal(notifiableEventFor(succeeded), 'deployment.succeeded');
+    const message = buildNotificationMessage('deployment.succeeded', succeeded, CTX);
+    notificationMessageSchema.parse(message);
+    assert.equal(message.severity, 'info');
+    assert.ok(message.title.includes('api-facturation'));
+    assert.ok(message.body.includes('12') && message.body.includes('prod-1'));
+    assert.ok(message.body.includes('https://api.example.test'));
+  });
+
+  it('une machine injoignable prévient, et son retour dit la durée', () => {
+    const down = entry({
+      action: 'target.unreachable',
+      resourceType: 'target',
+      actorId: null,
+      after: {
+        targetName: 'prod-1',
+        host: '10.0.0.12',
+        downSeconds: 300,
+        failures: 2,
+        error: 'connexion refusée',
+      },
+    });
+    assert.equal(notifiableEventFor(down), 'target.unreachable');
+    const alert = buildNotificationMessage('target.unreachable', down, { ...CTX, actor: null });
+    notificationMessageSchema.parse(alert);
+    assert.equal(alert.severity, 'critical');
+    assert.ok(alert.body.includes('prod-1') && alert.body.includes('10.0.0.12'));
+    assert.ok(alert.body.includes('5 min') && alert.body.includes('connexion refusée'));
+
+    const up = entry({
+      action: 'target.reachable',
+      resourceType: 'target',
+      actorId: null,
+      after: { targetName: 'prod-1', host: '10.0.0.12', downSeconds: 3900 },
+    });
+    assert.equal(notifiableEventFor(up), 'target.reachable');
+    const back = buildNotificationMessage('target.reachable', up, { ...CTX, actor: null });
+    notificationMessageSchema.parse(back);
+    assert.ok(back.body.includes('1 h 5'));
+  });
+
+  it('un certificat bientôt échu prévient, son renouvellement aussi', () => {
+    const expiring = entry({
+      action: 'route.certificate.expiring',
+      resourceType: 'application',
+      actorId: null,
+      after: {
+        hostname: 'boutique.example.test',
+        application: 'boutique',
+        targetName: 'prod-1',
+        notAfter: '2026-10-11T08:00:00.000Z',
+        daysLeft: 8,
+        issuer: "Let's Encrypt R11",
+      },
+    });
+    assert.equal(notifiableEventFor(expiring), 'route.certificate_expiring');
+    const warning = buildNotificationMessage('route.certificate_expiring', expiring, {
+      ...CTX,
+      actor: null,
+    });
+    notificationMessageSchema.parse(warning);
+    assert.equal(warning.severity, 'warning');
+    assert.ok(warning.body.includes('2026-10-11') && warning.body.includes('8'));
+
+    const renewed = entry({
+      action: 'route.certificate.renewed',
+      resourceType: 'application',
+      actorId: null,
+      after: {
+        hostname: 'boutique.example.test',
+        application: 'boutique',
+        notAfter: '2027-01-02T08:00:00.000Z',
+      },
+    });
+    assert.equal(notifiableEventFor(renewed), 'route.certificate_renewed');
+    notificationMessageSchema.parse(
+      buildNotificationMessage('route.certificate_renewed', renewed, { ...CTX, actor: null }),
+    );
   });
 
   it('un jeton d’API créé prévient, sans jamais porter le jeton', () => {

@@ -1,7 +1,13 @@
 import { deployChannel, deploymentJobDataSchema, type DeploymentJobResult } from '@pupitre/core';
 import { getDriver } from '@pupitre/core/drivers';
 import { disconnect, type ConnectOptions } from '@pupitre/core/ssh';
-import { finishDeployment, listLiveDeployments, logAudit, setDeploymentStopped } from '@pupitre/db';
+import {
+  finishDeployment,
+  getDeploymentSummary,
+  listLiveDeployments,
+  logAudit,
+  setDeploymentStopped,
+} from '@pupitre/db';
 import type { Job } from 'bullmq';
 import { logger } from '../logger.js';
 import { openDeploymentContext } from '../deploy/context.js';
@@ -42,12 +48,18 @@ export async function handleDeploymentRun(
       ip: data.ip,
     });
 
+    // Ce que le message dira : « api-facturation version 12 sur prod-1 ». Sans
+    // ces noms, un déploiement réussi ne serait qu'un identifiant.
+    const summary = await getDeploymentSummary(data.deploymentId).catch(() => null);
     await logAudit({
       actorId: data.actorId,
       action: DEPLOYMENT_AUDIT_ACTION[outcome.status],
       resourceType: 'deployment',
       resourceId: data.deploymentId,
       after: {
+        application: summary?.applicationSlug ?? null,
+        targetName: summary?.targetName ?? null,
+        version: summary?.version ?? null,
         status: outcome.status,
         url: outcome.url,
         publishedPort: outcome.publishedPort,

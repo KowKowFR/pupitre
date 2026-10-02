@@ -92,6 +92,12 @@ export const routes = pgTable(
     lastError: text('last_error'),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
     certificate: jsonb('certificate').$type<RouteCertificate | null>(),
+    /**
+     * L'échéance du certificat déjà signalé comme bientôt échu, ou `null`.
+     * Une alerte par certificat : la sonde suivante voit la même échéance et
+     * se tait ; un certificat renouvelé remet la colonne à `null`.
+     */
+    certificateAlert: text('certificate_alert'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -59,14 +59,6 @@ Il cherche containerd sur `/run/containerd/containerd.sock`, namespace
 inutile. Deux variables d'environnement dans
 `packages/core/src/scanners/trivy.ts` suffiraient.
 
-### Aucune alerte sur « machine injoignable »
-
-Les relevés de métriques en échec sont enregistrés avec leur raison, mais ne
-franchissent aucun seuil : une machine éteinte ne déclenche rien. La supervision
-de **sites** a bien son hystérésis et ses alertes ; la supervision de
-**serveurs** n'a que ses seuils de charge, de mémoire et de disque, qui exigent
-un relevé réussi pour se prononcer.
-
 ### Le constructeur BuildKit reste en place
 
 C'est délibéré — son cache de couches vit dedans — mais rien ne le supprime
