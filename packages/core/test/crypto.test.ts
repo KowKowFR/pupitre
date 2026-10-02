@@ -9,6 +9,7 @@ import {
   deriveKey,
   encrypt,
   masterKeyWeakness,
+  secretWeakness,
   resetKeyCache,
   safeEqual,
 } from '../src/crypto.js';
@@ -178,6 +179,15 @@ describe('crypto', () => {
       assert.equal(masterKeyWeakness(OTHER_HEX_KEY), null);
       assert.equal(masterKeyWeakness(randomBytes(32).toString('hex')), null);
       assert.equal(masterKeyWeakness('une-passphrase-honnete-et-assez-longue'), null);
+    });
+
+    it('juge de même le secret de Better Auth, à son nom', () => {
+      assert.match(
+        secretWeakness('change-me-change-me-change-me-change-me', 'BETTER_AUTH_SECRET') ?? '',
+        /^BETTER_AUTH_SECRET répète le motif « change-me- »/,
+      );
+      assert.equal(secretWeakness(randomBytes(32).toString('base64'), 'BETTER_AUTH_SECRET'), null);
+      assert.equal(secretWeakness(undefined, 'BETTER_AUTH_SECRET'), null);
     });
 
     it('ne dit rien d’une clé absente — ce n’est pas son sujet', () => {

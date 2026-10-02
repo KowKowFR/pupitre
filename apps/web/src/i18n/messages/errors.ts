@@ -28,6 +28,8 @@ import type { Translated } from '@pupitre/core';
  */
 const fr = {
   'invalid_json': 'Corps de requête JSON invalide',
+  'cross_site':
+    'Requête refusée : elle ne vient pas du panel. Si vous utilisez le panel par une autre adresse que BETTER_AUTH_URL, corrigez cette variable.',
   'invalid_form': 'Formulaire illisible',
   'payload_too_large': 'Envoi trop volumineux : {max} octets au plus',
   'validation.schema': 'La requête ne respecte pas le schéma',
@@ -49,6 +51,8 @@ const fr = {
 
 const en: Translated<typeof fr> = {
   'invalid_json': 'Malformed JSON request body',
+  'cross_site':
+    'Request refused: it does not come from the panel. If you reach the panel by another address than BETTER_AUTH_URL, fix that variable.',
   'invalid_form': 'Unreadable form',
   'payload_too_large': 'Upload too large: {max} bytes at most',
   'validation.schema': 'The request does not match the schema',

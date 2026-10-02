@@ -2,10 +2,13 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { renderMessage } from '@pupitre/core';
+import { logAudit } from '@pupitre/db';
 import { errors, type ErrorKey } from '@/i18n/messages/errors';
 import { currentLanguage } from '@/i18n/server';
+import { getEnv } from './env';
 import { HttpError, msg, renderRef, type MessageRef } from './errors';
 import { logger } from './logger';
+import { foreignWrite, originOf } from './same-origin';
 
 /**
  * Le seul endroit du panel qui rend un message d'erreur d'API dans la langue
@@ -48,11 +51,26 @@ export function jsonError(
 /**
  * Wrapper de Route Handler. Il traduit les erreurs typées en réponses HTTP :
  * aucune route ne vérifie de permission ni ne fabrique d'erreur à la main.
+ *
+ * Il refuse aussi, avant toute chose, une écriture qu'un navigateur enverrait
+ * depuis une autre origine que le panel — voir `foreignWrite()`. Le refus est
+ * tracé : c'est la marque d'une page piégée, pas d'une fausse manœuvre.
  */
 export function apiRoute<Context>(
   handler: (request: Request, context: Context) => Promise<Response>,
 ): (request: Request, context: Context) => Promise<Response> {
   return async (request, context) => {
+    const foreign = foreignWrite(request, originOf(getEnv().BETTER_AUTH_URL));
+    if (foreign) {
+      await logAudit({
+        action: 'request.cross_site.refused',
+        resourceType: 'request',
+        resourceId: null,
+        after: { method: request.method, path: new URL(request.url).pathname, reason: foreign },
+        ip: clientIp(request),
+      });
+      return jsonError(403, 'cross_site_request', await localizeKey('cross_site'));
+    }
     try {
       return await handler(request, context);
     } catch (error) {

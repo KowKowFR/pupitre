@@ -1,12 +1,15 @@
 'use client';
 
-import { adminClient, twoFactorClient } from 'better-auth/client/plugins';
+import { twoFactorClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 
 /** Client Better Auth pour les composants React. Même origine que le panel. */
 export const authClient = createAuthClient({
   basePath: '/api/auth',
-  plugins: [adminClient(), twoFactorClient()],
+  // Pas de `adminClient()` : les routes d'administration de Better Auth sont
+  // fermées (voir `app/api/auth/[...all]/route.ts`) ; l'écran passe par
+  // `/api/admin/*`.
+  plugins: [twoFactorClient()],
 });
 
 export const {

@@ -1,5 +1,5 @@
 import 'server-only';
-import { assertMasterKey } from '@pupitre/core';
+import { assertMasterKey, secretWeakness } from '@pupitre/core';
 import { z } from 'zod';
 
 /** Dans un `.env`, une variable déclarée mais vide vaut « non renseignée ». */
@@ -70,6 +70,18 @@ export function getEnv(): Env {
       `[panel] ${weakKey} — MASTER_KEY est la valeur d'exemple ou une valeur ` +
         'devinable. Les identifiants SSH chiffrés en base ne sont pas protégés. ' +
         'Générer : openssl rand -hex 32, puis rechiffrer les cibles.',
+    );
+  }
+  // Même jugement pour le secret de Better Auth : il signe les cookies de
+  // session, et chiffre le secret TOTP et les codes de secours de chaque
+  // compte. Avertir seulement — le changer déconnecte tout le monde et rend
+  // illisible le second facteur déjà armé, qu'il faudra réinitialiser.
+  const weakAuthSecret = secretWeakness(parsed.data.BETTER_AUTH_SECRET, 'BETTER_AUTH_SECRET');
+  if (weakAuthSecret) {
+    console.warn(
+      `[panel] ${weakAuthSecret} — BETTER_AUTH_SECRET est la valeur d'exemple ou une valeur ` +
+        'devinable. Générer : openssl rand -base64 32. En changer déconnecte tous les comptes ' +
+        'et oblige à réinitialiser le second facteur de ceux qui en ont un.',
     );
   }
   cached = parsed.data;

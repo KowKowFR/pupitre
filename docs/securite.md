@@ -1,6 +1,7 @@
 # Sécurité
 
 - [Authentification et comptes](#authentification-et-comptes)
+- [Ce qui vient d'ailleurs que le panel](#ce-qui-vient-dailleurs-que-le-panel)
 - [RBAC — 34 permissions](#rbac--34-permissions)
 - [Journal d'activité](#journal-dactivité)
 - [Chiffrement](#chiffrement)
@@ -15,6 +16,17 @@
 **Le middleware ne vérifie rien.** Il tourne en Edge, sans accès à la base : il
 ne fait qu'un filtrage optimiste sur la *présence* du cookie de session.
 L'autorisation réelle est faite côté serveur, dans les routes et dans les pages.
+
+**Les routes d'administration de Better Auth sont fermées.** Son plugin `admin`
+expose `/api/auth/admin/*` : lister, créer, bannir, supprimer des comptes,
+changer un mot de passe, **se faire passer pour quelqu'un**. Pupitre a sa propre
+API d'administration (`/api/admin/*`), qui passe par `requirePermission()`,
+tient ses garde-fous et écrit au journal — ces routes-là ne feraient rien de
+tout cela : une usurpation n'y laisserait aucune trace, et ce que l'usurpateur
+ferait ensuite serait attribué à sa victime. Elles répondent 404, et chaque
+tentative est notée (`auth.admin_route.refused`). Le serveur garde l'usage du
+plugin (`getAuth().api.createUser`…), qui ne passe pas par HTTP ; le client ne
+charge plus `adminClient()`.
 
 ### Mon compte — `/account`
 
@@ -126,6 +138,58 @@ Garde-fous métier : impossible de retirer le rôle admin au dernier
 administrateur actif, de le désactiver, de le supprimer, ni d'agir sur son propre
 compte.
 
+## Ce qui vient d'ailleurs que le panel
+
+### Une écriture vient du panel, ou elle est refusée
+
+Le cookie de session est `SameSite=Lax` : un navigateur ne l'envoie pas avec un
+formulaire posté depuis un autre **site**. Mais un site, c'est un domaine
+enregistrable entier — `blog.exemple.fr` et `pupitre.exemple.fr` en sont un
+seul —, et Pupitre déploie justement des sites, souvent sur des sous-domaines
+voisins du panel. Une page piégée là-bas, ouverte par un administrateur
+connecté, lui ferait poster ce qu'elle veut : `readJsonBody()` lit un corps
+JSON même envoyé en `text/plain`, ce qu'un formulaire HTML sait faire.
+
+`apiRoute()` refuse donc, avant toute chose, une requête d'écriture (tout sauf
+`GET`, `HEAD`, `OPTIONS`) qu'un navigateur enverrait d'ailleurs
+(`apps/web/src/lib/same-origin.ts`) :
+
+- l'en-tête `Origin` doit être celui de `BETTER_AUTH_URL` — `null` compris
+  parmi les refus ;
+- à défaut d'`Origin`, `Sec-Fetch-Site` doit valoir `same-origin` ;
+- une requête qui ne porte ni l'un ni l'autre ne vient pas d'un navigateur
+  (`curl`, un script, le worker) et n'a pas de cookie à détourner : elle passe.
+
+Le refus est un `403 cross_site_request`, tracé (`request.cross_site.refused`)
+avec la raison. Conséquence pratique : le panel doit être ouvert à l'adresse de
+`BETTER_AUTH_URL`, la même que Better Auth exige déjà pour la connexion.
+
+Le `Content-Type` n'est pas exigé en plus : tout navigateur envoie `Origin` sur
+une écriture venue d'un autre site, et un appel de l'écran qui oublierait
+l'en-tête JSON casserait sans rien protéger de plus.
+
+### Les en-têtes de protection
+
+Sur toutes les réponses (`apps/web/next.config.ts`) : le panel ne s'affiche dans
+aucune iframe (`frame-ancestors 'none'`, `X-Frame-Options: DENY`) — une page
+tierce ne peut pas le recouvrir pour faire cliquer à l'insu de quelqu'un —, plus
+`nosniff`, `Referrer-Policy`, une `Permissions-Policy` fermée et HSTS (sans
+effet en HTTP, sans `includeSubDomains`). `X-Powered-By` n'est plus envoyé. La
+CSP s'arrête volontairement à ces directives : `script-src` demanderait des
+nonces sur les scripts de Next, et `form-action 'self'` casserait la création
+de l'App GitHub, qui poste un vrai formulaire vers github.com.
+
+### Les adresses que le worker appelle pour vous
+
+L'API d'un Nginx Proxy Manager, un webhook de notification, un stockage S3 : le
+worker appelle une adresse saisie dans le panel. La supervision exige une
+adresse publique ; ici, on ne le peut pas — ces destinations vivent souvent sur
+un réseau privé, et c'est légitime. Mais aucune n'a de raison de viser une
+adresse **lien-local** (`169.254.0.0/16`, `fe80::/10`) : c'est là que les clouds
+servent les métadonnées de la machine, identifiants compris.
+`assertEgressAllowed()` (`packages/core/src/egress.ts`) résout le nom et refuse
+toute adresse lien-local, non spécifiée ou de multidiffusion, avant l'appel.
+
 ## Journal d'activité
 
 Écrit **exclusivement** par `logAudit()` (`packages/db/src/audit.ts`), le point
@@ -182,6 +246,7 @@ Sept choses sont chiffrées par la même primitive, chacune dans sa colonne :
 | URL de webhook d'une sonde | `monitors.webhook_url_encrypted` | le worker, à l'alerte |
 | Clé privée de l'App GitHub | `source_connections.private_key_encrypted` | le panel et le worker, à l'appel de l'API GitHub |
 | Clés d'une destination de sauvegarde | `backup_destinations.encrypted_secrets` | le worker, à l'ouverture de la destination |
+| Mot de passe d'un proxy distant (Nginx Proxy Manager) | `proxies.encrypted_secrets` | le worker, à l'appel de son API |
 
 Les **fichiers de sauvegarde** sont chiffrés eux aussi, mais en flux et sous une
 clé à part pour chaque fichier : HKDF de `MASTER_KEY` avec un sel tiré au
@@ -224,6 +289,12 @@ ou deux caractères distincts, ou un motif court répété — et le panel comme
 worker l'écrivent dans leurs journaux au démarrage. Aucune clé tirée au sort ne
 tombe dans ce filet ; c'est vérifié dans `packages/core/test/crypto.test.ts`.
 
+Le panel juge de même `BETTER_AUTH_SECRET` (`secretWeakness()`), dont le
+`.env.example` livre une phrase répétée. Better Auth s'en sert pour signer ses
+cookies, et pour chiffrer le secret TOTP et les codes de secours de chaque
+compte : le changer déconnecte tout le monde et rend illisible le second
+facteur déjà armé, qu'il faut alors réinitialiser. Là encore, on avertit.
+
 Ils **avertissent** sans refuser de démarrer, volontairement : la base contient
 déjà des valeurs chiffrées sous cette clé, et une instance qui ne démarre plus
 est une instance dont on ne peut plus extraire les identifiants pour les
@@ -235,7 +306,7 @@ openssl rand -hex 32          # la nouvelle clé
 ```
 
 1. Relever, **avec l'ancienne clé encore en place**, tout ce qui est chiffré —
-   les sept colonnes du tableau ci-dessus.
+   les huit colonnes du tableau ci-dessus.
 2. Remplacer `MASTER_KEY` dans `.env`, puis redémarrer panel et worker.
 3. Ressaisir chaque valeur par l'API ou par l'écran qui la porte. Rien ne se
    rechiffre tout seul : les anciennes valeurs deviennent illisibles, pas

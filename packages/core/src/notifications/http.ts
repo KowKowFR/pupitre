@@ -1,3 +1,4 @@
+import { assertEgressAllowed, EgressRefusedError } from '../egress.js';
 import type { ChannelConfig, NotificationChannelKind } from './catalog.js';
 import { NotificationError, describeFailure, redactSecrets, type FetchLike } from './types.js';
 
@@ -36,6 +37,14 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
     signal: AbortSignal.timeout(options.timeoutMs),
     ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
   };
+
+  // Un webhook ne vise jamais les métadonnées d'un cloud — voir `egress.ts`.
+  try {
+    await assertEgressAllowed(options.url);
+  } catch (error) {
+    if (!(error instanceof EgressRefusedError)) throw error;
+    throw new NotificationError(error.message, options.channel, 'connect', error);
+  }
 
   let response: Response;
   try {
