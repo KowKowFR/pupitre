@@ -46,12 +46,27 @@ une méthode de driver. Il parle à une machine, pas à un runtime.
 la valeur rendue est `null` — jamais `0`. « Je ne sais pas » et « zéro » ne sont
 pas la même information, et une jauge à 0 % mentirait.
 
-**Rien n'est stocké.** Pas de table, pas de migration, pas de rétention : le
-relevé voyage par la valeur de retour du job et meurt avec elle. Et **rien n'est
-planifié** : l'écran demande un relevé par cible au chargement, avec deux
-requêtes en parallèle côté client, puis n'y revient plus. *Un intervalle
-transformerait un onglet oublié en sonde permanente.* L'âge du relevé est
-affiché, un bouton le redemande.
+**Le worker relève chaque machine toutes les cinq minutes** (tâche
+`target:metrics_sweep`) et garde les relevés trente jours
+(`target_metric_samples`, avec leur raison quand la machine n'a pas répondu).
+C'est le worker, pas l'écran, qui relève : un onglet oublié ne devient pas une
+sonde permanente. L'écran affiche le dernier relevé et son âge ; un bouton en
+redemande un.
+
+**Seuils.** Disque et mémoire à 90 %, charge par cœur à 100 %, réglables par
+machine, avec une hystérésis : il faut plusieurs relevés au-dessus pour ouvrir
+un dépassement (un pour le disque, deux pour la mémoire, trois pour la charge),
+et autant en dessous pour le refermer. L'ouverture écrit
+`target.threshold.breached`, la fermeture `target.threshold.cleared` — une
+entrée par épisode, pas par relevé.
+
+**Machine injoignable.** Une machine éteinte ne franchit aucun seuil : ses
+relevés échouent, tout simplement. **Deux relevés manqués de suite** ouvrent
+donc un épisode (`targets.unreachable_since`, daté du premier) et écrivent
+`target.unreachable`, avec la raison — connexion refusée, délai dépassé, clé
+d'hôte refusée ; le premier relevé réussi le referme et écrit
+`target.reachable`, avec la durée de l'interruption. Un redémarrage ne réveille
+personne ; deux balayages manqués, si.
 
 Chemin technique : `GET /api/targets/:id/metrics` (`target:read`) enfile un job
 sur la file **`supervision`** et attend son résultat 20 s — le panel n'ouvre
@@ -230,7 +245,7 @@ serveur mal configuré.
 C'est **la seule voie e-mail de l'instance** : il n'existe aucun réglage SMTP
 global ailleurs.
 
-### Les seize événements
+### Les vingt et un événements
 
 Tous dérivés du journal d'activité :
 
@@ -239,6 +254,7 @@ Tous dérivés du journal d'activité :
 | `deployment.failed` | critical | `deployment.failed`, hors échec de scan |
 | `deployment.scan_blocked` | critical | `deployment.failed` avec `failedStep === 'scan'` |
 | `deployment.rolled_back` | warning | `deployment.rolled_back.automatic` |
+| `deployment.succeeded` | info | `deployment.succeeded` — une version en ligne : l'application, sa version, la machine, l'URL. À choisir pour le salon de l'équipe, pas pour l'astreinte |
 | `security.two_factor_reset` | warning | `user.2fa.reset` |
 | `security.role_changed` | warning | `user.role.changed` |
 | `security.api_token_created` | info | `api_token.created` — un jeton d'API créé : son nom, son préfixe, ce qu'il couvre, jamais le jeton |
@@ -248,10 +264,14 @@ Tous dérivés du journal d'activité :
 | `monitor.recovered` | info | `monitor.recovered` |
 | `target.threshold.breached` | warning | `target.threshold.breached` |
 | `target.threshold.cleared` | info | `target.threshold.cleared` |
+| `target.unreachable` | critical | `target.unreachable` — deux relevés manqués de suite, avec la raison |
+| `target.reachable` | info | `target.reachable` — de nouveau joignable, avec la durée de l'interruption |
 | `image.update.available` | warning | `image.update.available` — une image déployée republiée, ou un tag plus récent de la même série ; voir [exploitation](exploitation.md#les-mises-à-jour-dimages) |
 | `backup.failed` | critical | `backup.failed` — une sauvegarde d'application ou du panel, automatique, manuelle ou avant déploiement ; voir [exploitation](exploitation.md#sauvegardes) |
 | `route.down` | warning | `route.down` — un domaine ne répond plus à travers son reverse proxy, deux sondes de suite ; voir [exploitation](exploitation.md#ce-qui-part-en-alerte) |
 | `route.recovered` | info | `route.recovered` — ce domaine répond de nouveau |
+| `route.certificate_expiring` | warning | `route.certificate.expiring` — le certificat d'un domaine expire sous quatorze jours : son renouvellement n'a pas abouti. Une fois par certificat |
+| `route.certificate_renewed` | info | `route.certificate.renewed` — ce certificat a été renouvelé |
 
 **Un seul `monitor.down`**, pas un par nature de panne. Séparer « répond mal »
 d'« injoignable » donnerait deux clés, donc deux groupes de regroupement, donc

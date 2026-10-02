@@ -25,6 +25,7 @@ import { SIGNUP_ROLE } from '../permissions.js';
  *   deployment.failed         une mise en ligne n'a pas abouti
  *   deployment.scan_blocked   une image vulnérable a été arrêtée avant la mise en ligne
  *   deployment.rolled_back    le panel est revenu tout seul à la version d'avant
+ *   deployment.succeeded      une version est en ligne — à ne choisir que là où on veut la voir passer
  *   security.two_factor_reset une protection de compte a été levée
  *   security.role_changed     quelqu'un a gagné ou perdu des droits
  *   security.signup_pending   un compte s'est inscrit et attend qu'on lui choisisse un rôle
@@ -36,10 +37,16 @@ import { SIGNUP_ROLE } from '../permissions.js';
  *   backup.failed             une sauvegarde n'a pas abouti
  *   route.down                un domaine ne répond plus à travers son reverse proxy
  *   route.recovered           ce domaine répond de nouveau
+ *   route.certificate_expiring le certificat d'un domaine expire sous quatorze jours
+ *   route.certificate_renewed  ce certificat a été renouvelé
+ *   target.unreachable        une machine ne répond plus en SSH, deux relevés de suite
+ *   target.reachable          cette machine répond de nouveau
  *
- * Sont écartés, volontairement : les succès (un déploiement qui marche ne
- * réveille personne), les refus de permission (bavards et déjà tracés) et les
- * relevés périodiques.
+ * Sont écartés, volontairement : les refus de permission (bavards et déjà
+ * tracés) et les relevés périodiques. Un succès ne réveille personne non plus —
+ * mais une équipe veut parfois voir passer ses mises en ligne dans son salon :
+ * `deployment.succeeded` existe pour elle. Comme tout événement, il ne part que
+ * vers les canaux qui l'ont choisi.
  *
  * ── Pourquoi la supervision entre ici, alors qu'elle avait son webhook ───────
  * Les sondes savaient déjà alerter, mais chacune vers **son** webhook, réglé
@@ -88,6 +95,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'deployment.failed',
   'deployment.scan_blocked',
   'deployment.rolled_back',
+  'deployment.succeeded',
   'security.two_factor_reset',
   'security.role_changed',
   'security.signup_pending',
@@ -97,10 +105,14 @@ export const NOTIFICATION_EVENT_KEYS = [
   'monitor.recovered',
   'target.threshold.breached',
   'target.threshold.cleared',
+  'target.unreachable',
+  'target.reachable',
   'image.update.available',
   'backup.failed',
   'route.down',
   'route.recovered',
+  'route.certificate_expiring',
+  'route.certificate_renewed',
 ] as const;
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
@@ -420,6 +432,59 @@ const fr = {
   'route.recovered.body': '« {hostname} » ({application}, sur « {machine} ») répond de nouveau.',
   'route.recovered.summary': '{hostname}',
   'field.domain': 'Domaine',
+
+  // ── route.certificate_expiring / route.certificate_renewed ─────────────
+  'route.certificate_expiring.label': 'Certificat bientôt échu',
+  'route.certificate_expiring.description':
+    'Le certificat d’un domaine expire dans moins de quatorze jours : son renouvellement automatique n’a pas abouti.',
+  'route.certificate_expiring.rationale':
+    'Let’s Encrypt renouvelle trente jours avant l’échéance. À quatorze, quelque chose bloque — le DNS, le port 80, une limite de l’autorité — et il reste le temps de le régler avant que les navigateurs refusent le site.',
+  'route.certificate_expiring.title': 'Certificat bientôt échu — {hostname}',
+  'route.certificate_expiring.body':
+    'Le certificat de « {hostname} » ({application}, sur « {machine} ») expire le {date}, dans {days} jour(s). Son renouvellement automatique n’a pas abouti.',
+  'route.certificate_expiring.summary': '{hostname} — expire le {date}',
+  'route.certificate_renewed.label': 'Certificat renouvelé',
+  'route.certificate_renewed.description':
+    'Un certificat signalé comme bientôt échu a été renouvelé.',
+  'route.certificate_renewed.rationale':
+    'Ferme l’alerte reçue plus tôt : le domaine a de nouveau un certificat valable.',
+  'route.certificate_renewed.title': 'Certificat renouvelé — {hostname}',
+  'route.certificate_renewed.body':
+    'Le certificat de « {hostname} » ({application}, sur « {machine} ») est renouvelé jusqu’au {date}.',
+  'route.certificate_renewed.summary': '{hostname} — jusqu’au {date}',
+
+  // ── target.unreachable / target.reachable ──────────────────────────────
+  'target.unreachable.label': 'Machine injoignable',
+  'target.unreachable.description':
+    'Pupitre ne joint plus une machine en SSH : deux relevés de suite ont échoué.',
+  'target.unreachable.rationale':
+    'Une machine éteinte ne franchit aucun seuil : sans cet événement, elle tombe en silence. Deux relevés manqués et non un seul — un redémarrage ne réveille personne.',
+  'target.unreachable.title': 'Machine injoignable — {machine}',
+  'target.unreachable.body':
+    'Pupitre ne joint plus « {machine} » ({host}) depuis {duration} : {error}',
+  'target.unreachable.summary': '{machine}',
+  'target.reachable.label': 'Machine de nouveau joignable',
+  'target.reachable.description': 'Une machine injoignable répond de nouveau.',
+  'target.reachable.rationale':
+    'Ferme l’alerte reçue plus tôt, et dit combien de temps l’interruption a duré.',
+  'target.reachable.title': 'Machine joignable — {machine}',
+  'target.reachable.body':
+    '« {machine} » ({host}) répond de nouveau, après {duration} d’interruption.',
+  'target.reachable.summary': '{machine}',
+  'field.host': 'Adresse',
+
+  // ── deployment.succeeded ───────────────────────────────────────────────
+  'deployment.succeeded.label': 'Déploiement réussi',
+  'deployment.succeeded.description':
+    'Une version est en ligne : le pipeline est allé au bout et la santé répond.',
+  'deployment.succeeded.rationale':
+    'Un succès ne réveille personne : à choisir pour le salon de l’équipe qui veut voir passer ses mises en ligne, pas pour la boîte de l’astreinte.',
+  'deployment.succeeded.title': 'Déployé — {application}',
+  'deployment.succeeded.body':
+    '« {application} » version {version} est en ligne sur « {machine} »{url}.',
+  'deployment.succeeded.bodyUrl': ' : {url}',
+  'deployment.succeeded.summary': '{application} — version {version}',
+  'field.version': 'Version',
   'field.trigger': 'Déclenchement',
   'backup.trigger.schedule': 'planifiée',
   'backup.trigger.manual': 'à la demande',
@@ -697,6 +762,51 @@ const en: Translated<typeof fr> = {
   'route.recovered.body': '“{hostname}” ({application}, on “{machine}”) answers again.',
   'route.recovered.summary': '{hostname}',
   'field.domain': 'Domain',
+
+  'route.certificate_expiring.label': 'Certificate expiring soon',
+  'route.certificate_expiring.description':
+    'A domain’s certificate expires in less than fourteen days: its automatic renewal did not go through.',
+  'route.certificate_expiring.rationale':
+    'Let’s Encrypt renews thirty days before expiry. At fourteen, something is in the way — DNS, port 80, an authority limit — and there is still time to fix it before browsers refuse the site.',
+  'route.certificate_expiring.title': 'Certificate expiring soon — {hostname}',
+  'route.certificate_expiring.body':
+    'The certificate of “{hostname}” ({application}, on “{machine}”) expires on {date}, in {days} day(s). Its automatic renewal did not go through.',
+  'route.certificate_expiring.summary': '{hostname} — expires {date}',
+  'route.certificate_renewed.label': 'Certificate renewed',
+  'route.certificate_renewed.description': 'A certificate reported as expiring soon was renewed.',
+  'route.certificate_renewed.rationale':
+    'Closes the earlier alert: the domain has a valid certificate again.',
+  'route.certificate_renewed.title': 'Certificate renewed — {hostname}',
+  'route.certificate_renewed.body':
+    'The certificate of “{hostname}” ({application}, on “{machine}”) is renewed until {date}.',
+  'route.certificate_renewed.summary': '{hostname} — until {date}',
+
+  'target.unreachable.label': 'Machine unreachable',
+  'target.unreachable.description':
+    'Pupitre no longer reaches a machine over SSH: two readouts in a row failed.',
+  'target.unreachable.rationale':
+    'A machine that is off crosses no threshold: without this event, it goes down silently. Two missed readouts, not one — a reboot wakes nobody up.',
+  'target.unreachable.title': 'Machine unreachable — {machine}',
+  'target.unreachable.body': 'Pupitre has not reached “{machine}” ({host}) for {duration}: {error}',
+  'target.unreachable.summary': '{machine}',
+  'target.reachable.label': 'Machine reachable again',
+  'target.reachable.description': 'An unreachable machine answers again.',
+  'target.reachable.rationale': 'Closes the earlier alert, and says how long the outage lasted.',
+  'target.reachable.title': 'Machine reachable — {machine}',
+  'target.reachable.body': '“{machine}” ({host}) answers again, after {duration} of outage.',
+  'target.reachable.summary': '{machine}',
+  'field.host': 'Address',
+
+  'deployment.succeeded.label': 'Deployment succeeded',
+  'deployment.succeeded.description':
+    'A version is live: the pipeline went all the way and the health check answers.',
+  'deployment.succeeded.rationale':
+    'A success wakes nobody up: pick it for the team room that wants to see releases go by, not for the on-call inbox.',
+  'deployment.succeeded.title': 'Deployed — {application}',
+  'deployment.succeeded.body': '“{application}” version {version} is live on “{machine}”{url}.',
+  'deployment.succeeded.bodyUrl': ': {url}',
+  'deployment.succeeded.summary': '{application} — version {version}',
+  'field.version': 'Version',
   'field.trigger': 'Trigger',
   'backup.trigger.schedule': 'scheduled',
   'backup.trigger.manual': 'on demand',
@@ -1031,6 +1141,40 @@ const CATALOG = {
         summary: t(lang, 'deployment.summary', { id: entry.resourceId ?? '?' }),
         // Deux versions et une flèche : pas une phrase, rien à traduire.
         summaryDetail: `${text(before.version, '?')} → ${text(after.restoredVersion, '?')}`,
+      };
+    },
+  },
+  'deployment.succeeded': {
+    key: 'deployment.succeeded',
+    severity: 'info',
+    auditAction: 'deployment.succeeded',
+    digestPath: '/deployments',
+    matches: () => true,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const application = text(after.application, '?');
+      const machine = text(after.targetName, '?');
+      const version = text(after.version, '?');
+      const url = optional(after.url);
+      return {
+        title: t(lang, 'deployment.succeeded.title', { application }),
+        body: t(lang, 'deployment.succeeded.body', {
+          application,
+          version,
+          machine,
+          url: url ? t(lang, 'deployment.succeeded.bodyUrl', { url }) : '',
+        }),
+        fields: fieldsOf([
+          [t(lang, 'field.application'), application],
+          [t(lang, 'field.version'), version],
+          [t(lang, 'field.machine'), machine],
+          [t(lang, 'field.url'), url],
+          actorField(ctx),
+        ]),
+        path: entry.resourceId ? `/deployments/${entry.resourceId}` : null,
+        summary: t(lang, 'deployment.succeeded.summary', { application, version }),
+        summaryDetail: machine,
       };
     },
   },
@@ -1403,6 +1547,60 @@ const CATALOG = {
       };
     },
   },
+  'target.unreachable': {
+    key: 'target.unreachable',
+    severity: 'critical',
+    auditAction: 'target.unreachable',
+    digestPath: '/targets',
+    matches: () => true,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const machine = text(after.targetName, entry.resourceId ?? '?');
+      const host = text(after.host, '?');
+      const duration = monitorDuration(lang, after.downSeconds) ?? '?';
+      const error = text(after.error, '?');
+      return {
+        title: t(lang, 'target.unreachable.title', { machine }),
+        body: t(lang, 'target.unreachable.body', { machine, host, duration, error }),
+        fields: fieldsOf([
+          [t(lang, 'field.machine'), machine],
+          [t(lang, 'field.host'), host],
+          [t(lang, 'field.consecutiveFailures'), optional(after.failures)],
+          [t(lang, 'field.error'), error],
+        ]),
+        path: entry.resourceId ? `/targets/${entry.resourceId}` : '/targets',
+        summary: t(lang, 'target.unreachable.summary', { machine }),
+        summaryDetail: clip(error, 300),
+      };
+    },
+  },
+  'target.reachable': {
+    key: 'target.reachable',
+    severity: 'info',
+    auditAction: 'target.reachable',
+    digestPath: '/targets',
+    matches: () => true,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const machine = text(after.targetName, entry.resourceId ?? '?');
+      const host = text(after.host, '?');
+      const duration = monitorDuration(lang, after.downSeconds) ?? '?';
+      return {
+        title: t(lang, 'target.reachable.title', { machine }),
+        body: t(lang, 'target.reachable.body', { machine, host, duration }),
+        fields: fieldsOf([
+          [t(lang, 'field.machine'), machine],
+          [t(lang, 'field.host'), host],
+          [t(lang, 'field.outageDuration'), duration],
+        ]),
+        path: entry.resourceId ? `/targets/${entry.resourceId}` : '/targets',
+        summary: t(lang, 'target.reachable.summary', { machine }),
+        summaryDetail: duration,
+      };
+    },
+  },
   'image.update.available': {
     key: 'image.update.available',
     severity: 'warning',
@@ -1550,6 +1748,70 @@ const CATALOG = {
           [t(lang, 'field.domain'), hostname],
           [t(lang, 'field.application'), application],
           [t(lang, 'field.machine'), machine],
+        ]),
+        path: entry.resourceId ? `/applications/${entry.resourceId}` : '/applications',
+      };
+    },
+  },
+  'route.certificate_expiring': {
+    key: 'route.certificate_expiring',
+    severity: 'warning',
+    auditAction: 'route.certificate.expiring',
+    digestPath: '/applications',
+    matches: () => true,
+    dedupDiscriminator: (entry) => optional(record(entry.after).hostname),
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const hostname = text(after.hostname, '?');
+      const application = text(after.application, '?');
+      const machine = text(after.targetName, '?');
+      const date = text(after.notAfter, '?').slice(0, 10);
+      const days = typeof after.daysLeft === 'number' ? after.daysLeft : '?';
+      return {
+        title: t(lang, 'route.certificate_expiring.title', { hostname }),
+        summary: clip(t(lang, 'route.certificate_expiring.summary', { hostname, date }), 200),
+        summaryDetail: optional(after.issuer),
+        body: t(lang, 'route.certificate_expiring.body', {
+          hostname,
+          application,
+          machine,
+          date,
+          days,
+        }),
+        fields: fieldsOf([
+          [t(lang, 'field.domain'), hostname],
+          [t(lang, 'field.application'), application],
+          [t(lang, 'field.machine'), machine],
+          [t(lang, 'field.expires'), date],
+        ]),
+        path: entry.resourceId ? `/applications/${entry.resourceId}` : '/applications',
+      };
+    },
+  },
+  'route.certificate_renewed': {
+    key: 'route.certificate_renewed',
+    severity: 'info',
+    auditAction: 'route.certificate.renewed',
+    digestPath: '/applications',
+    matches: () => true,
+    dedupDiscriminator: (entry) => optional(record(entry.after).hostname),
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const hostname = text(after.hostname, '?');
+      const application = text(after.application, '?');
+      const machine = text(after.targetName, '?');
+      const date = text(after.notAfter, '?').slice(0, 10);
+      return {
+        title: t(lang, 'route.certificate_renewed.title', { hostname }),
+        summary: clip(t(lang, 'route.certificate_renewed.summary', { hostname, date }), 200),
+        summaryDetail: null,
+        body: t(lang, 'route.certificate_renewed.body', { hostname, application, machine, date }),
+        fields: fieldsOf([
+          [t(lang, 'field.domain'), hostname],
+          [t(lang, 'field.application'), application],
+          [t(lang, 'field.expires'), date],
         ]),
         path: entry.resourceId ? `/applications/${entry.resourceId}` : '/applications',
       };

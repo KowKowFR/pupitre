@@ -66,6 +66,12 @@ export const targets = pgTable(
      */
     hostKeyPending: text('host_key_pending'),
     hostKeyPendingAt: timestamp('host_key_pending_at', { withTimezone: true }),
+    /**
+     * Depuis quand Pupitre ne joint plus la machine en SSH — le premier relevé
+     * manqué d'une série confirmée —, ou `null`. C'est l'épisode : il s'ouvre
+     * une fois, se ferme une fois, et c'est ce qui fait partir une seule alerte.
+     */
+    unreachableSince: timestamp('unreachable_since', { withTimezone: true }),
     labels: jsonb('labels').$type<TargetLabels>().notNull().default({}),
     /** Résultat structuré du dernier preflight : versions comprises. */
     runtimesAvailable: jsonb('runtimes_available')

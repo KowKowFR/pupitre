@@ -7,6 +7,7 @@ import type {
 } from '@pupitre/core/drivers';
 import { CERTIFICATE_RECHECK_DELAYS_MS, ROUTES_CHECK_JOB } from '@pupitre/core';
 import {
+  certificateTransition,
   getProxyProvider,
   type ProxyRoute,
   type ProxyUpstream,
@@ -19,6 +20,7 @@ import {
   replaceRoutes,
   RouteTakenError,
   resolveServingProxy,
+  setRouteCertificateAlert,
   setRouteStatus,
   type RouteView,
   type ServingProxy,
@@ -162,6 +164,7 @@ async function recordProbe(
     application: route.applicationSlug,
     targetName: route.targetName,
   };
+  await watchCertificate(route, probe, context);
   if (probe.ok) {
     await setRouteStatus(route.id, {
       status: 'active',
@@ -194,6 +197,37 @@ async function recordProbe(
       after: { ...context, error: probe.detail },
     });
   }
+}
+
+/**
+ * L'échéance du certificat, vue à chaque sonde : une alerte quand il entre dans
+ * ses quatorze derniers jours — son renouvellement n'a pas abouti —, une seule
+ * par certificat, et l'annonce de son renouvellement.
+ */
+async function watchCertificate(
+  route: RouteView,
+  probe: RouteProbe,
+  context: { hostname: string; application: string; targetName: string },
+): Promise<void> {
+  const transition = certificateTransition(route.certificateAlert, probe.certificate);
+  if (!transition) return;
+  await setRouteCertificateAlert(
+    route.id,
+    transition.kind === 'expiring' ? transition.notAfter : null,
+  );
+  await logAudit({
+    actorId: null,
+    action:
+      transition.kind === 'expiring' ? 'route.certificate.expiring' : 'route.certificate.renewed',
+    resourceType: 'application',
+    resourceId: route.applicationId,
+    after: {
+      ...context,
+      notAfter: transition.notAfter,
+      issuer: probe.certificate?.issuer ?? null,
+      ...(transition.kind === 'expiring' ? { daysLeft: transition.daysLeft } : {}),
+    },
+  });
 }
 
 export type AppliedRoutes = {

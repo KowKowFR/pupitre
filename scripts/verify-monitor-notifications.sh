@@ -307,8 +307,8 @@ step "4. Le catalogue d'événements connaît la supervision"
 code=$(req GET /api/notifications/channels)
 [ "$code" = "200" ] || fail "GET /api/notifications/channels → HTTP $code"
 EVENTS=$(jq -r '[.vocabulary.events[].key] | join(", ")' "$BODY")
-jq -e '.vocabulary.events | length == 7' "$BODY" >/dev/null \
-  || fail "sept événements attendus, $(jq -r '.vocabulary.events | length' "$BODY") reçus"
+# Pas de compte fixe : le catalogue grandit à chaque événement ajouté, et ce
+# script ne dit rien des autres. Il exige les deux qu'il éprouve.
 for key in monitor.down monitor.recovered; do
   jq -e --arg k "$key" '[.vocabulary.events[] | select(.key == $k)] | length == 1' "$BODY" >/dev/null \
     || fail "l'événement « $key » n'est pas au catalogue"
