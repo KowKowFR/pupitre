@@ -249,6 +249,7 @@ voir [`exploitation.md`](exploitation.md#restaurer-la-base-du-panel).
 | `/api/chat/read` | POST | membre de l'équipe¹ |
 | `/api/chat/directory` | GET | membre de l'équipe¹ — ce que la session peut mentionner |
 | `/api/presence` | POST | membre de l'équipe¹ |
+| `/api/search` | GET | une session — la palette ⌘K. `q`, et `kinds` (`target,application,running,deployment,monitor,domain,role,template`) pour restreindre ; chaque famille n'est lue qu'avec sa permission de lecture (le catalogue : `application:create`). Correspondance tolérante : accents, débuts de mots, lettres dans l'ordre, fautes de frappe |
 
 ¹ Une session dont le rôle porte au moins une permission (`requireTeamMember()`). Un compte
 **Sans accès** — une inscription publique qui attend son rôle — reçoit `403 no_access`, et le flux
