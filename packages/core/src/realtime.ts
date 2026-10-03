@@ -129,6 +129,9 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   source_connection: 'settings',
   notification_channel: 'settings',
   notification_policy: 'settings',
+  // Une prévision porte sur une machine, une sonde, un domaine ou une
+  // application : elle se lit sur la vue d'ensemble et dans la fiche des cibles.
+  forecast: 'targets',
 };
 
 /** Le sujet d'une ligne du journal d'audit. */

@@ -71,6 +71,12 @@ import {
 import { handleApplicationDelete } from './handlers/application.js';
 import { handleTargetMetrics, handleTargetMetricsSweep } from './handlers/host-metrics.js';
 import { handleDomainInspect } from './handlers/domain-inspect.js';
+import {
+  FORECAST_SWEEP_EVERY_MS,
+  FORECAST_SWEEP_JOB,
+  FORECAST_SWEEP_SCHEDULER_KEY,
+  handleForecastSweep,
+} from './forecast/sweep.js';
 import { handleMonitorCapture, handleMonitorSweep } from './handlers/monitor.js';
 import { startCaptureEgress, stopCaptureEgress } from './monitors/egress.js';
 import {
@@ -213,6 +219,8 @@ const supervisionHandlers: Record<string, JobHandler> = {
   // Le relevé d'un domaine pour son tiroir : DNS, RDAP, certificat, vus du
   // worker. Une lecture de quelques secondes, que le panel attend.
   [DOMAIN_INSPECT_JOB]: handleDomainInspect,
+  // Les prévisions : des lectures SQL et un calcul, toutes les 30 minutes.
+  [FORECAST_SWEEP_JOB]: handleForecastSweep,
 };
 
 /** La file des sauvegardes : longues, lentes, une à la fois par défaut. */
@@ -380,6 +388,30 @@ async function installRoutesCheck(): Promise<void> {
   logger.info({ everyMs: ROUTES_CHECK_EVERY_MS }, 'sonde des domaines installée');
 }
 
+/**
+ * Installe l'horloge des prévisions : toutes les 30 minutes. Même motif que
+ * les balayages ci-dessus — pas de ligne en base, réinstallée à l'identique à
+ * chaque démarrage. Les séries qu'elle lit bougent toutes les 5 minutes au
+ * plus vite : une demi-heure suffit à voir venir un mur qui est à des jours.
+ */
+async function installForecastSweep(): Promise<void> {
+  const queue = getSupervisionQueue();
+  await queue.upsertJobScheduler(
+    FORECAST_SWEEP_SCHEDULER_KEY,
+    { every: FORECAST_SWEEP_EVERY_MS },
+    {
+      name: FORECAST_SWEEP_JOB,
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { age: 24 * 3600, count: 50 },
+        removeOnFail: { age: 7 * 24 * 3600, count: 50 },
+      },
+    },
+  );
+  logger.info({ everyMs: FORECAST_SWEEP_EVERY_MS }, 'balayage des prévisions installé');
+}
+
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -468,6 +500,14 @@ async function main(): Promise<void> {
     await startCaptureEgress();
   } catch (error) {
     logger.error({ err: error }, 'mandataire de sortie des captures indisponible');
+  }
+
+  try {
+    await installForecastSweep();
+  } catch (error) {
+    // Sans horloge, plus de prévision nouvelle ; les épisodes ouverts restent
+    // affichés tels quels. Une dégradation, pas une panne.
+    logger.error({ err: error }, 'installation du balayage des prévisions impossible');
   }
 
   try {

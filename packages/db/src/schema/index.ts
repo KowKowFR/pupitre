@@ -17,3 +17,4 @@ export * from './images.js';
 export * from './avatars.js';
 export * from './backups.js';
 export * from './proxies.js';
+export * from './forecasts.js';

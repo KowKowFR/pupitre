@@ -10,6 +10,12 @@ import {
   type NotificationSeverity,
 } from './message.js';
 import { SIGNUP_ROLE } from '../permissions.js';
+import {
+  describeForecast,
+  forecastSchema,
+  forecastSeverityLabel,
+  forecastSubjectPath,
+} from '../forecast.js';
 
 /**
  * Ce qui mérite d'être notifié — et rien d'autre.
@@ -113,6 +119,7 @@ export const NOTIFICATION_EVENT_KEYS = [
   'route.recovered',
   'route.certificate_expiring',
   'route.certificate_renewed',
+  'forecast.raised',
 ] as const;
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
@@ -456,6 +463,17 @@ const fr = {
     'Le certificat de « {hostname} » ({application}, sur « {machine} ») est renouvelé jusqu’au {date}.',
   'route.certificate_renewed.summary': '{hostname} — jusqu’au {date}',
 
+  // ── forecast.raised ────────────────────────────────────────────────────
+  'forecast.raised.label': 'Prévision : un problème en vue',
+  'forecast.raised.description':
+    'Le panel voit venir une panne : un disque qui se remplit, une mémoire qui ne redescend pas, une charge en hausse, une sonde qui ralentit ou qui bascule, un certificat non renouvelé, une sauvegarde en retard, des déploiements qui échouent en série.',
+  'forecast.raised.rationale':
+    'Prévenir avant que ça casse : chaque prévision est un calcul sur les relevés que le panel garde déjà (une pente, une médiane, un compte), refait toutes les 30 minutes. Elle n’est annoncée qu’une fois, à son apparition.',
+  'forecast.raised.title': '{title} — {name}',
+  'forecast.raised.bodyEta': ' Échéance estimée : {date}.',
+  'field.forecast': 'Prévision',
+  'field.eta': 'Échéance estimée',
+
   // ── target.unreachable / target.reachable ──────────────────────────────
   'target.unreachable.label': 'Machine injoignable',
   'target.unreachable.description':
@@ -786,6 +804,16 @@ const en: Translated<typeof fr> = {
   'route.certificate_renewed.body':
     'The certificate of “{hostname}” ({application}, on “{machine}”) is renewed until {date}.',
   'route.certificate_renewed.summary': '{hostname} — until {date}',
+
+  'forecast.raised.label': 'Forecast: a problem ahead',
+  'forecast.raised.description':
+    'The panel sees an outage coming: a disk filling up, memory that never comes back down, rising load, a monitor slowing down or flapping, a certificate not renewed, an overdue backup, deployments failing in a row.',
+  'forecast.raised.rationale':
+    'Warn before it breaks: each forecast is a calculation on readings the panel already keeps (a slope, a median, a count), redone every 30 minutes. It is announced once, when it appears.',
+  'forecast.raised.title': '{title} — {name}',
+  'forecast.raised.bodyEta': ' Estimated deadline: {date}.',
+  'field.forecast': 'Forecast',
+  'field.eta': 'Estimated deadline',
 
   'target.unreachable.label': 'Machine unreachable',
   'target.unreachable.description':
@@ -1829,7 +1857,57 @@ const CATALOG = {
       };
     },
   },
+  'forecast.raised': {
+    key: 'forecast.raised',
+    severity: 'warning',
+    auditAction: 'forecast.raised',
+    digestPath: '/',
+    matches: () => true,
+    // Un épisode, un message : l'identifiant de l'épisode ne bouge pas tant
+    // que la prévision dure, et une prévision refermée puis revenue en est une autre.
+    dedupDiscriminator: (entry) => entry.resourceId ?? null,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const name = text(after.subjectName, '?');
+      const parsed = forecastSchema.safeParse({
+        kind: after.kind,
+        subject: { type: after.subjectType, id: text(after.subjectId, '?'), name },
+        severity: after.severity,
+        etaAt: optional(after.etaAt),
+        detail: record(after.detail),
+      });
+      const described = parsed.success
+        ? describeForecast(parsed.data, lang)
+        : { title: t(lang, 'forecast.raised.label'), sentence: name };
+      const eta = optional(after.etaAt);
+      const date = eta === null ? null : String(eta).slice(0, 10);
+      return {
+        title: t(lang, 'forecast.raised.title', { title: described.title, name }),
+        summary: clip(described.sentence, 200),
+        summaryDetail: parsed.success ? forecastSeverityLabel(parsed.data.severity, lang) : null,
+        body: described.sentence + (date ? t(lang, 'forecast.raised.bodyEta', { date }) : ''),
+        fields: fieldsOf([
+          [t(lang, 'field.forecast'), described.title],
+          [
+            t(lang, FORECAST_SUBJECT_FIELD[parsed.success ? parsed.data.subject.type : 'target']),
+            name,
+          ],
+          [t(lang, 'field.eta'), date],
+        ]),
+        path: parsed.success ? forecastSubjectPath(parsed.data.subject) : '/',
+      };
+    },
+  },
 } as const satisfies Record<NotificationEventKey, NotificationEventDescriptor>;
+
+/** Le nom du champ qui porte le sujet d'une prévision. */
+const FORECAST_SUBJECT_FIELD = {
+  target: 'field.target',
+  monitor: 'field.probe',
+  route: 'field.domain',
+  application: 'field.application',
+} as const;
 
 export function notificationEventDescriptor(key: NotificationEventKey): NotificationEventDescriptor {
   return CATALOG[key];

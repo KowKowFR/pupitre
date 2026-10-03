@@ -25,7 +25,7 @@ const HEALTH_TONE: Record<string, Tone> = {
 };
 
 /** La part de la fiche que rend le serveur, telle qu'elle traverse jusqu'ici. */
-export type ApplicationRecordView = Pick<ApplicationRecord, 'key' | 'tabs' | 'counts'>;
+export type ApplicationRecordView = Pick<ApplicationRecord, 'key' | 'tabs' | 'counts' | 'alerts'>;
 
 const SERVER_TABS: ApplicationRecordTab[] = [
   'versions',
@@ -100,6 +100,7 @@ export function ApplicationDrawer({
 
   const overview = application ? (
     <>
+      {ready ? record.alerts : null}
       <DrawerSection title={t('drawer.run')}>
         <ServiceList application={application} />
       </DrawerSection>

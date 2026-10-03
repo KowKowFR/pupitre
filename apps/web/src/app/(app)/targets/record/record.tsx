@@ -11,9 +11,11 @@ import {
 } from '@pupitre/db';
 import { Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { ProxyPanel } from '@/components/proxy/proxy-panel';
+import { ForecastPanel } from '@/components/forecasts/forecast-panel';
 import { KeyValue } from '@/components/ui/data';
 import { getT } from '@/i18n/server';
 import { targets as messages } from '@/i18n/messages/targets';
+import { visibleForecasts } from '@/lib/forecasts';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 import type { AuthContext } from '@/lib/rbac';
 import { HostKeyAlert } from './host-key-alert';
@@ -59,11 +61,12 @@ export async function targetRecord(
   auth: AuthContext,
   format: FormatSettings,
 ): Promise<TargetRecord> {
-  const [ports, t, histories, samples] = await Promise.all([
+  const [ports, t, histories, samples, forecasts] = await Promise.all([
     getTargetPortReport(target.id),
     getT(messages),
     targetHistories([target.id], 24, 24),
     listTargetSamples(target.id, 1),
+    visibleForecasts(auth, { subjectType: 'target', subjectId: target.id }),
   ]);
   const history = histories.get(target.id);
   const latest = samples[0]?.reachable ? samples[0] : null;
@@ -84,6 +87,7 @@ export async function targetRecord(
 
   const overview = (
     <>
+      <ForecastPanel items={forecasts} compact />
       {target.hostKeyPending ? (
         <HostKeyAlert
           target={{ id: target.id, name: target.name }}

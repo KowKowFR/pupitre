@@ -53,6 +53,8 @@ import {
 } from '@/lib/overview';
 import { currentAuth } from '@/lib/page-auth';
 import { isTeamMember } from '@/lib/rbac';
+import { ForecastPanel } from '@/components/forecasts/forecast-panel';
+import { visibleForecasts } from '@/lib/forecasts';
 import { AttentionPanel, Panel, PanelEmpty } from './attention';
 import { DeploymentStatusBadge } from './deployments/status-badge';
 
@@ -238,6 +240,7 @@ export default async function HomePage({
   const appsHealthy = running.filter((app) => app.healthStatus === 'healthy').length;
 
   const attention = collectAttention({ targets, running, monitors, recent, chronicle, posture, t });
+  const forecasts = auth ? await visibleForecasts(auth) : [];
 
   return (
     <>
@@ -260,6 +263,9 @@ export default async function HomePage({
       />
 
       <AttentionPanel items={attention} />
+
+      {/* Ce qui va casser si rien ne change : sous ce qui est cassé maintenant. */}
+      <ForecastPanel items={forecasts} />
 
       <PulseBand
         windowKey={windowKey}

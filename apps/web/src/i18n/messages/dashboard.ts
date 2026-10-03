@@ -63,6 +63,12 @@ const fr = {
     other: '{count} points demandent votre attention',
   },
   'attention.aside': "Le reste de l'instance se porte bien.",
+  'forecast.title': {
+    one: '{count} problème en vue',
+    other: '{count} problèmes en vue',
+  },
+  'forecast.aside': 'Prévisions sur les relevés gardés, recalculées toutes les 30 minutes.',
+  'forecast.open': 'Voir',
   'attention.clear': "Rien ne demande d'intervention.",
   'attention.clear.detail':
     'Les cibles répondent, les applications tournent, les sondes sont au vert.',
@@ -274,6 +280,12 @@ const en: Translated<typeof fr> = {
     other: '{count} items need your attention',
   },
   'attention.aside': 'The rest of the instance is fine.',
+  'forecast.title': {
+    one: '{count} problem ahead',
+    other: '{count} problems ahead',
+  },
+  'forecast.aside': 'Forecasts from the kept readings, recalculated every 30 minutes.',
+  'forecast.open': 'View',
   'attention.clear': 'Nothing needs action.',
   'attention.clear.detail': 'Targets answer, applications run, probes are green.',
 

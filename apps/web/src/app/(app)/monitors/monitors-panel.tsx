@@ -575,6 +575,7 @@ function MonitorDrawer({
 
   const overview = monitor ? (
     <>
+      {record?.alerts}
       <DrawerSection title={t('drawer.target')}>
         {monitor.targetLink ? (
           <a

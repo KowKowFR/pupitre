@@ -204,6 +204,47 @@ saisir l'URL.
 
 Vérification de bout en bout : `scripts/verify-monitor-notifications.sh`.
 
+## Prévisions
+
+Ce qui va casser si rien ne change. Toutes les 30 minutes, le worker relit les
+séries que la base garde déjà et en tire des **prévisions** — sans IA : une
+pente aux moindres carrés, une médiane, un compte. Le calcul est pur et testé
+sur des séries fabriquées (`packages/core/src/forecast.ts`) ; le balayage
+(`apps/worker/src/forecast/sweep.ts`) ne fait que lire, appeler et accorder.
+
+| Prévision | Sujet | Ce qui la déclenche |
+|---|---|---|
+| Disque bientôt plein | cible | 95 % atteint dans moins de 14 jours, à la pente des 7 derniers jours (moyennes horaires ; pente ≥ 0,3 pt/jour, r² ≥ 0,6, deux jours de relevés au moins) |
+| Mémoire qui ne redescend pas | cible | 95 % dans moins de 7 jours, à la pente des 3 derniers jours (≥ 2 pts/jour, r² ≥ 0,8 : une fuite monte droit) |
+| Charge en hausse | cible | le seuil de charge de la cible dans moins de 7 jours, à la pente des moyennes **journalières** — la charge respire chaque jour, la tendance se lit d'un jour à l'autre |
+| Sonde plus lente | sonde | la médiane des réponses saines des 24 dernières heures vaut 1,5× celle des six jours d'avant, et 100 ms de plus au moins (20 mesures récentes, 50 anciennes) |
+| Sonde instable | sonde | 6 bascules en 24 h entre « en ligne » et « en panne » — l'hystérésis évite l'alerte, pas la fragilité |
+| Certificat non renouvelé | domaine | moins de 20 jours de validité : le renouvellement aurait dû passer à 30 |
+| Sauvegarde en retard | application | 48 h sans sauvegarde réussie alors que la sauvegarde est active |
+| Déploiements en échec | cible | les trois derniers déploiements de la semaine ont tous échoué |
+
+Les seuils sont choisis pour **se taire** sur un parc ordinaire : une pente
+sans régularité (r² faible) ou tirée de trop peu de jours ne dit rien. Une
+prévision est **« bientôt »** quand son échéance est à trois jours ou moins ;
+sans échéance, quand l'écart est franc — latence triplée, 12 bascules, 96 h
+sans sauvegarde. **« À surveiller »** sinon.
+
+**Des épisodes, comme les seuils.** La table `forecasts` tient un épisode
+ouvert par `(nature, sujet)` — index unique partiel, comme
+`target_metric_breaches`. Un constat nouveau l'ouvre, un constat qui dure le
+met à jour (échéance, chiffres), un épisode sans constat se referme. Seules
+l'ouverture et la fermeture s'écrivent au journal (`forecast.raised`,
+`forecast.cleared`) ; seule l'ouverture est notifiable, **une fois** par épisode.
+
+**Où elles se lisent.**
+- La vue d'ensemble : une carte « À venir », sous le bloc d'attention. Rien
+  quand il n'y a rien.
+- L'aperçu du tiroir de leur sujet : cible, sonde, application.
+- `GET /api/forecasts`, en phrases dans la langue de l'instance.
+
+Chacune n'est montrée qu'à qui peut lire son sujet (`target:read`,
+`monitor:read`, `application:read`).
+
 ## Notifications
 
 Quatre canaux, treize événements, derrière un catalogue et une fabrique. Même
@@ -245,7 +286,7 @@ serveur mal configuré.
 C'est **la seule voie e-mail de l'instance** : il n'existe aucun réglage SMTP
 global ailleurs.
 
-### Les vingt et un événements
+### Les vingt-deux événements
 
 Tous dérivés du journal d'activité :
 
@@ -272,6 +313,7 @@ Tous dérivés du journal d'activité :
 | `route.recovered` | info | `route.recovered` — ce domaine répond de nouveau |
 | `route.certificate_expiring` | warning | `route.certificate.expiring` — le certificat d'un domaine expire sous quatorze jours : son renouvellement n'a pas abouti. Une fois par certificat |
 | `route.certificate_renewed` | info | `route.certificate.renewed` — ce certificat a été renouvelé |
+| `forecast.raised` | warning | `forecast.raised` — une [prévision](#prévisions) s'ouvre : un problème en vue, annoncé une fois. Sa fermeture (`forecast.cleared`) n'est pas notifiable |
 
 **Un seul `monitor.down`**, pas un par nature de panne. Séparer « répond mal »
 d'« injoignable » donnerait deux clés, donc deux groupes de regroupement, donc

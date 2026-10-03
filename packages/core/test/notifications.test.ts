@@ -196,6 +196,35 @@ describe('notifications — la table des événements', () => {
     assert.ok(message.body.includes('https://api.example.test'));
   });
 
+  it('une prévision prévient une fois, en phrase, et mène au tiroir de son sujet', () => {
+    const raised = entry({
+      action: 'forecast.raised',
+      resourceType: 'forecast',
+      resourceId: '22222222-2222-2222-2222-222222222222',
+      actorId: null,
+      after: {
+        kind: 'latency_degrading',
+        subjectType: 'monitor',
+        subjectId: 'm-1',
+        subjectName: 'API facturation',
+        severity: 'soon',
+        etaAt: null,
+        detail: { recentMs: 477, baselineMs: 142, ratio: 3.4 },
+      },
+    });
+    assert.equal(notifiableEventFor(raised), 'forecast.raised');
+    assert.equal(notifiableEventFor({ ...raised, action: 'forecast.cleared' }), null);
+    const message = buildNotificationMessage('forecast.raised', raised, CTX);
+    notificationMessageSchema.parse(message);
+    assert.equal(message.title, 'Sonde plus lente — API facturation');
+    assert.match(message.body, /477 ms depuis 24 h, contre 142 ms d’habitude \(×3,4\)/);
+    assert.deepEqual(
+      message.fields.find((field) => field.label === 'Sonde'),
+      { label: 'Sonde', value: 'API facturation' },
+    );
+    assert.ok(message.url?.endsWith('/monitors?monitor=m-1'));
+  });
+
   it('une machine injoignable prévient, et son retour dit la durée', () => {
     const down = entry({
       action: 'target.unreachable',

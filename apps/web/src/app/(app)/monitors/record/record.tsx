@@ -9,7 +9,9 @@ import {
   type CaptureMeta,
   type Monitor,
 } from '@pupitre/db';
+import { ForecastPanel } from '@/components/forecasts/forecast-panel';
 import { currentLanguage } from '@/i18n/server';
+import { visibleForecasts } from '@/lib/forecasts';
 import type { FormatSettings } from '@/lib/format';
 import { buildMonitorViews, monitorTypeOptions, toCheckView, toIncidentView } from '@/lib/monitors';
 import type { AuthContext } from '@/lib/rbac';
@@ -23,6 +25,8 @@ export type MonitorRecord = {
   /** L'identifiant de la sonde : c'est la clé du tiroir. */
   key: string;
   tabs: Partial<Record<MonitorRecordTab, ReactNode>>;
+  /** Ce qui ouvre l'aperçu : les prévisions sur la sonde (ralentissement, instabilité). */
+  alerts: ReactNode;
   /** Ce que « Modifier » préremplit — `null` sans `monitor:manage`. */
   edit: { monitor: EditableMonitor; types: TypeOption[] } | null;
 };
@@ -61,13 +65,14 @@ export async function monitorRecord(
   format: FormatSettings,
 ): Promise<MonitorRecord | null> {
   const language = await currentLanguage();
-  const [[view], checks, incidents, reference] = await Promise.all([
+  const [[view], checks, incidents, reference, forecasts] = await Promise.all([
     buildMonitorViews([row]),
     // Deux cents points : de quoi couvrir plus de trois heures d'une sonde à la
     // minute sans faire traverser la moitié de la série à chaque affichage.
     listChecks(row.id, 200),
     listIncidents(row.id, 50),
     liveReference(row.id),
+    visibleForecasts(auth, { subjectType: 'monitor', subjectId: row.id }),
   ]);
   if (!view) return null;
 
@@ -94,6 +99,7 @@ export async function monitorRecord(
 
   return {
     key: row.id,
+    alerts: <ForecastPanel items={forecasts} compact />,
     edit:
       editTypes && isMonitorType(row.type)
         ? {
