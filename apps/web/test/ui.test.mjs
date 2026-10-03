@@ -22,7 +22,7 @@ const {
   neighbour,
   selectionFrom,
 } = await import('../src/lib/drawer-url.ts');
-const { activeSection, parsePaletteQuery, visibleCommands, visibleNavigation } = await import(
+const { activeSection, parsePaletteQuery, splitPaletteVerbs, visibleCommands, visibleNavigation } = await import(
   '../src/lib/navigation.ts'
 );
 
@@ -90,9 +90,22 @@ describe('masquage par permission', () => {
     assert.ok(keys.includes('catalog'));
   });
 
+  it('la palette lit un verbe d’action dans la saisie', () => {
+    assert.deepEqual(splitPaletteVerbs('Redémarrer umami'), { verbs: ['restart'], rest: 'umami' });
+    assert.deepEqual(splitPaletteVerbs('prod-1 tester'), { verbs: ['test'], rest: 'prod-1' });
+    assert.deepEqual(splitPaletteVerbs('api facturation'), { verbs: [], rest: 'api facturation' });
+    assert.deepEqual(splitPaletteVerbs('suspendre'), { verbs: ['pause'], rest: '' });
+  });
+
   it('la palette ne propose pas une commande interdite', () => {
-    assert.deepEqual(visibleCommands(VIEWER), ['theme', 'shortcuts']);
-    assert.deepEqual(visibleCommands(OPERATOR), ['deploy', 'testTargets', 'newApp', 'theme', 'shortcuts']);
+    assert.deepEqual(visibleCommands(VIEWER), ['theme', 'shortcuts', 'searchRuns']);
+    assert.deepEqual(visibleCommands(OPERATOR), [
+      'deploy', 'testTargets', 'newApp', 'theme', 'shortcuts',
+      'act.test', 'act.editTarget', 'act.deploy', 'searchRuns',
+    ]);
+    // Une action sur un objet suit la même règle : sans `deployment:restart`, pas de « redémarrer ».
+    assert.ok(!visibleCommands(OPERATOR).includes('act.restart'));
+    assert.ok(visibleCommands(ADMIN).includes('searchLogs') && visibleCommands(ADMIN).includes('settings'));
     assert.ok(visibleCommands(ADMIN).includes('language'));
   });
 

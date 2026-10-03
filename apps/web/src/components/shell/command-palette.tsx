@@ -4,27 +4,50 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Command } from 'cmdk';
 import {
+  Activity,
+  BookOpen,
   Boxes,
+  ChevronRight,
+  Clock,
+  Globe,
+  History,
   Keyboard,
+  KeyRound,
   Languages,
+  LayoutGrid,
   Moon,
+  Pause,
+  Pencil,
+  Play,
   Plus,
   Radar,
   RefreshCw,
   Rocket,
+  RotateCw,
+  ScrollText,
   Search,
   Server,
   ServerCog,
+  SlidersHorizontal,
   Sun,
   SunMoon,
+  TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import type { Translate } from '@pupitre/core';
+import { matchScore, type Translate } from '@pupitre/core';
+import { SETTINGS_GROUPS, groupSections } from '@/app/(app)/admin/settings/sections';
 import type { SearchHit } from '@/app/api/search/route';
 import { Kbd } from '@/components/ui/kbd';
 import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
-import { parsePaletteQuery, type CommandKey } from '@/lib/navigation';
+import { settings as settingsMessages } from '@/i18n/messages/settings';
+import {
+  PALETTE_VERBS,
+  parsePaletteQuery,
+  splitPaletteVerbs,
+  type CommandKey,
+  type PaletteVerb,
+} from '@/lib/navigation';
 import { applyTheme, parseTheme, type ThemeChoice } from '@/lib/theme';
 import { toast } from '@/lib/toast';
 import { SECTION_ICON } from './section-icons';
@@ -33,20 +56,30 @@ import type { PaletteScope, ShellSection } from './shell-provider';
 /**
  * Palette ⌘K — 640 px, à 96 px du haut, entrée `pp-cmdk`.
  *
- * Quatre groupes : Suggestions, Aller à, Objets, Préférences ; un groupe vide
- * est masqué. Le préfixe `›` ne garde que les commandes. Les objets viennent
- * de `GET /api/search`, qui ne lit que ce que la session a le droit de voir ;
- * les commandes et les sections arrivent déjà filtrées par la coquille. Une
- * commande interdite n'apparaît donc pas — ni grisée, ni expliquée.
+ * Ce qu'elle rend, dans l'ordre : les éléments récents (champ vide), les
+ * actions, les suggestions, « Aller à », les objets, les préférences ; un
+ * groupe vide est masqué. Le préfixe `›` ne garde que les commandes.
+ *
+ * - **Les objets** viennent de `GET /api/search`, qui ne lit que ce que la
+ *   session a le droit de voir, avec une correspondance tolérante (accents,
+ *   lettres dans l'ordre, fautes de frappe).
+ * - **Les actions** se demandent de deux façons : par un verbe tapé avec le
+ *   nom (« redémarrer umami », « tester prod-1 »), ou par → sur un objet
+ *   surligné, qui ouvre la liste de ce qu'on peut en faire. Une action qui
+ *   interrompt un service demande une confirmation, dans la palette même.
+ *   Une action interdite n'apparaît pas — ni grisée, ni expliquée.
  *
  * Le filtrage est fait ici plutôt que par cmdk : le préfixe `›`, les objets
  * déjà filtrés par le serveur et le masquage des groupes vides ne se disent
  * pas avec son filtre flou.
  */
 
+type Group =
+  'recent' | 'actions' | 'suggestions' | 'goto' | 'objects' | 'elsewhere' | 'preferences';
+
 type Item = {
   id: string;
-  group: 'suggestions' | 'goto' | 'objects' | 'preferences';
+  group: Group;
   icon: LucideIcon;
   title: string;
   meta: string;
@@ -54,15 +87,76 @@ type Item = {
   words: string;
   isCommand: boolean;
   perform: () => void;
+  /** L'objet derrière la ligne : → ouvre ses actions. */
+  hit?: SearchHit;
 };
 
-const GROUP_ORDER = ['suggestions', 'goto', 'objects', 'preferences'] as const;
+/** Une action sur un objet trouvé. */
+type Action = {
+  key: string;
+  verb: PaletteVerb | 'open';
+  icon: LucideIcon;
+  title: string;
+  meta: string;
+  /** Une action qui interrompt un service passe par une confirmation. */
+  confirm?: string;
+  run: () => void | Promise<void>;
+};
+
+/** Un élément ouvert récemment, gardé dans ce navigateur seulement. */
+type Recent = { kind: SearchHit['kind']; id: string; title: string; meta: string; href: string };
+
+const RECENT_KEY = 'pupitre.palette.recent';
+const RECENT_LIMIT = 6;
+
+const GROUP_ORDER: readonly Group[] = [
+  'recent',
+  'actions',
+  'suggestions',
+  'goto',
+  'objects',
+  'elsewhere',
+  'preferences',
+];
 const GROUP_LABEL = {
+  recent: 'palette.group.recent',
+  actions: 'palette.group.actions',
   suggestions: 'palette.group.suggestions',
   goto: 'palette.group.goto',
   objects: 'palette.group.objects',
+  elsewhere: 'palette.group.elsewhere',
   preferences: 'palette.group.preferences',
 } as const;
+
+const KIND_ICON: Record<SearchHit['kind'], LucideIcon> = {
+  target: Server,
+  application: Boxes,
+  running: Activity,
+  deployment: Rocket,
+  monitor: Radar,
+  domain: Globe,
+  role: KeyRound,
+  template: LayoutGrid,
+};
+
+function readRecents(): Recent[] {
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? (parsed as Recent[]).slice(0, RECENT_LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberRecent(entry: Recent) {
+  try {
+    const next = [entry, ...readRecents().filter((item) => item.href !== entry.href)];
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next.slice(0, RECENT_LIMIT)));
+  } catch {
+    // Stockage refusé (navigation privée) : la palette s'en passe.
+  }
+}
 
 export function CommandPalette({
   open,
@@ -82,6 +176,7 @@ export function CommandPalette({
   onShowShortcuts: () => void;
 }) {
   const t = useT(chrome);
+  const ts = useT(settingsMessages);
   const router = useRouter();
   const [raw, setRaw] = React.useState('');
   const [found, setFound] = React.useState<{ key: string; items: SearchHit[] }>({
@@ -89,15 +184,43 @@ export function CommandPalette({
     items: [],
   });
   const [searching, setSearching] = React.useState(false);
-  // Lu une fois par ouverture : la coquille remonte la palette à chaque fois.
+  const [active, setActive] = React.useState('');
+  /** L'objet dont on liste les actions (→), ou `null`. */
+  const [focus, setFocus] = React.useState<SearchHit | null>(null);
+  /** L'action qui attend sa confirmation, ou `null`. */
+  const [confirming, setConfirming] = React.useState<Action | null>(null);
+  /** La saisie d'avant une sous-vue : on la retrouve en revenant. */
+  const [saved, setSaved] = React.useState('');
+  // Lus une fois par ouverture : la coquille remonte la palette à chaque fois.
   const [theme] = React.useState<ThemeChoice>(() => {
     if (typeof document === 'undefined') return 'system';
     const root = document.documentElement.classList;
     return parseTheme(root.contains('dark') ? 'dark' : root.contains('light') ? 'light' : null);
   });
+  const [recents] = React.useState<Recent[]>(() =>
+    typeof window === 'undefined' ? [] : readRecents(),
+  );
+
+  const can = (key: CommandKey) => commands.includes(key);
   const { query, commandsOnly } = parsePaletteQuery(raw);
-  const searchKey = `${scope ?? ''}|${query}`;
-  const idle = commandsOnly || (scope === null && query === '');
+  const { verbs, rest } = splitPaletteVerbs(query);
+  // Un verbe tapé qu'on n'a pas le droit d'exercer ne compte pas : la saisie
+  // reste une recherche ordinaire, et rien d'interdit n'apparaît.
+  const usableVerbs = verbs.filter((verb) => allowedVerb(verb, can));
+  const verbKinds = [...new Set(usableVerbs.flatMap((verb) => PALETTE_VERBS[verb].kinds))];
+
+  const request =
+    scope === 'deploy'
+      ? { q: query, kinds: 'application' }
+      : usableVerbs.length > 0
+        ? { q: rest, kinds: verbKinds.join(',') }
+        : { q: query, kinds: '' };
+  const searchKey = `${request.kinds}|${request.q}`;
+  const idle =
+    focus !== null ||
+    confirming !== null ||
+    commandsOnly ||
+    (scope === null && query === '' && usableVerbs.length === 0);
   // Les résultats d'une saisie précédente ne s'affichent jamais sous la suivante.
   const hits = !idle && found.key === searchKey ? found.items : [];
 
@@ -107,8 +230,8 @@ export function CommandPalette({
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setSearching(true);
-      const params = new URLSearchParams({ q: query });
-      if (scope === 'deploy') params.set('kind', 'application');
+      const params = new URLSearchParams({ q: request.q });
+      if (request.kinds) params.set('kinds', request.kinds);
       try {
         const response = await fetch(`/api/search?${params}`, { signal: controller.signal });
         if (response.ok) {
@@ -125,11 +248,211 @@ export function CommandPalette({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [open, idle, query, scope, searchKey]);
+  }, [open, idle, request.q, request.kinds, searchKey]);
 
   function go(href: string) {
     onOpenChange(false);
     router.push(href as never);
+  }
+
+  function open_(hit: SearchHit) {
+    const href = hrefOf(hit);
+    rememberRecent({ kind: hit.kind, id: hit.id, title: titleOf(hit), meta: metaOf(hit, t), href });
+    go(href);
+  }
+
+  async function call(path: string, init: RequestInit): Promise<boolean> {
+    const response = await fetch(path, init).catch(() => null);
+    if (response?.ok) return true;
+    const body = (await response?.json().catch(() => ({}))) as
+      { error?: { message?: string } } | undefined;
+    toast({
+      title: t('palette.action.failed'),
+      description: body?.error?.message ?? t('palette.action.failed.detail'),
+      tone: 'danger',
+    });
+    return false;
+  }
+
+  /** Ce qu'on peut faire d'un objet, selon ses permissions. « Ouvrir » d'abord. */
+  function actionsOf(hit: SearchHit): Action[] {
+    const list: Action[] = [
+      {
+        key: 'open',
+        verb: 'open',
+        icon: KIND_ICON[hit.kind],
+        title: t('palette.action.open', { name: titleOf(hit) }),
+        meta: metaOf(hit, t),
+        run: () => open_(hit),
+      },
+    ];
+    switch (hit.kind) {
+      case 'target':
+        if (can('act.test'))
+          list.push({
+            key: 'test',
+            verb: 'test',
+            icon: RefreshCw,
+            title: t('palette.action.test', { name: hit.title }),
+            meta: t('palette.action.test.meta'),
+            run: async () => {
+              onOpenChange(false);
+              if (await call(`/api/targets/${hit.id}/preflight`, { method: 'POST' }))
+                toast({
+                  title: t('palette.toast.tested', { name: hit.title }),
+                  tone: 'accent',
+                  action: {
+                    label: t('palette.toast.preflight.follow'),
+                    href: `/targets?target=${hit.id}`,
+                  },
+                });
+            },
+          });
+        if (can('act.editTarget'))
+          list.push({
+            key: 'edit',
+            verb: 'edit',
+            icon: Pencil,
+            title: t('palette.action.edit', { name: hit.title }),
+            meta: t('palette.action.edit.meta'),
+            run: () => go(`/targets?target=${hit.id}&edit=1`),
+          });
+        break;
+      case 'application':
+        if (can('act.deploy'))
+          list.push({
+            key: 'deploy',
+            verb: 'deploy',
+            icon: Rocket,
+            title: t('palette.action.deploy', { name: hit.slug }),
+            meta: t('palette.scope.deploy.meta'),
+            run: () => go(`/applications?app=${encodeURIComponent(hit.slug)}&deploy=1`),
+          });
+        list.push({
+          key: 'versions',
+          verb: 'versions',
+          icon: History,
+          title: t('palette.action.versions', { name: hit.slug }),
+          meta: t('palette.action.versions.meta'),
+          run: () => go(`/applications?app=${encodeURIComponent(hit.slug)}&tab=versions`),
+        });
+        break;
+      case 'running':
+        list.push({
+          key: 'logs',
+          verb: 'logs',
+          icon: ScrollText,
+          title: t('palette.action.logs', { name: `${hit.title}@${hit.target}` }),
+          meta: t('palette.action.logs.meta'),
+          run: () => go(`/apps?app=${hit.id}`),
+        });
+        if (can('act.restart'))
+          list.push({
+            key: 'restart',
+            verb: 'restart',
+            icon: RotateCw,
+            title: t('palette.action.restart', { name: `${hit.title}@${hit.target}` }),
+            meta: t('palette.action.restart.meta'),
+            confirm: t('palette.action.restart.confirm'),
+            run: async () => {
+              if (await call(`/api/apps/${hit.id}/restart`, { method: 'POST' })) {
+                toast({ title: t('palette.toast.restarted', { name: hit.title }), tone: 'accent' });
+                // Le redémarrage publie sa progression sur le flux de l'application.
+                go(`/apps?app=${hit.id}`);
+              } else {
+                onOpenChange(false);
+              }
+            },
+          });
+        break;
+      case 'monitor':
+        if (can('act.probe'))
+          list.push({
+            key: 'probe',
+            verb: 'probe',
+            icon: Play,
+            title: t('palette.action.probe', { name: hit.title }),
+            meta: t('palette.action.probe.meta'),
+            run: async () => {
+              onOpenChange(false);
+              if (await call(`/api/monitors/${hit.id}/check`, { method: 'POST' }))
+                toast({ title: t('palette.toast.probed', { name: hit.title }), tone: 'accent' });
+            },
+          });
+        if (can('act.pause'))
+          list.push(
+            hit.enabled
+              ? {
+                  key: 'pause',
+                  verb: 'pause',
+                  icon: Pause,
+                  title: t('palette.action.pause', { name: hit.title }),
+                  meta: t('palette.action.pause.meta'),
+                  run: () => toggleMonitor(hit, false),
+                }
+              : {
+                  key: 'resume',
+                  verb: 'resume',
+                  icon: Play,
+                  title: t('palette.action.resume', { name: hit.title }),
+                  meta: t('palette.action.resume.meta'),
+                  run: () => toggleMonitor(hit, true),
+                },
+          );
+        if (can('act.editMonitor'))
+          list.push({
+            key: 'edit',
+            verb: 'edit',
+            icon: Pencil,
+            title: t('palette.action.edit', { name: hit.title }),
+            meta: t('palette.action.edit.meta'),
+            run: () => go(`/monitors?monitor=${hit.id}&edit=1`),
+          });
+        break;
+      default:
+        break;
+    }
+    return list;
+  }
+
+  async function toggleMonitor(hit: Extract<SearchHit, { kind: 'monitor' }>, enabled: boolean) {
+    onOpenChange(false);
+    const done = await call(`/api/monitors/${hit.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (done) {
+      toast({
+        title: enabled
+          ? t('palette.toast.resumed', { name: hit.title })
+          : t('palette.toast.paused', { name: hit.title }),
+      });
+      router.refresh();
+    }
+  }
+
+  function perform(action: Action) {
+    if (action.confirm) {
+      if (!focus) setSaved(raw);
+      setConfirming(action);
+      setRaw('');
+      return;
+    }
+    void action.run();
+  }
+
+  function enterFocus(hit: SearchHit) {
+    setSaved(raw);
+    setFocus(hit);
+    setRaw('');
+  }
+
+  /** Retour de la sous-vue à la liste, avec la saisie d'avant. */
+  function leaveSubview() {
+    setFocus(null);
+    setConfirming(null);
+    setRaw(saved);
   }
 
   async function testAllTargets() {
@@ -152,8 +475,54 @@ export function CommandPalette({
   }
 
   const items: Item[] = [];
+  const actionItem = (action: Action, hit: SearchHit, group: Group): Item => ({
+    id: `action-${hit.kind}-${hit.id}-${action.key}`,
+    group,
+    icon: action.icon,
+    title: action.title,
+    meta: action.meta,
+    verb: action.verb === 'open' ? 'open' : 'run',
+    words: '',
+    isCommand: true,
+    perform: () => perform(action),
+  });
 
-  if (scope === 'deploy') {
+  if (confirming) {
+    // La confirmation, seule à l'écran : Entrée la donne, Échap ou « Annuler » la retire.
+    items.push(
+      {
+        id: 'confirm-yes',
+        group: 'actions',
+        icon: TriangleAlert,
+        title: t('palette.confirm.yes', { action: confirming.title }),
+        meta: confirming.confirm ?? '',
+        verb: 'run',
+        words: '',
+        isCommand: true,
+        perform: () => {
+          const action = confirming;
+          setConfirming(null);
+          void action.run();
+        },
+      },
+      {
+        id: 'confirm-no',
+        group: 'actions',
+        icon: ChevronRight,
+        title: t('palette.confirm.no'),
+        meta: '',
+        verb: 'run',
+        words: '',
+        isCommand: true,
+        perform: leaveSubview,
+      },
+    );
+  } else if (focus) {
+    for (const action of actionsOf(focus)) {
+      if (query === '' || matchScore(query, [action.title], [action.meta]) > 0)
+        items.push(actionItem(action, focus, 'actions'));
+    }
+  } else if (scope === 'deploy') {
     for (const hit of hits) {
       if (hit.kind !== 'application') continue;
       items.push({
@@ -170,15 +539,39 @@ export function CommandPalette({
         perform: () => go(`/applications?app=${encodeURIComponent(hit.slug)}&deploy=1`),
       });
     }
+  } else if (usableVerbs.length > 0 && !commandsOnly) {
+    // « redémarrer umami » : les actions de ce verbe sur les objets trouvés.
+    for (const hit of hits) {
+      for (const action of actionsOf(hit)) {
+        if (action.verb !== 'open' && usableVerbs.includes(action.verb))
+          items.push(actionItem(action, hit, 'actions'));
+      }
+    }
   } else {
     const command = (
       key: CommandKey,
       item: Omit<Item, 'id' | 'group' | 'isCommand'>,
       group: Item['group'],
     ) => {
-      if (commands.includes(key))
-        items.push({ ...item, id: `cmd-${key}-${item.title}`, group, isCommand: true });
+      if (can(key)) items.push({ ...item, id: `cmd-${key}-${item.title}`, group, isCommand: true });
     };
+
+    if (query === '' && !commandsOnly) {
+      for (const recent of recents) {
+        items.push({
+          id: `recent-${recent.kind}-${recent.id}`,
+          group: 'recent',
+          icon: KIND_ICON[recent.kind] ?? Clock,
+          title: recent.title,
+          meta: recent.meta,
+          verb: 'open',
+          words: '',
+          isCommand: false,
+          perform: () => go(recent.href),
+        });
+      }
+    }
+
     command(
       'deploy',
       {
@@ -186,7 +579,7 @@ export function CommandPalette({
         title: t('palette.cmd.deploy'),
         meta: t('palette.cmd.deploy.meta'),
         verb: 'run',
-        words: 'deploy',
+        words: 'deploy deployer',
         perform: () => {
           setRaw('');
           onScopeChange('deploy');
@@ -245,11 +638,60 @@ export function CommandPalette({
       });
     }
 
-    for (const hit of hits) {
-      items.push(objectItem(hit, t, go));
+    // Les onglets des paramètres, seulement quand on les cherche : au repos,
+    // dix lignes de plus noieraient « Aller à ».
+    if (can('settings') && query !== '') {
+      for (const group of SETTINGS_GROUPS) {
+        for (const settingsSection of groupSections(group)) {
+          items.push({
+            id: `settings-${settingsSection.id}`,
+            group: 'goto',
+            icon: SlidersHorizontal,
+            title: ts(`section.${settingsSection.id}.label`),
+            meta: t('palette.settings.meta', { group: ts(`group.${group.id}.label`) }),
+            verb: 'open',
+            words: `${ts(`section.${settingsSection.id}.title`)} ${ts(`section.${settingsSection.id}.short`)} parametres settings`,
+            isCommand: false,
+            perform: () => go(settingsSection.href),
+          });
+        }
+      }
     }
 
-    if (commands.includes('theme')) {
+    for (const hit of hits) {
+      // → n'a de sens que pour un objet qui a autre chose à offrir qu'« Ouvrir ».
+      items.push(objectItem(hit, t, () => open_(hit), actionsOf(hit).length > 1));
+    }
+
+    // La recherche poursuivie là où elle a toute sa place.
+    if (query !== '' && !commandsOnly) {
+      if (can('searchRuns'))
+        items.push({
+          id: 'search-runs',
+          group: 'elsewhere',
+          icon: Rocket,
+          title: t('palette.search.runs', { query }),
+          meta: t('palette.search.runs.meta'),
+          verb: 'open',
+          words: '',
+          isCommand: false,
+          perform: () => go(`/deployments?q=${encodeURIComponent(query)}`),
+        });
+      if (can('searchLogs'))
+        items.push({
+          id: 'search-logs',
+          group: 'elsewhere',
+          icon: BookOpen,
+          title: t('palette.search.logs', { query }),
+          meta: t('palette.search.logs.meta'),
+          verb: 'open',
+          words: '',
+          isCommand: false,
+          perform: () => go(`/admin/logs?q=${encodeURIComponent(query)}`),
+        });
+    }
+
+    if (can('theme')) {
       const next: ThemeChoice[] =
         theme === 'dark'
           ? ['light', 'system']
@@ -264,7 +706,7 @@ export function CommandPalette({
             title: t(`palette.cmd.theme.${choice}`),
             meta: t('palette.cmd.theme.meta'),
             verb: 'run',
-            words: 'theme dark light',
+            words: 'theme dark light sombre clair',
             perform: () => {
               applyTheme(choice);
               onOpenChange(false);
@@ -293,47 +735,87 @@ export function CommandPalette({
         title: t('palette.cmd.shortcuts'),
         meta: t('palette.cmd.shortcuts.meta'),
         verb: 'open',
-        words: 'shortcuts keyboard',
+        words: 'shortcuts keyboard raccourcis',
         perform: onShowShortcuts,
       },
       'preferences',
     );
   }
 
-  const needle = query.toLowerCase();
   const visible = items.filter((item) => {
     if (commandsOnly && !item.isCommand) return false;
-    if (item.group === 'objects') return true; // déjà filtrés par le serveur
-    return (
-      needle === '' || `${item.title} ${item.meta} ${item.words}`.toLowerCase().includes(needle)
-    );
+    // Déjà filtrés : par le serveur (objets), par le verbe (actions), par leur nature (récents).
+    if (
+      item.group === 'objects' ||
+      item.group === 'actions' ||
+      item.group === 'recent' ||
+      item.group === 'elsewhere'
+    )
+      return true;
+    return query === '' || matchScore(query, [item.title], [item.meta, item.words]) > 0;
   });
 
+  const activeItem = visible.find((item) => item.id === active) ?? visible[0];
   const empty = visible.length === 0 && !searching && raw.trim() !== '';
 
   return (
     <Command.Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        // Échap dans une sous-vue (actions d'un objet, confirmation) revient
+        // à la liste au lieu de fermer la palette.
+        if (!next && (focus || confirming)) {
+          leaveSubview();
+          return;
+        }
+        onOpenChange(next);
+      }}
       label={t('palette.label')}
       shouldFilter={false}
       loop
+      value={active}
+      onValueChange={setActive}
       overlayClassName="scrim blur !z-[94]"
       contentClassName="cmdk"
     >
       <div className="cmdk-in">
         <Search aria-hidden className="!size-[18px] text-text-3" />
-        {scope === 'deploy' ? (
+        {scope === 'deploy' && !focus && !confirming ? (
           <span className="cmdk-scope">{t('palette.scope.deploy')} ›</span>
         ) : null}
+        {focus ? <span className="cmdk-scope">{titleOf(focus)} ›</span> : null}
+        {confirming ? <span className="cmdk-scope">{t('palette.confirm.scope')} ›</span> : null}
         <Command.Input
           value={raw}
           onValueChange={setRaw}
           placeholder={
-            scope === 'deploy' ? t('palette.scope.deploy.placeholder') : t('palette.placeholder')
+            confirming
+              ? confirming.title
+              : focus
+                ? t('palette.focus.placeholder')
+                : scope === 'deploy'
+                  ? t('palette.scope.deploy.placeholder')
+                  : t('palette.placeholder')
           }
           aria-label={t('palette.label')}
           onKeyDown={(event) => {
+            const input = event.currentTarget;
+            const atEnd = input.selectionStart === input.value.length;
+            if (event.key === 'ArrowRight' && atEnd && !focus && !confirming && activeItem?.hit) {
+              event.preventDefault();
+              enterFocus(activeItem.hit);
+              return;
+            }
+            if (
+              (focus || confirming) &&
+              ((event.key === 'ArrowLeft' && raw === '') ||
+                (event.key === 'Backspace' && raw === ''))
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              leaveSubview();
+              return;
+            }
             if (event.key === 'Backspace' && raw === '' && scope !== null) onScopeChange(null);
           }}
         />
@@ -362,6 +844,13 @@ export function CommandPalette({
                   <span className="go">
                     {item.verb === 'open' ? t('palette.verb.open') : t('palette.verb.run')}
                     <Kbd>↵</Kbd>
+                    {item.hit ? (
+                      <>
+                        <span className="text-text-3">·</span>
+                        {t('palette.verb.actions')}
+                        <Kbd>→</Kbd>
+                      </>
+                    ) : null}
                   </span>
                 </Command.Item>
               ))}
@@ -390,71 +879,112 @@ export function CommandPalette({
           <Kbd>↵</Kbd> {t('palette.foot.open')}
         </span>
         <span>
+          <Kbd>→</Kbd> {t('palette.foot.actions')}
+        </span>
+        <span>
           <Kbd>›</Kbd> {t('palette.foot.commands')}
         </span>
         <span className="ml-auto">
-          <Kbd>esc</Kbd> {t('palette.foot.close')}
+          <Kbd>esc</Kbd> {focus || confirming ? t('palette.foot.back') : t('palette.foot.close')}
         </span>
       </div>
     </Command.Dialog>
   );
 }
 
+/** Un verbe ne sert que si l'une de ses actions est permise ; « logs » et « versions » le sont toujours. */
+function allowedVerb(verb: PaletteVerb, can: (key: CommandKey) => boolean): boolean {
+  switch (verb) {
+    case 'test':
+      return can('act.test');
+    case 'edit':
+      return can('act.editTarget') || can('act.editMonitor');
+    case 'deploy':
+      return can('act.deploy');
+    case 'restart':
+      return can('act.restart');
+    case 'probe':
+      return can('act.probe');
+    case 'pause':
+    case 'resume':
+      return can('act.pause');
+    case 'logs':
+    case 'versions':
+      return true;
+  }
+}
+
+function hrefOf(hit: SearchHit): string {
+  switch (hit.kind) {
+    case 'target':
+      return `/targets?target=${hit.id}`;
+    case 'application':
+      return `/applications?app=${hit.id}`;
+    case 'running':
+      return `/apps?app=${hit.id}`;
+    case 'deployment':
+      return `/deployments?run=${hit.id}`;
+    case 'monitor':
+      return `/monitors?monitor=${hit.id}`;
+    case 'domain':
+      return `/domains?domaine=${hit.id}`;
+    case 'role':
+      return `/admin/roles?role=${encodeURIComponent(hit.key)}`;
+    case 'template':
+      return `/catalog?template=${encodeURIComponent(hit.id)}`;
+  }
+}
+
+function titleOf(hit: SearchHit): string {
+  switch (hit.kind) {
+    case 'deployment':
+      return `#${hit.number} ${hit.title} v${hit.version}`;
+    case 'running':
+      return `${hit.title}@${hit.target}`;
+    default:
+      return hit.title;
+  }
+}
+
+function metaOf(hit: SearchHit, t: Translate<(typeof chrome)['fr']>): string {
+  switch (hit.kind) {
+    case 'target':
+      return `${t('palette.kind.target')} · ${hit.host}`;
+    case 'application':
+      return [t('palette.kind.application'), hit.slug, hit.version ? `v${hit.version}` : null]
+        .filter(Boolean)
+        .join(' · ');
+    case 'running':
+      return `${t('palette.kind.running')} · ${t(`palette.health.${hit.health as 'healthy'}`)}`;
+    case 'deployment':
+      return `${t('palette.kind.deployment')} · ${hit.target}`;
+    case 'monitor':
+      return `${t('palette.kind.monitor')} · ${hit.type}${hit.enabled ? '' : ` · ${t('palette.monitor.paused')}`}`;
+    case 'domain':
+      return `${t('palette.kind.domain')} · ${hit.application}`;
+    case 'role':
+      return `${t('palette.kind.role')} · ${hit.key}`;
+    case 'template':
+      return `${t('palette.kind.template')} · ${hit.summary}`;
+  }
+}
+
 function objectItem(
   hit: SearchHit,
   t: Translate<(typeof chrome)['fr']>,
-  go: (href: string) => void,
+  open: () => void,
+  withActions: boolean,
 ): Item {
-  switch (hit.kind) {
-    case 'target':
-      return {
-        id: `target-${hit.id}`,
-        group: 'objects',
-        icon: Server,
-        title: hit.title,
-        meta: `${t('palette.kind.target')} · ${hit.host}`,
-        verb: 'open',
-        words: hit.host,
-        isCommand: false,
-        perform: () => go(`/targets?target=${hit.id}`),
-      };
-    case 'application':
-      return {
-        id: `application-${hit.id}`,
-        group: 'objects',
-        icon: Boxes,
-        title: hit.title,
-        meta: [t('palette.kind.application'), hit.slug, hit.version ? `v${hit.version}` : null]
-          .filter(Boolean)
-          .join(' · '),
-        verb: 'open',
-        words: hit.slug,
-        isCommand: false,
-        perform: () => go(`/applications?app=${hit.id}`),
-      };
-    case 'deployment':
-      return {
-        id: `deployment-${hit.id}`,
-        group: 'objects',
-        icon: Rocket,
-        title: `#${hit.number} ${hit.title} v${hit.version}`,
-        meta: `${t('palette.kind.deployment')} · ${hit.target}`,
-        verb: 'open',
-        words: `${hit.target} ${hit.number}`,
-        isCommand: false,
-        perform: () => go(`/deployments?run=${hit.id}`),
-      };
-    case 'monitor':
-      return {
-        id: `monitor-${hit.id}`,
-        group: 'objects',
-        icon: Radar,
-        title: hit.title,
-        meta: `${t('palette.kind.monitor')} · ${hit.type}`,
-        verb: 'open',
-        words: hit.type,
-        isCommand: false,
-        perform: () => go(`/monitors?monitor=${hit.id}`),
-      };
-  }
+  return {
+    id: `${hit.kind}-${hit.id}`,
+    group: 'objects',
+    icon: KIND_ICON[hit.kind],
+    title: titleOf(hit),
+    meta: metaOf(hit, t),
+    verb: 'open',
+    words: '',
+    isCommand: false,
+    perform: open,
+    ...(withActions ? { hit } : {}),
+  };
 }

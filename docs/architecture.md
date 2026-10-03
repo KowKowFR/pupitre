@@ -395,6 +395,25 @@ liste n'a pas bougé.
   redirigent vers la liste, tiroir ouvert (`next.config.ts`) : les liens des
   e-mails et du chat continuent de mener quelque part.
 
+## La palette ⌘K
+
+Elle cherche les cibles, les applications, les applications en marche, les
+runs, les sondes, les domaines, les rôles, les modèles du catalogue et les
+onglets des paramètres ; un résultat ouvre son tiroir. La recherche passe par
+`GET /api/search`, qui ne lit une famille qu'avec sa permission.
+
+- **Tolérante** (`packages/core/src/fuzzy.ts`) : accents et casse ignorés,
+  chaque mot tapé doit répondre, puis — sur les noms seulement — les lettres
+  dans l'ordre (« prd1 » → « prod-1 ») et une faute de frappe (« graphana »).
+  Une description ne répond qu'à un vrai morceau de texte.
+- **Des actions** : un verbe tapé avec le nom (« tester prod-1 », « redémarrer
+  umami », « sonder glpi », « suspendre », « déployer », « modifier »,
+  « logs », « versions »), ou → sur un objet surligné. Chaque action exige sa
+  permission (`visibleCommands`) et n'apparaît pas sans elle. Redémarrer
+  demande une confirmation, dans la palette.
+- **Récents** au repos, gardés dans ce navigateur seulement ; **« Chercher
+  ailleurs »** poursuit la saisie dans le journal ou les déploiements.
+
 ## Ports : la base tranche, la cible vérifie
 
 L'anti-collision **entre applications du panel** est la contrainte unique

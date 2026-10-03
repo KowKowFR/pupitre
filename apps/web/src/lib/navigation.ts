@@ -98,12 +98,30 @@ export function activeSection(
  * n'apparaît pas — elle n'est ni grisée ni expliquée.
  */
 export type CommandKey =
-  'deploy' | 'testTargets' | 'newApp' | 'newTarget' | 'theme' | 'language' | 'shortcuts';
+  | 'deploy'
+  | 'testTargets'
+  | 'newApp'
+  | 'newTarget'
+  | 'theme'
+  | 'language'
+  | 'shortcuts'
+  // Les actions sur un objet trouvé : « tester prod-1 », « redémarrer umami »…
+  | 'act.test'
+  | 'act.editTarget'
+  | 'act.deploy'
+  | 'act.restart'
+  | 'act.probe'
+  | 'act.pause'
+  | 'act.editMonitor'
+  // Les onglets des paramètres, et la recherche poursuivie dans un écran.
+  | 'settings'
+  | 'searchLogs'
+  | 'searchRuns';
 
 const COMMANDS: ReadonlyArray<{
   key: CommandKey;
   permission: Permission | null;
-  group: 'suggestions' | 'preferences';
+  group: 'suggestions' | 'preferences' | 'actions' | 'goto';
 }> = [
   { key: 'deploy', permission: 'deployment:create', group: 'suggestions' },
   { key: 'testTargets', permission: 'target:update', group: 'suggestions' },
@@ -112,6 +130,16 @@ const COMMANDS: ReadonlyArray<{
   { key: 'theme', permission: null, group: 'preferences' },
   { key: 'language', permission: 'settings:manage', group: 'preferences' },
   { key: 'shortcuts', permission: null, group: 'preferences' },
+  { key: 'act.test', permission: 'target:update', group: 'actions' },
+  { key: 'act.editTarget', permission: 'target:update', group: 'actions' },
+  { key: 'act.deploy', permission: 'deployment:create', group: 'actions' },
+  { key: 'act.restart', permission: 'deployment:restart', group: 'actions' },
+  { key: 'act.probe', permission: 'monitor:manage', group: 'actions' },
+  { key: 'act.pause', permission: 'monitor:manage', group: 'actions' },
+  { key: 'act.editMonitor', permission: 'monitor:manage', group: 'actions' },
+  { key: 'settings', permission: 'settings:read', group: 'goto' },
+  { key: 'searchLogs', permission: 'audit:read', group: 'goto' },
+  { key: 'searchRuns', permission: 'deployment:read', group: 'goto' },
 ];
 
 export function visibleCommands(can: (permission: Permission) => boolean): CommandKey[] {
@@ -127,4 +155,52 @@ export function parsePaletteQuery(raw: string): { query: string; commandsOnly: b
   const trimmed = raw.trimStart();
   const commandsOnly = trimmed.startsWith('›') || trimmed.startsWith('>');
   return { query: (commandsOnly ? trimmed.slice(1) : trimmed).trim(), commandsOnly };
+}
+
+/** Un verbe d'action tapé dans la palette, et les familles d'objets sur lesquelles il porte. */
+export type PaletteVerb =
+  'test' | 'edit' | 'deploy' | 'restart' | 'logs' | 'probe' | 'pause' | 'resume' | 'versions';
+
+export const PALETTE_VERBS: Record<
+  PaletteVerb,
+  {
+    words: readonly string[];
+    kinds: ReadonlyArray<'target' | 'application' | 'running' | 'monitor'>;
+  }
+> = {
+  test: { words: ['tester', 'teste', 'test', 'preflight'], kinds: ['target'] },
+  edit: { words: ['modifier', 'modifie', 'editer', 'edit'], kinds: ['target', 'monitor'] },
+  deploy: { words: ['deployer', 'deploie', 'deploy'], kinds: ['application'] },
+  restart: { words: ['redemarrer', 'redemarre', 'restart', 'relancer'], kinds: ['running'] },
+  logs: { words: ['logs', 'log', 'console'], kinds: ['running'] },
+  probe: { words: ['sonder', 'probe', 'verifier'], kinds: ['monitor'] },
+  pause: { words: ['suspendre', 'pause', 'pauser'], kinds: ['monitor'] },
+  resume: { words: ['reprendre', 'resume', 'reactiver'], kinds: ['monitor'] },
+  versions: { words: ['versions', 'historique'], kinds: ['application'] },
+};
+
+function fold(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * Sépare d'une saisie les verbes d'action et ce qui nomme l'objet :
+ * « redémarrer umami » → `{ verbs: ['restart'], rest: 'umami' }`. Les accents
+ * et la casse ne comptent pas ; un mot qui n'est pas un verbe reste au nom.
+ */
+export function splitPaletteVerbs(query: string): { verbs: PaletteVerb[]; rest: string } {
+  const verbs: PaletteVerb[] = [];
+  const rest: string[] = [];
+  for (const token of query.split(/\s+/).filter(Boolean)) {
+    const folded = fold(token);
+    const verb = (Object.keys(PALETTE_VERBS) as PaletteVerb[]).find((key) =>
+      PALETTE_VERBS[key].words.includes(folded),
+    );
+    if (verb && !verbs.includes(verb)) verbs.push(verb);
+    else if (!verb) rest.push(token);
+  }
+  return { verbs, rest: rest.join(' ') };
 }
