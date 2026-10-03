@@ -2,6 +2,7 @@ import 'server-only';
 import type { ReactNode } from 'react';
 import { MONITOR_CHECK_RETENTION_DAYS, isMonitorType, monitorTypeDefinition } from '@pupitre/core';
 import {
+  countStatusUpdatesByIncident,
   listCapturesForIncidents,
   listChecks,
   listIncidents,
@@ -97,6 +98,14 @@ export async function monitorRecord(
     (captures[capture.incidentId] ??= []).push(toCaptureView(capture));
   }
 
+  // Annoncer une panne aux visiteurs se fait depuis l'écran des pages de statut ;
+  // la fiche y mène, avec le compte de ce qui est déjà publié.
+  const announcements = auth.can('status_page:announce')
+    ? Object.fromEntries(
+        await countStatusUpdatesByIncident(incidents.map((incident) => incident.id)),
+      )
+    : null;
+
   const definition = isMonitorType(row.type) ? monitorTypeDefinition(row.type, language) : null;
   // Modifier demande `monitor:manage` et un type encore connu du catalogue :
   // sans définition, le formulaire ne saurait pas quels champs montrer.
@@ -149,6 +158,7 @@ export async function monitorRecord(
           retentionDays={MONITOR_CHECK_RETENTION_DAYS}
           intervalSeconds={view.intervalSeconds}
           format={format}
+          announcements={announcements}
         />
       ),
       reference: (

@@ -143,10 +143,11 @@ export async function recentMonitorIncidents(
   monitorIds: string[],
   days: number,
   db: Database = getDb(),
-): Promise<Array<{ monitorId: string; startedAt: Date; resolvedAt: Date | null }>> {
+): Promise<Array<{ id: string; monitorId: string; startedAt: Date; resolvedAt: Date | null }>> {
   if (monitorIds.length === 0) return [];
   return db
     .select({
+      id: monitorIncidents.id,
       monitorId: monitorIncidents.monitorId,
       startedAt: monitorIncidents.startedAt,
       resolvedAt: monitorIncidents.resolvedAt,
@@ -165,27 +166,41 @@ export async function recentMonitorIncidents(
     .limit(50);
 }
 
+export type MaintenanceTouching = {
+  id: string;
+  /** Le titre interne : il ne sort jamais d'une page publique. */
+  title: string;
+  startsAt: Date;
+  endsAt: Date;
+  monitorIds: string[];
+};
+
 /**
- * Les fenêtres de maintenance en cours ou qui commencent avant `until`, avec
- * les sondes de cette liste qu'elles touchent : nommées, ou dont l'application
- * tourne sur une cible nommée (`listLiveDeployments`). Une fenêtre qui n'en
- * touche aucune n'est pas rendue.
+ * Les fenêtres qui finissent après `endsAfter` et commencent avant
+ * `startsBefore`, avec les sondes de cette liste qu'elles touchent : nommées,
+ * ou dont l'application tourne sur une cible nommée (`listLiveDeployments`).
+ * Une fenêtre qui n'en touche aucune n'est pas rendue.
  */
-export async function maintenanceForMonitors(
+export async function maintenanceTouching(
   monitorIds: string[],
-  until: Date,
-  now: Date = new Date(),
+  range: { endsAfter: Date; startsBefore: Date },
   db: Database = getDb(),
-): Promise<Array<{ id: string; startsAt: Date; endsAt: Date; monitorIds: string[] }>> {
+): Promise<MaintenanceTouching[]> {
   if (monitorIds.length === 0) return [];
   const windows = await db
     .select({
       id: maintenanceWindows.id,
+      title: maintenanceWindows.title,
       startsAt: maintenanceWindows.startsAt,
       endsAt: maintenanceWindows.endsAt,
     })
     .from(maintenanceWindows)
-    .where(and(gt(maintenanceWindows.endsAt, now), lt(maintenanceWindows.startsAt, until)))
+    .where(
+      and(
+        gt(maintenanceWindows.endsAt, range.endsAfter),
+        lt(maintenanceWindows.startsAt, range.startsBefore),
+      ),
+    )
     .orderBy(asc(maintenanceWindows.startsAt));
   if (windows.length === 0) return [];
   const ids = windows.map((window) => window.id);

@@ -208,6 +208,11 @@ const fr = {
     other: 'confirmé après {count} échecs',
   },
   'detail.incident.alerted': 'alerte émise',
+  'detail.incident.announce': {
+    zero: 'Annoncer aux visiteurs',
+    one: 'Annoncée · {count} message',
+    other: 'Annoncée · {count} messages',
+  },
   'detail.incident.notAlerted': 'aucune alerte de panne',
   'detail.incident.resolveAlerted': 'rétablissement annoncé',
   'detail.incident.resolveNotAlerted': 'aucune alerte de rétablissement',
@@ -440,6 +445,11 @@ const en: Translated<typeof fr> = {
     other: 'confirmed after {count} failures',
   },
   'detail.incident.alerted': 'alert sent',
+  'detail.incident.announce': {
+    zero: 'Announce to visitors',
+    one: 'Announced · {count} message',
+    other: 'Announced · {count} messages',
+  },
   'detail.incident.notAlerted': 'no outage alert',
   'detail.incident.resolveAlerted': 'recovery announced',
   'detail.incident.resolveNotAlerted': 'no recovery alert',

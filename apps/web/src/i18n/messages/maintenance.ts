@@ -56,6 +56,7 @@ const fr = {
   },
   'drawer.note': 'Note',
   'drawer.held': 'Alertes retenues',
+  'drawer.announce': 'Annoncer aux visiteurs des pages de statut',
   'drawer.held.explain':
     'À la fin, pour chaque sujet, la dernière alerte part si elle signale une panne : une panne réparée pendant la fenêtre ne réveille personne.',
   'drawer.held.none': 'Aucune alerte retenue.',
@@ -180,6 +181,7 @@ const en: Translated<typeof fr> = {
   },
   'drawer.note': 'Note',
   'drawer.held': 'Alerts held',
+  'drawer.announce': 'Announce to status page visitors',
   'drawer.held.explain':
     'At the end, for each subject, the last alert is sent if it reports an outage: an outage fixed during the window wakes no one.',
   'drawer.held.none': 'No alert held.',

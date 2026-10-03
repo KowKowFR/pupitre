@@ -1,7 +1,7 @@
 'use client';
 
 import { fromWallClockInput, toWallClockInput, type Translate } from '@pupitre/core';
-import { Plus, Wrench } from 'lucide-react';
+import { Megaphone, Plus, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import * as React from 'react';
@@ -85,12 +85,15 @@ export function MaintenanceView({
   windows,
   format,
   canManage,
+  canAnnounce = false,
   targets,
   monitors,
 }: {
   windows: MaintenanceWindowJson[];
   format: FormatSettings;
   canManage: boolean;
+  /** Publier une annonce sur les pages de statut : le tiroir y mène. */
+  canAnnounce?: boolean;
   targets: Option[];
   monitors: Option[];
 }) {
@@ -174,6 +177,7 @@ export function MaintenanceView({
             window={current}
             format={format}
             canManage={canManage}
+            canAnnounce={canAnnounce}
             targets={targets}
             monitors={monitors}
             onClosed={() => {
@@ -264,6 +268,7 @@ function MaintenanceDrawer({
   window,
   format,
   canManage,
+  canAnnounce,
   targets,
   monitors,
   onClosed,
@@ -272,6 +277,7 @@ function MaintenanceDrawer({
   window: MaintenanceWindowJson;
   format: FormatSettings;
   canManage: boolean;
+  canAnnounce: boolean;
   targets: Option[];
   monitors: Option[];
   onClosed: () => void;
@@ -395,6 +401,16 @@ function MaintenanceDrawer({
           <DrawerSection title={t('drawer.note')}>
             <p className="t-sm whitespace-pre-line text-text-2">{window.note}</p>
           </DrawerSection>
+        ) : null}
+
+        {canAnnounce ? (
+          <Link
+            href={`/status-pages?annonce=maintenance:${window.id}`}
+            className="link t-sm inline-flex items-center gap-1.5 self-start"
+          >
+            <Megaphone aria-hidden className="size-4" />
+            {t('drawer.announce')}
+          </Link>
         ) : null}
 
         <DrawerSection title={t('drawer.held')}>

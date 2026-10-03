@@ -50,6 +50,7 @@ export default async function MaintenancePage() {
         windows={windows.map((window) => maintenanceJson(window, auth))}
         format={formatSettingsOf(settings)}
         canManage={canManage}
+        canAnnounce={auth.can('status_page:announce')}
         targets={targets.map((target) => ({
           id: target.id,
           name: target.name,

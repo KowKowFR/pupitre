@@ -35,6 +35,7 @@ const fr = {
   'maintenance.none': 'Aucune maintenance prévue.',
   'maintenance.active': "En cours jusqu'au {end}",
   'maintenance.upcoming': 'Prévue du {start} au {end}',
+  'maintenance.ended': 'Terminée le {end}',
   'maintenance.affects': 'Concerne : {services}',
 
   'incidents.title': {
@@ -51,6 +52,15 @@ const fr = {
   'duration.minutes': '{minutes} min',
   'duration.hours': '{hours} h {minutes}',
   'duration.lessThanMinute': "moins d'une minute",
+
+  'phase.investigating': 'Enquête en cours',
+  'phase.identified': 'Cause identifiée',
+  'phase.monitoring': 'Sous surveillance',
+  'phase.resolved': 'Résolu',
+  'phase.scheduled': 'Prévue',
+  'phase.in_progress': 'En cours',
+  'phase.completed': 'Terminée',
+  'update.posted': 'Publié le {time}',
 
   // ── L'écran qui les compose ─────────────────────────────────────────────
   'meta.title': 'Pages de statut',
@@ -134,6 +144,52 @@ const fr = {
   'error.notFound': "Cette page de statut n'existe pas, ou plus.",
   'error.slugTaken': "L'adresse {path} est déjà celle d'une autre page.",
   'error.monitorNotFound': "La sonde {id} n'existe pas.",
+
+  // ── Les annonces ────────────────────────────────────────────────────────
+  'announce.title': 'Annonces',
+  'announce.sub':
+    'Pendant une panne ou une maintenance, dites aux visiteurs ce qui se passe. Une annonce paraît sur chaque page qui montre une sonde touchée.',
+  'announce.empty': 'Aucune panne ni maintenance récente sur les sondes de vos pages.',
+  'announce.incident': 'Panne',
+  'announce.maintenance': 'Maintenance',
+  'announce.incident.ongoing': 'en cours depuis le {start}',
+  'announce.incident.resolved': 'du {start} au {end}',
+  'announce.maintenance.upcoming': 'prévue du {start} au {end}',
+  'announce.maintenance.active': "en cours jusqu'au {end}",
+  'announce.maintenance.ended': 'du {start} au {end}, terminée',
+  'announce.count': { zero: 'aucune annonce', one: '{count} annonce', other: '{count} annonces' },
+  'announce.seenAs': 'vu comme « {names} »',
+  'announce.row': 'Annoncer « {title} »',
+  'announce.kind': 'Annonce',
+  'announce.offPage':
+    "Aucune page de statut ne montre cette sonde : l'annonce sera enregistrée, mais ne paraîtra nulle part tant que la sonde n'est pas ajoutée à une page.",
+  'announce.offPage.maintenance':
+    "Cette maintenance ne touche aucune sonde de vos pages, ou elle est finie depuis plus d'un jour : l'annonce ne paraîtra nulle part.",
+  'announce.compose': 'Nouvelle annonce',
+  'announce.field.phase': 'Phase',
+  'announce.field.message': 'Message',
+  'announce.field.message.help':
+    'Du texte brut, lu par vos visiteurs : ni adresse interne, ni nom de machine.',
+  'announce.field.message.placeholder': 'Nous avons identifié la cause et déployons un correctif.',
+  'announce.resolvedNote':
+    "« Résolu » ne referme pas l'incident : seule la sonde le referme, quand elle voit le service de nouveau sain.",
+  'announce.publish': 'Publier',
+  'announce.timeline': 'Déjà publié',
+  'announce.timeline.empty': "Rien de publié pour l'instant.",
+  'announce.by': 'par {name}',
+  'announce.edited': 'corrigée',
+  'announce.edit': 'Corriger',
+  'announce.edit.save': 'Enregistrer',
+  'announce.remove': 'Retirer',
+  'announce.confirm.title': 'Retirer cette annonce ?',
+  'announce.confirm.consequence': 'Elle disparaît de toutes les pages publiques.',
+  'announce.confirm.action': 'Retirer',
+  'toast.announced': 'Annonce publiée',
+  'toast.announceSaved': 'Annonce corrigée',
+  'toast.announceRemoved': 'Annonce retirée',
+  'error.announce.notFound': "Cette annonce n'existe pas, ou plus.",
+  'error.announce.subject': "Ce que l'annonce commente n'existe pas, ou plus.",
+  'error.announce.phase': 'Cette phase ne convient pas à ce sujet.',
 };
 
 const en: Translated<typeof fr> = {
@@ -165,6 +221,7 @@ const en: Translated<typeof fr> = {
   'maintenance.none': 'No maintenance scheduled.',
   'maintenance.active': 'In progress until {end}',
   'maintenance.upcoming': 'Scheduled from {start} to {end}',
+  'maintenance.ended': 'Completed on {end}',
   'maintenance.affects': 'Affects: {services}',
 
   'incidents.title': {
@@ -181,6 +238,15 @@ const en: Translated<typeof fr> = {
   'duration.minutes': '{minutes} min',
   'duration.hours': '{hours} h {minutes}',
   'duration.lessThanMinute': 'less than a minute',
+
+  'phase.investigating': 'Investigating',
+  'phase.identified': 'Identified',
+  'phase.monitoring': 'Monitoring',
+  'phase.resolved': 'Resolved',
+  'phase.scheduled': 'Scheduled',
+  'phase.in_progress': 'In progress',
+  'phase.completed': 'Completed',
+  'update.posted': 'Posted on {time}',
 
   'meta.title': 'Status pages',
   'page.title': 'Status pages',
@@ -263,6 +329,55 @@ const en: Translated<typeof fr> = {
   'error.notFound': 'This status page does not exist, or no longer does.',
   'error.slugTaken': 'Address {path} already belongs to another page.',
   'error.monitorNotFound': 'Probe {id} does not exist.',
+
+  'announce.title': 'Announcements',
+  'announce.sub':
+    'During an outage or a maintenance, tell visitors what is going on. An announcement appears on every page that shows an affected probe.',
+  'announce.empty': 'No recent outage or maintenance on the probes of your pages.',
+  'announce.incident': 'Outage',
+  'announce.maintenance': 'Maintenance',
+  'announce.incident.ongoing': 'ongoing since {start}',
+  'announce.incident.resolved': 'from {start} to {end}',
+  'announce.maintenance.upcoming': 'scheduled from {start} to {end}',
+  'announce.maintenance.active': 'in progress until {end}',
+  'announce.maintenance.ended': 'from {start} to {end}, completed',
+  'announce.count': {
+    zero: 'no announcement',
+    one: '{count} announcement',
+    other: '{count} announcements',
+  },
+  'announce.seenAs': 'seen as “{names}”',
+  'announce.row': 'Announce “{title}”',
+  'announce.kind': 'Announcement',
+  'announce.offPage':
+    'No status page shows this probe: the announcement will be saved, but will not appear anywhere until the probe is added to a page.',
+  'announce.offPage.maintenance':
+    'This maintenance touches no probe of your pages, or it ended more than a day ago: the announcement will not appear anywhere.',
+  'announce.compose': 'New announcement',
+  'announce.field.phase': 'Phase',
+  'announce.field.message': 'Message',
+  'announce.field.message.help':
+    'Plain text, read by your visitors: no internal address, no machine name.',
+  'announce.field.message.placeholder': 'We have identified the cause and are rolling out a fix.',
+  'announce.resolvedNote':
+    '“Resolved” does not close the incident: only the probe closes it, once it sees the service healthy again.',
+  'announce.publish': 'Publish',
+  'announce.timeline': 'Already published',
+  'announce.timeline.empty': 'Nothing published yet.',
+  'announce.by': 'by {name}',
+  'announce.edited': 'edited',
+  'announce.edit': 'Edit',
+  'announce.edit.save': 'Save',
+  'announce.remove': 'Remove',
+  'announce.confirm.title': 'Remove this announcement?',
+  'announce.confirm.consequence': 'It disappears from every public page.',
+  'announce.confirm.action': 'Remove',
+  'toast.announced': 'Announcement published',
+  'toast.announceSaved': 'Announcement edited',
+  'toast.announceRemoved': 'Announcement removed',
+  'error.announce.notFound': 'This announcement does not exist, or no longer does.',
+  'error.announce.subject': 'What this announcement is about does not exist, or no longer does.',
+  'error.announce.phase': 'This phase does not fit this subject.',
 };
 
 export const statusPages = { fr, en };

@@ -326,18 +326,19 @@ le disent en tête de leur aperçu.
 
 Des pages **publiques**, sans connexion, à `/status` (adresse vide) ou
 `/status/<adresse>`, que l'administrateur compose bloc par bloc dans
-`/status-pages` (`status_page:manage`). L'éditeur est un tiroir en deux
+`/status-pages` (`status_page:manage`), et où l'on publie des
+[annonces](#annonces) pendant une panne (`status_page:announce`). L'éditeur est un tiroir en deux
 colonnes : les réglages et les blocs à gauche, réordonnables par
 glisser-déposer (poignée) ou au clavier (flèches), et à droite un **aperçu**
 calculé exactement comme la page publique, sur les blocs non enregistrés.
 
 | Bloc | Ce qu'il montre |
 |---|---|
-| État général | « Tous les services fonctionnent », ralenti, panne partielle, panne majeure (plus de la moitié en panne), maintenance |
+| État général | « Tous les services fonctionnent », ralenti, panne partielle, panne majeure (plus de la moitié en panne), maintenance — et dessous, la dernière [annonce](#annonces) de chaque panne ou maintenance en cours |
 | Titre, Texte | Ce que l'administrateur écrit ; du texte brut, aucun HTML interprété |
 | Services | Des sondes, sous un **nom public** au choix ; leur état, et à la demande une barre par jour sur 30 jours (la rétention des mesures) et le taux de disponibilité |
-| Maintenances | Les [fenêtres](#fenêtres-de-maintenance) en cours et à venir (7 jours) qui touchent ces services — directement, ou par la cible où tourne leur application |
-| Incidents récents | Les pannes de ces services sur 7, 14 ou 30 jours, avec leur durée |
+| Maintenances | Les [fenêtres](#fenêtres-de-maintenance) en cours et à venir (7 jours) qui touchent ces services — directement, ou par la cible où tourne leur application — avec leurs annonces ; une fenêtre finie reste un jour si elle en porte une |
+| Incidents récents | Les pannes de ces services sur 7, 14 ou 30 jours, avec leur durée et leurs annonces |
 
 L'état public d'un service se lit de sa sonde : saine, ralentie (répond mal),
 en panne (injoignable), inconnue (suspendue ou jamais mesurée) — et **en
@@ -345,6 +346,33 @@ maintenance** dès qu'une fenêtre la couvre, ce qui l'emporte. Ce qu'une page
 laisse sortir est décrit dans [sécurité](securite.md#ce-qui-est-public--les-pages-de-statut).
 
 Une page non publiée répond 404 ; la page publique se relit seule chaque minute.
+
+### Annonces
+
+Pendant une panne ou une maintenance, un humain dit aux visiteurs ce qui se
+passe : des messages datés, chacun avec sa **phase** — « enquête en cours »,
+« cause identifiée », « sous surveillance », « résolu » pour une panne ;
+« prévue », « en cours », « terminée » pour une maintenance. Une annonce est
+**rattachée** à un incident de sonde ou à une fenêtre (table `status_updates`,
+un sujet et un seul, supprimée avec lui) : elle paraît sur toute page qui
+montre une sonde touchée, sous l'incident ou la fenêtre, la plus récente
+d'abord, et la dernière d'un sujet en cours monte sous l'état général.
+
+On les publie dans `/status-pages`, section « Annonces »
+(`status_page:announce`, distincte de `status_page:manage` : dire « on
+enquête » est un geste d'exploitation, et l'opérateur la reçoit sur une
+installation neuve). La section liste les pannes des sondes de vos pages, en
+cours ou refermées depuis moins de 7 jours, et les maintenances qui les
+touchent ; chacune s'ouvre dans un tiroir (`?annonce=incident:<id>`,
+`?annonce=maintenance:<id>`) où publier, corriger ou retirer. La fiche d'une
+sonde et celle d'une fenêtre y mènent directement — même pour une sonde
+qu'aucune page ne montre, avec l'avertissement que l'annonce ne paraîtra
+nulle part.
+
+« Résolu » est un mot pour les visiteurs, pas un état : il ne referme pas
+l'incident, que seule la sonde referme en voyant la cible saine. Une annonce
+ne porte ni auteur ni identifiant sur la page publique — seulement sa phase,
+son texte et son heure.
 
 ## Notifications
 

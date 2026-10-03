@@ -40,6 +40,7 @@ export const PERMISSIONS = [
   'maintenance:read',
   'maintenance:manage',
   'status_page:manage',
+  'status_page:announce',
   'audit:read',
   'settings:read',
   'settings:manage',
@@ -107,6 +108,10 @@ const descriptionsFr = {
   'maintenance:manage': 'Planifier, modifier et terminer une fenêtre de maintenance',
   'status_page:manage':
     'Composer et publier les pages de statut publiques — ce que des inconnus verront',
+  // Distincte de `status_page:manage` : dire « on enquête » pendant une panne
+  // est un geste d'exploitation ; décider de ce qu'une page montre, non.
+  'status_page:announce':
+    'Publier des annonces sur les pages de statut pendant une panne ou une maintenance',
   'audit:read': "Consulter les logs d'activité",
   'settings:read': "Consulter les paramètres de l'instance",
   'settings:manage': "Modifier les paramètres de l'instance, y compris l'accès au modèle d'IA",
@@ -148,6 +153,7 @@ const descriptionsEn: Translated<typeof descriptionsFr> = {
   'maintenance:read': 'Read maintenance windows and the alerts they hold',
   'maintenance:manage': 'Schedule, change and end a maintenance window',
   'status_page:manage': 'Compose and publish public status pages — what strangers will see',
+  'status_page:announce': 'Post announcements on status pages during an outage or a maintenance',
   'audit:read': 'Read the activity log',
   'settings:read': 'Read the instance settings',
   'settings:manage': 'Change the instance settings, including access to the AI model',
@@ -264,6 +270,9 @@ export const ROLE_DEFINITIONS: Record<
       // l'exploitation.
       'maintenance:read',
       'maintenance:manage',
+      // Tenir les visiteurs au courant d'une panne qu'on est en train de
+      // réparer, aussi.
+      'status_page:announce',
     ],
   },
   auditor: {

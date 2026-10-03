@@ -3,7 +3,7 @@
 - [Authentification et comptes](#authentification-et-comptes)
 - [Ce qui vient d'ailleurs que le panel](#ce-qui-vient-dailleurs-que-le-panel)
 - [Ce qui est public : les pages de statut](#ce-qui-est-public--les-pages-de-statut)
-- [RBAC — 37 permissions](#rbac--37-permissions)
+- [RBAC — 38 permissions](#rbac--38-permissions)
 - [Journal d'activité](#journal-dactivité)
 - [Chiffrement](#chiffrement)
 - [Magasin de secrets d'application](#magasin-de-secrets-dapplication)
@@ -168,7 +168,7 @@ ouvertes : leur échéance est ramenée à « maintenant plus la nouvelle durée
 Le plafond absolu est tenu par `requireSession()`, qui retire la session de la
 base et écrit `auth.session.expired` (raison `max_age`).
 
-## RBAC — 37 permissions
+## RBAC — 38 permissions
 
 `packages/core/src/permissions.ts` est le vocabulaire, partagé par le panel, le
 worker et le seed. Une permission est une chaîne `ressource:action`.
@@ -186,7 +186,7 @@ worker et le seed. Une permission est une chaîne `ressource:action`.
 | `job` | `read` `manage` |
 | `monitor` | `read` `manage` |
 | `maintenance` | `read` `manage` |
-| `status_page` | `manage` |
+| `status_page` | `manage` `announce` |
 | `audit` | `read` |
 | `settings` | `read` `manage` |
 
@@ -207,6 +207,9 @@ cosmétiques :
   À l'inverse, la mention « en maintenance » sur une cible ou une sonde suit le
   droit de lire ce sujet, pas `maintenance:read`. Choisir des sujets en
   planifiant une fenêtre demande aussi de pouvoir les lire.
+- **`status_page:manage` vs `status_page:announce`** — composer une page décide
+  de ce que des inconnus verront ; y annoncer une panne, c'est commenter ce
+  qu'elle montre déjà. L'opérateur a la seconde, pas la première.
 
 ### Les rôles sont des données, pas du code
 
@@ -224,8 +227,8 @@ facteur. Un clic sur un rôle ouvre son tiroir, où on le modifie.
 
 | Rôle | Permissions |
 |---|---|
-| `admin` | les 37 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
-| `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure`, sauvegardes sans restauration, fenêtres de maintenance |
+| `admin` | les 38 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
+| `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure`, sauvegardes sans restauration, fenêtres de maintenance, annonces des pages de statut |
 | `auditor` | les 13 permissions en `:read` — journal d'activité, comptes, rôles et paramètres compris |
 | `viewer` | les 9 lectures de l'**exploitation** : cibles, applications, déploiements, sauvegardes, charges, scans, tâches, supervision, maintenances. Ni `audit:read` (le journal porte des adresses IP et des e-mails), ni `user:read`, ni `role:read`, ni `settings:read` |
 | `no-access` | aucune — le rôle d'une **inscription publique** (`SIGNUP_ROLE`) |
@@ -238,7 +241,8 @@ personnalisation** — `verify-roles.sh` le vérifie explicitement. La migration
 exactement ses permissions d'origine.
 
 Corollaire, pour toute permission ajoutée après coup — `maintenance:read`,
-`maintenance:manage` et `status_page:manage` les dernières : sur une instance **existante**, seul
+`maintenance:manage`, `status_page:manage` et `status_page:announce` les
+dernières : sur une instance **existante**, seul
 `admin` les reçoit d'office. Les autres rôles les reçoivent depuis la matrice,
 par un administrateur ; ce n'est pas au code de décider qu'un opérateur peut
 couper les alertes.
@@ -326,11 +330,16 @@ qu'elles exposent est borné par construction :
   d'erreur, le nom d'une machine ni le titre d'une fenêtre de maintenance — une
   maintenance publique dit « en cours jusqu'au… » et les services qu'elle
   touche, rien de plus. Le composant qui l'affiche ne reçoit que ce modèle.
+  Seule exception, voulue : le texte des **annonces**, écrit par l'équipe pour
+  les visiteurs — sa phase, son texte et son heure, jamais son auteur. Le
+  formulaire le rappelle (ni adresse interne, ni nom de machine), et chaque
+  publication, correction ou retrait passe au journal avec le texte.
 - **Ce qui n'existe pas.** Une page non publiée, une adresse inconnue et un
   chemin plus profond répondent tous **404**, la même réponse : on ne devine
   pas ce qui existe derrière.
 - **Ce qui reste fermé.** L'API des pages (`/api/status-pages`) et l'éditeur
-  demandent `status_page:manage` ; la page publique n'a aucun flux temps réel —
+  demandent `status_page:manage`, celle des annonces (`/api/status-updates`)
+  `status_page:announce` ; la page publique n'a aucun flux temps réel —
   `pupitre:realtime` reste réservé aux sessions —, elle se relit chaque minute.
 - **Les moteurs.** `noindex, nofollow` : une page de statut se partage par un
   lien, elle ne se trouve pas par une recherche.

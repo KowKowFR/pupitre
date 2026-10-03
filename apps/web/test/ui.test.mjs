@@ -90,6 +90,14 @@ describe('masquage par permission', () => {
     assert.ok(keys.includes('catalog'));
   });
 
+  it('les pages de statut s’ouvrent à qui compose comme à qui annonce, pas aux autres', () => {
+    const keysOf = (can) =>
+      visibleNavigation(can).flatMap((group) => group.sections.map((section) => section.key));
+    assert.ok(keysOf(session('status_page:announce')).includes('statusPages'));
+    assert.ok(keysOf(session('status_page:manage')).includes('statusPages'));
+    assert.ok(!keysOf(VIEWER).includes('statusPages'));
+  });
+
   it('la palette lit un verbe d’action dans la saisie', () => {
     assert.deepEqual(splitPaletteVerbs('Redémarrer umami'), { verbs: ['restart'], rest: 'umami' });
     assert.deepEqual(splitPaletteVerbs('prod-1 tester'), { verbs: ['test'], rest: 'prod-1' });
