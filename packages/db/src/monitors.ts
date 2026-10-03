@@ -297,6 +297,12 @@ export async function updateMonitor(
   // Changer ce qu'on observe change ce que l'état confirmé veut dire : il
   // portait sur autre chose. On repart de `unknown` plutôt que d'hériter d'un
   // verdict devenu faux.
+  //
+  // L'incident ouvert, lui, **reste ouvert** : il a été annoncé, et ceux qui
+  // l'ont reçu attendent la suite. Il se refermera — annonce comprise — quand
+  // la nouvelle cible sera confirmée saine, au seuil de rétablissement ; si
+  // elle échoue, c'est la même panne qui continue, sans seconde alerte.
+  // `applyCheck` lit l'incident en base pour le savoir.
   if (identityChanged) {
     values.status = 'unknown';
     values.lastOutcome = null;
@@ -481,11 +487,21 @@ export async function applyCheck(
       .returning();
     if (!check) throw new Error('insertion de la mesure sans retour');
 
+    // L'incident ouvert se lit en base, pas dans l'état : un changement de
+    // cible pendant une panne remet l'état à `unknown` et laisse l'incident
+    // ouvert (voir `updateMonitor`).
+    const [open] = await tx
+      .select({ id: monitorIncidents.id })
+      .from(monitorIncidents)
+      .where(and(eq(monitorIncidents.monitorId, monitor.id), isNull(monitorIncidents.resolvedAt)))
+      .limit(1);
+
     const step = nextMonitorState(
       {
         status: monitor.status,
         consecutiveFailures: monitor.consecutiveFailures,
         consecutiveSuccesses: monitor.consecutiveSuccesses,
+        incidentOpen: open !== undefined,
       },
       outcome,
       {

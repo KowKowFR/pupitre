@@ -584,7 +584,12 @@ test("les deux types n'utilisent que des formes de champ déjà rendues par l'é
 const THRESHOLDS = { failureThreshold: 3, recoveryThreshold: 2 };
 
 function play(outcomes: MonitorOutcome[], thresholds = THRESHOLDS) {
-  let state: MonitorState = { status: 'unknown', consecutiveFailures: 0, consecutiveSuccesses: 0 };
+  let state: MonitorState = {
+    status: 'unknown',
+    consecutiveFailures: 0,
+    consecutiveSuccesses: 0,
+    incidentOpen: false,
+  };
   const transitions: Array<'down' | 'up'> = [];
   for (const outcome of outcomes) {
     const step = nextMonitorState(state, outcome, thresholds);
@@ -593,6 +598,7 @@ function play(outcomes: MonitorOutcome[], thresholds = THRESHOLDS) {
       status: step.status,
       consecutiveFailures: step.consecutiveFailures,
       consecutiveSuccesses: step.consecutiveSuccesses,
+      incidentOpen: step.incidentOpen,
     };
   }
   return { state, transitions };

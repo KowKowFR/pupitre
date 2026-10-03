@@ -113,9 +113,19 @@ l'ouverture/fermeture de l'incident.
 - Il se ferme après `recovery_threshold` succès consécutifs (défaut **2**).
 - Un index unique partiel sur `(monitor_id) where resolved_at is null` interdit
   structurellement un second incident ouvert.
-- Depuis l'état `unknown`, une seule mesure saine suffit à afficher « sain ».
+- Depuis l'état `unknown`, une seule mesure saine suffit à afficher « sain » —
+  sauf si un incident est ouvert (voir plus bas).
 - Déjà en panne et la nature change (`unhealthy` → `unreachable`) : le statut est
   mis à jour, mais **aucun nouvel incident, aucune alerte**.
+
+**Changer la cible pendant une panne.** Modifier ce qu'observe une sonde (son
+URL, son hôte) remet son état à `unknown` : le verdict portait sur autre chose.
+L'incident ouvert, lui, **reste ouvert** — il a été annoncé. La machine à états
+le sait (`incidentOpen`, lu en base par `applyCheck`) : la nouvelle cible saine
+le referme au seuil de rétablissement, **retour à la normale annoncé** ; en
+échec, c'est la même panne qui continue, sans seconde alerte. Avant, l'incident
+restait ouvert pour toujours et l'index unique avalait chaque panne suivante ;
+une sonde restée dans cet état se répare d'elle-même au premier succès.
 
 `monitors.status` porte l'état **confirmé**, `monitors.last_outcome` le dernier
 verdict brut. C'est ce qui permet à l'écran de dire « 1 échec sur 3 — non
