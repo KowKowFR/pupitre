@@ -1,6 +1,7 @@
 import { listGitHubInstallations, type GitHubInstallation } from '@pupitre/core/sources';
 import { countApplicationSources, getAppSettingsValue, getSourceConnection } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HelpTip } from '@/components/ui/help-tip';
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -56,8 +57,13 @@ export default async function IntegrationsSettingsPage({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t(`section.${section.id}.title`)}</CardTitle>
-        <CardDescription>{t(`section.${section.id}.governs`)}</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          {t(`section.${section.id}.title`)}
+          <HelpTip>{t(`section.${section.id}.governs`)}</HelpTip>
+        </CardTitle>
+        <CardDescription className="first-letter:uppercase">
+          {t(`section.${section.id}.short`)}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-8">
         <GitHubIntegration

@@ -91,6 +91,13 @@ export const WORKLOAD_LIST_JOB = 'workload:list' as const;
 export const TARGET_METRICS_JOB = 'target:metrics' as const;
 
 /**
+ * Le relevé d'un domaine pour son tiroir : DNS, RDAP, certificat. Sur la file
+ * de supervision : quelques secondes de réseau, une lecture que le panel
+ * attend et qu'un déploiement ne doit pas retarder.
+ */
+export const DOMAIN_INSPECT_JOB = 'domain:inspect' as const;
+
+/**
  * Suppression et mise à jour d'une charge. Sur `ops` : ce sont des écritures
  * sur la machine, du même ordre qu'un déploiement, et elles doivent en partager
  * la discipline de concurrence.

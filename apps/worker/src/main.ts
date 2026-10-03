@@ -42,6 +42,7 @@ import {
   SCHEDULED_JOB_TYPES,
   SCHEDULED_JOB_TYPES_LIST,
   TARGET_METRICS_JOB,
+  DOMAIN_INSPECT_JOB,
   TARGET_PREFLIGHT_JOB,
   WORKLOAD_CONTROL_JOB,
   WORKLOAD_EXEC_JOB,
@@ -69,6 +70,7 @@ import {
 } from './handlers/app.js';
 import { handleApplicationDelete } from './handlers/application.js';
 import { handleTargetMetrics, handleTargetMetricsSweep } from './handlers/host-metrics.js';
+import { handleDomainInspect } from './handlers/domain-inspect.js';
 import { handleMonitorCapture, handleMonitorSweep } from './handlers/monitor.js';
 import { startCaptureEgress, stopCaptureEgress } from './monitors/egress.js';
 import {
@@ -208,6 +210,9 @@ const supervisionHandlers: Record<string, JobHandler> = {
   [BACKUP_DESTINATION_CHECK_JOB]: handleBackupDestinationCheck,
   // Chaque domaine, à travers son proxy, depuis sa machine : une lecture.
   [ROUTES_CHECK_JOB]: handleRoutesCheck,
+  // Le relevé d'un domaine pour son tiroir : DNS, RDAP, certificat, vus du
+  // worker. Une lecture de quelques secondes, que le panel attend.
+  [DOMAIN_INSPECT_JOB]: handleDomainInspect,
 };
 
 /** La file des sauvegardes : longues, lentes, une à la fois par défaut. */

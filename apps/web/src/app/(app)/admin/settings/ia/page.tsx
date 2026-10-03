@@ -1,5 +1,6 @@
 import { getAiApiKey, getAppSettings } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HelpTip } from '@/components/ui/help-tip';
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -29,9 +30,12 @@ export default async function AiSettingsPage() {
         <CardTitle className="flex items-center gap-2">
           {t(`section.${section.id}.title`)}
           <AiStatusBadge settings={record.settings} storedApiKey={await getAiApiKey()} />
+          <HelpTip>
+            {t(`section.${section.id}.governs`)} {t('ai.noShell')}
+          </HelpTip>
         </CardTitle>
-        <CardDescription>
-          {t(`section.${section.id}.governs`)} {t('ai.noShell')}
+        <CardDescription className="first-letter:uppercase">
+          {t(`section.${section.id}.short`)}
         </CardDescription>
       </CardHeader>
       <CardContent>

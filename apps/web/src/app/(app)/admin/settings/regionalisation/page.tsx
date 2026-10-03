@@ -1,6 +1,7 @@
 import { DATE_STYLES, TRANSLATED_LOCALES, supportedTimeZones, type SupportedLocale } from '@pupitre/core';
 import { getAppSettings } from '@pupitre/db';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HelpTip } from '@/components/ui/help-tip';
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -25,8 +26,13 @@ export default async function RegionalSettingsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t('section.regional.title')}</CardTitle>
-        <CardDescription>{t('section.regional.governs')}</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          {t('section.regional.title')}
+          <HelpTip>{t('section.regional.governs')}</HelpTip>
+        </CardTitle>
+        <CardDescription className="first-letter:uppercase">
+          {t('section.regional.short')}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <RegionalForm

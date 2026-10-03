@@ -45,3 +45,4 @@ export {
   rdapEndpointFor,
   resetRdapBootstrapCache,
 } from './domain.js';
+export { inspectDomain, type DomainInspectInput } from './domain-inspect.js';

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Permission } from '@pupitre/core';
+import { Badge } from '@/components/ui/badge';
 import { useT } from '@/i18n/client';
 import { admin } from '@/i18n/messages/admin';
 import { cn } from '@/lib/utils';
@@ -8,8 +9,9 @@ import type { PermissionGroup } from './roles-editor';
 
 /**
  * Les permissions d'un rôle, groupées par ressource, avec « tout cocher » par
- * groupe. Partagé par la carte d'un rôle et la seconde étape de « Nouveau
- * rôle » : les deux cochent la même chose, de la même façon.
+ * groupe. Partagé par le tiroir d'un rôle et la seconde étape de « Nouveau
+ * rôle » : les deux cochent la même chose, de la même façon. Une permission
+ * sensible le dit : c'est elle qui fait exiger un second facteur.
  */
 export function PermissionGroups({
   groups,
@@ -74,8 +76,15 @@ export function PermissionGroups({
                       onChange={() => toggle(permission.key)}
                     />
                     <span className="flex min-w-0 flex-col">
-                      <span className="mono text-[12px] font-semibold text-text">
-                        {permission.key}
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="mono text-[12px] font-semibold text-text">
+                          {permission.key}
+                        </span>
+                        {permission.sensitive ? (
+                          <Badge variant="warn" title={t('roles.sensitive.help')}>
+                            {t('roles.sensitive')}
+                          </Badge>
+                        ) : null}
                       </span>
                       <span className="t-cap text-text-3">{permission.description}</span>
                     </span>

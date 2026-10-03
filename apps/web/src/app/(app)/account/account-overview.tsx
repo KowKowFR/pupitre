@@ -15,7 +15,7 @@ export function AccountOverview({
   since,
   twoFactor,
   sessions,
-  lastSignIn,
+  signIn,
 }: {
   name: string;
   email: string;
@@ -24,7 +24,7 @@ export function AccountOverview({
   since: string | null;
   twoFactor: { enabled: boolean; label: string; value: string; hint: string };
   sessions: { label: string; count: number; hint: string };
-  lastSignIn: { label: string; value: string; hint: string };
+  signIn: { label: string; value: string; hint: string };
 }) {
   return (
     <section className="card overflow-hidden">
@@ -52,12 +52,7 @@ export function AccountOverview({
             hint={twoFactor.hint}
           />
           <Readout label={sessions.label} value={sessions.count} tone="idle" hint={sessions.hint} />
-          <Readout
-            label={lastSignIn.label}
-            value={lastSignIn.value}
-            tone="idle"
-            hint={lastSignIn.hint}
-          />
+          <Readout label={signIn.label} value={signIn.value} tone="ok" hint={signIn.hint} />
         </ReadoutBar>
       </div>
     </section>

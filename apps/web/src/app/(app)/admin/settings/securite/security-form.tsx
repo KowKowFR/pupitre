@@ -11,6 +11,7 @@ import {
   type ScannerKey,
 } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
+import { HelpTip } from '@/components/ui/help-tip';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useLanguage, useT } from '@/i18n/client';
@@ -64,8 +65,10 @@ export function SecurityForm({
           onChange={(event) => setScanningEnabled(event.target.checked)}
         />
         <span className="min-w-0">
-          <span className="block text-text">{t('security.enabled.label')}</span>
-          <span className="help block">{t('security.enabled.help')}</span>
+          <span className="block text-text">
+            {t('security.enabled.label')}
+            <HelpTip>{t('security.enabled.help')}</HelpTip>
+          </span>
         </span>
       </label>
 
@@ -74,8 +77,10 @@ export function SecurityForm({
       )}
 
       <div className="space-y-2">
-        <span className="block text-sm text-text">{t('security.skipped.title')}</span>
-        <p className="help">{t('security.skipped.help')}</p>
+        <span className="block text-sm text-text">
+          {t('security.skipped.title')}
+          <HelpTip>{t('security.skipped.help')}</HelpTip>
+        </span>
         <div className="flex flex-wrap gap-2 pt-1">
           {SCANNER_KEYS.map((key) => {
             const off = disabledScanners.includes(key);
@@ -106,7 +111,13 @@ export function SecurityForm({
       </div>
 
       <div className="field">
-        <Label htmlFor="failOn">{t('security.failOn.label')}</Label>
+        <Label htmlFor="failOn">
+          {t('security.failOn.label')}
+          <HelpTip>
+            {t('security.failOn.help')}
+            <span className="mt-1.5 block">{t('security.frozen')}</span>
+          </HelpTip>
+        </Label>
         <Select
           id="failOn"
           className="w-full sm:w-72"
@@ -120,10 +131,7 @@ export function SecurityForm({
             </option>
           ))}
         </Select>
-        <p className="help">{t('security.failOn.help')}</p>
       </div>
-
-      <p className="help">{t('security.frozen')}</p>
     </SectionForm>
   );
 }

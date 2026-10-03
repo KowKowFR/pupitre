@@ -385,6 +385,7 @@ const resourcesFr = {
   scan: 'Sécurité',
   job: 'Tâches planifiées',
   monitor: 'Supervision de sites',
+  backup: 'Sauvegardes',
   audit: "Logs d'activité",
   settings: "Paramètres de l'instance",
 } as const;
@@ -399,6 +400,7 @@ const resourcesEn: Translated<typeof resourcesFr> = {
   scan: 'Security',
   job: 'Scheduled jobs',
   monitor: 'Site monitoring',
+  backup: 'Backups',
   audit: 'Activity log',
   settings: 'Instance settings',
 };

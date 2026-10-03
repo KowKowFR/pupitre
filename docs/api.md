@@ -54,11 +54,11 @@ le temps de l'activer. Voir [`securite.md`](securite.md#le-second-facteur-exigé
 
 | Route | Rôle | Accès |
 |---|---|---|
-| `/admin/logs` | **Logs d'activité** — table paginée, filtres | `audit:read` |
+| `/admin/logs` | **Logs d'activité** — table paginée, criticité colorée, filtres et recherche libre | `audit:read` |
 | `/admin/users` | Comptes : création, statut, rôle, réinitialisation du 2FA | `user:manage` |
-| `/admin/roles` | Rôles et leurs permissions | `role:read` |
-| `/admin/settings` | Sommaire, en lecture seule | `settings:read` |
-| `/admin/settings/{identite,regionalisation,securite,connexion,comptes,notifications,ia,integrations,sauvegardes,demarrage}` | Les dix sections | `settings:read` — écriture `settings:manage` |
+| `/admin/roles` | Matrice des droits — un rôle par colonne, une famille de permissions par ligne ; `?role=…` ouvre son tiroir | `role:read` — modifier `role:manage` |
+| `/admin/settings` | Redirige (307) vers `/admin/settings/identite` | `settings:read` |
+| `/admin/settings/{identite,regionalisation,securite,connexion,comptes,notifications,ia,integrations,sauvegardes,demarrage}` | Les dix sections, en quatre groupes à onglets | `settings:read` — écriture `settings:manage` |
 
 ### Hors navigation
 
@@ -156,6 +156,7 @@ la navigation métier.
 | `/api/integrations/gitea` | GET / PUT / DELETE | `settings:read` / `settings:manage` — la forge Gitea / Forgejo : `{ url, token }` est essayé auprès de la forge avant d'être enregistré (502 si elle refuse), le jeton chiffré, jamais rendu ; PUT remplace aussi le jeton (409 si l'adresse change alors que des liaisons y passent) ; DELETE la déconnecte, ses liaisons avec |
 | `/api/integrations/gitea/check` | POST | `settings:manage` — « Tester » : `{ url, token }` → `{ ok, login, version, baseUrl }` ou `{ ok: false, error }`, sans rien enregistrer |
 | `/api/domains` | GET | `application:read` — tous les domaines de l'instance : proxy, état, certificat, `certificateDaysLeft`, et `attention` pour ceux qui ne répondent pas ou dont le certificat approche de l'échéance |
+| `/api/domains/:id/inspect` | GET | `application:read` — le relevé d'un domaine, fait par le worker à l'instant : DNS (A, AAAA, CNAME, TTL), adresses et noms inverses, s'il mène à la machine du proxy, enregistrement RDAP (registrar, dates, serveurs de noms, statuts), zone (NS, MX, CAA), certificat présenté. Rien n'est écrit ; 30 relevés par 5 minutes et par personne |
 | `/api/applications/:id` | GET / PATCH / DELETE | `application:read` ⓐ / `application:update` / `application:delete` |
 | `/api/applications/:id/cascade` | GET / POST | GET : `application:delete` · POST : **union** `deployment:destroy` + `deployment:purge` + `application:delete` |
 | `/api/applications/:id/redeploy` | POST | `deployment:create` ⓐ — une version construite depuis une archive qui n'est plus gardée : 409 `archive_gone` |
@@ -262,5 +263,5 @@ temps réel ne lui porte ni la discussion ni la présence.
 | `/api/notifications/channels` | GET / POST | `settings:read` / `settings:manage` |
 | `/api/notifications/channels/:id` | GET / PATCH / DELETE | `settings:read` / `settings:manage` / `settings:manage` |
 | `/api/notifications/channels/:id/test` | POST | `settings:manage` |
-| `/api/audit-logs` | GET | `audit:read` — paginé, filtres `actorId` `action` `resourceType` `from` `to` |
+| `/api/audit-logs` | GET | `audit:read` — paginé, filtres `q` (recherche libre : action, ressource, acteur, IP, charge utile) `severity` (`high,critical`) `actorId` `action` `resourceType` `from` `to` ; chaque entrée porte sa `severity` |
 | `/api/onboarding` | GET / PATCH | session — `restart` exige `settings:manage` |

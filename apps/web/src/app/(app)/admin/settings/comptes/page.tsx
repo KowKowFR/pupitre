@@ -7,6 +7,7 @@ import {
 import { getAppSettings, listRolesWithPermissions, listTwoFactorExposure } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HelpTip } from '@/components/ui/help-tip';
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -67,8 +68,11 @@ export default async function AccountsSettingsPage() {
           <Badge variant={policy === 'off' ? 'idle' : 'ok'} dot>
             {t(`accounts.state.${policy}`)}
           </Badge>
+          <HelpTip>{t(`section.${section.id}.governs`)}</HelpTip>
         </CardTitle>
-        <CardDescription>{t(`section.${section.id}.governs`)}</CardDescription>
+        <CardDescription className="first-letter:uppercase">
+          {t(`section.${section.id}.short`)}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <AccountsForm

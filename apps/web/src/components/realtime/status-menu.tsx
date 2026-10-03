@@ -45,7 +45,7 @@ export function StatusSubMenu() {
           }
         >
           {options.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
+            <DropdownMenuRadioItem key={option.value} value={option.value} className="is-tall">
               <span className="flex items-start gap-2">
                 <PresenceDot status={option.dot} inline className="mt-1.5" />
                 <span className="flex flex-col">
