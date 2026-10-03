@@ -37,6 +37,8 @@ export const PERMISSIONS = [
   'job:manage',
   'monitor:read',
   'monitor:manage',
+  'maintenance:read',
+  'maintenance:manage',
   'audit:read',
   'settings:read',
   'settings:manage',
@@ -100,6 +102,8 @@ const descriptionsFr = {
   'job:manage': 'Créer et désactiver des tâches planifiées',
   'monitor:read': 'Consulter la supervision des sites et leur historique',
   'monitor:manage': 'Créer, modifier et suspendre une sonde de supervision',
+  'maintenance:read': 'Consulter les fenêtres de maintenance et les alertes retenues',
+  'maintenance:manage': 'Planifier, modifier et terminer une fenêtre de maintenance',
   'audit:read': "Consulter les logs d'activité",
   'settings:read': "Consulter les paramètres de l'instance",
   'settings:manage': "Modifier les paramètres de l'instance, y compris l'accès au modèle d'IA",
@@ -138,6 +142,8 @@ const descriptionsEn: Translated<typeof descriptionsFr> = {
   'job:manage': 'Create and disable scheduled jobs',
   'monitor:read': 'Read site monitoring and its history',
   'monitor:manage': 'Create, change and pause a monitoring probe',
+  'maintenance:read': 'Read maintenance windows and the alerts they hold',
+  'maintenance:manage': 'Schedule, change and end a maintenance window',
   'audit:read': 'Read the activity log',
   'settings:read': 'Read the instance settings',
   'settings:manage': 'Change the instance settings, including access to the AI model',
@@ -250,6 +256,10 @@ export const ROLE_DEFINITIONS: Record<
       // Choisir les scanners fait partie du geste de déploiement : un opérateur
       // qui déploie doit pouvoir décider ce qu'on analyse et quand ça bloque.
       'scan:configure',
+      // Intervenir sur une machine sans réveiller l'astreinte fait partie de
+      // l'exploitation.
+      'maintenance:read',
+      'maintenance:manage',
     ],
   },
   auditor: {

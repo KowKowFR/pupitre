@@ -17,6 +17,7 @@ import {
 } from '@pupitre/db';
 import { getT } from '@/i18n/server';
 import { dashboard } from '@/i18n/messages/dashboard';
+import { visibleCoverage } from '@/lib/maintenance';
 import type { AuthContext } from '@/lib/rbac';
 
 /**
@@ -59,13 +60,14 @@ export const attentionFor = cache(async (auth: AuthContext): Promise<AttentionIt
   const t = await getT(dashboard);
   const canReadTargets = auth.can('target:read');
   const canReadDeployments = auth.can('deployment:read');
-  const [targets, running, monitors, recent, chronicle, posture] = await Promise.all([
+  const [targets, running, monitors, recent, chronicle, posture, coverage] = await Promise.all([
     canReadTargets ? loadTargets() : Promise.resolve([] as PublicTarget[]),
     canReadDeployments ? loadSupervisedApps() : Promise.resolve([]),
     auth.can('monitor:read') ? loadMonitors() : Promise.resolve([]),
     canReadDeployments ? loadRecentDeployments() : Promise.resolve(null),
     canReadDeployments ? loadDeploymentPulse() : Promise.resolve(null),
     auth.can('scan:read') ? loadScanPosture() : Promise.resolve(null),
+    visibleCoverage(auth),
   ]);
   return collectAttention({
     targets,
@@ -74,9 +76,16 @@ export const attentionFor = cache(async (auth: AuthContext): Promise<AttentionIt
     recent: recent?.items ?? [],
     chronicle,
     posture,
+    maintenance: {
+      targets: new Set(coverage.targets.keys()),
+      monitors: new Set(coverage.monitors.keys()),
+    },
     t,
   });
 });
+
+/** Ce qui est en maintenance : ses points restent listés, marqués et sans alarme rouge. */
+export type MaintenanceMarks = { targets: ReadonlySet<string>; monitors: ReadonlySet<string> };
 
 /**
  * Rassemble les anomalies des sources qui peuvent en produire.
@@ -93,8 +102,15 @@ export function collectAttention({
   recent,
   chronicle,
   posture,
+  maintenance,
   t,
 }: {
+  /**
+   * Les cibles et les sondes en maintenance. Une panne y est souvent voulue :
+   * le point reste — il faut bien le voir revenir —, mais en avertissement,
+   * avec la mention, et non en rouge.
+   */
+  maintenance?: MaintenanceMarks;
   targets: readonly PublicTarget[];
   running: Awaited<ReturnType<typeof listSupervisedApps>>;
   monitors: Awaited<ReturnType<typeof listMonitors>>;
@@ -109,13 +125,15 @@ export function collectAttention({
   for (const target of targets) {
     if (target.status === 'ok' || target.status === 'unknown') continue;
     mute.add(target.name);
+    const inMaintenance = maintenance?.targets.has(target.id) ?? false;
     items.push({
       subject: target.name,
       detail:
-        target.status === 'unreachable'
+        (target.status === 'unreachable'
           ? t('attention.target.unreachable', { host: target.host })
-          : t('attention.target.degraded', { host: target.host }),
-      severity: target.status === 'unreachable' ? 'danger' : 'warn',
+          : t('attention.target.degraded', { host: target.host })) +
+        (inMaintenance ? t('attention.maintenance') : ''),
+      severity: target.status === 'unreachable' && !inMaintenance ? 'danger' : 'warn',
       href: `/targets?target=${target.id}`,
       action: t('attention.action.diagnose'),
     });
@@ -125,13 +143,14 @@ export function collectAttention({
     if (mute.has(app.targetName)) continue;
 
     if (app.healthStatus === 'unreachable' || app.healthStatus === 'unhealthy') {
+      const inMaintenance = maintenance?.targets.has(app.targetId) ?? false;
       items.push({
         subject: `${app.applicationSlug}@${app.targetName}`,
         detail:
-          app.healthStatus === 'unreachable'
+          (app.healthStatus === 'unreachable'
             ? t('attention.app.unreachable')
-            : t('attention.app.unhealthy'),
-        severity: app.healthStatus === 'unreachable' ? 'danger' : 'warn',
+            : t('attention.app.unhealthy')) + (inMaintenance ? t('attention.maintenance') : ''),
+        severity: app.healthStatus === 'unreachable' && !inMaintenance ? 'danger' : 'warn',
         href: `/apps?app=${app.id}`,
         action: t('attention.action.logs'),
       });
@@ -159,13 +178,14 @@ export function collectAttention({
   for (const monitor of monitors) {
     if (!monitor.enabled) continue;
     if (monitor.status !== 'unreachable' && monitor.status !== 'unhealthy') continue;
+    const inMaintenance = maintenance?.monitors.has(monitor.id) ?? false;
     items.push({
       subject: monitor.name,
       detail:
-        monitor.status === 'unreachable'
+        (monitor.status === 'unreachable'
           ? t('attention.monitor.unreachable')
-          : t('attention.monitor.unhealthy'),
-      severity: monitor.status === 'unreachable' ? 'danger' : 'warn',
+          : t('attention.monitor.unhealthy')) + (inMaintenance ? t('attention.maintenance') : ''),
+      severity: monitor.status === 'unreachable' && !inMaintenance ? 'danger' : 'warn',
       href: `/monitors?monitor=${monitor.id}`,
       action: t('attention.action.monitor'),
     });

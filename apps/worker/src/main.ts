@@ -77,6 +77,12 @@ import {
   FORECAST_SWEEP_SCHEDULER_KEY,
   handleForecastSweep,
 } from './forecast/sweep.js';
+import {
+  MAINTENANCE_SWEEP_EVERY_MS,
+  MAINTENANCE_SWEEP_JOB,
+  MAINTENANCE_SWEEP_SCHEDULER_KEY,
+  handleMaintenanceSweep,
+} from './maintenance/sweep.js';
 import { handleMonitorCapture, handleMonitorSweep } from './handlers/monitor.js';
 import { startCaptureEgress, stopCaptureEgress } from './monitors/egress.js';
 import {
@@ -221,6 +227,8 @@ const supervisionHandlers: Record<string, JobHandler> = {
   [DOMAIN_INSPECT_JOB]: handleDomainInspect,
   // Les prévisions : des lectures SQL et un calcul, toutes les 30 minutes.
   [FORECAST_SWEEP_JOB]: handleForecastSweep,
+  // Les fenêtres de maintenance : annoncer un début, fermer une fin.
+  [MAINTENANCE_SWEEP_JOB]: handleMaintenanceSweep,
 };
 
 /** La file des sauvegardes : longues, lentes, une à la fois par défaut. */
@@ -412,6 +420,29 @@ async function installForecastSweep(): Promise<void> {
   logger.info({ everyMs: FORECAST_SWEEP_EVERY_MS }, 'balayage des prévisions installé');
 }
 
+/**
+ * Installe l'horloge des maintenances : chaque minute. La mise en sourdine n'en
+ * dépend pas — elle se décide à chaque alerte —, seules l'annonce du début et
+ * la fermeture de la fin attendent ce balayage.
+ */
+async function installMaintenanceSweep(): Promise<void> {
+  const queue = getSupervisionQueue();
+  await queue.upsertJobScheduler(
+    MAINTENANCE_SWEEP_SCHEDULER_KEY,
+    { every: MAINTENANCE_SWEEP_EVERY_MS },
+    {
+      name: MAINTENANCE_SWEEP_JOB,
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { age: 3600, count: 50 },
+        removeOnFail: { age: 7 * 24 * 3600, count: 50 },
+      },
+    },
+  );
+  logger.info({ everyMs: MAINTENANCE_SWEEP_EVERY_MS }, 'balayage des maintenances installé');
+}
+
 async function waitForDatabase(attempts = 30, delayMs = 2000): Promise<void> {
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
@@ -508,6 +539,15 @@ async function main(): Promise<void> {
     // Sans horloge, plus de prévision nouvelle ; les épisodes ouverts restent
     // affichés tels quels. Une dégradation, pas une panne.
     logger.error({ err: error }, 'installation du balayage des prévisions impossible');
+  }
+
+  try {
+    await installMaintenanceSweep();
+  } catch (error) {
+    // Sans horloge, les alertes restent retenues pendant les fenêtres, mais
+    // ce qui est resté en panne ne part plus à leur fin. On le crie : c'est
+    // une alerte qui attend sans le savoir. Le prochain démarrage réinstalle.
+    logger.error({ err: error }, 'installation du balayage des maintenances impossible');
   }
 
   try {

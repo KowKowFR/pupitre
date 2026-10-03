@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Timer,
   Users,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 import type { SectionKey } from '@/lib/navigation';
@@ -26,6 +27,7 @@ export const SECTION_ICON: Record<SectionKey, LucideIcon> = {
   deployments: Rocket,
   domains: Globe,
   monitoring: Radar,
+  maintenance: Wrench,
   jobs: Timer,
   logs: ScrollText,
   users: Users,

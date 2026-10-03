@@ -2,7 +2,7 @@
 
 - [Authentification et comptes](#authentification-et-comptes)
 - [Ce qui vient d'ailleurs que le panel](#ce-qui-vient-dailleurs-que-le-panel)
-- [RBAC — 34 permissions](#rbac--34-permissions)
+- [RBAC — 36 permissions](#rbac--36-permissions)
 - [Journal d'activité](#journal-dactivité)
 - [Chiffrement](#chiffrement)
 - [Magasin de secrets d'application](#magasin-de-secrets-dapplication)
@@ -167,7 +167,7 @@ ouvertes : leur échéance est ramenée à « maintenant plus la nouvelle durée
 Le plafond absolu est tenu par `requireSession()`, qui retire la session de la
 base et écrit `auth.session.expired` (raison `max_age`).
 
-## RBAC — 34 permissions
+## RBAC — 36 permissions
 
 `packages/core/src/permissions.ts` est le vocabulaire, partagé par le panel, le
 worker et le seed. Une permission est une chaîne `ressource:action`.
@@ -184,6 +184,7 @@ worker et le seed. Une permission est une chaîne `ressource:action`.
 | `scan` | `read` `configure` |
 | `job` | `read` `manage` |
 | `monitor` | `read` `manage` |
+| `maintenance` | `read` `manage` |
 | `audit` | `read` |
 | `settings` | `read` `manage` |
 
@@ -199,6 +200,11 @@ cosmétiques :
 - **`backup:manage` vs `backup:restore`** — sauvegarder ne remplace rien ;
   restaurer écrase les données en service. L'opérateur a la première, pas la
   seconde.
+- **`maintenance:read` ne donne pas les sujets** — l'écran des maintenances ne
+  montre d'une fenêtre que les cibles et les sondes que la session peut lire.
+  À l'inverse, la mention « en maintenance » sur une cible ou une sonde suit le
+  droit de lire ce sujet, pas `maintenance:read`. Choisir des sujets en
+  planifiant une fenêtre demande aussi de pouvoir les lire.
 
 ### Les rôles sont des données, pas du code
 
@@ -216,10 +222,10 @@ facteur. Un clic sur un rôle ouvre son tiroir, où on le modifie.
 
 | Rôle | Permissions |
 |---|---|
-| `admin` | les 34 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
-| `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure`, sauvegardes sans restauration |
-| `auditor` | les 12 permissions en `:read` — journal d'activité, comptes, rôles et paramètres compris |
-| `viewer` | les 8 lectures de l'**exploitation** : cibles, applications, déploiements, sauvegardes, charges, scans, tâches, supervision. Ni `audit:read` (le journal porte des adresses IP et des e-mails), ni `user:read`, ni `role:read`, ni `settings:read` |
+| `admin` | les 36 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
+| `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure`, sauvegardes sans restauration, fenêtres de maintenance |
+| `auditor` | les 13 permissions en `:read` — journal d'activité, comptes, rôles et paramètres compris |
+| `viewer` | les 9 lectures de l'**exploitation** : cibles, applications, déploiements, sauvegardes, charges, scans, tâches, supervision, maintenances. Ni `audit:read` (le journal porte des adresses IP et des e-mails), ni `user:read`, ni `role:read`, ni `settings:read` |
 | `no-access` | aucune — le rôle d'une **inscription publique** (`SIGNUP_ROLE`) |
 
 `admin` est le garde-fou qui empêche de se verrouiller hors de son propre panel.
@@ -228,6 +234,12 @@ personnalisation** — `verify-roles.sh` le vérifie explicitement. La migration
 `0034` suit la même règle sur une base existante : elle crée `auditor` et
 `no-access` si leur clé est libre, et ne resserre `viewer` que s'il porte encore
 exactement ses permissions d'origine.
+
+Corollaire, pour toute permission ajoutée après coup — `maintenance:read` et
+`maintenance:manage` les dernières : sur une instance **existante**, seul
+`admin` les reçoit d'office. Les autres rôles les reçoivent depuis la matrice,
+par un administrateur ; ce n'est pas au code de décider qu'un opérateur peut
+couper les alertes.
 
 **Une inscription publique n'ouvre rien.** Elle ne dit rien de qui s'inscrit :
 avec `ALLOW_SIGNUP=true`, lui donner l'observateur ouvrait la lecture du parc à

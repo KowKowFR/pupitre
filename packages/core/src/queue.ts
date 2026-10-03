@@ -619,12 +619,14 @@ export const notificationDispatchJobResultSchema = z.object({
    *   immediate  la fenêtre était fermée — le message part tout de suite
    *   held       une fenêtre est ouverte — l'événement est retenu, nommé, en base
    *   skipped    aucun canal abonné : rien à décider
+   *   silenced   une fenêtre de maintenance couvre son sujet — l'alerte est
+   *              retenue, et partira à la fin si son problème est toujours là
    *
    * `delivered` et `failed` restent à zéro depuis que la remise est une tâche
    * par canal : c'est `notification:deliver` qui les connaît, un canal à la
    * fois. Les champs sont conservés — d'anciens résultats en Redis les portent.
    */
-  mode: z.enum(['immediate', 'held', 'skipped']).default('immediate'),
+  mode: z.enum(['immediate', 'held', 'skipped', 'silenced']).default('immediate'),
   /** Tâches de remise enfilées, une par canal abonné. */
   queued: z.number().int().nonnegative().default(0),
 });

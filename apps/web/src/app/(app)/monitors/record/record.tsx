@@ -10,8 +10,13 @@ import {
   type Monitor,
 } from '@pupitre/db';
 import { ForecastPanel } from '@/components/forecasts/forecast-panel';
+import {
+  MaintenanceMark,
+  ScheduleMaintenanceLink,
+} from '@/components/maintenance/maintenance-mark';
 import { currentLanguage } from '@/i18n/server';
 import { visibleForecasts } from '@/lib/forecasts';
+import { coverageOf } from '@/lib/maintenance';
 import type { FormatSettings } from '@/lib/format';
 import { buildMonitorViews, monitorTypeOptions, toCheckView, toIncidentView } from '@/lib/monitors';
 import type { AuthContext } from '@/lib/rbac';
@@ -27,6 +32,8 @@ export type MonitorRecord = {
   tabs: Partial<Record<MonitorRecordTab, ReactNode>>;
   /** Ce qui ouvre l'aperçu : les prévisions sur la sonde (ralentissement, instabilité). */
   alerts: ReactNode;
+  /** Ce que le pied du tiroir ajoute : mettre en maintenance. */
+  actions: ReactNode;
   /** Ce que « Modifier » préremplit — `null` sans `monitor:manage`. */
   edit: { monitor: EditableMonitor; types: TypeOption[] } | null;
 };
@@ -65,7 +72,7 @@ export async function monitorRecord(
   format: FormatSettings,
 ): Promise<MonitorRecord | null> {
   const language = await currentLanguage();
-  const [[view], checks, incidents, reference, forecasts] = await Promise.all([
+  const [[view], checks, incidents, reference, forecasts, maintenance] = await Promise.all([
     buildMonitorViews([row]),
     // Deux cents points : de quoi couvrir plus de trois heures d'une sonde à la
     // minute sans faire traverser la moitié de la série à chaque affichage.
@@ -73,6 +80,7 @@ export async function monitorRecord(
     listIncidents(row.id, 50),
     liveReference(row.id),
     visibleForecasts(auth, { subjectType: 'monitor', subjectId: row.id }),
+    coverageOf(auth, { type: 'monitor', id: row.id }),
   ]);
   if (!view) return null;
 
@@ -99,7 +107,20 @@ export async function monitorRecord(
 
   return {
     key: row.id,
-    alerts: <ForecastPanel items={forecasts} compact />,
+    alerts: (
+      <>
+        <MaintenanceMark
+          windows={maintenance}
+          format={format}
+          canRead={auth.can('maintenance:read')}
+        />
+        <ForecastPanel items={forecasts} compact />
+      </>
+    ),
+    actions:
+      auth.can('maintenance:manage') && maintenance.length === 0 ? (
+        <ScheduleMaintenanceLink subject="sonde" id={row.id} />
+      ) : null,
     edit:
       editTypes && isMonitorType(row.type)
         ? {

@@ -21,6 +21,7 @@ export type SectionKey =
   | 'deployments'
   | 'domains'
   | 'monitoring'
+  | 'maintenance'
   | 'jobs'
   | 'logs'
   | 'users'
@@ -53,6 +54,7 @@ const NAVIGATION: readonly NavGroup[] = [
       // la permission qui donne déjà ses domaines sur la fiche d'une application.
       { key: 'domains', href: '/domains', permission: 'application:read' },
       { key: 'monitoring', href: '/monitors', permission: 'monitor:read', shortcut: 'S' },
+      { key: 'maintenance', href: '/maintenance', permission: 'maintenance:read' },
       { key: 'jobs', href: '/jobs', permission: 'job:read' },
     ],
   },

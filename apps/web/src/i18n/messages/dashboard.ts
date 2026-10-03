@@ -63,6 +63,7 @@ const fr = {
     other: '{count} points demandent votre attention',
   },
   'attention.aside': "Le reste de l'instance se porte bien.",
+  'attention.maintenance': ' En maintenance : ses alertes sont retenues.',
   'forecast.title': {
     one: '{count} problème en vue',
     other: '{count} problèmes en vue',
@@ -280,6 +281,7 @@ const en: Translated<typeof fr> = {
     other: '{count} items need your attention',
   },
   'attention.aside': 'The rest of the instance is fine.',
+  'attention.maintenance': ' In maintenance: its alerts are held.',
   'forecast.title': {
     one: '{count} problem ahead',
     other: '{count} problems ahead',

@@ -31,8 +31,8 @@ const session = (...permissions) => (permission) => permissions.includes(permiss
 
 const ADMIN = session(
   'target:read', 'target:create', 'target:update', 'application:read', 'application:create',
-  'deployment:read', 'deployment:create', 'monitor:read', 'job:read', 'audit:read', 'user:manage',
-  'role:read', 'settings:read', 'settings:manage',
+  'deployment:read', 'deployment:create', 'monitor:read', 'maintenance:read', 'job:read', 'audit:read',
+  'user:manage', 'role:read', 'settings:read', 'settings:manage',
 );
 const OPERATOR = session(
   'target:read', 'target:update', 'application:read', 'application:create', 'deployment:read',
@@ -84,9 +84,9 @@ describe('masquage par permission', () => {
     assert.deepEqual(groups.map((group) => group.key), ['operations']);
   });
 
-  it("le rail d'un administrateur montre les treize sections, catalogue compris", () => {
+  it("le rail d'un administrateur montre les quatorze sections, catalogue compris", () => {
     const keys = visibleNavigation(ADMIN).flatMap((group) => group.sections.map((section) => section.key));
-    assert.equal(keys.length, 13);
+    assert.equal(keys.length, 14);
     assert.ok(keys.includes('catalog'));
   });
 

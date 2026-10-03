@@ -132,6 +132,9 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   // Une prévision porte sur une machine, une sonde, un domaine ou une
   // application : elle se lit sur la vue d'ensemble et dans la fiche des cibles.
   forecast: 'targets',
+  // Une fenêtre de maintenance se lit sur la vue d'ensemble et dans les
+  // fiches des cibles et des sondes.
+  maintenance_window: 'targets',
 };
 
 /** Le sujet d'une ligne du journal d'audit. */

@@ -48,6 +48,7 @@ le temps de l'activer. Voir [`securite.md`](securite.md#le-second-facteur-exigé
 | `/domains` | **Tous les domaines** : le proxy qui les sert, leur état, l'échéance de leur certificat ; filtre « À surveiller » (ne répond pas, ou certificat sous quatorze jours) | `application:read` |
 | `/monitors` | Sondes HTTP et TLS. `?monitor=<id>` ouvre la **fiche dans un tiroir** : aperçu, mesures et incidents, capture de référence ; `&edit=1` la modifie sur place | `monitor:read` — modifier `monitor:manage` |
 | `/monitors/:id` | Redirige (307) vers `/monitors?monitor=:id` | `monitor:read` |
+| `/maintenance` | Fenêtres de maintenance en cours, à venir et terminées. `?fenetre=<id>` ouvre la fenêtre **dans un tiroir** (période, sujets, alertes retenues) ; `?nouvelle=1` le formulaire, `&cible=<id>` ou `&sonde=<id>` préremplis | `maintenance:read` — planifier `maintenance:manage` |
 | `/jobs` | Tâches planifiées, cron traduit en français, historique déroulant | `job:read` |
 
 ### Administration
@@ -213,6 +214,13 @@ la navigation métier.
 | Route | Méthodes | Permission |
 |---|---|---|
 | `/api/forecasts` | GET | session — les prévisions en cours, chacune rendue seulement à qui peut lire son sujet (`target:read`, `monitor:read`, `application:read`). « Bientôt » d'abord, puis par échéance ; voir [supervision](supervision.md#prévisions) |
+
+### Fenêtres de maintenance
+
+| Route | Méthodes | Permission |
+|---|---|---|
+| `/api/maintenance-windows` | GET / POST | `maintenance:read` / `maintenance:manage` — en cours et à venir, puis les vingt dernières terminées ; chaque sujet n'est rendu qu'à qui peut le lire. Choisir des sujets demande de pouvoir les lire |
+| `/api/maintenance-windows/:id` | GET / PATCH / DELETE | `maintenance:read` / `maintenance:manage` / `maintenance:manage` — GET ajoute les alertes retenues. PATCH `{ "endsAt": maintenant }` termine la fenêtre ; une fenêtre terminée répond `409`. DELETE refuse une fenêtre en cours (`409`) : on la termine |
 
 ### Tâches et file
 
