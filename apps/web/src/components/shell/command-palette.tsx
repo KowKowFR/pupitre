@@ -442,7 +442,7 @@ function objectItem(
         verb: 'open',
         words: `${hit.target} ${hit.number}`,
         isCommand: false,
-        perform: () => go(`/deployments/${hit.id}`),
+        perform: () => go(`/deployments?run=${hit.id}`),
       };
     case 'monitor':
       return {

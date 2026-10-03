@@ -112,7 +112,7 @@ export function ApplicationDrawer({
                 <li key={entry.id} className="relative">
                   <Led tone={HEALTH_TONE[entry.health] ?? 'idle'} />
                   <Link
-                    href={`/apps/${entry.id}`}
+                    href={`/apps?app=${entry.id}`}
                     className="mono text-[12.5px] text-text after:absolute after:inset-0"
                   >
                     {application.slug}@{entry.targetName}

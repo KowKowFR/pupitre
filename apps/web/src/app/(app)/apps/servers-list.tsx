@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { RuntimesAvailable, TargetHealth, Translate } from '@pupitre/core';
 import { PageHeader } from '@/components/page-header';
+import { useRecordSelection } from '@/components/record-drawer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -16,6 +17,7 @@ import { servers as messages } from '@/i18n/messages/servers';
 import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
+import { AppDrawer, type RunningAppRecordView } from './app-drawer';
 import { AppsTable, type SupervisedRow } from './apps-table';
 import { HostHistory, OpenBreaches, type HostHistoryData } from './host-history';
 import { HostReadouts } from './host-readouts';
@@ -110,6 +112,7 @@ function ServerCard({
   canTune,
   format,
   onRefresh,
+  onOpen,
 }: {
   server: ServerRow;
   entry: MetricsEntry | undefined;
@@ -122,6 +125,7 @@ function ServerCard({
   canTune: boolean;
   format: FormatSettings;
   onRefresh: () => void;
+  onOpen: (id: string) => void;
 }) {
   const t = useT(messages);
   const hasApps = server.apps.length > 0;
@@ -207,7 +211,7 @@ function ServerCard({
 
         {hasApps ? (
           <CollapsiblePanel className="border-t border-border-subtle">
-            <AppsTable items={server.apps} canRestart={canRestart} />
+            <AppsTable items={server.apps} canRestart={canRestart} onOpen={onOpen} />
           </CollapsiblePanel>
         ) : (
           <p className="t-sm border-t border-border-subtle px-4 py-3 text-text-2">
@@ -226,6 +230,7 @@ export function ServersList({
   canReadTargets,
   canTune,
   format,
+  record,
 }: {
   servers: ServerRow[];
   /** L'historique, par identifiant de cible. Vient de la base, avec la page. */
@@ -236,9 +241,17 @@ export function ServersList({
   canTune: boolean;
   /** Le formatage descend par props : cette liste est cliente, la locale non. */
   format: FormatSettings;
+  /** L'application ouverte, rendue au serveur. */
+  record: RunningAppRecordView | null;
 }) {
   const t = useT(messages);
   const [filter, setFilter] = useState<'all' | 'watch'>('all');
+  const apps = servers.flatMap((server) => server.apps);
+  const drawer = useRecordSelection(
+    'app',
+    apps.map((app) => app.id),
+  );
+  const current = apps.find((app) => app.id === drawer.selected) ?? null;
 
   // Seules les cibles réellement enregistrées peuvent être relevées : une
   // machine connue par le seul souvenir d'un déploiement n'a plus de credential.
@@ -308,8 +321,18 @@ export function ServersList({
           canTune={canTune && server.registered}
           format={format}
           onRefresh={() => void refresh(server.id)}
+          onOpen={drawer.open}
         />
       ))}
+
+      <AppDrawer
+        selected={drawer.selected}
+        row={current}
+        record={drawer.loading ? null : record}
+        onClose={drawer.close}
+        onPrevious={drawer.onPrevious}
+        onNext={drawer.onNext}
+      />
     </>
   );
 }

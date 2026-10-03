@@ -6,6 +6,7 @@ import {
   scanDigestForDeployments,
 } from '@pupitre/db';
 import { Download, Rocket } from 'lucide-react';
+import { z } from 'zod';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { EmptyState } from '@/components/empty-state';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { DeploymentsTable } from './deployments-table';
 import { filterParams, type StatusFilter } from './filters';
+import { runRecord } from './record/record';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +59,14 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
   // case désactivée dit pourquoi avant que le serveur n'ait à le refuser.
   const live = await listLiveDeploymentIds();
   const { settings } = await getAppSettings();
+
+  // Le run ouvert (`?run=<id>`) : son suivi complet, dans le tiroir — qu'il
+  // soit ou non sur la page affichée (un lien « Suivre » y mène directement).
+  const wanted = flat.run;
+  const record =
+    wanted && z.string().uuid().safeParse(wanted).success
+      ? await runRecord(wanted, auth, formatSettingsOf(settings))
+      : null;
 
   // L'export reprend les filtres affichés : ce qu'on télécharge est ce qu'on voit,
   // toutes pages confondues.
@@ -122,8 +132,8 @@ export default async function DeploymentsPage({ searchParams }: { searchParams: 
         filter={filter}
         search={search}
         canPurge={auth.can('deployment:purge')}
-        canRollback={auth.can('deployment:rollback')}
         format={formatSettingsOf(settings)}
+        record={record}
       />
     </>
   );

@@ -212,20 +212,23 @@ function RecordPanes({
   return (
     <>
       {header}
-      <div className="dr-tabs">
-        <Tabs label={tabsLabel}>
-          {tabs.map((tab) => (
-            <Tab
-              key={tab.key}
-              selected={tab.key === active}
-              count={tab.count}
-              onClick={() => select(tab.key)}
-            >
-              {tab.label}
-            </Tab>
-          ))}
-        </Tabs>
-      </div>
+      {/* Une fiche d'un seul tenant (un run, une application en marche) n'a pas d'onglets. */}
+      {tabs.length > 1 ? (
+        <div className="dr-tabs">
+          <Tabs label={tabsLabel}>
+            {tabs.map((tab) => (
+              <Tab
+                key={tab.key}
+                selected={tab.key === active}
+                count={tab.count}
+                onClick={() => select(tab.key)}
+              >
+                {tab.label}
+              </Tab>
+            ))}
+          </Tabs>
+        </div>
+      ) : null}
       <DrawerBody>
         {tabs
           .filter((tab) => shown.has(tab.key))

@@ -133,7 +133,7 @@ export function ApplicationImages({
       title: t('images.update.toast', { slug: applicationSlug, target: row.targetName }),
       description: t('toast.deployed.detail', { number }),
       tone: 'accent',
-      action: { label: t('toast.follow'), href: `/deployments/${id}` },
+      action: { label: t('toast.follow'), href: `/deployments?run=${id}` },
     });
     router.refresh();
   }

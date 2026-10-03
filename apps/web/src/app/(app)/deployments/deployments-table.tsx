@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useDrawerSelection } from '@/components/ui/drawer';
+import { useRecordSelection } from '@/components/record-drawer';
 import { FilterChipLink } from '@/components/ui/filter-chip';
 import {
   Table,
@@ -43,7 +43,7 @@ import type { CommitSource } from '@/lib/commit';
 import type { FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { filterParams, type StatusFilter } from './filters';
-import { RunDrawer } from './run-drawer';
+import { RunDrawer, type RunRecordView } from './run-drawer';
 import { DeploymentStatusBadge, formatDate, formatDuration } from './status-badge';
 
 export type DeploymentRow = {
@@ -119,8 +119,8 @@ export function DeploymentsTable({
   filter,
   search,
   canPurge,
-  canRollback,
   format,
+  record,
 }: {
   items: DeploymentRow[];
   page: { page: number; totalPages: number; pageSize: number; total: number };
@@ -128,9 +128,10 @@ export function DeploymentsTable({
   /** La recherche en cours, telle que l'URL la porte. */
   search: string;
   canPurge: boolean;
-  canRollback: boolean;
   /** Le formatage descend par props : la table est cliente, la locale non. */
   format: FormatSettings;
+  /** Le suivi du run ouvert, rendu au serveur. */
+  record: RunRecordView | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -140,7 +141,7 @@ export function DeploymentsTable({
   const [preview, setPreview] = useState<PurgeReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const drawer = useDrawerSelection(
+  const drawer = useRecordSelection(
     'run',
     items.map((item) => item.id),
   );
@@ -453,12 +454,12 @@ export function DeploymentsTable({
       </div>
 
       <RunDrawer
+        selected={drawer.selected}
         row={current}
-        onOpenChange={(open) => (open ? undefined : drawer.close())}
+        record={drawer.loading ? null : record}
+        onClose={drawer.close}
         onPrevious={drawer.onPrevious}
         onNext={drawer.onNext}
-        canRollback={canRollback}
-        format={format}
       />
 
       <PurgeDialog

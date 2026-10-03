@@ -111,7 +111,7 @@ export function VersionTimeline({
       title: t('redeploy.toast', { slug: applicationSlug, version: labelOf(version) }),
       description: t('toast.deployed.detail', { number }),
       tone: 'accent',
-      action: { label: t('toast.follow'), href: `/deployments/${id}` },
+      action: { label: t('toast.follow'), href: `/deployments?run=${id}` },
     });
     router.refresh();
   }
@@ -144,7 +144,10 @@ export function VersionTimeline({
               </span>
               <div className="body gap-1.5 pb-1">
                 <div className="ttl flex-wrap">
-                  <Link href={`/deployments/${version.deploymentId}`} className="mono hover:underline">
+                  <Link
+                    href={`/deployments?run=${version.deploymentId}`}
+                    className="mono hover:underline"
+                  >
                     v{version.version}
                   </Link>
                   <span className="mono text-text-2">{version.appVersion ?? tc('none')}</span>

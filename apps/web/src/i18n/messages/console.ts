@@ -17,6 +17,7 @@ const fr = {
   'page.description':
     "Ce que la machine dit d'elle-même, relu en direct. La colonne de gauche vient de la base du panel : elle répond même quand la machine se tait.",
   'page.restored': 'version restaurée',
+  'drawer.kind': 'Application en marche',
   'gone.description': 'Ce déploiement ne tourne plus.',
   'gone.alert':
     "Ce déploiement est « {status} » : il n'y a pas d'application à suivre. Consultez son {link}.",
@@ -269,6 +270,7 @@ const en: Translated<typeof fr> = {
   'page.description':
     'What the host says about itself, read live. The left column comes from the panel database: it answers even when the host is silent.',
   'page.restored': 'version restored',
+  'drawer.kind': 'Running application',
   'gone.description': 'This deployment is no longer running.',
   'gone.alert': 'This deployment is “{status}”: there is no application to follow. See its {link}.',
   'gone.link': 'deployment history',

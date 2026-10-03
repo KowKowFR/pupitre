@@ -514,7 +514,7 @@ function buildGestures({
     },
     done: { title: t('redeploy.confirm') },
     navigateTo: (body) =>
-      body.id ? `/deployments/${body.id}` : `/applications?app=${applicationId}`,
+      body.id ? `/deployments?run=${body.id}` : `/applications?app=${applicationId}`,
   };
 
   const destroy: Gesture = {

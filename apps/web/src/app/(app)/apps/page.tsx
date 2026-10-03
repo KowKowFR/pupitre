@@ -7,6 +7,7 @@ import {
   targetHistories,
 } from '@pupitre/db';
 import { Server } from 'lucide-react';
+import { z } from 'zod';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
@@ -16,6 +17,7 @@ import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import type { SupervisedRow } from './apps-table';
 import type { HostHistoryData, HistoryMetric } from './host-history';
+import { runningAppRecord } from './record/record';
 import { ServersList, type ServerRow } from './servers-list';
 
 export const dynamic = 'force-dynamic';
@@ -49,7 +51,11 @@ const HISTORY_BUCKETS = 48;
  * 24 h s'affiche donc à l'identique que la machine réponde ou non, ce qui est
  * exactement le moment où on veut la lire.
  */
-export default async function AppsPage() {
+export default async function AppsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const auth = await requirePagePermission('/apps', 'deployment:read');
   const t = await getT(messages);
   const canReadTargets = auth.can('target:read');
@@ -144,6 +150,14 @@ export default async function AppsPage() {
 
   const { settings } = await getAppSettings();
 
+  // L'application ouverte (`?app=<id du déploiement>`) : sa console, dans le
+  // tiroir — même si elle ne tourne plus, la fiche le dit.
+  const wanted = (await searchParams).app;
+  const record =
+    typeof wanted === 'string' && z.string().uuid().safeParse(wanted).success
+      ? await runningAppRecord(wanted, auth)
+      : null;
+
   // Les données d'historique, mises en forme pour le client : des chaînes ISO
   // plutôt que des `Date`, et rien d'autre que ce que l'écran affiche.
   const history: Record<string, HostHistoryData> = {};
@@ -207,6 +221,7 @@ export default async function AppsPage() {
         canReadTargets={canReadTargets}
         canTune={auth.can('target:update')}
         format={formatSettingsOf(settings)}
+        record={record}
       />
     </>
   );

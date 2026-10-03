@@ -1,43 +1,54 @@
-import { notFound } from 'next/navigation';
+import 'server-only';
+import type { ReactNode } from 'react';
+import type { DeploymentStatus } from '@pupitre/core';
 import {
-  getAppSettings,
   getDeploymentForRun,
   getDeploymentSummary,
   listSteps,
   scanDigestForDeployments,
 } from '@pupitre/db';
-import { z } from 'zod';
-import { PageHeader } from '@/components/page-header';
-import { Crumb } from '@/components/shell/breadcrumb';
-import { getT } from '@/i18n/server';
-import { deployments as messages } from '@/i18n/messages/deployments';
 import { commitSourceOf } from '@/lib/commit';
-import { formatSettingsOf } from '@/lib/format';
-import { requirePagePermission } from '@/lib/page-auth';
+import type { FormatSettings } from '@/lib/format';
+import type { AuthContext } from '@/lib/rbac';
 import { DeploymentDetail, type StepView } from './deployment-view';
 
-export const dynamic = 'force-dynamic';
+export type RunRecord = {
+  /** L'identifiant du run : c'est la clé du tiroir. */
+  key: string;
+  /** De quoi titrer le tiroir, même quand le run n'est pas sur la page affichée. */
+  header: {
+    applicationSlug: string;
+    number: number;
+    specVersion: string | null;
+    status: DeploymentStatus;
+    targetName: string;
+    targetHost: string;
+    runtime: string;
+  };
+  body: ReactNode;
+};
 
-const paramsSchema = z.object({ id: z.string().uuid() });
-
-export default async function DeploymentPage({ params }: { params: Promise<{ id: string }> }) {
-  const parsed = paramsSchema.safeParse(await params);
-  if (!parsed.success) notFound();
-
-  const auth = await requirePagePermission(`/deployments/${parsed.data.id}`, 'deployment:read');
-  const t = await getT(messages);
+/**
+ * Le suivi d'un run, rendu au serveur pour son tiroir : le résumé et ses
+ * gestes (rollback, arrêt, destruction), le pipeline, le flux de logs, les
+ * scans et l'AppSpec figée. Le composant prend ensuite le relais en direct
+ * (flux SSE) : l'état initial vient d'ici.
+ */
+export async function runRecord(
+  id: string,
+  auth: AuthContext,
+  format: FormatSettings,
+): Promise<RunRecord | null> {
   const canReadScans = auth.can('scan:read');
-
-  const [deployment, steps, run, digest, { settings }] = await Promise.all([
-    getDeploymentSummary(parsed.data.id),
-    listSteps(parsed.data.id),
+  const [deployment, steps, run, digest] = await Promise.all([
+    getDeploymentSummary(id),
+    listSteps(id),
     // L'AppSpec figée du run : ce qui est réellement parti, pas la spec
     // courante de l'application.
-    getDeploymentForRun(parsed.data.id),
-    canReadScans ? scanDigestForDeployments([parsed.data.id]) : Promise.resolve(null),
-    getAppSettings(),
+    getDeploymentForRun(id),
+    canReadScans ? scanDigestForDeployments([id]) : Promise.resolve(null),
   ]);
-  if (!deployment) notFound();
+  if (!deployment) return null;
 
   // Version restaurée : lue depuis l'AppSpec figée du déploiement précédent,
   // seule source qui dise ce qui tourne vraiment après un rollback.
@@ -62,26 +73,20 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
     finishedAt: step.finishedAt?.toISOString() ?? null,
   }));
 
-  return (
-    <>
-      <Crumb label={`#${deployment.number}`} />
-      <PageHeader
-        title={
-          <>
-            {deployment.applicationSlug}{' '}
-            <span className="mono text-[18px] font-normal text-text-3">
-              {specVersion ? `${specVersion} · ` : ''}#{deployment.number}
-            </span>
-          </>
-        }
-        description={t('detail.description', {
-          target: deployment.targetName,
-          host: deployment.targetHost,
-          runtime: deployment.runtime,
-        })}
-      />
-
+  return {
+    key: deployment.id,
+    header: {
+      applicationSlug: deployment.applicationSlug,
+      number: deployment.number,
+      specVersion,
+      status: deployment.status,
+      targetName: deployment.targetName,
+      targetHost: deployment.targetHost,
+      runtime: deployment.runtime,
+    },
+    body: (
       <DeploymentDetail
+        key={deployment.id}
         deployment={{
           id: deployment.id,
           status: deployment.status,
@@ -108,8 +113,8 @@ export default async function DeploymentPage({ params }: { params: Promise<{ id:
           scan: digest?.get(deployment.id) ?? null,
         }}
         steps={stepViews}
-        format={formatSettingsOf(settings)}
+        format={format}
       />
-    </>
-  );
+    ),
+  };
 }

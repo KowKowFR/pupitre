@@ -132,7 +132,7 @@ export function collectAttention({
             ? t('attention.app.unreachable')
             : t('attention.app.unhealthy'),
         severity: app.healthStatus === 'unreachable' ? 'danger' : 'warn',
-        href: `/apps/${app.id}`,
+        href: `/apps?app=${app.id}`,
         action: t('attention.action.logs'),
       });
       continue;
@@ -150,7 +150,7 @@ export function collectAttention({
             ? t('attention.app.failed.replaced')
             : t('attention.app.failed.kept')),
         severity: 'warn',
-        href: `/deployments/${app.lastFailedUpdate.deploymentId}`,
+        href: `/deployments?run=${app.lastFailedUpdate.deploymentId}`,
         action: t('attention.action.trace'),
       });
     }
@@ -183,7 +183,7 @@ export function collectAttention({
         step: item.failedStep ? t('attention.deployment.atStep', { step: item.failedStep }) : '',
       }),
       severity: 'danger',
-      href: `/deployments/${item.id}`,
+      href: `/deployments?run=${item.id}`,
       action: t('attention.action.trace'),
     });
   }
@@ -209,7 +209,7 @@ export function collectAttention({
             : '',
         }),
         severity: 'warn',
-        href: `/deployments/${event.id}`,
+        href: `/deployments?run=${event.id}`,
         action: t('attention.action.trace'),
       });
     }
