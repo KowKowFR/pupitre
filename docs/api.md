@@ -208,6 +208,12 @@ la navigation métier.
 | `/api/monitors/:id` | GET / PATCH / DELETE | `monitor:read` / `monitor:manage` / `monitor:manage` |
 | `/api/monitors/:id/check` | POST | `monitor:manage` — « sonder maintenant » |
 
+### Prévisions
+
+| Route | Méthodes | Permission |
+|---|---|---|
+| `/api/forecasts` | GET | session — les prévisions en cours, chacune rendue seulement à qui peut lire son sujet (`target:read`, `monitor:read`, `application:read`). « Bientôt » d'abord, puis par échéance ; voir [supervision](supervision.md#prévisions) |
+
 ### Tâches et file
 
 | Route | Méthodes | Permission |

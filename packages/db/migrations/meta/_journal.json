@@ -274,6 +274,13 @@
       "when": 1791012452119,
       "tag": "0039_source_gitea",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791035397638,
+      "tag": "0040_forecasts",
+      "breakpoints": true
     }
   ]
 }

@@ -24,8 +24,10 @@ import {
 import { getT } from '@/i18n/server';
 import { applications as messages } from '@/i18n/messages/applications';
 import { common } from '@/i18n/messages/common';
+import { ForecastPanel } from '@/components/forecasts/forecast-panel';
 import { buildSecretViews } from '@/lib/application-secrets';
 import { commitSourceOf } from '@/lib/commit';
+import { visibleForecasts } from '@/lib/forecasts';
 import { formatSettingsOf } from '@/lib/format';
 import type { AuthContext } from '@/lib/rbac';
 import { relativeTime } from '@/lib/relative-time';
@@ -47,6 +49,8 @@ export type ApplicationRecord = {
   key: string;
   tabs: Partial<Record<ApplicationRecordTab, ReactNode>>;
   counts: Partial<Record<ApplicationRecordTab, number>>;
+  /** Ce qui ouvre l'aperçu : les prévisions sur l'application (une sauvegarde en retard…). */
+  alerts: ReactNode;
 };
 
 /**
@@ -65,17 +69,27 @@ export async function applicationRecord(
   const tc = await getT(common);
   const format = formatSettingsOf(settings);
 
-  const [versions, targets, storedSecrets, sources, proposals, connections, imageRows, archives] =
-    await Promise.all([
-      listApplicationVersions(application.id),
-      listTargets(),
-      listApplicationSecrets(application.id),
-      listApplicationSources(application.id),
-      listPendingProposals(application.id),
-      listSourceConnections(),
-      listImageUpdates(application.id),
-      listSourceArchives(application.id),
-    ]);
+  const [
+    versions,
+    targets,
+    storedSecrets,
+    sources,
+    proposals,
+    connections,
+    imageRows,
+    archives,
+    forecasts,
+  ] = await Promise.all([
+    listApplicationVersions(application.id),
+    listTargets(),
+    listApplicationSecrets(application.id),
+    listApplicationSources(application.id),
+    listPendingProposals(application.id),
+    listSourceConnections(),
+    listImageUpdates(application.id),
+    listSourceArchives(application.id),
+    visibleForecasts(auth, { subjectType: 'application', subjectId: application.id }),
+  ]);
   const lastImageCheck =
     imageRows
       .map((row) => row.checkedAt)
@@ -187,6 +201,7 @@ export async function applicationRecord(
 
   return {
     key: application.slug,
+    alerts: <ForecastPanel items={forecasts} compact />,
     counts: { versions: rows.length, secrets: secrets.length },
     tabs: {
       versions: (

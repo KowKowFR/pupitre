@@ -6,6 +6,7 @@ export * from './chat.js';
 export * from './crypto.js';
 export * from './domain-inspection.js';
 export * from './error-message.js';
+export * from './forecast.js';
 export * from './shell.js';
 export * from './host-metrics.js';
 export * from './i18n.js';
