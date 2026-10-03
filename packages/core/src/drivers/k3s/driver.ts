@@ -18,6 +18,7 @@ import {
   type RenderedArtifacts,
   type RenderedFile,
   type TargetContext,
+  type BuilderPruneResult,
 } from '../types.js';
 import { digestOf, parseImageReference } from '../../images/reference.js';
 import { checkableImages, type RunningImage } from '../../images/updates.js';
@@ -51,6 +52,7 @@ import {
 } from './render.js';
 import {
   BUILDER_DEPLOYMENT,
+  BUILDER_IDLE_TTL_MS,
   BUILDER_NAMESPACE,
   BUILDKIT_IMAGE,
   applyManifestCommand,
@@ -58,10 +60,13 @@ import {
   builderAdmissionProbeManifest,
   builderDeploymentManifest,
   builderNamespaceManifest,
+  builderStateCommand,
+  deleteIdleBuilderCommand,
   discardTarCommand,
   importCommand,
   K3S_CONTAINERD_ADDRESS,
   K3S_IMAGE_NAMESPACE,
+  parseBuilderState,
   pushContextCommand,
   rolloutStatusCommand,
 } from './builder.js';
@@ -351,7 +356,7 @@ export class K3sDriver implements DeploymentDriver {
       // et un refus sur le premier passerait pour un succès.
       this.script([
         'set -e',
-        applyManifestCommand(builderDeploymentManifest(), true),
+        applyManifestCommand(builderDeploymentManifest(new Date()), true),
         applyManifestCommand(builderAdmissionProbeManifest(), true),
       ]),
       { timeout: SHORT_TIMEOUT_MS },
@@ -661,14 +666,14 @@ export class K3sDriver implements DeploymentDriver {
   }
 
   /**
-   * Pose le constructeur dans le cluster, ou le retrouve s'il y est déjà.
+   * Pose le constructeur dans le cluster, ou le retrouve s'il y est déjà, et
+   * date ce passage (`pupitre.io/last-build`).
    *
    * Il n'est pas retiré après le build, et c'est délibéré : son cache de
    * couches vit dans le pod, et le détruire ferait retélécharger chaque image
    * de base à chaque déploiement. Il ne se rattache à aucune application —
-   * `destroy()` d'une app ne doit donc pas l'emporter — et la commande pour
-   * s'en défaire est journalisée à chaque passage plutôt que cachée dans une
-   * documentation.
+   * `destroy()` d'une app ne doit donc pas l'emporter. C'est l'expiration
+   * (`pruneIdleBuilder`) qui le retire, après 24 heures sans build.
    */
   private async ensureBuilder(ctx: DriverContext, onLog: LogSink): Promise<void> {
     onLog(`→ constructeur ${BUILDER_DEPLOYMENT} (${BUILDKIT_IMAGE}) dans ${BUILDER_NAMESPACE}`);
@@ -676,7 +681,7 @@ export class K3sDriver implements DeploymentDriver {
       ctx,
       this.script([
         applyManifestCommand(builderNamespaceManifest()),
-        applyManifestCommand(builderDeploymentManifest()),
+        applyManifestCommand(builderDeploymentManifest(new Date())),
       ]),
       onLog,
       'builder',
@@ -692,8 +697,67 @@ export class K3sDriver implements DeploymentDriver {
     );
 
     onLog(
-      `   il reste en place pour garder son cache — « kubectl delete namespace ` +
-        `${BUILDER_NAMESPACE} » le retire`,
+      `   il reste en place pour garder son cache, et sera retiré après ` +
+        `${BUILDER_IDLE_TTL_MS / 3_600_000} h sans build`,
+    );
+  }
+
+  /**
+   * Retire le constructeur resté sans build depuis 24 heures
+   * (`BUILDER_IDLE_TTL_MS`).
+   *
+   * Une lecture, puis une suppression **sous condition** de la version lue :
+   * un build qui le réclame entre les deux réécrit sa date dans le même geste
+   * qui le pose (voir `builderDeploymentManifest`), la version change, l'API
+   * répond `Conflict` et le constructeur reste. Rien d'autre n'est touché : ni
+   * le namespace, ni les images déjà importées dans containerd.
+   */
+  async pruneIdleBuilder(
+    ctx: TargetContext,
+    onLog: LogSink,
+    now: Date = new Date(),
+  ): Promise<BuilderPruneResult> {
+    const read = await exec(ctx.sshSession, this.script([builderStateCommand()]), {
+      timeout: SHORT_TIMEOUT_MS,
+      logOutput: false,
+    });
+    if (read.code !== 0) {
+      throw new DriverError(
+        `Constructeur illisible : ${firstLine(read.stderr) ?? `code ${read.code}`}`,
+        this.runtime,
+        'builder.prune',
+      );
+    }
+    const state = parseBuilderState(read.stdout);
+    if (!state) return { outcome: 'absent', lastUsedAt: null };
+
+    const lastUsedAt = state.lastUsedAt.toISOString();
+    if (now.getTime() - state.lastUsedAt.getTime() < BUILDER_IDLE_TTL_MS) {
+      return { outcome: 'kept', lastUsedAt };
+    }
+
+    const removed = await exec(
+      ctx.sshSession,
+      this.script([deleteIdleBuilderCommand(state.resourceVersion)]),
+      { timeout: SHORT_TIMEOUT_MS, logOutput: false },
+    );
+    if (removed.code === 0) {
+      onLog(
+        `✓ constructeur ${BUILDER_DEPLOYMENT} retiré de ${BUILDER_NAMESPACE} — ` +
+          `dernier build le ${lastUsedAt}`,
+      );
+      return { outcome: 'removed', lastUsedAt };
+    }
+    // Un build l'a daté entre la lecture et la suppression : il sert, il reste.
+    if (/Conflict/.test(removed.stderr)) {
+      onLog(`constructeur ${BUILDER_DEPLOYMENT} réclamé par un build à l'instant : il reste`);
+      return { outcome: 'kept', lastUsedAt };
+    }
+    if (/NotFound|not found/.test(removed.stderr)) return { outcome: 'absent', lastUsedAt: null };
+    throw new DriverError(
+      `Constructeur non retiré : ${firstLine(removed.stderr) ?? `code ${removed.code}`}`,
+      this.runtime,
+      'builder.prune',
     );
   }
 

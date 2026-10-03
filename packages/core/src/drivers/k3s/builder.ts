@@ -70,6 +70,19 @@ export const BUILDER_NAMESPACE = `${MANAGED_BY}-build`;
 export const BUILDER_DEPLOYMENT = 'buildkitd';
 
 /**
+ * La date du dernier build servi, sur les métadonnées du Deployment. C'est elle
+ * que l'expiration lit (`K3sDriver.pruneIdleBuilder`).
+ */
+export const BUILDER_LAST_BUILD_ANNOTATION = 'pupitre.io/last-build';
+
+/**
+ * Au-delà de 24 heures sans build, le constructeur est retiré : son cache ne
+ * vaut plus le pod privilégié qui l'abrite. Le build suivant le repose — une
+ * minute de plus, et les images de base à retélécharger.
+ */
+export const BUILDER_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
  * Version épinglée, jamais `latest` : le constructeur fait partie de la chaîne
  * de fabrication des images déployées. Une image qui change sous nos pieds
  * changerait le résultat d'un déploiement sans qu'aucune AppSpec ait bougé.
@@ -181,13 +194,24 @@ export function builderAdmissionProbeManifest(): string {
   });
 }
 
-export function builderDeploymentManifest(): string {
+/**
+ * Le Deployment du constructeur, daté du build qui le pose ou le retrouve.
+ *
+ * La date est dans le manifeste appliqué, et non posée après coup par un
+ * `kubectl annotate` : l'usage et l'existence sont alors **une seule
+ * écriture**. L'expiration supprime sous condition de la version qu'elle a
+ * lue ; un build qui le réclame entre-temps change cette version, et la
+ * suppression est refusée. Sur les métadonnées du Deployment, pas sur le
+ * gabarit du pod : la changer ne redémarre rien.
+ */
+export function builderDeploymentManifest(lastBuild: Date): string {
   return stringify({
     apiVersion: 'apps/v1',
     kind: 'Deployment',
     metadata: {
       name: BUILDER_DEPLOYMENT,
       namespace: BUILDER_NAMESPACE,
+      annotations: { [BUILDER_LAST_BUILD_ANNOTATION]: lastBuild.toISOString() },
       // Volontairement **sans** `app.kubernetes.io/managed-by` : ce label rend
       // une charge « gérée par le panel » aux yeux de l'écran des charges, qui
       // refuse alors de la supprimer en renvoyant vers la destruction du
@@ -287,6 +311,60 @@ export const K3S_IMAGE_NAMESPACE = 'k8s.io';
  * aucune image construite. Réservé à root.
  */
 export const K3S_CONTAINERD_ADDRESS = '/run/k3s/containerd/containerd.sock';
+
+// ─── expiration ──────────────────────────────────────────────────────────────
+
+/** Ce que l'expiration lit du constructeur : de quoi dater son dernier usage, et le supprimer sous condition. */
+export type BuilderState = {
+  /** Le dernier build, ou la création d'un constructeur posé avant que les builds ne se datent. */
+  lastUsedAt: Date;
+  /** La version de l'objet lue : la suppression n'aboutit que si elle n'a pas bougé. */
+  resourceVersion: string;
+};
+
+/**
+ * Une ligne `date du dernier build|création|version` — vide si le
+ * constructeur n'existe pas, namespace compris (`--ignore-not-found`).
+ */
+export function builderStateCommand(): string {
+  const annotation = BUILDER_LAST_BUILD_ANNOTATION.replaceAll('.', '\\.');
+  return (
+    `kubectl -n ${BUILDER_NAMESPACE} get deploy/${BUILDER_DEPLOYMENT} --ignore-not-found ` +
+    `-o jsonpath='{.metadata.annotations.${annotation}}{"|"}{.metadata.creationTimestamp}{"|"}{.metadata.resourceVersion}'`
+  );
+}
+
+/** `null` : pas de constructeur. Une date illisible vaut sa création, puis l'absence. */
+export function parseBuilderState(stdout: string): BuilderState | null {
+  const [annotated = '', created = '', resourceVersion = ''] = stdout.trim().split('|');
+  if (!resourceVersion.trim()) return null;
+  const at = (value: string) => {
+    const time = Date.parse(value.trim());
+    return Number.isNaN(time) ? null : new Date(time);
+  };
+  const lastUsedAt = at(annotated) ?? at(created);
+  return lastUsedAt ? { lastUsedAt, resourceVersion: resourceVersion.trim() } : null;
+}
+
+/**
+ * Supprime le Deployment du constructeur — ses pods avec lui, son cache aussi —
+ * à condition qu'il soit encore dans la version lue. Sinon l'API répond
+ * `Conflict` : un build vient de le réclamer, il reste. Le namespace, vide,
+ * reste aussi : le recréer à chaque build ferait attendre sa fin de vie.
+ */
+export function deleteIdleBuilderCommand(resourceVersion: string): string {
+  const body = JSON.stringify({
+    kind: 'DeleteOptions',
+    apiVersion: 'v1',
+    propagationPolicy: 'Background',
+    preconditions: { resourceVersion },
+  });
+  return [
+    `kubectl delete --raw /apis/apps/v1/namespaces/${BUILDER_NAMESPACE}/deployments/${BUILDER_DEPLOYMENT} -f - <<'${HEREDOC}'`,
+    body,
+    HEREDOC,
+  ].join('\n');
+}
 
 /** Le tar pèse le poids de l'image : on ne le laisse pas dans le pod. */
 export function discardTarCommand(): string {

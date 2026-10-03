@@ -25,14 +25,23 @@ import type {
   ServiceManifest,
 } from '../src/drivers/k3s/manifest-model.js';
 import {
+  BUILDER_IDLE_TTL_MS,
+  BUILDER_LAST_BUILD_ANNOTATION,
   BUILDKIT_IMAGE,
   buildCommand,
   builderAdmissionProbeManifest,
   builderDeploymentManifest,
   builderNamespaceManifest,
+  builderStateCommand,
+  deleteIdleBuilderCommand,
   importCommand,
+  parseBuilderState,
   pushContextCommand,
 } from '../src/drivers/k3s/builder.js';
+import { K3sDriver } from '../src/drivers/k3s/driver.js';
+import { getDriver } from '../src/drivers/index.js';
+import type { TargetContext } from '../src/drivers/types.js';
+import type { SshSession } from '../src/ssh/client.js';
 import { renderFiles as renderComposeFiles } from '../src/drivers/docker/render.js';
 import { completeSecretValues } from '../src/drivers/secrets.js';
 
@@ -718,8 +727,11 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
  * dépend le fonctionnement sont bien celles qu'on croit, et qu'un refactor ne
  * les défera pas en silence.
  */
+/** Le build qui pose ou retrouve le constructeur, dans les manifestes ci-dessous. */
+const LAST_BUILD = new Date('2026-10-04T08:00:00Z');
+
 describe('constructeur d’images K3s', () => {
-  const deploymentManifest = parseYaml(builderDeploymentManifest()) as {
+  const deploymentManifest = parseYaml(builderDeploymentManifest(LAST_BUILD)) as {
     metadata: { name: string; namespace: string; labels: Record<string, string> };
     spec: {
       strategy: { type: string };
@@ -746,7 +758,7 @@ describe('constructeur d’images K3s', () => {
 
   it('n’a aucun volume hôte : le nœud ne lui prête ni socket ni chemin', () => {
     assert.ok(
-      !builderDeploymentManifest().includes('hostPath'),
+      !builderDeploymentManifest(LAST_BUILD).includes('hostPath'),
       'un hostPath rendrait le constructeur dépendant de la topologie du nœud',
     );
   });
@@ -813,10 +825,152 @@ describe('constructeur d’images K3s', () => {
     { skip: !kubectlAvailable },
     () => {
       const output = execFileSync('kubectl', ['apply', '--dry-run=client', '-f', '-'], {
-        input: `${builderNamespaceManifest()}\n---\n${builderDeploymentManifest()}`,
+        input: `${builderNamespaceManifest()}\n---\n${builderDeploymentManifest(LAST_BUILD)}`,
         encoding: 'utf8',
       });
       assert.match(output, /deployment\.apps\/buildkitd/);
     },
   );
+});
+
+/** Une session SSH qui répond commande par commande, et garde la trace de ce qu'on lui a demandé. */
+function fakeTarget(
+  answers: Array<(command: string) => { code: number; stdout?: string; stderr?: string }>,
+) {
+  const commands: string[] = [];
+  const session = {
+    id: 'session-test',
+    host: 'k3s.test',
+    client: {
+      execCommand: async (command: string) => {
+        commands.push(command);
+        const answer = answers.shift();
+        assert.ok(answer, `commande inattendue : ${command}`);
+        const { code, stdout = '', stderr = '' } = answer(command);
+        return { code, stdout, stderr, signal: null };
+      },
+    },
+  } as unknown as SshSession;
+  const ctx: TargetContext = {
+    target: { id: 'cible', name: 'k3s-1', host: 'k3s.test', rootPath: '/opt/pupitre' },
+    sshSession: session,
+  };
+  return { ctx, commands };
+}
+
+describe('constructeur d’images K3s — expiration', () => {
+  const NOW = new Date('2026-10-05T09:00:00Z');
+  const idle = new Date(NOW.getTime() - BUILDER_IDLE_TTL_MS - 60_000).toISOString();
+  const recent = new Date(NOW.getTime() - 60 * 60_000).toISOString();
+  const lines: string[] = [];
+  const onLog = (line: string) => lines.push(line);
+
+  it('date chaque build sur le Deployment, pas sur le pod : le dater ne redémarre rien', () => {
+    const manifest = parseYaml(builderDeploymentManifest(LAST_BUILD)) as {
+      metadata: { annotations: Record<string, string> };
+      spec: { template: { metadata: Record<string, unknown> } };
+    };
+    assert.equal(
+      manifest.metadata.annotations[BUILDER_LAST_BUILD_ANNOTATION],
+      LAST_BUILD.toISOString(),
+    );
+    assert.equal(manifest.spec.template.metadata.annotations, undefined);
+  });
+
+  it('lit la date du dernier build, à défaut la création — et rien quand il n’existe pas', () => {
+    assert.match(builderStateCommand(), /--ignore-not-found/);
+    assert.match(builderStateCommand(), /annotations\.pupitre\\\.io\/last-build/);
+    assert.deepEqual(parseBuilderState(`${recent}|2026-09-01T00:00:00Z|812\n`), {
+      lastUsedAt: new Date(recent),
+      resourceVersion: '812',
+    });
+    assert.deepEqual(parseBuilderState('|2026-09-01T00:00:00Z|90'), {
+      lastUsedAt: new Date('2026-09-01T00:00:00Z'),
+      resourceVersion: '90',
+    });
+    assert.equal(parseBuilderState(''), null);
+    assert.equal(parseBuilderState('  \n'), null);
+    assert.equal(parseBuilderState('pas-une-date|toujours-pas|7'), null);
+  });
+
+  it('supprime sous condition de la version lue, ses pods avec lui', () => {
+    const command = deleteIdleBuilderCommand('812');
+    assert.match(
+      command,
+      /^kubectl delete --raw \/apis\/apps\/v1\/namespaces\/pupitre-build\/deployments\/buildkitd -f - <</,
+    );
+    const body = JSON.parse(command.split('\n')[1] ?? '') as {
+      preconditions: { resourceVersion: string };
+      propagationPolicy: string;
+    };
+    assert.deepEqual(body.preconditions, { resourceVersion: '812' });
+    assert.equal(body.propagationPolicy, 'Background');
+  });
+
+  it('absent : rien à faire, une seule lecture', async () => {
+    const { ctx, commands } = fakeTarget([() => ({ code: 0, stdout: '' })]);
+    assert.deepEqual(await new K3sDriver().pruneIdleBuilder(ctx, onLog, NOW), {
+      outcome: 'absent',
+      lastUsedAt: null,
+    });
+    assert.equal(commands.length, 1);
+  });
+
+  it('servi il y a une heure : il reste, sans tentative de suppression', async () => {
+    const { ctx, commands } = fakeTarget([() => ({ code: 0, stdout: `${recent}|x|812` })]);
+    assert.deepEqual(await new K3sDriver().pruneIdleBuilder(ctx, onLog, NOW), {
+      outcome: 'kept',
+      lastUsedAt: recent,
+    });
+    assert.equal(commands.length, 1);
+  });
+
+  it('sans build depuis plus de 24 h : retiré, à la version lue', async () => {
+    const { ctx, commands } = fakeTarget([
+      () => ({ code: 0, stdout: `${idle}|x|812` }),
+      () => ({ code: 0, stdout: '{"kind":"Status","status":"Success"}' }),
+    ]);
+    assert.deepEqual(await new K3sDriver().pruneIdleBuilder(ctx, onLog, NOW), {
+      outcome: 'removed',
+      lastUsedAt: idle,
+    });
+    assert.match(commands[1] ?? '', /"resourceVersion":"812"/);
+  });
+
+  it('réclamé par un build entre la lecture et la suppression : l’API refuse, il reste', async () => {
+    const { ctx } = fakeTarget([
+      () => ({ code: 0, stdout: `${idle}|x|812` }),
+      () => ({
+        code: 1,
+        stderr:
+          'Error from server (Conflict): Operation cannot be fulfilled on Deployment.apps "buildkitd": the ResourceVersion in the precondition (812) does not match',
+      }),
+    ]);
+    assert.equal((await new K3sDriver().pruneIdleBuilder(ctx, onLog, NOW)).outcome, 'kept');
+  });
+
+  it('Docker construit sans rien poser : il n’a rien à expirer, et ne le prétend pas', () => {
+    assert.equal(getDriver('docker').pruneIdleBuilder, undefined);
+    assert.equal(typeof getDriver('k3s').pruneIdleBuilder, 'function');
+  });
+
+  it('disparu entre-temps : absent ; un autre refus remonte', async () => {
+    const gone = fakeTarget([
+      () => ({ code: 0, stdout: `${idle}|x|812` }),
+      () => ({
+        code: 1,
+        stderr: 'Error from server (NotFound): deployments.apps "buildkitd" not found',
+      }),
+    ]);
+    assert.equal((await new K3sDriver().pruneIdleBuilder(gone.ctx, onLog, NOW)).outcome, 'absent');
+    const refused = fakeTarget([
+      () => ({ code: 0, stdout: `${idle}|x|812` }),
+      () => ({ code: 1, stderr: 'Error from server (Forbidden): deployments.apps is forbidden' }),
+    ]);
+    await assert.rejects(new K3sDriver().pruneIdleBuilder(refused.ctx, onLog, NOW), /non retiré/);
+    const unreadable = fakeTarget([
+      () => ({ code: 1, stderr: 'The connection to the server was refused' }),
+    ]);
+    await assert.rejects(new K3sDriver().pruneIdleBuilder(unreadable.ctx, onLog, NOW), /illisible/);
+  });
 });

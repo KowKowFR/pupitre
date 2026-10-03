@@ -218,6 +218,16 @@ export const SOURCE_ARCHIVE_INSPECT_JOB = 'source:archive-inspect' as const;
 export const IMAGE_CHECK_JOB = 'images:check' as const;
 export const IMAGE_CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * Le ménage des constructeurs d'images : toutes les heures, chaque cible dont
+ * un runtime pose un constructeur (`DeploymentDriver.pruneIdleBuilder`) le voit
+ * retiré s'il n'a pas servi depuis longtemps — le driver dit combien. Sur
+ * `ops` : c'est une écriture sur la machine, qui partage la discipline de
+ * concurrence des déploiements.
+ */
+export const BUILDER_PRUNE_JOB = 'builder:prune' as const;
+export const BUILDER_PRUNE_EVERY_MS = 60 * 60 * 1000;
+
 export const pingJobDataSchema = z.object({
   message: z.string().min(1).max(280).default('pong'),
   requestedAt: z.string().datetime(),
