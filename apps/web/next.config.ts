@@ -81,6 +81,10 @@ const nextConfig: NextConfig = {
   redirects() {
     return Promise.resolve([
       { source: '/admin/audit', destination: '/admin/logs', permanent: true },
+      // Les paramètres n'ont plus de sommaire : leur racine mène au premier
+      // onglet du premier groupe. Un 307 franc, avant tout rendu — la page
+      // racine le fait aussi, mais en cours de flux, donc côté navigateur.
+      { source: '/admin/settings', destination: '/admin/settings/identite', permanent: false },
     ]);
   },
 };

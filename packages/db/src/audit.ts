@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { and, asc, count, desc, eq, gte, lt, lte, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import {
+  AUDIT_SEVERITIES,
+  AUDIT_SEVERITY_RULES,
+  auditSeverityLikePattern,
+  parseAuditSeverities,
+  type AuditSeverity,
+} from '@pupitre/core';
 import { getDb, type Database } from './client.js';
 import { auditLogs } from './schema/ops.js';
 import { apiTokens } from './schema/api-tokens.js';
@@ -197,6 +204,14 @@ export const auditQuerySchema = z.object({
   actorId: z.string().min(1).max(200).optional(),
   action: z.string().min(1).max(120).optional(),
   resourceType: z.string().min(1).max(60).optional(),
+  /** `high,critical` : une ou plusieurs criticités ; vide, toutes. */
+  severity: z
+    .string()
+    .max(60)
+    .optional()
+    .transform((value) => parseAuditSeverities(value)),
+  /** Recherche libre : action, ressource, acteur, IP, charge utile. */
+  q: z.string().trim().min(1).max(200).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -207,15 +222,62 @@ export const auditQuerySchema = z.object({
 export type AuditQuery = z.infer<typeof auditQuerySchema>;
 
 /** Les filtres seuls, sans pagination ni ordre : ce que l'export reprend de la liste. */
-export type AuditFilter = Pick<AuditQuery, 'actorId' | 'action' | 'resourceType' | 'from' | 'to'>;
+export type AuditFilter = Pick<
+  AuditQuery,
+  'actorId' | 'action' | 'resourceType' | 'from' | 'to' | 'q'
+> & { severity?: AuditSeverity[] };
+
+/**
+ * La criticité d'une entrée, calculée en base depuis la table de
+ * `@pupitre/core` — celle dont l'écran se sert : la liste filtrée et les
+ * pastilles ne peuvent pas se contredire. Les motifs sont écrits en clair dans
+ * la requête (ce sont nos constantes, vérifiées ci-dessous), pour que
+ * l'expression soit identique partout où elle sert, `GROUP BY` compris.
+ */
+const severityExpression: SQL<AuditSeverity> = (() => {
+  const literal = (value: string) => {
+    if (!/^[a-z0-9_.%\\]+$/.test(value)) throw new Error(`motif de criticité invalide : ${value}`);
+    return `'${value}'`;
+  };
+  const branches = AUDIT_SEVERITY_RULES.map(
+    ([pattern, severity]) =>
+      `when "audit_logs"."action" like ${literal(auditSeverityLikePattern(pattern))} then ${literal(severity)}`,
+  );
+  return sql.raw(`(case ${branches.join(' ')} else 'low' end)`) as SQL<AuditSeverity>;
+})();
+
+/** `%terme%`, jokers de l'utilisateur échappés : on cherche ce qu'il a tapé. */
+function containing(term: string): string {
+  return `%${term.replace(/[\\%_]/g, '\\$&')}%`;
+}
 
 function auditWhere(filter: AuditFilter) {
+  const term = filter.q ? containing(filter.q) : null;
   const filters = [
     filter.actorId ? eq(auditLogs.actorId, filter.actorId) : undefined,
     filter.action ? eq(auditLogs.action, filter.action) : undefined,
     filter.resourceType ? eq(auditLogs.resourceType, filter.resourceType) : undefined,
     filter.from ? gte(auditLogs.createdAt, filter.from) : undefined,
     filter.to ? lte(auditLogs.createdAt, filter.to) : undefined,
+    filter.severity &&
+    filter.severity.length > 0 &&
+    filter.severity.length < AUDIT_SEVERITIES.length
+      ? sql`${severityExpression} in (${sql.join(
+          filter.severity.map((severity) => sql`${severity}`),
+          sql`, `,
+        )})`
+      : undefined,
+    term
+      ? or(
+          ilike(auditLogs.action, term),
+          ilike(auditLogs.resourceType, term),
+          ilike(auditLogs.resourceId, term),
+          ilike(auditLogs.ip, term),
+          sql`${auditLogs.actorId} in (select ${users.id} from ${users} where ${users.email} ilike ${term} or ${users.name} ilike ${term})`,
+          sql`${auditLogs.after}::text ilike ${term}`,
+          sql`${auditLogs.before}::text ilike ${term}`,
+        )
+      : undefined,
   ].filter((f) => f !== undefined);
 
   return filters.length > 0 ? and(...filters) : undefined;
@@ -279,6 +341,25 @@ export async function listAuditLogs(
 export async function countAuditLogs(filter: AuditFilter, db: Database = getDb()): Promise<number> {
   const [row] = await db.select({ value: count() }).from(auditLogs).where(auditWhere(filter));
   return row?.value ?? 0;
+}
+
+/**
+ * Combien d'entrées par criticité, sous les autres filtres : ce que disent les
+ * pastilles du filtre. La criticité choisie n'y entre pas — sinon les autres
+ * tomberaient à zéro dès qu'on en coche une.
+ */
+export async function countAuditLogsBySeverity(
+  filter: AuditFilter,
+  db: Database = getDb(),
+): Promise<Record<AuditSeverity, number>> {
+  const rows = await db
+    .select({ severity: severityExpression, value: count() })
+    .from(auditLogs)
+    .where(auditWhere({ ...filter, severity: undefined }))
+    .groupBy(severityExpression);
+  const counts: Record<AuditSeverity, number> = { low: 0, medium: 0, high: 0, critical: 0 };
+  for (const row of rows) counts[row.severity] = row.value;
+  return counts;
 }
 
 export type AuditExportRow = AuditLogRow & {
@@ -358,29 +439,56 @@ export async function listAuditActors(
     .orderBy(asc(users.email));
 }
 
-/** Comment une connexion a été achevée : le mot de passe seul, ou un second facteur. */
-export type SignInMethod = 'password' | 'totp' | 'backup_code';
+/**
+ * Comment une connexion a été achevée : le mot de passe seul, un second
+ * facteur, ou la connexion unique.
+ */
+export type SignInMethod = 'password' | 'totp' | 'backup_code' | 'sso';
 
 /**
  * La dernière connexion réussie d'un utilisateur, lue dans le journal — le
  * seul endroit où la méthode est gardée : `auth.login.succeeded` porte
- * `method` quand un second facteur a conclu, rien quand le mot de passe a suffi.
+ * `method` quand un second facteur a conclu, rien quand le mot de passe a suffi ;
+ * une connexion unique s'écrit `auth.sso.login.succeeded`.
+ *
+ * `before` écarte les connexions plus récentes : « Mon compte » y passe le
+ * début de la session en cours pour obtenir la connexion **précédente**.
  */
 export async function lastSignIn(
   userId: string,
+  options: { before?: Date } = {},
   db: Database = getDb(),
 ): Promise<{ at: Date; method: SignInMethod; ip: string | null } | null> {
   const [row] = await db
-    .select({ at: auditLogs.createdAt, after: auditLogs.after, ip: auditLogs.ip })
+    .select({
+      at: auditLogs.createdAt,
+      action: auditLogs.action,
+      after: auditLogs.after,
+      ip: auditLogs.ip,
+    })
     .from(auditLogs)
-    .where(and(eq(auditLogs.actorId, userId), eq(auditLogs.action, 'auth.login.succeeded')))
+    .where(
+      and(
+        eq(auditLogs.actorId, userId),
+        or(
+          eq(auditLogs.action, 'auth.login.succeeded'),
+          eq(auditLogs.action, 'auth.sso.login.succeeded'),
+        ),
+        options.before ? lt(auditLogs.createdAt, options.before) : undefined,
+      ),
+    )
     .orderBy(desc(auditLogs.createdAt))
     .limit(1);
   if (!row) return null;
   const method = (row.after as { method?: unknown } | null)?.method;
   return {
     at: row.at,
-    method: method === 'totp' || method === 'backup_code' ? method : 'password',
+    method:
+      row.action === 'auth.sso.login.succeeded'
+        ? 'sso'
+        : method === 'totp' || method === 'backup_code'
+          ? method
+          : 'password',
     ip: row.ip,
   };
 }

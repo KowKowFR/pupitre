@@ -85,15 +85,14 @@ req() {
   curl "${args[@]}"
 }
 
-psql_q() { docker compose exec -T postgres psql -U tp -d tp -tAc "$1"; }
+psql_q() { docker compose exec -T postgres psql -U tp -d "${PGDATABASE:-tp}" -tAc "$1"; }
 
 # Les pages de l'écran de réglages, toutes.
 #
-# Les paramètres ne sont plus une page unique : /admin/settings est un sommaire
-# et chaque domaine a son adresse. Cette liste est ce qui empêche une assertion
-# de non-fuite de se contenter de la première page venue.
-SETTINGS_PAGES="/admin/settings
-/admin/settings/identite
+# Les paramètres ne sont plus une page unique : chaque domaine a son adresse,
+# rangée dans l'un des quatre groupes du rail. Cette liste est ce qui empêche
+# une assertion de non-fuite de se contenter de la première page venue.
+SETTINGS_PAGES="/admin/settings/identite
 /admin/settings/regionalisation
 /admin/settings/securite
 /admin/settings/connexion
@@ -501,14 +500,20 @@ code=$(req PATCH /api/settings '{"security":{"disabledScanners":["monde:dominer"
 pass "un scanner hors vocabulaire est refusé"
 
 step "11. Chaque sous-section est atteignable et rend ses champs"
-# /admin/settings n'est pas une redirection : c'est le sommaire, et il mène aux
-# sections. `page` exige un 200 direct, ce qui le prouve.
-page /admin/settings "$WORK/overview.html"
-for target in identite regionalisation securite connexion comptes notifications ia demarrage; do
-  grep -q "/admin/settings/$target" "$WORK/overview.html" \
-    || fail "le sommaire ne mène pas à /admin/settings/$target"
+# /admin/settings mène au premier onglet du premier groupe. Chaque section porte
+# le rail des quatre groupes, et les onglets du sien.
+root=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -b "$JAR" "$BASE_URL/admin/settings")
+case "$root" in
+  30[78]\ */admin/settings/identite) ;;
+  *) fail "/admin/settings : attendu une redirection vers /admin/settings/identite, reçu « $root »" ;;
+esac
+pass "/admin/settings mène à l'onglet Identité"
+page /admin/settings/securite "$WORK/group.html"
+for target in identite securite integrations sauvegardes connexion comptes; do
+  grep -q "href=\"/admin/settings/$target\"" "$WORK/group.html" \
+    || fail "le rail ou les onglets de « Sécurité et accès » ne mènent pas à /admin/settings/$target"
 done
-pass "/admin/settings répond 200 et mène aux huit sections vérifiées"
+pass "le rail mène aux quatre groupes, les onglets aux trois sections du groupe"
 
 # Une section « atteignable » qui ne rendrait pas ses champs serait une page
 # morte de plus : on nomme donc, pour chacune, les identifiants qu'elle doit
@@ -625,4 +630,4 @@ pass "assistant de démarrage marqué terminé"
 
 printf '\n\033[32m✓ Paramètres d'"'"'instance vérifiés.\033[0m\n'
 printf '\033[2m  Écrans : %s/admin/settings — et ses %s sous-sections\033[0m\n\n' \
-  "$BASE_URL" "$(( $(echo "$SETTINGS_PAGES" | wc -l) - 1 ))"
+  "$BASE_URL" "$(echo "$SETTINGS_PAGES" | wc -l | tr -d ' ')"

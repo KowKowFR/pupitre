@@ -2,6 +2,7 @@ import { ssoCallbackUrl } from '@pupitre/core';
 import { getAppSettings, listRoles } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HelpTip } from '@/components/ui/help-tip';
 import { settings as messages } from '@/i18n/messages/settings';
 import { getT } from '@/i18n/server';
 import { getEnv } from '@/lib/env';
@@ -38,8 +39,11 @@ export default async function SsoSettingsPage() {
           <Badge variant={badge.variant} dot>
             {badge.label}
           </Badge>
+          <HelpTip>{t(`section.${section.id}.governs`)}</HelpTip>
         </CardTitle>
-        <CardDescription>{t(`section.${section.id}.governs`)}</CardDescription>
+        <CardDescription className="first-letter:uppercase">
+          {t(`section.${section.id}.short`)}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <SsoForm

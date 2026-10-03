@@ -1,23 +1,28 @@
 import {
   Bell,
+  Building2,
   Compass,
   DatabaseBackup,
+  GitBranch,
   Globe,
   LogIn,
   Plug,
   ScanSearch,
+  ShieldCheck,
   Signature,
   Sparkles,
   UserLock,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
 /**
  * Le découpage des paramètres, en un seul endroit.
  *
- * La navigation latérale et le sommaire lisent la même liste : une section
- * ajoutée apparaît dans les deux sans qu'on y pense, et surtout aucune des deux
- * ne peut mentir sur l'existence de l'autre.
+ * Dix sections, rangées en quatre groupes : le rail montre les groupes, les
+ * onglets d'un groupe montrent ses sections. Les deux lisent cette liste —
+ * une section ajoutée à un groupe apparaît dans ses onglets sans qu'on y
+ * pense. Chaque section garde son adresse : un lien d'hier marche toujours.
  *
  * Les sections sont des **intentions**, pas des sections du JSONB. Personne ne
  * vient « éditer la clé `security` » : on vient couper les scans, ou changer le
@@ -60,15 +65,44 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { href: '/admin/settings/comptes', id: 'accounts', icon: UserLock },
   { href: '/admin/settings/notifications', id: 'notifications', icon: Bell },
   { href: '/admin/settings/ia', id: 'ai', icon: Sparkles },
-  { href: '/admin/settings/integrations', id: 'integrations', icon: Plug },
+  { href: '/admin/settings/integrations', id: 'integrations', icon: GitBranch },
   { href: '/admin/settings/sauvegardes', id: 'backups', icon: DatabaseBackup },
   { href: '/admin/settings/demarrage', id: 'onboarding', icon: Compass },
 ];
 
-/** Racine de la section — le sommaire. Première entrée du rail, et rien d'autre. */
-export const SETTINGS_OVERVIEW = {
-  href: '/admin/settings',
-} as const;
+/** Racine des paramètres : elle mène au premier onglet du premier groupe. */
+export const SETTINGS_ROOT = '/admin/settings';
+
+export type SettingsGroupId = 'instance' | 'access' | 'integrations' | 'operations';
+
+export type SettingsGroup = {
+  /** Préfixe des clés `group.{id}.label`. */
+  id: SettingsGroupId;
+  icon: LucideIcon;
+  sections: readonly SettingsSectionId[];
+};
+
+/** Les quatre groupes du rail, et l'ordre de leurs onglets. */
+export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
+  { id: 'instance', icon: Building2, sections: ['identity', 'regional'] },
+  { id: 'access', icon: ShieldCheck, sections: ['security', 'sso', 'accounts'] },
+  { id: 'integrations', icon: Plug, sections: ['integrations', 'ai', 'notifications'] },
+  { id: 'operations', icon: Wrench, sections: ['backups', 'onboarding'] },
+];
+
+/** Les sections d'un groupe, dans l'ordre de ses onglets. */
+export function groupSections(group: SettingsGroup): SettingsSection[] {
+  return group.sections.map(
+    (id) => SETTINGS_SECTIONS.find((section) => section.id === id) as SettingsSection,
+  );
+}
+
+/** Le groupe d'une adresse de section, ou `null` hors des paramètres. */
+export function settingsGroupOf(pathname: string): SettingsGroup | null {
+  const section = SETTINGS_SECTIONS.find((entry) => entry.href === pathname);
+  if (!section) return null;
+  return SETTINGS_GROUPS.find((group) => group.sections.includes(section.id)) ?? null;
+}
 
 /**
  * Retrouve une section par son chemin. Lève plutôt que de rendre `undefined` :

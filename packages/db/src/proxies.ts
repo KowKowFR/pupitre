@@ -386,6 +386,12 @@ function isUniqueViolation(error: unknown): boolean {
 
 export type RouteView = RouteRow & { applicationSlug: string; targetName: string };
 
+/** Une route, par son identifiant. */
+export async function getRouteById(id: string, db: Database = getDb()): Promise<RouteRow | null> {
+  const [row] = await db.select().from(routes).where(eq(routes.id, id)).limit(1);
+  return row ?? null;
+}
+
 export async function listRoutes(
   filter: { applicationId?: string; targetId?: string },
   db: Database = getDb(),

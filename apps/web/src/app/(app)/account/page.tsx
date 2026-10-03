@@ -33,6 +33,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic';
 
+/** Écart d'horloge toléré entre le panel et la base pour situer une connexion. */
+const SIGN_IN_SKEW_MS = 5_000;
+
 /**
  * Écran « mon compte ». Aucune permission RBAC : changer son mot de passe et
  * gérer son second facteur sont des actions sur soi, pas des privilèges. Une
@@ -43,17 +46,33 @@ export default async function AccountPage() {
   const t = await getT(messages);
   const tc = await getT(common);
 
-  const [[row], { sessions }, signIn, settings, roles] = await Promise.all([
+  const [[row], { sessions, previous }, settings, roles] = await Promise.all([
     getDb()
       .select({ twoFactorEnabled: users.twoFactorEnabled, createdAt: users.createdAt })
       .from(users)
       .where(eq(users.id, auth.userId)),
-    listAccountSessions(await headers()),
-    lastSignIn(auth.userId),
+    listAccountSessions(await headers()).then(async ({ sessions }) => {
+      // La connexion qui a ouvert cette session s'écrit au journal juste
+      // après elle : la précédente est celle d'avant son ouverture. La marge
+      // couvre un écart d'horloge entre le panel et la base.
+      const started = sessions.find((session) => session.current)?.createdAt;
+      const before = started ? new Date(Date.parse(started) - SIGN_IN_SKEW_MS) : undefined;
+      return { sessions, previous: await lastSignIn(auth.userId, { before }) };
+    }),
     getAppSettingsValue(),
     listRoles(),
   ]);
   const format = formatSettingsOf(settings);
+  const current = sessions.find((session) => session.current);
+  const today = (date: Date | string) => {
+    const day = {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+      timeZone: format.timezone,
+    } as const;
+    return formatDateTimeWith(date, format, day) === formatDateTimeWith(new Date(), format, day);
+  };
   const twoFactorEnabled = row?.twoFactorEnabled ?? false;
   // Un jeton ne délègue que des permissions : sans aucune, rien à déléguer.
   const tokens = isTeamMember(auth)
@@ -104,19 +123,36 @@ export default async function AccountPage() {
           count: sessions.length,
           hint: t('overview.sessions.hint', { count: sessions.length }),
         }}
-        lastSignIn={{
-          label: t('sessions.lastSignIn'),
-          value: signIn ? (relativeTime(signIn.at, tc) ?? tc('none')) : tc('none'),
-          // « 30/09/2026 08:30 · TOTP · 192.168.10.12 » : quand, comment, d'où.
-          hint: signIn
-            ? [
-                formatDateTime(signIn.at, format),
-                t(`sessions.method.${signIn.method}`),
-                compactIp(signIn.ip),
-              ]
-                .filter(Boolean)
-                .join(' · ')
-            : t('overview.lastSignIn.none'),
+        signIn={{
+          label: t('overview.signIn'),
+          // « Connecté depuis 14:32 » : l'ouverture de cette session, pas un
+          // « il y a 5 min » figé au rendu de la page.
+          value: current
+            ? t(today(current.createdAt) ? 'overview.signIn.since' : 'overview.signIn.sinceDay', {
+                time: formatDateTimeWith(current.createdAt, format, {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: format.timezone,
+                }),
+                day: formatDateTimeWith(current.createdAt, format, {
+                  day: 'numeric',
+                  month: 'short',
+                  timeZone: format.timezone,
+                }),
+              })
+            : t('overview.signIn.connected'),
+          // « Précédente : 30/09/2026 08:30 · TOTP · 192.168.10.12 » : quand, comment, d'où.
+          hint: previous
+            ? t('overview.signIn.previous', {
+                detail: [
+                  formatDateTime(previous.at, format),
+                  t(`sessions.method.${previous.method}`),
+                  compactIp(previous.ip),
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+              })
+            : t('overview.signIn.first'),
         }}
       />
 

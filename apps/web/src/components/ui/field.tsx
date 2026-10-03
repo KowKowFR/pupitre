@@ -5,6 +5,29 @@ import { CircleAlert, Eye, EyeOff } from 'lucide-react';
 import { useT } from '@/i18n/client';
 import { chrome } from '@/i18n/messages/chrome';
 import { cn } from '@/lib/utils';
+import { HelpTip } from './help-tip';
+
+/**
+ * Où se lit l'aide d'un champ : sous le contrôle (`inline`, par défaut), ou
+ * repliée dans une info-bulle à côté de l'intitulé (`tip`). Un écran dense —
+ * les paramètres — choisit `tip` une fois pour tous ses champs.
+ */
+const FieldHelpContext = React.createContext<'inline' | 'tip'>('inline');
+
+export function FieldHelpMode({
+  mode,
+  children,
+}: {
+  mode: 'inline' | 'tip';
+  children: React.ReactNode;
+}) {
+  return <FieldHelpContext.Provider value={mode}>{children}</FieldHelpContext.Provider>;
+}
+
+/** Le mode d'aide en vigueur, pour les aides posées à la main hors d'un `Field`. */
+export function useFieldHelpMode(): 'inline' | 'tip' {
+  return React.useContext(FieldHelpContext);
+}
 
 /**
  * Champ complet : intitulé, contrôle, erreur, aide — dans cet ordre, comme
@@ -33,6 +56,7 @@ export function Field({
   children: React.ReactNode;
 }) {
   const t = useT(chrome);
+  const helpMode = React.useContext(FieldHelpContext);
   const generated = React.useId();
   const child =
     React.Children.count(children) === 1 && React.isValidElement(children) ? children : null;
@@ -58,6 +82,7 @@ export function Field({
       <label htmlFor={id} className="label">
         {label}
         {optional ? <span className="opt">{t('field.optional')}</span> : null}
+        {help && helpMode === 'tip' ? <HelpTip>{help}</HelpTip> : null}
       </label>
       {control}
       {error ? (
@@ -67,7 +92,9 @@ export function Field({
         </span>
       ) : null}
       {help ? (
-        <span id={helpId} className="help">
+        // Repliée en info-bulle, l'aide reste la description du contrôle pour
+        // un lecteur d'écran : elle est là, simplement hors de la vue.
+        <span id={helpId} className={helpMode === 'tip' ? 'sr-only' : 'help'}>
           {help}
         </span>
       ) : null}

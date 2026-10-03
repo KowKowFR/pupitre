@@ -1,6 +1,7 @@
 import { getAppSettings } from '@pupitre/db';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { HelpTip } from '@/components/ui/help-tip';
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -24,8 +25,11 @@ export default async function SecuritySettingsPage() {
           <Badge variant={settings.security.scanningEnabled ? 'ok' : 'destructive'}>
             {settings.security.scanningEnabled ? t('security.badge.on') : t('security.badge.off')}
           </Badge>
+          <HelpTip>{t(`section.${section.id}.governs`)}</HelpTip>
         </CardTitle>
-        <CardDescription>{t(`section.${section.id}.governs`)}</CardDescription>
+        <CardDescription className="first-letter:uppercase">
+          {t(`section.${section.id}.short`)}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <SecurityForm settings={settings} canManage={auth.can('settings:manage')} />

@@ -208,6 +208,12 @@ peut créer d'autres rôles depuis `/admin/roles`. C'est pourquoi `RoleKey` est
 délibérément une `string` et non une union figée : une union obligerait à
 recompiler le panel pour créer un rôle.
 
+L'écran les montre en **matrice** : un rôle par colonne, une famille de
+permissions par ligne, une pastille par permission — pleine si le rôle la
+porte, en losange quand elle est **sensible** (celles qui font exiger un second
+facteur). Le pied dit, rôle par rôle, si l'instance lui impose ce second
+facteur. Un clic sur un rôle ouvre son tiroir, où on le modifie.
+
 | Rôle | Permissions |
 |---|---|
 | `admin` | les 34 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
@@ -386,6 +392,27 @@ personnalisés en base.
 branché, et **un événement qui n'est pas audité n'est pas notifiable**. C'est une
 contrainte assumée, et c'est ce qui garantit qu'on ne peut pas notifier quelque
 chose qui n'aurait laissé aucune trace.
+
+### Criticité
+
+Chaque entrée porte une criticité — `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` — que
+l'écran colore, filtre et compte, que l'API rend (`severity`) et que l'export
+écrit sur chaque ligne. Elle **n'est pas stockée** : c'est une lecture de
+l'action, faite par une seule table (`packages/core/src/audit-severity.ts`) que
+l'écran applique et que la base traduit en `CASE … LIKE` pour filtrer. Revoir la
+table reclasse donc tout le journal, passé compris, et la trace elle-même ne
+change pas.
+
+| Criticité | Ce qu'elle désigne | Exemples |
+|---|---|---|
+| `CRITICAL` | à traiter maintenant | empreinte SSH d'une cible qui change, retour arrière ou restauration en échec |
+| `HIGH` | une panne, un refus qui ressemble à une tentative, un geste sur les accès | `monitor.down`, `deployment.failed`, `request.cross_site.refused`, `role.updated`, `user.role.changed`, `api_token.created`, `workload.exec` |
+| `MEDIUM` | un changement d'état ou de configuration, un échec ou un refus ordinaire | `settings.updated`, `deployment.created`, `auth.login.failed`, `permission.denied` |
+| `LOW` | la routine | connexions, lectures, réussites, retours à la normale |
+
+La recherche libre de l'écran (`?q=`) porte sur l'action, la ressource,
+l'acteur, l'IP et le contenu des charges utiles ; ses jokers `%` et `_` sont
+échappés — on cherche ce qu'on a tapé.
 
 ## Un dépôt lié ne commande pas la machine
 

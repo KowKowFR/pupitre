@@ -7,6 +7,7 @@ import {
   type DateStyleName,
   type SupportedLocale,
 } from '@pupitre/core';
+import { HelpTip } from '@/components/ui/help-tip';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useT } from '@/i18n/client';
@@ -87,7 +88,10 @@ export function RegionalForm({
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="field">
-          <Label htmlFor="timezone">{t('regional.timezone.label')}</Label>
+          <Label htmlFor="timezone">
+            {t('regional.timezone.label')}
+            <HelpTip>{t('regional.timezone.help')}</HelpTip>
+          </Label>
           <Select
             id="timezone"
             value={timezone}
@@ -100,10 +104,12 @@ export function RegionalForm({
               </option>
             ))}
           </Select>
-          <p className="help">{t('regional.timezone.help')}</p>
         </div>
         <div className="field">
-          <Label htmlFor="locale">{t('regional.locale.label')}</Label>
+          <Label htmlFor="locale">
+            {t('regional.locale.label')}
+            <HelpTip>{t('regional.locale.help')}</HelpTip>
+          </Label>
           <Select
             id="locale"
             value={locale}
@@ -116,7 +122,6 @@ export function RegionalForm({
               </option>
             ))}
           </Select>
-          <p className="help">{t('regional.locale.help')}</p>
         </div>
         <div className="field">
           <Label htmlFor="dateStyle">{t('regional.dateStyle.label')}</Label>

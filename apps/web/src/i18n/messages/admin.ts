@@ -159,7 +159,7 @@ const fr = {
   'roles.new.nameMissing': "Donnez au rôle un nom d'au moins deux caractères.",
   'roles.new.keyInvalid': 'La clé ne prend que des minuscules, des chiffres et des tirets.',
   'roles.new.permissions.help':
-    "Cochez ce que « {label} » peut faire. Rien n'est coché d'avance : le rôle ne porte que ce que vous lui accordez, et se modifie ensuite depuis sa carte.",
+    "Cochez ce que « {label} » peut faire. Rien n'est coché d'avance : le rôle ne porte que ce que vous lui accordez, et se modifie ensuite depuis son tiroir.",
   'roles.new.help':
     "La clé sert d'identifiant et ne change plus ensuite. Les permissions se choisissent à l'étape suivante, avant la création.",
 
@@ -209,6 +209,29 @@ const fr = {
     one: '{count} / {total} sélectionnée',
     other: '{count} / {total} sélectionnées',
   },
+  'roles.noChanges': 'Aucune modification',
+  'roles.sensitive': 'sensible',
+  'roles.sensitive.help':
+    'Permission sensible : quand l’instance l’exige, un rôle qui la porte impose un second facteur.',
+  'roles.matrix.legend': 'Légende',
+  'roles.matrix.held': 'accordée',
+  'roles.matrix.heldSensitive': 'sensible, accordée',
+  'roles.matrix.missing': 'non accordée',
+  'roles.matrix.family': 'Famille de permissions',
+  'roles.matrix.open': '{action} le rôle {label}',
+  'roles.matrix.cell': {
+    one: '{family} : {count} sur {total}',
+    other: '{family} : {count} sur {total}',
+  },
+  'roles.matrix.total': 'Total',
+  'roles.matrix.twoFactor': 'Second facteur',
+  'roles.matrix.twoFactor.required': 'exigé',
+  'roles.matrix.twoFactor.help.off':
+    'L’instance n’exige le second facteur de personne (Paramètres → Comptes et sessions).',
+  'roles.matrix.twoFactor.help.sensitive':
+    'Exigé de tout rôle qui porte au moins une permission sensible (Paramètres → Comptes et sessions).',
+  'roles.matrix.twoFactor.help.all':
+    'Exigé de tous les comptes (Paramètres → Comptes et sessions).',
 
   'logs.title': 'Journal d’activité',
   'logs.description.before':
@@ -228,10 +251,26 @@ const fr = {
   'logs.filter.from': 'Du',
   'logs.filter.to': 'Au',
   'logs.filter.submit': 'Filtrer',
+  'logs.filter.search': 'Rechercher',
+  'logs.filter.search.placeholder': 'action, ressource, acteur, IP, contenu…',
+  'logs.filter.severity': 'Criticité',
+  'logs.filter.remove': 'Retirer le filtre {filter}',
+  'logs.column.severity': 'Criticité',
+  'logs.severity.low': 'LOW',
+  'logs.severity.medium': 'MEDIUM',
+  'logs.severity.high': 'HIGH',
+  'logs.severity.critical': 'CRITICAL',
+  'logs.severity.low.help': 'Routine : connexions, lectures, réussites, retours à la normale.',
+  'logs.severity.medium.help':
+    'Un changement de configuration ou d’état, un échec ou un refus ordinaire.',
+  'logs.severity.high.help':
+    'Une panne, un refus qui ressemble à une tentative, ou un geste sur les accès : rôles, comptes, jetons, intégrations.',
+  'logs.severity.critical.help':
+    'À traiter maintenant : une empreinte SSH qui change, un retour arrière ou une restauration qui échoue.',
 
   'logs.empty.title': 'Aucune entrée',
   'logs.empty.hint':
-    "Aucun événement ne correspond à ces filtres. Élargissez la plage de dates ou effacez le filtre d'action.",
+    'Aucun événement ne correspond à ces filtres. Élargissez la plage de dates, la criticité, ou effacez la recherche.',
 
   'logs.column.actor': 'Acteur',
   'logs.column.action': 'Action',
@@ -251,6 +290,7 @@ const fr = {
   'logs.drawer.copy': 'Copier le JSON',
   'logs.drawer.copied': 'JSON copié',
   'logs.drawer.filterActor': 'Filtrer sur cet acteur',
+  'logs.drawer.filterAction': 'Filtrer sur cette action',
   'logs.timezone': 'Horodatages en {timezone}.',
 
   // ═══ Erreurs des routes ═════════════════════════════════════════════════
@@ -403,7 +443,7 @@ const en: Translated<typeof fr> = {
   'roles.new.nameMissing': 'Give the role a name of at least two characters.',
   'roles.new.keyInvalid': 'The key takes only lowercase letters, digits and hyphens.',
   'roles.new.permissions.help':
-    'Tick what “{label}” may do. Nothing is ticked in advance: the role carries only what you grant it, and can be changed later from its card.',
+    'Tick what “{label}” may do. Nothing is ticked in advance: the role carries only what you grant it, and can be changed later from its drawer.',
   'roles.new.help':
     'The key is the identifier and never changes afterwards. Permissions are chosen at the next step, before creation.',
 
@@ -450,6 +490,29 @@ const en: Translated<typeof fr> = {
     one: '{count} / {total} selected',
     other: '{count} / {total} selected',
   },
+  'roles.noChanges': 'No change',
+  'roles.sensitive': 'sensitive',
+  'roles.sensitive.help':
+    'Sensitive permission: when the instance requires it, a role holding it enforces a second factor.',
+  'roles.matrix.legend': 'Legend',
+  'roles.matrix.held': 'granted',
+  'roles.matrix.heldSensitive': 'sensitive, granted',
+  'roles.matrix.missing': 'not granted',
+  'roles.matrix.family': 'Permission family',
+  'roles.matrix.open': '{action} the role {label}',
+  'roles.matrix.cell': {
+    one: '{family}: {count} of {total}',
+    other: '{family}: {count} of {total}',
+  },
+  'roles.matrix.total': 'Total',
+  'roles.matrix.twoFactor': 'Second factor',
+  'roles.matrix.twoFactor.required': 'required',
+  'roles.matrix.twoFactor.help.off':
+    'The instance requires a second factor from nobody (Settings → Accounts and sessions).',
+  'roles.matrix.twoFactor.help.sensitive':
+    'Required from every role holding at least one sensitive permission (Settings → Accounts and sessions).',
+  'roles.matrix.twoFactor.help.all':
+    'Required from every account (Settings → Accounts and sessions).',
 
   'logs.title': 'Activity log',
   'logs.description.before':
@@ -469,10 +532,25 @@ const en: Translated<typeof fr> = {
   'logs.filter.from': 'From',
   'logs.filter.to': 'To',
   'logs.filter.submit': 'Filter',
+  'logs.filter.search': 'Search',
+  'logs.filter.search.placeholder': 'action, resource, actor, IP, content…',
+  'logs.filter.severity': 'Severity',
+  'logs.filter.remove': 'Remove the filter {filter}',
+  'logs.column.severity': 'Severity',
+  'logs.severity.low': 'LOW',
+  'logs.severity.medium': 'MEDIUM',
+  'logs.severity.high': 'HIGH',
+  'logs.severity.critical': 'CRITICAL',
+  'logs.severity.low.help': 'Routine: sign-ins, reads, successes, recoveries.',
+  'logs.severity.medium.help': 'A configuration or state change, an ordinary failure or denial.',
+  'logs.severity.high.help':
+    'An outage, a denial that looks like an attempt, or a change to access: roles, accounts, tokens, integrations.',
+  'logs.severity.critical.help':
+    'Act now: an SSH fingerprint that changed, a rollback or a restore that failed.',
 
   'logs.empty.title': 'No entry',
   'logs.empty.hint':
-    'No event matches these filters. Widen the date range or clear the action filter.',
+    'No event matches these filters. Widen the date range or the severity, or clear the search.',
 
   'logs.column.actor': 'Actor',
   'logs.column.action': 'Action',
@@ -491,6 +569,7 @@ const en: Translated<typeof fr> = {
   'logs.drawer.copy': 'Copy the JSON',
   'logs.drawer.copied': 'JSON copied',
   'logs.drawer.filterActor': 'Filter on this actor',
+  'logs.drawer.filterAction': 'Filter on this action',
   'logs.timezone': 'Timestamps in {timezone}.',
 
   'error.role.exists': 'A role “{key}” already exists',

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { AppSettings } from '@pupitre/core';
 import { BrandMark } from '@/components/brand-mark';
 import { Input } from '@/components/ui/input';
+import { HelpTip } from '@/components/ui/help-tip';
 import { Label } from '@/components/ui/label';
 import { useT } from '@/i18n/client';
 import { settings as messages } from '@/i18n/messages/settings';
@@ -43,7 +44,10 @@ export function IdentityForm({
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="field">
-          <Label htmlFor="instanceName">{t('identity.name.label')}</Label>
+          <Label htmlFor="instanceName">
+            {t('identity.name.label')}
+            <HelpTip>{t('identity.name.help')}</HelpTip>
+          </Label>
           <Input
             id="instanceName"
             value={instanceName}
@@ -51,10 +55,12 @@ export function IdentityForm({
             disabled={!canManage}
             onChange={(event) => setInstanceName(event.target.value)}
           />
-          <p className="help">{t('identity.name.help')}</p>
         </div>
         <div className="field">
-          <Label htmlFor="instanceTagline">{t('identity.tagline.label')}</Label>
+          <Label htmlFor="instanceTagline">
+            {t('identity.tagline.label')}
+            <HelpTip>{t('identity.tagline.help')}</HelpTip>
+          </Label>
           <Input
             id="instanceTagline"
             value={instanceTagline}
@@ -63,7 +69,6 @@ export function IdentityForm({
             placeholder={t('identity.tagline.placeholder')}
             onChange={(event) => setInstanceTagline(event.target.value)}
           />
-          <p className="help">{t('identity.tagline.help')}</p>
         </div>
       </div>
 

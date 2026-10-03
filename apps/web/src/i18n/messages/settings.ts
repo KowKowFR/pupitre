@@ -22,7 +22,6 @@ const fr = {
    * permet au rail, au sommaire et à chaque sous-page de composer la clé
    * — `section.${id}.title` — sans table de correspondance.
    */
-  'section.overview.label': 'Sommaire',
 
   'section.identity.label': 'Identité',
   'section.identity.title': "Identité de l'instance",
@@ -71,8 +70,8 @@ const fr = {
   'section.backups.short': 'où partent les sauvegardes, et celle de la base du panel',
   'section.backups.governs':
     "La destination des sauvegardes — S3, SFTP vers un NAS, ou un dossier monté —, la sauvegarde de la base du panel, et le nombre d'applications sauvegardées automatiquement. Chaque application règle la sienne sur sa fiche.",
-  'section.integrations.label': 'Intégrations',
-  'section.integrations.title': 'Intégrations',
+  'section.integrations.label': 'Dépôts de code',
+  'section.integrations.title': 'Dépôts de code',
   'section.integrations.short': 'les dépôts GitHub et Gitea liés aux applications',
   'section.integrations.governs':
     "Les fournisseurs de code qui relient Pupitre aux dépôts — une GitHub App, une forge Gitea ou Forgejo : ils lisent le code et le pupitre.json des branches liées, et Pupitre écrit l'état des déploiements sur les commits. Le panel reste privé : c'est lui qui interroge les forges.",
@@ -82,11 +81,6 @@ const fr = {
   'integrations.github.none': 'non connectée',
   'integrations.term.gitea': 'Gitea / Forgejo',
   'integrations.gitea.connected': 'connectée — {url}',
-  'overview.badge.forges': {
-    one: '{count} fournisseur connecté',
-    other: '{count} fournisseurs connectés',
-  },
-  'overview.badge.forgesNone': 'aucun fournisseur',
   'section.onboarding.label': 'Assistant de démarrage',
   'section.onboarding.title': 'Assistant de démarrage',
   'section.onboarding.short': 'le parcours des premiers pas',
@@ -95,6 +89,7 @@ const fr = {
 
   // ── Coquille : bandeau de page, rail, mention de lecture seule ──────────
   'page.title': 'Paramètres',
+  'page.description.short': "Réglages de l'instance, appliqués à chaud.",
   'page.description.before':
     "Réglages de l'instance, appliqués à chaud. Ils vivent dans une ligne unique de",
   'page.description.after':
@@ -105,34 +100,10 @@ const fr = {
   'page.readonly.after':
     'est requise pour modifier ces réglages. Les sections restent consultables, leurs champs sont inactifs.',
   'nav.label': 'Sections des paramètres',
-
-  // ── Sommaire ────────────────────────────────────────────────────────────
-  'overview.open': 'Ouvrir {label}',
-  'overview.term.name': 'Nom',
-  'overview.term.tagline': 'Sous-titre',
-  'overview.term.timezone': 'Fuseau',
-  'overview.term.locale': 'Locale',
-  'overview.term.rendering': 'Rendu',
-  'overview.term.activeScanners': 'Scanners actifs',
-  'overview.term.failOn': 'Seuil de blocage',
-  'overview.term.channels': 'Canaux',
-  'overview.term.events': 'Événements couverts',
-  'overview.term.failing': 'En échec',
-  'overview.term.provider': 'Fournisseur',
-  'overview.term.model': 'Modèle',
-  'overview.term.apiKey': "Clé d'API",
-  'overview.scanners.none': 'aucun',
-  'overview.scanners.off': 'aucun — analyse coupée',
-  'overview.channels.none': 'aucun — personne n’est prévenu',
-  'overview.channels.active': {
-    one: '{count} actif sur {total}',
-    other: '{count} actifs sur {total}',
-  },
-  'overview.apiKey.set': 'enregistrée',
-  'overview.apiKey.setWithTail': 'enregistrée — …{last4}',
-  'overview.apiKey.none': 'aucune — repli sur la variable d’environnement',
-  'overview.badge.channelsOn': 'branchées',
-  'overview.badge.channelsOff': 'aucun canal',
+  'group.instance.label': 'Instance',
+  'group.access.label': 'Sécurité et accès',
+  'group.integrations.label': 'Intégrations',
+  'group.operations.label': 'Exploitation',
 
   // ── Identité ────────────────────────────────────────────────────────────
   'identity.name.label': "Nom de l'instance",
@@ -310,11 +281,6 @@ const fr = {
   'sso.problem.incomplete': 'découverte incomplète : {detail} absent(s)',
   'sso.problem.unreachable': 'fournisseur injoignable : {detail}',
   'sso.problem.unreadable': 'configuration illisible',
-  'overview.term.ssoStatus': 'État',
-  'overview.term.ssoProvider': 'Fournisseur',
-  'overview.sso.off': 'désactivée',
-  'overview.sso.active': 'active',
-  'overview.sso.error': 'indisponible',
 
   // ── Comptes et sessions ─────────────────────────────────────────────────
   'accounts.state.off': 'au choix',
@@ -355,17 +321,10 @@ const fr = {
   'accounts.days': { one: '{count} jour', other: '{count} jours' },
   'accounts.max.shorter':
     'Le plafond est plus court que la durée sans activité : c’est lui qui fermera les sessions.',
-  'overview.term.twoFactorPolicy': 'Second facteur',
-  'overview.term.sessionIdle': 'Session inactive',
-  'overview.term.sessionMax': 'Plafond',
-  'overview.badge.twoFactorOn': '2FA exigée',
-  'overview.badge.twoFactorOff': '2FA au choix',
 } as const;
 
 const en: Translated<typeof fr> = {
   'form.saved': 'Section saved.',
-
-  'section.overview.label': 'Overview',
 
   'section.identity.label': 'Identity',
   'section.identity.title': 'Instance identity',
@@ -414,8 +373,8 @@ const en: Translated<typeof fr> = {
   'section.backups.short': 'where backups go, and the panel database backup',
   'section.backups.governs':
     'The backup destination — S3, SFTP to a NAS, or a mounted folder —, the panel database backup, and how many applications are backed up automatically. Each application sets its own on its page.',
-  'section.integrations.label': 'Integrations',
-  'section.integrations.title': 'Integrations',
+  'section.integrations.label': 'Code repositories',
+  'section.integrations.title': 'Code repositories',
   'section.integrations.short': 'GitHub and Gitea repositories linked to applications',
   'section.integrations.governs':
     'The code providers that link Pupitre to repositories — a GitHub App, a Gitea or Forgejo forge: they read the code and the pupitre.json of linked branches, and Pupitre writes deployment states on commits. The panel stays private: it asks the forges itself.',
@@ -425,11 +384,6 @@ const en: Translated<typeof fr> = {
   'integrations.github.none': 'not connected',
   'integrations.term.gitea': 'Gitea / Forgejo',
   'integrations.gitea.connected': 'connected — {url}',
-  'overview.badge.forges': {
-    one: '{count} provider connected',
-    other: '{count} providers connected',
-  },
-  'overview.badge.forgesNone': 'no provider',
   'section.onboarding.label': 'Setup guide',
   'section.onboarding.title': 'Setup guide',
   'section.onboarding.short': 'the first-steps walkthrough',
@@ -437,6 +391,7 @@ const en: Translated<typeof fr> = {
     'The walkthrough offered on arrival at a blank instance. You run it again from here once it has been finished or dismissed — a shortcut to a walkthrough, not one more setting.',
 
   'page.title': 'Settings',
+  'page.description.short': 'Instance settings, applied live.',
   'page.description.before': 'Instance settings, applied live. They live in a single row of',
   'page.description.after':
     '— one JSONB, so that adding a setting costs no migration. Secrets — the AI key, the single sign-on client’s — sit encrypted in their own columns and never come back out of here.',
@@ -446,33 +401,10 @@ const en: Translated<typeof fr> = {
   'page.readonly.after':
     'is required to change these settings. Sections stay readable, their fields are inert.',
   'nav.label': 'Settings sections',
-
-  'overview.open': 'Open {label}',
-  'overview.term.name': 'Name',
-  'overview.term.tagline': 'Tagline',
-  'overview.term.timezone': 'Time zone',
-  'overview.term.locale': 'Locale',
-  'overview.term.rendering': 'Rendered',
-  'overview.term.activeScanners': 'Active scanners',
-  'overview.term.failOn': 'Blocking threshold',
-  'overview.term.channels': 'Channels',
-  'overview.term.events': 'Events covered',
-  'overview.term.failing': 'Failing',
-  'overview.term.provider': 'Provider',
-  'overview.term.model': 'Model',
-  'overview.term.apiKey': 'API key',
-  'overview.scanners.none': 'none',
-  'overview.scanners.off': 'none — scanning off',
-  'overview.channels.none': 'none — nobody gets warned',
-  'overview.channels.active': {
-    one: '{count} of {total} enabled',
-    other: '{count} of {total} enabled',
-  },
-  'overview.apiKey.set': 'saved',
-  'overview.apiKey.setWithTail': 'saved — …{last4}',
-  'overview.apiKey.none': 'none — falls back to the environment variable',
-  'overview.badge.channelsOn': 'wired',
-  'overview.badge.channelsOff': 'no channel',
+  'group.instance.label': 'Instance',
+  'group.access.label': 'Security and access',
+  'group.integrations.label': 'Integrations',
+  'group.operations.label': 'Operations',
 
   'identity.name.label': 'Instance name',
   'identity.name.help':
@@ -635,11 +567,6 @@ const en: Translated<typeof fr> = {
   'sso.problem.incomplete': 'incomplete discovery: {detail} missing',
   'sso.problem.unreachable': 'provider unreachable: {detail}',
   'sso.problem.unreadable': 'unreadable configuration',
-  'overview.term.ssoStatus': 'State',
-  'overview.term.ssoProvider': 'Provider',
-  'overview.sso.off': 'off',
-  'overview.sso.active': 'active',
-  'overview.sso.error': 'unavailable',
 
   'accounts.state.off': 'optional',
   'accounts.state.sensitive': 'required · sensitive rights',
@@ -679,11 +606,6 @@ const en: Translated<typeof fr> = {
   'accounts.days': { one: '{count} day', other: '{count} days' },
   'accounts.max.shorter':
     'The cap is shorter than the idle duration: it is what will close sessions.',
-  'overview.term.twoFactorPolicy': 'Second factor',
-  'overview.term.sessionIdle': 'Idle session',
-  'overview.term.sessionMax': 'Cap',
-  'overview.badge.twoFactorOn': '2FA required',
-  'overview.badge.twoFactorOff': '2FA optional',
 };
 
 export const settings = { fr, en };

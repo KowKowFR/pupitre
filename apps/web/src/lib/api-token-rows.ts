@@ -1,5 +1,6 @@
 import 'server-only';
 import {
+  isSensitivePermission,
   permissionDescriptions,
   permissionsByResource,
   resourceLabelOf,
@@ -66,7 +67,9 @@ export async function delegablePermissionGroups(
     .map((group) => ({
       resource: group.resource,
       label: resourceLabelOf(group.resource, language),
-      permissions: group.permissions.filter((permission) => mine.has(permission.key)),
+      permissions: group.permissions
+        .filter((permission) => mine.has(permission.key))
+        .map((permission) => ({ ...permission, sensitive: isSensitivePermission(permission.key) })),
     }))
     .filter((group) => group.permissions.length > 0);
 }

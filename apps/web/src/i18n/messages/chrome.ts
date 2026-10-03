@@ -80,6 +80,7 @@ const fr = {
 
   // ── Primitives ──────────────────────────────────────────────────────────
   'field.optional': 'facultatif',
+  'help.more': 'Aide',
   'secret.show': 'Afficher',
   'secret.hide': 'Masquer',
   'secret.keep': 'Laisser vide pour conserver la valeur enregistrée',
@@ -265,6 +266,7 @@ const en: Translated<typeof fr> = {
   'shortcuts.dismiss': 'Close the open layer',
 
   'field.optional': 'optional',
+  'help.more': 'Help',
   'secret.show': 'Show',
   'secret.hide': 'Hide',
   'secret.keep': 'Leave empty to keep the stored value',

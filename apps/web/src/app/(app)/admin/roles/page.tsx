@@ -1,11 +1,12 @@
 import {
   LOCKED_ROLE,
+  isSensitivePermission,
   permissionDescriptions,
   permissionsByResource,
   resourceLabelOf,
   translator,
 } from '@pupitre/core';
-import { listRolesWithPermissions } from '@pupitre/db';
+import { getAppSettingsValue, listRolesWithPermissions } from '@pupitre/db';
 import { currentLanguage } from '@/i18n/server';
 import { requirePagePermission } from '@/lib/page-auth';
 import { RolesEditor, type RoleRow } from './roles-editor';
@@ -16,7 +17,7 @@ export default async function RolesPage() {
   const auth = await requirePagePermission('/admin/roles', 'role:read');
   const language = await currentLanguage();
 
-  const roles = await listRolesWithPermissions();
+  const [roles, settings] = await Promise.all([listRolesWithPermissions(), getAppSettingsValue()]);
 
   const items: RoleRow[] = roles.map((role) => ({
     key: role.key,
@@ -33,7 +34,10 @@ export default async function RolesPage() {
     (group) => ({
       resource: group.resource,
       label: resourceLabelOf(group.resource, language),
-      permissions: group.permissions,
+      permissions: group.permissions.map((permission) => ({
+        ...permission,
+        sensitive: isSensitivePermission(permission.key),
+      })),
     }),
   );
 
@@ -43,6 +47,7 @@ export default async function RolesPage() {
       groups={groups}
       canManage={auth.can('role:manage')}
       lockedRole={LOCKED_ROLE}
+      twoFactorPolicy={settings.accounts.twoFactorPolicy}
     />
   );
 }

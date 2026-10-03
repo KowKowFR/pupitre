@@ -1,4 +1,10 @@
-import { auditQuerySchema, getAppSettings, listAuditActors, listAuditLogs } from '@pupitre/db';
+import {
+  auditQuerySchema,
+  countAuditLogsBySeverity,
+  getAppSettings,
+  listAuditActors,
+  listAuditLogs,
+} from '@pupitre/db';
 import { Download } from 'lucide-react';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { PageHeader } from '@/components/page-header';
@@ -29,11 +35,15 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
   const { settings } = await getAppSettings();
   const parsed = auditQuerySchema.safeParse(expandDayRange(flat, settings.timezone));
   const query = parsed.success ? parsed.data : auditQuerySchema.parse({});
-  const [page, actors] = await Promise.all([listAuditLogs(query), listAuditActors()]);
+  const [page, actors, severityCounts] = await Promise.all([
+    listAuditLogs(query),
+    listAuditActors(),
+    countAuditLogsBySeverity(query),
+  ]);
 
   // L'export reprend les filtres affichés, toutes pages confondues.
   const exportParams = new URLSearchParams();
-  for (const key of ['action', 'resourceType', 'actorId', 'from', 'to'] as const) {
+  for (const key of ['q', 'severity', 'action', 'resourceType', 'actorId', 'from', 'to'] as const) {
     if (flat[key]) exportParams.set(key, flat[key]);
   }
   const exportQuery = exportParams.toString();
@@ -87,7 +97,10 @@ export default async function AuditPage({ searchParams }: { searchParams: Search
         }))}
         page={{ page: page.page, totalPages: page.totalPages, pageSize: page.pageSize }}
         actors={actors.map((actor) => ({ id: actor.id, email: actor.email }))}
+        severityCounts={severityCounts}
         filters={{
+          q: flat.q ?? '',
+          severity: query.severity.join(','),
           actorId: flat.actorId ?? '',
           action: flat.action ?? '',
           resourceType: flat.resourceType ?? '',

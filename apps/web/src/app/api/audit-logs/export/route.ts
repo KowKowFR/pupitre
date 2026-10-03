@@ -1,3 +1,4 @@
+import { auditSeverityOf } from '@pupitre/core';
 import { auditQuerySchema, getAppSettings, iterateAuditLogs, logAudit } from '@pupitre/db';
 import { expandDayRange } from '@/lib/day-range';
 import { exportResponse } from '@/lib/export';
@@ -9,6 +10,8 @@ export const dynamic = 'force-dynamic';
 
 /** Les filtres de la liste, sans pagination ni ordre : l'export prend tout, du plus récent au plus ancien. */
 const querySchema = auditQuerySchema.pick({
+  q: true,
+  severity: true,
   actorId: true,
   action: true,
   resourceType: true,
@@ -49,6 +52,7 @@ export const GET = apiRoute(async (request) => {
           actorId: entry.actorId,
           actorEmail: entry.actorEmail,
           action: entry.action,
+          severity: auditSeverityOf(entry.action),
           resourceType: entry.resourceType,
           resourceId: entry.resourceId,
           ip: entry.ip,
