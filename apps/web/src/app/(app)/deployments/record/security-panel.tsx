@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import {
   SCANNERS,
   SEVERITY_ORDER,
+  VULNERABILITY_ACCEPTANCE_DURATIONS,
+  VULNERABILITY_ACCEPTANCE_REASON_MIN,
   scannerDescription,
   type ScanConfig,
   type ScanKind,
@@ -13,12 +15,25 @@ import {
   type Severity,
   type SeverityCounts,
 } from '@pupitre/core';
-import { Download, ShieldCheck } from 'lucide-react';
+import { Download, ShieldCheck, ShieldOff, Undo2 } from 'lucide-react';
 import { EmptyState } from '@/components/empty-state';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Field } from '@/components/ui/field';
+import { Textarea } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/segmented';
 import { Select } from '@/components/ui/select';
+import { IconButton } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -31,6 +46,8 @@ import {
 import { useLanguage, useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { deployments as messages } from '@/i18n/messages/deployments';
+import { vulnerabilities } from '@/i18n/messages/vulnerabilities';
+import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
 /**
@@ -55,12 +72,26 @@ type ScanRunView = {
   status: ScanRunStatus;
   verdict: ScanVerdict;
   failOn: string;
+  onlyFixable: boolean;
   imageRef: string | null;
   error: string | null;
   durationMs: number | null;
   counts: SeverityCounts;
   total: number;
+  fixable: number;
+  accepted: number;
   hasSbom: boolean;
+};
+
+type FindingsView = 'all' | 'fixable' | 'unfixable' | 'accepted';
+const FINDINGS_VIEWS: readonly FindingsView[] = ['all', 'fixable', 'unfixable', 'accepted'];
+
+type AcceptanceView = {
+  id: string;
+  package: string | null;
+  reason: string;
+  expiresAt: string | null;
+  authorName: string | null;
 };
 
 type FindingView = {
@@ -72,6 +103,8 @@ type FindingView = {
   fixedVersion: string | null;
   title: string | null;
   primaryUrl: string | null;
+  /** L'acceptation qui la couvre aujourd'hui, pour l'application. */
+  acceptance: AcceptanceView | null;
 };
 
 /**
@@ -105,7 +138,17 @@ export function SecurityPanel({
   const [selected, setSelected] = useState<string | null>(null);
   const [findings, setFindings] = useState<FindingView[]>([]);
   const [severity, setSeverity] = useState<Severity | ''>('');
+  const [view, setView] = useState<FindingsView>('all');
   const [total, setTotal] = useState(0);
+  const [context, setContext] = useState<{
+    applicationId: string;
+    applicationSlug: string;
+    canAccept: boolean;
+  } | null>(null);
+  const [accepting, setAccepting] = useState<FindingView | null>(null);
+  // Une acceptation posée ou retirée relit la liste et les comptes.
+  const [version, setVersion] = useState(0);
+  const tv = useT(vulnerabilities);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -140,12 +183,12 @@ export function SecurityPanel({
     return () => {
       cancelled = true;
     };
-  }, [deploymentId, refreshKey, t]);
+  }, [deploymentId, refreshKey, t, version]);
 
   useEffect(() => {
     if (!selected) return;
 
-    const params = new URLSearchParams({ pageSize: '200' });
+    const params = new URLSearchParams({ pageSize: '200', view });
     if (severity) params.set('severity', severity);
 
     let cancelled = false;
@@ -153,17 +196,39 @@ export function SecurityPanel({
       const response = await fetch(`/api/scans/${selected}?${params.toString()}`);
       if (!response.ok || cancelled) return;
       const body = (await response.json()) as {
+        applicationId: string;
+        applicationSlug: string;
+        canAccept: boolean;
         findings: { items: FindingView[]; total: number };
       };
       if (cancelled) return;
       setFindings(body.findings.items);
       setTotal(body.findings.total);
+      setContext({
+        applicationId: body.applicationId,
+        applicationSlug: body.applicationSlug,
+        canAccept: body.canAccept,
+      });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [selected, severity, refreshKey]);
+  }, [selected, severity, view, refreshKey, version]);
+
+  async function revoke(finding: FindingView) {
+    if (!context || !finding.acceptance) return;
+    const response = await fetch(
+      `/api/applications/${context.applicationId}/vulnerability-acceptances/${finding.acceptance.id}`,
+      { method: 'DELETE' },
+    );
+    if (!response.ok) {
+      toast({ title: tc('http.failure', { status: response.status }), tone: 'danger' });
+      return;
+    }
+    toast({ title: tv('toast.acceptanceRemoved', { cve: finding.cveId }), tone: 'ok' });
+    setVersion((value) => value + 1);
+  }
 
   if (loading && runs.length === 0) {
     return (
@@ -237,8 +302,20 @@ export function SecurityPanel({
                   })}
             </span>
             {current.kind === 'vulnerability' ? (
+              <SegmentedControl
+                className="ml-auto"
+                value={view}
+                onChange={setView}
+                label={tv('view.label')}
+                options={FINDINGS_VIEWS.map((option) => ({
+                  value: option,
+                  label: tv(`view.${option}`),
+                }))}
+              />
+            ) : null}
+            {current.kind === 'vulnerability' ? (
               <Select
-                className="input-sm ml-auto w-48"
+                className="input-sm w-48"
                 aria-label={t('column.severity')}
                 value={severity}
                 onChange={(event) => setSeverity(event.target.value as Severity | '')}
@@ -269,6 +346,7 @@ export function SecurityPanel({
                   <TableHead>{t('column.version')}</TableHead>
                   <TableHead>{t('column.fix')}</TableHead>
                   <TableHead>{t('column.title')}</TableHead>
+                  {context?.canAccept || rows.some((row) => row.acceptance) ? <TableHead /> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -277,7 +355,7 @@ export function SecurityPanel({
                     <TableCell>
                       <SeverityBadge severity={finding.severity} />
                     </TableCell>
-                    <TableCell className="mono">
+                    <TableCell className="mono whitespace-nowrap">
                       {finding.primaryUrl ? (
                         <a
                           href={finding.primaryUrl}
@@ -292,8 +370,10 @@ export function SecurityPanel({
                       )}
                     </TableCell>
                     <TableCell className="mono">{finding.package}</TableCell>
-                    <TableCell className="mono">{finding.installedVersion ?? tc('none')}</TableCell>
-                    <TableCell className="mono">
+                    <TableCell className="mono whitespace-nowrap">
+                      {finding.installedVersion ?? tc('none')}
+                    </TableCell>
+                    <TableCell className="mono whitespace-nowrap">
                       {finding.fixedVersion ?? (
                         <span className="font-sans text-text-3">{t('findings.noFix')}</span>
                       )}
@@ -301,6 +381,38 @@ export function SecurityPanel({
                     <TableCell className="max-w-md truncate" title={finding.title ?? ''}>
                       {finding.title ?? tc('none')}
                     </TableCell>
+                    {context?.canAccept || rows.some((row) => row.acceptance) ? (
+                      <TableCell className="whitespace-nowrap text-right">
+                        {finding.acceptance ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Badge
+                              variant="ok"
+                              title={tv('accepted.title', {
+                                by: finding.acceptance.authorName ?? '',
+                                reason: finding.acceptance.reason,
+                              })}
+                            >
+                              {tv('accepted.badge')}
+                            </Badge>
+                            {context?.canAccept ? (
+                              <IconButton
+                                label={tv('accepted.revoke')}
+                                onClick={() => void revoke(finding)}
+                              >
+                                <Undo2 aria-hidden />
+                              </IconButton>
+                            ) : null}
+                          </span>
+                        ) : context?.canAccept ? (
+                          <IconButton
+                            label={tv('accept.title', { cve: finding.cveId })}
+                            onClick={() => setAccepting(finding)}
+                          >
+                            <ShieldOff aria-hidden />
+                          </IconButton>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
@@ -308,7 +420,133 @@ export function SecurityPanel({
           )}
         </section>
       ) : null}
+
+      {accepting && context ? (
+        <AcceptDialog
+          finding={accepting}
+          applicationId={context.applicationId}
+          applicationSlug={context.applicationSlug}
+          onClose={() => setAccepting(null)}
+          onAccepted={() => {
+            setAccepting(null);
+            setVersion((value) => value + 1);
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Accepter une faille pour l'application : un motif, une portée (ce paquet,
+ * ou la CVE partout), une échéance. Elle restera listée, mais ne bloquera plus.
+ */
+function AcceptDialog({
+  finding,
+  applicationId,
+  applicationSlug,
+  onClose,
+  onAccepted,
+}: {
+  finding: FindingView;
+  applicationId: string;
+  applicationSlug: string;
+  onClose: () => void;
+  onAccepted: () => void;
+}) {
+  const tv = useT(vulnerabilities);
+  const tc = useT(common);
+  const [scope, setScope] = useState<'package' | 'any'>('package');
+  const [days, setDays] = useState<string>('90');
+  const [reason, setReason] = useState('');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function accept() {
+    setPending(true);
+    setError(null);
+    const response = await fetch(`/api/applications/${applicationId}/vulnerability-acceptances`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        cveId: finding.cveId,
+        package: scope === 'package' ? finding.package : null,
+        reason,
+        expiresInDays: days === 'never' ? null : Number(days),
+      }),
+    });
+    setPending(false);
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+      setError(body.error?.message ?? tc('http.failure', { status: response.status }));
+      return;
+    }
+    toast({
+      title: tv('toast.accepted', { cve: finding.cveId, app: applicationSlug }),
+      tone: 'ok',
+    });
+    onAccepted();
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => (open || pending ? undefined : onClose())}>
+      <DialogContent>
+        <DialogHeader icon={<ShieldOff />} tone="warn">
+          <DialogTitle>{tv('accept.title', { cve: finding.cveId })}</DialogTitle>
+          <DialogDescription>{tv('accept.body', { app: applicationSlug })}</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="flex flex-col gap-3">
+          <Field label={tv('accept.scope')}>
+            <SegmentedControl
+              value={scope}
+              onChange={setScope}
+              label={tv('accept.scope')}
+              options={[
+                {
+                  value: 'package',
+                  label: tv('accept.scope.package', { package: finding.package }),
+                },
+                { value: 'any', label: tv('accept.scope.any') },
+              ]}
+            />
+          </Field>
+          <Field label={tv('accept.reason')} help={tv('accept.reason.help')}>
+            <Textarea
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder={tv('accept.reason.placeholder')}
+            />
+          </Field>
+          <Field label={tv('accept.expires')}>
+            <SegmentedControl
+              value={days}
+              onChange={setDays}
+              label={tv('accept.expires')}
+              options={VULNERABILITY_ACCEPTANCE_DURATIONS.map((value) =>
+                value === null
+                  ? { value: 'never', label: tv('accept.expires.never') }
+                  : { value: String(value), label: tv('accept.expires.days', { count: value }) },
+              )}
+            />
+          </Field>
+          {error ? <Alert variant="destructive">{error}</Alert> : null}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>
+            {tv('accept.cancel')}
+          </Button>
+          <Button
+            loading={pending}
+            disabled={reason.trim().length < VULNERABILITY_ACCEPTANCE_REASON_MIN}
+            onClick={accept}
+          >
+            {tv('accept.confirm')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -323,6 +561,7 @@ function ScanRunCard({
 }) {
   const t = useT(messages);
   const tc = useT(common);
+  const tv = useT(vulnerabilities);
   const language = useLanguage();
   const descriptor = SCANNERS[run.scanner];
 
@@ -369,7 +608,17 @@ function ScanRunCard({
               <SeverityBadge severity="UNKNOWN" count={run.counts.UNKNOWN} />
             ) : null}
           </div>
-        ) : (
+        ) : null}
+
+        {run.kind === 'vulnerability' && run.total > 0 ? (
+          <p className="t-cap text-text-2">
+            {tv('run.fixable', { count: run.fixable })}
+            {run.accepted > 0 ? ` · ${tv('run.accepted', { count: run.accepted })}` : ''}
+            {run.onlyFixable ? ` · ${tv('run.onlyFixable')}` : ''}
+          </p>
+        ) : null}
+
+        {run.kind === 'vulnerability' ? null : (
           <p className="t-cap text-text-3">{scannerDescription(run.scanner, language)}</p>
         )}
 

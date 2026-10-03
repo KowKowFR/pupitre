@@ -1,4 +1,10 @@
-import { findingQuerySchema, getScanRun, listFindings } from '@pupitre/db';
+import { matchingAcceptance } from '@pupitre/core';
+import {
+  findingQuerySchema,
+  getScanRun,
+  listFindings,
+  listVulnerabilityAcceptances,
+} from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { deployments as messages } from '@/i18n/messages/deployments';
@@ -12,14 +18,44 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** Détail d'une exécution : findings paginés, filtrables par sévérité. */
+/**
+ * Détail d'une exécution : findings paginés, filtrables par sévérité et par
+ * vue (`view` : `all`, `fixable`, `unfixable`, `accepted`). Chaque finding dit
+ * s'il est couvert, aujourd'hui, par une acceptation de l'application.
+ */
 export const GET = apiRoute<Context>(async (request, context) => {
-  await requirePermission(request, 'scan:read');
+  const auth = await requirePermission(request, 'scan:read');
   const { id } = paramsSchema.parse(await context.params);
   const query = readSearchParams(request, findingQuerySchema);
 
   const run = await getScanRun(id);
   if (!run) throw new NotFoundError(msg(messages, 'error.scanNotFound', { id }));
 
-  return NextResponse.json({ ...run, findings: await listFindings(id, query) });
+  const [page, acceptances] = await Promise.all([
+    listFindings(id, query),
+    listVulnerabilityAcceptances(run.applicationId),
+  ]);
+  const now = new Date();
+  return NextResponse.json({
+    ...run,
+    canAccept: auth.can('scan:configure'),
+    findings: {
+      ...page,
+      items: page.items.map((finding) => {
+        const acceptance = matchingAcceptance(finding, acceptances, now);
+        return {
+          ...finding,
+          acceptance: acceptance
+            ? {
+                id: acceptance.id,
+                package: acceptance.package,
+                reason: acceptance.reason,
+                expiresAt: acceptance.expiresAt?.toISOString() ?? null,
+                authorName: acceptance.authorName,
+              }
+            : null,
+        };
+      }),
+    },
+  });
 });

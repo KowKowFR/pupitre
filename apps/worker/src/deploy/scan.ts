@@ -1,21 +1,28 @@
 import {
-  blocks,
   countBySeverity,
   EMPTY_SEVERITY_COUNTS,
   errorMessage,
+  findingBlocks,
   scannerLabel,
+  summarizeFindings,
   verdictFor,
   worstSeverity,
   type Finding,
   type ImageStore,
   type ScanConfig,
   type ScannerKey,
+  type ScanPolicy,
   type ScanVerdict,
   type SeverityCounts,
 } from '@pupitre/core';
 import type { DriverContext } from '@pupitre/core/drivers';
 import { getScanner } from '@pupitre/core/scanners';
-import { clearScanRuns, createScanRun, finishScanRun } from '@pupitre/db';
+import {
+  activeAcceptancesForDeployment,
+  clearScanRuns,
+  createScanRun,
+  finishScanRun,
+} from '@pupitre/db';
 import { logger } from '../logger.js';
 
 /**
@@ -90,9 +97,20 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
     if (removed > 0) onLog(`${removed} exécution(s) précédente(s) écartée(s)`);
   }
 
+  // Les failles acceptées valent au moment du scan : c'est l'application qui
+  // les porte, pas la version gelée.
+  const acceptances = await activeAcceptancesForDeployment(deploymentId);
+  const policy: ScanPolicy = {
+    failOn: config.failOn,
+    onlyFixable: config.onlyFixable ?? false,
+    acceptances,
+  };
+
   onLog(
     `${config.scanners.map(scannerLabel).join(', ')} sur ${images.length} image(s) — ` +
-      `seuil de blocage : ${config.failOn}`,
+      `seuil de blocage : ${config.failOn}` +
+      (policy.onlyFixable ? ', failles corrigeables seulement' : '') +
+      (acceptances.length > 0 ? `, ${acceptances.length} faille(s) acceptée(s)` : ''),
   );
 
   // Installation d'abord, en parallèle entre outils distincts : deux exécutions
@@ -117,9 +135,7 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
     for (const image of images) tasks.push({ scanner, image });
   }
 
-  const settled = await Promise.allSettled(
-    tasks.map((task) => runOne(task, input)),
-  );
+  const settled = await Promise.allSettled(tasks.map((task) => runOne(task, input, policy)));
 
   const runs: ScanRunOutcome[] = [];
   for (const [index, result] of settled.entries()) {
@@ -183,6 +199,7 @@ function collectBlocking(runs: readonly ScanRunOutcome[]) {
 async function runOne(
   task: { scanner: ScannerKey; image: string },
   input: ScanStepInput,
+  policy: ScanPolicy,
 ): Promise<ScanRunOutcome> {
   const { deploymentId, ctx, config, store, onLog } = input;
   const prefix = `[${task.scanner}]`;
@@ -192,6 +209,7 @@ async function runOne(
     deploymentId,
     scanner: task.scanner,
     failOn: config.failOn,
+    onlyFixable: policy.onlyFixable,
     imageRef: task.image,
   });
 
@@ -204,7 +222,8 @@ async function runOne(
     );
 
     const counts = countBySeverity(report.findings);
-    const verdict = verdictFor(report.kind, report.findings, config.failOn);
+    const verdict = verdictFor(report.kind, report.findings, policy);
+    const summary = summarizeFindings(report.findings, policy);
 
     await finishScanRun(run.id, {
       status: 'success',
@@ -218,7 +237,13 @@ async function runOne(
     const worst = worstSeverity(counts);
     onLog(
       `${prefix} ${report.kind === 'sbom' ? 'SBOM produit' : `${report.findings.length} finding(s)`}` +
-        `${worst ? ` — pire sévérité : ${worst}` : ''} — verdict ${verdict} (${report.durationMs} ms)`,
+        `${worst ? ` — pire sévérité : ${worst}` : ''}` +
+        (report.kind === 'vulnerability'
+          ? ` — ${summary.fixable} corrigeable(s)` +
+            (summary.accepted > 0 ? `, ${summary.accepted} acceptée(s)` : '') +
+            `, ${summary.blocking} bloquante(s)`
+          : '') +
+        ` — verdict ${verdict} (${report.durationMs} ms)`,
     );
 
     return {
@@ -232,7 +257,7 @@ async function runOne(
       // Un SBOM ne bloque jamais : c'est le `kind` qui le dit, pas le nom.
       blocking:
         report.kind === 'vulnerability'
-          ? report.findings.filter((finding) => blocks(finding.severity, config.failOn))
+          ? report.findings.filter((finding) => findingBlocks(finding, policy))
           : [],
     };
   } catch (error) {

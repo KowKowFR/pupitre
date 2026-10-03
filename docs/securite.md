@@ -774,6 +774,7 @@ maintenant dans `/admin/settings/securite` (`settings:manage`) :
 | `scanningEnabled` | interrupteur général — à `false`, plus aucun scan, sur aucun déploiement |
 | `disabledScanners` | scanners écartés un par un, même quand l'analyse reste active |
 | `failOn` | `CRITICAL` · `HIGH` · `NONE` — **défaut `NONE`** |
+| `onlyFixable` | le seuil ne vaut que pour les failles **corrigeables** (le scanner connaît une version qui les règle) — défaut `false` |
 
 Le défaut `NONE` surprend et il est réfléchi. `nginx:1.29-alpine` porte 26
 findings CRITICAL, `httpd:2.4-alpine` en porte 40. Un seuil bloquant par défaut
@@ -796,6 +797,36 @@ déjà en file. Un redéploiement rejoue la politique de la version source, puis
 réapplique celle de l'instance — *une analyse désactivée ne doit pas revenir par
 la porte d'un redéploiement.*
 
+### Le réglage d'une application, et les failles acceptées
+
+Un seuil d'instance tient mal sur des images publiques : la plupart de leurs
+CRITICAL n'ont **pas de correctif**, et bloquer dessus arrête la mise en ligne
+sans rien offrir à faire. Trois outils, sous `scan:configure` :
+
+- **Seulement les corrigeables** (`onlyFixable`) — pour l'instance ou une
+  application : une faille sans `fixedVersion` ne compte plus pour le seuil.
+  Elle reste affichée.
+- **Le réglage d'une application** (`applications.scan_fail_on`,
+  `scan_only_fixable`, onglet « Sécurité » de sa fiche,
+  `PUT /api/applications/:id/scan-policy`) — son seuil et sa règle des
+  corrigeables, `null` pour suivre l'instance. Il s'applique aux déploiements
+  suivants, **redéploiements compris** : c'est l'application qui sait ce qui
+  doit la bloquer, pas la version. Une demande d'API explicite garde la main.
+- **Accepter une faille** (table `vulnerability_acceptances`, depuis l'onglet
+  « Sécurité » d'un déploiement) — une CVE, sur un paquet ou sur tous, pour une
+  application, avec un **motif** obligatoire et une échéance (30, 90, 180 jours
+  ou aucune). Elle reste affichée, marquée « acceptée », mais ne bloque plus.
+  Les acceptations valent **au moment du scan** — elles appartiennent à
+  l'application, pas à la version gelée. Accepter passe au journal en gravité
+  **élevée** (`vulnerability.accepted`, avec le motif) : c'est un contournement
+  assumé.
+
+La règle est une seule fonction, `findingBlocks()` dans
+`packages/core/src/scan.ts` : sévérité au-dessus du seuil, corrigeable si la
+politique l'exige, non acceptée. Chaque exécution garde `fail_on` et
+`only_fixable`, qui expliquent son verdict ; l'écran compte, par exécution, les
+failles corrigeables et celles acceptées aujourd'hui.
+
 ### Le verdict
 
 L'étape `scan` s'intercale entre `build` et `deploy`. Elle lance les scanners
@@ -804,8 +835,8 @@ marqué en erreur — verdict `unknown`, ni bloquant ni dédouanant — et n'emp
 pas les autres de conclure.
 
 Si un scanner de `kind: vulnerability` rapporte au moins un finding de sévérité
-`>= failOn`, l'étape passe `failed`, le pipeline s'arrête et **le déploiement n'a
-pas lieu**. Avec `failOn: NONE`, le verdict est informatif et les findings sont
+`>= failOn` — corrigeable si `onlyFixable`, et non accepté —, l'étape passe
+`failed`, le pipeline s'arrête et **le déploiement n'a pas lieu**. Avec `failOn: NONE`, le verdict est informatif et les findings sont
 enregistrés quand même. Sans scanner sélectionné, l'étape est `skipped`. **Un
 SBOM ne bloque jamais** : c'est son `kind` qui le dit, pas son nom.
 

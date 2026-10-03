@@ -41,11 +41,13 @@ export function SecurityForm({
     settings.security.disabledScanners,
   );
   const [failOn, setFailOn] = useState<FailOn>(settings.security.failOn);
+  const [onlyFixable, setOnlyFixable] = useState(settings.security.onlyFixable);
 
   function reset() {
     setScanningEnabled(settings.security.scanningEnabled);
     setDisabledScanners(settings.security.disabledScanners);
     setFailOn(settings.security.failOn);
+    setOnlyFixable(settings.security.onlyFixable);
     patch.clearFeedback();
   }
 
@@ -54,7 +56,9 @@ export function SecurityForm({
       patch={patch}
       canManage={canManage}
       onReset={reset}
-      onSubmit={() => void patch.save({ security: { scanningEnabled, disabledScanners, failOn } })}
+      onSubmit={() =>
+        void patch.save({ security: { scanningEnabled, disabledScanners, failOn, onlyFixable } })
+      }
     >
       <label className="flex items-start gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm">
         <input
@@ -132,6 +136,22 @@ export function SecurityForm({
           ))}
         </Select>
       </div>
+
+      <label className="flex items-start gap-2.5 rounded-md border border-border px-3 py-2.5 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={onlyFixable}
+          disabled={!canManage || !scanningEnabled || failOn === 'NONE'}
+          onChange={(event) => setOnlyFixable(event.target.checked)}
+        />
+        <span className="min-w-0">
+          <span className="block text-text">
+            {t('security.onlyFixable.label')}
+            <HelpTip>{t('security.onlyFixable.help')}</HelpTip>
+          </span>
+        </span>
+      </label>
     </SectionForm>
   );
 }

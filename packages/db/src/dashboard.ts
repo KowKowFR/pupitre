@@ -478,6 +478,8 @@ export type ScanPosture = {
   runs: number;
   lastAt: string | null;
   bySeverity: { critical: number; high: number; medium: number; low: number; other: number };
+  /** Parmi les critiques, celles qu'une version corrige : ce qu'on peut régler tout de suite. */
+  fixableCritical: number;
   /**
    * Exécutions déclarées « pass » qui portaient pourtant du critique ou du haut,
    * parce que la porte (`fail_on`) était réglée sur `none`.
@@ -501,14 +503,20 @@ export async function scanPosture(days = 7, db: Database = getDb()): Promise<Sca
     .where(within);
 
   const severityRows = await db
-    .select({ severity: findings.severity, value: sql<number>`count(*)::int` })
+    .select({
+      severity: findings.severity,
+      value: sql<number>`count(*)::int`,
+      fixable: sql<number>`count(*) filter (where coalesce(${findings.fixedVersion}, '') <> '')::int`,
+    })
     .from(findings)
     .innerJoin(scanRuns, eq(scanRuns.id, findings.scanRunId))
     .where(within)
     .groupBy(findings.severity);
 
   const bySeverity = { critical: 0, high: 0, medium: 0, low: 0, other: 0 };
+  let fixableCritical = 0;
   for (const row of severityRows) {
+    if (row.severity === 'critical') fixableCritical += row.fixable;
     if (row.severity === 'critical') bySeverity.critical += row.value;
     else if (row.severity === 'high') bySeverity.high += row.value;
     else if (row.severity === 'medium') bySeverity.medium += row.value;
@@ -536,6 +544,7 @@ export async function scanPosture(days = 7, db: Database = getDb()): Promise<Sca
     runs: totals?.runs ?? 0,
     lastAt: totals?.lastAt ? new Date(totals.lastAt).toISOString() : null,
     bySeverity,
+    fixableCritical,
     passedWithSevere: gate?.value ?? 0,
   };
 }

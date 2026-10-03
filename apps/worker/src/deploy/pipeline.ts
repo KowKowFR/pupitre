@@ -318,6 +318,7 @@ export async function runDeploymentPipeline(
         after: {
           scanners: config.scanners,
           failOn: config.failOn,
+          onlyFixable: config.onlyFixable ?? false,
           images,
           counts: result.counts,
           runs: result.runs.map((run) => ({

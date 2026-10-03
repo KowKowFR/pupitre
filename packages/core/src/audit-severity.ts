@@ -51,6 +51,8 @@ export const AUDIT_SEVERITY_RULES: readonly AuditSeverityRule[] = [
   ['target.deleted', 'high'],
   ['deployment.purged', 'high'],
   ['deployment.unblocked', 'high'],
+  // Une faille acceptée ne bloque plus : c'est un contournement assumé.
+  ['vulnerability.accepted', 'high'],
   ['application.delete.force*', 'high'],
   ['backup.restore*', 'high'],
   ['backup.panel.disabled', 'high'],

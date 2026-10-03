@@ -10,6 +10,7 @@ import {
   type AppSettings,
 } from '@pupitre/core';
 import {
+  applicationScanPolicyOf,
   listApplicationSecrets,
   listApplicationSources,
   listApplicationVersions,
@@ -18,6 +19,7 @@ import {
   listSourceArchives,
   listSourceConnections,
   listTargets,
+  listVulnerabilityAcceptances,
   sourceRepositoryUrl,
   type Application,
 } from '@pupitre/db';
@@ -32,17 +34,19 @@ import { formatSettingsOf } from '@/lib/format';
 import type { AuthContext } from '@/lib/rbac';
 import { relativeTime } from '@/lib/relative-time';
 import { forgeView } from '@/lib/sources';
+import { acceptanceJson } from '@/lib/vulnerabilities';
 import { ApplicationArchive, type ArchiveView } from './application-archive';
 import { ApplicationBackups } from './application-backups';
 import { ApplicationDomains } from './application-domains';
 import { ApplicationImages } from './application-images';
 import { ApplicationSecrets } from './application-secrets';
+import { ApplicationSecurity } from './application-security';
 import { ApplicationSources, type SourceView } from './application-sources';
 import { VersionTimeline, type VersionRow } from './version-timeline';
 
 /** Les onglets de la fiche que seul le serveur sait remplir. */
 export type ApplicationRecordTab =
-  'versions' | 'code' | 'domains' | 'secrets' | 'backups' | 'images';
+  'versions' | 'code' | 'domains' | 'secrets' | 'backups' | 'images' | 'security';
 
 export type ApplicationRecord = {
   /** Le slug de l'application : c'est la clé du tiroir. */
@@ -79,6 +83,7 @@ export async function applicationRecord(
     imageRows,
     archives,
     forecasts,
+    acceptances,
   ] = await Promise.all([
     listApplicationVersions(application.id),
     listTargets(),
@@ -89,6 +94,7 @@ export async function applicationRecord(
     listImageUpdates(application.id),
     listSourceArchives(application.id),
     visibleForecasts(auth, { subjectType: 'application', subjectId: application.id }),
+    auth.can('scan:read') ? listVulnerabilityAcceptances(application.id) : Promise.resolve([]),
   ]);
   const lastImageCheck =
     imageRows
@@ -301,6 +307,24 @@ export async function applicationRecord(
           canDeploy={auth.can('deployment:create')}
         />
       ),
+      ...(auth.can('scan:read')
+        ? {
+            security: (
+              <ApplicationSecurity
+                applicationId={application.id}
+                applicationSlug={application.slug}
+                policy={applicationScanPolicyOf(application)}
+                instance={{
+                  failOn: settings.security.failOn,
+                  onlyFixable: settings.security.onlyFixable,
+                }}
+                acceptances={acceptances.map((acceptance) => acceptanceJson(acceptance))}
+                canConfigure={auth.can('scan:configure')}
+                format={format}
+              />
+            ),
+          }
+        : {}),
     },
   };
 }

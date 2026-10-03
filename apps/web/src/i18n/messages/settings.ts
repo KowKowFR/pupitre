@@ -146,6 +146,9 @@ const fr = {
   'security.failOn.label': 'Seuil de blocage',
   'security.failOn.help':
     "Sévérité à partir de laquelle un finding empêche la mise en ligne. Ce seuil vaut pour toute l'instance : l'écran de déploiement ne le demande plus, une politique de sécurité qui se rediscute à chaque mise en ligne n'en est pas une.",
+  'security.onlyFixable.label': 'Ne bloquer que sur les failles corrigeables',
+  'security.onlyFixable.help':
+    "Une faille sans correctif ne se répare pas en redéployant : bloquer dessus arrête la mise en ligne sans rien offrir à faire. Coché, seul ce qu'une mise à jour règle compte pour le seuil. Chaque application peut en décider autrement, dans l'onglet « Sécurité » de sa fiche.",
   'security.frozen':
     "Le réglage s'applique au moment où un déploiement est enfilé, et la configuration retenue est gelée avec lui : réactiver l'analyse ne relance pas ce qui est déjà en file. Chaque modification est tracée dans les logs d'activité.",
 
@@ -443,6 +446,9 @@ const en: Translated<typeof fr> = {
   'security.failOn.label': 'Blocking threshold',
   'security.failOn.help':
     'Severity from which a finding blocks going live. This threshold holds for the whole instance: the deployment screen no longer asks for it — a security policy renegotiated at every rollout is not one.',
+  'security.onlyFixable.label': 'Only block on fixable vulnerabilities',
+  'security.onlyFixable.help':
+    'A vulnerability without a fix is not repaired by redeploying: blocking on it stops the release without offering anything to do. When checked, only what an update fixes counts toward the threshold. Each application can decide otherwise, in the “Security” tab of its record.',
   'security.frozen':
     'The setting applies the moment a deployment is queued, and the configuration chosen is frozen with it: turning scanning back on does not replay what is already in the queue. Every change is traced in the activity log.',
 

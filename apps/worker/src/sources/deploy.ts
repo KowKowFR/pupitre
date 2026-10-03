@@ -3,10 +3,12 @@ import {
   deploymentJobDataSchema,
   scanConfigFromSettings,
   usableRuntimes,
+  withApplicationScanPolicy,
   type AppSpec,
   type SourceCommit,
 } from '@pupitre/core';
 import {
+  applicationScanPolicyOf,
   createDeploymentWithSteps,
   getAppSettingsValue,
   getApplication,
@@ -146,7 +148,11 @@ export async function deployFromSource(input: {
   await markSourceSynced(source.id, sha);
 
   const settings = await getAppSettingsValue();
-  const scanConfig = scanConfigFromSettings(settings.security);
+  // La politique de l'instance, puis le réglage propre à l'application.
+  const scanConfig = withApplicationScanPolicy(
+    scanConfigFromSettings(settings.security),
+    applicationScanPolicyOf(application),
+  );
   const result: SourceDeployResult = { created: [], skipped: [] };
   // L'adresse du dépôt chez sa forge : le déploiement la garde, et le lien
   // vers son commit en découle — même si la liaison disparaît ensuite.

@@ -135,6 +135,8 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   // Une fenêtre de maintenance se lit sur la vue d'ensemble et dans les
   // fiches des cibles et des sondes.
   maintenance_window: 'targets',
+  // Une faille acceptée se lit dans la fiche de l'application.
+  vulnerability_acceptance: 'applications',
   // Une page de statut se compose dans l'administration.
   status_page: 'settings',
   // Une annonce commente une panne de sonde ou une maintenance.

@@ -233,6 +233,13 @@ const securityFields = {
    * retrouve sans scan du tout. Informer par défaut, bloquer sur décision.
    */
   failOn: failOnSchema,
+  /**
+   * Ne bloquer que sur les failles **corrigeables**. C'est ce qui rend un seuil
+   * tenable sur des images publiques : la plupart de leurs CRITICAL n'ont pas
+   * de correctif, et rien ne sert de bloquer sur ce qu'aucune mise à jour ne
+   * règle. Une application peut en décider autrement.
+   */
+  onlyFixable: z.boolean(),
 };
 
 /** Lecture : les défauts comblent ce qu'une base ancienne ne porte pas. */
@@ -240,6 +247,7 @@ export const securitySettingsSchema = z.object({
   scanningEnabled: securityFields.scanningEnabled.default(true),
   disabledScanners: securityFields.disabledScanners.default([]),
   failOn: securityFields.failOn.default('NONE'),
+  onlyFixable: securityFields.onlyFixable.default(false),
 });
 
 /** Patch partiel : une clé absente reste absente. */
@@ -247,6 +255,7 @@ export const securitySettingsPatchSchema = z.object({
   scanningEnabled: securityFields.scanningEnabled.optional(),
   disabledScanners: securityFields.disabledScanners.optional(),
   failOn: securityFields.failOn.optional(),
+  onlyFixable: securityFields.onlyFixable.optional(),
 });
 
 export type SecuritySettings = z.infer<typeof securitySettingsSchema>;
@@ -255,6 +264,7 @@ export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
   scanningEnabled: true,
   disabledScanners: [],
   failOn: 'NONE',
+  onlyFixable: false,
 };
 
 /**
@@ -427,7 +437,7 @@ export function scanConfigFromSettings(security: SecuritySettings): ScanConfig {
     return { scanners: [], failOn: 'NONE', disabledBy: 'settings' };
   }
 
-  return { scanners: [...scanners], failOn: security.failOn };
+  return { scanners: [...scanners], failOn: security.failOn, onlyFixable: security.onlyFixable };
 }
 
 /**
@@ -452,12 +462,18 @@ export function applySecuritySettings(
     return { ...requested, scanners: [], failOn: 'NONE', disabledBy: 'settings' };
   }
 
+  // Une demande qui ne dit rien des corrigeables suit l'instance.
+  const withFixable: ScanConfig = {
+    ...requested,
+    onlyFixable: requested.onlyFixable ?? security.onlyFixable,
+  };
+
   const disabled = new Set<ScannerKey>(security.disabledScanners);
   const kept = requested.scanners.filter((scanner) => !disabled.has(scanner));
-  if (kept.length === requested.scanners.length) return requested;
+  if (kept.length === requested.scanners.length) return withFixable;
 
   return {
-    ...requested,
+    ...withFixable,
     scanners: kept,
     ...(kept.length === 0 ? { failOn: 'NONE' as const, disabledBy: 'settings' as const } : {}),
   };

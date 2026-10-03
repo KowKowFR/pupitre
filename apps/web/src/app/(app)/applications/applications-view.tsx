@@ -102,6 +102,7 @@ export function ApplicationsView({
   ai,
   backupOptions,
   canReadBackups,
+  canReadScans = false,
   record,
 }: {
   items: ApplicationRow[];
@@ -114,6 +115,7 @@ export function ApplicationsView({
   /** Le choix de sauvegarde au premier déploiement — `null` sans `backup:manage`. */
   backupOptions: { hasDestination: boolean } | null;
   canReadBackups: boolean;
+  canReadScans?: boolean;
   /** La fiche de l'application ouverte, rendue au serveur. */
   record: ApplicationRecordView | null;
 }) {
@@ -435,6 +437,7 @@ export function ApplicationsView({
         canDeploy={canDeploy}
         canDelete={canDelete}
         canReadBackups={canReadBackups}
+        canReadScans={canReadScans}
         autoRollback={autoRollback}
         onAutoRollbackChange={setAutoRollback}
         backupChoice={

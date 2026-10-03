@@ -102,6 +102,10 @@ const fr = {
     one: '{count} faille critique',
     other: '{count} failles critiques',
   },
+  'attention.scans.fixable': {
+    one: '(dont {count} corrigeable)',
+    other: '(dont {count} corrigeables)',
+  },
   'attention.scans.tail':
     'et {high} de gravité haute. Le seuil de blocage est sur « aucun » : le verdict ne bloque rien.',
 
@@ -318,6 +322,10 @@ const en: Translated<typeof fr> = {
   'attention.scans.critical': {
     one: '{count} critical finding',
     other: '{count} critical findings',
+  },
+  'attention.scans.fixable': {
+    one: '({count} of them fixable)',
+    other: '({count} of them fixable)',
   },
   'attention.scans.tail':
     'and {high} of high severity. The blocking threshold is set to “none”: the verdict blocks nothing.',
