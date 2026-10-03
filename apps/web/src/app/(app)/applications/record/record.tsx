@@ -1,4 +1,5 @@
-import { notFound } from 'next/navigation';
+import 'server-only';
+import type { ReactNode } from 'react';
 import {
   branchWebUrl,
   checkDockerfiles,
@@ -6,38 +7,29 @@ import {
   defaultWatchPaths,
   expectedDockerfiles,
   usableRuntimes,
+  type AppSettings,
 } from '@pupitre/core';
 import {
-  getApplication,
-  getAppSettings,
-  listSourceConnections,
-  sourceRepositoryUrl,
   listApplicationSecrets,
   listApplicationSources,
   listApplicationVersions,
   listImageUpdates,
   listPendingProposals,
   listSourceArchives,
+  listSourceConnections,
   listTargets,
+  sourceRepositoryUrl,
+  type Application,
 } from '@pupitre/db';
-import { z } from 'zod';
-import { PageHeader } from '@/components/page-header';
-import { LiveRefresh } from '@/components/realtime/live-refresh';
-import { Crumb } from '@/components/shell/breadcrumb';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getT } from '@/i18n/server';
 import { applications as messages } from '@/i18n/messages/applications';
 import { common } from '@/i18n/messages/common';
 import { buildSecretViews } from '@/lib/application-secrets';
 import { commitSourceOf } from '@/lib/commit';
 import { formatSettingsOf } from '@/lib/format';
-import { requirePagePermission } from '@/lib/page-auth';
+import type { AuthContext } from '@/lib/rbac';
 import { relativeTime } from '@/lib/relative-time';
 import { forgeView } from '@/lib/sources';
-import { ServiceChips } from '../applications-view';
-import { ingressOf, serviceRows } from '../rows';
-import { ServiceList } from '../service-list';
-import { ApplicationActions } from './application-actions';
 import { ApplicationArchive, type ArchiveView } from './application-archive';
 import { ApplicationBackups } from './application-backups';
 import { ApplicationDomains } from './application-domains';
@@ -46,26 +38,32 @@ import { ApplicationSecrets } from './application-secrets';
 import { ApplicationSources, type SourceView } from './application-sources';
 import { VersionTimeline, type VersionRow } from './version-timeline';
 
-export const dynamic = 'force-dynamic';
+/** Les onglets de la fiche que seul le serveur sait remplir. */
+export type ApplicationRecordTab =
+  'versions' | 'code' | 'domains' | 'secrets' | 'backups' | 'images';
 
-const paramsSchema = z.object({ id: z.string().uuid() });
+export type ApplicationRecord = {
+  /** Le slug de l'application : c'est la clé du tiroir. */
+  key: string;
+  tabs: Partial<Record<ApplicationRecordTab, ReactNode>>;
+  counts: Partial<Record<ApplicationRecordTab, number>>;
+};
 
 /**
- * La fiche d'une application : son AppSpec courante, ses secrets, le dépôt
- * qu'elle suit, et l'historique de ses versions — chacune rejouable telle
- * qu'elle est partie.
+ * La fiche d'une application, rendue au serveur pour son tiroir : l'historique
+ * des versions, le code (dépôt lié ou archive), les domaines, les secrets, les
+ * sauvegardes et les images. Ce que la ligne de la liste porte déjà — les
+ * services, où elle tourne, le déploiement rapide — vit dans l'onglet
+ * « Aperçu », côté client, et n'attend pas ce rendu.
  */
-export default async function ApplicationPage({ params }: { params: Promise<{ id: string }> }) {
-  const parsed = paramsSchema.safeParse(await params);
-  if (!parsed.success) notFound();
-
-  const auth = await requirePagePermission(`/applications/${parsed.data.id}`, 'application:read');
+export async function applicationRecord(
+  application: Application,
+  auth: AuthContext,
+  settings: AppSettings,
+): Promise<ApplicationRecord> {
   const t = await getT(messages);
   const tc = await getT(common);
-  const { settings } = await getAppSettings();
-
-  const application = await getApplication(parsed.data.id);
-  if (!application) notFound();
+  const format = formatSettingsOf(settings);
 
   const [versions, targets, storedSecrets, sources, proposals, connections, imageRows, archives] =
     await Promise.all([
@@ -160,7 +158,6 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const forges = connections.map(forgeView);
 
   const spec = application.appSpec;
-  const services = serviceRows(spec);
 
   // Le code téléversé : seulement sans dépôt lié, et quand il sert — un service
   // qui se construit, ou des archives déjà envoyées.
@@ -186,42 +183,62 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
     currentArchive?.status === 'ready' && currentArchive.report
       ? checkDockerfiles(spec, currentArchive.report.dockerfiles)
       : [];
+  const secrets = buildSecretViews(spec, storedSecrets);
 
-  return (
-    <>
-      <Crumb label={application.slug} />
-      <LiveRefresh topics={['applications']} />
-      <PageHeader
-        title={application.slug}
-        status={<span className="mono text-[15px] text-text-3">{spec.version}</span>}
-        description={application.description ?? undefined}
-        actions={
-          <ApplicationActions
-            application={{ id: application.id, slug: application.slug }}
-            canDeploy={auth.can('deployment:create')}
-            canDelete={auth.can('application:delete')}
+  return {
+    key: application.slug,
+    counts: { versions: rows.length, secrets: secrets.length },
+    tabs: {
+      versions: (
+        <>
+          <p className="t-sm text-text-2">
+            {rows.length === 0 ? t('versions.empty') : t('versions.count', { count: rows.length })}
+          </p>
+          <VersionTimeline
+            applicationId={application.id}
+            applicationSlug={application.slug}
+            versions={rows}
+            targets={deployTargets}
+            canRedeploy={auth.can('deployment:create')}
+            format={format}
           />
-        }
-      >
-        <div className="mt-1">
-          <ServiceChips services={services} />
-        </div>
-      </PageHeader>
-
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('detail.spec.title')}</CardTitle>
-            <CardDescription>{t('detail.spec.description')}</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2.5">
-            <ServiceList application={{ services, ingress: ingressOf(spec) }} />
-          </CardContent>
-        </Card>
-
+        </>
+      ),
+      code: (
+        <>
+          {sources.length === 0 && (builds || archives.length > 0) ? (
+            <ApplicationArchive
+              applicationId={application.id}
+              archives={archiveViews}
+              checks={archiveChecks}
+              builds={builds}
+              canEdit={auth.can('application:update')}
+            />
+          ) : null}
+          <ApplicationSources
+            applicationId={application.id}
+            sources={sourceViews}
+            targets={deployTargets}
+            forges={forges.map((forge) => ({
+              provider: forge.provider,
+              installUrl: forge.installUrl,
+            }))}
+            canEdit={auth.can('application:update')}
+            canDeploy={auth.can('deployment:create')}
+          />
+        </>
+      ),
+      domains: (
+        <ApplicationDomains
+          applicationId={application.id}
+          canEdit={auth.can('deployment:create')}
+          format={format}
+        />
+      ),
+      secrets: (
         <ApplicationSecrets
           applicationId={application.id}
-          secrets={buildSecretViews(spec, storedSecrets)}
+          secrets={secrets}
           canEdit={auth.can('application:update')}
           deployedAt={
             versions
@@ -231,84 +248,44 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
               .at(-1) ?? null
           }
         />
-      </div>
-
-      <ApplicationImages
-        applicationId={application.id}
-        applicationSlug={application.slug}
-        rows={imageRows.map((row) => ({
-          targetId: row.targetId,
-          targetName: row.targetName,
-          deploymentId: row.deploymentId,
-          service: row.service,
-          image: row.image,
-          status: row.status,
-          runningDigest: row.runningDigest,
-          latestDigest: row.latestDigest,
-          newerTag: row.newerTag,
-          nextMajorTag: row.nextMajorTag,
-          error: row.error,
-        }))}
-        checkable={checkableImages(spec).length}
-        checkedAt={lastImageCheck?.toISOString() ?? null}
-        checkedAgo={relativeTime(lastImageCheck, tc)}
-        canDeploy={auth.can('deployment:create')}
-      />
-
-      <ApplicationDomains
-        applicationId={application.id}
-        canEdit={auth.can('deployment:create')}
-        format={formatSettingsOf(settings)}
-      />
-
-      {auth.can('backup:read') ? (
-        <ApplicationBackups
+      ),
+      ...(auth.can('backup:read')
+        ? {
+            backups: (
+              <ApplicationBackups
+                applicationId={application.id}
+                applicationSlug={application.slug}
+                canManage={auth.can('backup:manage')}
+                canRestore={auth.can('backup:restore')}
+                canConfigure={auth.can('settings:manage')}
+                format={format}
+              />
+            ),
+          }
+        : {}),
+      images: (
+        <ApplicationImages
           applicationId={application.id}
           applicationSlug={application.slug}
-          canManage={auth.can('backup:manage')}
-          canRestore={auth.can('backup:restore')}
-          canConfigure={auth.can('settings:manage')}
-          format={formatSettingsOf(settings)}
+          rows={imageRows.map((row) => ({
+            targetId: row.targetId,
+            targetName: row.targetName,
+            deploymentId: row.deploymentId,
+            service: row.service,
+            image: row.image,
+            status: row.status,
+            runningDigest: row.runningDigest,
+            latestDigest: row.latestDigest,
+            newerTag: row.newerTag,
+            nextMajorTag: row.nextMajorTag,
+            error: row.error,
+          }))}
+          checkable={checkableImages(spec).length}
+          checkedAt={lastImageCheck?.toISOString() ?? null}
+          checkedAgo={relativeTime(lastImageCheck, tc)}
+          canDeploy={auth.can('deployment:create')}
         />
-      ) : null}
-
-      {sources.length === 0 && (builds || archives.length > 0) ? (
-        <ApplicationArchive
-          applicationId={application.id}
-          archives={archiveViews}
-          checks={archiveChecks}
-          builds={builds}
-          canEdit={auth.can('application:update')}
-        />
-      ) : null}
-
-      <ApplicationSources
-        applicationId={application.id}
-        sources={sourceViews}
-        targets={deployTargets}
-        forges={forges.map((forge) => ({ provider: forge.provider, installUrl: forge.installUrl }))}
-        canEdit={auth.can('application:update')}
-        canDeploy={auth.can('deployment:create')}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('versions.title')}</CardTitle>
-          <CardDescription>
-            {rows.length === 0 ? t('versions.empty') : t('versions.count', { count: rows.length })}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <VersionTimeline
-            applicationId={application.id}
-            applicationSlug={application.slug}
-            versions={rows}
-            targets={deployTargets}
-            canRedeploy={auth.can('deployment:create')}
-            format={formatSettingsOf(settings)}
-          />
-        </CardContent>
-      </Card>
-    </>
-  );
+      ),
+    },
+  };
 }

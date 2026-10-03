@@ -44,6 +44,7 @@ export function Drawer({
   open,
   onOpenChange,
   wide = false,
+  xwide = false,
   onPrevious,
   onNext,
   recordHref,
@@ -53,6 +54,8 @@ export function Drawer({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wide?: boolean;
+  /** La fiche d'un objet, avec ses onglets : la largeur d'une page de lecture. */
+  xwide?: boolean;
   /** Nom accessible, quand le titre visible ne suffit pas. */
   label?: string;
   children: React.ReactNode;
@@ -95,7 +98,11 @@ export function Drawer({
           aria-label={label}
           aria-describedby={undefined}
           tabIndex={-1}
-          className={cn('drawer outline-none focus-visible:shadow-lg', wide && 'is-wide')}
+          className={cn(
+            'drawer outline-none focus-visible:shadow-lg',
+            wide && 'is-wide',
+            xwide && 'is-xwide',
+          )}
           onKeyDown={onKeyDown}
           // Le focus va au panneau, pas à son premier bouton : sinon l'info-bulle
           // de « Précédent » s'ouvrirait à chaque aperçu, et un lecteur d'écran

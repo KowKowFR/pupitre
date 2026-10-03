@@ -116,7 +116,7 @@ export function collectAttention({
           ? t('attention.target.unreachable', { host: target.host })
           : t('attention.target.degraded', { host: target.host }),
       severity: target.status === 'unreachable' ? 'danger' : 'warn',
-      href: `/targets/${target.id}`,
+      href: `/targets?target=${target.id}`,
       action: t('attention.action.diagnose'),
     });
   }
@@ -166,7 +166,7 @@ export function collectAttention({
           ? t('attention.monitor.unreachable')
           : t('attention.monitor.unhealthy'),
       severity: monitor.status === 'unreachable' ? 'danger' : 'warn',
-      href: `/monitors/${monitor.id}`,
+      href: `/monitors?monitor=${monitor.id}`,
       action: t('attention.action.monitor'),
     });
   }

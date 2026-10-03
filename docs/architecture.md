@@ -368,6 +368,30 @@ deviendrait un second canal de messages. Texte brut, jamais de HTML. Un
 message effacé garde sa ligne, vidée, et perd ses réactions ; effacer celui
 d'un autre demande `user:manage` et passe par `logAudit()`.
 
+## Les fiches, dans des tiroirs
+
+Une application, une cible, une sonde ne s'ouvrent pas dans une page à part :
+leur fiche est un **tiroir à onglets** par-dessus leur liste
+(`components/record-drawer.tsx`). On ouvre, on lit, on agit, on referme, et la
+liste n'a pas bougé.
+
+- **La sélection vit dans l'URL** (`?app=blog`, `?target=prod-1`,
+  `?monitor=<id>`), avec l'onglet (`&tab=versions`) et le mode modification
+  (`&edit=1`) : une fiche se partage et se recharge au même endroit ; J/K
+  passent à la suivante sans changer d'onglet.
+- **Ce que la ligne porte s'affiche tout de suite** — l'onglet « Aperçu ». Le
+  reste (versions, secrets, charges, mesures…) est rendu **au serveur** par la
+  page de la liste, qui lit `?app=` et passe chaque onglet en `ReactNode` au
+  tiroir. C'est pourquoi on l'ouvre par une navigation (`router.push`), pas par
+  un `pushState` : la page se relit, avec la fiche. Un onglet n'est monté qu'à
+  sa première ouverture (une liste de charges interroge la machine), puis reste
+  monté, caché.
+- **Modifier** remplace la fiche par son formulaire, dans le même tiroir.
+- Les anciennes adresses (`/applications/<id>`, `/targets/<id>`,
+  `/targets/<id>/edit`, `/monitors/<id>`) redirigent vers la liste, tiroir
+  ouvert (`next.config.ts`) : les liens des e-mails et du chat continuent de
+  mener quelque part.
+
 ## Ports : la base tranche, la cible vérifie
 
 L'anti-collision **entre applications du panel** est la contrainte unique

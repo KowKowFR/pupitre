@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
 import {
   CircleAlert,
   Ellipsis,
   Pause,
+  Pencil,
   Play,
   Plus,
   Radar,
@@ -15,20 +15,14 @@ import {
 } from 'lucide-react';
 import { formatCadence, parseMonitorPause, type MonitorType, type Translate } from '@pupitre/core';
 import { EmptyState } from '@/components/empty-state';
+import { RecordDrawer, useRecordParam, useRecordSelection } from '@/components/record-drawer';
 import { PageHeader } from '@/components/page-header';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { FieldValue } from '@/components/ui/data';
-import {
-  Drawer,
-  DrawerBody,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerSection,
-  useDrawerSelection,
-} from '@/components/ui/drawer';
+import { Drawer, DrawerFooter, DrawerHeader, DrawerSection } from '@/components/ui/drawer';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +40,7 @@ import { formatSince } from '@/app/(app)/apps/apps-table';
 import { formatNumber, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { MonitorForm, type AdoptableApp, type TypeOption } from './monitor-form';
+import type { MonitorRecord } from './record/record';
 import { LatencySparkline, OutcomeStrip, StripAxis } from './monitor-charts';
 
 /**
@@ -113,6 +108,7 @@ export function MonitorsPanel({
   canManage,
   retentionDays,
   format,
+  record,
 }: {
   monitors: MonitorRow[];
   types: TypeOption[];
@@ -122,6 +118,8 @@ export function MonitorsPanel({
   /** Locale et fuseau de l'instance, pour les figures. Par props, jamais par
    *  contexte : la frise est rendue sur le serveur avant de l'être ici. */
   format: FormatSettings;
+  /** La fiche de la sonde ouverte, rendue au serveur. */
+  record: MonitorRecord | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -131,11 +129,12 @@ export function MonitorsPanel({
   const [creating, setCreating] = React.useState<CreateSeed | null>(null);
   const [deleting, setDeleting] = React.useState<MonitorRow | null>(null);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
-  const drawer = useDrawerSelection(
+  const drawer = useRecordSelection(
     'monitor',
     monitors.map((monitor) => monitor.id),
   );
   const current = monitors.find((monitor) => monitor.id === drawer.selected) ?? null;
+  const [editParam, setEditParam] = useRecordParam('edit');
 
   async function errorOf(response: Response): Promise<string> {
     const body = (await response.json().catch(() => ({}))) as ApiError;
@@ -274,7 +273,7 @@ export function MonitorsPanel({
               format={format}
               busy={busy === monitor.id}
               selected={drawer.selected === monitor.id}
-              onOpen={() => drawer.open(monitor.id)}
+              onOpen={(tab) => drawer.open(monitor.id, tab ? { tab } : undefined)}
               onToggle={() => void toggle(monitor)}
               onProbe={() => void probeNow(monitor)}
               onRemove={() => {
@@ -289,7 +288,15 @@ export function MonitorsPanel({
 
       <MonitorDrawer
         monitor={current}
-        onOpenChange={(open) => (open ? undefined : drawer.close())}
+        record={drawer.loading || record?.key !== current?.id ? null : record}
+        editing={editParam === '1'}
+        onEdit={(editing) => setEditParam(editing ? '1' : null)}
+        onEdited={(name) => {
+          setEditParam(null);
+          toast({ title: t('toast.updated', { name }), tone: 'ok' });
+          router.refresh();
+        }}
+        onClose={drawer.close}
         onPrevious={drawer.onPrevious}
         onNext={drawer.onNext}
         canManage={canManage}
@@ -373,7 +380,8 @@ function MonitorCard({
   format: FormatSettings;
   busy: boolean;
   selected: boolean;
-  onOpen: () => void;
+  /** Ouvre la fiche, sur un onglet précis si on le donne. */
+  onOpen: (tab?: string) => void;
   onToggle: () => void;
   onProbe: () => void;
   onRemove: () => void;
@@ -404,7 +412,7 @@ function MonitorCard({
               type="button"
               className="truncate text-left text-[14px] font-semibold text-text hover:underline"
               aria-label={t('card.open', { name: monitor.name })}
-              onClick={onOpen}
+              onClick={() => onOpen()}
             >
               {monitor.name}
             </button>
@@ -484,8 +492,8 @@ function MonitorCard({
                   {monitor.enabled ? <Pause aria-hidden /> : <Play aria-hidden />}
                   {monitor.enabled ? t('card.action.pause') : t('card.action.resume')}
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={`/monitors/${monitor.id}`}>{t('card.action.detail')}</Link>
+                <DropdownMenuItem onSelect={() => onOpen('measures')}>
+                  {t('card.action.detail')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem destructive onSelect={onRemove}>
@@ -506,9 +514,9 @@ function MonitorCard({
               {t('card.incidentOpen', { since: formatSince(monitor.openIncidentSince, tSince) })}
             </strong>
           </span>
-          <Link href={`/monitors/${monitor.id}`} className="link t-cap ml-auto">
+          <button type="button" className="link t-cap ml-auto" onClick={() => onOpen('measures')}>
             {t('card.incidentTimeline')}
-          </Link>
+          </button>
         </div>
       ) : null}
 
@@ -525,12 +533,18 @@ function MonitorCard({
 }
 
 /**
- * L'aperçu d'une sonde : sa cible et sa règle, ses derniers passages, son
- * dernier relevé. La fiche garde la courbe, les incidents et la table.
+ * La fiche d'une sonde, dans un tiroir. L'aperçu se lit sur la carte — sa
+ * cible et sa règle, ses derniers passages, son dernier relevé ; la courbe,
+ * les incidents et la capture de référence arrivent du serveur. « Modifier »
+ * remplace la fiche par le formulaire, dans le même tiroir.
  */
 function MonitorDrawer({
   monitor,
-  onOpenChange,
+  record,
+  editing,
+  onEdit,
+  onEdited,
+  onClose,
   onPrevious,
   onNext,
   canManage,
@@ -540,7 +554,12 @@ function MonitorDrawer({
   onProbe,
 }: {
   monitor: MonitorRow | null;
-  onOpenChange: (open: boolean) => void;
+  /** La fiche rendue au serveur, si c'est bien celle de `monitor`. */
+  record: MonitorRecord | null;
+  editing: boolean;
+  onEdit: (editing: boolean) => void;
+  onEdited: (name: string) => void;
+  onClose: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
   canManage: boolean;
@@ -554,20 +573,91 @@ function MonitorDrawer({
   const tSince = useT(servers);
   const language = useLanguage();
 
+  const overview = monitor ? (
+    <>
+      <DrawerSection title={t('drawer.target')}>
+        {monitor.targetLink ? (
+          <a
+            href={monitor.targetLink}
+            target="_blank"
+            rel="noreferrer"
+            className="link mono t-sm break-all"
+          >
+            {monitor.target}
+          </a>
+        ) : (
+          <span className="mono t-sm break-all">{monitor.target}</span>
+        )}
+        <span className="t-cap text-text-3">
+          {t('drawer.summary', {
+            typeLabel: monitor.typeLabel,
+            cadence: formatCadence(monitor.intervalSeconds, language),
+            failures: t('detail.failures', { count: monitor.failureThreshold }),
+            recovery: monitor.recoveryThreshold,
+          })}
+        </span>
+      </DrawerSection>
+
+      {monitor.openIncidentSince ? (
+        <Alert variant="destructive">
+          {t('card.incidentOpen', { since: formatSince(monitor.openIncidentSince, tSince) })}
+        </Alert>
+      ) : null}
+
+      <DrawerSection title={t('drawer.recent')}>
+        {monitor.recent.length === 0 ? (
+          <p className="t-sm text-text-3">{t('card.neverRan')}</p>
+        ) : (
+          <>
+            <OutcomeStrip points={monitor.recent} format={format} height={22} />
+            <StripAxis points={monitor.recent} format={format} ticks={3} />
+          </>
+        )}
+      </DrawerSection>
+
+      <DrawerSection title={t('drawer.last')}>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+          <FieldValue label={t('drawer.latency')}>
+            <span className="num">
+              {monitor.lastLatencyMs === null ? tc('none') : `${monitor.lastLatencyMs} ms`}
+            </span>
+          </FieldValue>
+          <FieldValue label={t('drawer.detail')}>
+            <span className="mono break-all">{monitor.lastDetail ?? tc('none')}</span>
+          </FieldValue>
+        </div>
+      </DrawerSection>
+    </>
+  ) : null;
+
   return (
-    <Drawer
+    <RecordDrawer
       open={monitor !== null}
-      onOpenChange={onOpenChange}
+      recordKey={monitor?.id ?? null}
+      onClose={onClose}
       onPrevious={onPrevious}
       onNext={onNext}
-      recordHref={monitor ? `/monitors/${monitor.id}` : undefined}
-    >
-      {monitor ? (
-        <>
+      label={monitor?.name}
+      tabsLabel={t('record.tabs')}
+      tabs={[
+        { key: 'overview', label: t('record.tab.overview'), content: overview },
+        {
+          key: 'measures',
+          label: t('record.tab.measures'),
+          content: record ? (record.tabs.measures ?? null) : undefined,
+        },
+        {
+          key: 'reference',
+          label: t('record.tab.reference'),
+          content: record ? (record.tabs.reference ?? null) : undefined,
+        },
+      ]}
+      header={
+        monitor ? (
           <DrawerHeader
             icon={<Radar />}
             kind={t('drawer.kind')}
-            route={`/monitors/${monitor.id}`}
+            route={monitor.typeLabel}
             title={monitor.name}
             state={
               <>
@@ -581,6 +671,7 @@ function MonitorDrawer({
                 >
                   {t(`outcome.${monitor.status}`)}
                 </State>
+                {!monitor.enabled ? <Badge>{t('card.badge.paused')}</Badge> : null}
                 <span className="ml-auto flex gap-1.5">
                   <Badge title={monitor.uptime24h.label}>
                     {t('card.window.day')} {percentOf(monitor.uptime24h.ratio, format)}
@@ -592,62 +683,10 @@ function MonitorDrawer({
               </>
             }
           />
-          <DrawerBody>
-            <DrawerSection title={t('drawer.target')}>
-              {monitor.targetLink ? (
-                <a
-                  href={monitor.targetLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="link mono t-sm break-all"
-                >
-                  {monitor.target}
-                </a>
-              ) : (
-                <span className="mono t-sm break-all">{monitor.target}</span>
-              )}
-              <span className="t-cap text-text-3">
-                {t('drawer.summary', {
-                  typeLabel: monitor.typeLabel,
-                  cadence: formatCadence(monitor.intervalSeconds, language),
-                  failures: t('detail.failures', { count: monitor.failureThreshold }),
-                  recovery: monitor.recoveryThreshold,
-                })}
-              </span>
-            </DrawerSection>
-
-            <DrawerSection title={t('drawer.recent')}>
-              {monitor.recent.length === 0 ? (
-                <p className="t-sm text-text-3">{t('card.neverRan')}</p>
-              ) : (
-                <>
-                  <OutcomeStrip points={monitor.recent} format={format} height={22} />
-                  <StripAxis points={monitor.recent} format={format} ticks={3} />
-                </>
-              )}
-            </DrawerSection>
-
-            <DrawerSection title={t('drawer.last')}>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                <FieldValue label={t('drawer.latency')}>
-                  <span className="num">
-                    {monitor.lastLatencyMs === null ? tc('none') : `${monitor.lastLatencyMs} ms`}
-                  </span>
-                </FieldValue>
-                <FieldValue label={t('drawer.detail')}>
-                  <span className="mono break-all">{monitor.lastDetail ?? tc('none')}</span>
-                </FieldValue>
-              </div>
-            </DrawerSection>
-
-            {monitor.openIncidentSince ? (
-              <Alert variant="destructive">
-                {t('card.incidentOpen', {
-                  since: formatSince(monitor.openIncidentSince, tSince),
-                })}
-              </Alert>
-            ) : null}
-          </DrawerBody>
+        ) : null
+      }
+      footer={() =>
+        monitor ? (
           <DrawerFooter
             end={
               canManage ? (
@@ -657,19 +696,33 @@ function MonitorDrawer({
               ) : null
             }
           >
-            <Button asChild>
-              <Link href={`/monitors/${monitor.id}`}>{t('drawer.open')}</Link>
-            </Button>
             {canManage ? (
-              <Button variant="secondary" loading={busy} onClick={onProbe}>
+              <Button loading={busy} onClick={onProbe}>
                 {busy ? null : <Play aria-hidden />}
                 {t('card.action.probe')}
               </Button>
             ) : null}
+            {record?.edit ? (
+              <Button variant="secondary" onClick={() => onEdit(true)}>
+                <Pencil aria-hidden />
+                {t('edit.action')}
+              </Button>
+            ) : null}
           </DrawerFooter>
-        </>
-      ) : null}
-    </Drawer>
+        ) : null
+      }
+      override={
+        editing && record?.edit ? (
+          <MonitorForm
+            mode="edit"
+            monitor={record.edit.monitor}
+            types={record.edit.types}
+            onDone={onEdited}
+            onCancel={() => onEdit(false)}
+          />
+        ) : undefined
+      }
+    />
   );
 }
 

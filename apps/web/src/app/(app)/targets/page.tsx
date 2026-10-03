@@ -13,6 +13,7 @@ import { common } from '@/i18n/messages/common';
 import { formatDateTimeWith, formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { relativeTime } from '@/lib/relative-time';
+import { targetRecord } from './record/record';
 import { TargetsView, type TargetRow } from './targets-view';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +29,9 @@ function readFilters(params: Record<string, string | string[] | undefined>) {
 }
 
 /**
- * Les cibles : la liste, et l'aperçu de chacune dans un drawer.
+ * Les cibles : la liste, et la fiche de chacune dans un tiroir
+ * (`?target=prod-1`) — son aperçu, puis ses charges, son reverse proxy, ses
+ * ports, son preflight et sa configuration, rendus ici quand il est ouvert.
  *
  * Tout ce que le drawer affiche est lu ici, en une fois : un parc compte des
  * dizaines de machines, pas des milliers, et un aperçu qui s'ouvre sans
@@ -114,6 +117,15 @@ export default async function TargetsPage({
     };
   });
 
+  // La fiche ouverte : par son nom, ou par son identifiant (un lien d'avant
+  // les tiroirs, `/targets/<uuid>`, arrive ici ainsi).
+  const wanted = params.target;
+  const selected =
+    typeof wanted === 'string'
+      ? (targets.find((target) => target.name === wanted || target.id === wanted) ?? null)
+      : null;
+  const record = selected ? await targetRecord(selected, auth, format) : null;
+
   return (
     <>
       <LiveRefresh topics={['targets', 'deployments']} />
@@ -132,6 +144,8 @@ export default async function TargetsPage({
         initialQuery={filters.query}
         initialLabels={filters.labels}
         initialStatus={filters.status}
+        canReadWorkloads={auth.can('workload:read')}
+        record={record}
       />
     </>
   );

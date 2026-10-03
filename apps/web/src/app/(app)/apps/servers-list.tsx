@@ -180,7 +180,7 @@ function ServerCard({
             ) : null}
             {server.registered && canReadTargets ? (
               <Button asChild size="sm" variant="secondary">
-                <Link href={`/targets/${server.id}`}>{t('server.details')}</Link>
+                <Link href={`/targets?target=${server.id}`}>{t('server.details')}</Link>
               </Button>
             ) : null}
           </span>

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Boxes, Ellipsis, LayoutGrid, Plus, Rocket, Trash2 } from 'lucide-react';
 import type { ProxyCapabilities } from '@pupitre/core';
 import { AppSpecHelp } from '@/components/appspec-help';
+import { useRecordSelection } from '@/components/record-drawer';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { DomainsField, toRouteInputs, type DomainDraft } from '@/components/proxy/domains-field';
@@ -40,7 +41,7 @@ import {
   firstDeployPayload,
   type FirstDeployBackupChoice,
 } from '@/components/backups/first-deploy-backup';
-import { ApplicationDrawer } from './application-drawer';
+import { ApplicationDrawer, type ApplicationRecordView } from './application-drawer';
 import { NewApplicationDrawer } from './new/new-application-drawer';
 import { DeleteApplicationDialog } from './delete-dialog';
 
@@ -88,9 +89,9 @@ export type DeployTarget = {
 type ApiError = { error?: { message?: string } };
 
 /**
- * Le catalogue. Une ligne par application ; un clic ouvre son aperçu, où l'on
- * relit ce qui va tourner et d'où l'on déploie. La fiche reste le lieu de
- * l'historique des versions et des secrets.
+ * Le catalogue. Une ligne par application ; un clic ouvre sa fiche dans un
+ * tiroir : ce qui va tourner et le déploiement rapide d'abord, puis ses
+ * versions, son code, ses domaines, ses secrets, ses sauvegardes, ses images.
  */
 export function ApplicationsView({
   items,
@@ -100,6 +101,8 @@ export function ApplicationsView({
   canDelete,
   ai,
   backupOptions,
+  canReadBackups,
+  record,
 }: {
   items: ApplicationRow[];
   targets: DeployTarget[];
@@ -110,6 +113,9 @@ export function ApplicationsView({
   ai: NewApplicationAi | null;
   /** Le choix de sauvegarde au premier déploiement — `null` sans `backup:manage`. */
   backupOptions: { hasDestination: boolean } | null;
+  canReadBackups: boolean;
+  /** La fiche de l'application ouverte, rendue au serveur. */
+  record: ApplicationRecordView | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -128,9 +134,11 @@ export function ApplicationsView({
   const [deleting, setDeleting] = useState<ApplicationRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const drawer = useDrawerSelection(
+  const drawer = useRecordSelection(
     'app',
     items.map((item) => item.slug),
+    // Un ancien lien `/applications/<uuid>` arrive avec l'identifiant.
+    (value) => items.find((item) => item.slug === value || item.id === value)?.slug ?? null,
   );
   const current = items.find((item) => item.slug === drawer.selected) ?? null;
   // La palette arrive ici avec `?app=…&deploy=1` : l'aperçu s'ouvre sur le
@@ -143,19 +151,19 @@ export function ApplicationsView({
 
   /** L'application enregistrée : le tiroir de création se ferme, son aperçu s'ouvre. */
   function saved(application: { id: string; name: string }) {
-    const withoutAdd = hrefWithSelection(pathname, window.location.search, 'add', null);
-    const query = withoutAdd.includes('?') ? withoutAdd.slice(withoutAdd.indexOf('?')) : '';
     window.history.replaceState(
       null,
       '',
-      application.name ? hrefWithSelection(pathname, query, 'app', application.name) : withoutAdd,
+      hrefWithSelection(pathname, window.location.search, 'add', null),
     );
+    // La fiche se lit au serveur : on l'ouvre par une navigation, qui relit
+    // aussi la liste avec la nouvelle application.
+    drawer.open(application.id);
     toast({
       title: t('toast.created', { name: application.name }),
       description: t('toast.created.detail'),
       tone: 'ok',
     });
-    router.refresh();
   }
 
   /**
@@ -228,7 +236,7 @@ export function ApplicationsView({
       tone: 'accent',
       action: { label: t('toast.follow'), href: `/deployments/${id}` },
     });
-    drawer.close();
+    // La fiche reste ouverte : sa nouvelle version y apparaît.
     router.refresh();
   }
 
@@ -379,8 +387,8 @@ export function ApplicationsView({
                           </IconButton>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link href={`/applications/${application.id}`}>{t('row.open')}</Link>
+                          <DropdownMenuItem onSelect={() => drawer.open(application.slug)}>
+                            {t('row.open')}
                           </DropdownMenuItem>
                           {canDelete ? (
                             <>
@@ -419,12 +427,14 @@ export function ApplicationsView({
 
       <ApplicationDrawer
         application={current}
-        onOpenChange={(open) => (open ? undefined : drawer.close())}
+        record={drawer.loading ? null : record}
+        onClose={drawer.close}
         onPrevious={drawer.onPrevious}
         onNext={drawer.onNext}
         targets={targets}
         canDeploy={canDeploy}
         canDelete={canDelete}
+        canReadBackups={canReadBackups}
         autoRollback={autoRollback}
         onAutoRollbackChange={setAutoRollback}
         backupChoice={

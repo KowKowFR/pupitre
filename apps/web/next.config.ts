@@ -85,6 +85,29 @@ const nextConfig: NextConfig = {
       // onglet du premier groupe. Un 307 franc, avant tout rendu — la page
       // racine le fait aussi, mais en cours de flux, donc côté navigateur.
       { source: '/admin/settings', destination: '/admin/settings/identite', permanent: false },
+      // Les fiches vivent dans des tiroirs, par-dessus leur liste. Les anciennes
+      // adresses — liens d'e-mails, de notifications, du chat — y mènent ; les
+      // paramètres de requête suivent (`?tab=proxy`).
+      {
+        source: '/applications/:id([0-9a-f-]{36})',
+        destination: '/applications?app=:id',
+        permanent: false,
+      },
+      {
+        source: '/targets/:id([0-9a-f-]{36})/edit',
+        destination: '/targets?target=:id&edit=1',
+        permanent: false,
+      },
+      {
+        source: '/targets/:id([0-9a-f-]{36})',
+        destination: '/targets?target=:id',
+        permanent: false,
+      },
+      {
+        source: '/monitors/:id([0-9a-f-]{36})',
+        destination: '/monitors?monitor=:id',
+        permanent: false,
+      },
     ]);
   },
 };

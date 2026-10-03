@@ -1,11 +1,11 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { Ellipsis, Plus, RefreshCw, Search, Server } from 'lucide-react';
 import type { RuntimesAvailable, TargetHealth } from '@pupitre/core';
 import { EmptyState } from '@/components/empty-state';
+import { useRecordParam, useRecordSelection } from '@/components/record-drawer';
 import { PageHeader } from '@/components/page-header';
 import { MicroSpark } from '@/components/spark';
 import { TargetHelp } from '@/components/target-help';
@@ -42,7 +42,7 @@ import { toast } from '@/lib/toast';
 import { AddTargetDrawer } from './add-target-drawer';
 import { STATUS_TONE } from './status';
 import type { CreatedTarget } from './target-form';
-import { TargetDrawer } from './target-drawer';
+import { TargetDrawer, type TargetRecordView } from './target-drawer';
 import { usePreflight } from './use-preflight';
 
 export type TargetRow = {
@@ -115,6 +115,8 @@ export function TargetsView({
   initialQuery,
   initialLabels,
   initialStatus,
+  canReadWorkloads,
+  record,
 }: {
   targets: TargetRow[];
   canCreate: boolean;
@@ -126,6 +128,9 @@ export function TargetsView({
   initialQuery: string;
   initialLabels: string[];
   initialStatus: string;
+  canReadWorkloads: boolean;
+  /** La fiche de la cible ouverte, rendue au serveur. */
+  record: TargetRecordView | null;
 }) {
   const router = useRouter();
   const t = useT(messages);
@@ -221,11 +226,14 @@ export function TargetsView({
   }, [targets, query, selectedByKey]);
 
   const visible = status ? matching.filter((target) => target.status === status) : matching;
-  const drawer = useDrawerSelection(
+  const drawer = useRecordSelection(
     'target',
     visible.map((target) => target.name),
+    // Un ancien lien `/targets/<uuid>` arrive avec l'identifiant.
+    (value) => targets.find((target) => target.name === value || target.id === value)?.name ?? null,
   );
   const current = targets.find((target) => target.name === drawer.selected) ?? null;
+  const [editParam, setEditParam] = useRecordParam('edit');
   // « Ajouter une cible » vit dans l'URL comme l'aperçu : `?add=new` l'ouvre
   // depuis un lien, la palette ou l'ancienne adresse `/targets/new`.
   const adding = useDrawerSelection('add');
@@ -233,19 +241,19 @@ export function TargetsView({
 
   /** La cible créée : le tiroir d'ajout se ferme, son aperçu s'ouvre, prêt à tester. */
   function created(target: CreatedTarget) {
-    const withoutAdd = hrefWithSelection(pathname, window.location.search, 'add', null);
-    const search = withoutAdd.includes('?') ? withoutAdd.slice(withoutAdd.indexOf('?')) : '';
     window.history.replaceState(
       null,
       '',
-      hrefWithSelection(pathname, search, 'target', target.name),
+      hrefWithSelection(pathname, window.location.search, 'add', null),
     );
+    // La fiche se lit au serveur : on l'ouvre par une navigation, qui relit
+    // aussi la liste avec la nouvelle cible.
+    drawer.open(target.name);
     toast({
       title: t('toast.created', { name: target.name }),
       description: t('toast.created.detail'),
       tone: 'ok',
     });
-    router.refresh();
   }
 
   function toggleLabel(pair: string) {
@@ -516,12 +524,14 @@ export function TargetsView({
                                 </IconButton>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link href={`/targets/${target.id}`}>{t('row.open')}</Link>
+                                <DropdownMenuItem onSelect={() => drawer.open(target.name)}>
+                                  {t('row.open')}
                                 </DropdownMenuItem>
                                 {canEdit ? (
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/targets/${target.id}/edit`}>{tc('edit')}</Link>
+                                  <DropdownMenuItem
+                                    onSelect={() => drawer.open(target.name, { edit: '1' })}
+                                  >
+                                    {tc('edit')}
                                   </DropdownMenuItem>
                                 ) : null}
                               </DropdownMenuContent>
@@ -555,14 +565,24 @@ export function TargetsView({
 
       <TargetDrawer
         target={current}
-        open={current !== null}
-        onOpenChange={(next) => (next ? undefined : drawer.close())}
+        record={drawer.loading ? null : record}
+        editing={editParam === '1'}
+        onEdit={(editing) => setEditParam(editing ? '1' : null)}
+        onEdited={(saved) => {
+          toast({ title: t('toast.updated', { name: saved.name }), tone: 'ok' });
+          // Un nom changé change la clé du tiroir : on rouvre la fiche sous
+          // son nouveau nom, relue par le serveur.
+          drawer.open(saved.name);
+          router.refresh();
+        }}
+        onClose={drawer.close}
         onPrevious={drawer.onPrevious}
         onNext={drawer.onNext}
         limits={limits}
         canRunPreflight={canRunPreflight}
         canEdit={canEdit}
         canDelete={canDelete}
+        canReadWorkloads={canReadWorkloads}
         testing={current ? isRunning(current.id) : false}
         onTest={() => (current ? test(current) : undefined)}
         onDelete={() => {

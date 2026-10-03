@@ -888,7 +888,7 @@ async function FleetPanel({
               <Led tone={TARGET_TONE[target.status]} label={target.status} />
               <span className="flex w-[150px] min-w-0 flex-col">
                 <Link
-                  href={`/targets/${target.id}`}
+                  href={`/targets?target=${target.id}`}
                   className="mono truncate text-[12.5px] font-semibold text-text hover:underline"
                 >
                   {target.name}

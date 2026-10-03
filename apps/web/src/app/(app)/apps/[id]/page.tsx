@@ -323,7 +323,10 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
               <CardHeader
                 actions={
                   canReadTargets ? (
-                    <Link href={`/targets/${deployment.targetId}`} className="link mono t-cap">
+                    <Link
+                      href={`/targets?target=${deployment.targetId}`}
+                      className="link mono t-cap"
+                    >
                       {deployment.targetName}
                     </Link>
                   ) : (
@@ -385,7 +388,7 @@ export default async function AppPage({ params }: { params: Promise<{ id: string
               <CardHeader
                 actions={
                   monitor ? (
-                    <Link href={`/monitors/${monitor.id}`} className="link t-cap">
+                    <Link href={`/monitors?monitor=${monitor.id}`} className="link t-cap">
                       {monitor.name}
                     </Link>
                   ) : null

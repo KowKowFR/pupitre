@@ -772,11 +772,12 @@ jq -e '.hasWebhook == true' "$BODY" >/dev/null \
 pass "absent de l'API — qui dit seulement qu'un webhook est posé (hasWebhook: true)"
 
 curl -s -b "$JAR" "$BASE_URL/monitors" -o "$WORK/monitors.html"
-curl -s -b "$JAR" "$BASE_URL/monitors/$MAIN_ID" -o "$WORK/monitor.html"
+# La fiche d'une sonde vit dans un tiroir de /monitors, rendu au serveur.
+curl -s -b "$JAR" "$BASE_URL/monitors?monitor=$MAIN_ID" -o "$WORK/monitor.html"
 for f in "$WORK/monitors.html" "$WORK/monitor.html"; do
   grep -qF "$MON_HOOK_TOKEN" "$f" && fail "le jeton apparaît dans le HTML ($f)"
 done
-pass "absent du HTML de /monitors et de /monitors/{id}"
+pass "absent du HTML de /monitors et de la fiche de la sonde (/monitors?monitor={id})"
 
 LEAKS=$(psql_q "select count(*) from audit_logs where before::text like '%VERIFSONDESECRET%' or after::text like '%VERIFSONDESECRET%';")
 [ "$LEAKS" = "0" ] || fail "$LEAKS entrée(s) d'audit contiennent un secret"
