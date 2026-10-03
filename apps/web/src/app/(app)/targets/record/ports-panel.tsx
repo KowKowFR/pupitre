@@ -109,7 +109,7 @@ export async function PortsPanel({
                     <td>
                       {allocation.deploymentId ? (
                         <Link
-                          href={`/deployments/${allocation.deploymentId}`}
+                          href={`/deployments?run=${allocation.deploymentId}`}
                           className="inline-flex items-center gap-2"
                         >
                           {allocation.deploymentStatus ? (

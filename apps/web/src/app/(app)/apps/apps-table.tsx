@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { RotateCw, ScrollText } from 'lucide-react';
 import { translator, type DeploymentStatus, type Translate } from '@pupitre/core';
@@ -127,10 +126,18 @@ export function formatSince(iso: string | null, t: T = sinceInFrench): string {
  * d'une carte non plus — c'est la carte du serveur qui porte la surface, sinon
  * on empile deux cadres pour une seule information.
  */
-export function AppsTable({ items, canRestart }: { items: SupervisedRow[]; canRestart: boolean }) {
+export function AppsTable({
+  items,
+  canRestart,
+  onOpen,
+}: {
+  items: SupervisedRow[];
+  canRestart: boolean;
+  /** Ouvre l'application dans son tiroir. */
+  onOpen: (id: string) => void;
+}) {
   const t = useT(servers);
   const shared = useT(common);
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [restarting, setRestarting] = useState<SupervisedRow | null>(null);
@@ -151,7 +158,7 @@ export function AppsTable({ items, canRestart }: { items: SupervisedRow[]; canRe
     toast({ title: t('restart.toast', { app: app.applicationSlug }), tone: 'accent' });
     // Le redémarrage publie sa progression sur le flux de l'application :
     // on y emmène l'utilisateur plutôt que de le laisser deviner.
-    router.push(`/apps/${app.id}`);
+    onOpen(app.id);
   }
 
   return (
@@ -172,7 +179,15 @@ export function AppsTable({ items, canRestart }: { items: SupervisedRow[]; canRe
             <TableRow key={app.id}>
               <TableCell>
                 <span className="flex min-w-0 flex-col">
-                  <Link href={`/apps/${app.id}`} className="cellname w-fit hover:underline">
+                  <Link
+                    href={`/apps?app=${app.id}`}
+                    scroll={false}
+                    className="cellname w-fit hover:underline"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      onOpen(app.id);
+                    }}
+                  >
                     {app.applicationSlug}
                   </Link>
                   <span className="mono t-cap truncate text-text-3">
@@ -202,7 +217,7 @@ export function AppsTable({ items, canRestart }: { items: SupervisedRow[]; canRe
                   ) : null}
                   {app.lastFailedUpdate ? (
                     <span className="flex flex-col items-start gap-0.5">
-                      <Link href={`/deployments/${app.lastFailedUpdate.deploymentId}`}>
+                      <Link href={`/deployments?run=${app.lastFailedUpdate.deploymentId}`}>
                         <Badge variant="danger" dot>
                           {t('row.updateFailed')}
                         </Badge>
@@ -224,7 +239,14 @@ export function AppsTable({ items, canRestart }: { items: SupervisedRow[]; canRe
               <TableActions>
                 <span className="inline-flex items-center gap-1.5">
                   <Button asChild size="sm" variant="secondary">
-                    <Link href={`/apps/${app.id}`}>
+                    <Link
+                      href={`/apps?app=${app.id}`}
+                      scroll={false}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        onOpen(app.id);
+                      }}
+                    >
                       <ScrollText aria-hidden />
                       {t('action.logs')}
                     </Link>

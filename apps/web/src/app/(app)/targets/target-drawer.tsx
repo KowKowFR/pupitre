@@ -201,7 +201,7 @@ export function TargetDrawer({
                   <li key={app.id} className="relative">
                     <Led tone={HEALTH_TONE[app.health] ?? 'idle'} />
                     <Link
-                      href={`/apps/${app.id}`}
+                      href={`/apps?app=${app.id}`}
                       className="mono text-[12.5px] text-text after:absolute after:inset-0"
                     >
                       {app.slug}

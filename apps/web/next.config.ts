@@ -108,6 +108,12 @@ const nextConfig: NextConfig = {
         destination: '/monitors?monitor=:id',
         permanent: false,
       },
+      {
+        source: '/deployments/:id([0-9a-f-]{36})',
+        destination: '/deployments?run=:id',
+        permanent: false,
+      },
+      { source: '/apps/:id([0-9a-f-]{36})', destination: '/apps?app=:id', permanent: false },
     ]);
   },
 };

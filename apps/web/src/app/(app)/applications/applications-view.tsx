@@ -234,7 +234,7 @@ export function ApplicationsView({
       title: t('toast.deployed', { slug: application.slug, version: application.version }),
       description: t('toast.deployed.detail', { number }),
       tone: 'accent',
-      action: { label: t('toast.follow'), href: `/deployments/${id}` },
+      action: { label: t('toast.follow'), href: `/deployments?run=${id}` },
     });
     // La fiche reste ouverte : sa nouvelle version y apparaît.
     router.refresh();

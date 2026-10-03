@@ -616,7 +616,7 @@ export function NewApplicationForm({
 
       const { id } = (await deployment.json()) as { id: string };
       setSaving(false);
-      router.push(`/deployments/${id}`);
+      router.push(`/deployments?run=${id}`);
       return;
     }
 

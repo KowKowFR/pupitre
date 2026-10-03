@@ -316,7 +316,7 @@ export default async function HomePage({
                   <li key={app.id}>
                     <Led tone={HEALTH_TONE[app.healthStatus] ?? 'idle'} />
                     <Link
-                      href={`/apps/${app.id}`}
+                      href={`/apps?app=${app.id}`}
                       className="mono min-w-0 flex-1 truncate text-[12.5px] text-text hover:underline"
                     >
                       {app.applicationSlug}
@@ -1001,7 +1001,7 @@ async function DeploymentsPanel({
             return (
               <li key={item.id} className="flex-wrap gap-y-1">
                 <Link
-                  href={`/deployments/${item.id}`}
+                  href={`/deployments?run=${item.id}`}
                   className="mono w-[190px] min-w-0 truncate text-[12.5px] text-text hover:underline max-sm:flex-1"
                 >
                   {item.applicationSlug} <span className="text-text-3">v{item.version}</span>

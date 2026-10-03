@@ -393,7 +393,7 @@ jq -e --arg id "$DEP_ID" '[.items[] | select(.id == $id)] | length == 1' "$BODY"
 pass "l'application « $APP_SLUG » reste listée alors que sa machine ne répond plus"
 
 curl -s -b "$JAR" -c "$JAR" "$BASE_URL/apps" -o "$HTML"
-printf '%s\n' "$(server_section "$TARGET_ID")" | grep -q "href=\"/apps/$DEP_ID\"" \
+printf '%s\n' "$(server_section "$TARGET_ID")" | grep -q "href=\"/apps?app=$DEP_ID\"" \
   || fail "l'écran n'affiche plus l'application sous sa cible injoignable"
 pass "l'écran la montre toujours, sous son serveur"
 
@@ -409,7 +409,7 @@ grep -q 'data-server-id="' "$HTML" || fail "aucun serveur rendu sur /apps"
 SERVERS=$(grep -o 'data-server-id="[^"]*"' "$HTML" | wc -l | tr -d ' ')
 pass "$SERVERS serveur(s) rendus, un panneau chacun"
 
-printf '%s\n' "$(server_section "$TARGET_ID")" | grep -q "href=\"/apps/$DEP_ID\"" \
+printf '%s\n' "$(server_section "$TARGET_ID")" | grep -q "href=\"/apps?app=$DEP_ID\"" \
   || fail "« $APP_SLUG » n'apparaît pas sous « $TARGET_NAME »"
 pass "« $APP_SLUG » apparaît sous « $TARGET_NAME »"
 
@@ -417,7 +417,7 @@ pass "« $APP_SLUG » apparaît sous « $TARGET_NAME »"
 FOREIGN=0
 for id in $(grep -o 'data-server-id="[^"]*"' "$HTML" | sed 's/data-server-id="//; s/"$//'); do
   [ "$id" = "$TARGET_ID" ] && continue
-  if printf '%s\n' "$(server_section "$id")" | grep -q "href=\"/apps/$DEP_ID\""; then
+  if printf '%s\n' "$(server_section "$id")" | grep -q "href=\"/apps?app=$DEP_ID\""; then
     FOREIGN=$((FOREIGN + 1))
     info "trouvée aussi sous $id"
   fi

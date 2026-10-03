@@ -42,9 +42,9 @@ le temps de l'activer. Voir [`securite.md`](securite.md#le-second-facteur-exigé
 | `/applications/new` | Deux onglets : « Depuis une description » (IA) et « Depuis un JSON » | `application:create` |
 | `/applications/:id` | Redirige (307) vers `/applications?app=:id` | `application:read` |
 | `/apps` | **Supervision, vue par serveur** — une carte par machine, dépliable | `deployment:read` |
-| `/apps/:id` | Une application en marche : santé, logs live, redémarrage | `deployment:read` |
+| `/apps/:id` | Redirige (307) vers `/apps?app=:id` : une application en marche — santé, logs live, gestes — **dans un tiroir** de la supervision | `deployment:read` |
 | `/deployments` | Journal des runs, filtres, purge en masse | `deployment:read` |
-| `/deployments/:id` | Pipeline, logs SSE, scans, rollback, destruction | `deployment:read` |
+| `/deployments/:id` | Redirige (307) vers `/deployments?run=:id` : le suivi d'un run — pipeline, logs SSE, scans, AppSpec figée, rollback, destruction — **dans un tiroir**, même hors de la page affichée | `deployment:read` |
 | `/domains` | **Tous les domaines** : le proxy qui les sert, leur état, l'échéance de leur certificat ; filtre « À surveiller » (ne répond pas, ou certificat sous quatorze jours) | `application:read` |
 | `/monitors` | Sondes HTTP et TLS. `?monitor=<id>` ouvre la **fiche dans un tiroir** : aperçu, mesures et incidents, capture de référence ; `&edit=1` la modifie sur place | `monitor:read` — modifier `monitor:manage` |
 | `/monitors/:id` | Redirige (307) vers `/monitors?monitor=:id` | `monitor:read` |
