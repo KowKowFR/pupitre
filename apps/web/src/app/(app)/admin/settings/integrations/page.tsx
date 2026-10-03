@@ -5,10 +5,10 @@ import { HelpTip } from '@/components/ui/help-tip';
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
-import { giteaConnectionView, githubConnectionView, githubCredentialsOf } from '@/lib/sources';
+import { githubConnectionView, githubCredentialsOf, tokenForgeConnectionView } from '@/lib/sources';
 import { settingsSection } from '../sections';
-import { GiteaIntegration } from './gitea-integration';
 import { GitHubIntegration } from './github-integration';
+import { TokenForgeIntegration } from './token-forge-integration';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
  * Paramètres → Intégrations : les fournisseurs de code de l'instance — la
- * GitHub App, et une forge Gitea / Forgejo.
+ * GitHub App, une instance GitLab et une forge Gitea / Forgejo.
  *
  * Les installations sont lues chez GitHub à chaque affichage (un appel
  * sortant) : c'est la seule source qui dise où l'App a été installée depuis
@@ -32,13 +32,15 @@ export default async function IntegrationsSettingsPage({
   const auth = await requirePagePermission('/admin/settings/integrations', 'settings:read');
   const t = await getT(messages);
   const params = await searchParams;
-  const [connection, gitea, settings] = await Promise.all([
+  const [connection, gitlab, gitea, settings] = await Promise.all([
     getSourceConnection('github'),
+    getSourceConnection('gitlab'),
     getSourceConnection('gitea'),
     getAppSettingsValue(),
   ]);
-  const [sourcesCount, giteaSourcesCount] = await Promise.all([
+  const [sourcesCount, gitlabSourcesCount, giteaSourcesCount] = await Promise.all([
     connection ? countApplicationSources(connection.id) : Promise.resolve(0),
+    gitlab ? countApplicationSources(gitlab.id) : Promise.resolve(0),
     gitea ? countApplicationSources(gitea.id) : Promise.resolve(0),
   ]);
 
@@ -84,8 +86,17 @@ export default async function IntegrationsSettingsPage({
           }
         />
         <div className="border-t border-border-subtle pt-8">
-          <GiteaIntegration
-            connection={gitea ? giteaConnectionView(gitea) : null}
+          <TokenForgeIntegration
+            kind="gitlab"
+            connection={gitlab ? tokenForgeConnectionView(gitlab) : null}
+            sourcesCount={gitlabSourcesCount}
+            canManage={auth.can('settings:manage')}
+          />
+        </div>
+        <div className="border-t border-border-subtle pt-8">
+          <TokenForgeIntegration
+            kind="gitea"
+            connection={gitea ? tokenForgeConnectionView(gitea) : null}
             sourcesCount={giteaSourcesCount}
             canManage={auth.can('settings:manage')}
           />

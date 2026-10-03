@@ -134,7 +134,7 @@ export async function applicationRecord(
       runtimes: usableRuntimes(target.runtimesAvailable),
     }));
 
-  // Chaque liaison s'ouvre chez sa forge : GitHub, ou la forge Gitea connectée.
+  // Chaque liaison s'ouvre chez sa forge : GitHub, ou la forge GitLab ou Gitea connectée.
   const connectionOf = new Map(connections.map((connection) => [connection.id, connection]));
   const sourceViews: SourceView[] = sources.flatMap((source) => {
     const connection = connectionOf.get(source.connectionId);

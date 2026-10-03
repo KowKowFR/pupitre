@@ -1,16 +1,24 @@
 import assert from 'node:assert/strict';
 import { createVerify, generateKeyPairSync } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer, type IncomingHttpHeaders } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { parseAppSpec, type AppSpec } from '../src/spec/index.js';
 import {
   GitHubSourceProvider,
+  GitLabSourceProvider,
   GiteaSourceProvider,
   SourceProviderError,
   branchWebUrl,
   commitWebUrl,
   createSourceProvider,
+  fetchGitLabAccount,
   fetchGiteaAccount,
   giteaBaseUrl,
+  gitlabBaseUrl,
   githubWebUrl,
   classifySpecChange,
   defaultWatchPaths,
@@ -18,6 +26,7 @@ import {
   githubAppManifest,
   matchesWatchPath,
   parseSourceSpec,
+  sourceRepositorySchema,
   touchesWatchPaths,
 } from '../src/sources/index.js';
 
@@ -522,16 +531,330 @@ describe('client Gitea', () => {
   });
 });
 
+// ─── GitLab ───────────────────────────────────────────────────────────────────
+
+const GITLAB = { baseUrl: 'https://gitlab.exemple.fr/', token: 'glpat-jeton' };
+/** Un projet de sous-groupe : son chemin entier est son nom. */
+const GITLAB_REPO = { fullName: 'atelier/web/vitrine', installationId: null };
+const GITLAB_PROJECT = 'https://gitlab.exemple.fr/api/v4/projects/atelier%2Fweb%2Fvitrine';
+
+describe('client GitLab', () => {
+  it('l’adresse de l’instance est nettoyée, et seul http(s) passe', () => {
+    assert.equal(gitlabBaseUrl(' https://gitlab.com/ '), 'https://gitlab.com');
+    assert.equal(gitlabBaseUrl('http://10.0.0.5:8929/gitlab/'), 'http://10.0.0.5:8929/gitlab');
+    assert.throws(() => gitlabBaseUrl('ssh://gitlab.com'), SourceProviderError);
+  });
+
+  it('la tête d’une branche : le projet encodé d’un bloc, la branche aussi, le jeton en en-tête', async () => {
+    const { fetchImpl, calls } = fakeGitHub([
+      [/\/repository\/branches\/feature%2Fx$/, () => Response.json({ commit: { id: SHA } })],
+    ]);
+    const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
+    assert.deepEqual(await gitlab.resolveHead(GITLAB_REPO, 'feature/x', '"ignoré"'), {
+      changed: true,
+      sha: SHA,
+      etag: null,
+    });
+    assert.equal(calls[0]!.url, `${GITLAB_PROJECT}/repository/branches/feature%2Fx`);
+    assert.equal(calls[0]!.headers['private-token'], 'glpat-jeton');
+    assert.equal(calls[0]!.headers.authorization, undefined);
+  });
+
+  it('une comparaison : les chemins des diffs, les deux d’un renommage, et rien qu’on ne puisse croire de travers', async () => {
+    const { fetchImpl, calls } = fakeGitHub([
+      [
+        /\/compare\?from=b{40}&to=a{40}$/,
+        () =>
+          Response.json({
+            commits: [
+              { id: 'c'.repeat(40), parent_ids: [BASE_SHA] },
+              { id: SHA, parent_ids: ['c'.repeat(40)] },
+            ],
+            diffs: [
+              { old_path: 'api/main.go', new_path: 'api/main.go' },
+              { old_path: 'docs/vieux.md', new_path: 'docs/neuf.md', renamed_file: true },
+            ],
+            compare_timeout: false,
+          }),
+      ],
+      [/\/compare\?from=d{40}&to=a{40}$/, () => Response.json({ commits: [], diffs: [] })],
+      [
+        /\/compare\?from=e{40}&to=a{40}$/,
+        () => Response.json({ commits: [{ id: SHA, parent_ids: ['f'.repeat(40)] }], diffs: [] }),
+      ],
+      [
+        /\/compare\?from=1{40}&to=a{40}$/,
+        () =>
+          Response.json({
+            commits: [{ id: SHA, parent_ids: ['1'.repeat(40)] }],
+            diffs: [],
+            compare_timeout: true,
+          }),
+      ],
+      [
+        /\/compare\?from=2{40}&to=a{40}$/,
+        () =>
+          Response.json({
+            commits: [{ id: SHA, parent_ids: ['2'.repeat(40)] }],
+            diffs: Array.from({ length: 300 }, (_, i) => ({
+              old_path: `f${i}`,
+              new_path: `f${i}`,
+            })),
+          }),
+      ],
+      [
+        /\/compare\?from=9{40}&to=a{40}$/,
+        () => Response.json({ message: '404 Ref Not Found' }, { status: 404 }),
+      ],
+    ]);
+    const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
+    assert.deepEqual(await gitlab.compare(GITLAB_REPO, BASE_SHA, SHA), {
+      kind: 'files',
+      files: ['api/main.go', 'docs/neuf.md', 'docs/vieux.md'],
+    });
+    assert.ok(calls[0]!.url.startsWith(`${GITLAB_PROJECT}/repository/compare?`));
+    assert.deepEqual(await gitlab.compare(GITLAB_REPO, SHA, SHA), { kind: 'files', files: [] });
+    for (const base of ['d', 'e', '1', '2', '9']) {
+      const result = await gitlab.compare(GITLAB_REPO, base.repeat(40), SHA);
+      assert.equal(result.kind, 'unknown', base);
+    }
+  });
+
+  it('un fichier se lit par son chemin encodé d’un bloc ; absent, il vaut `null`', async () => {
+    const { fetchImpl, calls } = fakeGitHub([
+      [
+        /\/repository\/files\/apps%2Fapi%2Fpupitre\.json\/raw\?ref=a{40}$/,
+        () => new Response('{"name":"api"}'),
+      ],
+    ]);
+    const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
+    assert.equal(
+      await gitlab.readFile(GITLAB_REPO, SHA, '/apps/api/pupitre.json'),
+      '{"name":"api"}',
+    );
+    assert.equal(await gitlab.readFile(GITLAB_REPO, SHA, 'pupitre.json'), null);
+    assert.equal(calls.length, 2);
+  });
+
+  it('les pupitre.json de l’arbre, page après page, tant que GitLab en annonce une suivante', async () => {
+    const tree = (count: number, extra: Array<{ path: string; type: string }>) => [
+      ...extra,
+      ...Array.from({ length: count - extra.length }, (_, i) => ({
+        path: `src/f${i}.ts`,
+        type: 'blob',
+      })),
+    ];
+    const { fetchImpl, calls } = fakeGitHub([
+      [
+        /\/repository\/tree\?ref=a{40}&recursive=true&per_page=100&page=1$/,
+        () =>
+          Response.json(
+            tree(100, [
+              { path: 'pupitre.json', type: 'blob' },
+              { path: 'apps', type: 'tree' },
+              { path: 'apps/api/pupitre.json.bak', type: 'blob' },
+            ]),
+            { headers: { 'x-next-page': '2' } },
+          ),
+      ],
+      [
+        /\/repository\/tree\?ref=a{40}&recursive=true&per_page=100&page=2$/,
+        () =>
+          Response.json([{ path: 'apps/api/pupitre.json', type: 'blob' }], {
+            headers: { 'x-next-page': '' },
+          }),
+      ],
+    ]);
+    const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
+    assert.deepEqual(await gitlab.findFiles(GITLAB_REPO, SHA, 'pupitre.json'), [
+      'apps/api/pupitre.json',
+      'pupitre.json',
+    ]);
+    assert.equal(calls.length, 2);
+  });
+
+  it('le statut : l’état dans les mots de GitLab, le contexte en nom, et « déjà en attente » n’est pas une erreur', async () => {
+    let refused = false;
+    const { fetchImpl, calls } = fakeGitHub([
+      [
+        /\/statuses\/a{40}$/,
+        (call) => {
+          if ((call.body as { state: string }).state === 'pending' && refused) {
+            return Response.json(
+              { message: 'Cannot transition status via :enqueue from :pending' },
+              { status: 400 },
+            );
+          }
+          refused = true;
+          return Response.json({ id: 1 }, { status: 201 });
+        },
+      ],
+    ]);
+    const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
+    const status = {
+      state: 'failure' as const,
+      description: 'x'.repeat(400),
+      context: 'pupitre/prod-1',
+      targetUrl: 'https://pupitre.exemple.fr/deployments/1',
+    };
+    await gitlab.reportStatus(GITLAB_REPO, SHA, status);
+    const sent = calls[0]!.body as Record<string, string>;
+    assert.equal(calls[0]!.url, `${GITLAB_PROJECT}/statuses/${SHA}`);
+    assert.deepEqual(
+      { state: sent.state, name: sent.name, target_url: sent.target_url },
+      { state: 'failed', name: 'pupitre/prod-1', target_url: status.targetUrl },
+    );
+    assert.equal(sent.description!.length, 255);
+    await gitlab.reportStatus(GITLAB_REPO, SHA, { ...status, state: 'pending' });
+    await assert.rejects(
+      new GitLabSourceProvider(
+        GITLAB,
+        fakeGitHub([
+          [/\/statuses\//, () => Response.json({ message: 'name is too long' }, { status: 400 })],
+        ]).fetchImpl,
+        open,
+      ).reportStatus(GITLAB_REPO, SHA, status),
+      SourceProviderError,
+    );
+    // Un jeton Developer sur une branche protégée : le refus dit pourquoi.
+    await assert.rejects(
+      new GitLabSourceProvider(
+        GITLAB,
+        fakeGitHub([
+          [/\/statuses\//, () => Response.json({ message: '403 Forbidden' }, { status: 403 })],
+        ]).fetchImpl,
+        open,
+      ).reportStatus(GITLAB_REPO, SHA, status),
+      (error: unknown) => {
+        assert.ok(error instanceof SourceProviderError);
+        assert.equal(error.status, 403);
+        assert.match(error.message, /branche protégée.*Maintainer/);
+        return true;
+      },
+    );
+  });
+
+  it('les projets dont le jeton est membre, page après page — ni la liste publique, ni les dépôts vides', async () => {
+    const page = (n: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        path_with_namespace: `atelier/web/depot-${n}-${i}`,
+        default_branch: i === 0 && n === 2 ? null : 'main',
+        visibility: i % 2 ? 'public' : 'private',
+        web_url: `https://gitlab.exemple.fr/atelier/web/depot-${n}-${i}`,
+      }));
+    const { fetchImpl, calls } = fakeGitHub([
+      [/\/projects\?membership=true&.*&page=1$/, () => Response.json(page(1, 100))],
+      [/\/projects\?membership=true&.*&page=2$/, () => Response.json(page(2, 3))],
+    ]);
+    const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
+    const repos = await gitlab.listRepositories();
+    assert.equal(repos.length, 102, 'le dépôt vide est écarté');
+    assert.deepEqual(
+      { provider: repos[0]!.provider, installationId: repos[0]!.installationId },
+      { provider: 'gitlab', installationId: null },
+    );
+    assert.ok(repos.some((repo) => repo.private) && repos.some((repo) => !repo.private));
+    assert.ok(calls.every((call) => call.url.includes('membership=true')));
+  });
+
+  it('l’archive part sans `sec-fetch-mode` — GitLab la refuse à une requête « cors » — et reste plafonnée', async () => {
+    let seen: IncomingHttpHeaders = {};
+    let url = '';
+    const server = createServer((request, response) => {
+      seen = request.headers;
+      url = request.url ?? '';
+      response.writeHead(200, { 'content-type': 'application/x-gzip' });
+      response.end(Buffer.alloc(4096, 7));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const dir = mkdtempSync(join(tmpdir(), 'pupitre-gitlab-'));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const { fetchImpl, calls } = fakeGitHub([]);
+      const gitlab = new GitLabSourceProvider(
+        { baseUrl: `http://127.0.0.1:${port}`, token: 'glpat-jeton' },
+        fetchImpl,
+        open,
+      );
+      const destination = join(dir, 'code.tar.gz');
+      assert.deepEqual(await gitlab.downloadArchive(GITLAB_REPO, SHA, destination, 10_000), {
+        bytes: 4096,
+      });
+      assert.equal(readFileSync(destination).length, 4096);
+      assert.equal(
+        url,
+        `/api/v4/projects/atelier%2Fweb%2Fvitrine/repository/archive.tar.gz?sha=${SHA}`,
+      );
+      assert.equal(seen['private-token'], 'glpat-jeton');
+      assert.equal(seen['sec-fetch-mode'], undefined);
+      assert.equal(calls.length, 0, 'pas par fetch');
+      await assert.rejects(
+        gitlab.downloadArchive(GITLAB_REPO, SHA, join(dir, 'trop.tar.gz'), 1000),
+        SourceProviderError,
+      );
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('la garde des sorties réseau : une instance sur une adresse lien-local est refusée', async () => {
+    const { fetchImpl, calls } = fakeGitHub([]);
+    const gitlab = new GitLabSourceProvider(
+      { baseUrl: 'http://169.254.169.254', token: 't' },
+      fetchImpl,
+    );
+    await assert.rejects(gitlab.resolveHead(GITLAB_REPO, 'main', null), SourceProviderError);
+    assert.equal(calls.length, 0);
+  });
+
+  it('« Tester » nomme le compte du jeton et son échéance, et refuse un jeton sans la portée api', async () => {
+    const answer = (scopes: string[]) =>
+      fakeGitHub([
+        [/\/api\/v4\/user$/, () => Response.json({ username: 'project_7_bot_3f2a' })],
+        [/\/api\/v4\/version$/, () => Response.json({ version: '19.4.1', revision: 'abc' })],
+        [
+          /\/api\/v4\/personal_access_tokens\/self$/,
+          () => Response.json({ scopes, expires_at: '2027-10-03' }),
+        ],
+      ]);
+    assert.deepEqual(await fetchGitLabAccount(GITLAB, answer(['api']).fetchImpl, open), {
+      login: 'project_7_bot_3f2a',
+      version: '19.4.1',
+      baseUrl: 'https://gitlab.exemple.fr',
+      scopes: ['api'],
+      expiresAt: '2027-10-03',
+    });
+    await assert.rejects(
+      fetchGitLabAccount(GITLAB, answer(['read_api', 'read_repository']).fetchImpl, open),
+      (error: unknown) => {
+        assert.ok(error instanceof SourceProviderError);
+        assert.match(error.message, /portée « api »/);
+        return true;
+      },
+    );
+    const refused = fakeGitHub([
+      [/\/api\/v4\/user$/, () => Response.json({ message: '401 Unauthorized' }, { status: 401 })],
+    ]);
+    await assert.rejects(fetchGitLabAccount(GITLAB, refused.fetchImpl, open), (error: unknown) => {
+      assert.ok(error instanceof SourceProviderError);
+      assert.equal(error.status, 401);
+      return true;
+    });
+  });
+});
+
 describe('fournisseurs et liens', () => {
   it('la fabrique rend le client de la connexion', () => {
     assert.equal(createSourceProvider({ provider: 'gitea', ...GITEA }).kind, 'gitea');
+    assert.equal(createSourceProvider({ provider: 'gitlab', ...GITLAB }).kind, 'gitlab');
     assert.equal(
       createSourceProvider({ provider: 'github', appId: 1, privateKey, apiUrl: null }).kind,
       'github',
     );
   });
 
-  it('une branche ne s’ouvre pas à la même adresse chez GitHub et chez Gitea', () => {
+  it('une branche ne s’ouvre pas à la même adresse chez GitHub, Gitea et GitLab', () => {
     assert.equal(
       branchWebUrl('github', 'https://github.com/acme/api', 'feature/x'),
       'https://github.com/acme/api/tree/feature%2Fx',
@@ -541,11 +864,42 @@ describe('fournisseurs et liens', () => {
       'https://codeberg.org/acme/api/src/branch/main',
     );
     assert.equal(
+      branchWebUrl('gitlab', 'https://gitlab.com/acme/web/api', 'feature/x'),
+      'https://gitlab.com/acme/web/api/-/tree/feature%2Fx',
+    );
+    assert.equal(
       commitWebUrl('https://codeberg.org/acme/api', SHA),
       `https://codeberg.org/acme/api/commit/${SHA}`,
+    );
+    assert.equal(
+      commitWebUrl('https://gitlab.com/acme/web/api', SHA, 'gitlab'),
+      `https://gitlab.com/acme/web/api/-/commit/${SHA}`,
     );
     assert.equal(githubWebUrl(null), 'https://github.com');
     assert.equal(githubWebUrl('https://api.github.com'), 'https://github.com');
     assert.equal(githubWebUrl('https://ghe.exemple.fr/api/v3'), 'https://ghe.exemple.fr');
+  });
+});
+
+describe('nom d’un dépôt', () => {
+  it('propriétaire/nom partout, et le chemin des sous-groupes chez GitLab', () => {
+    for (const name of ['acme/api', 'atelier/web/vitrine', ' a.b/c-d_e ', 'a/b/c/d/e']) {
+      assert.ok(sourceRepositorySchema.safeParse(name).success, name);
+    }
+  });
+
+  it('ni nom seul, ni segment vide, ni `.` ou `..` qui remonterait dans l’API', () => {
+    for (const name of [
+      'api',
+      '/acme/api',
+      'acme//api',
+      'acme/api/',
+      '../api',
+      'acme/..',
+      'acme/.',
+      'a/b c',
+    ]) {
+      assert.ok(!sourceRepositorySchema.safeParse(name).success, name);
+    }
   });
 });

@@ -3,6 +3,7 @@ import {
   decrypt,
   githubWebUrl,
   repositoryWebUrl,
+  sourceRepositorySchema,
   type AppSpec,
   type SourceConnectionSecrets,
   type SpecChange,
@@ -69,10 +70,18 @@ export function sourceConnectionSecrets(connection: SourceConnection): SourceCon
         baseUrl: connection.apiUrl ?? connection.htmlUrl,
         token: decrypt(connection.tokenEncrypted),
       };
+    case 'gitlab':
+      if (!connection.tokenEncrypted)
+        throw new Error('connexion GitLab incomplète : jeton manquant');
+      return {
+        provider: 'gitlab',
+        baseUrl: connection.apiUrl ?? connection.htmlUrl,
+        token: decrypt(connection.tokenEncrypted),
+      };
   }
 }
 
-/** L'adresse web de la forge d'une connexion : github.com, un GitHub Enterprise, une forge Gitea. */
+/** L'adresse web de la forge d'une connexion : github.com, un GitHub Enterprise, une forge Gitea, une instance GitLab. */
 export function sourceConnectionWebUrl(connection: SourceConnection): string {
   return connection.provider === 'github'
     ? githubWebUrl(connection.apiUrl)
@@ -187,13 +196,10 @@ const sourceTargetsSchema = z
  * mode, la destination, les cibles et l'activation à leurs valeurs d'origine.
  */
 const applicationSourceFields = z.object({
-  repository: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'dépôt attendu sous la forme propriétaire/nom'),
+  repository: sourceRepositorySchema,
   /** Le fournisseur du dépôt ; GitHub quand rien n'est dit, comme avant qu'il y en ait deux. */
   provider: z.enum(SOURCE_PROVIDER_KINDS),
-  /** GitHub : l'installation de l'App qui ouvre le dépôt. Rien chez Gitea. */
+  /** GitHub : l'installation de l'App qui ouvre le dépôt. Rien chez Gitea ni GitLab. */
   installationId: z.number().int().positive().nullable(),
   branch: z
     .string()

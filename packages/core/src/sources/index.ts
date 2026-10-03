@@ -1,6 +1,7 @@
 export * from './types.js';
 export * from './github.js';
 export * from './gitea.js';
+export * from './gitlab.js';
 export * from './links.js';
 export * from './registry.js';
 export * from './spec-change.js';

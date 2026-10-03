@@ -175,10 +175,10 @@ la comparaison telle qu'elle est.
 
 **Ce sur quoi il est en retrait, et de loin**
 
-- **Pas de GitLab, et pas de prévisualisation par branche.** Pupitre suit une
-  branche GitHub ou Gitea / Forgejo en l'interrogeant chaque minute — jamais de
+- **Pas de prévisualisation par branche.** Pupitre suit une branche GitHub,
+  GitLab ou Gitea / Forgejo en l'interrogeant chaque minute — jamais de
   webhook : le panel reste privé, hors ses pages de statut publiées — et accepte une archive du code pour une
-  application sans dépôt. Ni GitLab, ni déploiement temporaire par pull
+  application sans dépôt. Pas de déploiement temporaire par pull ou merge
   request — voir la limite sur le contexte de build ci-dessous.
 - **Aucun catalogue d'applications prêtes à l'emploi.** Là où Coolify propose des
   centaines de services en un clic, ici vous écrivez l'AppSpec.
@@ -266,7 +266,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Reverse proxy (Traefik ou BunkerWeb repris ou installés, Nginx Proxy Manager connecté par son API), domaines et certificats Let's Encrypt au déploiement, tous les domaines et leurs échéances sur une page | [`docs/exploitation.md`](docs/exploitation.md#reverse-proxy-et-domaines) |
 | Sauvegardes chiffrées vers S3, SFTP ou un dossier monté, restauration, reprise après sinistre | [`docs/exploitation.md`](docs/exploitation.md#sauvegardes) |
 | Déployer depuis une CI (GitHub Actions, GitLab CI) avec un jeton d'API limité à ses applications | [`docs/exploitation.md`](docs/exploitation.md#déployer-depuis-une-ci) |
-| Suivre une branche GitHub ou Gitea / Forgejo : son `pupitre.json` décrit l'application, chaque commit la met à jour ou la redéploie, et l'état revient sur le commit | [`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt) |
+| Suivre une branche GitHub, GitLab ou Gitea / Forgejo : son `pupitre.json` décrit l'application, chaque commit la met à jour ou la redéploie, et l'état revient sur le commit | [`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt) |
 | Le code d'une application sans dépôt : une archive téléversée, relue entrée par entrée et refaite propre avant de partir sur la machine | [`docs/exploitation.md`](docs/exploitation.md#le-code-dune-application-sans-dépôt) |
 | RBAC (38 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Second facteur exigé (droits sensibles ou tous les comptes), durée des sessions réglable | [`docs/securite.md`](docs/securite.md#le-second-facteur-exigé) |
@@ -346,7 +346,7 @@ durcissement décrit plus bas.
 
 Les deux drivers construisent une image depuis un Dockerfile, à partir d'un
 contexte de build extrait dans `source/` de la release. Il arrive par deux
-chemins : le **dépôt lié** à l'application (GitHub, Gitea, Forgejo), à son commit exact — voir
+chemins : le **dépôt lié** à l'application (GitHub, GitLab, Gitea, Forgejo), à son commit exact — voir
 [`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt) —,
 ou, pour une application sans dépôt, une **archive téléversée** depuis sa fiche
 ou par une CI — voir
@@ -354,7 +354,7 @@ ou par une CI — voir
 
 L'archive est bornée à 100 Mio (1 Gio décompressée), et seules les cinq
 dernières de chaque application sont gardées : au-delà, une version reste dans
-l'historique mais ne se redéploie plus. Un dépôt GitLab ne se suit pas encore.
+l'historique mais ne se redéploie plus.
 
 ### Compose ne sait pas publier un port derrière plusieurs répliques
 

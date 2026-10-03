@@ -277,7 +277,7 @@ function SourceBlock({
             value: source.syncedSha ? (
               <span className="flex flex-wrap items-center justify-end gap-x-2">
                 <a
-                  href={commitWebUrl(source.repositoryUrl, source.syncedSha)}
+                  href={commitWebUrl(source.repositoryUrl, source.syncedSha, source.provider)}
                   target="_blank"
                   rel="noreferrer"
                   className="mono link"
@@ -298,7 +298,7 @@ function SourceBlock({
             value: source.lastSeenSha ? (
               <span className="flex flex-wrap items-center justify-end gap-x-2">
                 <a
-                  href={commitWebUrl(source.repositoryUrl, source.lastSeenSha)}
+                  href={commitWebUrl(source.repositoryUrl, source.lastSeenSha, source.provider)}
                   target="_blank"
                   rel="noreferrer"
                   className="mono link"
@@ -332,7 +332,9 @@ function SourceBlock({
         <Proposal
           key={proposal.id}
           proposal={proposal}
-          commitUrl={proposal.commitUrl ?? commitWebUrl(source.repositoryUrl, proposal.sha)}
+          commitUrl={
+            proposal.commitUrl ?? commitWebUrl(source.repositoryUrl, proposal.sha, source.provider)
+          }
           canDeploy={canDeploy}
         />
       ))}

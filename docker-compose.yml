@@ -313,6 +313,41 @@ services:
       - "127.0.0.1:${GITEA_HTTP_PORT:-3030}:3000"
     restart: unless-stopped
 
+  # ── GitLab de test, hors du démarrage normal ─────────────────────────────────
+  # Une vraie instance GitLab CE, pour éprouver le troisième fournisseur de code
+  # de bout en bout : un groupe et un sous-groupe, un projet avec son
+  # pupitre.json, un jeton de projet — tout est fabriqué par
+  # `scripts/test-gitlab/setup.sh` et jetable. Réglée pour une petite machine
+  # (environ 3 Go de mémoire) ; il lui faut plusieurs minutes pour démarrer.
+  # Le panel, le worker et le navigateur la joignent à la même adresse,
+  # http://localhost:3040 : c'est celle de ses liens.
+  #
+  #   docker compose --profile test up -d gitlab
+  gitlab:
+    profiles: ["test"]
+    image: gitlab/gitlab-ce:19.4.1-ce.0
+    shm_size: 256m
+    environment:
+      GITLAB_ROOT_PASSWORD: Pupitre-forge-de-test-2026
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:${GITLAB_HTTP_PORT:-3040}'
+        nginx['listen_port'] = 80
+        puma['worker_processes'] = 0
+        sidekiq['concurrency'] = 5
+        prometheus_monitoring['enable'] = false
+        gitlab_kas['enable'] = false
+        registry['enable'] = false
+        gitlab_pages['enable'] = false
+        gitlab_rails['usage_ping_enabled'] = false
+        gitlab_rails['env'] = { 'MALLOC_CONF' => 'dirty_decay_ms:1000,muzzy_decay_ms:1000' }
+        gitaly['env'] = { 'MALLOC_CONF' => 'dirty_decay_ms:1000,muzzy_decay_ms:1000' }
+    volumes:
+      - gitlab-test-config:/etc/gitlab
+      - gitlab-test-data:/var/opt/gitlab
+    ports:
+      - "127.0.0.1:${GITLAB_HTTP_PORT:-3040}:80"
+    restart: unless-stopped
+
   # ── Navigateur de capture, hors du démarrage normal ──────────────────────────
   # Démarrage explicite :
   #   docker compose --profile capture up -d capture-browser
@@ -499,3 +534,6 @@ volumes:
   npm-test-letsencrypt:
   # La forge Gitea de test : son compte, son jeton, ses dépôts.
   gitea-test-data:
+  # L'instance GitLab de test : sa configuration, ses projets, ses jetons.
+  gitlab-test-config:
+  gitlab-test-data:

@@ -2,8 +2,8 @@ import { GITHUB_WEB_URL, commitWebUrl, repositoryWebUrl } from '@pupitre/core';
 
 /**
  * Le commit d'un run, côté navigateur. Le déploiement garde l'adresse web de
- * son dépôt (`source_url`), recopiée de sa forge — GitHub ou Gitea — au
- * moment du run : le lien vers le commit en découle, même si la liaison a
+ * son dépôt (`source_url`), recopiée de sa forge — GitHub, GitLab ou Gitea —
+ * au moment du run : le lien vers le commit en découle, même si la liaison a
  * disparu depuis. Un run d'avant cette adresse vient forcément de GitHub.
  */
 export type CommitSource = {

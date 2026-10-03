@@ -115,7 +115,7 @@ export const deployments = pgTable(
     sourceSha: text('source_sha'),
     /**
      * L'adresse web du dépôt, telle que sa forge la sert : le lien vers le
-     * commit en découle, que ce soit GitHub ou Gitea, et survit à la liaison.
+     * commit en découle, que ce soit GitHub, Gitea ou GitLab, et survit à la liaison.
      */
     sourceUrl: text('source_url'),
     /**

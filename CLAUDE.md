@@ -58,8 +58,9 @@ Implémentations : `TrivyScanner`, `GrypeScanner`, `SyftSBOM`.
 
 ### SourceProvider
 `resolveHead() compare() readFile() findFiles() commit() downloadArchive() reportStatus() listRepositories()`
-Implémentations : `GitHubSourceProvider` (GitHub App), `GiteaSourceProvider` (Gitea, Forgejo,
-Codeberg, par jeton) — polling, jamais de webhook. `createSourceProvider()` fabrique le client
+Implémentations : `GitHubSourceProvider` (GitHub App), `GitLabSourceProvider` (gitlab.com ou
+auto-hébergé, par jeton), `GiteaSourceProvider` (Gitea, Forgejo, Codeberg, par jeton) — polling,
+jamais de webhook. `createSourceProvider()` fabrique le client
 d'une connexion.
 
 **Critère de qualité :** ajouter un runtime, un proxy, un scanner ou un fournisseur

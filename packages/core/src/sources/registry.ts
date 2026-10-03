@@ -1,5 +1,6 @@
 import { GiteaSourceProvider } from './gitea.js';
 import { GitHubSourceProvider } from './github.js';
+import { GitLabSourceProvider } from './gitlab.js';
 import type { SourceConnectionSecrets, SourceProvider } from './types.js';
 
 /**
@@ -20,5 +21,7 @@ export function createSourceProvider(connection: SourceConnectionSecrets): Sourc
       });
     case 'gitea':
       return new GiteaSourceProvider({ baseUrl: connection.baseUrl, token: connection.token });
+    case 'gitlab':
+      return new GitLabSourceProvider({ baseUrl: connection.baseUrl, token: connection.token });
   }
 }

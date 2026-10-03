@@ -27,7 +27,7 @@ qui suit est la conséquence pratique.
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
 | `ProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider` (fichiers ou Ingress), `BunkerWebProvider` (API REST, WAF) |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
-| `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider`, `GiteaSourceProvider` |
+| `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider`, `GitLabSourceProvider`, `GiteaSourceProvider` |
 
 **`DeploymentDriver`** — `preflight` `allocatePort` `render` `upload` `build`
 `deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus les
@@ -73,7 +73,8 @@ qui a le droit de savoir sur quel runtime il tourne, c'est un driver.
 ## Dépôts liés
 
 Une application peut être liée à une branche d'un dépôt **GitHub** (par une
-GitHub App) ou d'une forge **Gitea / Forgejo / Codeberg** (par le jeton d'un
+GitHub App), d'une instance **GitLab** (par un jeton de projet, de groupe ou de
+compte) ou d'une forge **Gitea / Forgejo / Codeberg** (par le jeton d'un
 compte de la forge). Le dépôt porte un `pupitre.json` — l'AppSpec, rien
 d'autre — à sa racine, ou dans le dossier de l'application pour un monorepo.
 
@@ -89,9 +90,17 @@ d'autre — à sa racine, ou dans le dossier de l'application pour un monorepo.
   alors « inconnue », et tout compte comme changé. Les dépôts proposés sont
   ceux du compte du jeton — jamais la recherche publique de la forge, qui sur
   Codeberg rendrait des centaines de milliers de dépôts.
+- **GitLab nomme un dépôt par tout son chemin** — `groupe/sous-groupe/projet` —,
+  que l'API prend encodé d'un bloc comme identifiant de projet ; le nom d'un
+  dépôt accepte donc plus de deux segments (`sourceRepositorySchema`), jamais
+  `.` ni `..`. GitLab dit l'ancien chemin d'un renommage, et signale une
+  comparaison tronquée à ses limites (`compare_timeout`) : elle se déclare
+  alors « inconnue ». Son automate de statuts refuse de redire « pending » à
+  un statut déjà en attente — le client le prend pour ce qu'il est, un état
+  déjà atteint. Les dépôts proposés sont les projets dont le jeton est membre.
 - **Un déploiement garde l'adresse web de son dépôt** (`deployments.source_url`) :
-  le lien vers son commit en découle, chez GitHub comme chez Gitea, même si la
-  liaison disparaît ensuite.
+  le lien vers son commit en découle, chez GitHub, GitLab comme chez Gitea,
+  même si la liaison disparaît ensuite.
 
 - **Le dépôt dit quoi, le panel dit où et quand.** Cibles, runtime et mode de
   déclenchement vivent dans la liaison, sous RBAC. Le fichier ne porte ni cible,

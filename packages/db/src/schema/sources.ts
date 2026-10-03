@@ -32,9 +32,9 @@ import { applications, targets } from './infra.js';
 
 /**
  * L'intégration avec un fournisseur de code — une GitHub App, ou le jeton d'un
- * compte Gitea / Forgejo. Une par fournisseur et par instance.
+ * compte Gitea / Forgejo ou GitLab. Une par fournisseur et par instance.
  *
- * Ses secrets — la clé privée de l'App, le jeton Gitea — sont chiffrés comme
+ * Ses secrets — la clé privée de l'App, un jeton — sont chiffrés comme
  * les credentials SSH (AES-256-GCM, `MASTER_KEY`) : ils ouvrent la lecture de
  * dépôts privés, ils ne sortent jamais en clair, ni dans une réponse, ni dans
  * un log. Les colonnes propres à un fournisseur sont vides pour l'autre.
@@ -48,15 +48,15 @@ export const sourceConnections = pgTable(
     appId: integer('app_id'),
     slug: text('slug'),
     name: text('name').notNull(),
-    /** GitHub : la page de l'App. Gitea : l'adresse de la forge. */
+    /** GitHub : la page de l'App. Gitea, GitLab : l'adresse de la forge. */
     htmlUrl: text('html_url').notNull(),
-    /** GitHub : le propriétaire de l'App. Gitea : le compte du jeton. */
+    /** GitHub : le propriétaire de l'App. Gitea, GitLab : le compte du jeton. */
     owner: text('owner').notNull(),
-    /** GitHub : l'API d'un GitHub Enterprise, `null` pour github.com. Gitea : l'adresse de la forge. */
+    /** GitHub : l'API d'un GitHub Enterprise, `null` pour github.com. Gitea, GitLab : l'adresse de la forge. */
     apiUrl: text('api_url'),
     /** GitHub : la clé privée de l'App, chiffrée. */
     privateKeyEncrypted: text('private_key_encrypted'),
-    /** Gitea : le jeton d'accès, chiffré. */
+    /** Gitea, GitLab : le jeton d'accès, chiffré. */
     tokenEncrypted: text('token_encrypted'),
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -83,7 +83,7 @@ export const applicationSources = pgTable(
     connectionId: uuid('connection_id')
       .notNull()
       .references(() => sourceConnections.id, { onDelete: 'cascade' }),
-    /** GitHub : l'installation de l'App qui ouvre le dépôt. `null` chez Gitea. */
+    /** GitHub : l'installation de l'App qui ouvre le dépôt. `null` chez Gitea et GitLab. */
     installationId: bigint('installation_id', { mode: 'number' }),
     /** `owner/name`. */
     repository: text('repository').notNull(),

@@ -10,7 +10,7 @@ import { logger } from '../logger.js';
 import { providerForConnection } from './provider.js';
 
 /**
- * Ce que Pupitre écrit sur un commit — GitHub ou Gitea : l'état de son déploiement, cible
+ * Ce que Pupitre écrit sur un commit — GitHub, GitLab ou Gitea : l'état de son déploiement, cible
  * par cible (`pupitre/prod-1`), ou le sort réservé au commit (`pupitre`).
  *
  * Écrit dans la langue de l'instance, comme les alertes : c'est l'équipe qui

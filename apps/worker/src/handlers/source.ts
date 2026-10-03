@@ -256,7 +256,7 @@ export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
   for (const source of sources) {
     const log = logger.child({ sourceId: source.id, repository: source.repository });
     try {
-      // Chaque liaison passe par le fournisseur de sa connexion : GitHub, Gitea.
+      // Chaque liaison passe par le fournisseur de sa connexion : GitHub, GitLab, Gitea.
       const access = await providerForConnection(source.connectionId);
       if (!access) throw new Error('la connexion au fournisseur de ce dépôt a été retirée');
       const outcome = await pollSource(access.provider, source, data.force);
