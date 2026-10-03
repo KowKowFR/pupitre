@@ -505,7 +505,7 @@ function HeldAlerts({ window, format }: { window: MaintenanceWindowJson; format:
       {state.length === 0 ? (
         <p className="t-sm text-text-2">{t('drawer.held.none')}</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-line rounded-lg border border-line">
+        <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
           {state.map((alert) => {
             const status = alert.releasedAt
               ? 'released'
@@ -572,7 +572,7 @@ function SubjectPicker({
               aria-label={`${label} — ${t('form.filter')}`}
             />
           ) : null}
-          <div className="flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border border-line p-2">
+          <div className="flex max-h-56 flex-col gap-1 overflow-y-auto rounded-lg border border-border p-2">
             {shown.map((option) => (
               <CheckboxField
                 key={option.id}
