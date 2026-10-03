@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core';
 import {
   failOnEnum,
   scanStatusEnum,
@@ -6,7 +6,9 @@ import {
   scannerEnum,
   severityEnum,
 } from '../enums.js';
+import { users } from './auth.js';
 import { deployments } from './deployments.js';
+import { applications } from './infra.js';
 
 /** Une exécution de scanner sur l'image d'un déploiement. */
 export const scanRuns = pgTable(
@@ -20,6 +22,8 @@ export const scanRuns = pgTable(
     status: scanStatusEnum('status').notNull().default('pending'),
     /** Seuil de blocage, stocké en donnée et non codé en dur. */
     failOn: failOnEnum('fail_on').notNull().default('none'),
+    /** Le seuil ne valait-il que pour les failles corrigeables ? Ce qui explique le verdict. */
+    onlyFixable: boolean('only_fixable').notNull().default(false),
     verdict: scanVerdictEnum('verdict').notNull().default('unknown'),
     imageRef: text('image_ref'),
     error: text('error'),
@@ -58,3 +62,32 @@ export const findings = pgTable(
     index('findings_cve_id_idx').on(t.cveId),
   ],
 );
+
+/**
+ * Une faille **acceptée** pour une application : lue, motivée, et qui ne
+ * bloque plus ses mises en ligne. `package` à `null` : la CVE sur tous les
+ * paquets. Une échéance la fait expirer ; supprimer l'application l'emporte.
+ */
+export const vulnerabilityAcceptances = pgTable(
+  'vulnerability_acceptances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicationId: uuid('application_id')
+      .notNull()
+      .references(() => applications.id, { onDelete: 'cascade' }),
+    cveId: text('cve_id').notNull(),
+    package: text('package'),
+    reason: text('reason').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    // Une seule acceptation par CVE et paquet — « tous les paquets » compris.
+    unique('vulnerability_acceptances_subject')
+      .on(t.applicationId, t.cveId, t.package)
+      .nullsNotDistinct(),
+  ],
+);
+
+export type VulnerabilityAcceptanceRow = typeof vulnerabilityAcceptances.$inferSelect;

@@ -9,8 +9,10 @@ import {
   proxyCapabilities,
   routeListSchema,
   usableRuntimes,
+  withApplicationScanPolicy,
 } from '@pupitre/core';
 import {
+  applicationScanPolicyOf,
   createDeploymentSchema,
   createDeploymentWithSteps,
   deploymentQuerySchema,
@@ -173,11 +175,6 @@ export const POST = apiRoute(async (request) => {
   // elle ne peut que la restreindre. Dans les deux cas c'est ici que ça se
   // joue, avant le gel : la configuration enregistrée sur le déploiement doit
   // décrire ce qui va réellement tourner.
-  const scanConfig =
-    requestedScan === undefined
-      ? scanConfigFromSettings(settings.security)
-      : applySecuritySettings(requestedScan, settings.security);
-
   const [application, target] = await Promise.all([
     getApplication(input.applicationId),
     getTarget(input.targetId),
@@ -189,6 +186,20 @@ export const POST = apiRoute(async (request) => {
   if (!target) {
     throw new NotFoundError(msg(messages, 'error.targetNotFound', { id: input.targetId }));
   }
+
+  // Puis le réglage de l'application, qui sait ce qui doit la bloquer. Une
+  // demande explicite l'emporte sur lui, sauf pour ce qu'elle tait.
+  const applicationPolicy = applicationScanPolicyOf(application);
+  const scanConfig =
+    requestedScan === undefined
+      ? withApplicationScanPolicy(scanConfigFromSettings(settings.security), applicationPolicy)
+      : applySecuritySettings(
+          {
+            ...requestedScan,
+            onlyFixable: requestedScan.onlyFixable ?? applicationPolicy.onlyFixable ?? undefined,
+          },
+          settings.security,
+        );
 
   // Le preflight fait foi : on ne déploie pas sur un runtime que la
   // cible n'a pas montré.

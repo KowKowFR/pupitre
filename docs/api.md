@@ -199,9 +199,12 @@ la navigation métier.
 
 | Route | Méthodes | Permission |
 |---|---|---|
-| `/api/scans/:id` | GET | `scan:read` — findings paginés, filtre `severity` |
+| `/api/scans/:id` | GET | `scan:read` — findings paginés, filtres `severity` et `view` (`all`, `fixable`, `unfixable`, `accepted`) ; chaque finding porte son `acceptance` du jour, et la réponse `canAccept` |
 | `/api/scans/:id/sbom` | GET | `scan:read` — 409 si le scanner n'en produit pas |
 | `/api/findings` | GET | `scan:read` — vue transverse, filtres `cveId` `severity` `applicationId` `deploymentId` `scanner` |
+| `/api/applications/:id/scan-policy` | GET / PUT | `scan:read` / `scan:configure` — `{ "failOn": "CRITICAL" \| "HIGH" \| "NONE" \| null, "onlyFixable": true \| false \| null }`, `null` suit l'instance ; vaut pour les déploiements suivants |
+| `/api/applications/:id/vulnerability-acceptances` | GET / POST | `scan:read` / `scan:configure` — POST `{ "cveId", "package": "curl" \| null, "reason", "expiresInDays": 90 \| null }` ; la même CVE sur le même paquet répond `409` |
+| `/api/applications/:id/vulnerability-acceptances/:acceptanceId` | DELETE | `scan:configure` — la faille comptera de nouveau au prochain scan |
 
 ### Sondes
 

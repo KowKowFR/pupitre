@@ -140,6 +140,7 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
     const config: ScanConfig = {
       scanners: forcedScanners ?? stored.scanners,
       failOn: forcedFailOn ?? stored.failOn,
+      onlyFixable: stored.onlyFixable,
     };
 
     if (config.scanners.length === 0) {

@@ -5,8 +5,10 @@ import {
   deploymentJobDataSchema,
   parseAppSpec,
   usableRuntimes,
+  withApplicationScanPolicy,
 } from '@pupitre/core';
 import {
+  applicationScanPolicyOf,
   createDeploymentWithSteps,
   getAppSettings,
   getApplication,
@@ -101,9 +103,14 @@ export const POST = apiRoute<Context>(async (request, context) => {
   }
 
   // Les réglages d'instance priment sur la politique héritée : une analyse
-  // désactivée ne doit pas revenir par la porte d'un redéploiement.
+  // désactivée ne doit pas revenir par la porte d'un redéploiement. Le
+  // réglage de l'application, lui, s'applique : c'est elle qui décide de ce
+  // qui la bloque, pas la version — et le régler demande `scan:configure`.
   const { settings } = await getAppSettings();
-  const scanConfig = applySecuritySettings(requestedScan, settings.security);
+  const scanConfig = withApplicationScanPolicy(
+    applySecuritySettings(requestedScan, settings.security),
+    applicationScanPolicyOf(application),
+  );
 
   const appSpec = parseAppSpec(source.deployment.appSpec);
 

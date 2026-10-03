@@ -99,7 +99,10 @@ const descriptionsFr = {
     "Démarrer, arrêter, redémarrer, lire le journal, mettre à jour et supprimer les charges d'une cible",
   'workload:exec': "Exécuter des commandes dans les charges d'une cible",
   'scan:read': 'Consulter les scans et leurs findings',
-  'scan:configure': 'Choisir les scanners et le seuil de blocage',
+  // Accepter une faille décide, comme le seuil, de ce qui bloque une mise en
+  // ligne : le même geste, la même permission.
+  'scan:configure':
+    "Choisir les scanners et le seuil de blocage, d'une application comme de l'instance, et accepter une faille connue",
   'job:read': 'Consulter les tâches planifiées',
   'job:manage': 'Créer et désactiver des tâches planifiées',
   'monitor:read': 'Consulter la supervision des sites et leur historique',
@@ -145,7 +148,8 @@ const descriptionsEn: Translated<typeof descriptionsFr> = {
     'Start, stop, restart, read the log of, update and delete a target’s workloads',
   'workload:exec': 'Run commands inside a target’s workloads',
   'scan:read': 'Read scans and their findings',
-  'scan:configure': 'Choose the scanners and the blocking threshold',
+  'scan:configure':
+    'Choose the scanners and the blocking threshold, per application or instance-wide, and accept a known vulnerability',
   'job:read': 'Read scheduled jobs',
   'job:manage': 'Create and disable scheduled jobs',
   'monitor:read': 'Read site monitoring and its history',

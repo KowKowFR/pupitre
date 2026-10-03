@@ -247,6 +247,9 @@ export function collectAttention({
       detail:
         `${t('attention.scans.lead', { count: posture.passedWithSevere })} ` +
         `${t('attention.scans.critical', { count: posture.bySeverity.critical })} ` +
+        (posture.fixableCritical > 0
+          ? `${t('attention.scans.fixable', { count: posture.fixableCritical })} `
+          : '') +
         t('attention.scans.tail', { high: posture.bySeverity.high }),
       severity: 'warn',
       href: '/admin/settings',

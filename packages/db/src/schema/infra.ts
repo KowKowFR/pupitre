@@ -2,6 +2,7 @@ import type { AppSpec, PreflightReport, RuntimesAvailable } from '@pupitre/core'
 import { EMPTY_RUNTIMES } from '@pupitre/core';
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   index,
   integer,
@@ -12,7 +13,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { sshAuthMethodEnum, sudoMethodEnum, targetStatusEnum } from '../enums.js';
+import { failOnEnum, sshAuthMethodEnum, sudoMethodEnum, targetStatusEnum } from '../enums.js';
 import { users } from './auth.js';
 
 export type RuntimeKey = 'docker' | 'k3s';
@@ -131,6 +132,12 @@ export const applications = pgTable(
     generationModel: text('generation_model'),
     generatedAppSpec: jsonb('generated_app_spec').$type<AppSpec>(),
     generatedAt: timestamp('generated_at', { withTimezone: true }),
+    /**
+     * Le réglage de scan de l'application : son seuil de blocage, et s'il ne
+     * vaut que pour les failles corrigeables. `null` : comme l'instance.
+     */
+    scanFailOn: failOnEnum('scan_fail_on'),
+    scanOnlyFixable: boolean('scan_only_fixable'),
     ownerId: text('owner_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -17,12 +17,12 @@ import {
   type Severity,
   type SeverityCounts,
 } from '@pupitre/core';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
 import { deployments } from './schema/deployments.js';
 import { applications, targets } from './schema/infra.js';
-import { findings, scanRuns } from './schema/security.js';
+import { findings, scanRuns, vulnerabilityAcceptances } from './schema/security.js';
 
 /**
  * Persistance des scans.
@@ -68,6 +68,8 @@ export async function createScanRun(
     deploymentId: string;
     scanner: ScannerKey;
     failOn: FailOn;
+    /** Le seuil ne vaut-il que pour les failles corrigeables ? */
+    onlyFixable?: boolean;
     imageRef: string;
   },
   db: Database = getDb(),
@@ -79,6 +81,7 @@ export async function createScanRun(
       scanner: input.scanner,
       status: 'running',
       failOn: failOnToDb(input.failOn),
+      onlyFixable: input.onlyFixable ?? false,
       verdict: 'unknown',
       imageRef: input.imageRef,
       startedAt: new Date(),
@@ -186,6 +189,8 @@ export type ScanRunSummary = {
   kind: ScanKind;
   status: ScanRunStatus;
   failOn: FailOn;
+  /** Le seuil ne valait que pour les failles corrigeables. */
+  onlyFixable: boolean;
   verdict: ScanVerdict;
   imageRef: string | null;
   error: string | null;
@@ -194,6 +199,10 @@ export type ScanRunSummary = {
   finishedAt: Date | null;
   counts: SeverityCounts;
   total: number;
+  /** Failles corrigeables : une version qui les règle existe. */
+  fixable: number;
+  /** Failles acceptées pour l'application, **aujourd'hui**. */
+  accepted: number;
   /** Un SBOM est téléchargeable dès lors que l'exécution a réussi. */
   hasSbom: boolean;
 };
@@ -203,7 +212,11 @@ function durationOf(startedAt: Date | null, finishedAt: Date | null): number | n
   return Math.max(0, finishedAt.getTime() - startedAt.getTime());
 }
 
-function toSummary(row: ScanRun, counts: SeverityCounts): ScanRunSummary {
+function toSummary(
+  row: ScanRun,
+  counts: SeverityCounts,
+  extra: { fixable: number; accepted: number } = { fixable: 0, accepted: 0 },
+): ScanRunSummary {
   const scanner = row.scanner as ScannerKey;
   const kind = SCANNERS[scanner].kind;
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
@@ -215,6 +228,7 @@ function toSummary(row: ScanRun, counts: SeverityCounts): ScanRunSummary {
     kind,
     status: row.status as ScanRunStatus,
     failOn: failOnFromDb(row.failOn),
+    onlyFixable: row.onlyFixable,
     verdict: row.verdict as ScanVerdict,
     imageRef: row.imageRef,
     error: row.error,
@@ -223,8 +237,53 @@ function toSummary(row: ScanRun, counts: SeverityCounts): ScanRunSummary {
     finishedAt: row.finishedAt,
     counts,
     total,
+    fixable: extra.fixable,
+    accepted: extra.accepted,
     hasSbom: kind === 'sbom' && row.status === 'success' && row.raw !== null,
   };
+}
+
+/** Une faille corrigeable : le scanner connaît une version qui la règle. */
+const FIXABLE = sql`coalesce(${findings.fixedVersion}, '') <> ''`;
+
+/**
+ * Une faille couverte par une acceptation en cours de l'application dont
+ * `applicationId` est l'expression SQL. Même règle que `matchingAcceptance`
+ * dans `@pupitre/core` : CVE sans égard à la casse, paquet nommé ou tous,
+ * échéance non passée.
+ */
+function acceptedFor(applicationId: SQL) {
+  return sql`exists (
+    select 1 from ${vulnerabilityAcceptances} a
+     where a.application_id = ${applicationId}
+       and upper(a.cve_id) = upper(${findings.cveId})
+       and (a.package is null or a.package = ${findings.package})
+       and (a.expires_at is null or a.expires_at > now())
+  )`;
+}
+
+/** Par exécution : combien de failles corrigeables, combien d'acceptées. */
+async function fixableAndAcceptedFor(
+  scanRunIds: readonly string[],
+  db: Database,
+): Promise<Map<string, { fixable: number; accepted: number }>> {
+  const map = new Map<string, { fixable: number; accepted: number }>();
+  if (scanRunIds.length === 0) return map;
+  const rows = await db
+    .select({
+      scanRunId: findings.scanRunId,
+      fixable: sql<number>`count(*) filter (where ${FIXABLE})::int`,
+      accepted: sql<number>`count(*) filter (where ${acceptedFor(sql`${deployments.applicationId}`)})::int`,
+    })
+    .from(findings)
+    .innerJoin(scanRuns, eq(scanRuns.id, findings.scanRunId))
+    .innerJoin(deployments, eq(deployments.id, scanRuns.deploymentId))
+    .where(inArray(findings.scanRunId, [...scanRunIds]))
+    .groupBy(findings.scanRunId);
+  for (const row of rows) {
+    map.set(row.scanRunId, { fixable: Number(row.fixable), accepted: Number(row.accepted) });
+  }
+  return map;
 }
 
 /** Compte par sévérité, pour un ensemble d'exécutions, en une requête. */
@@ -264,21 +323,24 @@ export async function listScanRuns(
     .where(eq(scanRuns.deploymentId, deploymentId))
     .orderBy(asc(scanRuns.scanner), asc(scanRuns.createdAt));
 
-  const counts = await countsFor(
-    rows.map((row) => row.id),
-    db,
-  );
+  const ids = rows.map((row) => row.id);
+  const [counts, extras] = await Promise.all([countsFor(ids, db), fixableAndAcceptedFor(ids, db)]);
 
-  return rows.map((row) => toSummary(row, counts.get(row.id) ?? { ...EMPTY_SEVERITY_COUNTS }));
+  return rows.map((row) =>
+    toSummary(row, counts.get(row.id) ?? { ...EMPTY_SEVERITY_COUNTS }, extras.get(row.id)),
+  );
 }
 
 export async function getScanRun(
   id: string,
   db: Database = getDb(),
-): Promise<(ScanRunSummary & { applicationSlug: string; targetName: string }) | null> {
+): Promise<
+  (ScanRunSummary & { applicationId: string; applicationSlug: string; targetName: string }) | null
+> {
   const [row] = await db
     .select({
       run: scanRuns,
+      applicationId: applications.id,
       applicationSlug: applications.slug,
       targetName: targets.name,
     })
@@ -289,10 +351,18 @@ export async function getScanRun(
     .where(eq(scanRuns.id, id));
 
   if (!row) return null;
-  const counts = await countsFor([row.run.id], db);
+  const [counts, extras] = await Promise.all([
+    countsFor([row.run.id], db),
+    fixableAndAcceptedFor([row.run.id], db),
+  ]);
 
   return {
-    ...toSummary(row.run, counts.get(row.run.id) ?? { ...EMPTY_SEVERITY_COUNTS }),
+    ...toSummary(
+      row.run,
+      counts.get(row.run.id) ?? { ...EMPTY_SEVERITY_COUNTS },
+      extras.get(row.run.id),
+    ),
+    applicationId: row.applicationId,
     applicationSlug: row.applicationSlug,
     targetName: row.targetName,
   };
@@ -352,8 +422,16 @@ function toFindingView(row: FindingRow): FindingView {
   };
 }
 
+/**
+ * Ce qu'on regarde dans la liste : tout, les failles corrigeables, celles
+ * sans correctif, ou celles acceptées pour l'application.
+ */
+export const FINDING_VIEWS = ['all', 'fixable', 'unfixable', 'accepted'] as const;
+export type FindingViewFilter = (typeof FINDING_VIEWS)[number];
+
 export const findingQuerySchema = z.object({
   severity: severitySchema.optional(),
+  view: z.enum(FINDING_VIEWS).default('all'),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(50),
 });
@@ -383,9 +461,20 @@ export async function listFindings(
   query: FindingQuery,
   db: Database = getDb(),
 ): Promise<FindingPage<FindingView>> {
-  const where = query.severity
-    ? and(eq(findings.scanRunId, scanRunId), severityFilter(findings.severity, query.severity))
-    : eq(findings.scanRunId, scanRunId);
+  // L'application de l'exécution : c'est elle qui porte les acceptations.
+  const applicationOfRun = sql`(select d.application_id from ${scanRuns} r
+    join ${deployments} d on d.id = r.deployment_id where r.id = ${scanRunId})`;
+  const viewFilter = {
+    all: undefined,
+    fixable: FIXABLE,
+    unfixable: sql`not (${FIXABLE})`,
+    accepted: acceptedFor(applicationOfRun),
+  }[query.view];
+  const where = and(
+    eq(findings.scanRunId, scanRunId),
+    query.severity ? severityFilter(findings.severity, query.severity) : undefined,
+    viewFilter,
+  );
 
   const [rows, [totalRow]] = await Promise.all([
     db

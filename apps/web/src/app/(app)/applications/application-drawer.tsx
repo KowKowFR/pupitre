@@ -34,6 +34,7 @@ const SERVER_TABS: ApplicationRecordTab[] = [
   'secrets',
   'backups',
   'images',
+  'security',
 ];
 
 /**
@@ -52,6 +53,7 @@ export function ApplicationDrawer({
   canDeploy,
   canDelete,
   canReadBackups,
+  canReadScans = false,
   autoRollback,
   onAutoRollbackChange,
   backupChoice,
@@ -72,6 +74,8 @@ export function ApplicationDrawer({
   canDeploy: boolean;
   canDelete: boolean;
   canReadBackups: boolean;
+  /** L'onglet « Sécurité » : ce qui bloque l'application, et ses failles acceptées. */
+  canReadScans?: boolean;
   autoRollback: boolean;
   onAutoRollbackChange: (value: boolean) => void;
   /** Au premier déploiement : activer la sauvegarde. Rendu par la liste, posé ici. */
@@ -189,7 +193,9 @@ export function ApplicationDrawer({
 
   const tabs: RecordTab[] = [
     { key: 'overview', label: t('record.tab.overview'), content: overview },
-    ...SERVER_TABS.filter((key) => key !== 'backups' || canReadBackups).map((key) => ({
+    ...SERVER_TABS.filter(
+      (key) => (key !== 'backups' || canReadBackups) && (key !== 'security' || canReadScans),
+    ).map((key) => ({
       key,
       label: t(`record.tab.${key}`),
       count: ready ? record.counts[key] : undefined,

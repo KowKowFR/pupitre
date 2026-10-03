@@ -148,6 +148,7 @@ export default async function ApplicationsPage({
           auth.can('backup:manage') ? { hasDestination: backupDestination !== null } : null
         }
         canReadBackups={auth.can('backup:read')}
+        canReadScans={auth.can('scan:read')}
         record={record}
       />
     </>

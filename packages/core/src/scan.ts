@@ -233,6 +233,14 @@ export const scanConfigSchema = z.object({
   scanners: z.array(scannerKeySchema).max(SCANNER_KEYS.length).default([]),
   failOn: failOnSchema.default('NONE'),
   /**
+   * Ne bloquer que sur une faille **corrigeable** — celle dont le scanner
+   * connaît une version qui la règle. Une faille sans correctif ne se répare
+   * pas en redéployant : bloquer dessus arrête la mise en ligne sans rien
+   * offrir à faire. Optionnel : les déploiements enregistrés avant restent
+   * lisibles, et valent « tout bloque ».
+   */
+  onlyFixable: z.boolean().optional(),
+  /**
    * Pourquoi il n'y a pas de scanner, quand il n'y en a pas.
    *
    * Sans cela, l'étape « scan » ne saurait pas distinguer « l'utilisateur n'en
@@ -352,11 +360,156 @@ export type ScanRunStatus = z.infer<typeof scanRunStatusSchema>;
  */
 export function verdictFor(
   kind: ScanKind,
-  findings: readonly { severity: Severity }[],
-  failOn: FailOn,
+  findings: readonly ScannedFinding[],
+  policy: FailOn | ScanPolicy,
 ): ScanVerdict {
   if (kind !== 'vulnerability') return 'pass';
-  return findings.some((finding) => blocks(finding.severity, failOn)) ? 'fail' : 'pass';
+  const resolved: ScanPolicy =
+    typeof policy === 'string' ? { failOn: policy, onlyFixable: false, acceptances: [] } : policy;
+  return findings.some((finding) => findingBlocks(finding, resolved)) ? 'fail' : 'pass';
+}
+
+// ─── corrigeable, acceptée, bloquante ─────────────────────────────────────────
+
+/**
+ * Ce qu'il faut d'un finding pour juger s'il bloque. Les champs facultatifs
+ * manquent quand on ne connaît que la sévérité — alors seul le seuil compte.
+ */
+export type ScannedFinding = {
+  severity: Severity;
+  cveId?: string;
+  package?: string;
+  fixedVersion?: string | null;
+};
+
+/** Une faille est corrigeable quand le scanner connaît une version qui la règle. */
+export function isFixable(finding: { fixedVersion?: string | null }): boolean {
+  return typeof finding.fixedVersion === 'string' && finding.fixedVersion.trim() !== '';
+}
+
+/**
+ * Une faille **acceptée** pour une application : on l'a lue, on sait pourquoi
+ * elle ne nous concerne pas (ou pas encore), et on l'a écrit. Elle reste
+ * affichée, mais ne bloque plus. `package` à `null` : la CVE sur tous les
+ * paquets. Une échéance la fait expirer — l'acceptation ne vaut pas pour
+ * toujours sans qu'on le décide.
+ */
+export type VulnerabilityAcceptance = {
+  cveId: string;
+  package: string | null;
+  expiresAt: Date | string | null;
+};
+
+export const VULNERABILITY_ACCEPTANCE_REASON_MIN = 3;
+export const VULNERABILITY_ACCEPTANCE_REASON_MAX = 500;
+/** Les échéances proposées, en jours ; `null` : sans échéance. */
+export const VULNERABILITY_ACCEPTANCE_DURATIONS = [30, 90, 180, null] as const;
+
+export const createVulnerabilityAcceptanceSchema = z.object({
+  cveId: z.string().trim().min(1).max(200),
+  /** `null` : la CVE, quel que soit le paquet. */
+  package: z.string().trim().min(1).max(400).nullable(),
+  reason: z
+    .string()
+    .trim()
+    .min(VULNERABILITY_ACCEPTANCE_REASON_MIN)
+    .max(VULNERABILITY_ACCEPTANCE_REASON_MAX),
+  /** En jours à partir de maintenant ; `null` : sans échéance. */
+  expiresInDays: z.number().int().min(1).max(730).nullable(),
+});
+export type CreateVulnerabilityAcceptanceInput = z.infer<
+  typeof createVulnerabilityAcceptanceSchema
+>;
+
+/** L'acceptation qui couvre ce finding à l'instant `now`, s'il y en a une. */
+export function matchingAcceptance<A extends VulnerabilityAcceptance>(
+  finding: { cveId?: string; package?: string },
+  acceptances: readonly A[],
+  now: Date = new Date(),
+): A | null {
+  if (!finding.cveId) return null;
+  const cve = finding.cveId.toUpperCase();
+  return (
+    acceptances.find(
+      (acceptance) =>
+        acceptance.cveId.toUpperCase() === cve &&
+        (acceptance.package === null || acceptance.package === finding.package) &&
+        (acceptance.expiresAt === null || new Date(acceptance.expiresAt).getTime() > now.getTime()),
+    ) ?? null
+  );
+}
+
+/**
+ * Ce qui décide du verdict d'un scan : le seuil, les seules failles
+ * corrigeables ou toutes, et les failles acceptées pour l'application.
+ */
+export type ScanPolicy = {
+  failOn: FailOn;
+  onlyFixable: boolean;
+  acceptances: readonly VulnerabilityAcceptance[];
+  now?: Date;
+};
+
+/** Ce finding bloque-t-il, sous cette politique ? */
+export function findingBlocks(finding: ScannedFinding, policy: ScanPolicy): boolean {
+  if (!blocks(finding.severity, policy.failOn)) return false;
+  if (policy.onlyFixable && !isFixable(finding)) return false;
+  return matchingAcceptance(finding, policy.acceptances, policy.now) === null;
+}
+
+export type FindingsSummary = {
+  total: number;
+  /** Corrigeables : une version qui les règle existe. */
+  fixable: number;
+  /** Acceptées pour l'application, à cet instant. */
+  accepted: number;
+  /** Celles qui bloquent sous la politique. */
+  blocking: number;
+};
+
+export function summarizeFindings(
+  findings: readonly ScannedFinding[],
+  policy: ScanPolicy,
+): FindingsSummary {
+  let fixable = 0;
+  let accepted = 0;
+  let blocking = 0;
+  for (const finding of findings) {
+    if (isFixable(finding)) fixable += 1;
+    if (matchingAcceptance(finding, policy.acceptances, policy.now)) accepted += 1;
+    if (findingBlocks(finding, policy)) blocking += 1;
+  }
+  return { total: findings.length, fixable, accepted, blocking };
+}
+
+/**
+ * Le réglage d'une application : son seuil et sa règle des corrigeables.
+ * `null` : comme l'instance.
+ */
+export const applicationScanPolicySchema = z.object({
+  failOn: failOnSchema.nullable(),
+  onlyFixable: z.boolean().nullable(),
+});
+export type ApplicationScanPolicy = z.infer<typeof applicationScanPolicySchema>;
+
+export const INHERITED_SCAN_POLICY: ApplicationScanPolicy = { failOn: null, onlyFixable: null };
+
+/**
+ * Applique le réglage d'une application à une configuration de scan. Ce qui
+ * est réglé sur l'application l'emporte sur l'instance — c'est l'application
+ * qui sait ce qui doit la bloquer ; ce qui ne l'est pas reste tel quel.
+ */
+export function withApplicationScanPolicy(
+  config: ScanConfig,
+  policy: ApplicationScanPolicy,
+): ScanConfig {
+  // Aucun scanner : un seuil n'aurait rien pour l'évaluer.
+  if (config.scanners.length === 0) return config;
+  return {
+    ...config,
+    ...(policy.failOn !== null ? { failOn: policy.failOn } : {}),
+    ...(policy.onlyFixable !== null ? { onlyFixable: policy.onlyFixable } : {}),
+  };
 }
 
 // ─── correspondance avec les enums Postgres ───────────────────────────────────

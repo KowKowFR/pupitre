@@ -309,6 +309,13 @@
       "when": 1791055300481,
       "tag": "0044_status_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1791057132177,
+      "tag": "0045_vulnerability_acceptances",
+      "breakpoints": true
     }
   ]
 }
