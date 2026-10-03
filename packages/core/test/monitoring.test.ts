@@ -23,8 +23,15 @@ import { getMonitorProbe } from '../src/probe/index.js';
 
 const THRESHOLDS = { failureThreshold: 3, recoveryThreshold: 2 };
 
-function play(outcomes: MonitorOutcome[], thresholds = THRESHOLDS) {
-  let state: MonitorState = { status: 'unknown', consecutiveFailures: 0, consecutiveSuccesses: 0 };
+const FRESH: MonitorState = {
+  status: 'unknown',
+  consecutiveFailures: 0,
+  consecutiveSuccesses: 0,
+  incidentOpen: false,
+};
+
+function play(outcomes: MonitorOutcome[], thresholds = THRESHOLDS, from: MonitorState = FRESH) {
+  let state: MonitorState = from;
   const transitions: Array<'down' | 'up'> = [];
   for (const outcome of outcomes) {
     const step = nextMonitorState(state, outcome, thresholds);
@@ -33,6 +40,7 @@ function play(outcomes: MonitorOutcome[], thresholds = THRESHOLDS) {
       status: step.status,
       consecutiveFailures: step.consecutiveFailures,
       consecutiveSuccesses: step.consecutiveSuccesses,
+      incidentOpen: step.incidentOpen,
     };
   }
   return { state, transitions };
@@ -114,6 +122,64 @@ test('depuis unknown, les échecs demandent le seuil complet', () => {
   const { state, transitions } = play(['unreachable', 'unreachable']);
   assert.equal(state.status, 'unknown');
   assert.deepEqual(transitions, []);
+});
+
+test("l'incident suit la panne : ouvert à la chute, refermé au rétablissement", () => {
+  const down = play(['healthy', 'unreachable', 'unreachable', 'unreachable']);
+  assert.equal(down.state.incidentOpen, true);
+  const up = play(['healthy', 'unreachable', 'unreachable', 'unreachable', 'healthy', 'healthy']);
+  assert.equal(up.state.incidentOpen, false);
+});
+
+// ─── changement de cible pendant une panne ────────────────────────────────────
+
+/** Ce que `updateMonitor` laisse quand on change l'URL d'une sonde en panne. */
+const RETARGETED: MonitorState = {
+  status: 'unknown',
+  consecutiveFailures: 0,
+  consecutiveSuccesses: 0,
+  incidentOpen: true,
+};
+
+test('nouvelle cible saine : le rétablissement attend son seuil, puis s’annonce', () => {
+  const one = play(['healthy'], THRESHOLDS, RETARGETED);
+  assert.equal(one.state.status, 'unknown', 'un succès ne referme pas un incident annoncé');
+  assert.deepEqual(one.transitions, []);
+
+  const two = play(['healthy', 'healthy'], THRESHOLDS, RETARGETED);
+  assert.equal(two.state.status, 'healthy');
+  assert.equal(two.state.incidentOpen, false);
+  assert.deepEqual(two.transitions, ['up'], 'le retour à la normale est annoncé');
+});
+
+test('nouvelle cible en échec : la même panne continue, sans seconde alerte', () => {
+  const { state, transitions } = play(['unreachable', 'unhealthy'], THRESHOLDS, RETARGETED);
+  assert.equal(state.status, 'unhealthy', "l'état dit la panne dès le premier échec");
+  assert.equal(state.incidentOpen, true);
+  assert.deepEqual(transitions, []);
+});
+
+test('après le rétablissement, la panne suivante est de nouveau annoncée', () => {
+  const { transitions } = play(
+    ['healthy', 'healthy', 'unreachable', 'unreachable', 'unreachable'],
+    THRESHOLDS,
+    RETARGETED,
+  );
+  assert.deepEqual(transitions, ['up', 'down']);
+});
+
+test('un incident resté ouvert sous un état « sain » se referme au prochain succès', () => {
+  // L'état qu'a laissé l'ancien code : cible changée pendant une panne, puis
+  // une mesure saine — « sain » affiché, incident toujours ouvert.
+  const stuck: MonitorState = {
+    status: 'healthy',
+    consecutiveFailures: 0,
+    consecutiveSuccesses: 12,
+    incidentOpen: true,
+  };
+  const { state, transitions } = play(['healthy'], THRESHOLDS, stuck);
+  assert.equal(state.incidentOpen, false);
+  assert.deepEqual(transitions, ['up']);
 });
 
 // ─── taux de disponibilité ────────────────────────────────────────────────────

@@ -127,6 +127,16 @@ export type MonitorState = {
   status: MonitorStatus;
   consecutiveFailures: number;
   consecutiveSuccesses: number;
+  /**
+   * Un incident est-il ouvert ? D'ordinaire, c'est exactement « l'état
+   * confirmé est une panne ». Pas toujours : changer ce qu'une sonde observe
+   * remet son état à `unknown` — le verdict portait sur autre chose — sans
+   * refermer l'incident, qui a été annoncé. Sans ce champ, la machine croyait
+   * alors n'avoir « rien à refermer » : le retour à la normale passait sous
+   * silence, l'incident restait ouvert pour toujours, et l'index unique
+   * avalait chaque panne suivante.
+   */
+  incidentOpen: boolean;
 };
 
 export type MonitorThresholds = {
@@ -148,17 +158,23 @@ export function nextMonitorState(
   const consecutiveFailures = healthy ? 0 : previous.consecutiveFailures + 1;
   const consecutiveSuccesses = healthy ? previous.consecutiveSuccesses + 1 : 0;
 
-  const confirmedDown = previous.status === 'unhealthy' || previous.status === 'unreachable';
+  // En incident : la panne a été confirmée et annoncée. L'état le dit
+  // (`unhealthy`, `unreachable`), ou il a été remis à `unknown` par un
+  // changement de cible pendant la panne — l'incident, lui, court toujours.
+  const inIncident =
+    previous.incidentOpen || previous.status === 'unhealthy' || previous.status === 'unreachable';
 
   if (healthy) {
-    // Depuis `unknown`, une seule mesure saine suffit à afficher « sain » : il
-    // n'y a pas d'incident à refermer, donc rien à confirmer.
-    const recovered = !confirmedDown || consecutiveSuccesses >= thresholds.recoveryThreshold;
+    // Hors incident, une seule mesure saine suffit à afficher « sain » : il n'y
+    // a rien à refermer, donc rien à confirmer. En incident, le rétablissement
+    // demande son seuil — et il s'annonce, même si l'état affiché était `unknown`.
+    const recovered = !inIncident || consecutiveSuccesses >= thresholds.recoveryThreshold;
     if (!recovered) {
       return {
         status: previous.status,
         consecutiveFailures,
         consecutiveSuccesses,
+        incidentOpen: inIncident,
         transition: null,
       };
     }
@@ -166,20 +182,39 @@ export function nextMonitorState(
       status: 'healthy',
       consecutiveFailures,
       consecutiveSuccesses,
-      transition: confirmedDown ? 'up' : null,
+      incidentOpen: false,
+      transition: inIncident ? 'up' : null,
     };
   }
 
-  if (confirmedDown) {
+  if (inIncident) {
     // Déjà en panne : on met à jour la nature de l'échec sans rouvrir d'incident.
-    return { status: outcome, consecutiveFailures, consecutiveSuccesses, transition: null };
+    return {
+      status: outcome,
+      consecutiveFailures,
+      consecutiveSuccesses,
+      incidentOpen: true,
+      transition: null,
+    };
   }
 
   if (consecutiveFailures < thresholds.failureThreshold) {
-    return { status: previous.status, consecutiveFailures, consecutiveSuccesses, transition: null };
+    return {
+      status: previous.status,
+      consecutiveFailures,
+      consecutiveSuccesses,
+      incidentOpen: false,
+      transition: null,
+    };
   }
 
-  return { status: outcome, consecutiveFailures, consecutiveSuccesses, transition: 'down' };
+  return {
+    status: outcome,
+    consecutiveFailures,
+    consecutiveSuccesses,
+    incidentOpen: true,
+    transition: 'down',
+  };
 }
 
 // ─── suspension ───────────────────────────────────────────────────────────────
