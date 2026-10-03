@@ -161,6 +161,7 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
       ctx: opened.ctx,
       config,
       images,
+      store: driver.imageStore(opened.ctx),
       onLog: (line) => onLog(`[${deployment.id.slice(0, 8)}] ${line}`),
       // On EMPILE : l'intérêt d'un scan périodique est de comparer dans le temps
       // un déploiement qui, lui, n'a pas bougé.

@@ -7,6 +7,7 @@ import {
   verdictFor,
   worstSeverity,
   type Finding,
+  type ImageStore,
   type ScanConfig,
   type ScannerKey,
   type ScanVerdict,
@@ -54,6 +55,11 @@ export type ScanStepInput = {
   ctx: DriverContext;
   config: ScanConfig;
   images: readonly string[];
+  /**
+   * Où le runtime garde ces images — `driver.imageStore(ctx)`. Le worker le
+   * transmet sans le lire : c'est chaque scanner qui sait s'en servir.
+   */
+  store: ImageStore;
   onLog: (line: string) => void;
   /**
    * Effacer les exécutions précédentes du déploiement avant de rescanner.
@@ -178,7 +184,7 @@ async function runOne(
   task: { scanner: ScannerKey; image: string },
   input: ScanStepInput,
 ): Promise<ScanRunOutcome> {
-  const { deploymentId, ctx, config, onLog } = input;
+  const { deploymentId, ctx, config, store, onLog } = input;
   const prefix = `[${task.scanner}]`;
   const scanner = getScanner(task.scanner);
 
@@ -193,7 +199,7 @@ async function runOne(
 
   try {
     const report = await scanner.run(
-      { session: ctx.sshSession, image: task.image },
+      { session: ctx.sshSession, image: task.image, store },
       (line) => onLog(`${prefix} ${line}`),
     );
 

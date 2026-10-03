@@ -1,4 +1,4 @@
-import type { ScanKind, ScanReport, ScannerKey } from '../scan.js';
+import type { ImageStore, ScanKind, ScanReport, ScannerKey } from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
 
 /**
@@ -20,6 +20,8 @@ export type ScanContext = {
   session: SshSession;
   /** Référence de l'image à analyser, telle que le runtime la nomme. */
   image: string;
+  /** Où le runtime garde cette image — déclaré par le driver. */
+  store: ImageStore;
   /** Millisecondes. Défaut : `SCAN_TIMEOUT_MS`. */
   timeoutMs?: number;
 };

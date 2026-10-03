@@ -306,6 +306,7 @@ export async function runDeploymentPipeline(
         ctx,
         config,
         images,
+        store: driver.imageStore(ctx),
         onLog: (line) => stream.line('scan', line),
       });
 

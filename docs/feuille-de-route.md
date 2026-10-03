@@ -62,14 +62,6 @@ Ce qu'il faudrait : lire aussi le jeton d'accès (vérifié contre les mêmes
 clés), accepter plusieurs champs à la fois (groupes **et** rôles), et proposer
 `realm_access.roles` comme un choix de l'écran plutôt qu'un chemin à saisir.
 
-### Trivy ne voit pas les images construites sur K3s
-
-Il cherche containerd sur `/run/containerd/containerd.sock`, namespace
-`default` ; k3s écoute sur `/run/k3s/containerd/containerd.sock`, namespace
-`k8s.io`. L'étape de scan rend donc `unknown` — non bloquant, mais silencieusement
-inutile. Deux variables d'environnement dans
-`packages/core/src/scanners/trivy.ts` suffiraient.
-
 ### Le constructeur BuildKit reste en place
 
 C'est délibéré — son cache de couches vit dedans — mais rien ne le supprime

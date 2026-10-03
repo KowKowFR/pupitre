@@ -11,6 +11,7 @@ import {
 } from '../src/images/registry.js';
 import {
   buildNotificationMessage,
+  canonicalImageReference,
   checkableImages,
   digestOf,
   formatImageReference,
@@ -365,4 +366,27 @@ describe('notification « image.update.available »', () => {
       assert.equal(message.severity, 'warning');
     });
   }
+});
+
+describe('canonicalImageReference — le nom que containerd enregistre', () => {
+  it('complète Docker Hub, garde les autres registres, épingle le digest', () => {
+    assert.equal(canonicalImageReference('nginx:1.27'), 'docker.io/library/nginx:1.27');
+    assert.equal(canonicalImageReference('nginx'), 'docker.io/library/nginx:latest');
+    assert.equal(
+      canonicalImageReference('app-bonjour/web:1.0.0-r2'),
+      'docker.io/app-bonjour/web:1.0.0-r2',
+    );
+    assert.equal(
+      canonicalImageReference('docker.io/app-bonjour/web:1'),
+      'docker.io/app-bonjour/web:1',
+    );
+    assert.equal(canonicalImageReference('ghcr.io/acme/api:2.1'), 'ghcr.io/acme/api:2.1');
+    assert.equal(canonicalImageReference('localhost:5000/app'), 'localhost:5000/app:latest');
+    const digest = `sha256:${'a'.repeat(64)}`;
+    assert.equal(
+      canonicalImageReference(`postgres:16@${digest}`),
+      `docker.io/library/postgres@${digest}`,
+    );
+    assert.equal(canonicalImageReference('pas une image'), 'pas une image');
+  });
 });

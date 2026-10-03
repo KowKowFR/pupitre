@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { homedir, userInfo } from 'node:os';
+import { grypeCommand } from '../src/scanners/grype.js';
+import { asToolOwner, MACHINE_PLATFORM_FLAG } from '../src/scanners/run.js';
+import { syftCommand } from '../src/scanners/syft.js';
+import { trivyCommand } from '../src/scanners/trivy.js';
 import {
   DEFAULT_UI_SCAN_CONFIG,
   EMPTY_SCAN_CONFIG,
@@ -266,3 +272,96 @@ function finding(cveId: string, severity: Severity): Finding {
     primaryUrl: null,
   };
 }
+
+describe('scanners — où lire les images', () => {
+  const docker = { kind: 'docker' } as const;
+  const k3s = {
+    kind: 'containerd',
+    address: '/run/k3s/containerd/containerd.sock',
+    namespace: 'k8s.io',
+    elevated: true,
+  } as const;
+
+  it('sur Docker, les trois commandes restent celles d’avant, sans élévation', () => {
+    const trivy = trivyCommand('app-blog/web:3', docker, 600_000);
+    assert.equal(trivy.sudo, false);
+    assert.doesNotMatch(trivy.command, /CONTAINERD|image-src|sudo/);
+    assert.match(
+      trivy.command,
+      /trivy image --format json --scanners vuln --no-progress --timeout 9m 'app-blog\/web:3'$/,
+    );
+    const grype = grypeCommand('app-blog/web:3', docker);
+    assert.equal(grype.sudo, false);
+    assert.match(grype.command, /grype 'app-blog\/web:3' -o json$/);
+    const syft = syftCommand('app-blog/web:3', docker, 'cyclonedx');
+    assert.equal(syft.sudo, false);
+    assert.match(syft.command, /syft scan 'app-blog\/web:3' -o cyclonedx-json$/);
+  });
+
+  it('sur le containerd de k3s, chaque outil y est pointé, puis retombe sur le registry', () => {
+    for (const { command, sudo } of [
+      trivyCommand('app-blog/web:3', k3s, 600_000),
+      grypeCommand('app-blog/web:3', k3s),
+      syftCommand('app-blog/web:3', k3s, 'cyclonedx'),
+    ]) {
+      assert.equal(sudo, true);
+      assert.match(
+        command,
+        /CONTAINERD_ADDRESS='\/run\/k3s\/containerd\/containerd\.sock' CONTAINERD_NAMESPACE='k8s\.io'/,
+      );
+      assert.match(command, /SUDO_USER/);
+    }
+    // Containerd ne connaît que les noms complets : Trivy échouait sous le nom court.
+    assert.match(
+      trivyCommand('app-blog/web:3', k3s, 600_000).command,
+      /--image-src containerd,remote 'docker\.io\/app-blog\/web:3'$/m,
+    );
+    assert.match(
+      trivyCommand('x', k3s, 600_000).command,
+      /--image-src containerd,remote 'docker\.io\/library\/x:latest'/,
+    );
+    assert.match(
+      grypeCommand('x', k3s).command,
+      /--from containerd --from registry --platform "linux\//,
+    );
+    assert.match(
+      syftCommand('x', k3s, 'cyclonedx').command,
+      /--from containerd --from registry --platform "linux\/.*-o cyclonedx-json/,
+    );
+  });
+
+  it('un containerd ouvert à l’utilisateur ne demande pas sudo', () => {
+    const open = { ...k3s, elevated: false };
+    const trivy = trivyCommand('x', open, 600_000);
+    assert.equal(trivy.sudo, false);
+    assert.doesNotMatch(trivy.command, /SUDO_USER/);
+  });
+
+  it('sous sudo, l’outil retrouve le HOME de l’utilisateur et garde son code de sortie', () => {
+    const user = userInfo().username;
+    const script = asToolOwner('printf %s "$HOME"; exit 3', '"$HOME"/.inexistant');
+    const run = spawnSync('sh', ['-c', script], {
+      // Ce que sudo laisse derrière lui : le HOME de root, et qui l'a appelé.
+      env: { PATH: process.env.PATH, HOME: '/var/root-de-test', SUDO_USER: user },
+      encoding: 'utf8',
+    });
+    assert.equal(run.status, 3);
+    assert.equal(run.stdout, homedir());
+  });
+
+  it('sans sudo, rien ne change', () => {
+    const run = spawnSync('sh', ['-c', asToolOwner('printf %s "$HOME"', '/nulle-part')], {
+      env: { PATH: process.env.PATH, HOME: '/maison' },
+      encoding: 'utf8',
+    });
+    assert.equal(run.status, 0);
+    assert.equal(run.stdout, '/maison');
+  });
+
+  it('la plateforme suit uname -m', () => {
+    const run = spawnSync('sh', ['-c', `echo ${MACHINE_PLATFORM_FLAG}`], { encoding: 'utf8' });
+    const arch = ({ x64: 'amd64', arm64: 'arm64' } as Record<string, string>)[process.arch];
+    assert.ok(arch, `architecture de test inattendue : ${process.arch}`);
+    assert.equal(run.stdout.trim(), `--platform linux/${arch}`);
+  });
+});

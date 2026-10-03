@@ -60,9 +60,12 @@ import {
   builderNamespaceManifest,
   discardTarCommand,
   importCommand,
+  K3S_CONTAINERD_ADDRESS,
+  K3S_IMAGE_NAMESPACE,
   pushContextCommand,
   rolloutStatusCommand,
 } from './builder.js';
+import type { ImageStore } from '../../scan.js';
 import { firstLine, shellQuote } from '../../shell.js';
 
 /**
@@ -794,6 +797,19 @@ export class K3sDriver implements DeploymentDriver {
     return ctx.spec.services.map((service) =>
       service.source.type === 'image' ? service.source.ref : this.imageTag(ctx, service.name),
     );
+  }
+
+  /**
+   * Le containerd de k3s, dans l'espace du kubelet : c'est là que `build()`
+   * importe les images construites. Son socket est réservé à root.
+   */
+  imageStore(_ctx: DriverContext): ImageStore {
+    return {
+      kind: 'containerd',
+      address: K3S_CONTAINERD_ADDRESS,
+      namespace: K3S_IMAGE_NAMESPACE,
+      elevated: true,
+    };
   }
 
   // ─── healthcheck ────────────────────────────────────────────────────────────
