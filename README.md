@@ -177,7 +177,7 @@ la comparaison telle qu'elle est.
 
 - **Pas de GitLab, et pas de prévisualisation par branche.** Pupitre suit une
   branche GitHub ou Gitea / Forgejo en l'interrogeant chaque minute — jamais de
-  webhook : le panel reste privé — et accepte une archive du code pour une
+  webhook : le panel reste privé, hors ses pages de statut publiées — et accepte une archive du code pour une
   application sans dépôt. Ni GitLab, ni déploiement temporaire par pull
   request — voir la limite sur le contexte de build ci-dessous.
 - **Aucun catalogue d'applications prêtes à l'emploi.** Là où Coolify propose des
@@ -268,7 +268,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Déployer depuis une CI (GitHub Actions, GitLab CI) avec un jeton d'API limité à ses applications | [`docs/exploitation.md`](docs/exploitation.md#déployer-depuis-une-ci) |
 | Suivre une branche GitHub ou Gitea / Forgejo : son `pupitre.json` décrit l'application, chaque commit la met à jour ou la redéploie, et l'état revient sur le commit | [`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt) |
 | Le code d'une application sans dépôt : une archive téléversée, relue entrée par entrée et refaite propre avant de partir sur la machine | [`docs/exploitation.md`](docs/exploitation.md#le-code-dune-application-sans-dépôt) |
-| RBAC (34 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
+| RBAC (37 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Second facteur exigé (droits sensibles ou tous les comptes), durée des sessions réglable | [`docs/securite.md`](docs/securite.md#le-second-facteur-exigé) |
 | Connexion unique OpenID Connect (Keycloak, Authentik, Google, Entra), rôles tirés des groupes | [`docs/exploitation.md`](docs/exploitation.md#connexion-unique-par-keycloak) |
 | Scanners Trivy / Grype / Syft et politique de blocage | [`docs/securite.md`](docs/securite.md#scanners-de-sécurité) |

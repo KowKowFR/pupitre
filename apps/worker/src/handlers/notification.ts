@@ -13,6 +13,7 @@ import {
   describeFailure,
   isNotificationEventKey,
   languageOf,
+  maintenanceRuleOf,
   notificationDeliverJobDataSchema,
   notificationDigestGroupKey,
   notificationDigestPath,
@@ -24,6 +25,7 @@ import {
   testNotificationMessage,
   type NotificationDeliverJobResult,
   type NotificationDigestSweepJobResult,
+  type NotificationDispatchJobData,
   type NotificationDispatchJobResult,
   type NotificationPayload,
   type NotificationRenderContext,
@@ -35,12 +37,14 @@ import {
   claimNotificationDigest,
   dueNotificationDigestGroups,
   getAppSettingsValue,
+  holdMaintenanceAlert,
   logAudit,
   notificationActorLabel,
   notificationChannelsForEvent,
   recordNotificationOutcome,
   resolveNotificationChannel,
   setAuditObserver,
+  windowsCovering,
   type NotificationChannelRecord,
 } from '@pupitre/db';
 import { Queue, UnrecoverableError, type Job } from 'bullmq';
@@ -134,6 +138,20 @@ export function installAuditNotifications(): void {
       },
     ),
   );
+}
+
+/**
+ * Remet en distribution une alerte qu'une maintenance avait retenue, telle
+ * qu'elle était partie la première fois. Elle repasse par la décision : si une
+ * autre fenêtre couvre encore son sujet, c'est celle-là qui la garde.
+ */
+export async function releaseHeldNotification(
+  data: NotificationDispatchJobData,
+  dedupId: string,
+): Promise<void> {
+  await getNotificationsQueue().add(NOTIFICATION_DISPATCH_JOB, data, {
+    deduplication: { id: dedupId },
+  });
 }
 
 /**
@@ -278,6 +296,35 @@ export async function handleNotificationDispatch(
 
   const message = buildNotificationMessage(data.event, data.entry, ctx);
   const item = buildNotificationDigestItem(data.event, data.entry, ctx);
+
+  // Une maintenance passe avant le regroupement : une alerte qu'elle retient
+  // n'a pas à ouvrir de fenêtre de résumé. Elle n'est pas perdue — la fin de
+  // la fenêtre la remet en distribution si son problème est toujours là.
+  const rule = maintenanceRuleOf(data.event);
+  const subject = rule?.subject(data.entry) ?? null;
+  if (rule && subject) {
+    const [window] = await windowsCovering(subject);
+    if (window) {
+      await holdMaintenanceAlert({
+        windowId: window.id,
+        event: data.event,
+        family: rule.family(data.entry),
+        opens: rule.opens,
+        label: message.title,
+        subject,
+        data: data as unknown as Record<string, unknown>,
+      });
+      log.info({ windowId: window.id, label: message.title }, 'alerte retenue par une maintenance');
+      return {
+        event: data.event,
+        targeted: channels.length,
+        delivered: 0,
+        failed: 0,
+        mode: 'silenced',
+        queued: 0,
+      };
+    }
+  }
 
   const admission = await admitNotification({
     groupKey: notificationDigestGroupKey(data.event),

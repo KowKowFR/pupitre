@@ -7,6 +7,7 @@ import {
   getAppSettings,
   HOST_METRIC_CATALOG,
   monitorPulse,
+  listMaintenanceWindows,
   pulseWindow,
   targetHistories,
   type ActivityPulse,
@@ -54,6 +55,8 @@ import {
 import { currentAuth } from '@/lib/page-auth';
 import { isTeamMember } from '@/lib/rbac';
 import { ForecastPanel } from '@/components/forecasts/forecast-panel';
+import { MaintenanceBanner } from '@/components/maintenance/maintenance-banner';
+import { maintenanceJson, visibleCoverage } from '@/lib/maintenance';
 import { visibleForecasts } from '@/lib/forecasts';
 import { AttentionPanel, Panel, PanelEmpty } from './attention';
 import { DeploymentStatusBadge } from './deployments/status-badge';
@@ -158,6 +161,24 @@ function median(values: readonly (number | null)[]): number | null {
   return clean[Math.floor(clean.length / 2)] ?? null;
 }
 
+/**
+ * Les fenêtres de la bande : en cours, et à venir dans la journée —
+ * seulement celles dont la session lit au moins un sujet.
+ */
+function bannerWindows(
+  windows: Awaited<ReturnType<typeof listMaintenanceWindows>>,
+  auth: Parameters<typeof maintenanceJson>[1],
+) {
+  const soon = Date.now() + 24 * 3_600_000;
+  return windows
+    .map((window) => maintenanceJson(window, auth))
+    .filter(
+      (window) =>
+        window.targets.length + window.monitors.length > 0 &&
+        (window.phase === 'active' || new Date(window.startsAt).getTime() <= soon),
+    );
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -239,8 +260,24 @@ export default async function HomePage({
   const monitorsUp = monitors.filter((monitor) => monitor.status === 'healthy').length;
   const appsHealthy = running.filter((app) => app.healthStatus === 'healthy').length;
 
-  const attention = collectAttention({ targets, running, monitors, recent, chronicle, posture, t });
-  const forecasts = auth ? await visibleForecasts(auth) : [];
+  const [forecasts, coverage, windows] = await Promise.all([
+    auth ? visibleForecasts(auth) : Promise.resolve([]),
+    auth ? visibleCoverage(auth) : Promise.resolve(null),
+    auth ? listMaintenanceWindows({ endedLimit: 0 }) : Promise.resolve([]),
+  ]);
+  const attention = collectAttention({
+    targets,
+    running,
+    monitors,
+    recent,
+    chronicle,
+    posture,
+    maintenance: coverage
+      ? { targets: new Set(coverage.targets.keys()), monitors: new Set(coverage.monitors.keys()) }
+      : undefined,
+    t,
+  });
+  const maintenance = auth ? bannerWindows(windows, auth) : [];
 
   return (
     <>
@@ -260,6 +297,12 @@ export default async function HomePage({
             {canDeploy ? <DeployButton label={t('page.deploy')} /> : null}
           </>
         }
+      />
+
+      <MaintenanceBanner
+        windows={maintenance}
+        format={format}
+        canRead={auth?.can('maintenance:read') ?? false}
       />
 
       <AttentionPanel items={attention} />

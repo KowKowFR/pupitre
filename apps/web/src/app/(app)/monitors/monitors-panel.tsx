@@ -709,6 +709,7 @@ function MonitorDrawer({
                 {t('edit.action')}
               </Button>
             ) : null}
+            {record?.actions}
           </DrawerFooter>
         ) : null
       }

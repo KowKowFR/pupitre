@@ -10,6 +10,8 @@ export * from './fuzzy.js';
 export * from './shell.js';
 export * from './host-metrics.js';
 export * from './forecast.js';
+export * from './maintenance.js';
+export * from './status-page.js';
 export * from './i18n.js';
 export * from './images/reference.js';
 export * from './images/updates.js';

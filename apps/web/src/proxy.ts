@@ -22,6 +22,9 @@ import { NextResponse, type NextRequest } from 'next/server';
  * ne peut pas s'y connecter.
  */
 const PUBLIC_PAGES = [
+  // Les pages de statut : publiques par nature — c'est leur raison d'être.
+  // Une page non publiée y répond 404, comme une adresse inconnue.
+  '/status',
   '/login',
   '/signup',
   '/forgot-password',

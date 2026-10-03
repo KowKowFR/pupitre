@@ -255,6 +255,87 @@ refuser son ouverture par la clé ; le balayage l'ignore et continue.
 Chacune n'est montrée qu'à qui peut lire son sujet (`target:read`,
 `monitor:read`, `application:read`).
 
+## Fenêtres de maintenance
+
+« prod-1 en maintenance de 22 h à 23 h » : pendant une fenêtre, les alertes de
+supervision de ses sujets sont **retenues** ; le journal, lui, garde tout.
+L'écran est `/maintenance` (`maintenance:read`, planifier : `maintenance:manage`),
+tout s'y fait dans des tiroirs. « Mettre en maintenance » part aussi du pied de
+la fiche d'une cible ou d'une sonde, ce sujet déjà coché.
+
+**Ce qu'une fenêtre couvre.** Les cibles et les sondes qu'elle nomme ; et, sur
+ses cibles, les sondes des applications qui y tournent (`listLiveDeployments`,
+l'unique définition de « ce qui tourne ») et leurs domaines. Arrêter prod-1 fait
+tomber les sondes de ses applications : elles sont couvertes sans qu'on ait à
+les nommer.
+
+**Ce qui est retenu.** Les alertes de supervision et rien d'autre : sonde en
+panne et rétablie, machine injoignable et rejointe, seuils franchis et revenus,
+domaine qui ne répond plus et de nouveau joignable. La sécurité, les
+déploiements, les sauvegardes, les certificats et les prévisions passent
+toujours — une maintenance n'excuse pas un rôle changé ni une sauvegarde ratée.
+C'est le catalogue qui le dit (`maintenance` sur le descripteur d'un événement),
+pas un `if` dans la distribution.
+
+**Où ça se décide.** Dans `notification:dispatch`, avant le regroupement : si
+une fenêtre active couvre le sujet de l'alerte, la tâche de distribution est
+recopiée telle quelle dans `maintenance_held_alerts` au lieu de partir. Les
+émetteurs (sondes, relevés, routes) n'en savent rien. La mise en sourdine ne
+dépend d'aucun balayage : elle compare l'heure aux bornes de la fenêtre, à
+chaque alerte.
+
+**Rien ne se perd.** Une alerte ne part qu'au changement d'état : une panne
+apparue pendant la fenêtre et toujours là à sa fin resterait muette. À la fin,
+pour chaque sujet, la **dernière** alerte retenue part si elle signale un
+problème (`alertsToRelease()` dans `packages/core/src/maintenance.ts`) — une
+panne réparée pendant la fenêtre (panne puis rétablissement) ne réveille
+personne. Elle repasse par la distribution, sur les canaux de son propre
+événement ; si une autre fenêtre couvre encore son sujet, c'est celle-ci qui la
+garde.
+
+**Le balayage** `maintenance:sweep`, chaque minute (scheduler BullMQ), fait ce
+qui doit n'arriver qu'une fois : annoncer le début (`maintenance.started`), et
+à la fin libérer ce qui doit partir puis annoncer la fin (`maintenance.ended`,
+avec ce qui est parti). Ses deux prises sont des `UPDATE … RETURNING` : deux
+balayages qui se croisent ne traitent pas deux fois la même fenêtre.
+
+**Les règles d'une fenêtre.** Une fin après le début, un mois au plus, au moins
+un sujet. Une fenêtre **en cours** ne se supprime pas — ses alertes retenues
+disparaîtraient — : on la termine (« Terminer maintenant », `PATCH endsAt`), et
+sa fin libère dans la minute ce qui doit partir. Une fenêtre **terminée** ne se
+modifie plus ; à venir ou terminée, elle se supprime. Les heures se saisissent
+dans le fuseau de l'instance, celui de tout l'affichage.
+
+**À l'écran.** Une bande « Maintenance en cours » (et celles prévues dans la
+journée) passe avant le bloc d'attention de la vue d'ensemble ; dans ce bloc,
+un sujet couvert reste listé — il faut le voir revenir — mais en
+avertissement, avec la mention. Les fiches d'une cible et d'une sonde couvertes
+le disent en tête de leur aperçu.
+
+## Pages de statut
+
+Des pages **publiques**, sans connexion, à `/status` (adresse vide) ou
+`/status/<adresse>`, que l'administrateur compose bloc par bloc dans
+`/status-pages` (`status_page:manage`). L'éditeur est un tiroir en deux
+colonnes : les réglages et les blocs à gauche, réordonnables par
+glisser-déposer (poignée) ou au clavier (flèches), et à droite un **aperçu**
+calculé exactement comme la page publique, sur les blocs non enregistrés.
+
+| Bloc | Ce qu'il montre |
+|---|---|
+| État général | « Tous les services fonctionnent », ralenti, panne partielle, panne majeure (plus de la moitié en panne), maintenance |
+| Titre, Texte | Ce que l'administrateur écrit ; du texte brut, aucun HTML interprété |
+| Services | Des sondes, sous un **nom public** au choix ; leur état, et à la demande une barre par jour sur 30 jours (la rétention des mesures) et le taux de disponibilité |
+| Maintenances | Les [fenêtres](#fenêtres-de-maintenance) en cours et à venir (7 jours) qui touchent ces services — directement, ou par la cible où tourne leur application |
+| Incidents récents | Les pannes de ces services sur 7, 14 ou 30 jours, avec leur durée |
+
+L'état public d'un service se lit de sa sonde : saine, ralentie (répond mal),
+en panne (injoignable), inconnue (suspendue ou jamais mesurée) — et **en
+maintenance** dès qu'une fenêtre la couvre, ce qui l'emporte. Ce qu'une page
+laisse sortir est décrit dans [sécurité](securite.md#ce-qui-est-public--les-pages-de-statut).
+
+Une page non publiée répond 404 ; la page publique se relit seule chaque minute.
+
 ## Notifications
 
 Quatre canaux, treize événements, derrière un catalogue et une fabrique. Même
@@ -296,7 +377,7 @@ serveur mal configuré.
 C'est **la seule voie e-mail de l'instance** : il n'existe aucun réglage SMTP
 global ailleurs.
 
-### Les vingt-deux événements
+### Les vingt-quatre événements
 
 Tous dérivés du journal d'activité :
 
@@ -323,6 +404,8 @@ Tous dérivés du journal d'activité :
 | `route.recovered` | info | `route.recovered` — ce domaine répond de nouveau |
 | `route.certificate_expiring` | warning | `route.certificate.expiring` — le certificat d'un domaine expire sous quatorze jours : son renouvellement n'a pas abouti. Une fois par certificat |
 | `route.certificate_renewed` | info | `route.certificate.renewed` — ce certificat a été renouvelé |
+| `maintenance.started` | info | `maintenance.started` — une [fenêtre de maintenance](#fenêtres-de-maintenance) commence : ce qu'elle couvre, jusqu'à quand |
+| `maintenance.ended` | info | `maintenance.ended` — elle se termine : combien d'alertes ont été retenues, et ce qui, toujours en panne, part maintenant |
 | `forecast.raised` | warning | `forecast.raised` — une [prévision](#prévisions) s'ouvre : un problème en vue, annoncé une fois. Sa fermeture (`forecast.cleared`) n'est pas notifiable |
 
 **Un seul `monitor.down`**, pas un par nature de panne. Séparer « répond mal »

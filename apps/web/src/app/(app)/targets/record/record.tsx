@@ -12,11 +12,16 @@ import {
 import { Readout, ReadoutBar, type Tone } from '@/components/instrument';
 import { ProxyPanel } from '@/components/proxy/proxy-panel';
 import { ForecastPanel } from '@/components/forecasts/forecast-panel';
+import {
+  MaintenanceMark,
+  ScheduleMaintenanceLink,
+} from '@/components/maintenance/maintenance-mark';
 import { KeyValue } from '@/components/ui/data';
 import { getT } from '@/i18n/server';
 import { targets as messages } from '@/i18n/messages/targets';
 import { visibleForecasts } from '@/lib/forecasts';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
+import { coverageOf } from '@/lib/maintenance';
 import type { AuthContext } from '@/lib/rbac';
 import { HostKeyAlert } from './host-key-alert';
 import { PortsPanel } from './ports-panel';
@@ -32,6 +37,8 @@ export type TargetRecord = {
   overview: ReactNode;
   tabs: Partial<Record<TargetRecordTab, ReactNode>>;
   counts: Partial<Record<TargetRecordTab, string>>;
+  /** Ce que le pied du tiroir ajoute à « Tester » et « Modifier » : mettre en maintenance. */
+  actions: ReactNode;
 };
 
 /** « stable », « +6 pt », « −4 pt » : le sens dans lequel ça va sur 24 h. */
@@ -61,12 +68,13 @@ export async function targetRecord(
   auth: AuthContext,
   format: FormatSettings,
 ): Promise<TargetRecord> {
-  const [ports, t, histories, samples, forecasts] = await Promise.all([
+  const [ports, t, histories, samples, forecasts, maintenance] = await Promise.all([
     getTargetPortReport(target.id),
     getT(messages),
     targetHistories([target.id], 24, 24),
     listTargetSamples(target.id, 1),
     visibleForecasts(auth, { subjectType: 'target', subjectId: target.id }),
+    coverageOf(auth, { type: 'target', id: target.id }),
   ]);
   const history = histories.get(target.id);
   const latest = samples[0]?.reachable ? samples[0] : null;
@@ -87,6 +95,11 @@ export async function targetRecord(
 
   const overview = (
     <>
+      <MaintenanceMark
+        windows={maintenance}
+        format={format}
+        canRead={auth.can('maintenance:read')}
+      />
       <ForecastPanel items={forecasts} compact />
       {target.hostKeyPending ? (
         <HostKeyAlert
@@ -175,6 +188,10 @@ export async function targetRecord(
   return {
     key: target.name,
     overview,
+    actions:
+      auth.can('maintenance:manage') && maintenance.length === 0 ? (
+        <ScheduleMaintenanceLink subject="cible" id={target.id} />
+      ) : null,
     counts: ports ? { ports: `${ports.used}/${ports.capacity}` } : {},
     tabs: {
       ...(auth.can('workload:read')

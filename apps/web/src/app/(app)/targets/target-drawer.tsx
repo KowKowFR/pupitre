@@ -28,7 +28,10 @@ const HEALTH_TONE: Record<string, Tone> = {
 };
 
 /** La part de la fiche que rend le serveur, telle qu'elle traverse jusqu'ici. */
-export type TargetRecordView = Pick<TargetRecord, 'key' | 'overview' | 'tabs' | 'counts'>;
+export type TargetRecordView = Pick<
+  TargetRecord,
+  'key' | 'overview' | 'tabs' | 'counts' | 'actions'
+>;
 
 const SERVER_TABS: TargetRecordTab[] = ['workloads', 'proxy', 'ports', 'preflight', 'config'];
 
@@ -282,6 +285,7 @@ export function TargetDrawer({
               {tc('edit')}
             </Button>
           ) : null}
+          {ready ? record.actions : null}
         </DrawerFooter>
       )}
       override={

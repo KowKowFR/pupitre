@@ -942,7 +942,7 @@ function parseCronFields(expression: string): CronFields | null {
 }
 
 /** Champs horaires d'un instant, lus dans un fuseau donné. */
-function wallClockOf(instantMs: number, timeZone: string): number {
+export function wallClockOf(instantMs: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     hourCycle: 'h23',
@@ -970,7 +970,7 @@ function wallClockOf(instantMs: number, timeZone: string): number {
 }
 
 /** Instant réel correspondant à une heure murale donnée dans un fuseau. */
-function instantOfWallClock(wallMs: number, timeZone: string): number {
+export function instantOfWallClock(wallMs: number, timeZone: string): number {
   let guess = wallMs - (wallClockOf(wallMs, timeZone) - wallMs);
   // Une seule reprise suffit : la correction ne dépasse jamais un décalage DST.
   guess = wallMs - (wallClockOf(guess, timeZone) - guess);

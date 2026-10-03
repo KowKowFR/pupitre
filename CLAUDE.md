@@ -92,7 +92,8 @@ Conséquence : la même app se redéploie sur l'autre runtime en changeant un ch
    relayés en SSE. Pas de `tail` sur fichier.
 9. **Un dépôt lié ne porte que l'AppSpec** (`pupitre.json`). Ni cible, ni runtime,
    ni script : le dépôt dit quoi, le panel dit où et quand. Et Pupitre interroge
-   le dépôt (polling) — le panel reste privé, aucun webhook entrant.
+   le dépôt (polling) — le panel reste privé, aucun webhook entrant. Seule
+   exception, en lecture seule : ses pages de statut **publiées** (`/status…`).
 
 ## Conventions
 

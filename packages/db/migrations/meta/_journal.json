@@ -288,6 +288,20 @@
       "when": 1791037660373,
       "tag": "0041_forecasts_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791043270361,
+      "tag": "0042_maintenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791045193241,
+      "tag": "0043_status_pages",
+      "breakpoints": true
     }
   ]
 }

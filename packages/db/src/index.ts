@@ -28,3 +28,5 @@ export * from './avatars.js';
 export * from './backups.js';
 export * from './proxies.js';
 export * from './forecasts.js';
+export * from './maintenance.js';
+export * from './status-pages.js';

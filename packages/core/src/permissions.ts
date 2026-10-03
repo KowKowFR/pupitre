@@ -37,6 +37,9 @@ export const PERMISSIONS = [
   'job:manage',
   'monitor:read',
   'monitor:manage',
+  'maintenance:read',
+  'maintenance:manage',
+  'status_page:manage',
   'audit:read',
   'settings:read',
   'settings:manage',
@@ -100,6 +103,10 @@ const descriptionsFr = {
   'job:manage': 'Créer et désactiver des tâches planifiées',
   'monitor:read': 'Consulter la supervision des sites et leur historique',
   'monitor:manage': 'Créer, modifier et suspendre une sonde de supervision',
+  'maintenance:read': 'Consulter les fenêtres de maintenance et les alertes retenues',
+  'maintenance:manage': 'Planifier, modifier et terminer une fenêtre de maintenance',
+  'status_page:manage':
+    'Composer et publier les pages de statut publiques — ce que des inconnus verront',
   'audit:read': "Consulter les logs d'activité",
   'settings:read': "Consulter les paramètres de l'instance",
   'settings:manage': "Modifier les paramètres de l'instance, y compris l'accès au modèle d'IA",
@@ -138,6 +145,9 @@ const descriptionsEn: Translated<typeof descriptionsFr> = {
   'job:manage': 'Create and disable scheduled jobs',
   'monitor:read': 'Read site monitoring and its history',
   'monitor:manage': 'Create, change and pause a monitoring probe',
+  'maintenance:read': 'Read maintenance windows and the alerts they hold',
+  'maintenance:manage': 'Schedule, change and end a maintenance window',
+  'status_page:manage': 'Compose and publish public status pages — what strangers will see',
   'audit:read': 'Read the activity log',
   'settings:read': 'Read the instance settings',
   'settings:manage': 'Change the instance settings, including access to the AI model',
@@ -250,6 +260,10 @@ export const ROLE_DEFINITIONS: Record<
       // Choisir les scanners fait partie du geste de déploiement : un opérateur
       // qui déploie doit pouvoir décider ce qu'on analyse et quand ça bloque.
       'scan:configure',
+      // Intervenir sur une machine sans réveiller l'astreinte fait partie de
+      // l'exploitation.
+      'maintenance:read',
+      'maintenance:manage',
     ],
   },
   auditor: {
@@ -385,6 +399,8 @@ const resourcesFr = {
   scan: 'Sécurité',
   job: 'Tâches planifiées',
   monitor: 'Supervision de sites',
+  maintenance: 'Fenêtres de maintenance',
+  status_page: 'Pages de statut',
   backup: 'Sauvegardes',
   audit: "Logs d'activité",
   settings: "Paramètres de l'instance",
@@ -400,6 +416,8 @@ const resourcesEn: Translated<typeof resourcesFr> = {
   scan: 'Security',
   job: 'Scheduled jobs',
   monitor: 'Site monitoring',
+  maintenance: 'Maintenance windows',
+  status_page: 'Status pages',
   backup: 'Backups',
   audit: 'Activity log',
   settings: 'Instance settings',

@@ -10,6 +10,7 @@ import {
   type NotificationSeverity,
 } from './message.js';
 import { SIGNUP_ROLE } from '../permissions.js';
+import type { MaintenanceRule } from '../maintenance.js';
 import {
   describeForecast,
   forecastSchema,
@@ -120,6 +121,8 @@ export const NOTIFICATION_EVENT_KEYS = [
   'route.certificate_expiring',
   'route.certificate_renewed',
   'forecast.raised',
+  'maintenance.started',
+  'maintenance.ended',
 ] as const;
 
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
@@ -463,6 +466,38 @@ const fr = {
     'Le certificat de « {hostname} » ({application}, sur « {machine} ») est renouvelé jusqu’au {date}.',
   'route.certificate_renewed.summary': '{hostname} — jusqu’au {date}',
 
+  // ── maintenance.started / maintenance.ended ──────────────────────────────
+  'maintenance.started.label': 'Maintenance commencée',
+  'maintenance.started.description':
+    'Une fenêtre de maintenance commence : les alertes de supervision de ses cibles et de ses sondes sont retenues jusqu’à sa fin.',
+  'maintenance.started.rationale':
+    'Que l’équipe sache que le silence est voulu, et jusqu’à quand. Rien n’est perdu : ce qui sera encore en panne à la fin partira à ce moment-là.',
+  'maintenance.started.title': 'Maintenance commencée — {title}',
+  'maintenance.started.summary': '{subjects}, jusqu’au {end}',
+  'maintenance.started.body':
+    'La maintenance « {title} » a commencé : {subjects}. Jusqu’au {end}, leurs alertes de supervision sont retenues ; ce qui sera encore en panne à la fin partira à ce moment-là.',
+  'maintenance.bodyNote': ' Note : {note}',
+  'maintenance.ended.label': 'Maintenance terminée',
+  'maintenance.ended.description':
+    'Une fenêtre de maintenance se termine : les alertes reprennent, et ce qui est resté en panne est annoncé.',
+  'maintenance.ended.rationale':
+    'Une panne apparue pendant la maintenance et toujours là à sa fin ne doit pas rester silencieuse : elle part avec ce message, et sur les canaux de son propre événement.',
+  'maintenance.ended.title': 'Maintenance terminée — {title}',
+  'maintenance.ended.summaryFailing': {
+    one: '{count} problème toujours là',
+    other: '{count} problèmes toujours là',
+  },
+  'maintenance.ended.summaryClear': 'tout est rentré dans l’ordre',
+  'maintenance.ended.body':
+    'La maintenance « {title} » est terminée ({held} alerte(s) retenue(s)).',
+  'maintenance.ended.bodyFailing': ' Toujours en panne, annoncé maintenant : {list}.',
+  'maintenance.ended.bodyClear': ' Rien n’est resté en panne.',
+  'field.maintenance': 'Maintenance',
+  'field.covers': 'Couvre',
+  'field.until': 'Jusqu’au',
+  'field.held': 'Alertes retenues',
+  'field.stillFailing': 'Toujours en panne',
+
   // ── forecast.raised ────────────────────────────────────────────────────
   'forecast.raised.label': 'Prévision : un problème en vue',
   'forecast.raised.description':
@@ -805,6 +840,36 @@ const en: Translated<typeof fr> = {
     'The certificate of “{hostname}” ({application}, on “{machine}”) is renewed until {date}.',
   'route.certificate_renewed.summary': '{hostname} — until {date}',
 
+  'maintenance.started.label': 'Maintenance started',
+  'maintenance.started.description':
+    'A maintenance window starts: monitoring alerts for its targets and probes are held until it ends.',
+  'maintenance.started.rationale':
+    'Let the team know the silence is deliberate, and until when. Nothing is lost: whatever is still down at the end is sent then.',
+  'maintenance.started.title': 'Maintenance started — {title}',
+  'maintenance.started.summary': '{subjects}, until {end}',
+  'maintenance.started.body':
+    'Maintenance “{title}” has started: {subjects}. Until {end}, their monitoring alerts are held; whatever is still down at the end is sent then.',
+  'maintenance.bodyNote': ' Note: {note}',
+  'maintenance.ended.label': 'Maintenance ended',
+  'maintenance.ended.description':
+    'A maintenance window ends: alerts resume, and whatever stayed down is announced.',
+  'maintenance.ended.rationale':
+    'An outage that appeared during maintenance and is still there at the end must not stay silent: it is sent with this message, and on its own event’s channels.',
+  'maintenance.ended.title': 'Maintenance ended — {title}',
+  'maintenance.ended.summaryFailing': {
+    one: '{count} problem still there',
+    other: '{count} problems still there',
+  },
+  'maintenance.ended.summaryClear': 'everything is back to normal',
+  'maintenance.ended.body': 'Maintenance “{title}” has ended ({held} alert(s) held).',
+  'maintenance.ended.bodyFailing': ' Still down, announced now: {list}.',
+  'maintenance.ended.bodyClear': ' Nothing stayed down.',
+  'field.maintenance': 'Maintenance',
+  'field.covers': 'Covers',
+  'field.until': 'Until',
+  'field.held': 'Alerts held',
+  'field.stillFailing': 'Still down',
+
   'forecast.raised.label': 'Forecast: a problem ahead',
   'forecast.raised.description':
     'The panel sees an outage coming: a disk filling up, memory that never comes back down, rising load, a monitor slowing down or flapping, a certificate not renewed, an overdue backup, deployments failing in a row.',
@@ -958,6 +1023,12 @@ export type NotificationEventDescriptor = {
    * `undefined` garde le comportement d'origine.
    */
   readonly dedupDiscriminator?: (entry: NotifiableAuditEntry) => string | null;
+  /**
+   * Comment l'alerte se range pendant une fenêtre de maintenance : son sujet,
+   * sa famille, si elle ouvre un problème. Absent : l'événement n'est jamais
+   * retenu — la sécurité, les déploiements, les sauvegardes passent toujours.
+   */
+  readonly maintenance?: MaintenanceRule;
 };
 
 // ─── lecture défensive des charges utiles d'audit ─────────────────────────────
@@ -1091,6 +1162,54 @@ function monitorLabel(language: UiLanguage, entry: NotifiableAuditEntry): string
       : t(language, 'monitor.summaryWithTarget', { name, target }),
     200,
   );
+}
+
+// ─── les alertes que retient une maintenance ──────────────────────────────────
+
+/** Une sonde : la panne et le rétablissement d'une même sonde forment une famille. */
+const monitorRule = (opens: boolean): MaintenanceRule => ({
+  subject: (entry) => (entry.resourceId ? { type: 'monitor', id: entry.resourceId } : null),
+  family: (entry) => `monitor:${entry.resourceId ?? '?'}`,
+  opens,
+});
+
+/** Une machine injoignable, puis rejointe. */
+const reachabilityRule = (opens: boolean): MaintenanceRule => ({
+  subject: (entry) => (entry.resourceId ? { type: 'target', id: entry.resourceId } : null),
+  family: (entry) => `reach:${entry.resourceId ?? '?'}`,
+  opens,
+});
+
+/** Un seuil d'une machine : chaque métrique est sa propre famille. */
+const thresholdRule = (opens: boolean): MaintenanceRule => ({
+  subject: (entry) => (entry.resourceId ? { type: 'target', id: entry.resourceId } : null),
+  family: (entry) =>
+    `threshold:${entry.resourceId ?? '?'}:${optional(record(entry.after).metric) ?? '?'}`,
+  opens,
+});
+
+/**
+ * Un domaine : l'entrée est au nom de l'application, la route est dans la
+ * charge. Une entrée ancienne sans `routeId` n'est jamais retenue.
+ */
+const routeRule = (opens: boolean): MaintenanceRule => ({
+  subject: (entry) => {
+    const routeId = optional(record(entry.after).routeId);
+    return routeId ? { type: 'route', id: routeId } : null;
+  },
+  family: (entry) => `route:${optional(record(entry.after).routeId) ?? '?'}`,
+  opens,
+});
+
+/** « 2026-10-03T22:00:00.000Z » → « 2026-10-03 22:00 UTC ». */
+function utcMinute(value: unknown): string {
+  const iso = optional(value);
+  return iso ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : '?';
+}
+
+/** Les noms d'une liste de la charge utile, joints pour une phrase. */
+function names(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => text(item, '?')) : [];
 }
 
 const CATALOG = {
@@ -1374,6 +1493,7 @@ const CATALOG = {
     key: 'monitor.down',
     severity: 'critical',
     auditAction: 'monitor.down',
+    maintenance: monitorRule(true),
     digestPath: '/monitors',
     // Une seule action d'audit porte cet événement, et la machine à états a
     // déjà écarté les rebonds : rien à départager ici.
@@ -1428,6 +1548,7 @@ const CATALOG = {
     // à ignorer le rouge.
     severity: 'info',
     auditAction: 'monitor.recovered',
+    maintenance: monitorRule(false),
     digestPath: '/monitors',
     // L'anti-doublon porte sur (événement, ressource), et la ressource d'une
     // sonde est la sonde — la même d'une panne à l'autre. Deux pannes
@@ -1472,6 +1593,7 @@ const CATALOG = {
     key: 'target.threshold.breached',
     severity: 'warning',
     auditAction: 'target.threshold.breached',
+    maintenance: thresholdRule(true),
     digestPath: '/apps',
     matches: () => true,
     // Un épisode par franchissement, et son identifiant ne bouge pas tant qu'il
@@ -1526,6 +1648,7 @@ const CATALOG = {
     key: 'target.threshold.cleared',
     severity: 'info',
     auditAction: 'target.threshold.cleared',
+    maintenance: thresholdRule(false),
     digestPath: '/apps',
     matches: () => true,
     dedupDiscriminator: (entry) => optional(record(entry.after).breachId),
@@ -1591,6 +1714,7 @@ const CATALOG = {
     key: 'target.unreachable',
     severity: 'critical',
     auditAction: 'target.unreachable',
+    maintenance: reachabilityRule(true),
     digestPath: '/targets',
     matches: () => true,
     render: (entry, ctx) => {
@@ -1619,6 +1743,7 @@ const CATALOG = {
     key: 'target.reachable',
     severity: 'info',
     auditAction: 'target.reachable',
+    maintenance: reachabilityRule(false),
     digestPath: '/targets',
     matches: () => true,
     render: (entry, ctx) => {
@@ -1741,6 +1866,7 @@ const CATALOG = {
     key: 'route.down',
     severity: 'warning',
     auditAction: 'route.down',
+    maintenance: routeRule(true),
     digestPath: '/applications',
     matches: () => true,
     dedupDiscriminator: (entry) => optional(record(entry.after).hostname),
@@ -1770,6 +1896,7 @@ const CATALOG = {
     key: 'route.recovered',
     severity: 'info',
     auditAction: 'route.recovered',
+    maintenance: routeRule(false),
     digestPath: '/applications',
     matches: () => true,
     dedupDiscriminator: (entry) => optional(record(entry.after).hostname),
@@ -1899,7 +2026,80 @@ const CATALOG = {
       };
     },
   },
+  'maintenance.started': {
+    key: 'maintenance.started',
+    severity: 'info',
+    auditAction: 'maintenance.started',
+    digestPath: '/maintenance',
+    matches: () => true,
+    dedupDiscriminator: (entry) => entry.resourceId ?? null,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const title = text(after.title, '?');
+      const subjects = [...names(after.targets), ...names(after.monitors)].join(', ') || '?';
+      const end = utcMinute(after.endsAt);
+      const note = optional(after.note);
+      return {
+        title: t(lang, 'maintenance.started.title', { title }),
+        summary: clip(t(lang, 'maintenance.started.summary', { subjects, end }), 200),
+        summaryDetail: null,
+        body:
+          t(lang, 'maintenance.started.body', { title, subjects, end }) +
+          (note ? t(lang, 'maintenance.bodyNote', { note }) : ''),
+        fields: fieldsOf([
+          [t(lang, 'field.maintenance'), title],
+          [t(lang, 'field.covers'), subjects],
+          [t(lang, 'field.until'), end],
+          actorField(ctx),
+        ]),
+        path: entry.resourceId ? `/maintenance?fenetre=${entry.resourceId}` : '/maintenance',
+      };
+    },
+  },
+  'maintenance.ended': {
+    key: 'maintenance.ended',
+    severity: 'info',
+    auditAction: 'maintenance.ended',
+    digestPath: '/maintenance',
+    matches: () => true,
+    dedupDiscriminator: (entry) => entry.resourceId ?? null,
+    render: (entry, ctx) => {
+      const after = record(entry.after);
+      const lang = ctx.language;
+      const title = text(after.title, '?');
+      const held = typeof after.held === 'number' ? after.held : 0;
+      const released = names(after.released);
+      return {
+        title: t(lang, 'maintenance.ended.title', { title }),
+        summary: clip(
+          released.length > 0
+            ? t(lang, 'maintenance.ended.summaryFailing', { count: released.length })
+            : t(lang, 'maintenance.ended.summaryClear'),
+          200,
+        ),
+        summaryDetail: null,
+        body:
+          t(lang, 'maintenance.ended.body', { title, held }) +
+          (released.length > 0
+            ? t(lang, 'maintenance.ended.bodyFailing', { list: released.join(' ; ') })
+            : t(lang, 'maintenance.ended.bodyClear')),
+        fields: fieldsOf([
+          [t(lang, 'field.maintenance'), title],
+          [t(lang, 'field.held'), String(held)],
+          [t(lang, 'field.stillFailing'), released.length > 0 ? released.join(' ; ') : null],
+        ]),
+        path: entry.resourceId ? `/maintenance?fenetre=${entry.resourceId}` : '/maintenance',
+      };
+    },
+  },
 } as const satisfies Record<NotificationEventKey, NotificationEventDescriptor>;
+
+/** La règle de maintenance d'un événement, ou `null` s'il n'est jamais retenu. */
+export function maintenanceRuleOf(key: NotificationEventKey): MaintenanceRule | null {
+  const descriptor: NotificationEventDescriptor = CATALOG[key];
+  return descriptor.maintenance ?? null;
+}
 
 /** Le nom du champ qui porte le sujet d'une prévision. */
 const FORECAST_SUBJECT_FIELD = {

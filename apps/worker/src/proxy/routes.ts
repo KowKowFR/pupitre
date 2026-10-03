@@ -163,6 +163,10 @@ async function recordProbe(
     hostname: route.hostname,
     application: route.applicationSlug,
     targetName: route.targetName,
+    // Ce qui permet de retenir l'alerte quand la machine est en maintenance :
+    // l'entrée est au nom de l'application, la route et sa cible sont ici.
+    routeId: route.id,
+    targetId: route.targetId,
   };
   await watchCertificate(route, probe, context);
   if (probe.ok) {

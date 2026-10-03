@@ -21,7 +21,9 @@ export type SectionKey =
   | 'deployments'
   | 'domains'
   | 'monitoring'
+  | 'maintenance'
   | 'jobs'
+  | 'statusPages'
   | 'logs'
   | 'users'
   | 'roles'
@@ -53,6 +55,7 @@ const NAVIGATION: readonly NavGroup[] = [
       // la permission qui donne déjà ses domaines sur la fiche d'une application.
       { key: 'domains', href: '/domains', permission: 'application:read' },
       { key: 'monitoring', href: '/monitors', permission: 'monitor:read', shortcut: 'S' },
+      { key: 'maintenance', href: '/maintenance', permission: 'maintenance:read' },
       { key: 'jobs', href: '/jobs', permission: 'job:read' },
     ],
   },
@@ -62,6 +65,8 @@ const NAVIGATION: readonly NavGroup[] = [
       { key: 'logs', href: '/admin/logs', permission: 'audit:read' },
       { key: 'users', href: '/admin/users', permission: 'user:manage' },
       { key: 'roles', href: '/admin/roles', permission: 'role:read' },
+      // Ce que des inconnus verront : une décision d'administration.
+      { key: 'statusPages', href: '/status-pages', permission: 'status_page:manage' },
       { key: 'settings', href: '/admin/settings', permission: 'settings:read' },
     ],
   },
