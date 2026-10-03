@@ -137,6 +137,8 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   maintenance_window: 'targets',
   // Une page de statut se compose dans l'administration.
   status_page: 'settings',
+  // Une annonce commente une panne de sonde ou une maintenance.
+  status_update: 'monitors',
 };
 
 /** Le sujet d'une ligne du journal d'audit. */

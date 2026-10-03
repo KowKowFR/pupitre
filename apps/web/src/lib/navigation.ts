@@ -32,8 +32,11 @@ export type SectionKey =
 export type NavSection = {
   key: SectionKey;
   href: string;
-  /** `null` : toute session peut ouvrir la page. */
-  permission: Permission | null;
+  /**
+   * `null` : toute session peut ouvrir la page. Une liste : l'une d'elles
+   * suffit — la page montre à chacun la part qui lui revient.
+   */
+  permission: Permission | readonly Permission[] | null;
   /** Lettre du raccourci `G` puis… */
   shortcut?: string;
 };
@@ -66,19 +69,30 @@ const NAVIGATION: readonly NavGroup[] = [
       { key: 'users', href: '/admin/users', permission: 'user:manage' },
       { key: 'roles', href: '/admin/roles', permission: 'role:read' },
       // Ce que des inconnus verront : une décision d'administration.
-      { key: 'statusPages', href: '/status-pages', permission: 'status_page:manage' },
+      // Composer les pages, ou y annoncer une panne : l'une ou l'autre ouvre l'écran.
+      {
+        key: 'statusPages',
+        href: '/status-pages',
+        permission: ['status_page:manage', 'status_page:announce'],
+      },
       { key: 'settings', href: '/admin/settings', permission: 'settings:read' },
     ],
   },
 ];
 
+function allowed(
+  permission: NavSection['permission'],
+  can: (permission: Permission) => boolean,
+): boolean {
+  if (permission === null) return true;
+  return typeof permission === 'string' ? can(permission) : permission.some(can);
+}
+
 /** Les groupes visibles pour une session ; un groupe vide disparaît. */
 export function visibleNavigation(can: (permission: Permission) => boolean): NavGroup[] {
   return NAVIGATION.map((group) => ({
     key: group.key,
-    sections: group.sections.filter(
-      (section) => section.permission === null || can(section.permission),
-    ),
+    sections: group.sections.filter((section) => allowed(section.permission, can)),
   })).filter((group) => group.sections.length > 0);
 }
 

@@ -1,25 +1,32 @@
 import 'server-only';
 import {
+  ENDED_MAINTENANCE_SHOWN_HOURS,
   STATUS_PAGE_HISTORY_DAYS,
   dayBars,
   overallStateOf,
   publicStateOf,
+  latestFirst,
+  statusNotices,
   statusPageMonitorIds,
   statusPagePath,
   uptimeOf,
   type DayBar,
   type OverallState,
   type PublicState,
+  type PublicStatusUpdate,
   type StatusBlock,
+  type StatusNotice,
 } from '@pupitre/core';
 import {
   getAppSettingsValue,
   listMonitors,
+  listStatusUpdates,
   maintenanceCoverage,
-  maintenanceForMonitors,
+  maintenanceTouching,
   monitorDayTallies,
   recentMonitorIncidents,
   type StatusPageRow,
+  type StatusUpdateView,
 } from '@pupitre/db';
 import { statusPages as messages } from '@/i18n/messages/status-pages';
 import { NotFoundError, msg } from '@/lib/errors';
@@ -38,7 +45,7 @@ export type StatusService = {
 };
 
 export type StatusBlockModel =
-  | { id: string; type: 'summary'; state: OverallState }
+  | { id: string; type: 'summary'; state: OverallState; notices: StatusNotice[] }
   | { id: string; type: 'heading'; text: string }
   | { id: string; type: 'text'; text: string }
   | {
@@ -51,13 +58,26 @@ export type StatusBlockModel =
   | {
       id: string;
       type: 'maintenance';
-      windows: Array<{ startsAt: string; endsAt: string; active: boolean; services: string[] }>;
+      windows: Array<{
+        startsAt: string;
+        endsAt: string;
+        active: boolean;
+        /** Finie depuis moins d'un jour, et annoncée : on la montre le temps qu'on lise « terminée ». */
+        ended: boolean;
+        services: string[];
+        updates: PublicStatusUpdate[];
+      }>;
     }
   | {
       id: string;
       type: 'incidents';
       days: number;
-      incidents: Array<{ service: string; startedAt: string; resolvedAt: string | null }>;
+      incidents: Array<{
+        service: string;
+        startedAt: string;
+        resolvedAt: string | null;
+        updates: PublicStatusUpdate[];
+      }>;
     };
 
 export type StatusPageModel = {
@@ -88,17 +108,31 @@ export async function buildStatusPageModel(
     0,
     ...page.blocks.map((block) => (block.type === 'incidents' ? block.days : 0)),
   );
+  // L'état général porte les annonces des sujets en cours : sans bloc
+  // d'incidents, il lui faut quand même les pannes ouvertes (`days` à 0).
+  const hasSummary = page.blocks.some((block) => block.type === 'summary');
   const settings = await getAppSettingsValue();
   const timeZone = settings.timezone;
   const [monitors, coverage, dayTallies, incidents, windows] = await Promise.all([
     monitorIds.length > 0 ? listMonitors() : Promise.resolve([]),
     monitorIds.length > 0 ? maintenanceCoverage(now) : Promise.resolve(null),
     monitorDayTallies(monitorIds, STATUS_PAGE_HISTORY_DAYS, timeZone),
-    maxIncidentDays > 0 ? recentMonitorIncidents(monitorIds, maxIncidentDays) : Promise.resolve([]),
-    page.blocks.some((block) => block.type === 'maintenance')
-      ? maintenanceForMonitors(monitorIds, new Date(now.getTime() + 7 * 86_400_000), now)
+    maxIncidentDays > 0 || hasSummary
+      ? recentMonitorIncidents(monitorIds, maxIncidentDays)
+      : Promise.resolve([]),
+    page.blocks.some((block) => block.type === 'maintenance') || hasSummary
+      ? maintenanceTouching(monitorIds, {
+          endsAfter: new Date(now.getTime() - ENDED_MAINTENANCE_SHOWN_HOURS * 3_600_000),
+          startsBefore: new Date(now.getTime() + 7 * 86_400_000),
+        })
       : Promise.resolve([]),
   ]);
+  const updates = await listStatusUpdates({
+    incidentIds: incidents.map((incident) => incident.id),
+    windowIds: windows.map((window) => window.id),
+  });
+  const updatesOfIncident = groupUpdates(updates, (update) => update.monitorIncidentId);
+  const updatesOfWindow = groupUpdates(updates, (update) => update.maintenanceWindowId);
   const today = todayIn(timeZone, now);
 
   // Le libellé public d'une sonde : le premier que la page lui donne, sinon son nom.
@@ -124,11 +158,27 @@ export async function buildStatusPageModel(
 
   const shown = monitorIds.filter((id) => byId.has(id));
   const overall = overallStateOf(shown.map(stateOf));
+  const servicesOf = (ids: readonly string[]) =>
+    ids.map((id) => labels.get(id)).filter((label): label is string => label !== undefined);
+  const notices = statusNotices([
+    ...incidents.map((incident) => ({
+      kind: 'incident' as const,
+      services: servicesOf([incident.monitorId]),
+      ongoing: incident.resolvedAt === null,
+      updates: updatesOfIncident.get(incident.id) ?? [],
+    })),
+    ...windows.map((window) => ({
+      kind: 'maintenance' as const,
+      services: servicesOf(window.monitorIds),
+      ongoing: window.startsAt <= now && window.endsAt > now,
+      updates: updatesOfWindow.get(window.id) ?? [],
+    })),
+  ]);
 
   const blocks = page.blocks.map((block): StatusBlockModel => {
     switch (block.type) {
       case 'summary':
-        return { id: block.id, type: 'summary', state: overall };
+        return { id: block.id, type: 'summary', state: overall, notices };
       case 'heading':
       case 'text':
         return { id: block.id, type: block.type, text: block.text };
@@ -154,14 +204,16 @@ export async function buildStatusPageModel(
         return {
           id: block.id,
           type: 'maintenance',
-          windows: windows.map((window) => ({
-            startsAt: window.startsAt.toISOString(),
-            endsAt: window.endsAt.toISOString(),
-            active: window.startsAt <= now,
-            services: window.monitorIds
-              .map((id) => labels.get(id))
-              .filter((label): label is string => label !== undefined),
-          })),
+          windows: windows
+            .filter((window) => window.endsAt > now || updatesOfWindow.has(window.id))
+            .map((window) => ({
+              startsAt: window.startsAt.toISOString(),
+              endsAt: window.endsAt.toISOString(),
+              active: window.startsAt <= now && window.endsAt > now,
+              ended: window.endsAt <= now,
+              services: servicesOf(window.monitorIds),
+              updates: latestFirst(updatesOfWindow.get(window.id) ?? []),
+            })),
         };
       case 'incidents': {
         const since = now.getTime() - block.days * 86_400_000;
@@ -179,6 +231,7 @@ export async function buildStatusPageModel(
               service: labels.get(incident.monitorId)!,
               startedAt: incident.startedAt.toISOString(),
               resolvedAt: incident.resolvedAt?.toISOString() ?? null,
+              updates: latestFirst(updatesOfIncident.get(incident.id) ?? []),
             })),
         };
       }
@@ -193,6 +246,25 @@ export async function buildStatusPageModel(
     historyDays: STATUS_PAGE_HISTORY_DAYS,
     blocks,
   };
+}
+
+/**
+ * Les annonces, rangées par sujet et réduites à ce qu'un visiteur lit : la
+ * phase, le texte, l'heure. Ni auteur, ni identifiant.
+ */
+function groupUpdates(
+  updates: readonly StatusUpdateView[],
+  keyOf: (update: StatusUpdateView) => string | null,
+): Map<string, PublicStatusUpdate[]> {
+  const grouped = new Map<string, PublicStatusUpdate[]>();
+  for (const update of updates) {
+    const key = keyOf(update);
+    if (key === null) continue;
+    const list = grouped.get(key) ?? [];
+    list.push({ phase: update.phase, message: update.message, at: update.createdAt.toISOString() });
+    grouped.set(key, list);
+  }
+  return grouped;
 }
 
 // ─── Pour l'écran qui les compose ─────────────────────────────────────────────

@@ -30,3 +30,4 @@ export * from './proxies.js';
 export * from './forecasts.js';
 export * from './maintenance.js';
 export * from './status-pages.js';
+export * from './status-updates.js';

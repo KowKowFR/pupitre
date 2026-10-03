@@ -207,3 +207,18 @@ export const routeStatusEnum = pgEnum('route_status', ['pending', 'active', 'fai
  * (`WafMode` de `@pupitre/core`). Ignorée par un proxy qui n'en est pas un.
  */
 export const wafModeEnum = pgEnum('waf_mode', ['block', 'detect', 'off']);
+
+/**
+ * La phase d'une annonce de page de statut. Les quatre premières disent une
+ * panne, les trois dernières une maintenance ; `@pupitre/core`
+ * (`statusUpdatePhasesFor`) décide laquelle convient à quel sujet.
+ */
+export const statusUpdatePhaseEnum = pgEnum('status_update_phase', [
+  'investigating',
+  'identified',
+  'monitoring',
+  'resolved',
+  'scheduled',
+  'in_progress',
+  'completed',
+]);

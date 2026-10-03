@@ -1,6 +1,6 @@
 'use client';
 
-import type { OverallState, PublicState, Translate } from '@pupitre/core';
+import type { OverallState, PublicState, PublicStatusUpdate, Translate } from '@pupitre/core';
 import { Led, type Tone } from '@/components/instrument';
 import { useT } from '@/i18n/client';
 import { statusPages as messages } from '@/i18n/messages/status-pages';
@@ -107,13 +107,34 @@ function Block({
       const tone = OVERALL_TONE[block.state];
       return (
         <section
-          className="card flex items-center gap-3 px-5 py-4"
+          className="card flex flex-col gap-3 px-5 py-4"
           style={{
             boxShadow: `inset 4px 0 0 var(--${tone === 'idle' ? 'border' : tone}), var(--sh-xs)`,
           }}
         >
-          <Led tone={tone} pulse={block.state !== 'operational' && block.state !== 'unknown'} />
-          <h2 className="text-lg font-semibold text-text">{t(`overall.${block.state}`)}</h2>
+          <div className="flex items-center gap-3">
+            <Led tone={tone} pulse={block.state !== 'operational' && block.state !== 'unknown'} />
+            <h2 className="text-lg font-semibold text-text">{t(`overall.${block.state}`)}</h2>
+          </div>
+          {block.notices.length > 0 ? (
+            <ul className="flex flex-col gap-3 border-t border-border pt-3">
+              {block.notices.map((notice, index) => (
+                <li key={`${notice.update.at}-${index}`} className="flex flex-col gap-1">
+                  <span className="t-sm font-medium text-text">
+                    {notice.services.join(', ')}
+                    <span className="text-text-3"> · </span>
+                    <span className={notice.kind === 'incident' ? 'text-warn' : 'text-accent'}>
+                      {t(`phase.${notice.update.phase}`)}
+                    </span>
+                  </span>
+                  <p className="t-sm whitespace-pre-line text-text-2">{notice.update.message}</p>
+                  <span className="t-cap text-text-3">
+                    {t('update.posted', { time: when(notice.update.at) })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       );
     }
@@ -212,20 +233,23 @@ function Block({
                   className="flex items-start gap-3 px-4 py-3"
                 >
                   <span className="pt-1.5">
-                    <Led tone="accent" pulse={window.active} />
+                    <Led tone={window.ended ? 'idle' : 'accent'} pulse={window.active} />
                   </span>
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="t-sm font-medium text-text">
-                      {window.active
-                        ? t('maintenance.active', { end: when(window.endsAt) })
-                        : t('maintenance.upcoming', {
-                            start: when(window.startsAt),
-                            end: when(window.endsAt),
-                          })}
+                      {window.ended
+                        ? t('maintenance.ended', { end: when(window.endsAt) })
+                        : window.active
+                          ? t('maintenance.active', { end: when(window.endsAt) })
+                          : t('maintenance.upcoming', {
+                              start: when(window.startsAt),
+                              end: when(window.endsAt),
+                            })}
                     </span>
                     <span className="t-cap text-text-2">
                       {t('maintenance.affects', { services: window.services.join(', ') })}
                     </span>
+                    <Updates updates={window.updates} when={when} />
                   </span>
                 </li>
               ))}
@@ -267,6 +291,7 @@ function Block({
                           })
                         : t('incidents.ongoing', { start: when(incident.startedAt) })}
                     </span>
+                    <Updates updates={incident.updates} when={when} />
                   </span>
                 </li>
               ))}
@@ -275,6 +300,32 @@ function Block({
         </section>
       );
   }
+}
+
+/** Le fil des annonces d'un sujet, la plus récente d'abord. */
+function Updates({
+  updates,
+  when,
+}: {
+  updates: PublicStatusUpdate[];
+  when: (value: string) => string;
+}) {
+  const t = useT(messages);
+  if (updates.length === 0) return null;
+  return (
+    <ol className="mt-2 flex flex-col gap-2.5 border-l-2 border-border pl-3">
+      {updates.map((update, index) => (
+        <li key={`${update.at}-${index}`} className="flex flex-col gap-0.5">
+          <span className="t-cap text-text-3">
+            <span className="font-medium text-text-2">{t(`phase.${update.phase}`)}</span>
+            {' · '}
+            {when(update.at)}
+          </span>
+          <p className="t-sm whitespace-pre-line text-text">{update.message}</p>
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 function duration(start: string, end: string, t: Translate<typeof messages.fr>): string {

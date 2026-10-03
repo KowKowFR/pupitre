@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { Check } from 'lucide-react';
+import Link from 'next/link';
+import { Check, Megaphone } from 'lucide-react';
 import type { CheckMetrics, MetricDescriptor, Translate } from '@pupitre/core';
 import { formatCadence, formatDuration } from '@pupitre/core';
 import { Led } from '@/components/instrument';
@@ -131,6 +132,7 @@ export function MonitorDetail({
   retentionDays,
   intervalSeconds,
   format,
+  announcements = null,
 }: {
   monitorId: string;
   checks: CheckRow[];
@@ -145,6 +147,11 @@ export function MonitorDetail({
    *  serveur avant de l'être dans le navigateur, et les deux doivent lire la
    *  même valeur — sinon l'hydratation diverge. */
   format: FormatSettings;
+  /**
+   * Les annonces publiées par incident, pour qui peut en publier : chaque
+   * incident y gagne un lien vers son annonce. `null` : pas de lien.
+   */
+  announcements?: Record<string, number> | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
@@ -278,6 +285,17 @@ export function MonitorDetail({
                     ) : (
                       <Badge variant="outline">{t('detail.incident.resolveNotAlerted')}</Badge>
                     )
+                  ) : null}
+                  {announcements ? (
+                    <Link
+                      href={`/status-pages?annonce=incident:${incident.id}`}
+                      className="link t-cap ml-auto inline-flex items-center gap-1"
+                    >
+                      <Megaphone aria-hidden className="size-3.5" />
+                      {t('detail.incident.announce', {
+                        count: announcements[incident.id] ?? 0,
+                      })}
+                    </Link>
                   ) : null}
                 </div>
                 {incident.detail ? (

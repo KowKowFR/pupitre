@@ -72,6 +72,20 @@ export async function requirePageSession(pathname: string): Promise<AuthContext>
   }
 }
 
+/**
+ * Exige l'une de ces permissions pour afficher la page : un écran qui sert deux
+ * métiers montre à chacun sa part. Sans aucune, le refus est audité au nom de
+ * la première, comme pour `requirePagePermission`.
+ */
+export async function requirePageAnyPermission(
+  pathname: string,
+  permissions: readonly [Permission, ...Permission[]],
+): Promise<AuthContext> {
+  const auth = await requirePageSession(pathname);
+  if (permissions.some((permission) => auth.can(permission))) return auth;
+  return requirePagePermission(pathname, permissions[0]);
+}
+
 /** Exige une permission pour afficher la page. Le refus est audité. */
 export async function requirePagePermission(
   pathname: string,
