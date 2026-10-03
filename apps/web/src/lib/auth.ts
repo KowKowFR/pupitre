@@ -35,10 +35,12 @@ import { createAccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultStatements, userAc } from 'better-auth/plugins/admin/access';
 import { INVITATION_TTL_MS, sendAccountMail } from './account-mail';
 import { countActiveAdmins } from './admins';
+import { createAuthRateLimitStorage } from './auth-rate-limit';
 import { getEnv } from './env';
 import { clientIp } from './http';
 import { PASSWORD_MIN_LENGTH } from './password-policy';
 import { logger } from './logger';
+import { getRedis } from './redis';
 import { sessionPolicy, type SessionPolicy } from './session-policy';
 import { peekSsoGroups, rememberSsoGroups, ssoState, takeSsoGroups, type SsoRuntime } from './sso';
 
@@ -218,6 +220,13 @@ async function afterSsoSignIn(
   });
 }
 
+/**
+ * Le compteur de la limitation de débit, partagé par toutes les instances de
+ * Better Auth que ce processus fabrique — et, par Redis, par tous les panels.
+ * Voir `auth-rate-limit.ts`.
+ */
+const rateLimitStorage = createAuthRateLimitStorage(getRedis, logger);
+
 function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
   const env = getEnv();
 
@@ -390,15 +399,15 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
      * e-mails depuis le serveur de quelqu'un d'autre, et cette phrase mérite
      * d'être vraie explicitement.
      *
-     * La clé est (IP, chemin). Le stockage est en mémoire : c'est suffisant
-     * ici — le panel est un seul processus — mais ce serait faux avec plusieurs
-     * répliques, chacune comptant pour elle. Le corriger demanderait une table
-     * `rateLimit` (donc une migration) ou un `secondaryStorage` Redis, qui
-     * déplacerait aussi les sessions. Ni l'un ni l'autre n'est justifié
-     * aujourd'hui : c'est une dette assumée, écrite ici pour être trouvée.
+     * La clé est (IP, chemin), et le compteur vit dans Redis
+     * (`customStorage`) : plusieurs panels derrière un répartiteur comptent
+     * ensemble, au lieu de multiplier la limite par leur nombre. Les sessions,
+     * elles, restent en base — un `secondaryStorage` les aurait déplacées.
+     * Redis muet, le compte se fait en mémoire, comme avant.
      */
     rateLimit: {
       enabled: true,
+      customStorage: rateLimitStorage,
       customRules: {
         // Le formulaire public : trois demandes par minute et par IP.
         '/request-password-reset': { window: 60, max: 3 },

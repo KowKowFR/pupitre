@@ -168,6 +168,22 @@ ouvertes : leur échéance est ramenée à « maintenant plus la nouvelle durée
 Le plafond absolu est tenu par `requireSession()`, qui retire la session de la
 base et écrit `auth.session.expired` (raison `max_age`).
 
+### Les essais de connexion
+
+Better Auth limite les requêtes par adresse et par chemin : trois connexions
+(ou inscriptions, changements de mot de passe ou d'e-mail) par dix secondes,
+trois demandes de réinitialisation par minute, dix consommations de jeton de
+réinitialisation par minute (`rateLimit` dans `lib/auth.ts`). Au-delà, `429`
+et `X-Retry-After`.
+
+Le compteur vit dans **Redis** (`ratelimit:auth:<adresse>|<chemin>`, fenêtre
+fixe, `INCR` et échéance dans un seul script) : plusieurs panels derrière un
+répartiteur comptent ensemble, au lieu de multiplier la limite par leur nombre.
+Les sessions, elles, restent en base. Redis muet plus d'une seconde, ou en
+erreur, le compte se fait en mémoire du processus — chaque panel pour lui,
+jamais sans limite — et Redis n'est réessayé qu'au bout de dix secondes, pour
+qu'aucune connexion ne paie l'attente deux fois (`lib/auth-rate-limit.ts`).
+
 ## RBAC — 38 permissions
 
 `packages/core/src/permissions.ts` est le vocabulaire, partagé par le panel, le
