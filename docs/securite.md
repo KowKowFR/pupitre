@@ -671,6 +671,28 @@ caches orphelins sur toutes les cibles existantes. Dix minutes de délai maximum
 par scanner. **Le premier scan sur une cible neuve télécharge les bases de
 vulnérabilités : comptez quelques minutes, une seule fois.**
 
+### Où lire l'image : c'est le driver qui le dit
+
+Une image construite n'existe dans aucun registry : un scanner doit la lire là
+où le runtime l'a rangée. Ce n'est pas au scanner de deviner le runtime — ce
+serait un `if (runtime === …)` de plus. Le driver le **déclare**
+(`DeploymentDriver.imageStore()`), le worker le transmet sans le lire
+(`ScanContext.store`), et chaque scanner le traduit :
+
+| Stockage | Déclaré par | Trivy | Grype, Syft |
+|---|---|---|---|
+| `docker` | `DockerComposeDriver` | détection par défaut | détection par défaut |
+| `containerd` (`/run/k3s/containerd/containerd.sock`, espace `k8s.io`, réservé à root) | `K3sDriver` | `CONTAINERD_*`, `--image-src containerd,remote`, nom complet (`docker.io/…`) | `CONTAINERD_*`, `--from containerd --from registry`, `--platform linux/<arch>` |
+
+Sur containerd, l'image construite est lue sur la machine, et une image
+publique encore jamais tirée l'est sur son registry. Le socket de k3s étant
+réservé à root, l'outil tourne sous `sudo` (la méthode d'élévation de la
+cible), **sans quitter `~/.bootstrap-tp` de l'utilisateur** : le `HOME`
+d'origine est rétabli, et le cache rendu à l'utilisateur à la fin
+(`asToolOwner()` dans `scanners/run.ts`). Avant cela, aucun des trois ne
+trouvait une image construite sur K3s : l'étape rendait « inconnu », sans
+bloquer ni prévenir.
+
 ### La normalisation est le point clé
 
 Trivy et Grype décrivent la même CVE avec deux vocabulaires. Chacun ramène le

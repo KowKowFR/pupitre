@@ -78,6 +78,22 @@ export function formatImageReference(ref: ImageReference): string {
 }
 
 /**
+ * La forme complète, celle que containerd enregistre et la seule qu'il
+ * reconnaisse : `docker.io/library/nginx:1.27`, `docker.io/acme/api:2`,
+ * `ghcr.io/acme/api:2.1`, `docker.io/library/postgres@sha256:…`. Docker,
+ * lui, accepte la forme courte ; certains outils qui lisent containerd non.
+ * Une référence illisible est rendue telle quelle.
+ */
+export function canonicalImageReference(raw: string): string {
+  const ref = parseImageReference(raw);
+  if (ref === null) return raw;
+  const host = ref.registry === DOCKER_HUB ? 'docker.io' : ref.registry;
+  return ref.digest
+    ? `${host}/${ref.repository}@${ref.digest}`
+    : `${host}/${ref.repository}:${ref.tag}`;
+}
+
+/**
  * Extrait le digest d'une forme rapportée par un runtime :
  * `nginx@sha256:…` (Docker, `RepoDigests`), `docker.io/library/nginx@sha256:…`
  * (containerd, `imageID`), ou `sha256:…` nu.

@@ -1,6 +1,7 @@
 import { PORT_RANGE_MAX, PORT_RANGE_MIN } from '../../ports.js';
 import type { AppStatus, ServiceState, ServiceStatus } from '../../supervision.js';
 import type { ProxyUpstream } from '../../proxy/model.js';
+import type { ImageStore } from '../../scan.js';
 import { exec, execPipe, execStream, upload } from '../../ssh/client.js';
 import { exposedService, storedSecretNames, type AppSpec } from '../../spec/index.js';
 import { backoffMs } from '../backoff.js';
@@ -466,6 +467,11 @@ export class DockerComposeDriver implements DeploymentDriver {
     return ctx.spec.services.map((service) =>
       service.source.type === 'image' ? service.source.ref : this.imageTag(ctx, service.name),
     );
+  }
+
+  /** Le démon Docker, que l'utilisateur SSH joint par le groupe `docker`. */
+  imageStore(_ctx: DriverContext): ImageStore {
+    return { kind: 'docker' };
   }
 
   // ─── deploy ─────────────────────────────────────────────────────────────────

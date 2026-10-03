@@ -1,8 +1,23 @@
-import { SCANNERS, type Finding, type ScanReport, type Severity } from '../scan.js';
+import {
+  SCANNERS,
+  type Finding,
+  type ImageStore,
+  type ScanReport,
+  type Severity,
+} from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
 import { cachePath, ensureBinary, toolPath } from './install.js';
+import { canonicalImageReference } from '../images/reference.js';
 import { shellQuote } from '../shell.js';
-import { parseJsonOutput, runTool, SCAN_TIMEOUT_MS } from './run.js';
+import {
+  containerdEnv,
+  MACHINE_PLATFORM_FLAG,
+  parseJsonOutput,
+  runTool,
+  SCAN_TIMEOUT_MS,
+  toolCommandFor,
+  type ToolCommand,
+} from './run.js';
 import type { ScanContext, ScanLogSink, Scanner } from './types.js';
 
 /**
@@ -72,12 +87,10 @@ export class GrypeScanner implements Scanner {
     await this.ensureInstalled(ctx.session, onLog);
 
     const timeout = ctx.timeoutMs ?? SCAN_TIMEOUT_MS;
-    const command =
-      `GRYPE_DB_CACHE_DIR=${cachePath('grype')} GRYPE_CHECK_FOR_APP_UPDATE=false ` +
-      `${toolPath('grype')} ${shellQuote(ctx.image)} -o json`;
+    const { command, sudo } = grypeCommand(ctx.image, ctx.store);
 
     onLog(`grype ${ctx.image} -o json`);
-    const run = await runTool(ctx.session, this.key, command, onLog, timeout);
+    const run = await runTool(ctx.session, this.key, command, onLog, timeout, sudo);
     const raw = parseJsonOutput<GrypeOutput>(this.key, run);
     const findings = normalizeGrypeReport(raw);
 
@@ -93,6 +106,27 @@ export class GrypeScanner implements Scanner {
   }
 }
 
+/**
+ * La ligne de commande de Grype pour une image et l'endroit où elle se trouve.
+ *
+ * Docker : la détection par défaut, inchangée. Containerd : ses variables
+ * `CONTAINERD_*`, la source `containerd` puis `registry`, et la plateforme de
+ * la machine (voir `MACHINE_PLATFORM_FLAG`).
+ */
+export function grypeCommand(image: string, store: ImageStore): ToolCommand {
+  const cache = `GRYPE_DB_CACHE_DIR=${cachePath('grype')} GRYPE_CHECK_FOR_APP_UPDATE=false`;
+  switch (store.kind) {
+    case 'docker':
+      return { command: `${cache} ${toolPath('grype')} ${shellQuote(image)} -o json`, sudo: false };
+    case 'containerd':
+      return toolCommandFor(
+        store,
+        `${cache} ${containerdEnv(store)} ${toolPath('grype')} ${shellQuote(canonicalImageReference(image))} ` +
+          `--from containerd --from registry ${MACHINE_PLATFORM_FLAG} -o json`,
+        cachePath('grype'),
+      );
+  }
+}
 /**
  * Rapport Grype → findings normalisés.
  *

@@ -274,9 +274,19 @@ export function buildCommand(tag: string, dockerfile: string): string {
 export function importCommand(): string {
   return (
     `kubectl -n ${BUILDER_NAMESPACE} exec deploy/${BUILDER_DEPLOYMENT} -- cat ${IMAGE_TAR} | ` +
-    'k3s ctr -n k8s.io images import -'
+    `k3s ctr -n ${K3S_IMAGE_NAMESPACE} images import -`
   );
 }
+
+/** L'espace de noms containerd du kubelet : celui où les images doivent être. */
+export const K3S_IMAGE_NAMESPACE = 'k8s.io';
+
+/**
+ * Le containerd embarqué de k3s. Ce n'est **pas** `/run/containerd/containerd.sock`,
+ * où les outils le cherchent par défaut — d'où des scanners qui ne trouvaient
+ * aucune image construite. Réservé à root.
+ */
+export const K3S_CONTAINERD_ADDRESS = '/run/k3s/containerd/containerd.sock';
 
 /** Le tar pèse le poids de l'image : on ne le laisse pas dans le pod. */
 export function discardTarCommand(): string {

@@ -6,6 +6,7 @@ import type { Workload, WorkloadControlAction, WorkloadRef } from '../workloads.
 import type { WorkloadExecOptions, WorkloadExecResult } from './workload-exec.js';
 import type { RunningImage } from '../images/updates.js';
 import type { ProxyUpstream } from '../proxy/model.js';
+import type { ImageStore } from '../scan.js';
 import type { Readable, Writable } from 'node:stream';
 
 /**
@@ -287,6 +288,13 @@ export interface DeploymentDriver {
    * avant `deploy()`, alors qu'aucun conteneur n'a encore démarré.
    */
   images(ctx: DriverContext): Promise<string[]>;
+
+  /**
+   * Où ces images se trouvent sur la cible, pour que les scanners les lisent.
+   * Une image construite n'existe dans aucun registry : un scanner qui la
+   * chercherait au mauvais endroit rendrait un échec, ou rien.
+   */
+  imageStore(ctx: DriverContext): ImageStore;
 
   /** Démarre les services. Suppose `upload()` et, le cas échéant, `build()` faits. */
   deploy(ctx: DriverContext, onLog: LogSink): Promise<DeployResult>;

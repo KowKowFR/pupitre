@@ -1,8 +1,22 @@
-import { SCANNERS, type Finding, type ScanReport, type Severity } from '../scan.js';
+import {
+  SCANNERS,
+  type Finding,
+  type ImageStore,
+  type ScanReport,
+  type Severity,
+} from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
 import { cachePath, ensureBinary, toolPath } from './install.js';
+import { canonicalImageReference } from '../images/reference.js';
 import { shellQuote } from '../shell.js';
-import { parseJsonOutput, runTool, SCAN_TIMEOUT_MS } from './run.js';
+import {
+  containerdEnv,
+  parseJsonOutput,
+  runTool,
+  SCAN_TIMEOUT_MS,
+  toolCommandFor,
+  type ToolCommand,
+} from './run.js';
 import type { ScanContext, ScanLogSink, Scanner } from './types.js';
 
 /**
@@ -73,17 +87,10 @@ export class TrivyScanner implements Scanner {
     await this.ensureInstalled(ctx.session, onLog);
 
     const timeout = ctx.timeoutMs ?? SCAN_TIMEOUT_MS;
-    // Le délai interne de Trivy est légèrement plus court que le nôtre : mieux
-    // vaut un message de l'outil qu'une coupure sèche de la session SSH.
-    const internal = `${Math.max(1, Math.floor(timeout / 60_000) - 1)}m`;
-
-    const command =
-      `TRIVY_CACHE_DIR=${cachePath('trivy')} ${toolPath('trivy')} image ` +
-      `--format json --scanners vuln --no-progress --timeout ${internal} ` +
-      shellQuote(ctx.image);
+    const { command, sudo } = trivyCommand(ctx.image, ctx.store, timeout);
 
     onLog(`trivy image --format json --scanners vuln ${ctx.image}`);
-    const run = await runTool(ctx.session, this.key, command, onLog, timeout);
+    const run = await runTool(ctx.session, this.key, command, onLog, timeout, sudo);
     const raw = parseJsonOutput<TrivyOutput>(this.key, run);
     const findings = normalizeTrivyReport(raw);
 
@@ -96,6 +103,38 @@ export class TrivyScanner implements Scanner {
       findings,
       raw,
     };
+  }
+}
+
+/**
+ * La ligne de commande de Trivy pour une image et l'endroit où elle se trouve.
+ *
+ * Docker : la détection par défaut de Trivy, inchangée. Containerd : ses
+ * variables `CONTAINERD_*` et `--image-src containerd,remote` — l'image
+ * construite d'abord dans le containerd déclaré, et une image publique encore
+ * jamais tirée sur son registry. Le nom y est complet (`docker.io/…`) :
+ * Trivy trouve l'image sous le nom court, puis échoue à l'exporter.
+ */
+export function trivyCommand(image: string, store: ImageStore, timeoutMs: number): ToolCommand {
+  // Le délai interne de Trivy est légèrement plus court que le nôtre : mieux
+  // vaut un message de l'outil qu'une coupure sèche de la session SSH.
+  const internal = `${Math.max(1, Math.floor(timeoutMs / 60_000) - 1)}m`;
+  const options = `--format json --scanners vuln --no-progress --timeout ${internal}`;
+  const cache = `TRIVY_CACHE_DIR=${cachePath('trivy')}`;
+
+  switch (store.kind) {
+    case 'docker':
+      return {
+        command: `${cache} ${toolPath('trivy')} image ${options} ${shellQuote(image)}`,
+        sudo: false,
+      };
+    case 'containerd':
+      return toolCommandFor(
+        store,
+        `${cache} ${containerdEnv(store)} ${toolPath('trivy')} image ${options} ` +
+          `--image-src containerd,remote ${shellQuote(canonicalImageReference(image))}`,
+        cachePath('trivy'),
+      );
   }
 }
 

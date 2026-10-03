@@ -116,6 +116,23 @@ export const sbomFormatSchema = z.enum(['cyclonedx', 'spdx']);
 export type SbomFormat = z.infer<typeof sbomFormatSchema>;
 
 /**
+ * Où un runtime garde les images qu'il exécute — ce qu'un scanner doit savoir
+ * pour les lire, sans savoir quel runtime les y a mises.
+ *
+ * C'est le driver qui le déclare (`DeploymentDriver.imageStore()`) et chaque
+ * scanner qui le traduit dans sa langue (variables d'environnement, source
+ * d'image, plateforme). Ni le worker ni les scanners ne testent le runtime.
+ *
+ * - `docker` : le démon Docker, joint par le groupe `docker` de l'utilisateur.
+ * - `containerd` : un containerd par son socket et son espace de noms ;
+ *   `elevated` quand le socket est réservé à root — l'outil tourne alors sous
+ *   `sudo`, selon la méthode d'élévation de la cible.
+ */
+export type ImageStore =
+  | { kind: 'docker' }
+  | { kind: 'containerd'; address: string; namespace: string; elevated: boolean };
+
+/**
  * Ce que chaque scanner regarde.
  *
  * Le **nom** d'un scanner est un nom propre et reste tel quel dans les deux
