@@ -281,6 +281,13 @@
       "when": 1791035397638,
       "tag": "0040_forecasts",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791037660373,
+      "tag": "0041_forecasts_cascade",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,15 @@ import { targetMetricSamples } from './schema/target-metrics.js';
 
 export type { ForecastRow };
 
+/** Violation de clé étrangère côté PostgreSQL — directe, ou enveloppée par Drizzle. */
+function isForeignKeyViolation(error: unknown): boolean {
+  for (let current = error; typeof current === 'object' && current !== null;) {
+    if ((current as { code?: unknown }).code === '23503') return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 const keyOf = (kind: string, subjectType: string, subjectId: string) =>
   `${kind}|${subjectType}|${subjectId}`;
 
@@ -54,17 +63,27 @@ export async function syncForecasts(
       if (existing) {
         await tx.update(forecasts).set(values).where(eq(forecasts.id, existing.id));
       } else {
-        const [row] = await tx
-          .insert(forecasts)
-          .values({
-            kind: forecast.kind,
-            subjectType: forecast.subject.type,
-            subjectId: forecast.subject.id,
-            openedAt: now,
-            ...values,
-          })
-          .returning();
-        if (row) opened.push(row);
+        // Un savepoint par ouverture : un sujet supprimé entre la lecture du
+        // balayage et cette écriture fait refuser la ligne par sa clé
+        // étrangère — il n'y a plus rien à prévoir, et le reste du balayage
+        // doit passer quand même.
+        try {
+          const [row] = await tx.transaction((savepoint) =>
+            savepoint
+              .insert(forecasts)
+              .values({
+                kind: forecast.kind,
+                subjectType: forecast.subject.type,
+                subjectId: forecast.subject.id,
+                openedAt: now,
+                ...values,
+              })
+              .returning(),
+          );
+          if (row) opened.push(row);
+        } catch (error) {
+          if (!isForeignKeyViolation(error)) throw error;
+        }
       }
     }
 

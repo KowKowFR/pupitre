@@ -236,6 +236,16 @@ met à jour (échéance, chiffres), un épisode sans constat se referme. Seules
 l'ouverture et la fermeture s'écrivent au journal (`forecast.raised`,
 `forecast.cleared`) ; seule l'ouverture est notifiable, **une fois** par épisode.
 
+**Une prévision ne survit pas à son sujet.** Le sujet est polymorphe
+(`subject_type`, `subject_id`), mais chaque type a sa colonne générée par
+Postgres (`target_id`, `monitor_id`, `route_id`, `application_id`), clé
+étrangère `ON DELETE CASCADE`. Supprimer une cible, une sonde ou une
+application emporte ses prévisions dans la même transaction, quel que soit le
+chemin — l'API, ou la cascade d'une application qui emporte ses domaines. Pas
+d'attente du balayage suivant, et pas de `forecast.cleared` : la suppression
+du sujet est elle-même au journal. Un sujet supprimé pendant un balayage fait
+refuser son ouverture par la clé ; le balayage l'ignore et continue.
+
 **Où elles se lisent.**
 - La vue d'ensemble : une carte « À venir », sous le bloc d'attention. Rien
   quand il n'y a rien.
