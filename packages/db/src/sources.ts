@@ -1,4 +1,12 @@
-import type { AppSpec, SpecChange } from '@pupitre/core';
+import {
+  SOURCE_PROVIDER_KINDS,
+  decrypt,
+  githubWebUrl,
+  repositoryWebUrl,
+  type AppSpec,
+  type SourceConnectionSecrets,
+  type SpecChange,
+} from '@pupitre/core';
 import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, type Database } from './client.js';
@@ -36,16 +44,74 @@ export async function getSourceConnection(
   return row ?? null;
 }
 
+/**
+ * Les secrets d'une connexion, déchiffrés à l'instant : de quoi fabriquer son
+ * client (`createSourceProvider`). Le résultat ne se range nulle part et ne
+ * se journalise jamais.
+ */
+export function sourceConnectionSecrets(connection: SourceConnection): SourceConnectionSecrets {
+  switch (connection.provider) {
+    case 'github':
+      if (connection.appId === null || !connection.privateKeyEncrypted) {
+        throw new Error('connexion GitHub incomplète : App ou clé privée manquante');
+      }
+      return {
+        provider: 'github',
+        appId: connection.appId,
+        privateKey: decrypt(connection.privateKeyEncrypted),
+        apiUrl: connection.apiUrl,
+      };
+    case 'gitea':
+      if (!connection.tokenEncrypted)
+        throw new Error('connexion Gitea incomplète : jeton manquant');
+      return {
+        provider: 'gitea',
+        baseUrl: connection.apiUrl ?? connection.htmlUrl,
+        token: decrypt(connection.tokenEncrypted),
+      };
+  }
+}
+
+/** L'adresse web de la forge d'une connexion : github.com, un GitHub Enterprise, une forge Gitea. */
+export function sourceConnectionWebUrl(connection: SourceConnection): string {
+  return connection.provider === 'github'
+    ? githubWebUrl(connection.apiUrl)
+    : (connection.apiUrl ?? connection.htmlUrl);
+}
+
+/** L'adresse web d'un dépôt de cette connexion. */
+export function sourceRepositoryUrl(connection: SourceConnection, fullName: string): string {
+  return repositoryWebUrl(sourceConnectionWebUrl(connection), fullName);
+}
+
+/** Les connexions de l'instance, une par fournisseur. */
+export async function listSourceConnections(db: Database = getDb()): Promise<SourceConnection[]> {
+  return db.select().from(sourceConnections).orderBy(asc(sourceConnections.provider));
+}
+
+export async function getSourceConnectionById(
+  id: string,
+  db: Database = getDb(),
+): Promise<SourceConnection | null> {
+  const [row] = await db.select().from(sourceConnections).where(eq(sourceConnections.id, id));
+  return row ?? null;
+}
+
+/**
+ * Ce qu'on enregistre d'une connexion. Les secrets arrivent **déjà chiffrés**
+ * par l'appelant : ce module ne voit jamais une clé ni un jeton en clair. Les
+ * champs d'un fournisseur restent vides pour l'autre.
+ */
 export type SourceConnectionInput = {
   provider: SourceConnection['provider'];
-  appId: number;
-  slug: string;
+  appId: number | null;
+  slug: string | null;
   name: string;
   htmlUrl: string;
   owner: string;
   apiUrl: string | null;
-  /** Déjà chiffrée par l'appelant : ce module ne voit jamais la clé en clair. */
-  privateKeyEncrypted: string;
+  privateKeyEncrypted: string | null;
+  tokenEncrypted: string | null;
   createdBy: string | null;
 };
 
@@ -119,7 +185,10 @@ export const applicationSourceInputSchema = z.object({
     .string()
     .trim()
     .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'dépôt attendu sous la forme propriétaire/nom'),
-  installationId: z.number().int().positive(),
+  /** Le fournisseur du dépôt ; GitHub quand rien n'est dit, comme avant qu'il y en ait deux. */
+  provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
+  /** GitHub : l'installation de l'App qui ouvre le dépôt. Rien chez Gitea. */
+  installationId: z.number().int().positive().nullable().default(null),
   branch: z
     .string()
     .trim()
@@ -153,7 +222,7 @@ export const applicationSourceCreateSchema = applicationSourceInputSchema.superR
 );
 
 export const applicationSourcePatchSchema = applicationSourceInputSchema
-  .omit({ repository: true, installationId: true })
+  .omit({ repository: true, installationId: true, provider: true })
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { message: 'aucun champ à modifier' });
 export type ApplicationSourcePatch = z.infer<typeof applicationSourcePatchSchema>;
@@ -523,8 +592,15 @@ export async function supersedePendingProposals(
 }
 
 /** Le nombre de liaisons, toutes applications confondues. */
-export async function countApplicationSources(db: Database = getDb()): Promise<number> {
-  const [row] = await db.select({ value: sql<number>`count(*)::int` }).from(applicationSources);
+/** Les liaisons de l'instance — ou celles d'une connexion. */
+export async function countApplicationSources(
+  connectionId?: string,
+  db: Database = getDb(),
+): Promise<number> {
+  const [row] = await db
+    .select({ value: sql<number>`count(*)::int` })
+    .from(applicationSources)
+    .where(connectionId ? eq(applicationSources.connectionId, connectionId) : undefined);
   return row?.value ?? 0;
 }
 

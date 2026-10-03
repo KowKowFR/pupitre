@@ -267,6 +267,13 @@
       "when": 1790974804076,
       "tag": "0038_source_archives",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791012452119,
+      "tag": "0039_source_gitea",
+      "breakpoints": true
     }
   ]
 }

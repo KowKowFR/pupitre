@@ -54,6 +54,7 @@ export async function GET(request: Request): Promise<Response> {
       owner: app.owner,
       apiUrl: null,
       privateKeyEncrypted: encrypt(app.privateKey),
+      tokenEncrypted: null,
       createdBy: auth.userId,
     });
     await logAudit({

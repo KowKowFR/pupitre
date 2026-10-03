@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { FileCode2, GitBranch, LoaderCircle } from 'lucide-react';
+import { SOURCE_PROVIDER_LABELS, type SourceProviderKind } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,11 +27,16 @@ import { sources as messages } from '@/i18n/messages/sources';
  */
 
 type Repository = {
+  provider: SourceProviderKind;
   fullName: string;
-  installationId: number;
+  installationId: number | null;
   defaultBranch: string;
   private: boolean;
 };
+
+/** Un dépôt se désigne par son fournisseur, son installation (GitHub) et son nom. */
+const keyOf = (repo: Repository) =>
+  `${repo.provider}:${repo.installationId ?? ''}:${repo.fullName}`;
 type Specs = { branch: string; sha: string; specs: string[] };
 type Preview = {
   sha: string;
@@ -76,11 +82,13 @@ export function RepositoryImport({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const repo = repositories?.find((candidate) => candidate.fullName === repository) ?? null;
+  const repo = repositories?.find((candidate) => keyOf(candidate) === repository) ?? null;
+  // Le fournisseur ne se lit à côté du nom que s'il y en a plusieurs.
+  const providers = new Set((repositories ?? []).map((candidate) => candidate.provider));
 
   useEffect(() => {
     let cancelled = false;
-    void fetch('/api/integrations/github/repositories', { cache: 'no-store' })
+    void fetch('/api/integrations/repositories', { cache: 'no-store' })
       .then(async (response) => {
         if (cancelled) return;
         if (!response.ok) {
@@ -88,8 +96,15 @@ export function RepositoryImport({
           setRepositories([]);
           return;
         }
-        const body = (await response.json()) as { items: Repository[] };
+        const body = (await response.json()) as {
+          items: Repository[];
+          errors?: Array<{ provider: string; message: string }>;
+        };
         setRepositories(body.items);
+        // Un fournisseur muet n'empêche pas de choisir chez les autres : on le dit.
+        if (body.errors?.length) {
+          setError(body.errors.map((entry) => `${entry.provider} : ${entry.message}`).join(' · '));
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -112,11 +127,12 @@ export function RepositoryImport({
       setPreview(null);
       setError(null);
       const query = new URLSearchParams({
+        provider: repo.provider,
         repository: repo.fullName,
-        installationId: String(repo.installationId),
+        ...(repo.installationId !== null ? { installationId: String(repo.installationId) } : {}),
         branch: branch.trim(),
       });
-      void fetch(`/api/integrations/github/specs?${query}`, { cache: 'no-store' })
+      void fetch(`/api/integrations/specs?${query}`, { cache: 'no-store' })
         .then(async (response) => {
           if (cancelled) return;
           if (!response.ok) {
@@ -148,6 +164,7 @@ export function RepositoryImport({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
+          provider: repo.provider,
           repository: repo.fullName,
           installationId: repo.installationId,
           branch: specs.branch,
@@ -189,6 +206,7 @@ export function RepositoryImport({
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
+        provider: repo.provider,
         repository: repo.fullName,
         installationId: repo.installationId,
         branch: specs.branch,
@@ -234,7 +252,7 @@ export function RepositoryImport({
                     value={repository}
                     onChange={(event) => {
                       const next = repositories.find(
-                        (candidate) => candidate.fullName === event.target.value,
+                        (candidate) => keyOf(candidate) === event.target.value,
                       );
                       setRepository(event.target.value);
                       setBranch(next?.defaultBranch ?? '');
@@ -242,11 +260,10 @@ export function RepositoryImport({
                   >
                     <option value="">{t('field.repository.choose')}</option>
                     {repositories.map((candidate) => (
-                      <option
-                        key={`${candidate.installationId}:${candidate.fullName}`}
-                        value={candidate.fullName}
-                      >
-                        {candidate.fullName}
+                      <option key={keyOf(candidate)} value={keyOf(candidate)}>
+                        {providers.size > 1
+                          ? `${candidate.fullName} · ${SOURCE_PROVIDER_LABELS[candidate.provider]}`
+                          : candidate.fullName}
                       </option>
                     ))}
                   </Select>

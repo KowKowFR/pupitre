@@ -31,27 +31,33 @@ import { bytea } from './columns.js';
 import { applications, targets } from './infra.js';
 
 /**
- * L'intégration avec un fournisseur de code — pour GitHub, une GitHub App.
- * Une par fournisseur et par instance.
+ * L'intégration avec un fournisseur de code — une GitHub App, ou le jeton d'un
+ * compte Gitea / Forgejo. Une par fournisseur et par instance.
  *
- * La clé privée de l'App est chiffrée comme les credentials SSH (AES-256-GCM,
- * `MASTER_KEY`) : elle ouvre la lecture de dépôts privés, elle ne sort jamais
- * en clair, ni dans une réponse, ni dans un log.
+ * Ses secrets — la clé privée de l'App, le jeton Gitea — sont chiffrés comme
+ * les credentials SSH (AES-256-GCM, `MASTER_KEY`) : ils ouvrent la lecture de
+ * dépôts privés, ils ne sortent jamais en clair, ni dans une réponse, ni dans
+ * un log. Les colonnes propres à un fournisseur sont vides pour l'autre.
  */
 export const sourceConnections = pgTable(
   'source_connections',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     provider: sourceProviderEnum('provider').notNull(),
-    appId: integer('app_id').notNull(),
-    slug: text('slug').notNull(),
+    /** GitHub : l'App. */
+    appId: integer('app_id'),
+    slug: text('slug'),
     name: text('name').notNull(),
+    /** GitHub : la page de l'App. Gitea : l'adresse de la forge. */
     htmlUrl: text('html_url').notNull(),
-    /** Le compte (personne ou organisation) propriétaire de l'App. */
+    /** GitHub : le propriétaire de l'App. Gitea : le compte du jeton. */
     owner: text('owner').notNull(),
-    /** API d'un GitHub Enterprise ; `null` pour github.com. */
+    /** GitHub : l'API d'un GitHub Enterprise, `null` pour github.com. Gitea : l'adresse de la forge. */
     apiUrl: text('api_url'),
-    privateKeyEncrypted: text('private_key_encrypted').notNull(),
+    /** GitHub : la clé privée de l'App, chiffrée. */
+    privateKeyEncrypted: text('private_key_encrypted'),
+    /** Gitea : le jeton d'accès, chiffré. */
+    tokenEncrypted: text('token_encrypted'),
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -77,7 +83,8 @@ export const applicationSources = pgTable(
     connectionId: uuid('connection_id')
       .notNull()
       .references(() => sourceConnections.id, { onDelete: 'cascade' }),
-    installationId: bigint('installation_id', { mode: 'number' }).notNull(),
+    /** GitHub : l'installation de l'App qui ouvre le dépôt. `null` chez Gitea. */
+    installationId: bigint('installation_id', { mode: 'number' }),
     /** `owner/name`. */
     repository: text('repository').notNull(),
     branch: text('branch').notNull(),

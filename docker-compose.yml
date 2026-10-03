@@ -290,6 +290,29 @@ services:
       - "127.0.0.1:${KEYCLOAK_HTTP_PORT:-8180}:8080"
     restart: unless-stopped
 
+  # ── Gitea de test, hors du démarrage normal ─────────────────────────────────
+  # Une vraie forge Gitea (même API que Forgejo et Codeberg), pour éprouver un
+  # second fournisseur de code de bout en bout : un compte, un jeton, un dépôt
+  # avec son pupitre.json — tout est fabriqué par `scripts/test-gitea/setup.sh`
+  # et jetable. Le panel, le worker et le navigateur la joignent à la même
+  # adresse, http://localhost:3030 : c'est celle de ses liens.
+  #
+  #   docker compose --profile test up -d gitea
+  gitea:
+    profiles: ["test"]
+    image: gitea/gitea:1.24
+    environment:
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__server__ROOT_URL: http://localhost:${GITEA_HTTP_PORT:-3030}/
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__repository__DEFAULT_BRANCH: main
+    volumes:
+      - gitea-test-data:/data
+    ports:
+      - "127.0.0.1:${GITEA_HTTP_PORT:-3030}:3000"
+    restart: unless-stopped
+
   # ── Navigateur de capture, hors du démarrage normal ──────────────────────────
   # Démarrage explicite :
   #   docker compose --profile capture up -d capture-browser
@@ -474,3 +497,5 @@ volumes:
   # L'état du Nginx Proxy Manager de test : sa base et ses certificats.
   npm-test-data:
   npm-test-letsencrypt:
+  # La forge Gitea de test : son compte, son jeton, ses dépôts.
+  gitea-test-data:

@@ -1,23 +1,30 @@
 import 'server-only';
-import { decrypt, SourceProviderError } from '@pupitre/core';
+import { SourceProviderError, type SourceProviderKind } from '@pupitre/core';
 import {
-  GitHubSourceProvider,
+  createSourceProvider,
   githubInstallUrl,
   type GitHubAppCredentials,
   type SourceProvider,
 } from '@pupitre/core/sources';
-import { getSourceConnection, type SourceConnection } from '@pupitre/db';
+import {
+  getSourceConnection,
+  listSourceConnections,
+  sourceConnectionSecrets,
+  sourceConnectionWebUrl,
+  type SourceConnection,
+} from '@pupitre/db';
 import { sources as messages } from '@/i18n/messages/sources';
 import { HttpError, msg } from '@/lib/errors';
 import { getEnv } from '@/lib/env';
 
 /**
- * Le fournisseur de code, vu du panel.
+ * Les fournisseurs de code, vus du panel.
  *
- * Le panel s'en sert pour deux choses seulement : montrer les installations de
- * l'App et lister les dépôts dans le tiroir de liaison. Tout le reste — lire la
- * branche, déployer, écrire les statuts — est l'affaire du worker. La clé
- * privée est déchiffrée à l'appel et ne quitte pas le serveur.
+ * Le panel s'en sert pour peu de choses : montrer une connexion, lister les
+ * dépôts dans le tiroir de liaison, lire les `pupitre.json` d'une branche.
+ * Tout le reste — suivre la branche, déployer, écrire les statuts — est
+ * l'affaire du worker. Les secrets d'une connexion sont déchiffrés à l'appel
+ * et ne quittent pas le serveur.
  */
 
 /** Cookie du jeton anti-rejeu de la création de l'App. Dix minutes, puis il expire. */
@@ -28,54 +35,117 @@ export function panelOrigin(): string {
   return new URL(getEnv().BETTER_AUTH_URL).origin;
 }
 
-export function credentialsOf(connection: SourceConnection): GitHubAppCredentials {
+/** Les identifiants d'une GitHub App, pour ce qui ne concerne qu'elle (ses installations). */
+export function githubCredentialsOf(connection: SourceConnection): GitHubAppCredentials {
+  const secrets = sourceConnectionSecrets(connection);
+  if (secrets.provider !== 'github') throw new Error('connexion GitHub attendue');
   return {
-    appId: connection.appId,
-    privateKey: decrypt(connection.privateKeyEncrypted),
-    ...(connection.apiUrl ? { apiUrl: connection.apiUrl } : {}),
+    appId: secrets.appId,
+    privateKey: secrets.privateKey,
+    ...(secrets.apiUrl ? { apiUrl: secrets.apiUrl } : {}),
   };
 }
 
-export async function sourceProvider(): Promise<{
+/** Le client d'une connexion. */
+export function providerOf(connection: SourceConnection): SourceProvider {
+  return createSourceProvider(sourceConnectionSecrets(connection));
+}
+
+/** Le client d'un fournisseur, s'il est connecté. */
+export async function sourceProvider(kind: SourceProviderKind): Promise<{
   provider: SourceProvider;
   connection: SourceConnection;
 } | null> {
-  const connection = await getSourceConnection('github');
+  const connection = await getSourceConnection(kind);
   if (!connection) return null;
-  return { provider: new GitHubSourceProvider(credentialsOf(connection)), connection };
+  return { provider: providerOf(connection), connection };
 }
 
-/** Ce que l'écran peut savoir d'une connexion : tout, sauf la clé. */
-export type ConnectionView = {
-  appId: number;
-  slug: string;
+/** Tous les fournisseurs connectés. */
+export async function sourceProviders(): Promise<
+  Array<{ provider: SourceProvider; connection: SourceConnection }>
+> {
+  return (await listSourceConnections()).map((connection) => ({
+    provider: providerOf(connection),
+    connection,
+  }));
+}
+
+/** Ce que l'écran peut savoir de la GitHub App : tout, sauf la clé. */
+export type GitHubConnectionView = {
+  appId: number | null;
+  slug: string | null;
   name: string;
   htmlUrl: string;
   owner: string;
-  installUrl: string;
+  installUrl: string | null;
   createdAt: string;
 };
 
-export function connectionView(connection: SourceConnection): ConnectionView {
+export function githubConnectionView(connection: SourceConnection): GitHubConnectionView {
   return {
     appId: connection.appId,
     slug: connection.slug,
     name: connection.name,
     htmlUrl: connection.htmlUrl,
     owner: connection.owner,
-    installUrl: githubInstallUrl(connection.slug),
+    installUrl: connection.slug ? githubInstallUrl(connection.slug) : null,
     createdAt: connection.createdAt.toISOString(),
   };
 }
 
-/** Une erreur de GitHub, rendue au format du panel : le message de GitHub, cité. */
+/** Ce que l'écran peut savoir d'une forge Gitea : tout, sauf le jeton. */
+export type GiteaConnectionView = {
+  /** L'adresse de la forge. */
+  url: string;
+  /** Le compte du jeton. */
+  account: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function giteaConnectionView(connection: SourceConnection): GiteaConnectionView {
+  return {
+    url: sourceConnectionWebUrl(connection),
+    account: connection.owner,
+    name: connection.name,
+    createdAt: connection.createdAt.toISOString(),
+    updatedAt: connection.updatedAt.toISOString(),
+  };
+}
+
+/** Une forge connectée, telle que les écrans de liaison la montrent. */
+export type ForgeView = {
+  provider: SourceProviderKind;
+  /** « GitHub », ou l'adresse de la forge Gitea. */
+  label: string;
+  webUrl: string;
+  /** GitHub : où choisir les dépôts de l'App. */
+  installUrl: string | null;
+};
+
+export function forgeView(connection: SourceConnection): ForgeView {
+  const webUrl = sourceConnectionWebUrl(connection);
+  return {
+    provider: connection.provider,
+    label: connection.provider === 'github' ? 'GitHub' : new URL(webUrl).host,
+    webUrl,
+    installUrl:
+      connection.provider === 'github' && connection.slug
+        ? githubInstallUrl(connection.slug)
+        : null,
+  };
+}
+
+/** Une erreur du fournisseur, rendue au format du panel : son message, cité. */
 export function providerError(error: unknown): never {
   if (error instanceof SourceProviderError) {
     // 502 : c'est le fournisseur qui a refusé, pas l'appelant qui s'est trompé.
     throw new HttpError(
       502,
       'provider_error',
-      msg(messages, 'error.github', { message: error.message }),
+      msg(messages, 'error.provider', { message: error.message }),
     );
   }
   throw error;

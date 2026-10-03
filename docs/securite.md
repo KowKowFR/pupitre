@@ -361,8 +361,8 @@ des machines jetables, dont la clé change à chaque recréation.
 
 ### Les adresses que le worker appelle pour vous
 
-L'API d'un Nginx Proxy Manager, un webhook de notification, un stockage S3 : le
-worker appelle une adresse saisie dans le panel. La supervision exige une
+L'API d'un Nginx Proxy Manager, un webhook de notification, un stockage S3, une
+forge Gitea : le worker appelle une adresse saisie dans le panel. La supervision exige une
 adresse publique ; ici, on ne le peut pas — ces destinations vivent souvent sur
 un réseau privé, et c'est légitime. Mais aucune n'a de raison de viser une
 adresse **lien-local** (`169.254.0.0/16`, `fe80::/10`) : c'est là que les clouds
@@ -455,6 +455,7 @@ Sept choses sont chiffrées par la même primitive, chacune dans sa colonne :
 | Secrets d'un canal de notification | `notification_channels.encrypted_secrets` | le worker, à l'envoi |
 | URL de webhook d'une sonde | `monitors.webhook_url_encrypted` | le worker, à l'alerte |
 | Clé privée de l'App GitHub | `source_connections.private_key_encrypted` | le panel et le worker, à l'appel de l'API GitHub |
+| Jeton d'accès de la forge Gitea / Forgejo | `source_connections.token_encrypted` | le panel et le worker, à l'appel de l'API de la forge |
 | Clés d'une destination de sauvegarde | `backup_destinations.encrypted_secrets` | le worker, à l'ouverture de la destination |
 | Mot de passe d'un proxy distant (Nginx Proxy Manager) | `proxies.encrypted_secrets` | le worker, à l'appel de son API |
 

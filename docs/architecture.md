@@ -27,7 +27,7 @@ qui suit est la conséquence pratique.
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
 | `ProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider` (fichiers ou Ingress), `BunkerWebProvider` (API REST, WAF) |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
-| `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider` |
+| `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider`, `GiteaSourceProvider` |
 
 **`DeploymentDriver`** — `preflight` `allocatePort` `render` `upload` `build`
 `deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus les
@@ -72,9 +72,26 @@ qui a le droit de savoir sur quel runtime il tourne, c'est un driver.
 
 ## Dépôts liés
 
-Une application peut être liée à une branche d'un dépôt GitHub. Le dépôt porte un
-`pupitre.json` — l'AppSpec, rien d'autre — à sa racine, ou dans le dossier de
-l'application pour un monorepo.
+Une application peut être liée à une branche d'un dépôt **GitHub** (par une
+GitHub App) ou d'une forge **Gitea / Forgejo / Codeberg** (par le jeton d'un
+compte de la forge). Le dépôt porte un `pupitre.json` — l'AppSpec, rien
+d'autre — à sa racine, ou dans le dossier de l'application pour un monorepo.
+
+- **Un fournisseur, une classe.** Chaque liaison passe par la connexion de sa
+  forge ; `createSourceProvider()` (`packages/core/src/sources/registry.ts`)
+  en fabrique le client à partir de ses secrets déchiffrés. Le worker, le
+  polling, les statuts de commit, le téléchargement du code ne connaissent que
+  le contrat `SourceProvider`. Une connexion par fournisseur et par instance.
+- **Ce qui diffère reste dans la classe.** GitHub répond « rien de neuf » par un
+  ETag (304) ; Gitea n'en pose pas sur une branche, et le polling compare
+  l'empreinte au dernier commit vu. Gitea ne dit pas l'ancien chemin d'un
+  renommage, ni une base qui n'est pas ancêtre : la comparaison se déclare
+  alors « inconnue », et tout compte comme changé. Les dépôts proposés sont
+  ceux du compte du jeton — jamais la recherche publique de la forge, qui sur
+  Codeberg rendrait des centaines de milliers de dépôts.
+- **Un déploiement garde l'adresse web de son dépôt** (`deployments.source_url`) :
+  le lien vers son commit en découle, chez GitHub comme chez Gitea, même si la
+  liaison disparaît ensuite.
 
 - **Le dépôt dit quoi, le panel dit où et quand.** Cibles, runtime et mode de
   déclenchement vivent dans la liaison, sous RBAC. Le fichier ne porte ni cible,
@@ -98,7 +115,7 @@ l'application pour un monorepo.
   l'application porte l'AppSpec (`synced_sha`). Un déploiement lancé à la main —
   tiroir, « Nouvelle application » — emporte ce commit : c'est son code qui se
   construit, où que l'application aille.
-- **Créer depuis le dépôt.** « Nouvelle application → Depuis un dépôt GitHub »
+- **Créer depuis le dépôt.** « Nouvelle application → Depuis un dépôt »
   cherche les `pupitre.json` de la branche (`findFiles()`), lit et valide celui
   qu'on choisit au commit en tête, puis crée l'application et sa liaison, sans
   cible : le `name` du fichier devient celui de l'application.

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import {
+  branchWebUrl,
   checkDockerfiles,
   checkableImages,
   defaultWatchPaths,
@@ -9,7 +10,8 @@ import {
 import {
   getApplication,
   getAppSettings,
-  getSourceConnection,
+  listSourceConnections,
+  sourceRepositoryUrl,
   listApplicationSecrets,
   listApplicationSources,
   listApplicationVersions,
@@ -31,7 +33,7 @@ import { commitSourceOf } from '@/lib/commit';
 import { formatSettingsOf } from '@/lib/format';
 import { requirePagePermission } from '@/lib/page-auth';
 import { relativeTime } from '@/lib/relative-time';
-import { connectionView } from '@/lib/sources';
+import { forgeView } from '@/lib/sources';
 import { ServiceChips } from '../applications-view';
 import { ingressOf, serviceRows } from '../rows';
 import { ServiceList } from '../service-list';
@@ -65,14 +67,14 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const application = await getApplication(parsed.data.id);
   if (!application) notFound();
 
-  const [versions, targets, storedSecrets, sources, proposals, connection, imageRows, archives] =
+  const [versions, targets, storedSecrets, sources, proposals, connections, imageRows, archives] =
     await Promise.all([
       listApplicationVersions(application.id),
       listTargets(),
       listApplicationSecrets(application.id),
       listApplicationSources(application.id),
       listPendingProposals(application.id),
-      getSourceConnection('github'),
+      listSourceConnections(),
       listImageUpdates(application.id),
       listSourceArchives(application.id),
     ]);
@@ -87,12 +89,13 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       sourceRepository,
       sourceRef,
       sourceSha,
+      sourceUrl,
       sourceArchiveName,
       sourceArchiveSha256,
       ...version
     }) => ({
       ...version,
-      source: commitSourceOf({ sourceRepository, sourceRef, sourceSha }),
+      source: commitSourceOf({ sourceRepository, sourceRef, sourceSha, sourceUrl }),
       archive:
         sourceArchiveName && sourceArchiveSha256
           ? { name: sourceArchiveName, sha256: sourceArchiveSha256 }
@@ -113,36 +116,48 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       runtimes: usableRuntimes(target.runtimesAvailable),
     }));
 
-  const sourceViews: SourceView[] = sources.map((source) => ({
-    id: source.id,
-    repository: source.repository,
-    branch: source.branch,
-    specPath: source.specPath,
-    watchPaths: source.watchPaths,
-    defaultWatchPaths: defaultWatchPaths(source.specPath),
-    mode: source.mode,
-    deployTo: source.deployTo,
-    enabled: source.enabled,
-    lastSeenSha: source.lastSeenSha,
-    syncedSha: source.syncedSha,
-    syncedAgo: source.syncedAt ? relativeTime(source.syncedAt, tc) : null,
-    checkedAgo: relativeTime(source.lastCheckedAt, tc),
-    lastError: source.lastError,
-    targets: source.targets,
-    proposals: proposals
-      .filter((proposal) => proposal.sourceId === source.id)
-      .map((proposal) => ({
-        id: proposal.id,
-        sha: proposal.sha,
-        commitMessage: proposal.commitMessage,
-        commitAuthor: proposal.commitAuthor,
-        commitUrl: proposal.commitUrl,
-        reason: proposal.reason,
-        changes: proposal.changes,
-        receivedAgo: relativeTime(proposal.createdAt, tc),
-      })),
-  }));
-  const linkedTo = connection ? connectionView(connection) : null;
+  // Chaque liaison s'ouvre chez sa forge : GitHub, ou la forge Gitea connectée.
+  const connectionOf = new Map(connections.map((connection) => [connection.id, connection]));
+  const sourceViews: SourceView[] = sources.flatMap((source) => {
+    const connection = connectionOf.get(source.connectionId);
+    if (!connection) return [];
+    const repositoryUrl = sourceRepositoryUrl(connection, source.repository);
+    return [
+      {
+        id: source.id,
+        provider: connection.provider,
+        repository: source.repository,
+        repositoryUrl,
+        branchUrl: branchWebUrl(connection.provider, repositoryUrl, source.branch),
+        branch: source.branch,
+        specPath: source.specPath,
+        watchPaths: source.watchPaths,
+        defaultWatchPaths: defaultWatchPaths(source.specPath),
+        mode: source.mode,
+        deployTo: source.deployTo,
+        enabled: source.enabled,
+        lastSeenSha: source.lastSeenSha,
+        syncedSha: source.syncedSha,
+        syncedAgo: source.syncedAt ? relativeTime(source.syncedAt, tc) : null,
+        checkedAgo: relativeTime(source.lastCheckedAt, tc),
+        lastError: source.lastError,
+        targets: source.targets,
+        proposals: proposals
+          .filter((proposal) => proposal.sourceId === source.id)
+          .map((proposal) => ({
+            id: proposal.id,
+            sha: proposal.sha,
+            commitMessage: proposal.commitMessage,
+            commitAuthor: proposal.commitAuthor,
+            commitUrl: proposal.commitUrl,
+            reason: proposal.reason,
+            changes: proposal.changes,
+            receivedAgo: relativeTime(proposal.createdAt, tc),
+          })),
+      },
+    ];
+  });
+  const forges = connections.map(forgeView);
 
   const spec = application.appSpec;
   const services = serviceRows(spec);
@@ -271,7 +286,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         applicationId={application.id}
         sources={sourceViews}
         targets={deployTargets}
-        connection={linkedTo ? { installUrl: linkedTo.installUrl } : null}
+        forges={forges.map((forge) => ({ provider: forge.provider, installUrl: forge.installUrl }))}
         canEdit={auth.can('application:update')}
         canDeploy={auth.can('deployment:create')}
       />

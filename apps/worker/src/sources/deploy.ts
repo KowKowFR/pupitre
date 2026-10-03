@@ -10,10 +10,12 @@ import {
   createDeploymentWithSteps,
   getAppSettingsValue,
   getApplication,
+  getSourceConnectionById,
   getTarget,
   listLiveDeployments,
   logAudit,
   markSourceSynced,
+  sourceRepositoryUrl,
   supersedePendingProposals,
   updateApplication,
   type ApplicationSourceView,
@@ -111,16 +113,12 @@ export async function syncFromSource(input: {
   });
   const language = await statusLanguage();
   const base = panelUrl();
-  await reportCommitStatus(
-    { fullName: source.repository, installationId: source.installationId },
-    sha,
-    {
-      state: 'success',
-      description: statusText(language, input.idle ? 'synced.idle' : 'synced'),
-      context: 'pupitre',
-      targetUrl: base ? `${base}/applications/${application.id}` : null,
-    },
-  );
+  await reportCommitStatus(source, sha, {
+    state: 'success',
+    description: statusText(language, input.idle ? 'synced.idle' : 'synced'),
+    context: 'pupitre',
+    targetUrl: base ? `${base}/applications/${application.id}` : null,
+  });
   logger.info(
     { repository: source.repository, sha },
     'version prise depuis un dépôt, sans déploiement',
@@ -150,6 +148,10 @@ export async function deployFromSource(input: {
   const settings = await getAppSettingsValue();
   const scanConfig = scanConfigFromSettings(settings.security);
   const result: SourceDeployResult = { created: [], skipped: [] };
+  // L'adresse du dépôt chez sa forge : le déploiement la garde, et le lien
+  // vers son commit en découle — même si la liaison disparaît ensuite.
+  const connection = await getSourceConnectionById(source.connectionId);
+  const repositoryUrl = connection ? sourceRepositoryUrl(connection, source.repository) : null;
 
   for (const binding of input.bindings) {
     const target = await getTarget(binding.targetId);
@@ -177,7 +179,13 @@ export async function deployFromSource(input: {
       autoRollback: true,
       appSpec: spec,
       triggeredBy: input.actorId,
-      source: { sourceId: source.id, repository: source.repository, ref: source.branch, sha },
+      source: {
+        sourceId: source.id,
+        repository: source.repository,
+        ref: source.branch,
+        sha,
+        url: repositoryUrl,
+      },
     });
 
     const job = await getOpsQueue().add(

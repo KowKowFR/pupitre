@@ -1,7 +1,8 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les dépôts liés : la connexion de la GitHub App (Paramètres → Intégrations),
+ * Les dépôts liés : la connexion de la GitHub App et celle d'une forge Gitea
+ * ou Forgejo (Paramètres → Intégrations),
  * la liaison d'une application à une branche, les commits en attente de
  * validation, et les erreurs des routes qui les servent.
  *
@@ -89,7 +90,7 @@ const fr = {
   'import.saveNote': 'Rien n’est déployé : l’application rejoint le catalogue.',
   'import.create': 'Créer l’application',
   'import.cancel': 'Annuler',
-  'import.unavailable': 'Les dépôts GitHub ne sont pas disponibles.',
+  'import.unavailable': 'Les dépôts ne sont pas disponibles.',
   'import.searchFailed': 'La recherche dans le dépôt a échoué.',
   'import.readFailed': 'Le fichier n’a pas pu être lu.',
   'import.createFailed': 'L’application n’a pas pu être créée.',
@@ -108,7 +109,8 @@ const fr = {
   'card.description':
     "Le pupitre.json d'une branche décrit l'application. Pupitre vérifie chaque minute s'il a changé.",
   'card.link': 'Relier un dépôt',
-  'card.notConnected': "Pour relier l'application à un dépôt, connectez d'abord GitHub.",
+  'card.notConnected':
+    "Pour relier l'application à un dépôt, connectez d'abord GitHub ou une forge Gitea.",
   'card.notConnected.link': 'Ouvrir les intégrations',
   'card.empty': "Aucun dépôt lié : l'application se modifie depuis le panel.",
   'mode.auto': 'automatique',
@@ -157,6 +159,44 @@ const fr = {
   'proposal.kind.code': 'code',
   'proposal.received': 'reçu {when}',
 
+  // ── Paramètres → Intégrations : Gitea / Forgejo ───────────────────────
+  'gitea.title': 'Gitea / Forgejo',
+  'gitea.lead':
+    'Gitea, Forgejo et Codeberg, par le jeton d’accès d’un compte de la forge — de préférence un compte de service. Comme pour GitHub, Pupitre interroge la forge : elle n’a jamais besoin de joindre le panel.',
+  'gitea.state.on': 'connectée',
+  'gitea.state.off': 'non connectée',
+  'gitea.url': 'Adresse de la forge',
+  'gitea.url.help': 'Celle qu’ouvre un navigateur : https://codeberg.org, https://git.exemple.fr.',
+  'gitea.url.placeholder': 'https://codeberg.org',
+  'gitea.token': 'Jeton d’accès',
+  'gitea.token.help':
+    'Paramètres → Applications → Générer un jeton, avec les portées write:repository (lire le code, écrire l’état des déploiements sur les commits) et read:user. Chiffré dès l’enregistrement, jamais réaffiché.',
+  'gitea.check': 'Tester',
+  'gitea.check.ok': 'La forge répond : compte {login}, version {version}.',
+  'gitea.check.failed': 'La forge refuse : {error}',
+  'gitea.connect': 'Connecter la forge',
+  'gitea.connected': 'Forge connectée',
+  'gitea.replace': 'Remplacer le jeton',
+  'gitea.replaced': 'Jeton remplacé',
+  'gitea.forge': 'Forge',
+  'gitea.account': 'Compte du jeton',
+  'gitea.sources': {
+    one: '{count} liaison passe par cette forge.',
+    other: '{count} liaisons passent par cette forge.',
+  },
+  'gitea.disconnect': 'Déconnecter',
+  'gitea.disconnect.title': 'Déconnecter {url} ?',
+  'gitea.disconnect.sources': {
+    one: '{count} liaison sera retirée : ses applications restent, sans dépôt.',
+    other: '{count} liaisons seront retirées : leurs applications restent, sans dépôt.',
+  },
+  'gitea.disconnect.history': 'L’historique des déploiements reste, avec ses commits.',
+  'gitea.disconnect.token':
+    'Le jeton reste valide sur la forge : révoquez-le là-bas si vous n’en avez plus besoin.',
+  'gitea.disconnected': 'Forge déconnectée',
+  'gitea.error.urlChange':
+    'La forge {url} porte {count} liaison(s) : déconnectez-la avant d’en connecter une autre.',
+
   // ── Tiroir de liaison ───────────────────────────────────────────────────
   'drawer.kind': 'Dépôt',
   'drawer.title.new': 'Relier un dépôt',
@@ -165,7 +205,7 @@ const fr = {
   'drawer.section.code': 'Le code',
   'field.repository': 'Dépôt',
   'field.repository.loading': 'Chargement des dépôts…',
-  'field.repository.none': "Aucun dépôt n'est accessible à l'application GitHub.",
+  'field.repository.none': "Aucun dépôt n'est accessible aux fournisseurs connectés.",
   'field.repository.choose': 'Choisir un dépôt',
   'field.repository.grant': "Un dépôt manque ? Donnez-lui accès sur GitHub",
   'field.repository.fixed':
@@ -213,10 +253,12 @@ const fr = {
   'error.targetsRequired':
     'Choisissez au moins une cible : les commits partent sur les cibles de la liaison.',
   'error.notConnected':
-    "Aucune application GitHub n'est connectée : connectez-la dans Paramètres → Intégrations.",
+    "{provider} n'est pas connecté : connectez-le dans Paramètres → Intégrations.",
   'error.state':
     'La demande de création a expiré, ou ne vient pas de ce navigateur. Recommencez depuis Paramètres → Intégrations.',
-  'error.github': 'GitHub a refusé : {message}',
+  'error.provider': 'Le fournisseur de code a refusé : {message}',
+  'error.noProvider':
+    "Aucun fournisseur de code n'est connecté : connectez GitHub ou une forge Gitea dans Paramètres → Intégrations.",
   'error.privateKey': 'Clé privée illisible : collez le contenu complet du fichier .pem.',
   'error.sourceNotFound': 'Liaison « {id} » introuvable',
   'error.proposalNotFound': 'Commit en attente « {id} » introuvable',
@@ -225,7 +267,8 @@ const fr = {
   'error.targetNotFound': 'Cible « {id} » introuvable',
   'error.runtimeUnavailable': '{runtime} indisponible sur {target} : lancez un preflight.',
   'error.applicationNotFound': 'Application « {id} » introuvable',
-  'error.repositoryUnavailable': "Le dépôt {repository} n'est pas accessible à l'application GitHub.",
+  'error.repositoryUnavailable':
+    "Le dépôt {repository} n'est pas accessible à Pupitre chez {provider}.",
   'error.enqueueFailed': "La tâche n'a pas pu être enfilée.",
 } as const;
 
@@ -307,7 +350,7 @@ const en: Translated<typeof fr> = {
   'import.saveNote': 'Nothing is deployed: the application joins the catalog.',
   'import.create': 'Create the application',
   'import.cancel': 'Cancel',
-  'import.unavailable': 'GitHub repositories are not available.',
+  'import.unavailable': 'Repositories are not available.',
   'import.searchFailed': 'Searching the repository failed.',
   'import.readFailed': 'The file could not be read.',
   'import.createFailed': 'The application could not be created.',
@@ -325,7 +368,8 @@ const en: Translated<typeof fr> = {
   'card.description':
     "A branch's pupitre.json describes the application. Pupitre checks every minute whether it changed.",
   'card.link': 'Link a repository',
-  'card.notConnected': 'To link the application to a repository, connect GitHub first.',
+  'card.notConnected':
+    'To link the application to a repository, connect GitHub or a Gitea forge first.',
   'card.notConnected.link': 'Open integrations',
   'card.empty': 'No linked repository: the application is edited from the panel.',
   'mode.auto': 'automatic',
@@ -374,6 +418,43 @@ const en: Translated<typeof fr> = {
   'proposal.kind.code': 'code',
   'proposal.received': 'received {when}',
 
+  'gitea.title': 'Gitea / Forgejo',
+  'gitea.lead':
+    'Gitea, Forgejo and Codeberg, through the access token of a forge account — ideally a service account. As with GitHub, Pupitre polls the forge: it never needs to reach the panel.',
+  'gitea.state.on': 'connected',
+  'gitea.state.off': 'not connected',
+  'gitea.url': 'Forge address',
+  'gitea.url.help': 'The one a browser opens: https://codeberg.org, https://git.example.com.',
+  'gitea.url.placeholder': 'https://codeberg.org',
+  'gitea.token': 'Access token',
+  'gitea.token.help':
+    'Settings → Applications → Generate token, with the write:repository scope (read the code, write deployment state on commits) and read:user. Encrypted on save, never shown again.',
+  'gitea.check': 'Test',
+  'gitea.check.ok': 'The forge answers: account {login}, version {version}.',
+  'gitea.check.failed': 'The forge refuses: {error}',
+  'gitea.connect': 'Connect the forge',
+  'gitea.connected': 'Forge connected',
+  'gitea.replace': 'Replace the token',
+  'gitea.replaced': 'Token replaced',
+  'gitea.forge': 'Forge',
+  'gitea.account': 'Token account',
+  'gitea.sources': {
+    one: '{count} link goes through this forge.',
+    other: '{count} links go through this forge.',
+  },
+  'gitea.disconnect': 'Disconnect',
+  'gitea.disconnect.title': 'Disconnect {url}?',
+  'gitea.disconnect.sources': {
+    one: '{count} link will be removed: its applications stay, without a repository.',
+    other: '{count} links will be removed: their applications stay, without a repository.',
+  },
+  'gitea.disconnect.history': 'Deployment history stays, with its commits.',
+  'gitea.disconnect.token':
+    'The token stays valid on the forge: revoke it there if you no longer need it.',
+  'gitea.disconnected': 'Forge disconnected',
+  'gitea.error.urlChange':
+    'Forge {url} carries {count} link(s): disconnect it before connecting another one.',
+
   'drawer.kind': 'Repository',
   'drawer.title.new': 'Link a repository',
   'drawer.title.edit': 'Edit the link',
@@ -381,7 +462,7 @@ const en: Translated<typeof fr> = {
   'drawer.section.code': 'The code',
   'field.repository': 'Repository',
   'field.repository.loading': 'Loading repositories…',
-  'field.repository.none': 'No repository is accessible to the GitHub App.',
+  'field.repository.none': 'No repository is accessible to the connected providers.',
   'field.repository.choose': 'Pick a repository',
   'field.repository.grant': 'Missing a repository? Grant access on GitHub',
   'field.repository.fixed':
@@ -423,10 +504,12 @@ const en: Translated<typeof fr> = {
   'error.specInvalid': '{path} rejected: {issue}',
   'error.slugTaken': 'An application “{name}” already exists: the pupitre.json name must be free.',
   'error.targetsRequired': 'Choose at least one target: commits go to the link’s targets.',
-  'error.notConnected': 'No GitHub App is connected: connect it in Settings → Integrations.',
+  'error.notConnected': '{provider} is not connected: connect it in Settings → Integrations.',
   'error.state':
     'The creation request expired, or did not come from this browser. Start again from Settings → Integrations.',
-  'error.github': 'GitHub refused: {message}',
+  'error.provider': 'The code provider refused: {message}',
+  'error.noProvider':
+    'No code provider is connected: connect GitHub or a Gitea forge in Settings → Integrations.',
   'error.privateKey': 'Unreadable private key: paste the whole content of the .pem file.',
   'error.sourceNotFound': 'Link “{id}” not found',
   'error.proposalNotFound': 'Pending commit “{id}” not found',
@@ -435,7 +518,8 @@ const en: Translated<typeof fr> = {
   'error.targetNotFound': 'Target “{id}” not found',
   'error.runtimeUnavailable': '{runtime} unavailable on {target}: run a preflight.',
   'error.applicationNotFound': 'Application “{id}” not found',
-  'error.repositoryUnavailable': 'Repository {repository} is not accessible to the GitHub App.',
+  'error.repositoryUnavailable':
+    'Repository {repository} is not accessible to Pupitre on {provider}.',
   'error.enqueueFailed': 'The job could not be queued.',
 };
 

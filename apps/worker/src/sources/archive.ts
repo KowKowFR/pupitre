@@ -5,7 +5,7 @@ import { SOURCE_ARCHIVES_KEPT, type AppSpec } from '@pupitre/core';
 import type { SourceArchive } from '@pupitre/core/drivers';
 import { SOURCE_ARCHIVE_MAX_BYTES } from '@pupitre/core/sources';
 import { getApplicationSource, getSourceArchive, type Deployment } from '@pupitre/db';
-import { getSourceProvider } from './provider.js';
+import { providerForConnection } from './provider.js';
 import { exportArchiveChunks } from './stored-archive.js';
 
 /**
@@ -80,9 +80,12 @@ export async function prepareSourceArchive(
         'impossible de récupérer le code du commit à construire',
     );
   }
-  const access = await getSourceProvider();
+  const access = await providerForConnection(source.connectionId);
   if (!access) {
-    throw new Error('aucune GitHub App connectée : impossible de récupérer le code du commit');
+    throw new Error(
+      `la connexion au fournisseur de ${source.repository} a été retirée : ` +
+        'impossible de récupérer le code du commit',
+    );
   }
 
   const directory = await mkdtemp(join(tmpdir(), 'pupitre-source-'));

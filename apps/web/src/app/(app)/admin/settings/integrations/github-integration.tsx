@@ -16,7 +16,7 @@ import { SegmentedControl } from '@/components/ui/segmented';
 import { useT } from '@/i18n/client';
 import { common } from '@/i18n/messages/common';
 import { sources as messages } from '@/i18n/messages/sources';
-import type { ConnectionView } from '@/lib/sources';
+import type { GitHubConnectionView } from '@/lib/sources';
 import { toast } from '@/lib/toast';
 
 type ApiError = { error?: { message?: string } };
@@ -39,7 +39,7 @@ export function GitHubIntegration({
   canManage,
   notice,
 }: {
-  connection: ConnectionView | null;
+  connection: GitHubConnectionView | null;
   installations: GitHubInstallation[];
   installationsError: string | null;
   sourcesCount: number;
@@ -97,7 +97,7 @@ function Connected({
   sourcesCount,
   canManage,
 }: {
-  connection: ConnectionView;
+  connection: GitHubConnectionView;
   installations: GitHubInstallation[];
   installationsError: string | null;
   sourcesCount: number;
@@ -146,7 +146,7 @@ function Connected({
           {
             key: 'id',
             term: t('integration.appId'),
-            value: <span className="mono">{connection.appId}</span>,
+            value: <span className="mono">{connection.appId ?? '—'}</span>,
           },
           {
             key: 'sources',
@@ -180,12 +180,14 @@ function Connected({
 
       {canManage ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild>
-            <a href={connection.installUrl} target="_blank" rel="noreferrer">
-              {t('integration.install')}
-              <ArrowUpRight aria-hidden />
-            </a>
-          </Button>
+          {connection.installUrl ? (
+            <Button asChild>
+              <a href={connection.installUrl} target="_blank" rel="noreferrer">
+                {t('integration.install')}
+                <ArrowUpRight aria-hidden />
+              </a>
+            </Button>
+          ) : null}
           <Button asChild variant="ghost">
             <a href={connection.htmlUrl} target="_blank" rel="noreferrer">
               {t('integration.manage')}

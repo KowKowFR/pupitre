@@ -11,13 +11,14 @@ document en est la contrepartie : ce qu'on ferait pour les faire disparaître.
 
 ## Ce qui bloque un usage réel
 
-### Le code d'une autre forge que GitHub
+### GitLab
 
-Une application sans dépôt reçoit son code par une **archive téléversée** —
-depuis sa fiche, ou par une CI (`POST /api/applications/:id/archives`). Ce qui
-manque : suivre un dépôt GitLab, Gitea ou Forgejo comme on suit un dépôt GitHub,
-par un second `SourceProvider` (`packages/core/src/sources/types.ts`) — polling,
-`pupitre.json`, état renvoyé sur le commit.
+Pupitre suit un dépôt GitHub ou Gitea / Forgejo, et une application sans dépôt
+reçoit son code par une archive téléversée. GitLab manque : un troisième
+`SourceProvider` (`packages/core/src/sources/types.ts`), sa ligne dans
+`createSourceProvider()`, et l'écran qui le connecte (un jeton de projet ou de
+groupe). Le reste — polling, liaison, statuts, construction — suivra sans rien
+changer ailleurs.
 
 ### Un panel derrière un répartiteur
 
