@@ -2,12 +2,14 @@ import 'server-only';
 import {
   SOURCE_DEPLOY_JOB,
   SOURCE_POLL_JOB,
+  SOURCE_PROVIDER_LABELS,
   sourceDeployJobDataSchema,
   sourcePollJobDataSchema,
   usableRuntimes,
   type SourceDeployJobData,
   type SourcePollJobData,
   type SourceProvider,
+  type SourceProviderKind,
   type SourceRepository,
 } from '@pupitre/core';
 import {
@@ -19,7 +21,7 @@ import {
 } from '@pupitre/db';
 import { sources as messages } from '@/i18n/messages/sources';
 import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
-import { providerError } from '@/lib/sources';
+import { providerError, sourceProvider } from '@/lib/sources';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
 /**
@@ -107,21 +109,40 @@ export function sourceJson(source: ApplicationSourceView) {
   };
 }
 
+/** Le client d'un fournisseur connecté — sinon 409, en le nommant. */
+export async function connectedProvider(kind: SourceProviderKind) {
+  const access = await sourceProvider(kind);
+  if (!access) {
+    throw new ConflictError(
+      msg(messages, 'error.notConnected', { provider: SOURCE_PROVIDER_LABELS[kind] }),
+    );
+  }
+  return access;
+}
+
 /**
- * Le dépôt, tel que l'App le voit — vérifié auprès de GitHub : un identifiant
- * d'installation venu d'un formulaire ne se croit pas sur parole.
+ * Le dépôt, tel que le fournisseur le montre à Pupitre — vérifié auprès de
+ * lui : un dépôt (et, chez GitHub, un identifiant d'installation) venu d'un
+ * formulaire ne se croit pas sur parole.
  */
 export async function accessibleRepository(
   provider: SourceProvider,
   repository: string,
-  installationId: number,
+  installationId: number | null,
 ): Promise<SourceRepository> {
   const repositories = await provider.listRepositories().catch(providerError);
   const found = repositories.find(
-    (repo) => repo.fullName === repository && repo.installationId === installationId,
+    (repo) =>
+      repo.fullName === repository &&
+      (provider.kind !== 'github' || repo.installationId === installationId),
   );
   if (!found) {
-    throw new ConflictError(msg(messages, 'error.repositoryUnavailable', { repository }));
+    throw new ConflictError(
+      msg(messages, 'error.repositoryUnavailable', {
+        repository,
+        provider: SOURCE_PROVIDER_LABELS[provider.kind],
+      }),
+    );
   }
   return found;
 }

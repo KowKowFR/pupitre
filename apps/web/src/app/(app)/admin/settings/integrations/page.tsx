@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 import { requirePagePermission } from '@/lib/page-auth';
-import { connectionView, credentialsOf } from '@/lib/sources';
+import { giteaConnectionView, githubConnectionView, githubCredentialsOf } from '@/lib/sources';
 import { settingsSection } from '../sections';
+import { GiteaIntegration } from './gitea-integration';
 import { GitHubIntegration } from './github-integration';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,8 @@ const section = settingsSection('/admin/settings/integrations');
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
- * Paramètres → Intégrations : la GitHub App de l'instance.
+ * Paramètres → Intégrations : les fournisseurs de code de l'instance — la
+ * GitHub App, et une forge Gitea / Forgejo.
  *
  * Les installations sont lues chez GitHub à chaque affichage (un appel
  * sortant) : c'est la seule source qui dise où l'App a été installée depuis
@@ -29,17 +31,21 @@ export default async function IntegrationsSettingsPage({
   const auth = await requirePagePermission('/admin/settings/integrations', 'settings:read');
   const t = await getT(messages);
   const params = await searchParams;
-  const [connection, sourcesCount, settings] = await Promise.all([
+  const [connection, gitea, settings] = await Promise.all([
     getSourceConnection('github'),
-    countApplicationSources(),
+    getSourceConnection('gitea'),
     getAppSettingsValue(),
+  ]);
+  const [sourcesCount, giteaSourcesCount] = await Promise.all([
+    connection ? countApplicationSources(connection.id) : Promise.resolve(0),
+    gitea ? countApplicationSources(gitea.id) : Promise.resolve(0),
   ]);
 
   let installations: GitHubInstallation[] = [];
   let installationsError: string | null = null;
   if (connection) {
     try {
-      installations = await listGitHubInstallations(credentialsOf(connection));
+      installations = await listGitHubInstallations(githubCredentialsOf(connection));
     } catch (error) {
       installationsError = error instanceof Error ? error.message : String(error);
     }
@@ -53,9 +59,9 @@ export default async function IntegrationsSettingsPage({
         <CardTitle>{t(`section.${section.id}.title`)}</CardTitle>
         <CardDescription>{t(`section.${section.id}.governs`)}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-8">
         <GitHubIntegration
-          connection={connection ? connectionView(connection) : null}
+          connection={connection ? githubConnectionView(connection) : null}
           installations={installations}
           installationsError={installationsError}
           sourcesCount={sourcesCount}
@@ -71,6 +77,13 @@ export default async function IntegrationsSettingsPage({
                   : null
           }
         />
+        <div className="border-t border-border-subtle pt-8">
+          <GiteaIntegration
+            connection={gitea ? giteaConnectionView(gitea) : null}
+            sourcesCount={giteaSourcesCount}
+            canManage={auth.can('settings:manage')}
+          />
+        </div>
       </CardContent>
     </Card>
   );

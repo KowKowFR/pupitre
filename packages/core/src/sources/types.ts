@@ -4,7 +4,7 @@
  *
  * Elle répond à une seule question : **d'où vient le code d'une application**
  * quand ce n'est pas l'opérateur qui le colle dans le panel. Un dépôt Git
- * hébergé (GitHub aujourd'hui, GitLab ou Gitea demain) porte à sa racine — ou
+ * hébergé (GitHub, Gitea et Forgejo aujourd'hui, GitLab demain) porte à sa racine — ou
  * dans le dossier de l'application, pour un monorepo — un `pupitre.json` :
  * l'AppSpec de l'application, versionnée avec son code.
  *
@@ -22,20 +22,32 @@
  * dans ce sens : c'est Pupitre qui demande, jamais le fournisseur qui appelle.
  *
  * ── Critère de qualité ──────────────────────────────────────────────────────
- * Ajouter un fournisseur, c'est ajouter une classe qui implémente ce contrat.
- * Rien d'autre dans le worker ni dans le panel ne connaît le nom « GitHub » —
- * sauf l'écran qui aide à créer l'application GitHub, qui est par nature propre
- * à ce fournisseur.
+ * Ajouter un fournisseur, c'est ajouter une classe qui implémente ce contrat,
+ * et la ligne qui la fabrique depuis sa connexion (`registry.ts`). Rien d'autre
+ * dans le worker ni dans le panel ne connaît son nom — sauf l'écran qui le
+ * connecte, par nature propre à chacun (une GitHub App, un jeton Gitea).
  */
 
-export type SourceProviderKind = 'github';
+export const SOURCE_PROVIDER_KINDS = ['github', 'gitea'] as const;
+export type SourceProviderKind = (typeof SOURCE_PROVIDER_KINDS)[number];
+
+/**
+ * Une connexion, ses secrets déchiffrés : ce dont la fabrique a besoin pour
+ * construire son client (`createSourceProvider`). Ne se range nulle part.
+ */
+export type SourceConnectionSecrets =
+  | { provider: 'github'; appId: number; privateKey: string; apiUrl: string | null }
+  | { provider: 'gitea'; baseUrl: string; token: string };
 
 /** Un dépôt, désigné comme le fournisseur le désigne : `propriétaire/nom`. */
 export type RepositoryRef = {
   /** `owner/name`. */
   fullName: string;
-  /** L'installation (GitHub App) par laquelle Pupitre y a accès. */
-  installationId: number;
+  /**
+   * L'installation de la GitHub App par laquelle Pupitre y a accès. `null`
+   * chez un fournisseur qui n'en a pas : Gitea ouvre tout par son jeton.
+   */
+  installationId: number | null;
 };
 
 /** Réponse à « quel est le dernier commit de cette branche ? ». */
@@ -78,8 +90,9 @@ export type CommitStatus = {
 };
 
 export type SourceRepository = {
+  provider: SourceProviderKind;
   fullName: string;
-  installationId: number;
+  installationId: number | null;
   defaultBranch: string;
   private: boolean;
   htmlUrl: string;

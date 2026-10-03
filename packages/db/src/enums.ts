@@ -126,7 +126,7 @@ export const notificationChannelKindEnum = pgEnum('notification_channel_kind', [
 ]);
 
 /** Fournisseur de code d'un dépôt lié. Un seul aujourd'hui ; l'enum en attend d'autres. */
-export const sourceProviderEnum = pgEnum('source_provider', ['github']);
+export const sourceProviderEnum = pgEnum('source_provider', ['github', 'gitea']);
 
 /**
  * Où en est une archive de code téléversée :

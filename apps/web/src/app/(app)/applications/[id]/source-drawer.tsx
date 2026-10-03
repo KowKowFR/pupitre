@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ArrowUpRight, GitBranch } from 'lucide-react';
-import type { SourceRepository } from '@pupitre/core';
+import { SOURCE_PROVIDER_LABELS, type SourceRepository } from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,7 @@ export function SourceDrawer({
   applicationId,
   source,
   targets,
-  installUrl,
+  githubInstallUrl,
 }: {
   open: boolean;
   onClose: () => void;
@@ -61,7 +61,8 @@ export function SourceDrawer({
   /** `null` : une nouvelle liaison. */
   source: SourceView | null;
   targets: DeployTarget[];
-  installUrl: string;
+  /** GitHub : où donner à l'App l'accès à un dépôt. `null` sans GitHub. */
+  githubInstallUrl: string | null;
 }) {
   const t = useT(messages);
   const title = source ? t('drawer.title.edit') : t('drawer.title.new');
@@ -81,7 +82,7 @@ export function SourceDrawer({
             applicationId={applicationId}
             source={source}
             targets={targets}
-            installUrl={installUrl}
+            githubInstallUrl={githubInstallUrl}
             onDone={onClose}
           />
         </>
@@ -94,13 +95,13 @@ function SourceForm({
   applicationId,
   source,
   targets,
-  installUrl,
+  githubInstallUrl,
   onDone,
 }: {
   applicationId: string;
   source: SourceView | null;
   targets: DeployTarget[];
-  installUrl: string;
+  githubInstallUrl: string | null;
   onDone: () => void;
 }) {
   const t = useT(messages);
@@ -129,7 +130,7 @@ function SourceForm({
     if (source) return;
     let cancelled = false;
     void (async () => {
-      const response = await fetch('/api/integrations/github/repositories');
+      const response = await fetch('/api/integrations/repositories');
       if (cancelled) return;
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as ApiError;
@@ -137,8 +138,18 @@ function SourceForm({
         setRepositories([]);
         return;
       }
-      const body = (await response.json()) as { items: SourceRepository[] };
-      if (!cancelled) setRepositories(body.items);
+      const body = (await response.json()) as {
+        items: SourceRepository[];
+        errors?: Array<{ provider: string; message: string }>;
+      };
+      if (cancelled) return;
+      setRepositories(body.items);
+      // Un fournisseur muet n'empêche pas de choisir chez les autres : on le dit.
+      if (body.errors?.length) {
+        setLoadError(
+          body.errors.map((entry) => `${entry.provider} : ${entry.message}`).join(' · '),
+        );
+      }
     })();
     return () => {
       cancelled = true;
@@ -158,7 +169,10 @@ function SourceForm({
       })),
   ];
 
-  const keyOf = (repo: SourceRepository) => `${repo.installationId}:${repo.fullName}`;
+  const keyOf = (repo: SourceRepository) =>
+    `${repo.provider}:${repo.installationId ?? ''}:${repo.fullName}`;
+  // Le fournisseur ne se lit à côté du nom que s'il y en a plusieurs.
+  const providers = new Set((repositories ?? []).map((repo) => repo.provider));
   const repository = repositories?.find((repo) => keyOf(repo) === repoKey) ?? null;
 
   function pickRepository(key: string) {
@@ -218,8 +232,9 @@ function SourceForm({
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             ...fields,
+            provider: repository?.provider,
             repository: repository?.fullName,
-            installationId: repository?.installationId,
+            installationId: repository?.installationId ?? null,
           }),
         });
     setPending(false);
@@ -253,15 +268,17 @@ function SourceForm({
               label={t('field.repository')}
               error={loadError ?? undefined}
               help={
-                <a
-                  href={installUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="link inline-flex items-center gap-1"
-                >
-                  {t('field.repository.grant')}
-                  <ArrowUpRight aria-hidden className="size-3" />
-                </a>
+                githubInstallUrl ? (
+                  <a
+                    href={githubInstallUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="link inline-flex items-center gap-1"
+                  >
+                    {t('field.repository.grant')}
+                    <ArrowUpRight aria-hidden className="size-3" />
+                  </a>
+                ) : undefined
               }
             >
               <Select
@@ -279,7 +296,9 @@ function SourceForm({
                 </option>
                 {(repositories ?? []).map((repo) => (
                   <option key={keyOf(repo)} value={keyOf(repo)}>
-                    {repo.fullName}
+                    {providers.size > 1
+                      ? `${repo.fullName} · ${SOURCE_PROVIDER_LABELS[repo.provider]}`
+                      : repo.fullName}
                   </option>
                 ))}
               </Select>

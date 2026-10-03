@@ -1,9 +1,8 @@
-import { parseSourceSpec, safeParseAppSpec } from '@pupitre/core';
+import { SOURCE_PROVIDER_KINDS, parseSourceSpec, safeParseAppSpec } from '@pupitre/core';
 import {
   createApplicationSource,
   deleteApplication,
   getApplicationBySlug,
-  getSourceConnection,
   logAudit,
   repoPathSchema,
   sourceModeSchema,
@@ -13,18 +12,21 @@ import { z } from 'zod';
 import { sources as messages } from '@/i18n/messages/sources';
 import { getT } from '@/i18n/server';
 import { createApplicationFromSpec } from '@/lib/application-create';
-import { ConflictError, HttpError, msg } from '@/lib/errors';
+import { HttpError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
-import { accessibleRepository, sourceJson } from '@/lib/source-routes';
-import { providerError, sourceProvider } from '@/lib/sources';
+import { accessibleRepository, connectedProvider, sourceJson } from '@/lib/source-routes';
+import { providerError } from '@/lib/sources';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const bodySchema = z.object({
+  /** Le fournisseur du dépôt ; GitHub quand rien n'est dit. */
+  provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
-  installationId: z.number().int().positive(),
+  /** GitHub : l'installation de l'App. Rien chez Gitea. */
+  installationId: z.number().int().positive().nullable().default(null),
   branch: z.string().trim().min(1).max(255),
   specPath: repoPathSchema,
   /**
@@ -52,9 +54,8 @@ export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'application:create');
   const input = await readJsonBody(request, bodySchema);
 
-  const connection = await getSourceConnection('github');
-  const access = connection ? await sourceProvider() : null;
-  if (!connection || !access) throw new ConflictError(msg(messages, 'error.notConnected'));
+  const access = await connectedProvider(input.provider);
+  const connection = access.connection;
 
   const repo = await accessibleRepository(access.provider, input.repository, input.installationId);
   const ref = { fullName: repo.fullName, installationId: repo.installationId };
@@ -145,6 +146,7 @@ export const POST = apiRoute(async (request) => {
   let source;
   try {
     source = await createApplicationSource({
+      provider: input.provider,
       repository: repo.fullName,
       installationId: repo.installationId,
       branch: input.branch,
@@ -174,6 +176,7 @@ export const POST = apiRoute(async (request) => {
     resourceId: source.id,
     after: {
       applicationSlug: application.slug,
+      provider: input.provider,
       repository: source.repository,
       branch: source.branch,
       specPath: source.specPath,

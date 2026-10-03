@@ -1,5 +1,5 @@
 import { languageOf, renderMessage, type Translated, type UiLanguage } from '@pupitre/core';
-import type { CommitStatus, RepositoryRef } from '@pupitre/core/sources';
+import type { CommitStatus } from '@pupitre/core/sources';
 import {
   getAppSettingsValue,
   getApplicationSource,
@@ -7,10 +7,10 @@ import {
   getDeploymentSummary,
 } from '@pupitre/db';
 import { logger } from '../logger.js';
-import { getSourceProvider } from './provider.js';
+import { providerForConnection } from './provider.js';
 
 /**
- * Ce que Pupitre écrit sur un commit GitHub : l'état de son déploiement, cible
+ * Ce que Pupitre écrit sur un commit — GitHub ou Gitea : l'état de son déploiement, cible
  * par cible (`pupitre/prod-1`), ou le sort réservé au commit (`pupitre`).
  *
  * Écrit dans la langue de l'instance, comme les alertes : c'est l'équipe qui
@@ -66,19 +66,33 @@ export function panelUrl(): string | null {
   }
 }
 
-/** Publie un statut sans jamais lever : l'échec se dit dans les logs du worker. */
+/** Le dépôt d'une liaison, par la connexion qui l'ouvre. */
+export type LinkedRepository = {
+  connectionId: string;
+  repository: string;
+  installationId: number | null;
+};
+
+/**
+ * Publie un statut sur le commit, chez le fournisseur de la liaison, sans
+ * jamais lever : l'échec se dit dans les logs du worker.
+ */
 export async function reportCommitStatus(
-  repo: RepositoryRef,
+  source: LinkedRepository,
   sha: string,
   status: CommitStatus,
 ): Promise<void> {
   try {
-    const source = await getSourceProvider();
-    if (!source) return;
-    await source.provider.reportStatus(repo, sha, status);
+    const access = await providerForConnection(source.connectionId);
+    if (!access) return;
+    await access.provider.reportStatus(
+      { fullName: source.repository, installationId: source.installationId },
+      sha,
+      status,
+    );
   } catch (error) {
     logger.warn(
-      { err: error, repository: repo.fullName, sha, context: status.context },
+      { err: error, repository: source.repository, sha, context: status.context },
       'statut de commit non publié',
     );
   }
@@ -106,24 +120,19 @@ export async function reportDeploymentStatus(
     const language = await statusLanguage();
     const vars = { number: summary.number, target: summary.targetName, step: failedStep ?? '' };
     const base = panelUrl();
-    await reportCommitStatus(
-      { fullName: source.repository, installationId: source.installationId },
-      deployment.sourceSha,
-      {
-        state:
-          outcome === 'pending' ? 'pending' : outcome === 'success' ? 'success' : 'failure',
-        description:
-          outcome === 'pending'
-            ? statusText(language, 'pending', vars)
-            : outcome === 'success'
-              ? statusText(language, 'success', vars)
-              : outcome === 'rolled_back'
-                ? statusText(language, 'rolledBack', vars)
-                : statusText(language, failedStep ? 'failed' : 'failed.nostep', vars),
-        context: `pupitre/${summary.targetName}`,
-        targetUrl: base ? `${base}/deployments/${deploymentId}` : null,
-      },
-    );
+    await reportCommitStatus(source, deployment.sourceSha, {
+      state: outcome === 'pending' ? 'pending' : outcome === 'success' ? 'success' : 'failure',
+      description:
+        outcome === 'pending'
+          ? statusText(language, 'pending', vars)
+          : outcome === 'success'
+            ? statusText(language, 'success', vars)
+            : outcome === 'rolled_back'
+              ? statusText(language, 'rolledBack', vars)
+              : statusText(language, failedStep ? 'failed' : 'failed.nostep', vars),
+      context: `pupitre/${summary.targetName}`,
+      targetUrl: base ? `${base}/deployments/${deploymentId}` : null,
+    });
   } catch (error) {
     logger.warn({ err: error, deploymentId }, 'statut de déploiement non publié');
   }

@@ -30,7 +30,7 @@ import {
   skippedSummary,
   syncFromSource,
 } from '../sources/deploy.js';
-import { getSourceProvider } from '../sources/provider.js';
+import { providerForConnection } from '../sources/provider.js';
 import { panelUrl, reportCommitStatus, statusLanguage, statusText } from '../sources/status.js';
 
 /**
@@ -88,7 +88,7 @@ async function rejectCommit(
   });
   const language = await statusLanguage();
   const base = panelUrl();
-  await reportCommitStatus(repoOf(source), sha, {
+  await reportCommitStatus(source, sha, {
     state: 'error',
     description: statusText(language, 'invalid', { issue: issues[0] ?? '' }),
     context: 'pupitre',
@@ -146,7 +146,7 @@ async function takeCommit(
     });
     const language = await statusLanguage();
     const base = panelUrl();
-    await reportCommitStatus(repoOf(source), sha, {
+    await reportCommitStatus(source, sha, {
       state: 'pending',
       description: statusText(language, 'proposal'),
       context: 'pupitre',
@@ -245,8 +245,6 @@ async function pollSource(
 /** `source:poll` — toutes les liaisons actives, ou une seule (« Vérifier maintenant »). */
 export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
   const data = sourcePollJobDataSchema.parse(job.data);
-  const access = await getSourceProvider();
-  if (!access) return { checked: 0 };
 
   const sources = data.sourceId
     ? [await getApplicationSource(data.sourceId)].filter(
@@ -258,6 +256,9 @@ export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
   for (const source of sources) {
     const log = logger.child({ sourceId: source.id, repository: source.repository });
     try {
+      // Chaque liaison passe par le fournisseur de sa connexion : GitHub, Gitea.
+      const access = await providerForConnection(source.connectionId);
+      if (!access) throw new Error('la connexion au fournisseur de ce dépôt a été retirée');
       const outcome = await pollSource(access.provider, source, data.force);
       if (outcome !== 'unchanged') log.info({ outcome }, 'dépôt lié vérifié');
     } catch (error) {
@@ -277,8 +278,6 @@ export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
  */
 export async function handleSourceDeploy(job: Job): Promise<{ created: number }> {
   const data = sourceDeployJobDataSchema.parse(job.data);
-  const access = await getSourceProvider();
-  if (!access) throw new Error('aucune GitHub App connectée');
 
   if (data.kind === 'proposal') {
     const proposal = await getSourceProposal(data.proposalId);
@@ -327,6 +326,8 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
   if (!application) return { created: 0 };
 
   try {
+    const access = await providerForConnection(source.connectionId);
+    if (!access) throw new Error('la connexion au fournisseur de ce dépôt a été retirée');
     const head = await access.provider.resolveHead(repoOf(source), source.branch, null);
     if (!head.changed) return { created: 0 };
     const read = await readSpec(access.provider, source, head.sha, application.slug);

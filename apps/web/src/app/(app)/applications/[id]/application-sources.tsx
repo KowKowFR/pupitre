@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { GitBranch, GitCommitHorizontal, Pencil, RefreshCw, Rocket, Unlink } from 'lucide-react';
-import type { SpecChange } from '@pupitre/core';
+import {
+  SOURCE_PROVIDER_LABELS,
+  commitWebUrl,
+  type SourceProviderKind,
+  type SpecChange,
+} from '@pupitre/core';
 import { Alert } from '@/components/ui/alert';
 import { Badge, CodeBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,7 +21,6 @@ import { useT } from '@/i18n/client';
 import { applications as appMessages } from '@/i18n/messages/applications';
 import { common } from '@/i18n/messages/common';
 import { sources as messages } from '@/i18n/messages/sources';
-import { branchHref, commitHref } from '@/lib/commit';
 import { toast } from '@/lib/toast';
 import { SourceDrawer, type DeployTarget } from './source-drawer';
 
@@ -37,7 +41,11 @@ export type ProposalView = {
 
 export type SourceView = {
   id: string;
+  provider: SourceProviderKind;
   repository: string;
+  /** L'adresse web du dépôt, et de la branche suivie, chez sa forge. */
+  repositoryUrl: string;
+  branchUrl: string;
   branch: string;
   specPath: string;
   watchPaths: string[];
@@ -69,29 +77,29 @@ export function ApplicationSources({
   applicationId,
   sources,
   targets,
-  connection,
+  forges,
   canEdit,
   canDeploy,
 }: {
   applicationId: string;
   sources: SourceView[];
   targets: DeployTarget[];
-  /** `null` : aucune GitHub App connectée. */
-  connection: { installUrl: string } | null;
+  /** Les fournisseurs connectés — aucun : rien à relier. */
+  forges: Array<{ provider: SourceProviderKind; installUrl: string | null }>;
   canEdit: boolean;
   canDeploy: boolean;
 }) {
   const t = useT(messages);
   const drawer = useDrawerSelection('source');
   const editing = sources.find((source) => source.id === drawer.selected) ?? null;
-  const drawerOpen =
-    connection !== null && canEdit && (drawer.selected === 'new' || editing !== null);
+  const connected = forges.length > 0;
+  const drawerOpen = connected && canEdit && (drawer.selected === 'new' || editing !== null);
 
   return (
     <Card>
       <CardHeader
         actions={
-          connection && canEdit ? (
+          connected && canEdit ? (
             <Button variant="secondary" size="sm" onClick={() => drawer.open('new')}>
               <GitBranch aria-hidden />
               {t('card.link')}
@@ -103,7 +111,7 @@ export function ApplicationSources({
         <CardDescription>{t('card.description')}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {connection === null && sources.length === 0 ? (
+        {!connected && sources.length === 0 ? (
           <Alert
             variant="info"
             action={
@@ -122,22 +130,22 @@ export function ApplicationSources({
               key={source.id}
               applicationId={applicationId}
               source={source}
-              canEdit={canEdit && connection !== null}
-              canDeploy={canDeploy && connection !== null}
+              canEdit={canEdit && connected}
+              canDeploy={canDeploy && connected}
               onEdit={() => drawer.open(source.id)}
             />
           ))
         )}
       </CardContent>
 
-      {connection ? (
+      {connected ? (
         <SourceDrawer
           open={drawerOpen}
           onClose={drawer.close}
           applicationId={applicationId}
           source={editing}
           targets={targets}
-          installUrl={connection.installUrl}
+          githubInstallUrl={forges.find((forge) => forge.provider === 'github')?.installUrl ?? null}
         />
       ) : null}
     </Card>
@@ -208,7 +216,7 @@ function SourceBlock({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <GitBranch aria-hidden className="size-4 text-text-3" />
         <a
-          href={branchHref(source.repository, source.branch)}
+          href={source.branchUrl}
           target="_blank"
           rel="noreferrer"
           className="mono link font-medium"
@@ -216,6 +224,7 @@ function SourceBlock({
           {source.repository}
         </a>
         <CodeBadge>{source.branch}</CodeBadge>
+        <Badge variant="outline">{SOURCE_PROVIDER_LABELS[source.provider]}</Badge>
         <Badge variant="accent">{t(`deployTo.${source.deployTo}`)}</Badge>
         {source.deployTo === 'none' ? null : (
           <Badge variant="idle">{t(`mode.${source.mode}`)}</Badge>
@@ -268,7 +277,7 @@ function SourceBlock({
             value: source.syncedSha ? (
               <span className="flex flex-wrap items-center justify-end gap-x-2">
                 <a
-                  href={commitHref(source.repository, source.syncedSha)}
+                  href={commitWebUrl(source.repositoryUrl, source.syncedSha)}
                   target="_blank"
                   rel="noreferrer"
                   className="mono link"
@@ -289,7 +298,7 @@ function SourceBlock({
             value: source.lastSeenSha ? (
               <span className="flex flex-wrap items-center justify-end gap-x-2">
                 <a
-                  href={commitHref(source.repository, source.lastSeenSha)}
+                  href={commitWebUrl(source.repositoryUrl, source.lastSeenSha)}
                   target="_blank"
                   rel="noreferrer"
                   className="mono link"
@@ -323,7 +332,7 @@ function SourceBlock({
         <Proposal
           key={proposal.id}
           proposal={proposal}
-          commitUrl={proposal.commitUrl ?? commitHref(source.repository, proposal.sha)}
+          commitUrl={proposal.commitUrl ?? commitWebUrl(source.repositoryUrl, proposal.sha)}
           canDeploy={canDeploy}
         />
       ))}

@@ -17,7 +17,9 @@ import {
   getApplication,
   getAppSettings,
   getBackupPolicy,
+  getSourceConnectionById,
   getSyncedSource,
+  sourceRepositoryUrl,
   getTarget,
   listDeployments,
   logAudit,
@@ -208,6 +210,9 @@ export const POST = apiRoute(async (request) => {
   // Une application qui vient d'un dépôt : son AppSpec est celle d'un commit,
   // et c'est le code de ce commit qui se construit — où qu'on la déploie.
   const synced = await getSyncedSource(input.applicationId);
+  // L'adresse du dépôt chez sa forge, recopiée dans le déploiement : le lien
+  // vers son commit en découle, GitHub ou Gitea.
+  const syncedConnection = synced ? await getSourceConnectionById(synced.connectionId) : null;
 
   // L'AppSpec est figée dans le déploiement : l'application peut évoluer
   // ensuite sans rendre ce déploiement illisible.
@@ -287,6 +292,7 @@ export const POST = apiRoute(async (request) => {
             repository: synced.repository,
             ref: synced.branch,
             sha: synced.syncedSha,
+            url: syncedConnection ? sourceRepositoryUrl(syncedConnection, synced.repository) : null,
           },
         }
       : {}),

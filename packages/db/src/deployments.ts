@@ -69,6 +69,7 @@ export type DeploymentSummary = {
   sourceRepository: string | null;
   sourceRef: string | null;
   sourceSha: string | null;
+  sourceUrl: string | null;
   /** L'archive téléversée et son empreinte, quand le code venait de là. */
   sourceArchiveName: string | null;
   sourceArchiveSha256: string | null;
@@ -100,6 +101,7 @@ const summaryColumns = {
   sourceRepository: deployments.sourceRepository,
   sourceRef: deployments.sourceRef,
   sourceSha: deployments.sourceSha,
+  sourceUrl: deployments.sourceUrl,
   sourceArchiveName: deployments.sourceArchiveName,
   sourceArchiveSha256: deployments.sourceArchiveSha256,
 } as const;
@@ -149,7 +151,14 @@ export async function createDeploymentWithSteps(
     appSpec: AppSpec;
     triggeredBy: string | null;
     /** L'origine du code, quand le run vient d'un dépôt lié. */
-    source?: { sourceId: string | null; repository: string; ref: string | null; sha: string };
+    source?: {
+      sourceId: string | null;
+      repository: string;
+      ref: string | null;
+      sha: string;
+      /** L'adresse web du dépôt chez sa forge — d'où se déduit le lien du commit. */
+      url: string | null;
+    };
     /** L'origine du code, quand c'est une archive téléversée. */
     archive?: { id: string | null; name: string; sha256: string };
   },
@@ -196,6 +205,7 @@ export async function createDeploymentWithSteps(
               sourceRepository: input.source.repository,
               sourceRef: input.source.ref,
               sourceSha: input.source.sha,
+              sourceUrl: input.source.url,
             }
           : {}),
         ...(input.archive
@@ -563,6 +573,7 @@ export type ApplicationVersion = {
   sourceRepository: string | null;
   sourceRef: string | null;
   sourceSha: string | null;
+  sourceUrl: string | null;
   /** L'archive téléversée que la version a construite, quand le code venait de là. */
   sourceArchiveName: string | null;
   sourceArchiveSha256: string | null;
@@ -599,6 +610,7 @@ export async function listApplicationVersions(
       sourceRepository: deployments.sourceRepository,
       sourceRef: deployments.sourceRef,
       sourceSha: deployments.sourceSha,
+      sourceUrl: deployments.sourceUrl,
       sourceArchiveName: deployments.sourceArchiveName,
       sourceArchiveSha256: deployments.sourceArchiveSha256,
       createdAt: deployments.createdAt,

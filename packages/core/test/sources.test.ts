@@ -4,6 +4,14 @@ import { describe, it } from 'node:test';
 import { parseAppSpec, type AppSpec } from '../src/spec/index.js';
 import {
   GitHubSourceProvider,
+  GiteaSourceProvider,
+  SourceProviderError,
+  branchWebUrl,
+  commitWebUrl,
+  createSourceProvider,
+  fetchGiteaAccount,
+  giteaBaseUrl,
+  githubWebUrl,
   classifySpecChange,
   defaultWatchPaths,
   githubAppJwt,
@@ -321,5 +329,223 @@ describe('client GitHub', () => {
     assert.equal('hook_attributes' in manifest, false);
     assert.deepEqual(manifest.default_events, []);
     assert.equal(manifest.public, false);
+  });
+});
+
+// ─── Gitea / Forgejo ──────────────────────────────────────────────────────────
+
+const GITEA = { baseUrl: 'https://forge.exemple.fr/', token: 'jeton-gitea' };
+const GITEA_REPO = { fullName: 'atelier/vitrine', installationId: null };
+const BASE_SHA = 'b'.repeat(40);
+/** La garde des sorties réseau, sans DNS : tout passe. */
+const open = async () => undefined;
+
+describe('client Gitea', () => {
+  it('l’adresse de la forge est nettoyée, et seul http(s) passe', () => {
+    assert.equal(giteaBaseUrl(' https://codeberg.org/ '), 'https://codeberg.org');
+    assert.equal(giteaBaseUrl('http://10.0.0.5:3000/git/'), 'http://10.0.0.5:3000/git');
+    assert.throws(() => giteaBaseUrl('ftp://forge'), SourceProviderError);
+  });
+
+  it('la tête d’une branche : son empreinte, sans ETag, par le jeton', async () => {
+    const { fetchImpl, calls } = fakeGitHub([
+      [
+        /\/api\/v1\/repos\/atelier\/vitrine\/branches\/main$/,
+        () => Response.json({ commit: { id: SHA } }),
+      ],
+    ]);
+    const gitea = new GiteaSourceProvider(GITEA, fetchImpl, open);
+    assert.deepEqual(await gitea.resolveHead(GITEA_REPO, 'main', '"ignoré"'), {
+      changed: true,
+      sha: SHA,
+      etag: null,
+    });
+    assert.equal(
+      calls[0]!.url,
+      'https://forge.exemple.fr/api/v1/repos/atelier/vitrine/branches/main',
+    );
+    assert.equal(calls[0]!.headers.authorization, 'token jeton-gitea');
+  });
+
+  it('une comparaison : les fichiers des commits, et rien qu’on ne puisse croire de travers', async () => {
+    const commit = (
+      sha: string,
+      parent: string,
+      files: Array<{ filename: string; status?: string }>,
+    ) => ({
+      sha,
+      parents: [{ sha: parent }],
+      files,
+    });
+    const { fetchImpl } = fakeGitHub([
+      [
+        /\/compare\/b{40}\.\.\.a{40}$/,
+        () =>
+          Response.json({
+            total_commits: 2,
+            commits: [
+              commit('c'.repeat(40), BASE_SHA, [{ filename: 'api/main.go', status: 'modified' }]),
+              commit(SHA, 'c'.repeat(40), [{ filename: 'docs/README.md', status: 'added' }]),
+            ],
+          }),
+      ],
+      [/\/compare\/d{40}\.\.\.a{40}$/, () => Response.json({ total_commits: 0, commits: [] })],
+      [
+        /\/compare\/e{40}\.\.\.a{40}$/,
+        () => Response.json({ total_commits: 1, commits: [commit(SHA, 'f'.repeat(40), [])] }),
+      ],
+      [
+        /\/compare\/1{40}\.\.\.a{40}$/,
+        () =>
+          Response.json({
+            total_commits: 1,
+            commits: [commit(SHA, '1'.repeat(40), [{ filename: 'neuf.txt', status: 'renamed' }])],
+          }),
+      ],
+      [
+        /\/compare\/2{40}\.\.\.a{40}$/,
+        () => Response.json({ total_commits: 80, commits: [commit(SHA, '2'.repeat(40), [])] }),
+      ],
+    ]);
+    const gitea = new GiteaSourceProvider(GITEA, fetchImpl, open);
+    assert.deepEqual(await gitea.compare(GITEA_REPO, BASE_SHA, SHA), {
+      kind: 'files',
+      files: ['api/main.go', 'docs/README.md'],
+    });
+    assert.deepEqual(await gitea.compare(GITEA_REPO, SHA, SHA), { kind: 'files', files: [] });
+    for (const base of ['d', 'e', '1', '2', '9']) {
+      const result = await gitea.compare(GITEA_REPO, base.repeat(40), SHA);
+      assert.equal(result.kind, 'unknown', base);
+    }
+  });
+
+  it('les pupitre.json de l’arbre, page après page', async () => {
+    const { fetchImpl, calls } = fakeGitHub([
+      [
+        /\/git\/trees\/a{40}\?recursive=true&per_page=1000&page=1$/,
+        () =>
+          Response.json({
+            truncated: true,
+            tree: [
+              { path: 'pupitre.json', type: 'blob' },
+              { path: 'apps', type: 'tree' },
+              { path: 'apps/api/pupitre.json.bak', type: 'blob' },
+            ],
+          }),
+      ],
+      [
+        /\/git\/trees\/a{40}\?recursive=true&per_page=1000&page=2$/,
+        () =>
+          Response.json({
+            truncated: false,
+            tree: [{ path: 'apps/api/pupitre.json', type: 'blob' }],
+          }),
+      ],
+    ]);
+    const gitea = new GiteaSourceProvider(GITEA, fetchImpl, open);
+    assert.deepEqual(await gitea.findFiles(GITEA_REPO, SHA, 'pupitre.json'), [
+      'apps/api/pupitre.json',
+      'pupitre.json',
+    ]);
+    assert.equal(calls.length, 2);
+  });
+
+  it('un fichier absent vaut `null` ; le statut part avec son contexte et son lien', async () => {
+    const { fetchImpl, calls } = fakeGitHub([
+      [/\/statuses\/a{40}$/, () => Response.json({ id: 1 }, { status: 201 })],
+    ]);
+    const gitea = new GiteaSourceProvider(GITEA, fetchImpl, open);
+    assert.equal(await gitea.readFile(GITEA_REPO, SHA, 'pupitre.json'), null);
+    await gitea.reportStatus(GITEA_REPO, SHA, {
+      state: 'success',
+      description: 'x'.repeat(400),
+      context: 'pupitre/prod-1',
+      targetUrl: 'https://pupitre.exemple.fr/deployments/1',
+    });
+    const status = calls.find((call) => call.method === 'POST')!;
+    assert.equal(status.body.context, 'pupitre/prod-1');
+    assert.equal(status.body.target_url, 'https://pupitre.exemple.fr/deployments/1');
+    assert.equal(status.body.description.length, 255);
+  });
+
+  it('les dépôts du compte, page après page — jamais la recherche publique de l’instance', async () => {
+    const page = (n: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        full_name: `atelier/depot-${n}-${i}`,
+        default_branch: 'main',
+        private: true,
+        html_url: `https://forge.exemple.fr/atelier/depot-${n}-${i}`,
+      }));
+    const { fetchImpl, calls } = fakeGitHub([
+      [/\/user\/repos\?limit=50&page=1$/, () => Response.json(page(1, 50))],
+      [/\/user\/repos\?limit=50&page=2$/, () => Response.json(page(2, 3))],
+    ]);
+    const gitea = new GiteaSourceProvider(GITEA, fetchImpl, open);
+    const repos = await gitea.listRepositories();
+    assert.equal(repos.length, 53);
+    assert.deepEqual(
+      { provider: repos[0]!.provider, installationId: repos[0]!.installationId },
+      { provider: 'gitea', installationId: null },
+    );
+    assert.ok(calls.every((call) => !call.url.includes('/repos/search')));
+  });
+
+  it('la garde des sorties réseau : une forge sur une adresse lien-local est refusée', async () => {
+    const { fetchImpl, calls } = fakeGitHub([]);
+    const gitea = new GiteaSourceProvider(
+      { baseUrl: 'http://169.254.169.254', token: 't' },
+      fetchImpl,
+    );
+    await assert.rejects(gitea.resolveHead(GITEA_REPO, 'main', null), SourceProviderError);
+    assert.equal(calls.length, 0);
+  });
+
+  it('« Tester » dit à quel compte ouvre le jeton, et refuse un jeton invalide', async () => {
+    const ok = fakeGitHub([
+      [/\/api\/v1\/version$/, () => Response.json({ version: '11.0.3+gitea-1.22.0' })],
+      [/\/api\/v1\/user$/, () => Response.json({ login: 'pupitre-bot' })],
+    ]);
+    assert.deepEqual(await fetchGiteaAccount(GITEA, ok.fetchImpl, open), {
+      login: 'pupitre-bot',
+      version: '11.0.3+gitea-1.22.0',
+      baseUrl: 'https://forge.exemple.fr',
+    });
+    const refused = fakeGitHub([
+      [/\/api\/v1\/version$/, () => Response.json({ version: '1.24.7' })],
+      [/\/api\/v1\/user$/, () => Response.json({ message: 'token is required' }, { status: 401 })],
+    ]);
+    await assert.rejects(fetchGiteaAccount(GITEA, refused.fetchImpl, open), (error: unknown) => {
+      assert.ok(error instanceof SourceProviderError);
+      assert.equal(error.status, 401);
+      return true;
+    });
+  });
+});
+
+describe('fournisseurs et liens', () => {
+  it('la fabrique rend le client de la connexion', () => {
+    assert.equal(createSourceProvider({ provider: 'gitea', ...GITEA }).kind, 'gitea');
+    assert.equal(
+      createSourceProvider({ provider: 'github', appId: 1, privateKey, apiUrl: null }).kind,
+      'github',
+    );
+  });
+
+  it('une branche ne s’ouvre pas à la même adresse chez GitHub et chez Gitea', () => {
+    assert.equal(
+      branchWebUrl('github', 'https://github.com/acme/api', 'feature/x'),
+      'https://github.com/acme/api/tree/feature%2Fx',
+    );
+    assert.equal(
+      branchWebUrl('gitea', 'https://codeberg.org/acme/api', 'main'),
+      'https://codeberg.org/acme/api/src/branch/main',
+    );
+    assert.equal(
+      commitWebUrl('https://codeberg.org/acme/api', SHA),
+      `https://codeberg.org/acme/api/commit/${SHA}`,
+    );
+    assert.equal(githubWebUrl(null), 'https://github.com');
+    assert.equal(githubWebUrl('https://api.github.com'), 'https://github.com');
+    assert.equal(githubWebUrl('https://ghe.exemple.fr/api/v3'), 'https://ghe.exemple.fr');
   });
 });

@@ -114,7 +114,14 @@ export class GitHubSourceProvider implements SourceProvider {
   }
 
   /** Jeton d'installation, gardé en mémoire tant qu'il vit. Jamais persisté. */
-  private async installationToken(installationId: number): Promise<string> {
+  private async installationToken(installationId: number | null): Promise<string> {
+    if (installationId === null) {
+      throw new SourceProviderError(
+        'dépôt sans installation de la GitHub App : reliez-le de nouveau depuis le panel',
+        null,
+        'github',
+      );
+    }
     const cached = this.tokens.get(installationId);
     if (cached && cached.expiresAt - TOKEN_MARGIN_MS > this.now()) return cached.token;
 
@@ -133,13 +140,14 @@ export class GitHubSourceProvider implements SourceProvider {
     return body.token;
   }
 
+  /** `'app'` : le jeton de l'App elle-même ; sinon celui d'une installation. */
   private async call(
-    installationId: number | null,
+    installationId: number | null | 'app',
     path: string,
     init: { method?: string; headers?: Record<string, string>; body?: unknown } = {},
   ): Promise<Response> {
     const authorization =
-      installationId === null
+      installationId === 'app'
         ? `Bearer ${this.appJwt()}`
         : `token ${await this.installationToken(installationId)}`;
     return this.fetchImpl(`${this.apiUrl}${path}`, {
@@ -344,6 +352,7 @@ export class GitHubSourceProvider implements SourceProvider {
         );
         for (const repo of body.repositories) {
           repositories.push({
+            provider: 'github',
             fullName: repo.full_name,
             installationId: installation.id,
             defaultBranch: repo.default_branch,

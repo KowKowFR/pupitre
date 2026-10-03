@@ -12,7 +12,7 @@ import { sources as messages } from '@/i18n/messages/sources';
 import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
-import { connectionView, credentialsOf, providerError } from '@/lib/sources';
+import { githubConnectionView, githubCredentialsOf, providerError } from '@/lib/sources';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,10 +26,10 @@ export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'settings:read');
   const connection = await getSourceConnection('github');
   if (!connection) return NextResponse.json({ connection: null, installations: [] });
-  const installations = await listGitHubInstallations(credentialsOf(connection)).catch(
+  const installations = await listGitHubInstallations(githubCredentialsOf(connection)).catch(
     providerError,
   );
-  return NextResponse.json({ connection: connectionView(connection), installations });
+  return NextResponse.json({ connection: githubConnectionView(connection), installations });
 });
 
 const manualSchema = z.object({
@@ -61,6 +61,7 @@ export const POST = apiRoute(async (request) => {
     owner: info.owner,
     apiUrl: null,
     privateKeyEncrypted: encrypt(body.privateKey),
+    tokenEncrypted: null,
     createdBy: auth.userId,
   });
 
@@ -72,14 +73,16 @@ export const POST = apiRoute(async (request) => {
     after: { appId: info.appId, slug: info.slug, owner: info.owner, via: 'manual' },
     ip: auth.ip,
   });
-  return NextResponse.json({ connection: connectionView(connection) }, { status: 201 });
+  return NextResponse.json({ connection: githubConnectionView(connection) }, { status: 201 });
 });
 
 /** Déconnecter : la connexion et ses liaisons partent ; l'historique reste. */
 export const DELETE = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');
   const removed = await deleteSourceConnection('github');
-  if (!removed) throw new NotFoundError(msg(messages, 'error.notConnected'));
+  if (!removed) {
+    throw new NotFoundError(msg(messages, 'error.notConnected', { provider: 'GitHub' }));
+  }
 
   await logAudit({
     actorId: auth.userId,

@@ -2,7 +2,6 @@ import {
   SourceBindingConflictError,
   applicationSourceCreateSchema,
   createApplicationSource,
-  getSourceConnection,
   listApplicationSources,
   listPendingProposals,
   logAudit,
@@ -13,8 +12,14 @@ import { sources as messages } from '@/i18n/messages/sources';
 import { ConflictError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
-import { assertApplication, assertTargets, enqueuePoll, sourceJson } from '@/lib/source-routes';
-import { providerError, sourceProvider } from '@/lib/sources';
+import {
+  accessibleRepository,
+  assertApplication,
+  assertTargets,
+  connectedProvider,
+  enqueuePoll,
+  sourceJson,
+} from '@/lib/source-routes';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,8 +42,9 @@ export const GET = apiRoute<Context>(async (request, context) => {
 /**
  * Relier l'application à une branche d'un dépôt.
  *
- * Le dépôt doit être accessible à l'App (on le vérifie auprès de GitHub : un
- * identifiant d'installation ne se croit pas sur parole), et chaque cible
+ * Le dépôt doit être accessible à Pupitre chez son fournisseur (on le vérifie
+ * auprès de lui : un dépôt venu d'un formulaire ne se croit pas sur parole),
+ * et chaque cible
  * doit avoir montré son runtime au preflight. Une vérification part tout de
  * suite : elle note le commit en tête, sans le déployer.
  */
@@ -48,25 +54,19 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const input = await readJsonBody(request, applicationSourceCreateSchema);
   const application = await assertApplication(id);
 
-  const connection = await getSourceConnection('github');
-  const access = connection ? await sourceProvider() : null;
-  if (!connection || !access) throw new ConflictError(msg(messages, 'error.notConnected'));
-
-  const repositories = await access.provider.listRepositories().catch(providerError);
-  const repository = repositories.find(
-    (repo) => repo.fullName === input.repository && repo.installationId === input.installationId,
+  const access = await connectedProvider(input.provider);
+  const repository = await accessibleRepository(
+    access.provider,
+    input.repository,
+    input.installationId,
   );
-  if (!repository) {
-    throw new ConflictError(
-      msg(messages, 'error.repositoryUnavailable', { repository: input.repository }),
-    );
-  }
   await assertTargets(input.targets);
 
   const source = await createApplicationSource({
     ...input,
+    installationId: repository.installationId,
     applicationId: id,
-    connectionId: connection.id,
+    connectionId: access.connection.id,
     createdBy: auth.userId,
   }).catch((error: unknown) => {
     if (error instanceof SourceBindingConflictError) {
@@ -82,6 +82,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
     resourceId: source.id,
     after: {
       applicationSlug: application.slug,
+      provider: input.provider,
       repository: source.repository,
       branch: source.branch,
       specPath: source.specPath,

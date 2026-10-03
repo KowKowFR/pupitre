@@ -58,7 +58,9 @@ Implémentations : `TrivyScanner`, `GrypeScanner`, `SyftSBOM`.
 
 ### SourceProvider
 `resolveHead() compare() readFile() findFiles() commit() downloadArchive() reportStatus() listRepositories()`
-Implémentation : `GitHubSourceProvider` (GitHub App, polling — jamais de webhook).
+Implémentations : `GitHubSourceProvider` (GitHub App), `GiteaSourceProvider` (Gitea, Forgejo,
+Codeberg, par jeton) — polling, jamais de webhook. `createSourceProvider()` fabrique le client
+d'une connexion.
 
 **Critère de qualité :** ajouter un runtime, un proxy, un scanner ou un fournisseur
 de code doit se faire en ajoutant une classe, sans modifier une seule ligne ailleurs.

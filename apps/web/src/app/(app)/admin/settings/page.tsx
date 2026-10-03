@@ -45,8 +45,9 @@ export default async function SettingsOverviewPage() {
   // si la génération est réellement possible — pas seulement autorisée.
   const aiApiKey = await getAiApiKey();
   const channels = await listNotificationChannels();
-  const [github, linkedSources] = await Promise.all([
+  const [github, gitea, linkedSources] = await Promise.all([
     getSourceConnection('github'),
+    getSourceConnection('gitea'),
     countApplicationSources(),
   ]);
   const activeChannels = channels.filter((channel) => channel.enabled);
@@ -181,6 +182,12 @@ export default async function SettingsOverviewPage() {
           ? t('integrations.github.connected', { name: github.name })
           : t('integrations.github.none'),
       },
+      {
+        term: t('integrations.term.gitea'),
+        value: gitea
+          ? t('integrations.gitea.connected', { url: gitea.apiUrl ?? gitea.htmlUrl })
+          : t('integrations.github.none'),
+      },
       { term: t('integrations.term.sources'), value: String(linkedSources) },
     ],
     '/admin/settings/demarrage': [
@@ -212,8 +219,10 @@ export default async function SettingsOverviewPage() {
     ),
     '/admin/settings/ia': <AiStatusBadge settings={settings} storedApiKey={aiApiKey} />,
     '/admin/settings/integrations': (
-      <Badge variant={github ? 'ok' : 'idle'} dot>
-        {github ? t('overview.badge.githubOn') : t('overview.badge.githubOff')}
+      <Badge variant={github || gitea ? 'ok' : 'idle'} dot>
+        {github || gitea
+          ? t('overview.badge.forges', { count: Number(Boolean(github)) + Number(Boolean(gitea)) })
+          : t('overview.badge.forgesNone')}
       </Badge>
     ),
   };

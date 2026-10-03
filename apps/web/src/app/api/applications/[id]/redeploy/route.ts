@@ -144,6 +144,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
             repository: source.deployment.sourceRepository,
             ref: source.deployment.sourceRef,
             sha: source.deployment.sourceSha,
+            url: source.deployment.sourceUrl,
           },
         }
       : {}),

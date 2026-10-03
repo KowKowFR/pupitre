@@ -114,6 +114,11 @@ export const deployments = pgTable(
     sourceRef: text('source_ref'),
     sourceSha: text('source_sha'),
     /**
+     * L'adresse web du dépôt, telle que sa forge la sert : le lien vers le
+     * commit en découle, que ce soit GitHub ou Gitea, et survit à la liaison.
+     */
+    sourceUrl: text('source_url'),
+    /**
      * L'archive de code téléversée que ce run construit — l'autre origine du
      * code. Son nom et son empreinte sont recopiés pour la même raison que le
      * dépôt : une archive écartée ne rend pas l'historique muet.
