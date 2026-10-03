@@ -102,7 +102,7 @@ export async function PortsPanel({
                       ) : null}
                     </td>
                     <td>
-                      <Link href={`/applications/${allocation.applicationId}`} className="mono text-text hover:underline">
+                      <Link href={`/applications?app=${allocation.applicationId}`} className="mono text-text hover:underline">
                         {allocation.applicationSlug}
                       </Link>
                     </td>

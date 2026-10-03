@@ -105,7 +105,7 @@ export function ApplicationsBackups({
                         <Badge variant="idle">{t(`mode.${application.policy.mode}`)}</Badge>
                       ) : null}
                       {application.id ? (
-                        <Link href={`/applications/${application.id}`} className="link t-cap">
+                        <Link href={`/applications?app=${application.id}`} className="link t-cap">
                           {t('apps.list.open')}
                         </Link>
                       ) : null}

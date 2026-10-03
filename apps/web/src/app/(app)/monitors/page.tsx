@@ -1,5 +1,6 @@
 import { MONITOR_CHECK_RETENTION_DAYS, MONITOR_TYPES_LIST } from '@pupitre/core';
 import { getAppSettingsValue, listAdoptableApps, listMonitors } from '@pupitre/db';
+import { monitorRecord } from './record/record';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
 import { formatSettingsOf } from '@/lib/format';
 import { buildMonitorViews, monitorTypeOptions } from '@/lib/monitors';
@@ -16,7 +17,11 @@ export const dynamic = 'force-dynamic';
  * par SSH ; ici, la sonde part du worker vers l'adresse publique. Un pare-feu
  * refermé, un proxy cassé ou un certificat expiré n'apparaissent que là.
  */
-export default async function MonitorsPage() {
+export default async function MonitorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const auth = await requirePagePermission('/monitors', 'monitor:read');
 
   const [rows, adoptable, settings] = await Promise.all([
@@ -54,6 +59,12 @@ export default async function MonitorsPage() {
   }));
 
   const types = (await monitorTypeOptions(MONITOR_TYPES_LIST)) as TypeOption[];
+  const format = formatSettingsOf(settings);
+
+  // La fiche ouverte (`?monitor=<id>`) : sa courbe, ses incidents, sa capture.
+  const wanted = (await searchParams).monitor;
+  const selected = typeof wanted === 'string' ? rows.find((row) => row.id === wanted) : undefined;
+  const record = selected ? await monitorRecord(selected, auth, format) : null;
 
   return (
     <>
@@ -69,7 +80,8 @@ export default async function MonitorsPage() {
         }))}
         canManage={auth.can('monitor:manage')}
         retentionDays={MONITOR_CHECK_RETENTION_DAYS}
-        format={formatSettingsOf(settings)}
+        format={format}
+        record={record}
       />
     </>
   );

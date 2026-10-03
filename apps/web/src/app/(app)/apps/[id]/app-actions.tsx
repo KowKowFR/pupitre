@@ -513,7 +513,8 @@ function buildGestures({
       tone: 'accent',
     },
     done: { title: t('redeploy.confirm') },
-    navigateTo: (body) => (body.id ? `/deployments/${body.id}` : `/applications/${applicationId}`),
+    navigateTo: (body) =>
+      body.id ? `/deployments/${body.id}` : `/applications?app=${applicationId}`,
   };
 
   const destroy: Gesture = {

@@ -1,6 +1,7 @@
 import { describeProxy, hasBackupData, proxyCapabilities, usableRuntimes } from '@pupitre/core';
 import {
   getActiveBackupDestination,
+  getAppSettingsValue,
   listApplications,
   listBackupPolicyApplicationIds,
   listImageUpdateSummaries,
@@ -16,15 +17,22 @@ import { newApplicationAi } from '@/lib/new-application';
 import { requirePagePermission } from '@/lib/page-auth';
 import { relativeTime } from '@/lib/relative-time';
 import { ApplicationsView, type ApplicationRow, type DeployTarget } from './applications-view';
+import { applicationRecord } from './record/record';
 import { ingressOf, serviceRows } from './rows';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Le catalogue des applications, avec leur aperçu : ce qui va tourner, où
- * elles sont en service, et un déploiement rapide sur une cible prête.
+ * Le catalogue des applications, et la fiche de chacune dans un tiroir
+ * (`?app=blog`) : ce qui va tourner, où elle est en service, un déploiement
+ * rapide — puis ses versions, son code, ses domaines, ses secrets, ses
+ * sauvegardes et ses images, rendus ici quand le tiroir est ouvert.
  */
-export default async function ApplicationsPage() {
+export default async function ApplicationsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const auth = await requirePagePermission('/applications', 'application:read');
   const canDeploy = auth.can('deployment:create');
   const [
@@ -48,6 +56,17 @@ export default async function ApplicationsPage() {
     canDeploy ? listServingProxies() : Promise.resolve(new Map()),
     canDeploy ? listRoutes({}) : Promise.resolve([]),
   ]);
+
+  // La fiche ouverte : par son slug, ou par son identifiant (un lien d'avant
+  // les tiroirs, `/applications/<uuid>`, arrive ici ainsi).
+  const wanted = (await searchParams).app;
+  const selected =
+    typeof wanted === 'string'
+      ? (applications.find((item) => item.slug === wanted || item.id === wanted) ?? null)
+      : null;
+  const record = selected
+    ? await applicationRecord(selected, auth, await getAppSettingsValue())
+    : null;
 
   const items: ApplicationRow[] = applications.map((application) => ({
     id: application.id,
@@ -128,6 +147,8 @@ export default async function ApplicationsPage() {
         backupOptions={
           auth.can('backup:manage') ? { hasDestination: backupDestination !== null } : null
         }
+        canReadBackups={auth.can('backup:read')}
+        record={record}
       />
     </>
   );

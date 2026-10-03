@@ -46,7 +46,6 @@ const fr = {
   'generate.again': 'Régénérer',
   'generate.done': 'Spec générée.',
 
-  'detail.more': "Plus d'actions",
   'redeploy.dialog.title': 'Redéployer {slug} {version} sur {target} ?',
   'redeploy.consequence.frozen': "L'AppSpec figée à l'époque est rejouée telle quelle.",
   'redeploy.consequence.current': "L'application actuelle n'est pas utilisée.",
@@ -67,6 +66,14 @@ const fr = {
   },
   'table.legend': 'Service exposé en badge plein',
   'drawer.kind': 'Application',
+  'record.tabs': 'Sections de la fiche',
+  'record.tab.overview': 'Aperçu',
+  'record.tab.versions': 'Versions',
+  'record.tab.code': 'Code',
+  'record.tab.domains': 'Domaines',
+  'record.tab.secrets': 'Secrets',
+  'record.tab.backups': 'Sauvegardes',
+  'record.tab.images': 'Images',
   'drawer.run': 'Ce qui va tourner',
   'drawer.exposed': 'exposé',
   'drawer.service.port': 'port {port}',
@@ -170,12 +177,8 @@ const fr = {
   'delete.action.cascade': 'Détruire et supprimer',
 
   // ── Fiche ───────────────────────────────────────────────────────────────
-  'detail.spec.title': 'AppSpec courante',
-  'detail.spec.description':
-    'Ce que le prochain déploiement utilisera. Les versions déjà déployées gardent la leur, figée.',
   'detail.spec.byPort': 'exposition par port alloué',
 
-  'versions.title': 'Historique des versions',
   'versions.empty':
     'Chaque déploiement fige son AppSpec au moment où il part : c’est ce qui permet de rejouer une version telle qu’elle était, sur la même cible ou sur une autre.',
   'versions.count': {
@@ -469,7 +472,6 @@ const en: Translated<typeof fr> = {
   'generate.again': 'Regenerate',
   'generate.done': 'Spec generated.',
 
-  'detail.more': 'More actions',
   'redeploy.dialog.title': 'Redeploy {slug} {version} on {target}?',
   'redeploy.consequence.frozen': 'The AppSpec frozen at the time is replayed as is.',
   'redeploy.consequence.current': 'The current application is not used.',
@@ -490,6 +492,14 @@ const en: Translated<typeof fr> = {
   },
   'table.legend': 'Exposed service as a solid badge',
   'drawer.kind': 'Application',
+  'record.tabs': 'Record sections',
+  'record.tab.overview': 'Overview',
+  'record.tab.versions': 'Versions',
+  'record.tab.code': 'Code',
+  'record.tab.domains': 'Domains',
+  'record.tab.secrets': 'Secrets',
+  'record.tab.backups': 'Backups',
+  'record.tab.images': 'Images',
   'drawer.run': 'What will run',
   'drawer.exposed': 'exposed',
   'drawer.service.port': 'port {port}',
@@ -591,12 +601,8 @@ const en: Translated<typeof fr> = {
   'delete.action.force': 'Force the erase',
   'delete.action.cascade': 'Destroy and delete',
 
-  'detail.spec.title': 'Current AppSpec',
-  'detail.spec.description':
-    'What the next deployment will use. Versions already deployed keep theirs, frozen.',
   'detail.spec.byPort': 'exposed on an allocated port',
 
-  'versions.title': 'Version history',
   'versions.empty':
     'Each deployment freezes its AppSpec as it leaves: that is what lets you replay a version as it was, on the same target or on another.',
   'versions.count': {

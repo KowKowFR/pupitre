@@ -412,7 +412,8 @@ req GET "/api/deployments/$D2" >/dev/null
 grep -qF "$SECRET" "$BODY" && fail "le déploiement expose la valeur"
 pass "aucune réponse d'API ne porte la valeur"
 
-curl -s -b "$JAR" -c "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications/$APP_ID" \
+# La fiche vit dans un tiroir de /applications, rendue au serveur, onglet Secrets.
+curl -s -b "$JAR" -c "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications?app=$APP_ID&tab=secrets" \
   -o "$WORK/page.html" -w '' || true
 grep -qF "$SECRET" "$WORK/page.html" && fail "la page HTML contient la valeur"
 grep -q 'Secrets' "$WORK/page.html" || info "section « Secrets » non trouvée dans le HTML rendu"

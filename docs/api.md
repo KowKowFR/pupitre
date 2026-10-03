@@ -35,19 +35,19 @@ le temps de l'activer. Voir [`securite.md`](securite.md#le-second-facteur-exigé
 | Route | Rôle | Accès |
 |---|---|---|
 | `/` | Tableau de bord — anomalies d'abord, inventaire en dernier | session ; chaque bloc filtré par sa permission |
-| `/targets` | Parc de machines, preflight, suppression | `target:read` |
-| `/targets/new` · `/targets/:id/edit` | Déclarer / modifier — credential jamais pré-rempli | `target:create` / `target:update` |
-| `/targets/:id` | Preflight, métriques, jauge des ports, charges qui y tournent, reverse proxy | `target:read` |
-| `/applications` | Catalogue des AppSpec déclarées | `application:read` |
+| `/targets` | Parc de machines. `?target=<nom>` ouvre la **fiche dans un tiroir** : aperçu et relevés, charges, reverse proxy, ports, preflight, configuration (`&tab=…`) ; `&edit=1` la modifie sur place | `target:read` — modifier `target:update` |
+| `/targets/new` | Déclarer une cible (le tiroir d'ajout) — credential jamais pré-rempli | `target:create` |
+| `/targets/:id` · `/targets/:id/edit` | Redirigent (307) vers `/targets?target=:id` (`&edit=1`) | `target:read` |
+| `/applications` | Catalogue des AppSpec déclarées. `?app=<slug>` ouvre la **fiche dans un tiroir** : aperçu et déploiement, versions, code, domaines, secrets, sauvegardes (`backup:read`), images (`&tab=…`) | `application:read` |
 | `/applications/new` | Deux onglets : « Depuis une description » (IA) et « Depuis un JSON » | `application:create` |
-| `/applications/:id` | AppSpec, secrets, historique des versions, redéploiement ; sauvegardes avec `backup:read` | `application:read` |
+| `/applications/:id` | Redirige (307) vers `/applications?app=:id` | `application:read` |
 | `/apps` | **Supervision, vue par serveur** — une carte par machine, dépliable | `deployment:read` |
 | `/apps/:id` | Une application en marche : santé, logs live, redémarrage | `deployment:read` |
 | `/deployments` | Journal des runs, filtres, purge en masse | `deployment:read` |
 | `/deployments/:id` | Pipeline, logs SSE, scans, rollback, destruction | `deployment:read` |
 | `/domains` | **Tous les domaines** : le proxy qui les sert, leur état, l'échéance de leur certificat ; filtre « À surveiller » (ne répond pas, ou certificat sous quatorze jours) | `application:read` |
-| `/monitors` | Sondes HTTP et TLS | `monitor:read` |
-| `/monitors/:id` | Historique de mesures et incidents d'une sonde | `monitor:read` |
+| `/monitors` | Sondes HTTP et TLS. `?monitor=<id>` ouvre la **fiche dans un tiroir** : aperçu, mesures et incidents, capture de référence ; `&edit=1` la modifie sur place | `monitor:read` — modifier `monitor:manage` |
+| `/monitors/:id` | Redirige (307) vers `/monitors?monitor=:id` | `monitor:read` |
 | `/jobs` | Tâches planifiées, cron traduit en français, historique déroulant | `job:read` |
 
 ### Administration

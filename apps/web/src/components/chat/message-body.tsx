@@ -40,8 +40,8 @@ function Linkified({ text }: { text: string }) {
 }
 
 const MENTION_HREF: Record<Exclude<ChatMentionKind, 'user'>, (id: string) => string> = {
-  target: (id) => `/targets/${id}`,
-  app: (id) => `/applications/${id}`,
+  target: (id) => `/targets?target=${id}`,
+  app: (id) => `/applications?app=${id}`,
 };
 
 function Mention({

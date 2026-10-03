@@ -569,6 +569,10 @@
   }
   .drawer[data-state="closed"] { animation: pp-drawer-out 200ms var(--ease-in) both; }
   .drawer.is-wide { width: min(680px, calc(100vw - 16px)); }
+  .drawer.is-xwide { width: min(1040px, calc(100vw - 16px)); }
+  /* Les onglets d'une fiche, entre son en-tête et son corps. */
+  .dr-tabs { padding: 0 18px; flex-shrink: 0; }
+  .dr-h:has(+ .dr-tabs) { border-bottom: 0; padding-bottom: 4px; }
   .dr-h { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 16px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
   .dr-ctx { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-3); min-width: 0; }
   .dr-b { flex: 1 1 auto; overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: 20px; }
@@ -578,6 +582,9 @@
   .dr-b > *:nth-child(4) { animation-delay: 120ms; }
   .dr-b > *:nth-child(5) { animation-delay: 160ms; }
   .dr-b > *:nth-child(n + 6) { animation-delay: 200ms; }
+  /* Un onglet de fiche entre d'un bloc, sans attendre son rang : la cascade est
+     pour la première lecture, pas pour chaque changement d'onglet. */
+  .dr-b > [role="tabpanel"] { animation-delay: 0ms; animation-duration: var(--d-2); }
   .dr-sec { display: flex; flex-direction: column; gap: 10px; }
   .dr-sec > h3 { font-size: 13px; line-height: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .dr-f { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--border-subtle); background: var(--surface-2); flex-shrink: 0; }
@@ -585,7 +592,7 @@
   .dr-f:has(> [data-slot='button-with-reason']) { align-items: flex-start; }
   @media (max-width: 1023.98px) {
     /* Sous lg, le drawer devient une feuille montante. */
-    .drawer, .drawer.is-wide {
+    .drawer, .drawer.is-wide, .drawer.is-xwide {
       top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 88dvh; border-radius: 16px 16px 0 0; border-bottom: 0;
       animation: pp-sheet-in var(--d-4) var(--ease-out) both;
     }

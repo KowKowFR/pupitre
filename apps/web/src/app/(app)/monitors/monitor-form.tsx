@@ -70,9 +70,11 @@ export function MonitorForm(
   props: {
     types: TypeOption[];
     onDone: (name: string) => void;
+    /** Revenir sans enregistrer — la fiche, quand on modifie depuis elle. */
+    onCancel?: () => void;
   } & ({ mode: 'create'; app: AdoptableApp | null } | { mode: 'edit'; monitor: EditableMonitor }),
 ) {
-  const { types, onDone } = props;
+  const { types, onDone, onCancel } = props;
   const t = useT(messages);
   const tc = useT(common);
   const language = useLanguage();
@@ -357,6 +359,11 @@ export function MonitorForm(
               ? tc('creating')
               : t('create.submit')}
         </Button>
+        {onCancel ? (
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            {tc('cancel')}
+          </Button>
+        ) : null}
       </DrawerFooter>
     </form>
   );

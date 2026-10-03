@@ -416,7 +416,7 @@ function objectItem(
         verb: 'open',
         words: hit.host,
         isCommand: false,
-        perform: () => go(`/targets/${hit.id}`),
+        perform: () => go(`/targets?target=${hit.id}`),
       };
     case 'application':
       return {
@@ -430,7 +430,7 @@ function objectItem(
         verb: 'open',
         words: hit.slug,
         isCommand: false,
-        perform: () => go(`/applications/${hit.id}`),
+        perform: () => go(`/applications?app=${hit.id}`),
       };
     case 'deployment':
       return {
@@ -454,7 +454,7 @@ function objectItem(
         verb: 'open',
         words: hit.type,
         isCommand: false,
-        perform: () => go(`/monitors/${hit.id}`),
+        perform: () => go(`/monitors?monitor=${hit.id}`),
       };
   }
 }

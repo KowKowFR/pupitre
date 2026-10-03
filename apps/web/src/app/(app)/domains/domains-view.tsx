@@ -103,7 +103,7 @@ export function DomainsView({ rows, format }: { rows: DomainViewRow[]; format: F
                 </TableCell>
                 <TableCell>
                   <Link
-                    href={`/applications/${row.applicationId}`}
+                    href={`/applications?app=${row.applicationId}`}
                     className="link whitespace-nowrap"
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -112,7 +112,7 @@ export function DomainsView({ rows, format }: { rows: DomainViewRow[]; format: F
                 </TableCell>
                 <TableCell>
                   <Link
-                    href={`/targets/${row.targetId}`}
+                    href={`/targets?target=${row.targetId}`}
                     className="link whitespace-nowrap"
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -335,7 +335,7 @@ function DomainDrawer({ row, format }: { row: DomainViewRow; format: FormatSetti
                 key: 'application',
                 term: t('drawer.application'),
                 value: (
-                  <Link href={`/applications/${row.applicationId}`} className="link">
+                  <Link href={`/applications?app=${row.applicationId}`} className="link">
                     {row.applicationSlug}
                   </Link>
                 ),
@@ -344,7 +344,7 @@ function DomainDrawer({ row, format }: { row: DomainViewRow; format: FormatSetti
                 key: 'machine',
                 term: t('drawer.machine'),
                 value: (
-                  <Link href={`/targets/${row.targetId}`} className="link">
+                  <Link href={`/targets?target=${row.targetId}`} className="link">
                     {row.targetName}
                   </Link>
                 ),
@@ -413,7 +413,7 @@ function DomainDrawer({ row, format }: { row: DomainViewRow; format: FormatSetti
       <DrawerFooter
         end={
           <Button asChild variant="ghost">
-            <Link href={`/applications/${row.applicationId}`}>
+            <Link href={`/applications?app=${row.applicationId}`}>
               {t('drawer.record')}
               <ArrowUpRight aria-hidden />
             </Link>

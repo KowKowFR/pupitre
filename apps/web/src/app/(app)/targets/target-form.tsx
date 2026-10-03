@@ -166,7 +166,7 @@ export function TargetForm({
       onCreated(target);
       return;
     }
-    router.push(`/targets/${target.id}`);
+    router.push(`/targets?target=${target.id}`);
     router.refresh();
   }
 

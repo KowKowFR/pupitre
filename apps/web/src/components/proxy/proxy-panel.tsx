@@ -747,7 +747,7 @@ export function ProxyPanel({
                       className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
                     >
                       <Link
-                        href={`/targets/${entry.targetId}?tab=proxy`}
+                        href={`/targets?target=${entry.targetId}&tab=proxy`}
                         className="t-sm font-medium hover:underline"
                       >
                         {entry.targetName}
@@ -916,7 +916,7 @@ export function RouteList({
           </span>
           {showApplication ? (
             <span className="t-cap text-text-3">
-              <Link href={`/applications/${route.applicationId}`} className="link">
+              <Link href={`/applications?app=${route.applicationId}`} className="link">
                 {route.applicationSlug}
               </Link>
               {hostTargetId && route.targetId !== hostTargetId ? ` · ${route.targetName}` : null}
