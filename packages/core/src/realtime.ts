@@ -135,6 +135,8 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   // Une fenêtre de maintenance se lit sur la vue d'ensemble et dans les
   // fiches des cibles et des sondes.
   maintenance_window: 'targets',
+  // Une page de statut se compose dans l'administration.
+  status_page: 'settings',
 };
 
 /** Le sujet d'une ligne du journal d'audit. */

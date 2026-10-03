@@ -48,6 +48,8 @@ le temps de l'activer. Voir [`securite.md`](securite.md#le-second-facteur-exigé
 | `/domains` | **Tous les domaines** : le proxy qui les sert, leur état, l'échéance de leur certificat ; filtre « À surveiller » (ne répond pas, ou certificat sous quatorze jours) | `application:read` |
 | `/monitors` | Sondes HTTP et TLS. `?monitor=<id>` ouvre la **fiche dans un tiroir** : aperçu, mesures et incidents, capture de référence ; `&edit=1` la modifie sur place | `monitor:read` — modifier `monitor:manage` |
 | `/monitors/:id` | Redirige (307) vers `/monitors?monitor=:id` | `monitor:read` |
+| `/status-pages` | Pages de statut publiques : la liste, et l'éditeur **dans un tiroir** (`?page=<id>`, `?page=nouvelle`) — blocs, glisser-déposer, aperçu | `status_page:manage` |
+| `/status`, `/status/<adresse>` | Une page de statut **publiée**, sans connexion ; 404 sinon | aucune |
 | `/maintenance` | Fenêtres de maintenance en cours, à venir et terminées. `?fenetre=<id>` ouvre la fenêtre **dans un tiroir** (période, sujets, alertes retenues) ; `?nouvelle=1` le formulaire, `&cible=<id>` ou `&sonde=<id>` préremplis | `maintenance:read` — planifier `maintenance:manage` |
 | `/jobs` | Tâches planifiées, cron traduit en français, historique déroulant | `job:read` |
 
@@ -221,6 +223,14 @@ la navigation métier.
 |---|---|---|
 | `/api/maintenance-windows` | GET / POST | `maintenance:read` / `maintenance:manage` — en cours et à venir, puis les vingt dernières terminées ; chaque sujet n'est rendu qu'à qui peut le lire. Choisir des sujets demande de pouvoir les lire |
 | `/api/maintenance-windows/:id` | GET / PATCH / DELETE | `maintenance:read` / `maintenance:manage` / `maintenance:manage` — GET ajoute les alertes retenues. PATCH `{ "endsAt": maintenant }` termine la fenêtre ; une fenêtre terminée répond `409`. DELETE refuse une fenêtre en cours (`409`) : on la termine |
+
+### Pages de statut
+
+| Route | Méthodes | Permission |
+|---|---|---|
+| `/api/status-pages` | GET / POST | `status_page:manage` — une adresse déjà prise répond `409` ; chaque sonde nommée doit exister |
+| `/api/status-pages/:id` | GET / PATCH / DELETE | `status_page:manage` |
+| `/api/status-pages/preview` | POST | `status_page:manage` — la page telle qu'un visiteur la lirait, calculée sur des blocs non enregistrés ; rien n'est écrit |
 
 ### Tâches et file
 

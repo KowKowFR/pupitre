@@ -312,6 +312,30 @@ un sujet couvert reste listé — il faut le voir revenir — mais en
 avertissement, avec la mention. Les fiches d'une cible et d'une sonde couvertes
 le disent en tête de leur aperçu.
 
+## Pages de statut
+
+Des pages **publiques**, sans connexion, à `/status` (adresse vide) ou
+`/status/<adresse>`, que l'administrateur compose bloc par bloc dans
+`/status-pages` (`status_page:manage`). L'éditeur est un tiroir en deux
+colonnes : les réglages et les blocs à gauche, réordonnables par
+glisser-déposer (poignée) ou au clavier (flèches), et à droite un **aperçu**
+calculé exactement comme la page publique, sur les blocs non enregistrés.
+
+| Bloc | Ce qu'il montre |
+|---|---|
+| État général | « Tous les services fonctionnent », ralenti, panne partielle, panne majeure (plus de la moitié en panne), maintenance |
+| Titre, Texte | Ce que l'administrateur écrit ; du texte brut, aucun HTML interprété |
+| Services | Des sondes, sous un **nom public** au choix ; leur état, et à la demande une barre par jour sur 30 jours (la rétention des mesures) et le taux de disponibilité |
+| Maintenances | Les [fenêtres](#fenêtres-de-maintenance) en cours et à venir (7 jours) qui touchent ces services — directement, ou par la cible où tourne leur application |
+| Incidents récents | Les pannes de ces services sur 7, 14 ou 30 jours, avec leur durée |
+
+L'état public d'un service se lit de sa sonde : saine, ralentie (répond mal),
+en panne (injoignable), inconnue (suspendue ou jamais mesurée) — et **en
+maintenance** dès qu'une fenêtre la couvre, ce qui l'emporte. Ce qu'une page
+laisse sortir est décrit dans [sécurité](securite.md#ce-qui-est-public--les-pages-de-statut).
+
+Une page non publiée répond 404 ; la page publique se relit seule chaque minute.
+
 ## Notifications
 
 Quatre canaux, treize événements, derrière un catalogue et une fabrique. Même

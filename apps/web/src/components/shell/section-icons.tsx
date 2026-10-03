@@ -6,6 +6,7 @@ import {
   KeyRound,
   LayoutGrid,
   Radar,
+  RadioTower,
   Rocket,
   ScrollText,
   Server,
@@ -32,5 +33,6 @@ export const SECTION_ICON: Record<SectionKey, LucideIcon> = {
   logs: ScrollText,
   users: Users,
   roles: KeyRound,
+  statusPages: RadioTower,
   settings: SlidersHorizontal,
 };

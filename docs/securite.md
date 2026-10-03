@@ -2,7 +2,8 @@
 
 - [Authentification et comptes](#authentification-et-comptes)
 - [Ce qui vient d'ailleurs que le panel](#ce-qui-vient-dailleurs-que-le-panel)
-- [RBAC — 36 permissions](#rbac--36-permissions)
+- [Ce qui est public : les pages de statut](#ce-qui-est-public--les-pages-de-statut)
+- [RBAC — 37 permissions](#rbac--37-permissions)
 - [Journal d'activité](#journal-dactivité)
 - [Chiffrement](#chiffrement)
 - [Magasin de secrets d'application](#magasin-de-secrets-dapplication)
@@ -167,7 +168,7 @@ ouvertes : leur échéance est ramenée à « maintenant plus la nouvelle durée
 Le plafond absolu est tenu par `requireSession()`, qui retire la session de la
 base et écrit `auth.session.expired` (raison `max_age`).
 
-## RBAC — 36 permissions
+## RBAC — 37 permissions
 
 `packages/core/src/permissions.ts` est le vocabulaire, partagé par le panel, le
 worker et le seed. Une permission est une chaîne `ressource:action`.
@@ -185,6 +186,7 @@ worker et le seed. Une permission est une chaîne `ressource:action`.
 | `job` | `read` `manage` |
 | `monitor` | `read` `manage` |
 | `maintenance` | `read` `manage` |
+| `status_page` | `manage` |
 | `audit` | `read` |
 | `settings` | `read` `manage` |
 
@@ -222,7 +224,7 @@ facteur. Un clic sur un rôle ouvre son tiroir, où on le modifie.
 
 | Rôle | Permissions |
 |---|---|
-| `admin` | les 36 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
+| `admin` | les 37 — **verrouillé**, ni renommable, ni vidable, ni supprimable |
 | `operator` | déploie et exploite : cibles (sauf suppression), applications, déploiements, rollback, restart, scans et `scan:configure`, sauvegardes sans restauration, fenêtres de maintenance |
 | `auditor` | les 13 permissions en `:read` — journal d'activité, comptes, rôles et paramètres compris |
 | `viewer` | les 9 lectures de l'**exploitation** : cibles, applications, déploiements, sauvegardes, charges, scans, tâches, supervision, maintenances. Ni `audit:read` (le journal porte des adresses IP et des e-mails), ni `user:read`, ni `role:read`, ni `settings:read` |
@@ -235,8 +237,8 @@ personnalisation** — `verify-roles.sh` le vérifie explicitement. La migration
 `no-access` si leur clé est libre, et ne resserre `viewer` que s'il porte encore
 exactement ses permissions d'origine.
 
-Corollaire, pour toute permission ajoutée après coup — `maintenance:read` et
-`maintenance:manage` les dernières : sur une instance **existante**, seul
+Corollaire, pour toute permission ajoutée après coup — `maintenance:read`,
+`maintenance:manage` et `status_page:manage` les dernières : sur une instance **existante**, seul
 `admin` les reçoit d'office. Les autres rôles les reçoivent depuis la matrice,
 par un administrateur ; ce n'est pas au code de décider qu'un opérateur peut
 couper les alertes.
@@ -309,6 +311,33 @@ navigateur. C'est pour cela qu'il se crée depuis une session — qui, elle, l'a
 passé —, qu'il est limité dans le temps par défaut, et que sa création prévient.
 Et quand l'instance exige un second facteur d'un compte qui ne l'a pas, ses
 jetons sont refusés comme lui (`403 two_factor_required`).
+
+## Ce qui est public : les pages de statut
+
+Le panel est privé : sans session, `proxy.ts` renvoie vers la connexion, et
+chaque route exige sa permission. Une seule exception, voulue : les pages de
+statut **publiées**, à `/status` et `/status/<adresse>` (`PUBLIC_PAGES`). Ce
+qu'elles exposent est borné par construction :
+
+- **Ce qui sort.** La page est rendue depuis un modèle calculé au serveur
+  (`buildStatusPageModel()`, `apps/web/src/lib/status-page.ts`) qui ne porte que
+  des **libellés choisis**, des états (opérationnel, ralenti, en panne, en
+  maintenance, inconnu), des taux et des dates. Jamais l'URL sondée, le message
+  d'erreur, le nom d'une machine ni le titre d'une fenêtre de maintenance — une
+  maintenance publique dit « en cours jusqu'au… » et les services qu'elle
+  touche, rien de plus. Le composant qui l'affiche ne reçoit que ce modèle.
+- **Ce qui n'existe pas.** Une page non publiée, une adresse inconnue et un
+  chemin plus profond répondent tous **404**, la même réponse : on ne devine
+  pas ce qui existe derrière.
+- **Ce qui reste fermé.** L'API des pages (`/api/status-pages`) et l'éditeur
+  demandent `status_page:manage` ; la page publique n'a aucun flux temps réel —
+  `pupitre:realtime` reste réservé aux sessions —, elle se relit chaque minute.
+- **Les moteurs.** `noindex, nofollow` : une page de statut se partage par un
+  lien, elle ne se trouve pas par une recherche.
+
+Composer une page, c'est décider de ce que des inconnus verront :
+`status_page:manage` ne revient d'office qu'à `admin`. Côté réseau, n'exposer
+que `/status` (et `/_next/` pour ses ressources) suffit à la servir.
 
 ## Ce qui vient d'ailleurs que le panel
 

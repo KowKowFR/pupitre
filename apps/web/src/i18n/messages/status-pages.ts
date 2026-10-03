@@ -1,0 +1,268 @@
+import type { Translated } from '@pupitre/core';
+
+/**
+ * Les pages de statut : la page publique (ce que lit un visiteur) et l'écran
+ * qui les compose. La page publique est dans la langue de l'instance, comme
+ * tout le panel.
+ */
+const fr = {
+  // ── La page publique ────────────────────────────────────────────────────
+  'public.updated': 'Mis à jour à {time}',
+  'public.refresh': 'La page se met à jour toute seule chaque minute.',
+  'public.empty': 'Cette page ne montre encore rien.',
+
+  'overall.operational': 'Tous les services fonctionnent',
+  'overall.degraded': 'Certains services sont ralentis',
+  'overall.partial_outage': 'Panne partielle',
+  'overall.major_outage': 'Panne majeure',
+  'overall.maintenance': 'Maintenance en cours',
+  'overall.unknown': 'État inconnu pour le moment',
+
+  'state.operational': 'Opérationnel',
+  'state.degraded': 'Ralenti',
+  'state.down': 'En panne',
+  'state.maintenance': 'En maintenance',
+  'state.unknown': 'Inconnu',
+
+  'services.uptime': '{value} % sur {days} jours',
+  'services.uptime.none': 'pas encore de mesure',
+  'bar.day': '{day} — {ratio} % disponible',
+  'bar.empty': '{day} — aucune mesure',
+  'bars.legend.past': 'il y a {days} jours',
+  'bars.legend.today': "aujourd'hui",
+
+  'maintenance.title': 'Maintenances',
+  'maintenance.none': 'Aucune maintenance prévue.',
+  'maintenance.active': "En cours jusqu'au {end}",
+  'maintenance.upcoming': 'Prévue du {start} au {end}',
+  'maintenance.affects': 'Concerne : {services}',
+
+  'incidents.title': {
+    one: 'Incidents du dernier jour',
+    other: 'Incidents des {count} derniers jours',
+  },
+  'incidents.none': {
+    one: 'Aucun incident le dernier jour.',
+    other: 'Aucun incident sur les {count} derniers jours.',
+  },
+  'incidents.ongoing': 'En cours depuis le {start}',
+  'incidents.resolved': 'Du {start} au {end} — {duration}',
+
+  'duration.minutes': '{minutes} min',
+  'duration.hours': '{hours} h {minutes}',
+  'duration.lessThanMinute': "moins d'une minute",
+
+  // ── L'écran qui les compose ─────────────────────────────────────────────
+  'meta.title': 'Pages de statut',
+  'page.title': 'Pages de statut',
+  'page.description':
+    'Des pages publiques, sans connexion, que vous composez bloc par bloc. Elles ne montrent que ce que vous y mettez : des libellés, des états et des durées — jamais une URL, un message d’erreur ni une machine.',
+  'action.new': 'Nouvelle page',
+  'empty.title': 'Aucune page de statut',
+  'empty.hint':
+    'Composez une page à partager avec vos clients : un état général, vos services, leurs maintenances et leurs incidents.',
+  'row.open': 'Modifier la page « {title} »',
+  'row.published': 'publiée',
+  'row.draft': 'brouillon',
+  'row.services': { zero: 'aucun service', one: '{count} service', other: '{count} services' },
+  'row.view': 'Ouvrir',
+
+  'editor.kind': 'Page de statut',
+  'editor.title.new': 'Nouvelle page de statut',
+  'editor.settings': 'Réglages',
+  'editor.field.title': 'Titre',
+  'editor.field.title.placeholder': 'État des services',
+  'editor.field.slug': 'Adresse',
+  'editor.field.slug.help': 'Laissez vide pour publier à /status. Minuscules, chiffres et tirets.',
+  'editor.field.description': 'Présentation',
+  'editor.field.description.help': 'Une phrase sous le titre, facultative.',
+  'editor.field.published': 'Publiée',
+  'editor.field.published.help':
+    'Une page non publiée répond « introuvable » : personne ne sait qu’elle existe.',
+  'editor.blocks': 'Blocs',
+  'editor.blocks.hint': 'Glissez un bloc par sa poignée pour le déplacer, ou utilisez ses flèches.',
+  'editor.blocks.empty': 'Aucun bloc : ajoutez-en un ci-dessous.',
+  'editor.add': 'Ajouter un bloc',
+  'editor.preview': 'Aperçu',
+  'editor.preview.loading': 'Aperçu en cours…',
+  'editor.preview.failed': "L'aperçu n'a pas pu être calculé : {message}",
+  'editor.save.new': 'Créer la page',
+  'editor.save': 'Enregistrer',
+  'editor.cancel': 'Annuler',
+  'editor.delete': 'Supprimer',
+  'editor.openPublic': 'Voir la page publique',
+  'editor.move.up': 'Monter',
+  'editor.move.down': 'Descendre',
+  'editor.remove': 'Retirer ce bloc',
+  'editor.handle': 'Déplacer le bloc « {label} »',
+
+  'block.summary': 'État général',
+  'block.summary.hint': '« Tous les services fonctionnent », ou ce qui ne va pas.',
+  'block.heading': 'Titre',
+  'block.heading.hint': 'Un titre de section.',
+  'block.text': 'Texte',
+  'block.text.hint': 'Une annonce, un mot pour vos clients. Texte brut.',
+  'block.services': 'Services',
+  'block.services.hint': 'Des sondes, sous le nom que vous voulez, avec leur historique.',
+  'block.maintenance': 'Maintenances',
+  'block.maintenance.hint': 'Les maintenances en cours et à venir de ces services.',
+  'block.incidents': 'Incidents récents',
+  'block.incidents.hint': 'Les pannes récentes de ces services, avec leur durée.',
+
+  'block.field.text': 'Texte',
+  'block.field.groupTitle': 'Titre du groupe',
+  'block.field.groupTitle.placeholder': 'Applications',
+  'block.field.history': 'Historique sur 30 jours',
+  'block.field.uptime': 'Taux de disponibilité',
+  'block.field.days': 'Période',
+  'block.field.days.option': { one: '{count} jour', other: '{count} jours' },
+  'block.field.addService': 'Ajouter une sonde…',
+  'block.field.label': 'Nom public de {name}',
+  'block.field.label.placeholder': '{name}',
+  'block.field.removeService': 'Retirer {name}',
+  'block.field.noMonitor': 'Aucune sonde à ajouter.',
+  'block.services.empty': 'Ajoutez au moins une sonde.',
+
+  'confirm.delete.title': 'Supprimer la page « {title} » ?',
+  'confirm.delete.consequence': 'Son adresse ({path}) répondra « introuvable ».',
+  'confirm.delete.action': 'Supprimer',
+
+  'toast.created': 'Page « {title} » créée',
+  'toast.saved': 'Page « {title} » enregistrée',
+  'toast.deleted': 'Page « {title} » supprimée',
+
+  'error.notFound': "Cette page de statut n'existe pas, ou plus.",
+  'error.slugTaken': "L'adresse {path} est déjà celle d'une autre page.",
+  'error.monitorNotFound': "La sonde {id} n'existe pas.",
+};
+
+const en: Translated<typeof fr> = {
+  'public.updated': 'Updated at {time}',
+  'public.refresh': 'This page refreshes itself every minute.',
+  'public.empty': 'This page does not show anything yet.',
+
+  'overall.operational': 'All services are operational',
+  'overall.degraded': 'Some services are slowed down',
+  'overall.partial_outage': 'Partial outage',
+  'overall.major_outage': 'Major outage',
+  'overall.maintenance': 'Maintenance in progress',
+  'overall.unknown': 'Status unknown for now',
+
+  'state.operational': 'Operational',
+  'state.degraded': 'Degraded',
+  'state.down': 'Down',
+  'state.maintenance': 'Maintenance',
+  'state.unknown': 'Unknown',
+
+  'services.uptime': '{value}% over {days} days',
+  'services.uptime.none': 'no measurement yet',
+  'bar.day': '{day} — {ratio}% available',
+  'bar.empty': '{day} — no measurement',
+  'bars.legend.past': '{days} days ago',
+  'bars.legend.today': 'today',
+
+  'maintenance.title': 'Maintenance',
+  'maintenance.none': 'No maintenance scheduled.',
+  'maintenance.active': 'In progress until {end}',
+  'maintenance.upcoming': 'Scheduled from {start} to {end}',
+  'maintenance.affects': 'Affects: {services}',
+
+  'incidents.title': {
+    one: 'Incidents of the last day',
+    other: 'Incidents of the last {count} days',
+  },
+  'incidents.none': {
+    one: 'No incident in the last day.',
+    other: 'No incident in the last {count} days.',
+  },
+  'incidents.ongoing': 'Ongoing since {start}',
+  'incidents.resolved': 'From {start} to {end} — {duration}',
+
+  'duration.minutes': '{minutes} min',
+  'duration.hours': '{hours} h {minutes}',
+  'duration.lessThanMinute': 'less than a minute',
+
+  'meta.title': 'Status pages',
+  'page.title': 'Status pages',
+  'page.description':
+    'Public pages, without sign-in, that you compose block by block. They only show what you put in: labels, states and durations — never a URL, an error message or a machine.',
+  'action.new': 'New page',
+  'empty.title': 'No status page',
+  'empty.hint':
+    'Compose a page to share with your customers: an overall status, your services, their maintenance and their incidents.',
+  'row.open': 'Edit page “{title}”',
+  'row.published': 'published',
+  'row.draft': 'draft',
+  'row.services': { zero: 'no service', one: '{count} service', other: '{count} services' },
+  'row.view': 'Open',
+
+  'editor.kind': 'Status page',
+  'editor.title.new': 'New status page',
+  'editor.settings': 'Settings',
+  'editor.field.title': 'Title',
+  'editor.field.title.placeholder': 'Service status',
+  'editor.field.slug': 'Address',
+  'editor.field.slug.help':
+    'Leave empty to publish at /status. Lowercase letters, digits and dashes.',
+  'editor.field.description': 'Introduction',
+  'editor.field.description.help': 'One sentence under the title, optional.',
+  'editor.field.published': 'Published',
+  'editor.field.published.help': 'An unpublished page answers “not found”: nobody knows it exists.',
+  'editor.blocks': 'Blocks',
+  'editor.blocks.hint': 'Drag a block by its handle to move it, or use its arrows.',
+  'editor.blocks.empty': 'No block: add one below.',
+  'editor.add': 'Add a block',
+  'editor.preview': 'Preview',
+  'editor.preview.loading': 'Computing preview…',
+  'editor.preview.failed': 'The preview could not be computed: {message}',
+  'editor.save.new': 'Create page',
+  'editor.save': 'Save',
+  'editor.cancel': 'Cancel',
+  'editor.delete': 'Delete',
+  'editor.openPublic': 'View public page',
+  'editor.move.up': 'Move up',
+  'editor.move.down': 'Move down',
+  'editor.remove': 'Remove this block',
+  'editor.handle': 'Move block “{label}”',
+
+  'block.summary': 'Overall status',
+  'block.summary.hint': '“All services are operational”, or what is wrong.',
+  'block.heading': 'Heading',
+  'block.heading.hint': 'A section title.',
+  'block.text': 'Text',
+  'block.text.hint': 'An announcement, a word for your customers. Plain text.',
+  'block.services': 'Services',
+  'block.services.hint': 'Probes, under the name you choose, with their history.',
+  'block.maintenance': 'Maintenance',
+  'block.maintenance.hint': 'Ongoing and upcoming maintenance of these services.',
+  'block.incidents': 'Recent incidents',
+  'block.incidents.hint': 'Recent outages of these services, with their duration.',
+
+  'block.field.text': 'Text',
+  'block.field.groupTitle': 'Group title',
+  'block.field.groupTitle.placeholder': 'Applications',
+  'block.field.history': '30-day history',
+  'block.field.uptime': 'Availability rate',
+  'block.field.days': 'Period',
+  'block.field.days.option': { one: '{count} day', other: '{count} days' },
+  'block.field.addService': 'Add a probe…',
+  'block.field.label': 'Public name of {name}',
+  'block.field.label.placeholder': '{name}',
+  'block.field.removeService': 'Remove {name}',
+  'block.field.noMonitor': 'No probe to add.',
+  'block.services.empty': 'Add at least one probe.',
+
+  'confirm.delete.title': 'Delete page “{title}”?',
+  'confirm.delete.consequence': 'Its address ({path}) will answer “not found”.',
+  'confirm.delete.action': 'Delete',
+
+  'toast.created': 'Page “{title}” created',
+  'toast.saved': 'Page “{title}” saved',
+  'toast.deleted': 'Page “{title}” deleted',
+
+  'error.notFound': 'This status page does not exist, or no longer does.',
+  'error.slugTaken': 'Address {path} already belongs to another page.',
+  'error.monitorNotFound': 'Probe {id} does not exist.',
+};
+
+export const statusPages = { fr, en };
