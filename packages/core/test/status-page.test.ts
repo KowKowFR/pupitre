@@ -5,6 +5,7 @@ import {
   overallStateOf,
   publicStateOf,
   statusPageInputSchema,
+  updateStatusPageSchema,
   statusPageMonitorIds,
   statusPagePath,
   statusPageSlugSchema,
@@ -153,5 +154,20 @@ describe('page de statut — ce que lit un visiteur', () => {
       87.5,
     );
     assert.equal(uptimeOf([]), null);
+  });
+});
+
+describe('page de statut — une modification', () => {
+  it('ne remplit pas ce qu’elle ne dit pas : un titre ne dépublie rien', () => {
+    assert.deepEqual(updateStatusPageSchema.parse({ title: 'Nouveau titre' }), {
+      title: 'Nouveau titre',
+    });
+  });
+
+  it('la création, elle, garde ses valeurs par défaut', () => {
+    const page = statusPageInputSchema.parse({ slug: '', title: 'État' });
+    assert.equal(page.published, false);
+    assert.equal(page.description, null);
+    assert.deepEqual(page.blocks, []);
   });
 });

@@ -76,23 +76,34 @@ export const STATUS_BLOCK_TYPES = [
   'incidents',
 ] as const satisfies readonly StatusBlockType[];
 
-export const statusPageInputSchema = z.object({
+/**
+ * Les champs d'une page, **sans** valeurs par défaut. Elles vivent dans le
+ * schéma de création seulement : `.partial()` sur un champ porteur de
+ * `.default()` le remplit quand il manque, et un `PATCH { title }` remettait
+ * la page en brouillon, sans description ni blocs.
+ */
+const statusPageFields = z.object({
   slug: statusPageSlugSchema,
   title: z.string().trim().min(1).max(120),
-  description: z.string().trim().max(500).nullable().default(null),
-  published: z.boolean().default(false),
+  description: z.string().trim().max(500).nullable(),
+  published: z.boolean(),
   blocks: z
     .array(statusBlockSchema)
     .max(STATUS_PAGE_MAX_BLOCKS)
-    .default([])
     .refine((blocks) => new Set(blocks.map((block) => block.id)).size === blocks.length, {
       message: 'deux blocs portent le même identifiant',
     }),
 });
 
+export const statusPageInputSchema = statusPageFields.extend({
+  description: statusPageFields.shape.description.default(null),
+  published: statusPageFields.shape.published.default(false),
+  blocks: statusPageFields.shape.blocks.default([]),
+});
+
 export type StatusPageInput = z.infer<typeof statusPageInputSchema>;
 
-export const updateStatusPageSchema = statusPageInputSchema
+export const updateStatusPageSchema = statusPageFields
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { message: 'rien à modifier' });
 

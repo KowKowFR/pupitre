@@ -180,29 +180,46 @@ const sourceTargetsSchema = z
     'une cible ne se choisit qu’une fois',
   );
 
-export const applicationSourceInputSchema = z.object({
+/**
+ * Les champs d'une liaison, **sans** valeurs par défaut : elles ne valent qu'à
+ * la création. `.partial()` sur un champ porteur de `.default()` le remplit
+ * quand il manque — un `PATCH { branch }` remettait le fichier de spec, le
+ * mode, la destination, les cibles et l'activation à leurs valeurs d'origine.
+ */
+const applicationSourceFields = z.object({
   repository: z
     .string()
     .trim()
     .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, 'dépôt attendu sous la forme propriétaire/nom'),
   /** Le fournisseur du dépôt ; GitHub quand rien n'est dit, comme avant qu'il y en ait deux. */
-  provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
+  provider: z.enum(SOURCE_PROVIDER_KINDS),
   /** GitHub : l'installation de l'App qui ouvre le dépôt. Rien chez Gitea. */
-  installationId: z.number().int().positive().nullable().default(null),
+  installationId: z.number().int().positive().nullable(),
   branch: z
     .string()
     .trim()
     .min(1)
     .max(255)
     .refine((branch) => !/\s|\.\.|^[/-]|[~^:?*[\\]/.test(branch), { message: 'nom de branche invalide' }),
-  specPath: repoPathSchema.default('pupitre.json'),
-  watchPaths: z.array(repoPathSchema).max(50).default([]),
-  mode: sourceModeSchema.default('auto_unless_infra'),
+  specPath: repoPathSchema,
+  watchPaths: z.array(repoPathSchema).max(50),
+  mode: sourceModeSchema,
   /** Où part un nouveau commit : les cibles de la liaison, là où elle tourne, ou nulle part. */
-  deployTo: sourceDeployToSchema.default('targets'),
-  enabled: z.boolean().default(true),
+  deployTo: sourceDeployToSchema,
+  enabled: z.boolean(),
   /** Les cibles de la liaison — exigées quand un commit part sur elles (`targets`). */
-  targets: sourceTargetsSchema.default([]),
+  targets: sourceTargetsSchema,
+});
+
+export const applicationSourceInputSchema = applicationSourceFields.extend({
+  provider: applicationSourceFields.shape.provider.default('github'),
+  installationId: applicationSourceFields.shape.installationId.default(null),
+  specPath: applicationSourceFields.shape.specPath.default('pupitre.json'),
+  watchPaths: applicationSourceFields.shape.watchPaths.default([]),
+  mode: applicationSourceFields.shape.mode.default('auto_unless_infra'),
+  deployTo: applicationSourceFields.shape.deployTo.default('targets'),
+  enabled: applicationSourceFields.shape.enabled.default(true),
+  targets: applicationSourceFields.shape.targets.default([]),
 });
 export type ApplicationSourceInput = z.infer<typeof applicationSourceInputSchema>;
 
@@ -221,7 +238,7 @@ export const applicationSourceCreateSchema = applicationSourceInputSchema.superR
   },
 );
 
-export const applicationSourcePatchSchema = applicationSourceInputSchema
+export const applicationSourcePatchSchema = applicationSourceFields
   .omit({ repository: true, installationId: true, provider: true })
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { message: 'aucun champ à modifier' });
