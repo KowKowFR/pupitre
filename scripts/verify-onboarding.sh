@@ -125,8 +125,14 @@ cleanup_targets
 # Une base vierge n'a pas encore de ligne : on repose alors les défauts du schéma.
 ORIGINAL_NAME=$(psql_q "select value->>'instanceName' from app_settings where id = 1;")
 ORIGINAL_TAGLINE=$(psql_q "select value->>'instanceTagline' from app_settings where id = 1;")
-[ -n "$ORIGINAL_NAME" ] || ORIGINAL_NAME='Control plane'
-[ -n "$ORIGINAL_TAGLINE" ] || ORIGINAL_TAGLINE='Plan de contrôle de déploiement'
+ORIGINAL_LOCALE=$(psql_q "select value->>'locale' from app_settings where id = 1;")
+ORIGINAL_TIMEZONE=$(psql_q "select value->>'timezone' from app_settings where id = 1;")
+[ -n "$ORIGINAL_NAME" ] || ORIGINAL_NAME='Pupitre'
+[ -n "$ORIGINAL_TAGLINE" ] || ORIGINAL_TAGLINE='Deployment control plane'
+# The guide below sets the locale and the time zone too: put them back as well,
+# or a shared instance would be left in another language.
+[ -n "$ORIGINAL_LOCALE" ] || ORIGINAL_LOCALE='en-US'
+[ -n "$ORIGINAL_TIMEZONE" ] || ORIGINAL_TIMEZONE='Europe/Paris'
 info "identité d'origine : « $ORIGINAL_NAME » / « $ORIGINAL_TAGLINE »"
 
 step "2. État vierge : l'assistant est proposé"
@@ -184,11 +190,11 @@ for marker in 'href="/targets"' 'href="/deployments"' 'href="/jobs"'; do
 done
 pass "aucun lien du rail dans l'assistant"
 
-grep -q "Ce panel orchestre" "$OB_HTML" \
+grep -qE "Ce panel orchestre|This panel orchestrates" "$OB_HTML" \
   || fail "le détail de l'étape n'est pas rendu"
 pass "chaque étape porte son explication détaillée"
 
-grep -q "Plus tard" "$OB_HTML" || fail "aucune sortie visible depuis l'assistant"
+grep -qE "Plus tard|>Later<" "$OB_HTML" || fail "aucune sortie visible depuis l'assistant"
 pass "une sortie reste visible — forcer n'est pas enfermer"
 
 step "3 ter. Quitter passe par une confirmation, puis libère"
@@ -490,7 +496,8 @@ pass "utilisateur viewer supprimé"
 
 code=$(req PATCH /api/settings \
   "$(jq -nc --arg n "$ORIGINAL_NAME" --arg t "$ORIGINAL_TAGLINE" \
-      '{instanceName:$n, instanceTagline:$t}')")
+      --arg l "$ORIGINAL_LOCALE" --arg z "$ORIGINAL_TIMEZONE" \
+      '{instanceName:$n, instanceTagline:$t, locale:$l, timezone:$z}')")
 [ "$code" = "200" ] || fail "restauration de l'identité → HTTP $code : $(cat "$BODY")"
 pass "identité de l'instance restaurée : « $ORIGINAL_NAME » / « $ORIGINAL_TAGLINE »"
 

@@ -1,4 +1,5 @@
 import {
+  DEFAULT_UI_LANGUAGE,
   MONITOR_CHECK_RETENTION_DAYS,
   MONITOR_PRUNE_BATCH,
   translator,
@@ -135,7 +136,8 @@ const hostMetricCopy = {
   },
 } as const;
 
-const metricSay = (language: UiLanguage = 'fr') => translator(hostMetricCopy, language);
+const metricSay = (language: UiLanguage = DEFAULT_UI_LANGUAGE) =>
+  translator(hostMetricCopy, language);
 
 /**
  * Les trois dimensions surveillées, et le réglage qui va avec.

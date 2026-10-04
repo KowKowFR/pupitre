@@ -57,9 +57,9 @@ const DEFAULT_CONFIG: Record<BackupDestinationKind, Record<string, string | numb
   local: { path: '/backups' },
 };
 
-function draftOf(destination: DestinationView | null): Draft {
+function draftOf(destination: DestinationView | null, defaultName = ''): Draft {
   if (!destination)
-    return { kind: 's3', name: 'Sauvegardes', config: { ...DEFAULT_CONFIG.s3 }, secrets: {} };
+    return { kind: 's3', name: defaultName, config: { ...DEFAULT_CONFIG.s3 }, secrets: {} };
   return {
     kind: destination.kind,
     name: destination.name,
@@ -101,7 +101,9 @@ export function BackupSettings({
   const tc = useT(common);
   const router = useRouter();
   const [destination, setDestination] = useState(initialDestination);
-  const [draft, setDraft] = useState<Draft>(() => draftOf(initialDestination));
+  const [draft, setDraft] = useState<Draft>(() =>
+    draftOf(initialDestination, t('destination.defaultName')),
+  );
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -539,7 +541,7 @@ export function BackupSettings({
           const response = await call('/api/backups/destination', { method: 'DELETE' });
           if (response) {
             setDestination(null);
-            setDraft(draftOf(null));
+            setDraft(draftOf(null, t('destination.defaultName')));
             toast({ title: t('destination.removed'), tone: 'ok' });
             router.refresh();
           }

@@ -41,7 +41,7 @@
 export const UI_LANGUAGES = ['fr', 'en'] as const;
 export type UiLanguage = (typeof UI_LANGUAGES)[number];
 
-export const DEFAULT_UI_LANGUAGE: UiLanguage = 'fr';
+export const DEFAULT_UI_LANGUAGE: UiLanguage = 'en';
 
 /**
  * La langue de l'interface se **déduit** de la locale de régionalisation, elle

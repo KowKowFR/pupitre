@@ -32,8 +32,9 @@ that signs up afterwards gets the **No access** role (`no-access`): it has acces
 to nothing, not even the chat, until an administrator chooses a role for it. The
 `security.signup_pending` event announces its arrival.
 
-The panel speaks French or English, as set for the instance in **Settings →
-Regional settings**; the setup guide asks at the first sign-in.
+The panel speaks English or French, as set for the instance in **Settings →
+Regional settings**. A new instance starts in English (`en-US`); the setup
+guide offers to change it at the first sign-in.
 
 ### The two secrets
 

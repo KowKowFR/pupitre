@@ -811,11 +811,16 @@ const appSettingsFields = {
   timeStyle: z.enum(DATE_STYLES),
 };
 
+/**
+ * Defaults of a new instance, in English: the setup guide offers to change the
+ * language at the first sign-in. Instances installed before the switch keep the
+ * French values they were born with (migration `0047_english_defaults`).
+ */
 const FIELD_DEFAULTS = {
   instanceName: 'Pupitre',
-  instanceTagline: 'Plan de contrôle de déploiement',
+  instanceTagline: 'Deployment control plane',
   timezone: DEFAULT_TIMEZONE,
-  locale: 'fr-FR',
+  locale: 'en-US',
   dateStyle: 'short',
   timeStyle: 'medium',
 } as const;

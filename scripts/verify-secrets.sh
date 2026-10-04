@@ -577,7 +577,7 @@ mk_alias_spec '{ "name": "WORDPRESS_DB_PASSWORD", "from": "MARIADB_PASSWORD" }' 
   > "$WORK/cycle.json"
 code=$(req POST /api/applications "@$WORK/cycle.json")
 [ "$code" = "422" ] || fail "un cycle d'alias a été accepté (HTTP $code)"
-grep -qF "cycle d'alias" "$BODY" || fail "le refus ne parle pas d'un cycle : $(cat "$BODY")"
+grep -qE "cycle d'alias|alias cycle" "$BODY" || fail "le refus ne parle pas d'un cycle : $(cat "$BODY")"
 pass "A ← B et B ← A → HTTP 422, « cycle d'alias de secrets »"
 info "$(jq -r '[.error.details.fieldErrors.appSpec[]?] | join(" | ")' "$BODY" 2>/dev/null | cut -c1-160)"
 

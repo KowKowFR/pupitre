@@ -7,6 +7,8 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { backups as messages } from '@/i18n/messages/backups';
+import { getT } from '@/i18n/server';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { destinationView } from '@/lib/backups';
 import { requirePermission } from '@/lib/rbac';
@@ -28,14 +30,15 @@ export const GET = apiRoute(async (request) => {
 
 const bodySchema = z.object({
   kind: backupDestinationKindSchema,
-  name: z.string().trim().min(1).max(80).default('Sauvegardes'),
+  name: z.string().trim().min(1).max(80).optional(),
   config: z.record(z.string().max(60), z.union([z.string(), z.number(), z.boolean()])).default({}),
   secrets: z.record(z.string().max(60), z.string().max(16_000)).nullable().default(null),
 });
 
 export const PUT = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');
-  const input = await readJsonBody(request, bodySchema);
+  const body = await readJsonBody(request, bodySchema);
+  const input = { ...body, name: body.name ?? (await getT(messages))('destination.defaultName') };
   // `saveBackupDestination` valide l'ensemble — réglages et secrets conservés
   // compris — et lève une `ZodError` (422) sur une destination incomplète.
   const saved = await saveBackupDestination(input);

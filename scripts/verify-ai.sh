@@ -251,7 +251,7 @@ else
   code=$(req POST /api/applications/generate \
     '{"prompt":"une application GLPI avec sa base de donnees"}')
   [ "$code" = "501" ] || fail "IA coupée : attendu 501, reçu $code"
-  jq -e '.error.message | test("désactivée dans les paramètres")' "$BODY" >/dev/null \
+  jq -e '.error.message | test("désactivée dans les paramètres|off in this instance")' "$BODY" >/dev/null \
     || fail "message indistinct de l'absence de clé : $(jq -r .error.message "$BODY")"
   pass "IA coupée dans les paramètres → 501, avec un motif distinct"
   req PATCH /api/settings '{"ai":{"enabled":true}}' >/dev/null
@@ -325,9 +325,9 @@ fi
 if grep -q "$SENTINEL" "$WORK/settings.html"; then fail "la clé fuit dans le HTML de /admin/settings/ia"; fi
 pass "le HTML de /admin/settings/ia ne la contient pas ($(wc -c < "$WORK/settings.html") octets)"
 
-curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications/new" > "$WORK/new.html" || true
-if grep -q "$SENTINEL" "$WORK/new.html"; then fail "la clé fuit dans le HTML de /applications/new"; fi
-pass "le HTML de /applications/new ne la contient pas"
+curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications?add=new" > "$WORK/new.html" || true
+if grep -q "$SENTINEL" "$WORK/new.html"; then fail "la clé fuit dans le HTML de /applications?add=new"; fi
+pass "le HTML de /applications?add=new ne la contient pas"
 
 req GET "/api/audit-logs?pageSize=50" >/dev/null
 if grep -q "$SENTINEL" "$BODY"; then fail "la clé fuit dans le journal d'audit"; fi
@@ -414,11 +414,11 @@ done
 # génération est donc active, et l'écran doit porter l'avertissement.
 req PATCH /api/settings \
   '{"ai":{"provider":"anthropic","model":"anthropic/claude-sonnet-4.5","enabled":true}}' >/dev/null
-curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications/new" > "$WORK/mismatch.html" || true
-if grep -q "identifiant OpenRouter" "$WORK/mismatch.html"; then
-  pass "modèle incohérent avec le fournisseur → signalé sur /applications/new"
+curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications?add=new" > "$WORK/mismatch.html" || true
+if grep -qE "identifiant OpenRouter|ID for OpenRouter" "$WORK/mismatch.html"; then
+  pass "modèle incohérent avec le fournisseur → signalé sur /applications?add=new"
 else
-  fail "aucun avertissement sur /applications/new pour anthropic + anthropic/claude-sonnet-4.5"
+  fail "aucun avertissement sur /applications?add=new pour anthropic + anthropic/claude-sonnet-4.5"
 fi
 
 req PATCH /api/settings '{"aiApiKey":null}' >/dev/null
@@ -497,7 +497,7 @@ info "politique appliquée : $(jq -rc '{scanners:.scanConfig.scanners, failOn:.s
 
 if [ "$STATUS" != "success" ]; then
   BLOCKED=$(jq -r '[.steps[] | select(.key == "scan") | .log, .error] | join(" ")' "$BODY" | tail -c 400)
-  if grep -qi "déploiement bloqué" <<< "$BLOCKED"; then
+  if grep -qiE "déploiement bloqué|deployment blocked" <<< "$BLOCKED"; then
     # Ce n'est PAS un défaut du parcours : la politique de l'instance
     # (failOn=CRITICAL, tous scanners) bloque toute image publique dont la base
     # de vulnérabilités signale un CRITICAL — ce qui est le cas de nginx:alpine

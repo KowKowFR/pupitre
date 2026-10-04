@@ -302,7 +302,7 @@ if printf '%s' "$UFW_OUT" | grep -qi 'Status: active'; then
   pass "deux règles ufw créées, chacune avec son commentaire pupitre:{slug}"
 elif printf '%s' "$UFW_OUT" | grep -qi 'Status: inactive'; then
   UFW_MODE=inactive
-  printf '%s' "$LOG_A" | grep -q 'ufw inactif' \
+  printf '%s' "$LOG_A" | grep -qE 'ufw inactif|ufw is inactive' \
     || fail "ufw est inactif sur la cible, mais aucun avertissement dans les logs du déploiement"
   pass "ufw inactif sur la cible → avertissement émis, et rien n'a cassé"
   info "$(printf '%s' "$LOG_A" | grep -o 'ufw inactif[^"]*' | head -1)"
@@ -310,7 +310,7 @@ elif printf '%s' "$UFW_OUT" | grep -qi 'Status: inactive'; then
 else
   UFW_MODE=unknown
   warn "impossible de lire « ufw status » sur $TARGET_CONTAINER — contrôle par les logs seuls"
-  printf '%s' "$LOG_A" | grep -qE 'ufw (allow|inactif|absent)' \
+  printf '%s' "$LOG_A" | grep -qE 'ufw (allow|inactif|absent|is inactive|is not installed)' \
     || fail "le déploiement n'a rien dit du pare-feu"
   pass "le déploiement a bien statué sur le pare-feu"
 fi
@@ -347,7 +347,7 @@ if [ "$UFW_MODE" = active ]; then
   pass "règle ufw de $PORT_A retirée par son commentaire, celle de $PORT_B intacte"
 else
   LOG_A="$(deployment_log "$DEPLOY_A")"
-  printf '%s' "$LOG_A" | grep -qE 'ufw (inactif|absent)' \
+  printf '%s' "$LOG_A" | grep -qE 'ufw (inactif|absent|is inactive|is not installed)' \
     || fail "le destroy n'a rien dit du pare-feu"
   pass "ufw $UFW_MODE : le destroy le signale et n'échoue pas"
 fi
@@ -393,7 +393,7 @@ printf '%s' "$HEALTH_ERROR" | grep -q 'docker compose ps' \
   || fail "le diagnostic n'a pas été capturé dans deployment_steps.error"
 printf '%s' "$HEALTH_ERROR" | grep -q 'docker compose logs' \
   || fail "les logs des services manquent au diagnostic"
-printf '%s' "$HEALTH_ERROR" | grep -qi 'injoignable' \
+printf '%s' "$HEALTH_ERROR" | grep -qiE 'injoignable|unreachable' \
   || fail "l'issue « unreachable » n'est pas nommée : $(printf '%s' "$HEALTH_ERROR" | head -c 120)"
 pass "diagnostic capturé — docker compose ps + logs, issue « injoignable »"
 info "$(printf '%s' "$HEALTH_ERROR" | head -1 | cut -c1-110)"

@@ -233,23 +233,24 @@ const ADMINISTRATION_READS: ReadonlySet<Permission> = new Set<Permission>([
 const OPERATION_READS = READ_ONLY.filter((p) => !ADMINISTRATION_READS.has(p));
 
 /**
- * Les rôles de départ. Leurs `label` et `description` ne sont **pas** des
- * chaînes d'écran : le seed les écrit en base, dans `roles`, où un
- * administrateur les renomme ensuite. Les traduire figerait la langue au
- * premier démarrage et laisserait la colonne incohérente.
+ * The starting roles. Their `label` and `description` are **not** screen
+ * strings: the seed writes them once, into `roles`, on an empty database, and
+ * an administrator renames them afterwards. They are in English, like every
+ * default of a new instance; instances seeded earlier keep their French labels,
+ * which the seed never rewrites.
  */
 export const ROLE_DEFINITIONS: Record<
   SeededRoleKey,
   { label: string; description: string; permissions: readonly Permission[] }
 > = {
   admin: {
-    label: 'Administrateur',
-    description: 'Accès complet, y compris la gestion des utilisateurs et des rôles',
+    label: 'Administrator',
+    description: 'Full access, including user and role management',
     permissions: PERMISSIONS,
   },
   operator: {
-    label: 'Opérateur',
-    description: 'Déploie et exploite, sans administrer la plateforme',
+    label: 'Operator',
+    description: 'Deploys and operates, without administering the platform',
     permissions: [
       'target:read',
       'target:create',
@@ -280,20 +281,18 @@ export const ROLE_DEFINITIONS: Record<
     ],
   },
   auditor: {
-    label: 'Auditeur',
-    description: "Lecture seule sur toute la plateforme, journal d'activité et comptes compris",
+    label: 'Auditor',
+    description: 'Read-only access to the whole platform, activity log and accounts included',
     permissions: READ_ONLY,
   },
   viewer: {
-    label: 'Observateur',
-    description:
-      "Lecture seule de l'exploitation : cibles, applications, déploiements, supervision",
+    label: 'Viewer',
+    description: 'Read-only access to operations: targets, applications, deployments, monitoring',
     permissions: OPERATION_READS,
   },
   'no-access': {
-    label: 'Sans accès',
-    description:
-      "Aucune permission : le rôle d'une inscription, en attendant qu'un administrateur en choisisse un",
+    label: 'No access',
+    description: 'No permission: the role of a sign-up, until an administrator chooses one',
     permissions: [],
   },
 };

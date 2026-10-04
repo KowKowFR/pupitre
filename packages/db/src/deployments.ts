@@ -1,4 +1,5 @@
 import {
+  DEFAULT_UI_LANGUAGE,
   DEPLOYMENT_STEPS,
   deploymentStepLabel,
   scanConfigSchema,
@@ -1124,7 +1125,7 @@ export async function listApplicationDeletionBlockers(
   options: { language?: UiLanguage } = {},
   db: Database = getDb(),
 ): Promise<ApplicationDeletionBlocker[]> {
-  const say = dbSay(options.language ?? 'fr');
+  const say = dbSay(options.language ?? DEFAULT_UI_LANGUAGE);
   const [rows, pinned] = await Promise.all([
     db
       .select({
@@ -1204,7 +1205,7 @@ export async function purgeDeployments(
   db: Database = getDb(),
 ): Promise<PurgeReport> {
   const dryRun = options.dryRun ?? false;
-  const say = dbSay(options.language ?? 'fr');
+  const say = dbSay(options.language ?? DEFAULT_UI_LANGUAGE);
   const where = purgeWhere(filter);
 
   const [candidates, [totalRow], pinned] = await Promise.all([
@@ -1606,7 +1607,12 @@ export async function abandonDeployment(
   const row = (await listUnfinishedDeployments(db)).find((candidate) => candidate.id === id);
   if (!row) return null;
 
-  const error = abandonMessage(row, options.cause, observedAt, options.language ?? 'fr');
+  const error = abandonMessage(
+    row,
+    options.cause,
+    observedAt,
+    options.language ?? DEFAULT_UI_LANGUAGE,
+  );
   const failedStep = row.currentStep?.key ?? null;
 
   return db.transaction(async (tx) => {

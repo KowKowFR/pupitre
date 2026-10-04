@@ -193,7 +193,7 @@ else
   # La clé peut venir de l'environnement OU des paramètres d'instance : le
   # message ne nomme donc plus une variable en particulier, il dit qu'aucune
   # clé n'est configurée. Nommer OPENROUTER_API_KEY serait désormais trompeur.
-  jq -e '.error.code == "not_implemented" and (.error.message | test("clé"))' "$BODY" >/dev/null \
+  jq -e '.error.code == "not_implemented" and (.error.message | test("clé|key"))' "$BODY" >/dev/null \
     || fail "le 501 ne dit pas ce qui manque : $(cat "$BODY")"
   pass "sans clé : HTTP 501 et message explicite, aucun crash"
   info "$(jq -rc '.error.message' "$BODY")"

@@ -236,7 +236,7 @@ export async function handleAppLogs(job: Job<unknown>): Promise<{ lines: number 
       payload: {
         ts: new Date().toISOString(),
         action: 'stream.stopped',
-        detail: `${lines} ligne(s)`,
+        detail: `${lines} line(s)`,
       },
     });
 
@@ -303,6 +303,7 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
         detail: health.healthy
           ? say('lifecycle.healthy')
           : say('lifecycle.outcome', { outcome: say(`outcome.${health.outcome}`) }),
+        done: true,
       },
     });
 
@@ -451,6 +452,7 @@ async function runLifecycle(
             : healthy
               ? say('lifecycle.healthy')
               : say('lifecycle.unhealthy'),
+        done: true,
       },
     });
 

@@ -248,7 +248,7 @@ pass "redémarrage enfilé (job $JOB) — la route ne fait pas le travail elle-m
 # Le cycle de vie est publié sur le flux : on rouvre pour l'observer.
 curl -sN --max-time 40 -b "$JAR" "$BASE_URL/api/apps/$APP_ID/logs" > "$SSE" || true
 
-if events lifecycle | jq -e 'select(.action == "restart" and (.detail // "") | startswith("terminé"))' \
+if events lifecycle | jq -e 'select(.action == "restart" and .done == true)' \
      >/dev/null 2>&1; then
   pass "cycle de vie observé : $(events lifecycle | jq -r 'select(.action == "restart") | .detail' | tail -1)"
 else

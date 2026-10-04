@@ -428,7 +428,7 @@ pass "elle n'apparaît sous aucun autre serveur"
 # Un serveur sans application le dit plutôt que d'offrir un dépliant vide.
 if [ -n "$WITNESS_ID" ]; then
   WITNESS_SECTION=$(server_section "$WITNESS_ID")
-  printf '%s' "$WITNESS_SECTION" | grep -q 'Aucune application supervisée' \
+  printf '%s' "$WITNESS_SECTION" | grep -qE 'Aucune application supervisée|No monitored application' \
     || fail "le serveur témoin n'annonce pas qu'il est vide"
   if printf '%s' "$WITNESS_SECTION" | grep -q 'aria-expanded'; then
     fail "un serveur vide ne doit pas offrir de dépliant"
@@ -482,7 +482,7 @@ pass "refus tracé dans le journal d'audit ($DENIED ligne(s))"
 # L'écran reste consultable : voir ce qui tourne ne demande que deployment:read.
 curl -s -b "$VIEWER_JAR" -c "$VIEWER_JAR" "$BASE_URL/apps" -o "$WORK/viewer.html"
 grep -q "$APP_SLUG" "$WORK/viewer.html" || fail "le testeur ne voit plus les applications"
-grep -q 'Relevé indisponible' "$WORK/viewer.html" \
+grep -qE 'Relevé indisponible|Readout unavailable' "$WORK/viewer.html" \
   || fail "l'écran ne dit pas pourquoi il n'affiche aucune métrique"
 pass "il voit les applications, et l'écran annonce « relevé indisponible »"
 
