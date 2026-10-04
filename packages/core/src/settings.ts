@@ -24,55 +24,56 @@ import {
 import { z } from 'zod';
 
 /**
- * Paramètres d'instance — schéma unique de vérité.
+ * Instance settings — the single schema of truth.
  *
- * Stockés en base dans **une seule colonne JSONB**, pas une colonne par
- * réglage : ajouter un paramètre ne doit pas coûter une migration. Le prix à
- * payer, c'est que la base ne garantit plus la forme du contenu — d'où ce
- * schéma, appliqué à chaque lecture, qui comble les champs absents par leur
- * défaut. Une base vierge, un JSON tronqué ou un champ ajouté après coup
- * rendent donc toujours un objet complet et valide.
+ * Stored in the database in **a single JSONB column**, not one column per
+ * setting: adding a setting must not cost a migration. The price to pay is that
+ * the database no longer guarantees the content's shape — hence this schema,
+ * applied on each read, which fills absent fields with their default. An empty
+ * database, a truncated JSON or a field added afterwards therefore always return
+ * a complete, valid object.
  *
- * Ce module ne dépend que de Zod : il est importé par `@pupitre/db`, par le panel
- * et par le worker. La clé d'API de l'IA n'y figure volontairement pas — un
- * secret ne voyage pas avec de la configuration ordinaire, il vit dans sa
- * propre colonne chiffrée (cf. `app_settings.ai_api_key_encrypted`).
+ * This module only depends on Zod: it is imported by `@pupitre/db`, by the panel
+ * and by the worker. The AI API key is deliberately not in it — a secret does
+ * not travel with ordinary configuration, it lives in its own encrypted column
+ * (see `app_settings.ai_api_key_encrypted`).
  */
 
 /**
- * Modèle par défaut de l'instance neuve — celui d'OpenRouter, le fournisseur
- * par défaut. Chaque fournisseur a le sien : `defaultAiModel(provider)` est la
- * fonction à appeler dès qu'on sait de quel fournisseur on parle.
+ * A new instance's default model — OpenRouter's, the default provider. Each
+ * provider has its own: `defaultAiModel(provider)` is the function to call as
+ * soon as we know which provider we are talking about.
  *
- * Le catalogue vit sous `ai/catalog.ts` mais ne dépend de rien : la racine de
- * `@pupitre/core` — donc `@pupitre/db` et le worker — peut donc connaître la liste des
- * fournisseurs et leurs défauts sans tirer le SDK IA dans son graphe.
+ * The catalog lives under `ai/catalog.ts` but depends on nothing: the root of
+ * `@pupitre/core` — hence `@pupitre/db` and the worker — can therefore know the
+ * list of providers and their defaults without pulling the AI SDK into its graph.
  */
 export const DEFAULT_AI_MODEL = defaultAiModel('openrouter');
 
-/** Locales proposées. Liste explicite : chacune doit avoir été relue en vrai. */
+/** Offered locales. An explicit list: each one must have been proofread for real. */
 export const SUPPORTED_LOCALES = ['fr-FR', 'en-GB', 'en-US', 'de-DE', 'es-ES'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 /**
- * Les locales que le sélecteur propose — celles dont le panel sait réellement
- * parler la langue.
+ * The locales the selector offers — those whose language the panel really
+ * speaks.
  *
- * `SUPPORTED_LOCALES` reste plus large, et volontairement : une instance qui
- * porte déjà `de-DE` en base continue de se lire sans que sa validation
- * échoue au démarrage. Elle obtient simplement l'interface en anglais
- * (cf. `languageOf()`) et ne retrouvera plus « Deutsch » dans la liste. Offrir
- * un choix qui ne change qu'à moitié l'écran serait pire que ne pas l'offrir.
+ * `SUPPORTED_LOCALES` stays wider, deliberately: an instance that already
+ * carries `de-DE` in its database keeps reading without its validation failing
+ * at startup. It simply gets the interface in English (see `languageOf()`) and
+ * will no longer find "Deutsch" in the list. Offering a choice that only half
+ * changes the screen would be worse than not offering it.
  *
- * Ajouter une langue, c'est écrire son dictionnaire, l'ajouter à
- * `UI_LANGUAGES`, puis ajouter sa locale ici. Dans cet ordre.
+ * Adding a language means writing its dictionary, adding it to `UI_LANGUAGES`,
+ * then adding its locale here. In that order.
  */
 export const TRANSLATED_LOCALES = ['fr-FR', 'en-GB', 'en-US'] as const;
 
 /**
- * Comment chaque locale se nomme **dans sa propre langue**. Un anglophone
- * arrivé sur une instance en français doit reconnaître sa ligne sans savoir
- * lire les autres — c'est la seule chaîne du panel qui ne se traduit pas.
+ * How each locale names itself **in its own language**. An English speaker who
+ * lands on an instance in French must recognize their line without being able
+ * to read the others — it is the only string in the panel that is not
+ * translated.
  */
 export const LOCALE_LABELS: Readonly<Record<SupportedLocale, string>> = {
   'fr-FR': 'Français (France)',
@@ -104,10 +105,10 @@ export {
 export const DEFAULT_TIMEZONE = 'Europe/Paris';
 
 /**
- * Un fuseau invalide en base ferait planter chaque rendu de page : on refuse
- * à l'entrée plutôt que de le découvrir à l'affichage. `Intl` est le seul juge
- * fiable — la liste des fuseaux dépend de la version d'ICU embarquée, pas d'une
- * énumération qu'on figerait dans le code.
+ * An invalid time zone in the database would crash every page render: we refuse
+ * it on input rather than discover it on display. `Intl` is the only reliable
+ * judge — the list of time zones depends on the embedded ICU version, not on an
+ * enumeration we would freeze in the code.
  */
 export function isValidTimeZone(value: string): boolean {
   if (value.trim().length === 0) return false;
@@ -119,12 +120,12 @@ export function isValidTimeZone(value: string): boolean {
   }
 }
 
-/** Fuseaux connus de ce runtime, pour alimenter une liste déroulante. */
+/** Time zones known to this runtime, to feed a dropdown list. */
 export function supportedTimeZones(): string[] {
   try {
     return [...Intl.supportedValuesOf('timeZone')];
   } catch {
-    // Runtime sans ICU complet : on rend au moins de quoi choisir.
+    // A runtime without full ICU: we return at least enough to choose.
     return [DEFAULT_TIMEZONE, 'UTC'];
   }
 }
@@ -137,28 +138,28 @@ const timeZoneSchema = z
   .refine(isValidTimeZone, { message: 'Fuseau horaire IANA inconnu' });
 
 /**
- * Champs de la section IA, **sans défaut** — même précaution que pour les
- * champs racine plus bas, et pour la même raison : `schema.default(x).optional()`
- * rend `x` quand la clé est absente. Un `PATCH { ai: { enabled: false } }`
- * repartait donc avec un objet `ai` complet de valeurs par défaut, et
- * réinitialisait silencieusement le fournisseur, le modèle et la température de
- * l'instance. Le défaut n'est appliqué que sur le schéma de *lecture*.
+ * Fields of the AI section, **without defaults** — the same precaution as for
+ * the root fields below, and for the same reason:
+ * `schema.default(x).optional()` returns `x` when the key is absent. A
+ * `PATCH { ai: { enabled: false } }` therefore went off with a complete `ai`
+ * object of default values, and silently reset the instance's provider, model
+ * and temperature. The default is only applied on the *read* schema.
  */
 const aiFields = {
-  /** Liste dérivée du catalogue : un fournisseur ajouté y apparaît sans rien toucher ici. */
+  /** A list derived from the catalog: an added provider shows up without touching anything here. */
   provider: z.enum(AI_PROVIDERS),
   /**
-   * Identifiant de modèle, dans la convention du fournisseur choisi. Le défaut
-   * ne peut pas dépendre du fournisseur dans un schéma d'objet plat : c'est
-   * `resolveAiConfig()` qui retombe sur `defaultAiModel(provider)` quand le
-   * champ est vide, et `aiModelMismatch()` qui signale un identifiant qui
-   * appartient visiblement à un autre fournisseur.
+   * Model identifier, in the chosen provider's convention. The default cannot
+   * depend on the provider in a flat object schema: it is `resolveAiConfig()`
+   * that falls back on `defaultAiModel(provider)` when the field is empty, and
+   * `aiModelMismatch()` that flags an identifier visibly belonging to another
+   * provider.
    */
   model: z.string().trim().min(1).max(120),
   /**
-   * URL d'une API compatible OpenAI auto-hébergée. Validée comme une URL —
-   * une valeur bancale ici ferait échouer chaque génération sans rien dire.
-   * Ignorée par les fournisseurs qui ne la déclarent pas (`supportsBaseUrl`).
+   * URL of a self-hosted OpenAI-compatible API. Validated as a URL — a shaky
+   * value here would fail every generation without saying anything. Ignored by
+   * the providers that do not declare it (`supportsBaseUrl`).
    */
   baseUrl: z.union([z.literal(''), z.string().trim().url().max(300)]),
   enabled: z.boolean(),
@@ -175,7 +176,7 @@ export const aiSettingsSchema = z.object({
   maxTokens: aiFields.maxTokens.default(8_192),
 });
 
-/** Patch partiel de la section IA : une clé absente reste absente. */
+/** Partial patch of the AI section: an absent key stays absent. */
 export const aiSettingsPatchSchema = z.object({
   provider: aiFields.provider.optional(),
   model: aiFields.model.optional(),
@@ -197,52 +198,50 @@ export const DEFAULT_AI_SETTINGS: AiSettings = {
 };
 
 /**
- * Champs de la section sécurité, **sans défaut** — la forme de référence.
+ * Fields of the security section, **without defaults** — the reference shape.
  *
- * Même séparation que pour l'IA et pour la racine des paramètres, et pour la
- * même raison : `schema.partial()` sur des champs porteurs de `.default()`
- * **remplit quand même** ces défauts pour les clés absentes. Un PATCH ne
- * parlant que de `scanningEnabled` réinitialisait donc silencieusement les
- * scanners écartés et le seuil de blocage — une politique de sécurité
- * détricotée par un geste qui ne la visait pas.
+ * The same split as for AI and for the settings' root, and for the same reason:
+ * `schema.partial()` on fields carrying `.default()` **still fills** those
+ * defaults for absent keys. A PATCH only about `scanningEnabled` therefore
+ * silently reset the set-aside scanners and the blocking threshold — a security
+ * policy unravelled by a gesture that was not aimed at it.
  */
 const securityFields = {
   /**
-   * Interrupteur général. À `false`, plus aucun scan ne sera lancé, sur aucun
-   * déploiement, tant que le réglage n'est pas remis à `true`.
+   * Main switch. At `false`, no scan will be started anymore, on any deployment,
+   * until the setting is set back to `true`.
    */
   scanningEnabled: z.boolean(),
   /**
-   * Scanners écartés un par un, même quand l'analyse reste active. Permet de
-   * couper Trivy sans renoncer à Grype, par exemple parce qu'un seul des deux
-   * peut atteindre sa base de vulnérabilités depuis la machine cible.
+   * Scanners set aside one by one, even when scanning stays on. It allows
+   * turning off Trivy without giving up Grype, for example because only one of
+   * the two can reach its vulnerability database from the target machine.
    */
   disabledScanners: z.array(scannerKeySchema).max(SCANNER_KEYS.length),
   /**
-   * Sévérité à partir de laquelle un finding bloque la mise en ligne.
+   * Severity from which a finding blocks the release.
    *
-   * Vit ici depuis que l'écran de déploiement ne le demande plus : une
-   * politique de sécurité qui se choisit au coup par coup, déploiement par
-   * déploiement, n'est pas une politique.
+   * It lives here since the deployment screen stopped asking for it: a security
+   * policy chosen case by case, deployment by deployment, is not a policy.
    *
-   * Le défaut est `NONE` — on analyse et on rapporte, on ne bloque pas.
-   * Bloquer d'emblée paraît plus sûr et ne l'est pas : `nginx:1.29-alpine`
-   * porte 26 findings CRITICAL, `httpd:2.4-alpine` en porte 40. Un seuil
-   * bloquant par défaut refuse donc toute image publique dès la première mise
-   * en ligne, et l'opérateur coupe l'analyse entière pour avancer — il se
-   * retrouve sans scan du tout. Informer par défaut, bloquer sur décision.
+   * The default is `NONE` — we scan and report, we do not block. Blocking right
+   * away looks safer and is not: `nginx:1.29-alpine` carries 26 CRITICAL
+   * findings, `httpd:2.4-alpine` carries 40. A blocking threshold by default
+   * therefore refuses every public image from the first release, and the operator
+   * turns off scanning entirely to move on — ending up with no scan at all. Inform
+   * by default, block by decision.
    */
   failOn: failOnSchema,
   /**
-   * Ne bloquer que sur les failles **corrigeables**. C'est ce qui rend un seuil
-   * tenable sur des images publiques : la plupart de leurs CRITICAL n'ont pas
-   * de correctif, et rien ne sert de bloquer sur ce qu'aucune mise à jour ne
-   * règle. Une application peut en décider autrement.
+   * Only block on **fixable** vulnerabilities. It is what makes a threshold
+   * bearable on public images: most of their CRITICAL ones have no fix, and there
+   * is no point blocking on what no update fixes. An application can decide
+   * otherwise.
    */
   onlyFixable: z.boolean(),
 };
 
-/** Lecture : les défauts comblent ce qu'une base ancienne ne porte pas. */
+/** Read: the defaults fill what an old database does not carry. */
 export const securitySettingsSchema = z.object({
   scanningEnabled: securityFields.scanningEnabled.default(true),
   disabledScanners: securityFields.disabledScanners.default([]),
@@ -250,7 +249,7 @@ export const securitySettingsSchema = z.object({
   onlyFixable: securityFields.onlyFixable.default(false),
 });
 
-/** Patch partiel : une clé absente reste absente. */
+/** Partial patch: an absent key stays absent. */
 export const securitySettingsPatchSchema = z.object({
   scanningEnabled: securityFields.scanningEnabled.optional(),
   disabledScanners: securityFields.disabledScanners.optional(),
@@ -268,24 +267,23 @@ export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
 };
 
 /**
- * Connexion unique par OpenID Connect — Keycloak, Authentik, Google, Entra :
- * tout fournisseur qui publie un document de découverte.
+ * Single sign-on through OpenID Connect — Keycloak, Authentik, Google, Entra:
+ * any provider that publishes a discovery document.
  *
- * Le secret du client n'est **pas** ici : comme la clé d'IA, il a sa colonne
- * chiffrée (`app_settings.sso_client_secret_encrypted`). Ce qui est ici peut
- * être lu, rendu par l'API et écrit au journal sans rien exposer.
+ * The client secret is **not** here: like the AI key, it has its encrypted
+ * column (`app_settings.sso_client_secret_encrypted`). What is here can be read,
+ * returned by the API and written to the audit log without exposing anything.
  *
- * Mêmes champs sans défaut que les autres sections, pour la même raison : un
- * PATCH qui ne parle que de `enabled` ne doit pas effacer les correspondances
- * de rôles.
+ * The same fields without defaults as the other sections, for the same reason:
+ * a PATCH only about `enabled` must not erase the role mappings.
  */
 const ssoFields = {
   enabled: z.boolean(),
-  /** Le texte du bouton : « Se connecter avec Keycloak ». */
+  /** The button's text: "Sign in with Keycloak". */
   label: z.string().trim().min(1).max(40),
   /**
-   * L'émetteur, tel que le fournisseur l'annonce : pour Keycloak,
-   * `https://auth.exemple.fr/realms/mon-realm`. La découverte est lue à
+   * The issuer, as the provider announces it: for Keycloak,
+   * `https://auth.example.com/realms/my-realm`. The discovery is read at
    * `{issuer}/.well-known/openid-configuration`.
    */
   issuer: z.union([
@@ -298,23 +296,23 @@ const ssoFields = {
       .refine((value) => /^https?:\/\//.test(value), { message: 'adresse http(s) attendue' }),
   ]),
   clientId: z.string().trim().max(200),
-  /** Les portées demandées, séparées par des espaces. `openid` est toujours ajoutée. */
+  /** The requested scopes, space-separated. `openid` is always added. */
   scopes: z.string().trim().max(300),
-  /** Créer le compte à la première connexion. Sinon, seuls les comptes existants entrent. */
+  /** Create the account at the first sign-in. Otherwise, only existing accounts get in. */
   autoCreate: z.boolean(),
   /**
-   * Lier la connexion à un compte existant de même e-mail — seulement quand le
-   * fournisseur déclare cet e-mail vérifié.
+   * Link the sign-in to an existing account with the same email — only when the
+   * provider declares that email verified.
    */
   linkByEmail: z.boolean(),
-  /** Où lire les groupes dans le profil : `groups`, ou un chemin `realm_access.roles`. */
+  /** Where to read groups in the profile: `groups`, or a path like `realm_access.roles`. */
   groupsClaim: z
     .string()
     .trim()
     .min(1)
     .max(100)
     .regex(/^[\w:-]+(\.[\w:-]+)*$/, 'chemin de champ attendu, ex. groups ou realm_access.roles'),
-  /** Groupe du fournisseur → rôle de Pupitre. La première qui correspond l'emporte. */
+  /** Provider group → Pupitre role. The first match wins. */
   roleMappings: z
     .array(
       z.object({
@@ -323,9 +321,9 @@ const ssoFields = {
       }),
     )
     .max(50),
-  /** Le rôle de qui n'a aucun groupe reconnu. */
+  /** The role of whoever has no recognized group. */
   defaultRole: z.string().trim().min(1).max(60),
-  /** Réappliquer les correspondances à chaque connexion : le fournisseur fait foi. */
+  /** Apply the mappings again at each sign-in: the provider is authoritative. */
   syncRoles: z.boolean(),
 };
 
@@ -362,22 +360,22 @@ export type SsoSettings = z.infer<typeof ssoSettingsSchema>;
 export const DEFAULT_SSO_SETTINGS: SsoSettings = ssoSettingsSchema.parse({});
 
 /**
- * Les comptes et leurs sessions : qui doit porter un second facteur, et combien
- * de temps une session reste ouverte.
+ * Accounts and their sessions: who must carry a second factor, and how long a
+ * session stays open.
  *
- * Les durées sont en heures, choisies dans une liste courte : une durée libre
- * invite à des valeurs qu'on ne relit jamais (une session de 9 999 heures).
+ * Durations are in hours, chosen from a short list: a free duration invites
+ * values nobody ever reads again (a 9,999-hour session).
  */
 export const SESSION_IDLE_HOURS = [1, 8, 24, 168, 720] as const;
 export const SESSION_MAX_HOURS = [24, 168, 720] as const;
 
 const accountsFields = {
   /**
-   * `off` : personne n'y est tenu. `sensitive` : tout rôle qui porte une
-   * permission sensible (`SENSITIVE_PERMISSIONS`). `all` : tous les comptes.
+   * `off`: nobody is bound by it. `sensitive`: any role that carries a sensitive
+   * permission (`SENSITIVE_PERMISSIONS`). `all`: every account.
    */
   twoFactorPolicy: z.enum(TWO_FACTOR_POLICIES),
-  /** Sans activité pendant cette durée, la session se ferme. Toute requête la prolonge. */
+  /** Without activity for this duration, the session closes. Any request extends it. */
   sessionIdleHours: z.union(
     SESSION_IDLE_HOURS.map((hours) => z.literal(hours)) as unknown as [
       z.ZodLiteral<1>,
@@ -387,7 +385,7 @@ const accountsFields = {
       z.ZodLiteral<720>,
     ],
   ),
-  /** Au-delà, la session se ferme même active : on se reconnecte. `null` : pas de plafond. */
+  /** Beyond this, the session closes even when active: sign in again. `null`: no cap. */
   sessionMaxHours: z
     .union(
       SESSION_MAX_HOURS.map((hours) => z.literal(hours)) as unknown as [
@@ -416,15 +414,15 @@ export type AccountsSettings = z.infer<typeof accountsSettingsSchema>;
 export const DEFAULT_ACCOUNTS_SETTINGS: AccountsSettings = accountsSettingsSchema.parse({});
 
 /**
- * La politique de scan de l'instance, telle qu'elle s'applique à un
- * déploiement qui n'en demande aucune en particulier.
+ * The instance's scan policy, as it applies to a deployment that asks for none
+ * in particular.
  *
- * C'est le pendant de `applySecuritySettings` : celle-ci oppose un veto à une
- * demande explicite, celle-là fournit la politique quand personne n'en formule.
- * Avant que les paramètres n'existent, l'absence de configuration valait
- * « aucun scan » — défendable quand l'écran de déploiement portait le choix,
- * intenable depuis qu'il ne le porte plus : retirer trois cases à cocher aurait
- * silencieusement désarmé l'analyse de toutes les mises en ligne.
+ * It is the counterpart of `applySecuritySettings`: that one vetoes an explicit
+ * request, this one provides the policy when nobody states one. Before the
+ * settings existed, the absence of configuration meant "no scan" — defensible
+ * when the deployment screen carried the choice, untenable since it no longer
+ * does: removing three checkboxes would have silently disarmed the scanning of
+ * every release.
  */
 export function scanConfigFromSettings(security: SecuritySettings): ScanConfig {
   if (!security.scanningEnabled) {
@@ -441,28 +439,29 @@ export function scanConfigFromSettings(security: SecuritySettings): ScanConfig {
 }
 
 /**
- * Applique les réglages de sécurité à une configuration de scan demandée.
+ * Applies the security settings to a requested scan configuration.
  *
- * Appelée **au moment de l'enfilement**, pas dans le worker : la configuration
- * est gelée dans le déploiement, et elle doit dire la vérité sur ce qui va
- * tourner. La filtrer plus tard laisserait en base la trace d'un scanner qui
- * n'a jamais été lancé — un mensonge durable, dans la seule colonne qui sert
- * ensuite à comprendre ce qui a été vérifié.
+ * Called **at enqueue time**, not in the worker: the configuration is frozen in
+ * the deployment, and it must tell the truth about what is going to run.
+ * Filtering it later would leave in the database the trace of a scanner that
+ * never ran — a lasting lie, in the only column used afterwards to understand
+ * what was checked.
  *
- * Conséquence assumée : rallumer l'analyse ne rétroagit pas sur les
- * déploiements déjà enfilés. C'est la même sémantique de gel que l'AppSpec.
+ * Accepted consequence: turning scanning back on does not act retroactively on
+ * deployments already enqueued. It is the same freezing semantics as the
+ * AppSpec.
  */
 export function applySecuritySettings(
   requested: ScanConfig,
   security: SecuritySettings,
 ): ScanConfig {
   if (!security.scanningEnabled) {
-    // `failOn` retombe à NONE : garder un seuil de blocage sans rien pour
-    // l'évaluer donnerait une promesse que personne ne tient.
+    // `failOn` falls back to NONE: keeping a blocking threshold with nothing to
+    // evaluate it would make a promise nobody keeps.
     return { ...requested, scanners: [], failOn: 'NONE', disabledBy: 'settings' };
   }
 
-  // Une demande qui ne dit rien des corrigeables suit l'instance.
+  // A request that says nothing about fixable ones follows the instance.
   const withFixable: ScanConfig = {
     ...requested,
     onlyFixable: requested.onlyFixable ?? security.onlyFixable,
@@ -480,19 +479,19 @@ export function applySecuritySettings(
 }
 
 /* ---------------------------------------------------------------------------
-   Assistant de démarrage
+   Setup guide
    ------------------------------------------------------------------------- */
 
 /**
- * Les étapes, dans l'ordre du parcours. L'ordre n'est pas décoratif : il va du
- * plus général au plus particulier, et chaque étape ne dépend que des
- * précédentes. `welcome` situe le panel avant de rien demander ; `identity`
- * n'engage rien d'extérieur ; `target` est la seule qui touche une machine ;
- * `proxy` la suit : le reverse proxy d'une machine se règle quand elle existe ;
- * `role` puis `user` viennent après elle parce qu'un rôle sert à donner accès
- * à quelque chose qui existe — inviter quelqu'un sur un panel sans cible n'a
- * pas d'objet ; `security` règle ce qui s'appliquera aux déploiements à venir ;
- * `summary` ne fait que rendre compte.
+ * The steps, in the guide's order. The order is not decorative: it goes from
+ * the most general to the most specific, and each step only depends on the
+ * previous ones. `welcome` situates the panel before asking anything;
+ * `identity` commits nothing external; `target` is the only one that touches a
+ * machine; `proxy` follows it: a machine's reverse proxy is set once it exists;
+ * `role` then `user` come after it because a role is used to give access to
+ * something that exists — inviting someone onto a panel without a target is
+ * pointless; `security` sets what will apply to future deployments; `summary`
+ * only reports.
  */
 export const ONBOARDING_STEPS = [
   'welcome',
@@ -508,29 +507,29 @@ export const ONBOARDING_STEPS = [
 export type OnboardingStepId = (typeof ONBOARDING_STEPS)[number];
 
 /**
- * Quatre états, parce que trois questions distinctes doivent trouver une
- * réponse et qu'un booléen n'en couvre qu'une :
+ * Four states, because three distinct questions need an answer and a boolean
+ * only covers one:
  *
- *   `pending`     — jamais proposé. C'est l'état d'une installation neuve.
- *   `in_progress` — proposé au moins une fois, ni terminé ni abandonné. C'est
- *                   ici que `currentStep` a un sens : on reprend où l'on
- *                   s'était arrêté.
- *   `dismissed`   — abandonné volontairement («&nbsp;je m'en occupe plus
- *                   tard&nbsp;»). Ce n'est pas «&nbsp;terminé&nbsp;» : le
- *                   récapitulatif dira toujours ce qui n'a pas été fait.
- *   `completed`   — parcouru jusqu'au bout.
+ *   `pending`     — never offered. It is the state of a new installation.
+ *   `in_progress` — offered at least once, neither finished nor abandoned. It
+ *                   is here that `currentStep` makes sense: we resume where we
+ *                   left off.
+ *   `dismissed`   — deliberately abandoned ("I'll deal with it later"). It is
+ *                   not "completed": the summary will always say what was not
+ *                   done.
+ *   `completed`   — gone through to the end.
  *
- * Confondre `dismissed` et `completed` reviendrait à prétendre qu'une
- * installation est configurée alors que personne n'a rien fait ; confondre
- * `pending` et `in_progress` ferait tout recommencer à celui qui ferme son
- * navigateur au milieu.
+ * Confusing `dismissed` and `completed` would amount to claiming an
+ * installation is configured when nobody did anything; confusing `pending` and
+ * `in_progress` would make whoever closes their browser in the middle start
+ * over.
  */
 export const ONBOARDING_STATUSES = ['pending', 'in_progress', 'dismissed', 'completed'] as const;
 export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
 
 /**
- * Horodatage ISO. `Date.parse` plutôt qu'un format figé : la valeur vient de
- * `toISOString()`, et l'unique chose à garantir est qu'elle se relise.
+ * ISO timestamp. `Date.parse` rather than a fixed format: the value comes from
+ * `toISOString()`, and the only thing to guarantee is that it reads back.
  */
 const onboardingTimestamp = z
   .string()
@@ -546,17 +545,17 @@ const onboardingStepList = z
 
 export const onboardingStateSchema = z.object({
   status: z.enum(ONBOARDING_STATUSES).default('pending'),
-  /** Où l'on reprend. N'a de sens que tant que le parcours n'est pas soldé. */
+  /** Where we resume. Only makes sense while the guide is not settled. */
   currentStep: z.enum(ONBOARDING_STEPS).default('welcome'),
-  /** Étapes accomplies — quelque chose a réellement été créé ou enregistré. */
+  /** Completed steps — something was really created or saved. */
   completed: onboardingStepList,
-  /** Étapes passées sciemment. Distinct de « accomplie », et de « pas encore vue ». */
+  /** Steps knowingly skipped. Distinct from "completed", and from "not seen yet". */
   skipped: onboardingStepList,
-  /** Première fois que l'assistant a été montré à quelqu'un. */
+  /** First time the guide was shown to someone. */
   offeredAt: onboardingTimestamp,
   finishedAt: onboardingTimestamp,
   dismissedAt: onboardingTimestamp,
-  /** Nombre de relances depuis les paramètres. Zéro pour le parcours d'origine. */
+  /** Number of restarts from the settings. Zero for the original run. */
   runs: z.number().int().min(0).max(10_000).default(0),
 });
 
@@ -565,28 +564,28 @@ export type OnboardingState = z.infer<typeof onboardingStateSchema>;
 export const DEFAULT_ONBOARDING_STATE: OnboardingState = onboardingStateSchema.parse({});
 
 /**
- * Ce qu'une étape est, une fois la prose retirée.
+ * What a step is, once the prose is removed.
  *
- * Le titre, le résumé, le détail et le prix à payer pour la passer vivaient
- * ici. Ils sont partis dans `apps/web/src/i18n/messages/onboarding.ts`, sous
- * `step.<id>.*` : c'était de l'affichage, rien dans ce paquet ne les lisait, et
- * les garder aurait obligé le catalogue à porter deux langues par champ. Ce qui
- * reste décide — quelle permission l'étape exige, et si on peut la passer — et
- * ne dépend d'aucune langue.
+ * The title, the summary, the detail and the price to pay for skipping it used
+ * to live here. They moved to `apps/web/src/i18n/messages/onboarding.ts`, under
+ * `step.<id>.*`: it was display, nothing in this package read them, and keeping
+ * them would have forced the catalog to carry two languages per field. What
+ * remains decides — which permission the step requires, and whether it can be
+ * skipped — and depends on no language.
  */
 export type OnboardingStepDefinition = {
   id: OnboardingStepId;
   /**
-   * Permission sans laquelle l'étape finirait en 403. `null` pour les étapes
-   * qui ne créent rien (`welcome`, `summary`) : elles n'ouvrent aucun droit et
-   * ne suffisent jamais, à elles seules, à justifier l'assistant.
+   * Permission without which the step would end in a 403. `null` for the steps
+   * that create nothing (`welcome`, `summary`): they open no right and are never
+   * enough, on their own, to justify the guide.
    */
   requires: Permission | null;
   /**
-   * Facultative : elle peut être passée explicitement. La clé `step.<id>.cost`
-   * du dictionnaire dit alors ce qu'on perd, et elle n'existe que pour ces
-   * étapes-là — un bouton «&nbsp;Passer&nbsp;» sans conséquence annoncée n'est
-   * pas un choix éclairé. `optional` suffit donc à savoir si le prix se lit.
+   * Optional: it can be skipped explicitly. The dictionary's `step.<id>.cost` key
+   * then says what is lost, and it only exists for those steps — a "Skip" button
+   * without an announced consequence is not an informed choice. `optional` is
+   * therefore enough to know whether the price can be read.
    */
   optional: boolean;
 };
@@ -608,18 +607,18 @@ const STEP_BY_ID = new Map<OnboardingStepId, OnboardingStepDefinition>(
 
 export function onboardingStep(id: OnboardingStepId): OnboardingStepDefinition {
   const step = STEP_BY_ID.get(id);
-  // Impossible par typage ; la garde existe pour le JSON relu depuis la base.
-  if (!step) throw new Error(`Étape d'onboarding inconnue : ${id}`);
+  // Impossible by typing; the guard exists for the JSON read back from the database.
+  if (!step) throw new Error(`Unknown onboarding step: ${id}`);
   return step;
 }
 
 /**
- * Étapes retenues pour une personne donnée.
+ * Steps kept for a given person.
  *
- * Une étape qu'on ne peut pas accomplir n'est pas grisée, elle est **absente** :
- * proposer un formulaire dont l'enregistrement finira en 403 est pire que ne
- * rien proposer du tout. `welcome` et `summary` n'exigent rien et encadrent
- * toujours le parcours — mais seulement s'il reste quelque chose entre les deux.
+ * A step that cannot be done is not greyed out, it is **absent**: offering a
+ * form whose save will end in a 403 is worse than offering nothing at all.
+ * `welcome` and `summary` require nothing and always frame the guide — but only
+ * if something remains between the two.
  */
 export function onboardingStepsFor(
   can: (permission: Permission) => boolean,
@@ -635,8 +634,8 @@ export function onboardingStepsFor(
 }
 
 /**
- * L'assistant concerne-t-il cette personne ? Faux pour un observateur : il n'y
- * a rien qu'il puisse faire, l'écran ne lui apprendrait qu'à lire des refus.
+ * Does the guide concern this person? False for a viewer: there is nothing they
+ * can do, the screen would only teach them to read refusals.
  */
 export function onboardingApplies(can: (permission: Permission) => boolean): boolean {
   return ONBOARDING_STEP_DEFINITIONS.some(
@@ -644,12 +643,12 @@ export function onboardingApplies(can: (permission: Permission) => boolean): boo
   );
 }
 
-/** Soldé : plus rien à reprendre, dans un sens ou dans l'autre. */
+/** Settled: nothing left to resume, one way or the other. */
 export function isOnboardingSettled(state: OnboardingState): boolean {
   return state.status === 'completed' || state.status === 'dismissed';
 }
 
-/** Ce qu'on sait d'une étape : accomplie, passée, ou pas encore traitée. */
+/** What is known about a step: completed, skipped, or not handled yet. */
 export type OnboardingStepOutcome = 'done' | 'skipped' | 'todo';
 
 export function onboardingStepOutcome(
@@ -662,9 +661,9 @@ export function onboardingStepOutcome(
 }
 
 /**
- * Étape enrichie de son état, telle que la rendent l'API et la page. Une seule
- * fonction pour les deux : l'écran ne doit pas pouvoir afficher une progression
- * différente de celle que l'API rapporte.
+ * A step enriched with its state, as the API and the page return it. A single
+ * function for both: the screen must not be able to show a progress different
+ * from the one the API reports.
  */
 export type OnboardingPresentedStep = OnboardingStepDefinition & {
   outcome: OnboardingStepOutcome;
@@ -687,8 +686,8 @@ function withoutStep(steps: readonly OnboardingStepId[], step: OnboardingStepId)
 }
 
 /**
- * Étape suivante parmi celles qui concernent la personne. Rend `summary` quand
- * il n'y a plus rien après — le parcours a toujours une fin visible.
+ * Next step among those that concern the person. Returns `summary` when nothing
+ * remains after — the guide always has a visible end.
  */
 export function nextOnboardingStep(
   from: OnboardingStepId,
@@ -701,9 +700,9 @@ export function nextOnboardingStep(
 }
 
 /**
- * Transitions du parcours. Écrites ici, en un seul endroit, plutôt que dans le
- * handler HTTP : le panel, le script de vérification et l'écran de relance
- * doivent tous produire exactement les mêmes états.
+ * The guide's transitions. Written here, in a single place, rather than in the
+ * HTTP handler: the panel, the verification script and the restart screen must
+ * all produce exactly the same states.
  */
 export type OnboardingAction =
   | { kind: 'offer' }
@@ -724,7 +723,7 @@ export function applyOnboardingAction(
 
   switch (action.kind) {
     case 'offer':
-      // Idempotent : ne repasse jamais un parcours soldé en cours.
+      // Idempotent: never puts a settled guide back in progress.
       if (current.status !== 'pending') return current;
       return {
         ...current,
@@ -741,7 +740,7 @@ export function applyOnboardingAction(
         status: 'in_progress',
         offeredAt: current.offeredAt ?? stamp,
         completed: [...withoutStep(current.completed, action.step), action.step],
-        // Accomplir efface le fait de l'avoir passée : les deux ne coexistent pas.
+        // Completing erases having skipped it: the two do not coexist.
         skipped: withoutStep(current.skipped, action.step),
         currentStep: nextOnboardingStep(action.step, steps),
       };
@@ -776,8 +775,8 @@ export function applyOnboardingAction(
       };
 
     case 'restart':
-      // Repart de zéro, mais garde la trace du nombre de passages : « jamais
-      // lancé » et « relancé trois fois puis abandonné » ne se ressemblent pas.
+      // Starts from scratch, but keeps track of the number of runs: "never run" and
+      // "run three times then abandoned" do not look alike.
       return {
         status: 'pending',
         currentStep: 'welcome',
@@ -792,17 +791,17 @@ export function applyOnboardingAction(
 }
 
 /**
- * Champs **sans défaut**. C'est la forme de référence : le patch partiel en
- * dérive directement.
+ * Fields **without defaults**. It is the reference shape: the partial patch
+ * derives from it directly.
  *
- * Piège que cette séparation évite : `z.string().default('X').optional()` rend
- * quand même `'X'` quand la clé est absente, au lieu de laisser le champ
- * absent. Un PATCH ne portant que le fuseau produirait alors un objet complet
- * de valeurs par défaut, et réinitialiserait silencieusement le nom de
- * l'instance. Le défaut n'est donc appliqué que sur le schéma de *lecture*.
+ * The trap this split avoids: `z.string().default('X').optional()` still returns
+ * `'X'` when the key is absent, instead of leaving the field absent. A PATCH
+ * carrying only the time zone would then produce a complete object of default
+ * values, and silently reset the instance's name. The default is therefore only
+ * applied on the *read* schema.
  */
 const appSettingsFields = {
-  /** Nom affiché en haut à gauche et dans le titre du document. */
+  /** Name shown at the top left and in the document title. */
   instanceName: z.string().trim().min(1).max(40),
   instanceTagline: z.string().trim().max(60),
   timezone: timeZoneSchema,
@@ -826,9 +825,9 @@ const FIELD_DEFAULTS = {
 } as const;
 
 /**
- * Forme de lecture, défauts compris. Exposée séparément de
- * `appSettingsSchema` pour que la lecture tolérante (`parseAppSettings`) puisse
- * revalider un champ isolé sans rejeter tout l'objet.
+ * Read shape, defaults included. Exposed separately from `appSettingsSchema` so
+ * that the tolerant read (`parseAppSettings`) can validate a single field again
+ * without rejecting the whole object.
  */
 export const appSettingsShape = {
   instanceName: appSettingsFields.instanceName.default(FIELD_DEFAULTS.instanceName),
@@ -842,12 +841,12 @@ export const appSettingsShape = {
   sso: ssoSettingsSchema.default(DEFAULT_SSO_SETTINGS),
   accounts: accountsSettingsSchema.default(DEFAULT_ACCOUNTS_SETTINGS),
   /**
-   * Avancement de l'assistant de démarrage. Il est dans la forme de *lecture*
-   * mais volontairement absent de `appSettingsPatchSchema` : `PATCH
-   * /api/settings` ne doit pas pouvoir déclarer un parcours terminé au détour
-   * d'un changement de fuseau. Sa présence ici est en revanche indispensable —
-   * `mergeAppSettings()` revalide l'objet entier, et un champ hors schéma
-   * serait silencieusement effacé au premier enregistrement des paramètres.
+   * Progress of the setup guide. It is in the *read* shape but deliberately
+   * absent from `appSettingsPatchSchema`: `PATCH /api/settings` must not be able
+   * to declare a guide finished in passing during a time zone change. Its
+   * presence here is however essential — `mergeAppSettings()` validates the whole
+   * object again, and a field outside the schema would be silently erased at the
+   * first save of the settings.
    */
   onboarding: onboardingStateSchema.default(DEFAULT_ONBOARDING_STATE),
 };
@@ -859,9 +858,9 @@ export type AppSettings = z.infer<typeof appSettingsSchema>;
 export const DEFAULT_APP_SETTINGS: AppSettings = appSettingsSchema.parse({});
 
 /**
- * Patch partiel accepté par `PATCH /api/settings`. Bâti sur les champs sans
- * défaut : une clé absente reste absente, et ne réinitialise donc rien.
- * `ai` est partiel lui aussi — régler `ai.enabled` ne doit pas effacer le modèle.
+ * Partial patch accepted by `PATCH /api/settings`. Built on the fields without
+ * defaults: an absent key stays absent, and therefore resets nothing. `ai` is
+ * partial too — setting `ai.enabled` must not erase the model.
  */
 export const appSettingsPatchSchema = z.object({
   instanceName: appSettingsFields.instanceName.optional(),
@@ -883,12 +882,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Lecture tolérante : rend toujours un objet complet.
+ * Tolerant read: always returns a complete object.
  *
- * Si l'objet entier passe le schéma, on s'arrête là. Sinon on reprend champ par
- * champ et on ne retient que ceux qui valident — un seul réglage devenu invalide
- * (schéma durci entre deux versions, retouche en SQL à la main) ne doit pas
- * faire retomber toute l'instance sur ses défauts, ni casser l'affichage.
+ * If the whole object passes the schema, we stop there. Otherwise we go field by
+ * field and only keep those that validate — a single setting that became
+ * invalid (schema tightened between two versions, hand-edited in SQL) must not
+ * make the whole instance fall back on its defaults, nor break the display.
  */
 export function parseAppSettings(raw: unknown): AppSettings {
   const direct = appSettingsSchema.safeParse(raw ?? {});
@@ -898,45 +897,45 @@ export function parseAppSettings(raw: unknown): AppSettings {
   const salvaged: Record<string, unknown> = {};
   for (const [key, schema] of Object.entries(appSettingsShape)) {
     const field = schema.safeParse(source[key]);
-    // Une clé absente déclenche le `.default()` du champ à la reconstruction.
+    // An absent key triggers the field's `.default()` on reconstruction.
     if (field.success) salvaged[key] = field.data;
   }
   return appSettingsSchema.parse(salvaged);
 }
 
 /**
- * Fusion superficielle d'un patch sur des paramètres existants.
- * `ai` est le seul objet imbriqué : il se fusionne, il ne s'écrase pas — un
- * PATCH qui ne porte que `ai.enabled` ne doit pas réinitialiser le modèle.
+ * Shallow merge of a patch onto existing settings. `ai` is the only nested
+ * object: it is merged, not overwritten — a PATCH carrying only `ai.enabled`
+ * must not reset the model.
  */
-/** Un objet simple, par opposition à un tableau ou à `null`. */
+/** A plain object, as opposed to an array or `null`. */
 function isSection(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function mergeAppSettings(current: AppSettings, patch: AppSettingsPatch): AppSettings {
   /**
-   * Fusion **sur un niveau**, et pas davantage.
+   * Merge **one level deep**, and no more.
    *
-   * Un niveau parce que les sections (`ai`, `security`) contiennent des
-   * scalaires et des tableaux : `disabledScanners: ['syft']` doit *remplacer*
-   * la liste courante, pas s'y ajouter. Fusionner plus profond rendrait
-   * impossible de retirer un scanner de la liste.
+   * One level because the sections (`ai`, `security`) contain scalars and
+   * arrays: `disabledScanners: ['syft']` must *replace* the current list, not add
+   * to it. Merging deeper would make it impossible to remove a scanner from the
+   * list.
    *
-   * Mais au moins un niveau, sinon un PATCH ne parlant que de
-   * `security.scanningEnabled` remplacerait toute la section, et le schéma de
-   * lecture comblerait les clés manquantes par leurs défauts — réinitialisant
-   * en silence les scanners écartés et le seuil de blocage. Ce défaut a
-   * réellement existé : la fusion profonde n'était câblée que pour `ai`, et
-   * `security` retombait dans le cas général sans que rien ne le signale.
-   * Traiter les sections par leur forme plutôt que par leur nom évite qu'une
-   * section ajoutée demain hérite du même piège.
+   * But at least one level, otherwise a PATCH only about
+   * `security.scanningEnabled` would replace the whole section, and the read
+   * schema would fill the missing keys with their defaults — silently resetting
+   * the set-aside scanners and the blocking threshold. That defect really
+   * existed: the deep merge was only wired for `ai`, and `security` fell into the
+   * general case without anything reporting it. Treating sections by their shape
+   * rather than their name keeps a section added tomorrow from inheriting the same
+   * trap.
    */
   const merged: Record<string, unknown> = { ...current };
 
   for (const [key, value] of Object.entries(patch)) {
-    // Une clé explicitement à `undefined` ne doit pas écraser la valeur
-    // courante : l'écrasement retomberait sur le défaut du schéma.
+    // A key explicitly set to `undefined` must not overwrite the current value:
+    // overwriting would fall back on the schema's default.
     if (value === undefined) continue;
 
     const existing = merged[key];

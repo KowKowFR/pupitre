@@ -15,19 +15,18 @@ import {
 } from './workloads.js';
 
 /**
- * Contrat partagé entre `apps/web` (producteur) et `apps/worker` (consommateur).
- * Toute opération longue passe par ici — jamais dans une route HTTP.
+ * Contract shared between `apps/web` (producer) and `apps/worker` (consumer).
+ * Every long-running operation goes through here — never in an HTTP route.
  */
 
 export const OPS_QUEUE = 'ops' as const;
 
 /**
- * File dédiée à la supervision.
+ * Queue dedicated to monitoring.
  *
- * Un flux de logs tient son slot tant qu'un spectateur regarde — jusqu'à trente
- * minutes. Le laisser dans `ops` reviendrait à ce que quatre onglets ouverts
- * empêchent tout déploiement. Deux files, deux budgets de concurrence, aucune
- * famine possible.
+ * A log stream holds its slot as long as a viewer is watching — up to thirty
+ * minutes. Leaving it in `ops` would mean four open tabs could prevent every
+ * deployment. Two queues, two concurrency budgets, no possible starvation.
  */
 export const SUPERVISION_QUEUE = 'supervision' as const;
 
@@ -40,190 +39,186 @@ export const DEPLOYMENT_ROLLBACK_JOB = 'deployment:rollback' as const;
 export const DEPLOYMENT_DESTROY_JOB = 'deployment:destroy' as const;
 
 /**
- * Suppression en cascade d'une application : détruire ce qui tourne sur les
- * cibles, purger l'historique, rendre les ports, effacer l'application.
+ * Cascading deletion of an application: destroy what runs on the targets, purge
+ * the history, release the ports, delete the application.
  *
- * Sur `ops`, avec les déploiements : c'est le même travail distant, il doit en
- * partager le budget de concurrence. Et par la queue, parce qu'une application
- * déployée sur trois machines, c'est trois sessions SSH — très au-delà de ce
- * qu'une route HTTP a le droit de tenir.
+ * On `ops`, with the deployments: it is the same remote work, it must share
+ * their concurrency budget. And through the queue, because an application
+ * deployed on three machines means three SSH sessions — far beyond what an HTTP
+ * route is allowed to hold.
  *
- * Ne se compose pas de `DEPLOYMENT_DESTROY_JOB` enfilés en rafale : le verdict
- * d'ensemble — « qu'est-ce qui n'a pas pu être détruit, et qu'abandonne-t-on
- * alors » — n'appartiendrait à personne. Une tâche, un rapport.
+ * It is not made of `DEPLOYMENT_DESTROY_JOB`s enqueued in a burst: the overall
+ * verdict — "what could not be destroyed, and what do we abandon then" — would
+ * belong to nobody. One task, one report.
  */
 export const APPLICATION_DELETE_JOB = 'application:delete' as const;
 
-/** Suivi des logs applicatifs. Tient une session SSH tant qu'un spectateur écoute. */
+/** Following application logs. Holds an SSH session as long as a viewer listens. */
 export const APP_LOGS_JOB = 'app:logs' as const;
-/** Redémarrage d'une application en marche. */
+/** Restarting a running application. */
 export const APP_RESTART_JOB = 'app:restart' as const;
 /**
- * Arrêt et remise en marche d'une application déployée.
+ * Stopping and starting a deployed application.
  *
- * Sur la file de supervision, avec le redémarrage : ce sont les mêmes gestes
- * d'exploitation sur une application déjà en place, ils ne rejouent aucun
- * pipeline et ne se disputent pas les slots des déploiements.
+ * On the monitoring queue, with the restart: they are the same operations
+ * gestures on an application already in place, they replay no pipeline and do
+ * not compete for the deployments' slots.
  *
- * Deux noms de tâche plutôt qu'un seul avec un champ `action` : un worker d'une
- * version antérieure qui reçoit un nom inconnu échoue franchement, alors qu'il
- * aurait ignoré un champ en trop — zod retire les clés qu'il ne connaît pas —
- * et **redémarré** une application qu'on lui demandait d'arrêter. Le nom de la
- * tâche est la seule partie du message qu'un consommateur ne peut pas
- * réinterpréter de travers.
+ * Two task names rather than one with an `action` field: a worker of an earlier
+ * version that receives an unknown name fails outright, whereas it would have
+ * ignored an extra field — zod strips keys it does not know — and **restarted**
+ * an application it was asked to stop. The task name is the only part of the
+ * message a consumer cannot misinterpret.
  */
 export const APP_STOP_JOB = 'app:stop' as const;
 export const APP_START_JOB = 'app:start' as const;
 
 /**
- * Inventaire des charges d'une cible. Sur la file de supervision, comme le
- * suivi de logs : c'est une lecture, elle ne doit jamais retarder un
- * déploiement, ni être retardée par lui.
+ * Inventory of a target's workloads. On the monitoring queue, like log
+ * following: it is a read, it must never delay a deployment, nor be delayed by
+ * one.
  */
 export const WORKLOAD_LIST_JOB = 'workload:list' as const;
 
 /**
- * Relevé des métriques d'une machine cible. Sur la file de supervision, pour la
- * même raison que l'inventaire : c'est une lecture, elle ne doit ni retarder un
- * déploiement, ni être retardée par lui. Le panel n'a aucun autre chemin vers
- * une machine distante — `ssh2` est hors de son graphe.
+ * Reading of a target machine's metrics. On the monitoring queue, for the same
+ * reason as the inventory: it is a read, it must neither delay a deployment nor
+ * be delayed by one. The panel has no other path to a remote machine — `ssh2`
+ * is outside its graph.
  */
 export const TARGET_METRICS_JOB = 'target:metrics' as const;
 
 /**
- * Le relevé d'un domaine pour son tiroir : DNS, RDAP, certificat. Sur la file
- * de supervision : quelques secondes de réseau, une lecture que le panel
- * attend et qu'un déploiement ne doit pas retarder.
+ * A domain's inspection for its drawer: DNS, RDAP, certificate. On the
+ * monitoring queue: a few seconds of network, a read the panel waits for and
+ * that a deployment must not delay.
  */
 export const DOMAIN_INSPECT_JOB = 'domain:inspect' as const;
 
 /**
- * Suppression et mise à jour d'une charge. Sur `ops` : ce sont des écritures
- * sur la machine, du même ordre qu'un déploiement, et elles doivent en partager
- * la discipline de concurrence.
+ * Deleting and updating a workload. On `ops`: they are writes on the machine,
+ * of the same order as a deployment, and they must share its concurrency
+ * discipline.
  *
- * Ces deux tâches sont toujours enfilées avec `attempts: 1` : rejouer une
- * suppression n'a aucun sens, et rejouer une mise à jour recréerait une charge
- * déjà recréée.
+ * Both tasks are always enqueued with `attempts: 1`: replaying a deletion makes
+ * no sense, and replaying an update would recreate a workload already
+ * recreated.
  */
 export const WORKLOAD_REMOVE_JOB = 'workload:remove' as const;
 export const WORKLOAD_UPDATE_JOB = 'workload:update' as const;
 
 /**
- * Démarrer, arrêter, redémarrer une charge ; y exécuter une commande. Sur
- * `ops`, comme la suppression : ce sont des écritures sur la machine.
+ * Starting, stopping, restarting a workload; running a command in it. On
+ * `ops`, like the deletion: they are writes on the machine.
  */
 export const WORKLOAD_CONTROL_JOB = 'workload:control' as const;
 export const WORKLOAD_EXEC_JOB = 'workload:exec' as const;
 
 /**
- * Les dernières lignes du journal d'une charge. Sur `supervision` : c'est une
- * lecture, elle ne doit pas attendre derrière un déploiement.
+ * The last lines of a workload's log. On `supervision`: it is a read, it must
+ * not wait behind a deployment.
  */
 export const WORKLOAD_LOGS_JOB = 'workload:logs' as const;
 
 /**
- * Balayage des sondes de supervision de sites.
+ * Sweep of the website monitoring probes.
  *
- * ── Une tâche répétable par sonde, ou un balayage unique ? ───────────────────
- * Le projet a les deux motifs : `scheduled_jobs` installe un repeatable job par
- * ligne, `target:metrics` est une tâche ponctuelle. Ici, **un seul balayage**,
- * et voici pourquoi :
+ * ── One repeatable task per probe, or a single sweep? ──────────────────────
+ * The project has both patterns: `scheduled_jobs` installs one repeatable job
+ * per row, `target:metrics` is a one-off task. Here, **a single sweep**, and
+ * here is why:
  *
- *   - Un repeatable job par sonde, c'est une réconciliation base ↔ Redis à
- *     chaque création, modification, suspension et suppression. C'est la partie
- *     la plus coûteuse de l'ordonnancement existant, et elle se paierait ici sur
- *     un objet qu'un opérateur crée à la douzaine.
- *   - Un `jobId` BullMQ ne peut pas contenir de deux-points : il faudrait
- *     maltraiter les clés, alors qu'un UUID de sonde tiendrait tel quel.
- *   - La cadence d'une sonde est un nombre de secondes, pas un cron. BullMQ
- *     saurait le faire (`every`), mais le moindre changement d'intervalle
- *     obligerait à réécrire le scheduler — deux vérités qui divergent.
- *   - Surtout : cinquante sondes à trente secondes de délai, c'est vingt-cinq
- *     minutes de travail si on les enchaîne. Le parallélisme et le budget de
- *     temps doivent être décidés **à un seul endroit**, et un balayage est cet
- *     endroit. Cinquante repeatable jobs, eux, se battraient pour les slots de
- *     la file et affameraient les autres lectures.
+ *   - One repeatable job per probe means a database ↔ Redis reconciliation at
+ *     each creation, edit, pause and deletion. It is the most expensive part of
+ *     the existing scheduling, and it would be paid here on an object an
+ *     operator creates by the dozen.
+ *   - A BullMQ `jobId` cannot contain colons: keys would have to be mangled,
+ *     whereas a probe UUID would fit as is.
+ *   - A probe's interval is a number of seconds, not a cron. BullMQ could do it
+ *     (`every`), but the slightest interval change would require rewriting the
+ *     scheduler — two truths that drift apart.
+ *   - Above all: fifty probes with a thirty-second timeout are twenty-five
+ *     minutes of work if chained. Parallelism and the time budget must be
+ *     decided **in a single place**, and a sweep is that place. Fifty repeatable
+ *     jobs would fight for the queue's slots and starve the other reads.
  *
- * La cadence de la sonde, elle, reste en base : le balayage ne réclame que les
- * sondes dont `next_check_at` est échu.
+ * The probe's interval stays in the database: the sweep only claims the probes
+ * whose `next_check_at` is due.
  *
- * Sur la file `supervision`, avec le reste des lectures : sonder un site ne doit
- * jamais retarder un déploiement, ni attendre qu'il finisse.
+ * On the `supervision` queue, with the rest of the reads: probing a site must
+ * never delay a deployment, nor wait for it to finish.
  */
 export const MONITOR_SWEEP_JOB = 'monitor:sweep' as const;
 
 /**
- * « Sonder maintenant » réutilise `MONITOR_SWEEP_JOB` avec un `monitorId` : un
- * second nom de tâche pour exactement le même travail serait du vocabulaire
- * mort, et un second chemin où la politique SSRF pourrait diverger.
+ * "Probe now" reuses `MONITOR_SWEEP_JOB` with a `monitorId`: a second task name
+ * for exactly the same work would be dead vocabulary, and a second path where
+ * the SSRF policy could diverge.
  */
 
 /**
- * Capture d'écran d'une page supervisée.
+ * Screenshot of a monitored page.
  *
- * ── Pourquoi une tâche à part, et pas dans le balayage ──────────────────────
- * Parce qu'**une capture ne doit jamais retarder une alerte**. Le balayage
- * travaille sous un budget de vingt-deux secondes pour deux cents sondes ; une
- * capture coûte deux à dix secondes à elle seule. Rendre cinquante références
- * dans un balayage épuiserait le budget et laisserait des sondes non
- * interrogées — c'est-à-dire qu'une fonctionnalité de confort dégraderait la
- * fonctionnalité principale.
+ * ── Why a separate task, and not in the sweep ──────────────────────────────
+ * Because **a screenshot must never delay an alert**. The sweep works under a
+ * twenty-two-second budget for two hundred probes; a screenshot alone costs two
+ * to ten seconds. Rendering fifty references in a sweep would exhaust the budget
+ * and leave probes unqueried — that is, a convenience feature would degrade the
+ * main feature.
  *
- * Séparée, la capture part **après** que l'incident est écrit et que l'alerte
- * est émise. Elle peut échouer, traîner ou ne jamais tourner : rien de ce qui
- * compte n'en dépend.
+ * Separate, the screenshot leaves **after** the incident is written and the
+ * alert is sent. It can fail, drag or never run: nothing that matters depends
+ * on it.
  *
- * Sur la file `supervision`, avec les autres lectures : c'est un chargement de
- * page vers l'extérieur, il ne doit ni retarder un déploiement, ni l'attendre.
- * `attempts: 1` — une capture ratée ne se rejoue pas : l'instant qu'elle devait
- * montrer est déjà passé, et une image prise trois minutes après l'incident
- * raconterait autre chose que ce qu'on lui demande.
+ * On the `supervision` queue, with the other reads: it is a page load to the
+ * outside, it must neither delay a deployment nor wait for one. `attempts: 1` —
+ * a failed screenshot is not replayed: the moment it was meant to show has
+ * already passed, and an image taken three minutes after the incident would
+ * tell something other than what it is asked.
  */
 export const MONITOR_CAPTURE_JOB = 'monitor:capture' as const;
 
 /**
- * Dépôts liés : « quoi de neuf sur la branche ? ».
+ * Linked repositories: "what is new on the branch?".
  *
- * Planifiée chaque minute par le worker (scheduler BullMQ, jamais un cron),
- * et enfilée à la demande par « Vérifier maintenant » avec un `sourceId`. Sur
- * la file de supervision : ce sont des appels HTTP courts vers le fournisseur,
- * qu'un déploiement en cours ne doit pas faire attendre.
+ * Scheduled every minute by the worker (a BullMQ scheduler, never a cron), and
+ * enqueued on demand by "Check now" with a `sourceId`. On the monitoring queue:
+ * they are short HTTP calls to the provider, which a deployment in progress must
+ * not hold up.
  */
 export const SOURCE_POLL_JOB = 'source:poll' as const;
 
 /**
- * Déployer depuis un dépôt, sur décision humaine : le commit en tête de la
- * branche (« Déployer ce commit »), ou un déploiement en attente qu'on valide.
- * Même file que le polling, et la même fonction de déploiement au bout : une
- * seule implémentation, que le déclenchement soit automatique ou manuel.
+ * Deploying from a repository, on a human decision: the branch's head commit
+ * ("Deploy this commit"), or a pending deployment being approved. Same queue as
+ * the polling, and the same deployment function at the end: a single
+ * implementation, whether the trigger is automatic or manual.
  */
 export const SOURCE_DEPLOY_JOB = 'source:deploy' as const;
 
 /**
- * Relire une archive de code téléversée : la juger entrée par entrée, puis en
- * faire l'archive propre que les déploiements déposeront. Quelques secondes de
- * disque et de CPU — rien qui ait sa place dans une route HTTP, ni qui doive
- * attendre derrière un déploiement : sur `supervision`, comme le polling.
+ * Reading an uploaded code archive: judging it entry by entry, then making the
+ * clean archive deployments will place. A few seconds of disk and CPU — nothing
+ * that belongs in an HTTP route, nor that should wait behind a deployment: on
+ * `supervision`, like the polling.
  */
 export const SOURCE_ARCHIVE_INSPECT_JOB = 'source:archive-inspect' as const;
 
 /**
- * Images des applications déployées : ce qui tourne, comparé à ce que le
- * registre annonce pour le même tag. Toutes les six heures (scheduler BullMQ),
- * et à la demande par « Vérifier maintenant » avec un `applicationId`. Sur
- * `supervision` : des lectures — `HEAD` vers les registres, `docker inspect`
- * sur les cibles —, qu'un déploiement en cours ne doit pas retarder.
+ * Images of deployed applications: what runs, compared with what the registry
+ * announces for the same tag. Every six hours (BullMQ scheduler), and on demand
+ * by "Check now" with an `applicationId`. On `supervision`: reads — `HEAD` to
+ * the registries, `docker inspect` on the targets —, which a deployment in
+ * progress must not delay.
  */
 export const IMAGE_CHECK_JOB = 'images:check' as const;
 export const IMAGE_CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
 /**
- * Le ménage des constructeurs d'images : toutes les heures, chaque cible dont
- * un runtime pose un constructeur (`DeploymentDriver.pruneIdleBuilder`) le voit
- * retiré s'il n'a pas servi depuis longtemps — le driver dit combien. Sur
- * `ops` : c'est une écriture sur la machine, qui partage la discipline de
- * concurrence des déploiements.
+ * Image builder cleanup: every hour, each target where a runtime sets up a
+ * builder (`DeploymentDriver.pruneIdleBuilder`) has it removed if it has not
+ * been used for a long time — the driver says how long. On `ops`: it is a write
+ * on the machine, which shares the deployments' concurrency discipline.
  */
 export const BUILDER_PRUNE_JOB = 'builder:prune' as const;
 export const BUILDER_PRUNE_EVERY_MS = 60 * 60 * 1000;
@@ -231,7 +226,7 @@ export const BUILDER_PRUNE_EVERY_MS = 60 * 60 * 1000;
 export const pingJobDataSchema = z.object({
   message: z.string().min(1).max(280).default('pong'),
   requestedAt: z.string().datetime(),
-  /** Renseigné dès qu'une authentification existe. */
+  /** Filled in as soon as an authentication exists. */
   actorId: z.string().min(1).nullable().default(null),
   ip: z.string().min(1).nullable().default(null),
 });
@@ -240,7 +235,7 @@ export const pingJobResultSchema = z.object({
   ok: z.literal(true),
   message: z.string(),
   handledAt: z.string().datetime(),
-  /** `null` si l'écriture d'audit a échoué — cela ne fait pas échouer la tâche. */
+  /** `null` if the audit write failed — that does not fail the task. */
   auditLogId: z.string().uuid().nullable(),
   workerId: z.string(),
 });
@@ -250,7 +245,7 @@ export type PingJobResult = z.infer<typeof pingJobResultSchema>;
 
 export const targetPreflightJobDataSchema = z.object({
   targetId: z.string().uuid(),
-  /** Utilisateur à l'origine de la demande. `null` pour un déclenchement planifié. */
+  /** User behind the request. `null` for a scheduled trigger. */
   actorId: z.string().min(1).nullable().default(null),
   ip: z.string().min(1).nullable().default(null),
 });
@@ -283,11 +278,11 @@ export type DeploymentJobData = z.infer<typeof deploymentJobDataSchema>;
 export type DeploymentJobResult = z.infer<typeof deploymentJobResultSchema>;
 
 /**
- * Suppression en cascade.
+ * Cascading deletion.
  *
- * `force` n'est pas « saute la destruction » mais « efface quand même ce qui
- * n'a pas pu être détruit ». La tentative a lieu dans les deux cas — un forçage
- * qui ne tente rien serait un mauvais outil —, seule la conclusion diffère.
+ * `force` does not mean "skip the destruction" but "delete anyway what could
+ * not be destroyed". The attempt happens in both cases — a forcing that tries
+ * nothing would be a bad tool —, only the conclusion differs.
  */
 export const applicationDeleteJobDataSchema = z.object({
   applicationId: z.string().uuid(),
@@ -296,7 +291,7 @@ export const applicationDeleteJobDataSchema = z.object({
   ip: z.string().min(1).nullable().default(null),
 });
 
-/** Un déploiement effectivement démonté sur sa cible. */
+/** A deployment actually torn down on its target. */
 export const destroyedDeploymentSchema = z.object({
   deploymentId: z.string().uuid(),
   version: z.number().int().positive(),
@@ -305,15 +300,15 @@ export const destroyedDeploymentSchema = z.object({
 });
 
 /**
- * Ce qu'un forçage abandonne sur une machine, **nommé**.
+ * What a forcing abandons on a machine, **named**.
  *
- * C'est la charge utile qui part dans le journal d'activité, et la seule qui
- * subsistera : une fois l'enregistrement effacé, plus rien dans le panel ne
- * permet de retrouver ces trois informations. Elles sont donc choisies pour
- * qu'un humain puisse finir le ménage à la main sans le panel :
- *   — `targetHost` + `targetName` : sur quelle machine se connecter ;
- *   — `workspace` : le projet Compose (ou namespace) à démonter, `app-{slug}` ;
- *   — `publishedPort` : le port resté promis, à vérifier libre avant réemploi.
+ * It is the payload that goes into the activity log, and the only one that will
+ * remain: once the record is deleted, nothing in the panel can find these three
+ * pieces of information again. They are therefore chosen so that a human can
+ * finish the cleanup by hand without the panel:
+ *   — `targetHost` + `targetName`: which machine to connect to;
+ *   — `workspace`: the Compose project (or namespace) to tear down, `app-{slug}`;
+ *   — `publishedPort`: the port still promised, to check free before reuse.
  */
 export const abandonedWorkloadSchema = z.object({
   deploymentId: z.string().uuid(),
@@ -325,7 +320,7 @@ export const abandonedWorkloadSchema = z.object({
   targetHost: z.string(),
   workspace: z.string(),
   publishedPort: z.number().int().nullable(),
-  /** Pourquoi la destruction propre a échoué. */
+  /** Why the clean destruction failed. */
   error: z.string(),
 });
 
@@ -333,16 +328,16 @@ export const applicationDeleteJobResultSchema = z.object({
   applicationId: z.string().uuid(),
   applicationSlug: z.string(),
   forced: z.boolean(),
-  /** L'application a-t-elle réellement disparu de la base ? */
+  /** Did the application really disappear from the database? */
   deleted: z.boolean(),
   destroyed: z.array(destroyedDeploymentSchema),
-  /** Vide quand tout a été détruit proprement. */
+  /** Empty when everything was destroyed cleanly. */
   abandoned: z.array(abandonedWorkloadSchema),
   purgedCount: z.number().int().nonnegative(),
   releasedPorts: z.array(
     z.object({ targetId: z.string().uuid(), targetName: z.string(), port: z.number().int() }),
   ),
-  /** Une phrase qui dit exactement ce qui a été fait et ce qui ne l'a pas été. */
+  /** A sentence that says exactly what was done and what was not. */
   summary: z.string(),
 });
 
@@ -364,9 +359,9 @@ export const workloadActionJobDataSchema = z.object({
   ref: workloadRefSchema,
   action: workloadActionSchema,
   /**
-   * Nom de la charge tel que l'appelant l'a vu au moment de décider. Il sert au
-   * journal d'audit et aux messages : une charge supprimée n'a plus de nom à
-   * aller chercher après coup.
+   * The workload's name as the caller saw it when deciding. It serves the audit
+   * log and the messages: a deleted workload no longer has a name to look up
+   * afterwards.
    */
   name: z.string().min(1).max(300),
   actorId: z.string().min(1).nullable().default(null),
@@ -387,8 +382,8 @@ export const workloadControlJobDataSchema = workloadActionJobDataSchema.extend({
 });
 
 /**
- * Une commande dans une charge. `run` désigne cette exécution dans le flux
- * temps réel : l'écran qui l'a lancée ne lit que ses propres lignes.
+ * A command in a workload. `run` designates this execution in the real-time
+ * stream: the screen that started it only reads its own lines.
  */
 export const workloadExecJobDataSchema = workloadActionJobDataSchema.extend({
   action: z.literal('exec'),
@@ -409,9 +404,9 @@ export const targetMetricsJobDataSchema = z.object({
 });
 
 /**
- * Le relevé lui-même. Une machine injoignable rend un rapport `reachable:false`
- * — pas une tâche en échec : l'écran doit pouvoir dire *pourquoi* il ne sait
- * rien, et continuer d'afficher ce que la base sait de la machine.
+ * The reading itself. An unreachable machine returns a `reachable:false` report
+ * — not a failed task: the screen must be able to say *why* it knows nothing,
+ * and keep showing what the database knows about the machine.
  */
 export const targetMetricsJobResultSchema = hostMetricsSchema;
 
@@ -419,9 +414,9 @@ export type TargetMetricsJobData = z.infer<typeof targetMetricsJobDataSchema>;
 export type TargetMetricsJobResult = z.infer<typeof targetMetricsJobResultSchema>;
 
 export const sourcePollJobDataSchema = z.object({
-  /** Restreint la vérification à une liaison. `null` : toutes les liaisons actives. */
+  /** Restricts the check to one link. `null`: every active link. */
   sourceId: z.string().uuid().nullable().default(null),
-  /** Ignore l'ETag : repose la question même si GitHub dit « rien de neuf ». */
+  /** Ignores the ETag: asks again even if GitHub says "nothing new". */
   force: z.boolean().default(false),
   actorId: z.string().min(1).nullable().default(null),
   ip: z.string().min(1).nullable().default(null),
@@ -429,7 +424,7 @@ export const sourcePollJobDataSchema = z.object({
 export type SourcePollJobData = z.infer<typeof sourcePollJobDataSchema>;
 
 export const imageCheckJobDataSchema = z.object({
-  /** Restreint la vérification à une application. `null` : tout ce qui est déployé. */
+  /** Restricts the check to one application. `null`: everything deployed. */
   applicationId: z.string().uuid().nullable().default(null),
   actorId: z.string().min(1).nullable().default(null),
   ip: z.string().min(1).nullable().default(null),
@@ -437,11 +432,11 @@ export const imageCheckJobDataSchema = z.object({
 export type ImageCheckJobData = z.infer<typeof imageCheckJobDataSchema>;
 
 export const imageCheckJobResultSchema = z.object({
-  /** Couples (application, cible) examinés. */
+  /** (application, target) pairs examined. */
   checked: z.number().int().nonnegative(),
-  /** Services dont le tag a bougé. */
+  /** Services whose tag moved. */
   outdated: z.number().int().nonnegative(),
-  /** Annonces faites — une par couple qui a du nouveau. */
+  /** Announcements made — one per pair with something new. */
   announced: z.number().int().nonnegative(),
 });
 export type ImageCheckJobResult = z.infer<typeof imageCheckJobResultSchema>;
@@ -470,9 +465,9 @@ export const sourceArchiveInspectJobDataSchema = z.object({
 export type SourceArchiveInspectJobData = z.infer<typeof sourceArchiveInspectJobDataSchema>;
 
 export const monitorSweepJobDataSchema = z.object({
-  /** Restreint le balayage à une sonde. Sert au déclenchement manuel. */
+  /** Restricts the sweep to one probe. Used for the manual trigger. */
   monitorId: z.string().uuid().nullable().default(null),
-  /** Passe outre `next_check_at` : « sonder maintenant ». */
+  /** Overrides `next_check_at`: "probe now". */
   force: z.boolean().default(false),
   actorId: z.string().min(1).nullable().default(null),
   ip: z.string().min(1).nullable().default(null),
@@ -489,7 +484,7 @@ export const monitorSweepJobResultSchema = z.object({
   alerts: z.number().int().nonnegative(),
   suspended: z.number().int().nonnegative(),
   pruned: z.number().int().nonnegative(),
-  /** Le balayage a rendu la main sur son budget de temps ; le suivant reprendra. */
+  /** The sweep gave up on its time budget; the next one will pick up. */
   budgetExhausted: z.boolean(),
 });
 
@@ -497,14 +492,14 @@ export type MonitorSweepJobData = z.infer<typeof monitorSweepJobDataSchema>;
 export type MonitorSweepJobResult = z.infer<typeof monitorSweepJobResultSchema>;
 
 /**
- * Deux formes, une union discriminée — parce que ce sont deux demandes qui
- * n'ont ni le même déclencheur ni la même urgence, et qu'un objet unique aux
- * champs à moitié `null` obligerait le handler à deviner laquelle il tient.
+ * Two shapes, a discriminated union — because they are two requests with
+ * neither the same trigger nor the same urgency, and a single object with
+ * half-`null` fields would force the handler to guess which one it holds.
  *
- *   incident    « photographie cette sonde maintenant, pour cet incident ».
- *               Enfilée à la transition, une par transition.
- *   references  « rafraîchis les références qui ont vieilli ». Balaie, borné à
- *               quelques sondes par passage. Personne ne l'attend.
+ *   incident    "take a picture of this probe now, for this incident".
+ *               Enqueued at the transition, one per transition.
+ *   references  "refresh the references that have aged". Sweeps, capped at a
+ *               few probes per pass. Nobody waits for it.
  */
 export const monitorCaptureJobDataSchema = z.discriminatedUnion('scope', [
   z.object({
@@ -519,15 +514,15 @@ export const monitorCaptureJobDataSchema = z.discriminatedUnion('scope', [
 ]);
 
 export const monitorCaptureJobResultSchema = z.object({
-  /** Captures tentées. */
+  /** Screenshots attempted. */
   attempted: z.number().int().nonnegative(),
-  /** Captures enregistrées. */
+  /** Screenshots saved. */
   stored: z.number().int().nonnegative(),
-  /** Octets écrits, tous clichés confondus. */
+  /** Bytes written, all shots together. */
   bytes: z.number().int().nonnegative(),
   /**
-   * Motifs des captures qui n'ont pas abouti. Une liste vide n'est pas le cas
-   * nominal : un navigateur éteint remplit cette liste, et c'est **normal**.
+   * Reasons of the screenshots that did not succeed. An empty list is not the
+   * nominal case: a browser that is off fills this list, and that is **normal**.
    */
   skipped: z.array(z.string()),
 });
@@ -543,7 +538,7 @@ export type WorkloadControlJobData = z.infer<typeof workloadControlJobDataSchema
 export type WorkloadExecJobData = z.infer<typeof workloadExecJobDataSchema>;
 export type WorkloadLogsJobData = z.infer<typeof workloadLogsJobDataSchema>;
 
-/** Toutes les tâches acceptées par la queue `ops`. */
+/** Every task the `ops` queue accepts. */
 export type OpsJobMap = {
   [PING_JOB]: PingJobData;
   [TARGET_PREFLIGHT_JOB]: TargetPreflightJobData;
@@ -568,41 +563,40 @@ export type OpsJobName = keyof OpsJobMap;
    ------------------------------------------------------------------------- */
 
 /**
- * File dédiée aux notifications.
+ * Queue dedicated to notifications.
  *
- * Ni `ops`, ni `supervision`, et ce n'est pas de la coquetterie :
+ * Neither `ops` nor `supervision`, and it is not vanity:
  *
- *   — sur `ops`, une alerte « déploiement en échec » attendrait derrière les
- *     déploiements en cours. Prévenir tard revient à ne pas prévenir ;
- *   — sur `supervision`, elle attendrait derrière les suivis de logs, qui
- *     tiennent leur slot pendant toute la consultation — jusqu'à trente
- *     minutes. Huit onglets ouverts suffiraient à museler les alertes.
+ *   — on `ops`, a "deployment failed" alert would wait behind the deployments in
+ *     progress. Warning late amounts to not warning;
+ *   — on `supervision`, it would wait behind log follows, which hold their slot
+ *     for the whole viewing — up to thirty minutes. Eight open tabs would be
+ *     enough to muzzle the alerts.
  *
- * Le raisonnement est exactement celui qui a justifié `supervision` en son
- * temps : deux budgets de concurrence, aucune famine possible.
+ * The reasoning is exactly the one that justified `supervision` in its time: two
+ * concurrency budgets, no possible starvation.
  */
 export const NOTIFICATIONS_QUEUE = 'notifications' as const;
 
 /**
- * Distribution d'un événement notifiable vers les canaux qui y sont abonnés.
+ * Dispatching a notifiable event to the channels subscribed to it.
  *
- * Une tâche **par événement**, pas par canal : l'éventail se déploie dans le
- * worker, qui lit en une fois les canaux abonnés. Enfiler par canal obligerait
- * l'émetteur — c'est-à-dire l'observateur du journal d'audit, dans le chemin
- * d'une requête HTTP — à interroger la base avant de rendre la main.
+ * One task **per event**, not per channel: the fan-out happens in the worker,
+ * which reads the subscribed channels at once. Enqueuing per channel would force
+ * the emitter — that is, the audit log observer, in the path of an HTTP request
+ * — to query the database before returning.
  */
 export const NOTIFICATION_DISPATCH_JOB = 'notification:dispatch' as const;
 
-/** Essai manuel d'un canal, déclenché depuis l'écran des paramètres. */
+/** Manual test of a channel, triggered from the settings screen. */
 export const NOTIFICATION_TEST_JOB = 'notification:test' as const;
 
 /**
- * L'entrée d'audit à l'origine de l'événement, recopiée telle quelle.
+ * The audit entry behind the event, copied as is.
  *
- * Le message neutre n'est **pas** composé ici mais dans le worker : sa
- * composition demande le nom de l'instance, l'URL du panel et l'e-mail de
- * l'acteur, soit trois lectures que l'émetteur n'a pas à faire dans le chemin
- * d'une requête.
+ * The neutral message is **not** composed here but in the worker: composing it
+ * requires the instance's name, the panel's URL and the actor's email, three
+ * reads the emitter does not have to make in the path of a request.
  */
 export const notificationDispatchJobDataSchema = z.object({
   event: z.string().min(1).max(80),
@@ -620,24 +614,24 @@ export const notificationDispatchJobDataSchema = z.object({
 
 export const notificationDispatchJobResultSchema = z.object({
   event: z.string(),
-  /** Canaux abonnés et actifs au moment de la distribution. */
+  /** Channels subscribed and active at dispatch time. */
   targeted: z.number().int().nonnegative(),
   delivered: z.number().int().nonnegative(),
   failed: z.number().int().nonnegative(),
   /**
-   * Ce que le regroupement a décidé (ajout du garde-fou de volume) :
-   *   immediate  la fenêtre était fermée — le message part tout de suite
-   *   held       une fenêtre est ouverte — l'événement est retenu, nommé, en base
-   *   skipped    aucun canal abonné : rien à décider
-   *   silenced   une fenêtre de maintenance couvre son sujet — l'alerte est
-   *              retenue, et partira à la fin si son problème est toujours là
+   * What grouping decided (the volume guard's addition):
+   *   immediate  the window was closed — the message goes right away
+   *   held       a window is open — the event is held, named, in the database
+   *   skipped    no subscribed channel: nothing to decide
+   *   silenced   a maintenance window covers its subject — the alert is held, and
+   *              will go out at the end if its problem is still there
    *
-   * `delivered` et `failed` restent à zéro depuis que la remise est une tâche
-   * par canal : c'est `notification:deliver` qui les connaît, un canal à la
-   * fois. Les champs sont conservés — d'anciens résultats en Redis les portent.
+   * `delivered` and `failed` stay at zero since delivery became one task per
+   * channel: it is `notification:deliver` that knows them, one channel at a time.
+   * The fields are kept — old results in Redis carry them.
    */
   mode: z.enum(['immediate', 'held', 'skipped', 'silenced']).default('immediate'),
-  /** Tâches de remise enfilées, une par canal abonné. */
+  /** Delivery tasks enqueued, one per subscribed channel. */
   queued: z.number().int().nonnegative().default(0),
 });
 
@@ -651,11 +645,10 @@ export const notificationTestJobDataSchema = z.object({
 });
 
 /**
- * Le verdict d'un essai. `probe` est le résultat de `test()` — la vérification
- * qui ne délivre rien —, `delivered` celui de l'envoi réel. Les deux sont
- * rapportés séparément parce qu'ils échouent pour des raisons différentes : un
- * jeton valide dont l'identifiant de conversation est faux passe la première et
- * rate la seconde.
+ * A test's verdict. `probe` is the result of `test()` — the check that delivers
+ * nothing —, `delivered` that of the real send. Both are reported separately
+ * because they fail for different reasons: a valid token whose chat ID is wrong
+ * passes the first and misses the second.
  */
 export const notificationTestJobResultSchema = z.object({
   channelId: z.string().uuid(),
@@ -669,24 +662,24 @@ export type NotificationTestJobData = z.infer<typeof notificationTestJobDataSche
 export type NotificationTestJobResult = z.infer<typeof notificationTestJobResultSchema>;
 
 /**
- * Clé d'anti-doublon d'une distribution.
+ * Deduplication key of a dispatch.
  *
- * Motif réel : une tâche de déploiement interrompue hors pipeline est rejouée
- * jusqu'à trois fois par BullMQ, et **chaque tentative écrit sa propre entrée
- * `deployment.failed`**. Sans cette clé, un incident produirait trois e-mails
- * identiques à quelques secondes d'intervalle.
+ * The real reason: a deployment task interrupted outside the pipeline is
+ * replayed up to three times by BullMQ, and **each attempt writes its own
+ * `deployment.failed` entry**. Without this key, one incident would produce three
+ * identical emails a few seconds apart.
  *
- * La fenêtre porte sur le couple (événement, ressource) : deux déploiements
- * différents ont des identifiants différents et ne se masquent pas.
+ * The window is on the (event, resource) pair: two different deployments have
+ * different identifiers and do not mask each other.
  *
- * **Sauf quand la ressource ne change pas d'une occurrence à l'autre.** C'est
- * le cas des sondes : la ressource est la sonde, la même hier et aujourd'hui.
- * Deux pannes distinctes du même site à moins de cinq minutes d'intervalle se
- * confondaient, et la seconde alerte était avalée sans laisser de trace — un
- * anti-doublon qui perd une alerte est pire que le doublon qu'il évite. Le
- * catalogue fournit alors un discriminant (l'identifiant d'incident), qui
- * sépare les occurrences sans rien changer à l'absorption des rejeux : un rejeu
- * recopie la même charge, donc le même discriminant.
+ * **Except when the resource does not change from one occurrence to the next.**
+ * That is the case of probes: the resource is the probe, the same yesterday and
+ * today. Two distinct outages of the same site less than five minutes apart were
+ * merged, and the second alert was swallowed without a trace — a deduplication
+ * that loses an alert is worse than the duplicate it avoids. The catalog then
+ * provides a discriminant (the incident identifier), which separates occurrences
+ * without changing anything about absorbing replays: a replay copies the same
+ * payload, hence the same discriminant.
  */
 export function notificationDedupKey(
   event: string,
@@ -697,7 +690,7 @@ export function notificationDedupKey(
   return discriminator ? `${base}|${discriminator}` : base;
 }
 
-/** Cinq minutes : très au-delà des quelques secondes que durent les rejeux. */
+/** Five minutes: far beyond the few seconds replays last. */
 export const NOTIFICATION_DEDUP_TTL_MS = 5 * 60_000;
 
 /* ---------------------------------------------------------------------------
@@ -705,49 +698,47 @@ export const NOTIFICATION_DEDUP_TTL_MS = 5 * 60_000;
    ------------------------------------------------------------------------- */
 
 /**
- * Remise à **un** canal.
+ * Delivery to **one** channel.
  *
- * Second étage de l'éventail : `notification:dispatch` décide *quoi* envoyer et
- * *à qui*, `notification:deliver` envoie, un canal à la fois. Le découpage n'est
- * pas cosmétique — c'est ce qui rend le rejeu correct. Une distribution unique
- * qui échoue sur le serveur SMTP et réussit sur Discord ne peut pas être rejouée
- * sans renvoyer le message à Discord ; c'est la raison pour laquelle la couche
- * livrée hier tenait `attempts: 1`. Une tâche par canal supprime le dilemme :
- * la tâche qui rate est celle d'un seul destinataire, et elle se rejoue seule.
+ * The second stage of the fan-out: `notification:dispatch` decides *what* to
+ * send and *to whom*, `notification:deliver` sends, one channel at a time. The
+ * split is not cosmetic — it is what makes replay correct. A single dispatch that
+ * fails on the SMTP server and succeeds on Discord cannot be replayed without
+ * sending the message to Discord again; that is why the layer delivered
+ * yesterday held `attempts: 1`. One task per channel removes the dilemma: the
+ * task that fails is that of a single recipient, and it replays alone.
  *
- * L'émetteur, lui, n'a rien changé : c'est toujours le worker qui déplie
- * l'éventail, jamais l'observateur du journal d'audit dans le chemin d'une
- * requête HTTP.
+ * The emitter has not changed: it is still the worker that unfolds the fan-out,
+ * never the audit log observer in the path of an HTTP request.
  */
 export const NOTIFICATION_DELIVER_JOB = 'notification:deliver' as const;
 
 /**
- * Balayage des fenêtres de regroupement échues.
+ * Sweep of the grouping windows that are due.
  *
- * Une tâche répétable, pas une tâche retardée par fenêtre. Une tâche retardée
- * serait plus précise mais vivrait dans Redis, alors que l'état de regroupement
- * vit en base : les deux pourraient diverger, et le jour où Redis est reparti à
- * vide, les fenêtres ouvertes ne se refermeraient plus jamais. Un balayage qui
- * relit la base est, lui, sans état — c'est le même raisonnement que le
- * balayage des sondes de supervision.
+ * A repeatable task, not a task delayed per window. A delayed task would be more
+ * precise but would live in Redis, whereas the grouping state lives in the
+ * database: the two could diverge, and the day Redis restarted empty, the open
+ * windows would never close again. A sweep that reads the database again is
+ * stateless — the same reasoning as the monitoring probes' sweep.
  */
 export const NOTIFICATION_DIGEST_SWEEP_JOB = 'notification:digest_sweep' as const;
 
 /**
- * Ce qu'une remise transporte : la charge **déjà composée**.
+ * What a delivery carries: the payload **already composed**.
  *
- * Recomposer le message dans la tâche de remise obligerait chaque tentative à
- * relire les paramètres, l'acteur et l'entrée d'audit — et un rejeu trois
- * minutes plus tard pourrait produire un message *différent* de celui reçu par
- * les autres canaux. Un message figé à la composition est le seul qui garantisse
- * que tous les destinataires ont lu la même chose.
+ * Composing the message again in the delivery task would force each attempt to
+ * read the settings, the actor and the audit entry again — and a replay three
+ * minutes later could produce a *different* message from the one the other
+ * channels received. A message frozen at composition is the only one that
+ * guarantees every recipient read the same thing.
  *
- * Aucun secret n'y transite : le message neutre n'en contient pas, et la
- * configuration du canal est relue en base au moment d'envoyer.
+ * No secret travels in it: the neutral message contains none, and the channel's
+ * configuration is read from the database again at send time.
  */
 export const notificationDeliverJobDataSchema = z.object({
   channelId: z.string().uuid(),
-  /** Recopié pour les journaux : un canal supprimé entre-temps n'a plus de nom. */
+  /** Copied for the logs: a channel deleted in the meantime no longer has a name. */
   channelName: z.string().min(1).max(120),
   payload: z.discriminatedUnion('type', [
     z.object({ type: z.literal('event'), message: notificationMessageSchema }),
@@ -759,7 +750,7 @@ export const notificationDeliverJobResultSchema = z.object({
   channelId: z.string().uuid(),
   event: z.string(),
   delivered: z.boolean(),
-  /** Numéro de la tentative qui a abouti (ou de la dernière). Commence à 1. */
+  /** Number of the attempt that succeeded (or of the last one). Starts at 1. */
   attempt: z.number().int().positive(),
   error: z.string().nullable(),
 });
@@ -768,11 +759,11 @@ export type NotificationDeliverJobData = z.infer<typeof notificationDeliverJobDa
 export type NotificationDeliverJobResult = z.infer<typeof notificationDeliverJobResultSchema>;
 
 export const notificationDigestSweepJobResultSchema = z.object({
-  /** Groupes dont la fenêtre était échue. */
+  /** Groups whose window was due. */
   examined: z.number().int().nonnegative(),
-  /** Résumés réellement composés — les fenêtres vides n'en produisent pas. */
+  /** Digests actually composed — empty windows produce none. */
   digests: z.number().int().nonnegative(),
-  /** Tâches de remise enfilées, tous groupes et tous canaux confondus. */
+  /** Delivery tasks enqueued, all groups and all channels together. */
   queued: z.number().int().nonnegative(),
 });
 
@@ -781,17 +772,17 @@ export type NotificationDigestSweepJobResult = z.infer<
 >;
 
 /**
- * Rejeu d'une remise.
+ * Replaying a delivery.
  *
- * Trois tentatives, espacées exponentiellement à partir de cinq secondes. Le cas
- * visé est le hoquet : un 502 de Discord, un greylisting SMTP, une coupure
- * réseau d'une poignée de secondes. Au-delà, ce n'est plus un hoquet et
- * s'acharner n'apporte rien — l'échec est alors enregistré sur le canal, tracé
- * dans le journal d'audit, et visible à l'écran.
+ * Three attempts, spaced exponentially starting at five seconds. The case aimed
+ * at is the hiccup: a 502 from Discord, SMTP greylisting, a network cut of a
+ * handful of seconds. Beyond that, it is no longer a hiccup and insisting brings
+ * nothing — the failure is then recorded on the channel, traced in the audit
+ * log, and visible on screen.
  *
- * La remise est *au moins une fois* : un envoi réussi dont l'accusé se perd
- * partira deux fois. C'est l'arbitrage assumé — un message en double est une
- * gêne, un message d'incident jamais parti est une panne.
+ * Delivery is *at least once*: a successful send whose acknowledgment gets lost
+ * will go out twice. It is the accepted trade-off — a duplicate message is a
+ * nuisance, an incident message that never left is an outage.
  */
 export const NOTIFICATION_DELIVER_ATTEMPTS = 3;
 export const NOTIFICATION_DELIVER_BACKOFF_MS = 5_000;
@@ -801,47 +792,46 @@ export const NOTIFICATION_DELIVER_BACKOFF_MS = 5_000;
    ------------------------------------------------------------------------- */
 
 /**
- * Invitation ou réinitialisation de mot de passe, par e-mail.
+ * Invitation or password reset, by email.
  *
- * Sur la file des notifications, et pas dans la route HTTP qui la déclenche,
- * pour la raison habituelle : le panel n'a **aucun transport SMTP**,
- * `nodemailer` étant délibérément tenu hors de son graphe comme `ssh2`. Il
- * enfile, le worker délivre. Un serveur SMTP lent met une trentaine de secondes
- * à expirer, et personne ne doit attendre cela dans un formulaire.
+ * On the notifications queue, and not in the HTTP route that triggers it, for
+ * the usual reason: the panel has **no SMTP transport**, `nodemailer` being
+ * deliberately kept out of its graph like `ssh2`. It enqueues, the worker
+ * delivers. A slow SMTP server takes some thirty seconds to time out, and nobody
+ * should wait for that in a form.
  *
- * Sur la file `notifications` plutôt qu'`ops` : c'est un envoi d'e-mail, il
- * partage le budget de concurrence des envois d'e-mails, et il ne doit pas
- * attendre derrière un déploiement.
+ * On the `notifications` queue rather than `ops`: it is an email send, it shares
+ * the concurrency budget of email sends, and it must not wait behind a
+ * deployment.
  */
 export const ACCOUNT_MAIL_JOB = 'account:mail' as const;
 
 /**
- * Ce qu'un e-mail de compte transporte — et l'unique endroit où la question
- * « où vit le jeton ? » se pose.
+ * What an account email carries — and the only place where the question "where
+ * does the token live?" comes up.
  *
- * Le lien porte un jeton de réinitialisation : quiconque l'ouvre prend la main
- * sur le compte. Il traverse donc Redis **chiffré** (AES-256-GCM sous
- * `MASTER_KEY`, le même chiffre que les identifiants SSH des cibles), et pas en
- * clair. Trois raisons, dans l'ordre :
+ * The link carries a reset token: whoever opens it takes over the account. It
+ * therefore goes through Redis **encrypted** (AES-256-GCM under `MASTER_KEY`, the
+ * same cipher as the targets' SSH credentials), not in clear. Three reasons, in
+ * order:
  *
- *   1. Redis est un cache, pas un coffre : il n'est pas chiffré au repos, ses
- *      sauvegardes non plus, et `MONITOR` y montre le contenu des tâches ;
- *   2. une tâche terminée reste en base Redis le temps de sa rétention — bien
- *      plus longtemps que la validité du jeton ;
- *   3. `logAudit()` et Pino ne verront jamais que du texte chiffré si l'un
- *      d'eux journalise une charge de tâche par inadvertance.
+ *   1. Redis is a cache, not a vault: it is not encrypted at rest, nor are its
+ *      backups, and `MONITOR` shows the tasks' content there;
+ *   2. a finished task stays in Redis for its retention time — much longer than
+ *      the token's validity;
+ *   3. `logAudit()` and Pino will only ever see ciphertext if either of them logs
+ *      a task payload by mistake.
  *
- * Le déchiffrement est fait par le worker, juste avant le rendu. C'est
- * exactement la règle appliquée aux secrets des canaux : déchiffrés au dernier
- * moment, par celui qui émet.
+ * Decryption is done by the worker, just before rendering. It is exactly the rule
+ * applied to channel secrets: decrypted at the last moment, by whoever sends.
  */
 export const accountMailJobDataSchema = z.object({
   kind: accountMailKindSchema,
-  /** Compte concerné — pour que la trace de remise désigne quelqu'un. */
+  /** Account concerned — so that the delivery trace designates someone. */
   userId: z.string().min(1).max(200),
   to: z.string().min(3).max(200),
   recipientName: z.string().min(1).max(120),
-  /** Lien d'action **chiffré**. Jamais en clair dans une charge de tâche. */
+  /** **Encrypted** action link. Never in clear in a task payload. */
   encryptedUrl: z.string().min(1).max(4000),
   expiresAt: z.string().datetime(),
   actor: z.string().min(1).max(200).nullable().default(null),
@@ -850,9 +840,9 @@ export const accountMailJobDataSchema = z.object({
 export const accountMailJobResultSchema = z.object({
   kind: accountMailKindSchema,
   delivered: z.boolean(),
-  /** Nom du canal SMTP emprunté. `null` si aucun n'était disponible. */
+  /** Name of the SMTP channel used. `null` if none was available. */
   channel: z.string().nullable(),
-  /** Déjà expurgé de tout secret par `describeFailure()`. */
+  /** Already redacted of any secret by `describeFailure()`. */
   error: z.string().nullable(),
 });
 
@@ -860,50 +850,49 @@ export type AccountMailJobData = z.infer<typeof accountMailJobDataSchema>;
 export type AccountMailJobResult = z.infer<typeof accountMailJobResultSchema>;
 
 /**
- * Une seule tentative, et pas trois comme pour une remise de notification.
+ * A single attempt, and not three as for a notification delivery.
  *
- * Le rejeu vaut pour une alerte — un message d'incident jamais parti est une
- * panne, un doublon est une gêne. Ici c'est l'inverse : la personne est devant
- * son écran, elle voit tout de suite que rien n'est arrivé, et elle redemande.
- * Trois tentatives espacées de cinq secondes ne feraient que tenir un jeton
- * vivant plus longtemps dans une file.
+ * Replay is worth it for an alert — an incident message that never left is an
+ * outage, a duplicate is a nuisance. Here it is the reverse: the person is in
+ * front of their screen, sees right away that nothing arrived, and asks again.
+ * Three attempts five seconds apart would only keep a token alive longer in a
+ * queue.
  */
 export const ACCOUNT_MAIL_ATTEMPTS = 1;
 
 /* ---------------------------------------------------------------------------
-   Déploiements figés
+   Stuck deployments
    ------------------------------------------------------------------------- */
 
 /**
- * ## Comment on distingue un fantôme d'un déploiement lent
+ * ## How a ghost is told from a slow deployment
  *
- * Un déploiement légitime peut tenir plusieurs minutes : un `docker pull` d'une
- * grosse image, un build, un healthcheck qui laisse une application démarrer.
- * Aucun délai ne sépare honnêtement ce cas d'un déploiement dont plus personne
- * ne s'occupe — un détecteur trop pressé conclurait à la mort d'un build de
- * quatre minutes, et rendrait le produit moins fiable que la panne qu'il
- * prétend réparer.
+ * A legitimate deployment can take several minutes: a `docker pull` of a big
+ * image, a build, a healthcheck that gives an application time to start. No
+ * delay honestly separates that case from a deployment nobody takes care of
+ * anymore — a detector in too much of a hurry would declare a four-minute build
+ * dead, and make the product less reliable than the failure it claims to fix.
  *
- * Le signal retenu n'est donc pas un délai mais une **preuve d'absence** : la
- * tâche BullMQ qui portait ce déploiement n'existe plus dans aucun état où elle
- * pourrait encore s'exécuter. C'est vérifiable, ce n'est pas une supposition, et
- * c'est exactement ce que BullMQ sait dire.
+ * The chosen signal is therefore not a delay but a **proof of absence**: the
+ * BullMQ task that carried this deployment no longer exists in any state where
+ * it could still run. It is verifiable, not an assumption, and it is exactly
+ * what BullMQ can tell.
  *
- * Ce sont les états ci-dessous. Ils sont énumérés **en positif** — « ce qui peut
- * encore tourner » — plutôt qu'en négatif : un état de plus dans une version
- * future de BullMQ serait alors traité comme « peut encore tourner », donc en
- * faveur du déploiement. L'erreur possible penche du bon côté.
+ * Those are the states below. They are listed **positively** — "what can still
+ * run" — rather than negatively: one more state in a future version of BullMQ
+ * would then be treated as "can still run", hence in favor of the deployment.
+ * The possible error leans the right way.
  *
- * `completed` et `failed` en sont volontairement absents, et c'est le cœur du
- * sujet : une tâche `failed` **existe encore** dans la file — sept jours, par
- * rétention — sans qu'aucun worker ne la reprenne. C'est précisément l'état où
- * BullMQ abandonne une tâche dont le worker est mort deux fois de suite
- * (« job stalled more than allowable limit ») : elle est mise en échec sans que
- * notre handler ait jamais tourné, donc sans que personne n'écrive le verdict
- * en base. Le déploiement reste `running` pour toujours.
+ * `completed` and `failed` are deliberately absent, and that is the heart of the
+ * matter: a `failed` task **still exists** in the queue — seven days, by
+ * retention — without any worker picking it up. It is precisely the state in
+ * which BullMQ abandons a task whose worker died twice in a row ("job stalled
+ * more than allowable limit"): it is marked failed without our handler ever
+ * having run, hence without anybody writing the verdict in the database. The
+ * deployment stays `running` forever.
  *
- * Pas d'état « paused » dans cette liste : une file en pause garde ses tâches
- * dans `wait`, la pause est un drapeau sur la file, pas un état de tâche.
+ * No "paused" state in this list: a paused queue keeps its tasks in `wait`, the
+ * pause is a flag on the queue, not a task state.
  */
 export const UNFINISHED_JOB_STATES = [
   'active',
@@ -916,22 +905,21 @@ export const UNFINISHED_JOB_STATES = [
 export type UnfinishedJobState = (typeof UNFINISHED_JOB_STATES)[number];
 
 /**
- * Fenêtre de grâce avant qu'un déploiement puisse être déclaré fantôme.
+ * Grace window before a deployment can be declared a ghost.
  *
- * Ce n'est **pas** un délai de mort : la mort est prouvée par l'absence de
- * tâche, jamais par l'ancienneté. Elle ne couvre qu'une seule fenêtre, celle de
- * l'enfilage : `POST /api/deployments` écrit la ligne en base *puis* enfile la
- * tâche. Entre les deux, un déploiement parfaitement sain n'a effectivement
- * aucune tâche. Une minute est trois ordres de grandeur au-dessus de ce que
- * dure cet intervalle.
+ * It is **not** a death delay: death is proven by the absence of a task, never
+ * by age. It only covers a single window, the enqueuing one:
+ * `POST /api/deployments` writes the row in the database *then* enqueues the
+ * task. In between, a perfectly healthy deployment indeed has no task. One
+ * minute is three orders of magnitude above how long that interval lasts.
  */
 export const STUCK_DEPLOYMENT_GRACE_MS = 60_000;
 
 /**
- * Ce qu'on lit d'une tâche de la file pour savoir si elle concerne un
- * déploiement. Volontairement minimal : `@pupitre/core` ne dépend pas de `bullmq` —
- * ce module ne décrit que le contrat des files, il n'en ouvre aucune — et
- * l'appelant, panel ou worker, passe ce qu'il a lu.
+ * What is read from a queue task to know whether it concerns a deployment.
+ * Deliberately minimal: `@pupitre/core` does not depend on `bullmq` — this module
+ * only describes the queues' contract, it opens none — and the caller, panel or
+ * worker, passes what it read.
  */
 export type QueuedJobRef = {
   readonly name: string;
@@ -945,18 +933,18 @@ function readString(data: unknown, key: string): string | null {
 }
 
 /**
- * Cette tâche peut-elle encore faire avancer — ou conclure — ce déploiement ?
+ * Can this task still move this deployment forward — or conclude it?
  *
- * Les quatre noms retenus sont ceux qui écrivent un statut de déploiement :
- * `deployment:run` le porte de bout en bout, `deployment:rollback` et
- * `deployment:destroy` le concluent, et `application:delete` détruit en cascade
- * tous les déploiements de son application — il ne cite pas de `deploymentId`,
- * d'où la comparaison sur `applicationId`.
+ * The four names kept are those that write a deployment status:
+ * `deployment:run` carries it end to end, `deployment:rollback` and
+ * `deployment:destroy` conclude it, and `application:delete` destroys all of its
+ * application's deployments in cascade — it does not cite a `deploymentId`, hence
+ * the comparison on `applicationId`.
  *
- * Le doute profite au déploiement : tant qu'une seule de ces tâches est encore
- * exécutable, on ne déclare rien. Se tromper en attendant coûte une ligne
- * bloquée quelques minutes de plus ; se tromper en concluant écrit un verdict
- * faux sur un déploiement qui, lui, avance encore.
+ * The benefit of the doubt goes to the deployment: as long as a single one of
+ * these tasks can still run, nothing is declared. Being wrong while waiting costs
+ * a row blocked a few minutes longer; being wrong while concluding writes a false
+ * verdict on a deployment that is still moving forward.
  */
 export function jobMayAdvanceDeployment(
   job: QueuedJobRef,
@@ -979,15 +967,15 @@ export function jobMayAdvanceDeployment(
    ------------------------------------------------------------------------- */
 
 /**
- * File dédiée aux sauvegardes et aux restaurations.
+ * Queue dedicated to backups and restores.
  *
- * Une sauvegarde nocturne de dix applications, c'est une heure de transferts :
- * sur `ops`, elle ferait attendre chaque déploiement du matin. Sa propre file,
- * sa propre concurrence (une à la fois par défaut — ni la cible ni la
- * destination n'aiment être sollicitées par dix archives en même temps).
+ * A nightly backup of ten applications is an hour of transfers: on `ops`, it
+ * would make every morning deployment wait. Its own queue, its own concurrency
+ * (one at a time by default — neither the target nor the destination likes being
+ * solicited by ten archives at once).
  *
- * La sauvegarde **avant déploiement** n'y passe pas : elle est une étape du
- * pipeline, exécutée dans la tâche de déploiement elle-même.
+ * The **pre-deployment** backup does not go through it: it is a pipeline step,
+ * run within the deployment task itself.
  */
 export const BACKUPS_QUEUE = 'backups' as const;
 
@@ -996,7 +984,7 @@ export const BACKUP_PANEL_JOB = 'backup:panel' as const;
 export const BACKUP_RESTORE_JOB = 'backup:restore' as const;
 export const BACKUP_DELETE_JOB = 'backup:delete' as const;
 
-/** Tester une destination : quelques secondes de réseau, sur `supervision`. */
+/** Testing a destination: a few seconds of network, on `supervision`. */
 export const BACKUP_DESTINATION_CHECK_JOB = 'backup:destination-check' as const;
 
 const actorFields = {
@@ -1009,8 +997,8 @@ export const backupApplicationJobDataSchema = z.object({
   targetId: z.string().uuid(),
   trigger: backupTriggerSchema,
   /**
-   * La ligne `backups` déjà créée par la route, en `running` : l'écran la voit
-   * avant même que la tâche parte. `null` pour la tâche planifiée.
+   * The `backups` row already created by the route, as `running`: the screen sees
+   * it before the task even leaves. `null` for the scheduled task.
    */
   backupId: z.string().uuid().nullable().default(null),
   ...actorFields,
@@ -1026,9 +1014,9 @@ export type BackupPanelJobData = z.infer<typeof backupPanelJobDataSchema>;
 
 export const backupRestoreJobDataSchema = z.object({
   backupId: z.string().uuid(),
-  /** La cible où restaurer — celle de la sauvegarde par défaut. */
+  /** The target to restore to — the backup's by default. */
   targetId: z.string().uuid(),
-  /** Sauvegarder l'état actuel avant de l'écraser. */
+  /** Back up the current state before overwriting it. */
   safetyBackup: z.boolean().default(true),
   ...actorFields,
 });
@@ -1046,7 +1034,7 @@ export const backupDestinationCheckJobDataSchema = z.object({
 });
 export type BackupDestinationCheckJobData = z.infer<typeof backupDestinationCheckJobDataSchema>;
 
-/** Ce que rend une sauvegarde, une restauration : de quoi l'écrire au journal de la tâche. */
+/** What a backup or a restore returns: enough to write it into the task's log. */
 export const backupJobResultSchema = z.object({
   backupId: z.string().uuid().nullable(),
   status: z.enum(['success', 'failed', 'skipped']),
@@ -1057,26 +1045,24 @@ export type BackupJobResult = z.infer<typeof backupJobResultSchema>;
 
 // ─── reverse proxies ─────────────────────────────────────────────────────────
 //
-// Sur `ops`, comme un déploiement : chacune ouvre une session SSH et peut
-// modifier la machine. La sonde périodique des routes, elle, est une lecture :
-// elle passe par `supervision`.
+// On `ops`, like a deployment: each one opens an SSH session and can change the
+// machine. The periodic route probe is a read: it goes through `supervision`.
 
 export const PROXY_DETECT_JOB = 'proxy:detect' as const;
 export const PROXY_INSTALL_JOB = 'proxy:install' as const;
 export const PROXY_CHECK_JOB = 'proxy:check' as const;
 export const PROXY_REMOVE_JOB = 'proxy:remove' as const;
-/** Pose les domaines d'une application sur une cible, sans la redéployer. */
+/** Sets an application's domains on a target, without redeploying it. */
 export const PROXY_APPLY_JOB = 'proxy:apply' as const;
-/** Éprouve la liaison d'une machine au proxy d'une autre : adresses, joignabilité. */
+/** Tests a machine's link to another one's proxy: addresses, reachability. */
 export const PROXY_LINK_CHECK_JOB = 'proxy:link-check' as const;
 export const ROUTES_CHECK_JOB = 'routes:check' as const;
-/** Toutes les dix minutes : un domaine qui tombe se voit vite, sans charger la machine. */
+/** Every ten minutes: a domain that goes down is seen quickly, without loading the machine. */
 export const ROUTES_CHECK_EVERY_MS = 10 * 60_000;
 
 /**
- * La sonde des domaines : toutes les routes (la tournée périodique), ou
- * celles d'une application sur une cible — la relecture rapprochée qui suit
- * un certificat en cours d'émission.
+ * The domain probe: every route (the periodic round), or an application's routes
+ * on a target — the close re-read that follows a certificate being issued.
  */
 export const routesCheckJobDataSchema = z.object({
   applicationId: z.string().uuid().nullable().default(null),
@@ -1084,7 +1070,7 @@ export const routesCheckJobDataSchema = z.object({
 });
 export type RoutesCheckJobData = z.infer<typeof routesCheckJobDataSchema>;
 
-/** Relire un certificat en cours d'émission : 30 secondes, puis 2 minutes. */
+/** Reading a certificate being issued again: 30 seconds, then 2 minutes. */
 export const CERTIFICATE_RECHECK_DELAYS_MS = [30_000, 120_000] as const;
 
 export const proxyDetectJobDataSchema = z.object({ targetId: z.string().uuid() });
@@ -1104,7 +1090,7 @@ export type ProxyCheckJobData = z.infer<typeof proxyCheckJobDataSchema>;
 
 export const proxyRemoveJobDataSchema = z.object({
   proxyId: z.string().uuid(),
-  /** Défaire aussi l'installation, quand Pupitre l'a faite. */
+  /** Also undo the installation, when Pupitre did it. */
   uninstall: z.boolean().default(false),
   ...actorFields,
 });

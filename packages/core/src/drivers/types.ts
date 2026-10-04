@@ -11,88 +11,85 @@ import type { ImageStore } from '../scan.js';
 import type { Readable, Writable } from 'node:stream';
 
 /**
- * Contrat que doit remplir un runtime pour être déployable par le panel.
+ * The contract a runtime must fulfill to be deployable by the panel.
  *
- * Règle structurante : le driver **n'importe rien** de `packages/db`, ni de
- * `apps/web`, ni de Redis. Il reçoit tout par son contexte, il exécute, et il
- * émet des lignes. C'est l'appelant qui décide quoi en faire — les publier sur
- * Redis, les écrire en base, ou les jeter.
+ * The structuring rule: the driver **imports nothing** from `packages/db`, nor
+ * from `apps/web`, nor from Redis. It receives everything through its context,
+ * it executes, and it emits lines. It is the caller that decides what to do with
+ * them — publish them on Redis, write them to the database, or drop them.
  *
- * Ajouter un runtime doit se faire en ajoutant une classe ici, sans modifier
- * une seule ligne ailleurs.
+ * Adding a runtime must be done by adding a class here, without changing a
+ * single line elsewhere.
  */
 
 export type RuntimeKind = 'docker' | 'k3s';
 
-/** Machine distante, telle que le driver a besoin de la connaître. */
+/** Remote machine, as the driver needs to know it. */
 export type DriverTarget = {
   id: string;
   name: string;
   host: string;
-  /** Chemin racine où le driver dépose ses artefacts sur la cible. */
+  /** Root path where the driver places its artifacts on the target. */
   rootPath: string;
 };
 
-/** Déploiement en cours, tel que le driver a besoin de le connaître. */
+/** Deployment in progress, as the driver needs to know it. */
 export type DriverDeployment = {
   id: string;
-  /** Version applicative déployée, reprise de l'AppSpec. */
+  /** Deployed application version, taken from the AppSpec. */
   version: string;
-  /** Numéro incrémental, sert à nommer les répertoires sur la cible. */
+  /** Incremental number, used to name the directories on the target. */
   sequence: number;
 };
 
 export type { PortAllocator } from '../ports.js';
 
-/** Valeurs des secrets déclarés par l'AppSpec, résolues par l'appelant. */
+/** Values of the secrets the AppSpec declares, resolved by the caller. */
 export type SecretResolver = (names: readonly string[]) => Promise<Record<string, string>>;
 
-/** Fichier rendu, prêt à être déposé sur la cible. */
+/** Rendered file, ready to be placed on the target. */
 export type RenderedFile = {
-  /** Chemin relatif à la racine du bundle. */
+  /** Path relative to the bundle's root. */
   path: string;
   content: string;
   /** Mode POSIX, ex. `0o644`. */
   mode?: number;
 };
 
-/** Ce qu'a fait l'expiration d'un constructeur d'images (`pruneIdleBuilder`). */
+/** What the expiry of an image builder did (`pruneIdleBuilder`). */
 export type BuilderPruneResult = {
   /**
-   * `absent` : rien à expirer. `kept` : servi récemment, ou réclamé par un
-   * build à l'instant. `removed` : retiré.
+   * `absent`: nothing to expire. `kept`: used recently, or claimed by a build
+   * just now. `removed`: removed.
    */
   outcome: 'absent' | 'kept' | 'removed';
-  /** Son dernier build (ISO), quand il y en avait un. */
+  /** Its last build (ISO), when there was one. */
   lastUsedAt: string | null;
 };
 
 /**
- * Contexte au niveau de la **machine**, pas d'un déploiement.
+ * Context at the level of the **machine**, not of a deployment.
  *
- * Il existe parce que `listWorkloads`, `removeWorkload` et `updateWorkload`
- * n'ont ni AppSpec, ni slug, ni numéro de version à offrir : elles regardent la
- * cible entière, y compris ce que le panel n'a jamais déployé. L'autre voie —
- * rendre `spec`, `deployment`, `appSlug` et `applicationId` optionnels dans
- * `DriverContext` — aurait produit un type dont la moitié des champs est
- * `undefined` la moitié du temps : le compilateur aurait cessé de garantir
- * qu'un `deploy()` reçoit bien une spec, et chaque driver aurait dû rouvrir la
- * question à la main. Un type qui ment sur ce qu'il contient ne protège plus
- * personne.
+ * It exists because `listWorkloads`, `removeWorkload` and `updateWorkload` have
+ * no AppSpec, slug or version number to offer: they look at the whole target,
+ * including what the panel never deployed. The other way — making `spec`,
+ * `deployment`, `appSlug` and `applicationId` optional in `DriverContext` —
+ * would have produced a type with half its fields `undefined` half the time:
+ * the compiler would have stopped guaranteeing that a `deploy()` does receive a
+ * spec, and each driver would have had to reopen the question by hand. A type
+ * that lies about what it contains no longer protects anyone.
  *
- * `DriverContext` en est une extension : tout ce qui accepte un contexte de
- * déploiement accepte déjà un contexte de cible, et aucun appel existant ne
- * change.
+ * `DriverContext` is an extension of it: everything that accepts a deployment
+ * context already accepts a target context, and no existing call changes.
  */
 export type TargetContext = {
   target: DriverTarget;
   sshSession: SshSession;
   /**
-   * La langue de l'instance : celle de ce que le driver dit — lignes du
-   * journal d'un déploiement, résultats du preflight, erreurs. Obligatoire,
-   * pour qu'aucun appelant ne l'oublie : le worker la lit dans les paramètres
-   * au début de chaque tâche, comme pour les statuts de commit et les
-   * notifications.
+   * The instance's language: that of what the driver says — deployment log lines,
+   * preflight results, errors. Required, so that no caller forgets it: the worker
+   * reads it from the settings at the start of each task, as for commit statuses
+   * and notifications.
    */
   language: UiLanguage;
 };
@@ -102,75 +99,75 @@ export type DriverContext = TargetContext & {
   deployment: DriverDeployment;
   /** Identifiant stable de l'application. Sert de namespace : `app-{slug}`. */
   appSlug: string;
-  /** Identifiant base de l'application, pour les réservations de ports. */
+  /** The application's database identifier, for port reservations. */
   applicationId: string;
-  /** Déploiement vers lequel `rollback()` ramène. */
+  /** Deployment that `rollback()` goes back to. */
   previousDeployment?: DriverDeployment;
   portAllocator?: PortAllocator;
   /**
-   * Plage de ports publiables sur cette cible. Défaut : 30000-32767.
-   * Une cible derrière un pare-feu n'en a souvent qu'une partie d'ouverte.
+   * Range of publishable ports on this target. Default: 30000-32767. A target
+   * behind a firewall often has only part of it open.
    */
   portRange?: { min: number; max: number };
   resolveSecrets?: SecretResolver;
   /**
-   * Comment un reverse proxy joint l'application, quand ses domaines passent
-   * par lui — ce qui décide de la publication de son port. Absente : pas de
-   * proxy, la publication habituelle du runtime. C'est le pipeline qui en
-   * décide, au vu des routes ; le driver applique ce qui a un sens chez lui.
+   * How a reverse proxy reaches the application, when its domains go through it —
+   * which decides how its port is published. Absent: no proxy, the runtime's usual
+   * publication. It is the pipeline that decides, given the routes; the driver
+   * applies what makes sense on its side.
    */
   exposure?: DriverExposure;
   /**
-   * Fichiers supplémentaires à déposer avec les artefacts rendus — typiquement
-   * le code source, quand un service se construit depuis un Dockerfile.
-   * Le driver ne sait pas d'où ils viennent : ni git, ni registry, ni archive.
-   * C'est le pipeline qui les fournit.
+   * Extra files to place with the rendered artifacts — typically the source code,
+   * when a service is built from a Dockerfile. The driver does not know where
+   * they come from: neither git, nor registry, nor archive. It is the pipeline
+   * that provides them.
    */
   additionalFiles?: RenderedFile[];
   /**
-   * Le code source quand il vient d'un dépôt lié : une archive `tar.gz` sur le
-   * disque du worker, que le driver dépose et décompresse dans `source/` de la
-   * release (`SOURCE_DIR`), à part de ses propres fichiers. Même principe que
-   * `additionalFiles` : le driver ne sait pas d'où elle vient.
+   * The source code when it comes from a linked repository: a `tar.gz` archive on
+   * the worker's disk, which the driver places and unpacks into the release's
+   * `source/` (`SOURCE_DIR`), apart from its own files. The same principle as
+   * `additionalFiles`: the driver does not know where it comes from.
    */
   sourceArchive?: SourceArchive;
   /**
-   * Ce déploiement apporte le code d'un dépôt : les contextes de construction
-   * de l'AppSpec, relatifs à la racine du dépôt, se résolvent sous `source/`.
-   * Connu dès le rendu, avant que l'archive ne soit téléchargée.
+   * This deployment brings a repository's code: the AppSpec's build contexts,
+   * relative to the repository's root, resolve under `source/`. Known from the
+   * render on, before the archive is downloaded.
    */
   sourceInRelease?: boolean;
 };
 
 export type DriverExposure = {
   /**
-   * Où publier le port : `127.0.0.1` pour un proxy de la même machine,
-   * l'adresse privée par laquelle un proxy distant joint celle-ci. Absente :
-   * toutes les interfaces. Le port ne doit pas être joignable d'ailleurs —
-   * sinon il contournerait le HTTPS du proxy.
+   * Where to publish the port: `127.0.0.1` for a proxy on the same machine, the
+   * private address through which a remote proxy reaches this one. Absent: every
+   * interface. The port must not be reachable from elsewhere — otherwise it would
+   * bypass the proxy's HTTPS.
    */
   bindAddress?: string;
-  /** N'ouvrir le pare-feu qu'à cette adresse : celle du proxy distant. */
+  /** Only open the firewall to this address: the remote proxy's. */
   allowFrom?: string;
   /**
-   * Le proxy joint l'application par un port de la machine : un runtime qui
-   * n'en publie pas d'ordinaire doit en publier un — un NodePort, en K3s.
+   * The proxy reaches the application through a port of the machine: a runtime
+   * that does not usually publish one must publish one — a NodePort, on K3s.
    */
   byPort?: boolean;
 };
 
 export type SourceArchive = {
-  /** Chemin local de l'archive, côté worker. */
+  /** Local path of the archive, on the worker side. */
   localPath: string;
-  /** Dossiers de tête à retirer à l'extraction : 1 pour une archive GitHub. */
+  /** Leading folders to strip on extraction: 1 for a GitHub archive. */
   stripComponents: number;
 };
 
 export type PreflightResult = {
   ok: boolean;
-  /** Version du moteur d'exécution sur la cible. */
+  /** Version of the execution engine on the target. */
   runtimeVersion: string | null;
-  /** Espace disponible sur le point de montage racine du driver, en Mio. */
+  /** Space available on the driver's root mount point, in MiB. */
   availableDiskMi: number | null;
   checks: Array<{
     key: string;
@@ -184,29 +181,29 @@ export type RenderedArtifacts = {
   /** Nom du projet / namespace : `app-{slug}`. */
   projectName: string;
   files: RenderedFile[];
-  /** Port publié sur la cible, ou `null` si l'exposition passe par un Ingress. */
+  /** Port published on the target, or `null` if exposure goes through an Ingress. */
   publishedPort: number | null;
 };
 
 export type DeployResult = {
   ok: boolean;
-  /** URL par laquelle l'application répond, si le driver peut la déterminer. */
+  /** URL through which the application answers, if the driver can determine it. */
   url: string | null;
   publishedPort: number | null;
-  /** Répertoire de la version déployée sur la cible. */
+  /** Directory of the version deployed on the target. */
   releasePath: string;
-  /** Images construites ou tirées, pour l'historique et les scanners. */
+  /** Images built or pulled, for the history and the scanners. */
   images: string[];
 };
 
 /**
- * Issue d'une sonde de santé. Trois cas, pas deux :
- *   healthy      le service répond, et il répond bien ;
- *   unhealthy    il répond, mais avec un code hors 2xx/3xx — il tourne, il est cassé ;
- *   unreachable  rien au bout : conteneur absent, port fermé, pod non prêt.
+ * Outcome of a health probe. Three cases, not two:
+ *   healthy      the service answers, and answers well;
+ *   unhealthy    it answers, but with a code outside 2xx/3xx — it runs, it is broken;
+ *   unreachable  nothing at the other end: container missing, port closed, pod not ready.
  *
- * La distinction change le diagnostic à produire, et elle est perdue dès qu'on
- * la réduit à un booléen.
+ * The distinction changes the diagnosis to produce, and it is lost as soon as it
+ * is reduced to a boolean.
  */
 export type HealthOutcome = 'healthy' | 'unhealthy' | 'unreachable';
 
@@ -214,72 +211,72 @@ export type HealthResult = {
   healthy: boolean;
   outcome: HealthOutcome;
   attempts: number;
-  /** Dernier code HTTP observé, si la sonde est HTTP. */
+  /** Last HTTP code observed, if the probe is HTTP. */
   statusCode: number | null;
   detail: string | null;
   /**
-   * Diagnostic capturé **sur la cible** au moment de l'échec : état des
-   * conteneurs ou des pods, et leurs derniers logs. Capturé avant de rendre la
-   * main, parce qu'un rollback qui suit effacerait la scène.
+   * Diagnosis captured **on the target** at the time of the failure: state of the
+   * containers or pods, and their last logs. Captured before returning, because a
+   * rollback that follows would wipe the scene.
    */
   diagnostics: string | null;
 };
 
-/** Le driver émet des lignes, il ne sait pas où elles vont. */
+/** The driver emits lines, it does not know where they go. */
 export type LogSink = (line: string) => void;
 
 export interface DeploymentDriver {
   readonly runtime: RuntimeKind;
 
   /**
-   * Nom sous lequel ce runtime regroupe l'application sur la machine : projet
-   * Compose côté Docker, namespace côté K3s. Convention `app-{slug}`.
+   * Name under which this runtime groups the application on the machine: Compose
+   * project on Docker, namespace on K3s. Convention `app-{slug}`.
    *
-   * Seule méthode de l'interface qui ne demande **ni contexte, ni session SSH** :
-   * c'est exactement ce qu'il faut quand la cible est injoignable et qu'on doit
-   * quand même écrire, dans le journal d'activité, ce qu'il restera à nettoyer
-   * à la main. Sur l'interface plutôt que chez l'appelant, parce que ce nom est
-   * une décision du driver — le déduire ailleurs ferait fuir le vocabulaire d'un
-   * runtime hors de sa classe.
+   * The only method of the interface that requires **neither context nor SSH
+   * session**: that is exactly what is needed when the target is unreachable and
+   * we must still write, in the activity log, what will remain to clean up by
+   * hand. On the interface rather than with the caller, because this name is a
+   * driver decision — deriving it elsewhere would leak a runtime's vocabulary out
+   * of its class.
    */
   workspaceName(appSlug: string): string;
 
   /**
-   * Les commandes à passer **sur la machine** pour démonter cette application à
-   * la main, quand le panel n'a plus les moyens de le faire lui-même — cible
-   * injoignable, enregistrement effacé de force.
+   * The commands to run **on the machine** to tear this application down by hand,
+   * when the panel no longer has the means to do it itself — unreachable target,
+   * record deleted by force.
    *
-   * Sur l'interface pour la même raison que `workspaceName()` : `docker compose
-   * down` et `kubectl delete namespace` sont du vocabulaire de runtime, et la
-   * règle est qu'il ne sort pas d'une classe de driver. Le jour où la
-   * destruction apprend un geste de plus, il s'ajoute ici aussi, au même
-   * endroit. Pure, sans session : c'est justement quand la session est
-   * impossible qu'on en a besoin.
+   * On the interface for the same reason as `workspaceName()`:
+   * `docker compose down` and `kubectl delete namespace` are runtime vocabulary,
+   * and the rule is that it does not leave a driver class. The day destruction
+   * learns one more gesture, it is added here too, in the same place. Pure,
+   * without a session: it is precisely when a session is impossible that it is
+   * needed.
    */
   manualCleanup(appSlug: string, rootPath: string): string[];
 
-  /** La cible est-elle capable d'accueillir ce déploiement ? */
+  /** Is the target able to host this deployment? */
   preflight(ctx: DriverContext): Promise<PreflightResult>;
 
   /**
-   * Réserve le port public. Retourne `null` quand le runtime n'expose pas par
-   * port — le K3sDriver passe par un Ingress.
+   * Reserves the public port. Returns `null` when the runtime does not expose
+   * through a port — the K3sDriver goes through an Ingress.
    *
-   * Le `onLog` est optionnel : la réservation est silencieuse en temps normal,
-   * mais elle a des choses à dire quand un port réservé se révèle occupé sur la
-   * cible par un service étranger au panel.
+   * `onLog` is optional: the reservation is silent normally, but it has things to
+   * say when a reserved port turns out to be taken on the target by a service
+   * foreign to the panel.
    */
   allocatePort(ctx: DriverContext, onLog?: LogSink): Promise<number | null>;
 
   /**
-   * Par où un reverse proxy joint le service exposé de l'application : le port
-   * publié sur la machine, ou le Service du cluster. `null` : rien à joindre —
-   * aucun port publié. Pure : c'est une décision du runtime, qui ne demande
-   * aucune lecture de la cible.
+   * How a reverse proxy reaches the application's exposed service: the port
+   * published on the machine, or the cluster's Service. `null`: nothing to reach
+   * — no published port. Pure: it is a runtime decision, which requires no read
+   * of the target.
    *
-   * Sur l'interface, et non chez l'appelant : le pipeline route vers ce que le
-   * driver annonce, sans savoir quel runtime il pilote. Le proxy, lui, dit
-   * lequel des deux il sait atteindre.
+   * On the interface, and not with the caller: the pipeline routes to what the
+   * driver announces, without knowing which runtime it drives. The proxy says
+   * which of the two it can reach.
    */
   upstream(ctx: DriverContext, publishedPort: number | null): ProxyUpstream | null;
 
@@ -287,163 +284,160 @@ export interface DeploymentDriver {
   render(ctx: DriverContext): Promise<RenderedArtifacts>;
 
   /**
-   * Dépose les artefacts sur la cible et vérifie que tout est en place.
-   * Séparé de `deploy()` parce que le pipeline en fait une étape observable.
+   * Places the artifacts on the target and checks that everything is in place.
+   * Separate from `deploy()` because the pipeline makes it an observable step.
    */
   upload(ctx: DriverContext, artifacts: RenderedArtifacts, onLog: LogSink): Promise<void>;
 
   /**
-   * Construit les images à bâtir. Retourne `null` quand il n'y a rien à
-   * construire — l'étape correspondante sera marquée `skipped`. C'est le driver
-   * qui décide, pas l'appelant.
+   * Builds the images to build. Returns `null` when there is nothing to build —
+   * the corresponding step will be marked `skipped`. It is the driver that
+   * decides, not the caller.
    */
   build(ctx: DriverContext, onLog: LogSink): Promise<string[] | null>;
 
   /**
-   * Images que ce déploiement va exécuter, telles que **ce runtime** les nomme.
+   * Images this deployment will run, as **this runtime** names them.
    *
-   * Le nommage d'une image construite est une décision du driver (préfixe de
-   * projet en Compose, préfixe de namespace en K3s) : l'appelant n'a aucun
-   * moyen de la deviner. Les scanners ont besoin de cette liste
-   * avant `deploy()`, alors qu'aucun conteneur n'a encore démarré.
+   * Naming a built image is a driver decision (project prefix on Compose,
+   * namespace prefix on K3s): the caller has no way to guess it. The scanners
+   * need this list before `deploy()`, while no container has started yet.
    */
   images(ctx: DriverContext): Promise<string[]>;
 
   /**
-   * Où ces images se trouvent sur la cible, pour que les scanners les lisent.
-   * Une image construite n'existe dans aucun registry : un scanner qui la
-   * chercherait au mauvais endroit rendrait un échec, ou rien.
+   * Where these images are on the target, so the scanners can read them. A built
+   * image exists in no registry: a scanner looking for it in the wrong place would
+   * return a failure, or nothing.
    */
   imageStore(ctx: DriverContext): ImageStore;
 
   /**
-   * Démarre les services. Suppose `upload()` et, le cas échéant, `build()` faits.
+   * Starts the services. Assumes `upload()` and, if needed, `build()` are done.
    *
-   * Si la nouvelle version a pris la place de l'ancienne sans devenir saine,
-   * l'échec est une `UnhealthyReleaseError` : le pipeline la traite comme un
-   * healthcheck en échec, rollback automatique compris.
+   * If the new version took the old one's place without becoming healthy, the
+   * failure is an `UnhealthyReleaseError`: the pipeline treats it as a failed
+   * healthcheck, automatic rollback included.
    */
   deploy(ctx: DriverContext, onLog: LogSink): Promise<DeployResult>;
 
   healthcheck(ctx: DriverContext): Promise<HealthResult>;
 
-  /** Redéploie la version précédente. Exige `ctx.previousDeployment`. */
+  /** Redeploys the previous version. Requires `ctx.previousDeployment`. */
   rollback(ctx: DriverContext, onLog: LogSink): Promise<void>;
 
-  /** Détruit le déploiement et libère ses ressources. */
+  /** Destroys the deployment and releases its resources. */
   destroy(ctx: DriverContext, onLog: LogSink): Promise<void>;
 
   /**
-   * Supprime les répertoires de version au-delà des `keep` plus récents, en
-   * préservant toujours la version courante. Retourne ce qui a été supprimé.
+   * Deletes the version directories beyond the `keep` most recent ones, always
+   * preserving the current version. Returns what was deleted.
    *
-   * Sur l'interface, et non chez l'appelant : c'est le driver qui sait où il
-   * dépose ses releases. La tâche planifiée `cleanup:versions`
-   * l'appelle sans jamais nommer un chemin, ni savoir sur quel runtime elle
-   * tourne.
+   * On the interface, and not with the caller: it is the driver that knows where
+   * it places its releases. The `cleanup:versions` scheduled task calls it without
+   * ever naming a path, nor knowing which runtime it runs on.
    */
   pruneReleases(ctx: DriverContext, onLog: LogSink, keep?: number): Promise<string[]>;
 
-  /** Suit les logs applicatifs, ligne par ligne, jusqu'à interruption. */
+  /** Follows the application logs, line by line, until interrupted. */
   logs(ctx: DriverContext, onLine: LogSink): Promise<void>;
 
   /**
-   * État courant des services, tel que le runtime le rapporte.
-   * Lecture seule et rapide : sert à la supervision, pas au pipeline.
+   * Current state of the services, as the runtime reports it. Read-only and
+   * quick: it serves monitoring, not the pipeline.
    */
   status(ctx: DriverContext): Promise<AppStatus>;
 
   /**
-   * Redémarre l'application sans la redéployer : mêmes images, mêmes volumes,
-   * même port. Ce n'est pas un rollback, ce n'est pas un déploiement.
+   * Restarts the application without redeploying it: same images, same volumes,
+   * same port. It is not a rollback, it is not a deployment.
    */
   restart(ctx: DriverContext, onLog: LogSink): Promise<void>;
 
   /**
-   * Arrête l'application sans rien démonter.
+   * Stops the application without tearing anything down.
    *
-   * ── Le contrat, identique sur les deux runtimes ─────────────────────────────
-   * Ce qui s'arrête : les processus, et eux seuls.
-   * Ce qui reste : les volumes et leurs données, la réservation de port en
-   * base, le répertoire de release sur la cible, l'entrée de proxy ou
-   * l'Ingress, et l'enregistrement du déploiement. `start()` doit pouvoir
-   * remettre en marche **exactement** ce que `deploy()` avait posé — sans
-   * nouveau rendu, sans reconstruction, sans changement de version.
+   * ── The contract, identical on both runtimes ───────────────────────────────
+   * What stops: the processes, and only them.
+   * What stays: the volumes and their data, the port reservation in the database,
+   * the release directory on the target, the proxy entry or the Ingress, and the
+   * deployment record. `start()` must be able to put back in service **exactly**
+   * what `deploy()` had set up — without a new render, without a rebuild, without
+   * a version change.
    *
-   * Idempotent : arrêter une application déjà arrêtée réussit sans rien faire.
-   * C'est ce qui rend le geste rejouable après une coupure de session, et ce
-   * qui évite d'avoir à interroger l'état avant d'agir.
+   * Idempotent: stopping an application already stopped succeeds doing nothing.
+   * That is what makes the gesture replayable after a session cut, and what avoids
+   * having to query the state before acting.
    *
-   * ── Une divergence observable, et elle est assumée ──────────────────────────
-   * Ce que voit un visiteur pendant l'arrêt n'est pas le même des deux côtés :
-   * en Compose le port hôte se libère avec le conteneur — la connexion est
-   * refusée ; en Kubernetes le Service et l'Ingress survivent aux pods — le
-   * contrôleur d'ingress répond 503. Aucune des deux ne peut être imitée par
-   * l'autre sans détruire ce que le contrat promet de garder (l'entrée de proxy
-   * d'un côté, la réservation de port de l'autre). On la documente ici plutôt
-   * que de la maquiller.
+   * ── One observable divergence, and it is accepted ──────────────────────────
+   * What a visitor sees during the stop is not the same on both sides: on Compose
+   * the host port is freed with the container — the connection is refused; on
+   * Kubernetes the Service and the Ingress outlive the pods — the ingress
+   * controller answers 503. Neither can be imitated by the other without
+   * destroying what the contract promises to keep (the proxy entry on one side,
+   * the port reservation on the other). We document it here rather than disguise
+   * it.
    *
-   * Obligatoire, et non optionnelle comme `openFirewall()` : les deux runtimes
-   * ont une traduction honnête du geste. Une méthode optionnelle dit « ce
-   * runtime n'a pas cette capacité » — ce n'est pas le cas ici, et le laisser
-   * croire obligerait l'appelant à prévoir un cas qui n'existe pas.
+   * Required, and not optional like `openFirewall()`: both runtimes have an honest
+   * translation of the gesture. An optional method says "this runtime does not
+   * have this capability" — that is not the case here, and suggesting it would
+   * force the caller to plan for a case that does not exist.
    */
   stop(ctx: DriverContext, onLog: LogSink): Promise<void>;
 
   /**
-   * Remet en marche ce que `stop()` a arrêté, dans l'état où `deploy()` l'avait
-   * laissé — mêmes images, mêmes volumes, même port, même nombre de répliques
-   * que l'AppSpec en demande.
+   * Puts back in service what `stop()` stopped, in the state `deploy()` had left
+   * it — same images, same volumes, same port, as many replicas as the AppSpec
+   * asks for.
    *
-   * Idempotent lui aussi : démarrer une application déjà en marche réussit.
-   * Rend la main quand les services sont **prêts**, pas quand l'ordre est
-   * passé : c'est ce qui permet à l'appelant d'enchaîner sur une sonde de santé
-   * qui veut dire quelque chose.
+   * Idempotent too: starting an application already running succeeds. Returns
+   * when the services are **ready**, not when the order is given: that is what
+   * lets the caller follow up with a health probe that means something.
    */
   start(ctx: DriverContext, onLog: LogSink): Promise<void>;
 
-  // ─── charges de la cible ───────────────────────────────────────────────────
+  // ─── target workloads ────────────────────────────────────────────────────────
   //
-  // Ces trois-là ne parlent pas d'un déploiement mais de la **machine** : elles
-  // voient tout ce qui tourne, que le panel l'ait déployé ou non. D'où le
-  // `TargetContext` plutôt que le `DriverContext`.
+  // These three are not about a deployment but about the **machine**: they see
+  // everything running, whether the panel deployed it or not. Hence
+  // `TargetContext` rather than `DriverContext`.
 
   /**
-   * Tout ce qui tourne sur la cible pour ce runtime, panel compris.
+   * Everything running on the target for this runtime, the panel included.
    *
-   * Chaque charge se dit elle-même `managed` ou non : c'est le driver qui sait
-   * reconnaître sa propre signature sur la machine, et personne d'autre.
-   * Lecture seule, et courte — une commande, pas une session.
+   * Each workload says itself whether it is `managed`: it is the driver that knows
+   * how to recognize its own signature on the machine, and nobody else.
+   * Read-only, and short — a command, not a session.
    */
   listWorkloads(ctx: TargetContext): Promise<Workload[]>;
 
   /**
-   * Supprime une charge et ce qu'elle emporte avec elle.
+   * Deletes a workload and what it takes along.
    *
-   * Doit refuser une charge `managed` : le panel tient déjà son cycle de vie
-   * ailleurs, et l'effacer par ce chemin laisserait la base persuadée qu'elle
-   * tourne. Le refus est un `DriverError`, pas un silence.
+   * Must refuse a `managed` workload: the panel already holds its life cycle
+   * elsewhere, and deleting it through this path would leave the database
+   * convinced it is running. The refusal is a `DriverError`, not a silence.
    */
   removeWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void>;
 
   /**
-   * Récupère l'image la plus récente et recrée la charge avec la même
-   * configuration. Ce que « la même configuration » veut dire est propre à
-   * chaque runtime, et c'est écrit dans chaque implémentation.
+   * Fetches the most recent image and recreates the workload with the same
+   * configuration. What "the same configuration" means is specific to each
+   * runtime, and it is written in each implementation.
    *
-   * Comme `removeWorkload`, refuse une charge `managed` : mettre à jour une
-   * application du panel, c'est la redéployer, pas la recréer dans son dos.
+   * Like `removeWorkload`, refuses a `managed` workload: updating a panel
+   * application means redeploying it, not recreating it behind its back.
    */
   updateWorkload(ctx: TargetContext, ref: WorkloadRef, onLog: LogSink): Promise<void>;
 
   /**
-   * Démarre, arrête ou redémarre une charge, sans rien recréer.
+   * Starts, stops or restarts a workload, without recreating anything.
    *
-   * Une charge `managed` se **redémarre** ici — son état en base n'en dépend
-   * pas —, mais ne s'arrête ni ne démarre : c'est l'arrêt de l'application
-   * qui tient `stopped_at`, et un arrêt par ce chemin laisserait le panel la
-   * croire en marche. Le refus est un `DriverError`. Ce que « arrêter » veut
-   * dire est propre au runtime, et écrit dans chaque implémentation.
+   * A `managed` workload can be **restarted** here — its state in the database
+   * does not depend on it —, but neither stopped nor started: it is stopping the
+   * application that holds `stopped_at`, and a stop through this path would leave
+   * the panel believing it running. The refusal is a `DriverError`. What "stop"
+   * means is specific to the runtime, and written in each implementation.
    */
   controlWorkload(
     ctx: TargetContext,
@@ -453,27 +447,27 @@ export interface DeploymentDriver {
   ): Promise<void>;
 
   /**
-   * Le contenu exact de ce qui tourne : pour chaque service de l'application,
-   * les digests (`sha256:…`) des images de ses conteneurs ou pods — ceux que
-   * le registre annonce pour un tag, à forme égale (index multi-architecture).
-   * C'est ce qui permet de dire si un tag a bougé depuis le déploiement.
-   * Lecture seule ; un service sans conteneur est absent du résultat.
+   * The exact content of what runs: for each service of the application, the
+   * digests (`sha256:…`) of its containers' or pods' images — those the registry
+   * announces for a tag, in the same shape (multi-architecture index). It is what
+   * tells whether a tag has moved since the deployment. Read-only; a service
+   * without a container is absent from the result.
    */
   runningImages(ctx: DriverContext): Promise<RunningImage[]>;
 
-  // ─── sauvegardes ─────────────────────────────────────────────────────────
-  // Les données d'une application vivent dans des volumes que chaque runtime
-  // range à sa façon — volume Docker nommé, PVC Kubernetes. Le worker ne sait
-  // rien de cela : il demande au driver un flux d'octets, ou lui en donne un.
-  // Un code de sortie non nul est un `DriverError`, avec la fin de stderr.
+  // ─── backups ─────────────────────────────────────────────────────────────
+  // An application's data lives in volumes each runtime stores its own way —
+  // named Docker volume, Kubernetes PVC. The worker knows nothing about that: it
+  // asks the driver for a byte stream, or gives it one.
+  // A non-zero exit code is a `DriverError`, with the end of stderr.
 
-  /** Archive (`tar.gz`) du contenu d'un volume de l'application, écrite sur `sink`. */
+  /** Archive (`tar.gz`) of the content of an application volume, written to `sink`. */
   exportVolume(ctx: DriverContext, service: string, volume: string, sink: Writable): Promise<void>;
 
   /**
-   * Remplace le contenu d'un volume par l'archive lue sur `source`. À faire
-   * application arrêtée : un processus qui écrit pendant ce temps aurait le
-   * dernier mot.
+   * Replaces a volume's content with the archive read from `source`. To do with
+   * the application stopped: a process writing in the meantime would have the
+   * last word.
    */
   importVolume(
     ctx: DriverContext,
@@ -482,7 +476,7 @@ export interface DeploymentDriver {
     source: Readable,
   ): Promise<void>;
 
-  /** Lance `command` (sous `sh -c`) dans le service en marche ; sa sortie standard va sur `sink`. */
+  /** Runs `command` (under `sh -c`) in the running service; its stdout goes to `sink`. */
   exportFromService(
     ctx: DriverContext,
     service: string,
@@ -490,7 +484,7 @@ export interface DeploymentDriver {
     sink: Writable,
   ): Promise<void>;
 
-  /** Lance `command` dans le service en marche, `source` en entrée standard. */
+  /** Runs `command` in the running service, with `source` as stdin. */
   importIntoService(
     ctx: DriverContext,
     service: string,
@@ -498,14 +492,14 @@ export interface DeploymentDriver {
     source: Readable,
   ): Promise<void>;
 
-  /** Les dernières lignes du journal d'une charge, horodatées. Lecture seule. */
+  /** The last lines of a workload's log, timestamped. Read-only. */
   workloadLogs(ctx: TargetContext, ref: WorkloadRef, tail: number, onLine: LogSink): Promise<void>;
 
   /**
-   * Exécute une commande dans la charge — non interactive, sous `sh -c`. La
-   * commande ne s'exécute **que** dans la charge, jamais sur l'hôte : elle est
-   * citée pour le shell de la machine (voir `quoteForShell`). Rend le code de
-   * sortie ; la sortie part ligne par ligne, bornée en nombre et en durée.
+   * Runs a command in the workload — non-interactive, under `sh -c`. The command
+   * **only** runs in the workload, never on the host: it is quoted for the
+   * machine's shell (see `quoteForShell`). Returns the exit code; the output goes
+   * out line by line, bounded in number and duration.
    */
   execInWorkload(
     ctx: TargetContext,
@@ -516,32 +510,32 @@ export interface DeploymentDriver {
   ): Promise<WorkloadExecResult>;
 
   /**
-   * Retire ce que le runtime a posé sur la machine **pour construire** des
-   * images, quand aucun build ne s'en est servi depuis longtemps — la durée est
-   * une politique du driver, écrite chez lui.
+   * Removes what the runtime set up on the machine **to build** images, when no
+   * build has used it for a long time — the duration is a driver policy, written
+   * on its side.
    *
-   * **Optionnelle**, comme `openFirewall()` : un runtime qui construit sans
-   * rien poser — le démon Docker sait construire seul — n'a rien à expirer, et
-   * ne l'implémente pas. Le balayage qui l'appelle ne sait pas quel runtime il
-   * interroge. Ne touche à aucune application ni aux images déjà construites.
+   * **Optional**, like `openFirewall()`: a runtime that builds without setting
+   * anything up — the Docker daemon can build alone — has nothing to expire, and
+   * does not implement it. The sweep that calls it does not know which runtime it
+   * queries. Touches no application nor the images already built.
    */
   pruneIdleBuilder?(ctx: TargetContext, onLog: LogSink, now?: Date): Promise<BuilderPruneResult>;
 
   /**
-   * Ouvre le port sur le pare-feu de la cible.
+   * Opens the port on the target's firewall.
    *
-   * **Optionnelle à dessein.** Un runtime qui n'expose aucun port hôte n'a rien
-   * à ouvrir : il n'implémente simplement pas la méthode, et l'appelant qui ne
-   * la trouve pas passe son chemin. C'est une question de capacité du driver,
-   * jamais un `if (runtime === ...)` chez l'appelant.
+   * **Optional by design.** A runtime that exposes no host port has nothing to
+   * open: it simply does not implement the method, and the caller that does not
+   * find it moves on. It is a matter of driver capability, never an
+   * `if (runtime === ...)` in the caller.
    */
   openFirewall?(ctx: DriverContext, port: number, onLog?: LogSink): Promise<void>;
 
-  /** Referme le port. Pendant de `openFirewall`, même règle d'optionalité. */
+  /** Closes the port. Counterpart of `openFirewall`, same optionality rule. */
   closeFirewall?(ctx: DriverContext, port: number, onLog?: LogSink): Promise<void>;
 }
 
-/** Échec imputable au driver, avec le contexte utile au diagnostic. */
+/** A failure attributable to the driver, with the context useful for diagnosis. */
 export class DriverError extends Error {
   constructor(
     message: string,
@@ -555,17 +549,17 @@ export class DriverError extends Error {
 }
 
 /**
- * `deploy()` a mis la nouvelle version en place, mais elle n'est pas devenue
- * saine dans le délai.
+ * `deploy()` put the new version in place, but it did not become healthy in
+ * time.
  *
- * Pour le pipeline, c'est un healthcheck en échec : le rollback automatique
- * s'applique. Sans ce signal, un échec de `deploy` passerait pour un démarrage
- * qui n'a jamais eu lieu, où il n'y a rien à défaire — ce qui est faux dès que
- * le runtime remplace les services **avant** d'attendre leur santé. Seul le
- * driver sait si c'est le cas : c'est donc lui qui le dit.
+ * For the pipeline, it is a failed healthcheck: automatic rollback applies.
+ * Without this signal, a `deploy` failure would pass for a start that never
+ * happened, where there is nothing to undo — which is wrong as soon as the
+ * runtime replaces the services **before** waiting for their health. Only the
+ * driver knows whether that is the case: so it is the one that says it.
  *
- * `diagnostics` : la scène capturée avant de rendre la main, comme
- * `HealthResult.diagnostics` — le rollback qui suit l'effacerait.
+ * `diagnostics`: the scene captured before returning, like
+ * `HealthResult.diagnostics` — the rollback that follows would wipe it.
  */
 export class UnhealthyReleaseError extends DriverError {
   constructor(

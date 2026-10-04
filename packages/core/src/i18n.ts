@@ -1,42 +1,41 @@
 /**
- * Le mécanisme de traduction — et rien que le mécanisme.
+ * The translation mechanism — and nothing but the mechanism.
  *
- * ── Pourquoi rien d'installé ────────────────────────────────────────────────
- * `next-intl`, `react-i18next` et `@formatjs` savent tous faire ce qui suit,
- * et bien davantage. Aucun ne se paie ici :
+ * ── Why nothing installed ───────────────────────────────────────────────────
+ * `next-intl`, `react-i18next` and `@formatjs` can all do what follows, and
+ * much more. None of them pays its way here:
  *
- *   • Les deux premiers organisent la locale autour du **routage** — un
- *     segment `/fr/...` ou `/en/...`. Les URL du panel sont déjà parties dans
- *     des e-mails d'invitation, des alertes Discord et des runbooks ; les
- *     préfixer casserait des liens envoyés. Les désarmer (`localePrefix:
- *     'never'`) revient à payer une dépendance pour en neutraliser la
- *     fonctionnalité principale.
- *   • `react-i18next` et `react-intl` sont taillés pour le client. Ce panel est
- *     rendu à 80 % sur le serveur : il faudrait cloner une instance par
- *     requête, ou pousser un `Provider` dans chaque page.
- *   • Tous embarquent ICU MessageFormat. On en utiliserait deux choses : les
- *     substitutions et les pluriels. Les deux tiennent en quarante lignes,
- *     `Intl.PluralRules` faisant le travail difficile.
+ *   • The first two organize the locale around **routing** — a `/fr/...` or
+ *     `/en/...` segment. The panel's URLs have already gone out in invitation
+ *     emails, Discord alerts and runbooks; prefixing them would break links
+ *     already sent. Disarming them (`localePrefix: 'never'`) amounts to paying
+ *     for a dependency in order to neutralize its main feature.
+ *   • `react-i18next` and `react-intl` are cut out for the client. This panel
+ *     is 80% rendered on the server: we would have to clone an instance per
+ *     request, or push a `Provider` into every page.
+ *   • All of them ship ICU MessageFormat. We would use two things from it:
+ *     substitutions and plurals. Both fit in forty lines, with
+ *     `Intl.PluralRules` doing the hard work.
  *
- * Ce que la maison apporte en plus, et qui décide : **la parité des clés est
- * vérifiée par le compilateur**. Un dictionnaire est un objet typé, la version
- * anglaise est annotée `Translated<typeof fr>` — une clé oubliée ou en trop
- * fait échouer `pnpm typecheck`, pas un test qu'on peut oublier d'écrire, pas
- * un `key not found` à l'écran devant un utilisateur.
+ * What the home-made version adds, and what decides: **key parity is checked
+ * by the compiler**. A dictionary is a typed object, the English version is
+ * annotated `Translated<typeof fr>` — a forgotten or extra key fails
+ * `pnpm typecheck`, not a test one can forget to write, not a `key not found`
+ * on screen in front of a user.
  *
- * ── Pourquoi dans `core` et pas dans `apps/web` ─────────────────────────────
- * Le worker compose des alertes, et `@pupitre/db` porte des catalogues dont les
- * libellés s'affichent. Les trois doivent rendre la même phrase dans la même
- * langue. Le mécanisme vit donc là où les trois peuvent l'atteindre. Les
- * *dictionnaires*, eux, restent chez leur propriétaire : ceux de l'interface
- * dans `apps/web/src/i18n/messages`, ceux du domaine à côté du domaine.
+ * ── Why in `core` and not in `apps/web` ─────────────────────────────────────
+ * The worker composes alerts, and `@pupitre/db` carries catalogs whose labels
+ * are displayed. All three must render the same sentence in the same
+ * language. The mechanism therefore lives where all three can reach it. The
+ * *dictionaries*, on the other hand, stay with their owner: the interface's in
+ * `apps/web/src/i18n/messages`, the domain's next to the domain.
  */
 
 /**
- * Les langues dans lesquelles le panel se lit **entièrement**. Une langue
- * n'entre ici qu'accompagnée de son dictionnaire complet : une entrée de plus
- * sans traduction produirait exactement ce qu'on veut éviter — un écran mi-
- * anglais mi-français.
+ * The languages in which the panel reads **entirely**. A language only gets in
+ * here together with its complete dictionary: one more entry without a
+ * translation would produce exactly what we want to avoid — a screen half
+ * English, half French.
  */
 export const UI_LANGUAGES = ['fr', 'en'] as const;
 export type UiLanguage = (typeof UI_LANGUAGES)[number];
@@ -44,18 +43,17 @@ export type UiLanguage = (typeof UI_LANGUAGES)[number];
 export const DEFAULT_UI_LANGUAGE: UiLanguage = 'en';
 
 /**
- * La langue de l'interface se **déduit** de la locale de régionalisation, elle
- * ne se règle pas à part.
+ * The interface language is **derived** from the regional settings' locale; it
+ * is not set separately.
  *
- * Deux réglages pour une question — « en quelle langue me parles-tu ? » — se
- * seraient contredits le jour où quelqu'un aurait posé `en-GB` d'un côté et
- * « français » de l'autre. La locale décide déjà du nom des mois et de l'ordre
- * jour/mois : elle décide aussi des mots. Un seul endroit à changer, un seul
- * état possible.
+ * Two settings for one question — "which language do you speak to me?" — would
+ * have contradicted each other the day someone set `en-GB` on one side and
+ * "French" on the other. The locale already decides the names of the months
+ * and the day/month order: it decides the words too. A single place to change,
+ * a single possible state.
  *
- * Le repli est l'anglais, et c'est délibéré : une instance réglée sur `de-DE`
- * n'a pas demandé du français. Elle obtient la langue véhiculaire du projet en
- * attendant que quelqu'un écrive `de`.
+ * The fallback is English, deliberately: an instance set to `de-DE` did not ask
+ * for French. It gets the project's common language until someone writes `de`.
  */
 export function languageOf(locale: string): UiLanguage {
   const primary = locale.toLowerCase().split('-')[0];
@@ -65,26 +63,26 @@ export function languageOf(locale: string): UiLanguage {
 }
 
 /**
- * Une entrée de dictionnaire : soit une phrase, soit ses formes de pluriel.
+ * A dictionary entry: either a sentence, or its plural forms.
  *
- * `zero` est facultatif et n'a rien d'une forme grammaticale — ni le français
- * ni l'anglais n'en ont une. C'est la place de « Aucune cible » là où
- * « 0 cible » se lirait mal. Absent, `Intl.PluralRules` tranche seul.
+ * `zero` is optional and is not a grammatical form at all — neither French nor
+ * English has one. It is the place for « Aucune cible » where « 0 cible »
+ * would read badly. Absent, `Intl.PluralRules` decides alone.
  */
 export type PluralForms = { zero?: string; one: string; other: string };
 export type MessageEntry = string | PluralForms;
 export type Dict = Readonly<Record<string, MessageEntry>>;
 
 /**
- * La version traduite d'un dictionnaire, vue par le compilateur : mêmes clés,
- * mêmes formes. C'est **la** garde anti-régression — les autres ne font que
- * confirmer ce que celle-ci a déjà refusé de compiler.
+ * The translated version of a dictionary, as the compiler sees it: same keys,
+ * same forms. It is **the** anti-regression guard — the others only confirm
+ * what this one already refused to compile.
  */
 export type Translated<F extends Dict> = {
   [K in keyof F]: F[K] extends string ? string : PluralForms;
 };
 
-/** Un dictionnaire et sa traduction, appariés. C'est ce qu'un écran importe. */
+/** A dictionary and its translation, paired. It is what a screen imports. */
 export type Bundle<F extends Dict = Dict> = {
   readonly fr: F;
   readonly en: Translated<F>;
@@ -93,12 +91,12 @@ export type Bundle<F extends Dict = Dict> = {
 export type Vars = Readonly<Record<string, string | number>>;
 
 /**
- * Apparie un dictionnaire français et sa traduction anglaise.
+ * Pairs a French dictionary with its English translation.
  *
- * L'annotation `Translated<F>` sur le paramètre `en` fait tout le travail :
- * une clé manquante est une erreur de type, une clé en trop aussi (contrôle
- * des propriétés excédentaires sur un littéral d'objet), et une phrase promise
- * au pluriel qui ne rend qu'une chaîne également.
+ * The `Translated<F>` annotation on the `en` parameter does all the work: a
+ * missing key is a type error, an extra key too (excess property check on an
+ * object literal), and so is a sentence promised in the plural that only
+ * returns a string.
  */
 export function defineMessages<const F extends Dict>(bundle: {
   fr: F;
@@ -118,13 +116,13 @@ function rulesFor(lang: UiLanguage): Intl.PluralRules {
 }
 
 /**
- * Choisit la forme, puis substitue.
+ * Picks the form, then substitutes.
  *
- * Le français et l'anglais divergent sur zéro — « 0 cible prête » contre
- * « 0 targets ready » — et c'est précisément ce que `Intl.PluralRules` sait :
- * il classe 0 en `one` pour le français, en `other` pour l'anglais. Les
- * `${n > 1 ? 's' : ''}` semés dans le code ne survivaient pas au passage ;
- * cette fonction, si.
+ * French and English diverge on zero — « 0 cible prête » versus
+ * "0 targets ready" — and that is precisely what `Intl.PluralRules` knows: it
+ * classes 0 as `one` for French, as `other` for English. The
+ * `${n > 1 ? 's' : ''}` scattered through the code did not survive the switch;
+ * this function does.
  */
 function selectForm(entry: MessageEntry, lang: UiLanguage, vars: Vars | undefined): string {
   if (typeof entry === 'string') return entry;
@@ -144,9 +142,9 @@ function interpolate(template: string, vars: Vars | undefined): string {
 }
 
 /**
- * Rend une clé. Ne lève jamais et ne rend jamais la clé nue : afficher
- * `settings.notifications.title` à un utilisateur est pire que de lui montrer
- * du français. On retombe donc sur la langue source, qui existe toujours.
+ * Renders a key. Never throws and never returns the bare key: showing
+ * `settings.notifications.title` to a user is worse than showing them French.
+ * We therefore fall back on the source language, which always exists.
  */
 export function renderMessage<F extends Dict>(
   bundle: Bundle<F>,
@@ -159,10 +157,10 @@ export function renderMessage<F extends Dict>(
   return interpolate(selectForm(entry, lang, vars), vars);
 }
 
-/** La fonction qu'un composant appelle. Liée à un dictionnaire et à une langue. */
+/** The function a component calls. Bound to a dictionary and a language. */
 export type Translate<F extends Dict> = (key: keyof F & string, vars?: Vars) => string;
 
-/** Lie un dictionnaire à une langue. Pur, donc identique serveur et client. */
+/** Binds a dictionary to a language. Pure, hence identical on server and client. */
 export function translator<F extends Dict>(bundle: Bundle<F>, lang: UiLanguage): Translate<F> {
   return (key, vars) => renderMessage(bundle, lang, key, vars);
 }
