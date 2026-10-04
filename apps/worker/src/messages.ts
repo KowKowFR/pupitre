@@ -155,6 +155,14 @@ const fr = {
     'le proxy de « {proxy} » ne joint pas cette machine : {detail}. Rétablissez le passage de « {proxy} » vers {address} (ports {min}-{max}), puis « Tester la liaison » dans l’onglet Reverse proxy de la cible.',
   'link.ok': '✓ liaison au proxy de « {proxy} » : {detail}',
   'link.from': ' — arrivée depuis {source}',
+
+  'source.missingFile': '{path} absent à ce commit',
+  'source.rejected': '{path} refusé au commit {sha} : {issues}',
+  'source.rejectedPrefix': '{path} refusé',
+  'source.connectionRemoved': 'la connexion au fournisseur de ce dépôt a été retirée',
+  'sourceDeploy.targetGone': 'cible supprimée',
+  'sourceDeploy.neverTested': 'jamais testée : lancez un preflight',
+  'sourceDeploy.runtimeUnavailable': '{runtime} indisponible sur cette cible',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -305,6 +313,14 @@ const en: Translated<typeof fr> = {
     'the proxy of “{proxy}” cannot reach this machine: {detail}. Restore the path from “{proxy}” to {address} (ports {min}-{max}), then “Test the link” in the target’s Reverse proxy tab.',
   'link.ok': '✓ link to the proxy of “{proxy}”: {detail}',
   'link.from': ' — arriving from {source}',
+
+  'source.missingFile': '{path} missing at this commit',
+  'source.rejected': '{path} rejected at commit {sha}: {issues}',
+  'source.rejectedPrefix': '{path} rejected',
+  'source.connectionRemoved': 'the connection to this repository’s provider was removed',
+  'sourceDeploy.targetGone': 'target deleted',
+  'sourceDeploy.neverTested': 'never tested: run a preflight',
+  'sourceDeploy.runtimeUnavailable': '{runtime} unavailable on this target',
 };
 
 export const workerCopy = { fr, en };

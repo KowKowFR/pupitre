@@ -1,5 +1,5 @@
 import 'server-only';
-import { SourceProviderError, type SourceProviderKind } from '@pupitre/core';
+import { SourceProviderError, type SourceProviderKind, type UiLanguage } from '@pupitre/core';
 import {
   createSourceProvider,
   githubInstallUrl,
@@ -14,6 +14,7 @@ import {
   type SourceConnection,
 } from '@pupitre/db';
 import { sources as messages } from '@/i18n/messages/sources';
+import { currentLanguage } from '@/i18n/server';
 import { HttpError, msg } from '@/lib/errors';
 import { getEnv } from '@/lib/env';
 
@@ -47,8 +48,8 @@ export function githubCredentialsOf(connection: SourceConnection): GitHubAppCred
 }
 
 /** Le client d'une connexion. */
-export function providerOf(connection: SourceConnection): SourceProvider {
-  return createSourceProvider(sourceConnectionSecrets(connection));
+export function providerOf(connection: SourceConnection, language: UiLanguage): SourceProvider {
+  return createSourceProvider(sourceConnectionSecrets(connection), language);
 }
 
 /** Le client d'un fournisseur, s'il est connecté. */
@@ -58,15 +59,16 @@ export async function sourceProvider(kind: SourceProviderKind): Promise<{
 } | null> {
   const connection = await getSourceConnection(kind);
   if (!connection) return null;
-  return { provider: providerOf(connection), connection };
+  return { provider: providerOf(connection, await currentLanguage()), connection };
 }
 
 /** Tous les fournisseurs connectés. */
 export async function sourceProviders(): Promise<
   Array<{ provider: SourceProvider; connection: SourceConnection }>
 > {
+  const language = await currentLanguage();
   return (await listSourceConnections()).map((connection) => ({
-    provider: providerOf(connection),
+    provider: providerOf(connection, language),
     connection,
   }));
 }

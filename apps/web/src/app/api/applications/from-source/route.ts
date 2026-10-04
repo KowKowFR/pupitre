@@ -15,7 +15,7 @@ import {
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sources as messages } from '@/i18n/messages/sources';
-import { getT } from '@/i18n/server';
+import { currentLanguage, getT } from '@/i18n/server';
 import { createApplicationFromSpec } from '@/lib/application-create';
 import { HttpError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
@@ -92,7 +92,7 @@ export const POST = apiRoute(async (request) => {
   } catch {
     name = null;
   }
-  const read = parseSourceSpec(content, name ?? '');
+  const read = parseSourceSpec(content, name ?? '', await currentLanguage());
   const taken = read.ok ? (await getApplicationBySlug(read.spec.name)) !== null : false;
 
   if (input.preview) {

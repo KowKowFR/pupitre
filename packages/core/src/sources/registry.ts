@@ -1,3 +1,4 @@
+import type { UiLanguage } from '../i18n.js';
 import { GiteaSourceProvider } from './gitea.js';
 import { GitHubSourceProvider } from './github.js';
 import { GitLabSourceProvider } from './gitlab.js';
@@ -11,17 +12,29 @@ import type { SourceConnectionSecrets, SourceProvider } from './types.js';
  * d'ici a déjà ses secrets en clair : l'appelant les déchiffre juste avant, et
  * le client ne les garde qu'en mémoire.
  */
-export function createSourceProvider(connection: SourceConnectionSecrets): SourceProvider {
+export function createSourceProvider(
+  connection: SourceConnectionSecrets,
+  language: UiLanguage = 'fr',
+): SourceProvider {
   switch (connection.provider) {
     case 'github':
       return new GitHubSourceProvider({
         appId: connection.appId,
         privateKey: connection.privateKey,
         ...(connection.apiUrl ? { apiUrl: connection.apiUrl } : {}),
+        language,
       });
     case 'gitea':
-      return new GiteaSourceProvider({ baseUrl: connection.baseUrl, token: connection.token });
+      return new GiteaSourceProvider({
+        baseUrl: connection.baseUrl,
+        token: connection.token,
+        language,
+      });
     case 'gitlab':
-      return new GitLabSourceProvider({ baseUrl: connection.baseUrl, token: connection.token });
+      return new GitLabSourceProvider({
+        baseUrl: connection.baseUrl,
+        token: connection.token,
+        language,
+      });
   }
 }

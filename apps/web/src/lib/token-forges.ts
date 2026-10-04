@@ -1,5 +1,10 @@
 import 'server-only';
-import { SOURCE_PROVIDER_LABELS, SourceProviderError, encrypt } from '@pupitre/core';
+import {
+  SOURCE_PROVIDER_LABELS,
+  SourceProviderError,
+  encrypt,
+  type UiLanguage,
+} from '@pupitre/core';
 import { fetchGiteaAccount, fetchGitLabAccount } from '@pupitre/core/sources';
 import {
   countApplicationSources,
@@ -11,6 +16,7 @@ import {
 } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { currentLanguage } from '@/i18n/server';
 import { sources as messages } from '@/i18n/messages/sources';
 import { ConflictError, NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
@@ -38,7 +44,11 @@ export type TokenForgeAccount = {
 
 const ACCOUNT: Record<
   TokenForgeKind,
-  (credentials: { baseUrl: string; token: string }) => Promise<TokenForgeAccount>
+  (credentials: {
+    baseUrl: string;
+    token: string;
+    language: UiLanguage;
+  }) => Promise<TokenForgeAccount>
 > = {
   gitea: async (credentials) => ({ ...(await fetchGiteaAccount(credentials)), expiresAt: null }),
   gitlab: async (credentials) => {
@@ -81,9 +91,11 @@ export function tokenForgeRoutes(kind: TokenForgeKind) {
   const PUT = apiRoute(async (request) => {
     const auth = await requirePermission(request, 'settings:manage');
     const input = await readJsonBody(request, tokenInputSchema);
-    const account = await ACCOUNT[kind]({ baseUrl: input.url, token: input.token }).catch(
-      providerError,
-    );
+    const account = await ACCOUNT[kind]({
+      baseUrl: input.url,
+      token: input.token,
+      language: await currentLanguage(),
+    }).catch(providerError);
 
     const existing = await getSourceConnection(kind);
     if (existing && sourceConnectionWebUrl(existing) !== account.baseUrl) {
@@ -169,7 +181,11 @@ export function tokenForgeCheckRoute(kind: TokenForgeKind) {
     await requirePermission(request, 'settings:manage');
     const input = await readJsonBody(request, tokenInputSchema);
     try {
-      const account = await ACCOUNT[kind]({ baseUrl: input.url, token: input.token });
+      const account = await ACCOUNT[kind]({
+        baseUrl: input.url,
+        token: input.token,
+        language: await currentLanguage(),
+      });
       return NextResponse.json({ ok: true, ...account });
     } catch (error) {
       if (error instanceof SourceProviderError) {

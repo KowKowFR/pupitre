@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { invalid } from './validation.js';
 
 /**
  * Les annonces d'une page de statut : des messages datés qu'un humain publie
@@ -73,7 +74,7 @@ export const createStatusUpdateSchema = z
     message: statusUpdateMessageSchema,
   })
   .refine((input) => isStatusUpdatePhaseFor(input.subject.type, input.phase), {
-    message: 'cette phase ne convient pas à ce sujet',
+    ...invalid('statusUpdate.phase'),
     path: ['phase'],
   });
 export type CreateStatusUpdateInput = z.infer<typeof createStatusUpdateSchema>;
@@ -84,9 +85,10 @@ export const updateStatusUpdateSchema = z
     phase: z.enum(STATUS_UPDATE_PHASES).optional(),
     message: statusUpdateMessageSchema.optional(),
   })
-  .refine((patch) => patch.phase !== undefined || patch.message !== undefined, {
-    message: 'rien à modifier',
-  });
+  .refine(
+    (patch) => patch.phase !== undefined || patch.message !== undefined,
+    invalid('nothingToChange'),
+  );
 export type UpdateStatusUpdateInput = z.infer<typeof updateStatusUpdateSchema>;
 
 /** La clé d'un sujet dans une adresse : `incident:<id>`, `maintenance:<id>`. */

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { invalid } from '../validation.js';
 
 /**
  * AppSpec — la spécification neutre d'une application.
@@ -50,9 +51,10 @@ const confinedPath = z
   .string()
   .min(1)
   .max(512)
-  .refine((path) => !path.startsWith('/') && !path.split(/[\\/]+/).includes('..'), {
-    message: 'chemin relatif attendu, sans « .. » ni « / » au début',
-  });
+  .refine(
+    (path) => !path.startsWith('/') && !path.split(/[\\/]+/).includes('..'),
+    invalid('spec.relativePath'),
+  );
 
 export const dockerfileSourceSchema = z.object({
   type: z.literal('dockerfile'),
@@ -361,7 +363,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
     ctx.addIssue({
       code: 'custom',
       path: ['services'],
-      message: `noms de services dupliqués : ${[...duplicates].join(', ')}`,
+      ...invalid('spec.duplicateServices', { names: [...duplicates].join(', ') }),
     });
   }
 
@@ -370,12 +372,12 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
     ctx.addIssue({
       code: 'custom',
       path: ['services'],
-      message:
-        exposed.length === 0
-          ? 'exactement un service doit porter `exposed: true`, aucun ne le fait'
-          : `exactement un service doit porter \`exposed: true\`, ${exposed.length} le font : ${exposed
-              .map((service) => service.name)
-              .join(', ')}`,
+      ...(exposed.length === 0
+        ? invalid('spec.noExposed')
+        : invalid('spec.tooManyExposed', {
+            count: exposed.length,
+            names: exposed.map((service) => service.name).join(', '),
+          })),
     });
   }
 
@@ -391,14 +393,14 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
         ctx.addIssue({
           code: 'custom',
           path: ['services', index, 'dependsOn', position],
-          message: `dépendance vers un service inconnu « ${dependency} »`,
+          ...invalid('spec.unknownDependency', { name: dependency }),
         });
       }
       if (dependency === service.name) {
         ctx.addIssue({
           code: 'custom',
           path: ['services', index, 'dependsOn', position],
-          message: `« ${service.name} » ne peut pas dépendre de lui-même`,
+          ...invalid('spec.selfDependency', { name: service.name }),
         });
       }
     }
@@ -408,7 +410,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
       ctx.addIssue({
         code: 'custom',
         path: ['services', index, 'volumes'],
-        message: 'noms de volumes dupliqués au sein du service',
+        ...invalid('spec.duplicateVolumes'),
       });
     }
 
@@ -419,7 +421,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
       ctx.addIssue({
         code: 'custom',
         path: ['services', index, 'secrets'],
-        message: `déclarés à la fois dans env et dans secrets : ${overlap.join(', ')}`,
+        ...invalid('spec.envAndSecrets', { names: overlap.join(', ') }),
       });
     }
 
@@ -430,7 +432,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
       ctx.addIssue({
         code: 'custom',
         path: ['services', index, 'secrets'],
-        message: `noms de secrets dupliqués au sein du service : ${[...new Set(repeated)].join(', ')}`,
+        ...invalid('spec.duplicateSecrets', { names: [...new Set(repeated)].join(', ') }),
       });
     }
 
@@ -440,15 +442,13 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
         ctx.addIssue({
           code: 'custom',
           path: ['services', index, 'secrets', position],
-          message: `« ${declaration.name} » ne peut pas prendre sa valeur de lui-même`,
+          ...invalid('spec.selfAlias', { name: declaration.name }),
         });
       } else if (!allSecretNames.has(declaration.from)) {
         ctx.addIssue({
           code: 'custom',
           path: ['services', index, 'secrets', position],
-          message:
-            `« ${declaration.name} » prend sa valeur du secret inconnu « ${declaration.from} » : ` +
-            'aucun service de la spec ne le déclare',
+          ...invalid('spec.unknownAlias', { name: declaration.name, from: declaration.from }),
         });
       }
 
@@ -457,9 +457,11 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
         ctx.addIssue({
           code: 'custom',
           path: ['services', index, 'secrets', position],
-          message:
-            `« ${declaration.name} » prend sa valeur de « ${declaration.from} » ici et de ` +
-            `« ${settled} » ailleurs dans la spec : un nom ne désigne qu'une valeur`,
+          ...invalid('spec.conflictingAlias', {
+            name: declaration.name,
+            from: declaration.from,
+            other: settled,
+          }),
         });
       }
       sources.set(declaration.name, declaration.from);
@@ -471,7 +473,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
     ctx.addIssue({
       code: 'custom',
       path: ['services'],
-      message: `cycle d'alias de secrets : ${aliasCycle.join(' → ')}`,
+      ...invalid('spec.aliasCycle', { cycle: aliasCycle.join(' → ') }),
     });
   }
 
@@ -485,9 +487,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
       ctx.addIssue({
         code: 'custom',
         path: ['services', index, 'secrets', position],
-        message:
-          `« ${declaration} » est déclaré nu ici et comme alias de « ${alias} » ailleurs : ` +
-          'choisissez lequel des deux noms porte la valeur',
+        ...invalid('spec.bareAndAlias', { name: declaration, alias }),
       });
     }
   }
@@ -497,7 +497,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
     ctx.addIssue({
       code: 'custom',
       path: ['services'],
-      message: `cycle de dépendances : ${cycle.join(' → ')}`,
+      ...invalid('spec.dependencyCycle', { cycle: cycle.join(' → ') }),
     });
   }
 
@@ -505,7 +505,7 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
     ctx.addIssue({
       code: 'custom',
       path: ['ingress', 'targetService'],
-      message: `l'ingress cible le service inconnu « ${spec.ingress.targetService} »`,
+      ...invalid('spec.unknownIngressTarget', { name: spec.ingress.targetService }),
     });
   }
 });

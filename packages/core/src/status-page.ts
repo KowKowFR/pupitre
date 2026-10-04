@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { invalid } from './validation.js';
 
 /**
  * Les pages de statut publiques : `/status`, `/status/<adresse>`.
@@ -90,9 +91,10 @@ const statusPageFields = z.object({
   blocks: z
     .array(statusBlockSchema)
     .max(STATUS_PAGE_MAX_BLOCKS)
-    .refine((blocks) => new Set(blocks.map((block) => block.id)).size === blocks.length, {
-      message: 'deux blocs portent le même identifiant',
-    }),
+    .refine(
+      (blocks) => new Set(blocks.map((block) => block.id)).size === blocks.length,
+      invalid('statusPage.duplicateBlocks'),
+    ),
 });
 
 export const statusPageInputSchema = statusPageFields.extend({
@@ -105,7 +107,7 @@ export type StatusPageInput = z.infer<typeof statusPageInputSchema>;
 
 export const updateStatusPageSchema = statusPageFields
   .partial()
-  .refine((patch) => Object.keys(patch).length > 0, { message: 'rien à modifier' });
+  .refine((patch) => Object.keys(patch).length > 0, invalid('nothingToChange'));
 
 /** Les sondes qu'une page montre, dans l'ordre des blocs, sans doublon. */
 export function statusPageMonitorIds(blocks: readonly StatusBlock[]): string[] {

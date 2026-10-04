@@ -14,6 +14,7 @@ export * from './maintenance.js';
 export * from './status-page.js';
 export * from './status-updates.js';
 export * from './i18n.js';
+export * from './validation.js';
 export * from './images/reference.js';
 export * from './images/updates.js';
 export * from './monitoring.js';

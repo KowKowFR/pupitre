@@ -7,6 +7,7 @@ import {
   type AppSpec,
   type SourceConnectionSecrets,
   type SpecChange,
+  invalid,
 } from '@pupitre/core';
 import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -173,9 +174,10 @@ export const repoPathSchema = z
   .trim()
   .min(1)
   .max(512)
-  .refine((path) => !path.startsWith('/') && !path.split('/').includes('..'), {
-    message: 'chemin relatif à la racine du dépôt, sans « .. »',
-  });
+  .refine(
+    (path) => !path.startsWith('/') && !path.split('/').includes('..'),
+    invalid('sources.specPath'),
+  );
 
 export const sourceModeSchema = z.enum(['auto', 'auto_unless_infra', 'manual']);
 export const sourceDeployToSchema = z.enum(['targets', 'running', 'none']);
@@ -247,7 +249,7 @@ export const applicationSourceCreateSchema = applicationSourceInputSchema.superR
 export const applicationSourcePatchSchema = applicationSourceFields
   .omit({ repository: true, installationId: true, provider: true })
   .partial()
-  .refine((patch) => Object.keys(patch).length > 0, { message: 'aucun champ à modifier' });
+  .refine((patch) => Object.keys(patch).length > 0, invalid('noFieldToChange'));
 export type ApplicationSourcePatch = z.infer<typeof applicationSourcePatchSchema>;
 
 export type SourceTarget = { targetId: string; runtime: 'docker' | 'k3s'; targetName: string };

@@ -7,6 +7,7 @@ import {
   sourceDeployJobDataSchema,
   sourcePollJobDataSchema,
   touchesWatchPaths,
+  UI_LANGUAGES,
   type AppSpec,
   type RepositoryRef,
   type SourceProvider,
@@ -23,7 +24,9 @@ import {
   type ApplicationSourceView,
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import {
   bindingsFor,
   deployFromSource,
@@ -67,9 +70,15 @@ async function readSpec(
   sha: string,
   applicationSlug: string,
 ): Promise<ReadSpec> {
+  const language = await instanceLanguage();
   const content = await provider.readFile(repoOf(source), sha, source.specPath);
-  if (content === null) return { ok: false, issues: [`${source.specPath} absent à ce commit`] };
-  return parseSourceSpec(content, applicationSlug);
+  if (content === null) {
+    return {
+      ok: false,
+      issues: [workerSay(language)('source.missingFile', { path: source.specPath })],
+    };
+  }
+  return parseSourceSpec(content, applicationSlug, language);
 }
 
 /** Un `pupitre.json` refusé : écrit sur la liaison, au journal, et sur le commit. */
@@ -78,7 +87,11 @@ async function rejectCommit(
   sha: string,
   issues: string[],
 ): Promise<void> {
-  const error = `${source.specPath} refusé au commit ${sha.slice(0, 7)} : ${issues.join(' ; ')}`;
+  const error = workerSay(await instanceLanguage())('source.rejected', {
+    path: source.specPath,
+    sha: sha.slice(0, 7),
+    issues: issues.join(' ; '),
+  });
   await recordSourceCheck(source.id, { error });
   await logAudit({
     action: 'source.commit.rejected',
@@ -194,7 +207,13 @@ async function pollSource(
   if (!head.changed || head.sha === source.lastSeenSha) {
     // GitHub a répondu : une erreur de connexion d'avant est levée. Un
     // pupitre.json refusé, lui, le reste tant que la tête n'a pas changé.
-    const rejected = source.lastError?.startsWith(`${source.specPath} refusé`) ?? false;
+    // Dans l'une ou l'autre langue : l'instance a pu en changer depuis.
+    const rejected = UI_LANGUAGES.some(
+      (language) =>
+        source.lastError?.startsWith(
+          workerSay(language)('source.rejectedPrefix', { path: source.specPath }),
+        ) ?? false,
+    );
     await recordSourceCheck(source.id, {
       ...(head.changed ? { etag: head.etag } : {}),
       error: rejected ? source.lastError : null,
@@ -258,7 +277,9 @@ export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
     try {
       // Chaque liaison passe par le fournisseur de sa connexion : GitHub, GitLab, Gitea.
       const access = await providerForConnection(source.connectionId);
-      if (!access) throw new Error('la connexion au fournisseur de ce dépôt a été retirée');
+      if (!access) {
+        throw new Error(workerSay(await instanceLanguage())('source.connectionRemoved'));
+      }
       const outcome = await pollSource(access.provider, source, data.force);
       if (outcome !== 'unchanged') log.info({ outcome }, 'dépôt lié vérifié');
     } catch (error) {
@@ -327,7 +348,7 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
 
   try {
     const access = await providerForConnection(source.connectionId);
-    if (!access) throw new Error('la connexion au fournisseur de ce dépôt a été retirée');
+    if (!access) throw new Error(workerSay(await instanceLanguage())('source.connectionRemoved'));
     const head = await access.provider.resolveHead(repoOf(source), source.branch, null);
     if (!head.changed) return { created: 0 };
     const read = await readSpec(access.provider, source, head.sha, application.slug);

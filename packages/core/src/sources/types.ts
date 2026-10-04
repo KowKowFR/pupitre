@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { invalid } from '../validation.js';
 
 /**
  * `SourceProvider` — la quatrième abstraction, à côté de `DeploymentDriver`,
@@ -55,9 +56,10 @@ export const sourceRepositorySchema = z
     /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+){1,19}$/,
     'dépôt attendu sous la forme propriétaire/nom',
   )
-  .refine((name) => name.split('/').every((segment) => !/^\.+$/.test(segment)), {
-    message: 'dépôt attendu sous la forme propriétaire/nom',
-  });
+  .refine(
+    (name) => name.split('/').every((segment) => !/^\.+$/.test(segment)),
+    invalid('sources.repository'),
+  );
 
 /** Un dépôt, désigné comme le fournisseur le désigne : `propriétaire/nom`. */
 export type RepositoryRef = {

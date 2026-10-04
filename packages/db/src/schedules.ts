@@ -6,6 +6,7 @@ import {
   simpleScheduleSchema,
   toCron,
   type ScheduledJobType,
+  invalid,
 } from '@pupitre/core';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
@@ -61,7 +62,7 @@ function resolveCadence(
     ctx.addIssue({
       code: 'custom',
       path: ['cron'],
-      message: 'fournir « cron » ou « schedule », pas les deux',
+      ...invalid('schedules.cronOrSchedule'),
     });
     return undefined;
   }
@@ -75,7 +76,7 @@ function resolveCadence(
       ctx.addIssue({
         code: 'custom',
         path: ['schedule'],
-        message: `périodicité illisible : « ${rendered} »`,
+        ...invalid('schedules.unreadable', { value: rendered }),
       });
       return undefined;
     }
@@ -140,7 +141,7 @@ export const updateScheduledJobSchema = z
     if (patch.enabled !== undefined) next.enabled = patch.enabled;
 
     if (Object.keys(next).length === 0) {
-      ctx.addIssue({ code: 'custom', message: 'aucun champ à modifier' });
+      ctx.addIssue({ code: 'custom', ...invalid('noFieldToChange') });
       return z.NEVER;
     }
     return next;

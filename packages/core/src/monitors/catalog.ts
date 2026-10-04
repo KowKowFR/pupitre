@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { invalid } from "../validation.js";
 import {
   translator,
   type Translate,
@@ -11,7 +12,7 @@ import {
   dnsMatchModeSchema,
   dnsRecordTypeSchema,
   parseExpectedRecords,
-  validateDnsRecordValue,
+  dnsRecordProblem,
   type DnsMatchMode,
   type DnsRecordType,
 } from "./dns-records.js";
@@ -745,9 +746,7 @@ export const keywordConfigSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["mustContain"],
-        message:
-          "une sonde de mot-clé sans mot-clé ne constate rien — renseigner au moins " +
-          "le texte attendu ou le texte interdit",
+        ...invalid("monitor.keywordEmpty"),
       });
     }
   });
@@ -1098,7 +1097,7 @@ const dnsResolverSchema = z
     if (classifyAddress(value) === null) {
       ctx.addIssue({
         code: "custom",
-        message: `« ${value} » n'est pas une adresse IP — un résolveur se déclare par son adresse`,
+        ...invalid("monitor.resolverNotIp", { value }),
       });
       return;
     }
@@ -1143,9 +1142,13 @@ export const dnsConfigSchema = z
       config.recordType,
       config.expected,
     )) {
-      const problem = validateDnsRecordValue(config.recordType, value);
+      const problem = dnsRecordProblem(config.recordType, value);
       if (problem) {
-        ctx.addIssue({ code: "custom", path: ["expected"], message: problem });
+        ctx.addIssue({
+          code: "custom",
+          path: ["expected"],
+          ...invalid(problem.key, problem.vars),
+        });
         return;
       }
     }

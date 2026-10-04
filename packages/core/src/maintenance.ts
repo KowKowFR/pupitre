@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { invalid } from './validation.js';
 import { instantOfWallClock, wallClockOf } from './schedule.js';
 
 /**
@@ -79,7 +80,7 @@ export type CreateMaintenanceInput = z.infer<typeof createMaintenanceSchema>;
 /** Une modification partielle : les règles s'appliquent ensuite à la fenêtre entière. */
 export const updateMaintenanceSchema = maintenanceFieldsSchema
   .partial()
-  .refine((patch) => Object.keys(patch).length > 0, { message: 'rien à modifier' });
+  .refine((patch) => Object.keys(patch).length > 0, invalid('nothingToChange'));
 
 export type UpdateMaintenanceInput = z.infer<typeof updateMaintenanceSchema>;
 

@@ -28,6 +28,7 @@ import {
   type MonitorType,
   type SsrfRefusal,
   type UptimeWindow,
+  invalid,
 } from '@pupitre/core';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -76,8 +77,11 @@ export type MonitorIncident = typeof monitorIncidents.$inferSelect;
  * projet : c'est ce que voit `Error.stack` et ce que Pino journalise.
  */
 export type MonitorConfigReason =
-  /** La configuration ne passe pas le schéma du type. `issue` vient de Zod. */
-  | { kind: 'schema'; type: MonitorType; path: string; issue: string }
+  /**
+   * La configuration ne passe pas le schéma du type. `issue` vient de Zod, en
+   * français ; `params` permet de le redire (`issueMessage()`).
+   */
+  | { kind: 'schema'; type: MonitorType; path: string; issue: string; params?: unknown }
   /** Une cible littérale qu'aucune liste d'autorisation n'ouvre. */
   | { kind: 'target'; refusal: SsrfRefusal }
   /** Une cadence sous le plancher que ce type déclare. */
@@ -152,7 +156,7 @@ export const updateMonitorSchema = z
     applicationId: z.string().uuid().nullable().optional(),
     webhookUrl: monitorUrlSchema.nullable().optional(),
   })
-  .refine((patch) => Object.keys(patch).length > 0, { message: 'aucun champ à modifier' });
+  .refine((patch) => Object.keys(patch).length > 0, invalid('noFieldToChange'));
 
 export type UpdateMonitorInput = z.infer<typeof updateMonitorSchema>;
 
@@ -180,7 +184,13 @@ export function resolveConfig(
     throw new MonitorConfigError(
       `configuration de sonde « ${definition.label} » invalide — ${path} : ${issue}`,
       `config.${path}`,
-      { kind: 'schema', type, path, issue },
+      {
+        kind: 'schema',
+        type,
+        path,
+        issue,
+        ...(first && 'params' in first && first.params ? { params: first.params } : {}),
+      },
     );
   }
 

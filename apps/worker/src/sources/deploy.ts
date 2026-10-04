@@ -23,7 +23,9 @@ import {
   type ApplicationSourceView,
   type SourceTarget,
 } from '@pupitre/db';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { getOpsQueue } from '../queue.js';
 import {
   panelUrl,
@@ -158,11 +160,15 @@ export async function deployFromSource(input: {
   // vers son commit en découle — même si la liaison disparaît ensuite.
   const connection = await getSourceConnectionById(source.connectionId);
   const repositoryUrl = connection ? sourceRepositoryUrl(connection, source.repository) : null;
+  const say = workerSay(await instanceLanguage());
 
   for (const binding of input.bindings) {
     const target = await getTarget(binding.targetId);
     if (!target) {
-      result.skipped.push({ targetName: binding.targetName, reason: 'cible supprimée' });
+      result.skipped.push({
+        targetName: binding.targetName,
+        reason: say('sourceDeploy.targetGone'),
+      });
       continue;
     }
     // Le preflight fait foi, comme pour un déploiement lancé à la main.
@@ -171,8 +177,8 @@ export async function deployFromSource(input: {
         targetName: target.name,
         reason:
           target.lastPreflightAt === null
-            ? 'jamais testée : lancez un preflight'
-            : `${binding.runtime} indisponible sur cette cible`,
+            ? say('sourceDeploy.neverTested')
+            : say('sourceDeploy.runtimeUnavailable', { runtime: binding.runtime }),
       });
       continue;
     }
