@@ -60,6 +60,10 @@ const fr = {
   'hostname.ip': 'une adresse IP n’est pas un domaine',
   'hostname.noDot': 'il faut au moins un point (exemple.fr)',
   'hostname.invalid': 'caractère ou libellé invalide',
+
+  'describe.container': 'conteneur {name}',
+  'describe.certificates': 'certificats {authority}',
+  'describe.noAcme': 'sans ACME',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -117,6 +121,10 @@ const en: Translated<typeof fr> = {
   'hostname.ip': 'an IP address is not a domain',
   'hostname.noDot': 'at least one dot is required (example.com)',
   'hostname.invalid': 'invalid character or label',
+
+  'describe.container': 'container {name}',
+  'describe.certificates': '{authority} certificates',
+  'describe.noAcme': 'without ACME',
 };
 
 export const proxyCopy = { fr, en };

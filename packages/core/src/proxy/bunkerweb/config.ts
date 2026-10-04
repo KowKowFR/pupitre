@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { acmeSettingsSchema, type ProxyDescriptor } from '../model.js';
 import type { ProbeSignatures } from '../probe.js';
+import { bunkerwebSay } from './messages.js';
 
 /**
  * BunkerWeb — its connection configuration, and what it says about itself.
@@ -43,7 +44,6 @@ export type BunkerWebConfig = z.infer<typeof bunkerwebConfigSchema>;
 
 const AUTHORITY: Record<string, string> = {
   production: 'Let’s Encrypt',
-  staging: 'Let’s Encrypt (essai)',
   zerossl: 'ZeroSSL',
 };
 
@@ -51,9 +51,14 @@ export const bunkerwebDescriptor: ProxyDescriptor<BunkerWebConfig> = {
   label: 'BunkerWeb',
   placement: 'target',
   parseConfig: (config) => bunkerwebConfigSchema.parse(config),
-  describe(config) {
-    const tls = config.acme ? `certificats ${AUTHORITY[config.acme.server]}` : 'sans ACME';
-    return `BunkerWeb · conteneur ${config.container} · WAF · ${tls}`;
+  describe(config, language) {
+    const say = bunkerwebSay(language);
+    const authority =
+      config.acme?.server === 'staging'
+        ? say('describe.staging')
+        : AUTHORITY[config.acme?.server ?? ''];
+    const tls = authority ? say('describe.certificates', { authority }) : say('describe.noAcme');
+    return `BunkerWeb · ${say('describe.container', { name: config.container })} · WAF · ${tls}`;
   },
   capabilities: (config) => ({
     autoTls: config.acme !== null,

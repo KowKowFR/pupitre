@@ -27,6 +27,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { linkViewForUi, proxyViewForUi, routeViewForUi } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,6 +47,7 @@ async function targetOr404(id: string) {
  * proxies it could be linked to.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   await requirePermission(request, 'target:read');
   const { id } = paramsSchema.parse(await context.params);
   const target = await targetOr404(id);
@@ -68,13 +70,14 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const linkedProxy = link ? await getProxy(link.proxyId) : null;
 
   return NextResponse.json({
-    proxy: proxy ? proxyViewForUi(proxy) : null,
+    proxy: proxy ? proxyViewForUi(proxy, language) : null,
     link:
       link && linkedProxy
         ? linkViewForUi(
             link,
             linkedProxy,
             nameOf.get(linkedProxy.hostTargetId ?? '') ?? linkedProxy.name,
+            language,
           )
         : null,
     served: served.map((entry) => ({
@@ -90,7 +93,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
           proxyId: candidate.id,
           targetId: hostId as string | null,
           targetName: nameOf.get(hostId) ?? hostId,
-          description: proxyViewForUi(candidate).description,
+          description: proxyViewForUi(candidate, language).description,
         }))
         .sort((a, b) => a.targetName.localeCompare(b.targetName)),
       // The remote proxies, outside the targets: next.
@@ -98,7 +101,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         proxyId: candidate.id,
         targetId: null,
         targetName: candidate.name,
-        description: proxyViewForUi(candidate).description,
+        description: proxyViewForUi(candidate, language).description,
       })),
     ],
     suggestedAddress: target.host,
@@ -117,6 +120,7 @@ const putSchema = z.object({
  * confirmed by the user. Nothing is installed — a test goes out right away.
  */
 export const PUT = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);
   const target = await targetOr404(id);
@@ -135,7 +139,7 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   const saved = await saveTargetProxy({
     targetId: id,
     kind: input.kind,
-    name: input.name ?? describeProxy(input.kind, config).split(' · ')[0] ?? input.kind,
+    name: input.name ?? describeProxy(input.kind, config, language).split(' · ')[0] ?? input.kind,
     config,
     // A found proxy does not belong to Pupitre: it will never uninstall it.
     managed: false,
@@ -152,7 +156,7 @@ export const PUT = apiRoute<Context>(async (request, context) => {
     after: { proxyId: saved.id, kind: input.kind, target: target.name, config },
     ip: auth.ip,
   });
-  return NextResponse.json({ proxy: proxyViewForUi(saved), jobId: job.id });
+  return NextResponse.json({ proxy: proxyViewForUi(saved, language), jobId: job.id });
 });
 
 const deleteQuerySchema = z.object({ uninstall: z.enum(['0', '1']).default('0') });

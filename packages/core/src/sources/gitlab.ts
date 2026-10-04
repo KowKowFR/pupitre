@@ -209,7 +209,9 @@ export class GitLabSourceProvider implements SourceProvider {
     const sha = body.commit?.id ?? '';
     if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) {
       throw new SourceProviderError(
-        `empreinte de commit illisible : « ${sha.slice(0, 60)} »`,
+        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+          sha: sha.slice(0, 60),
+        }),
         null,
         'gitlab',
       );
@@ -453,7 +455,11 @@ export async function fetchGitLabAccount(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new SourceProviderError(`GitLab injoignable : ${message}`, null, 'gitlab');
+      throw new SourceProviderError(
+        sourceSay(credentials.language ?? 'fr')('gitlab.unreachable', { detail: message }),
+        null,
+        'gitlab',
+      );
     }
     if (!response.ok) {
       if (optional) return null;

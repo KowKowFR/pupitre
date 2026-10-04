@@ -8,6 +8,7 @@ import {
   type ProxyCapabilities,
   type ProxyKind,
   type RouteCertificate,
+  type UiLanguage,
   isPrivateAddress,
 } from '@pupitre/core';
 import type { ProxyLinkRow, ProxyView, RouteView } from '@pupitre/db';
@@ -74,12 +75,12 @@ export type ProxyViewForUi = {
   checks: Array<{ key: string; label: string; ok: boolean; detail: string | null }>;
 };
 
-export function proxyViewForUi(proxy: ProxyView): ProxyViewForUi {
+export function proxyViewForUi(proxy: ProxyView, language: UiLanguage): ProxyViewForUi {
   let description: string;
   let capabilities: ProxyCapabilities;
   let acme: ProxyViewForUi['acme'] = null;
   try {
-    description = describeProxy(proxy.kind, proxy.config);
+    description = describeProxy(proxy.kind, proxy.config, language);
     capabilities = proxyCapabilities(proxy.kind, proxy.config);
     acme = proxyAcme(proxy.kind, proxy.config);
   } catch {
@@ -171,8 +172,13 @@ export type RemoteProxyViewForUi = ProxyViewForUi & {
 
 export function remoteProxyViewForUi(
   proxy: ProxyView & { linkCount?: number },
+  language: UiLanguage,
 ): RemoteProxyViewForUi {
-  return { ...proxyViewForUi(proxy), config: proxy.config, linkCount: proxy.linkCount ?? 0 };
+  return {
+    ...proxyViewForUi(proxy, language),
+    config: proxy.config,
+    linkCount: proxy.linkCount ?? 0,
+  };
 }
 
 export type LinkViewForUi = {
@@ -196,10 +202,11 @@ export function linkViewForUi(
   link: ProxyLinkRow,
   proxy: ProxyView,
   hostTargetName: string,
+  language: UiLanguage,
 ): LinkViewForUi {
   return {
-    proxy: proxyViewForUi(proxy),
-    remote: proxyPlacement(proxy.kind) === 'remote' ? remoteProxyViewForUi(proxy) : null,
+    proxy: proxyViewForUi(proxy, language),
+    remote: proxyPlacement(proxy.kind) === 'remote' ? remoteProxyViewForUi(proxy, language) : null,
     hostTargetId: proxy.hostTargetId,
     hostTargetName,
     address: link.address,

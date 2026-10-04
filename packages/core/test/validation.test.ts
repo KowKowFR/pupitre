@@ -4,11 +4,13 @@ import { z } from 'zod';
 import { formatIssues } from '../src/ai/generate.js';
 import { aiCopy } from '../src/ai/messages.js';
 import { redactApiKey } from '../src/ai/model.js';
+import { s3DestinationConfigSchema } from '../src/backup/destinations.js';
 import { monitorUrlSchema } from '../src/monitors/ssrf.js';
 import { hostnameSchema } from '../src/proxy/model.js';
 import { sourceCopy } from '../src/sources/messages.js';
 import { parseSourceSpec } from '../src/sources/spec-file.js';
-import { appSpecSchema } from '../src/spec/app-spec.js';
+import { appSpecSchema, slugSchema, volumeSizeSchema } from '../src/spec/app-spec.js';
+import { statusPageSlugSchema } from '../src/status-page.js';
 import { issueMessage, localizeZodError, validationCopy } from '../src/validation.js';
 
 /**
@@ -100,6 +102,32 @@ describe('Validation complaints — said again in the screen’s language', () =
     const refusal = url.error.issues[0]!;
     assert.notEqual(issueMessage(refusal, 'en'), refusal.message);
     assert.doesNotMatch(issueMessage(refusal, 'en'), /[éèàç«»]/);
+  });
+
+  it('the schemas’ own fixed sentences are all found again', () => {
+    // A `.regex(…, '…')` sentence missing from the dictionary reaches an
+    // English screen in French: each one is rendered here, never left as is.
+    const failures = [
+      slugSchema.safeParse('Not A Slug'),
+      volumeSizeSchema.safeParse('ten gigs'),
+      statusPageSlugSchema.safeParse('-edge-'),
+      s3DestinationConfigSchema.safeParse({
+        endpoint: 'https://s3.example.com',
+        bucket: 'B',
+        prefix: '../up',
+      }),
+    ];
+    for (const result of failures) {
+      assert.ok(!result.success);
+      for (const issue of result.error.issues) {
+        const english = issueMessage(issue, 'en');
+        assert.doesNotMatch(english, /[éèàç«»]| : /, `still French: ${english}`);
+      }
+    }
+    assert.equal(
+      issueMessage(slugSchema.safeParse('Nope').error!.issues[0]!, 'en'),
+      'kebab-case name: lowercase letters, digits and dashes',
+    );
   });
 
   it('an unknown complaint stays as is', () => {

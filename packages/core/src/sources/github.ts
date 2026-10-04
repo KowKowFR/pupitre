@@ -193,7 +193,13 @@ export class GitHubSourceProvider implements SourceProvider {
     }
     const sha = (await response.text()).trim();
     if (!/^[0-9a-f]{40}$/.test(sha)) {
-      throw new SourceProviderError(`empreinte de commit illisible : « ${sha.slice(0, 60)} »`, null, 'github');
+      throw new SourceProviderError(
+        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+          sha: sha.slice(0, 60),
+        }),
+        null,
+        'github',
+      );
     }
     return { changed: true, sha, etag: response.headers.get('etag') };
   }

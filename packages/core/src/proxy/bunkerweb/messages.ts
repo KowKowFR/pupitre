@@ -57,6 +57,8 @@ const fr = {
   'apply.probeSecret': 'secret des sondes : {detail}',
   'apply.refused': 'BunkerWeb a refusé la configuration et garde la précédente : {detail}',
   'apply.notServed': 'BunkerWeb ne sert pas encore {hostnames} au bout de 40 s',
+
+  'describe.staging': 'Let’s Encrypt (essai)',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -112,6 +114,8 @@ const en: Translated<typeof fr> = {
   'apply.probeSecret': 'probe secret: {detail}',
   'apply.refused': 'BunkerWeb refused the configuration and keeps the previous one: {detail}',
   'apply.notServed': 'BunkerWeb still does not serve {hostnames} after 40 s',
+
+  'describe.staging': 'Let’s Encrypt (staging)',
 };
 
 export const bunkerwebCopy = { fr, en };

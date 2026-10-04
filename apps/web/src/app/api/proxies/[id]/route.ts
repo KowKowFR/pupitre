@@ -19,6 +19,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { remoteProxyViewForUi, waitForProxyCheck } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -47,6 +48,7 @@ const patchSchema = z.object({
  * says so.
  */
 export const PATCH = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);
   const before = await remoteOr404(id);
@@ -71,7 +73,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     ip: auth.ip,
   });
   const saved = await getProxy(id);
-  return NextResponse.json({ proxy: saved ? remoteProxyViewForUi(saved) : null, check });
+  return NextResponse.json({ proxy: saved ? remoteProxyViewForUi(saved, language) : null, check });
 });
 
 /**

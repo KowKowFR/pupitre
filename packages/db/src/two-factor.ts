@@ -25,7 +25,7 @@ import { sessions, twoFactors, users, verifications } from './schema/auth.js';
 /** The targeted user does not exist — the route translates it into a 404. */
 export class UserNotFoundError extends Error {
   constructor(readonly userId: string) {
-    super(`Utilisateur « ${userId} » introuvable`);
+    super(`user "${userId}" not found`);
     this.name = 'UserNotFoundError';
   }
 }

@@ -19,6 +19,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { proxyViewForUi } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,7 @@ const bodySchema = z.object({
  * instance), saying so.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);
   const target = await getTarget(id);
@@ -87,5 +89,8 @@ export const POST = apiRoute<Context>(async (request, context) => {
     },
     ip: auth.ip,
   });
-  return NextResponse.json({ proxy: proxyViewForUi(proxy), jobId: job.id }, { status: 202 });
+  return NextResponse.json(
+    { proxy: proxyViewForUi(proxy, language), jobId: job.id },
+    { status: 202 },
+  );
 });

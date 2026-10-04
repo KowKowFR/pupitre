@@ -192,7 +192,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # Probe the Discord channel makes before sending.
             self._send(200, b'{"id":"42","name":"salon-de-recette"}', "application/json")
         else:
-            self._send(404, b"introuvable")
+            self._send(404, b"not found")
 
     def do_POST(self):
         length = int(self.headers.get("content-length", "0") or 0)

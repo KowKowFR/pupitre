@@ -690,7 +690,7 @@ async function destroySide(side: Side): Promise<void> {
         }
       : {
           label: 'no Docker container left',
-          command: `docker ps -a --filter 'label=tp.app=${ctx.appSlug}' --format '{{.Names}}'`,
+          command: `docker ps -a --filter 'label=pupitre.app=${ctx.appSlug}' --format '{{.Names}}'`,
         };
 
   const check = await exec(side.session, residue.command, { timeout: 30_000 });

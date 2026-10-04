@@ -68,7 +68,7 @@ export async function finishSourceArchiveUpload(
     .set({ status: 'pending', uploadedBytes: result.bytes, sha256: result.sha256 })
     .where(eq(sourceArchives.id, archiveId))
     .returning();
-  if (!row) throw new Error(`archive ${archiveId} introuvable`);
+  if (!row) throw new Error(`archive ${archiveId} not found`);
   return row;
 }
 

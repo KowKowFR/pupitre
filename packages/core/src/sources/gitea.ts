@@ -150,7 +150,9 @@ export class GiteaSourceProvider implements SourceProvider {
     const sha = body.commit?.id ?? '';
     if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) {
       throw new SourceProviderError(
-        `empreinte de commit illisible : « ${sha.slice(0, 60)} »`,
+        sourceSay(this.credentials.language ?? 'fr')('commit.unreadableSha', {
+          sha: sha.slice(0, 60),
+        }),
         null,
         'gitea',
       );
@@ -376,7 +378,11 @@ export async function fetchGiteaAccount(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      throw new SourceProviderError(`forge injoignable : ${message}`, null, 'gitea');
+      throw new SourceProviderError(
+        sourceSay(credentials.language ?? 'fr')('forge.unreachable', { detail: message }),
+        null,
+        'gitea',
+      );
     }
     if (!response.ok) {
       throw new SourceProviderError(await errorMessage(response), response.status, 'gitea');

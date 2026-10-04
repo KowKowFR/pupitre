@@ -133,7 +133,7 @@ export async function backupApplication(
       backupId = id;
     }
     const record = await getBackup(backupId);
-    if (!record) throw new BackupError('la ligne de sauvegarde a disparu');
+    if (!record) throw new BackupError('the backup row disappeared');
     const location = record.location;
 
     onLog(

@@ -14,6 +14,9 @@ const fr = {
   'gitlab.noApiScope':
     "jeton sans la portée « api » (il porte : {scopes}) — sans elle, Pupitre ne peut pas écrire l'état d'un déploiement sur un commit",
   'gitlab.noScope': 'aucune',
+  'forge.unreachable': 'forge injoignable : {detail}',
+  'gitlab.unreachable': 'GitLab injoignable : {detail}',
+  'commit.unreadableSha': 'empreinte de commit illisible : « {sha} »',
 
   'spec.unreadableJson': 'JSON illisible : {error}',
   'spec.wrongName': "name : « {actual} » au lieu de « {expected} », le nom de l'application liée",
@@ -29,6 +32,9 @@ const en: Translated<typeof fr> = {
   'gitlab.noApiScope':
     'token without the “api” scope (it has: {scopes}) — without it, Pupitre cannot write a deployment’s state on a commit',
   'gitlab.noScope': 'none',
+  'forge.unreachable': 'forge unreachable: {detail}',
+  'gitlab.unreachable': 'GitLab unreachable: {detail}',
+  'commit.unreadableSha': 'unreadable commit hash: “{sha}”',
 
   'spec.unreadableJson': 'unreadable JSON: {error}',
   'spec.wrongName': 'name: “{actual}” instead of “{expected}”, the name of the linked application',

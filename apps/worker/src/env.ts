@@ -75,7 +75,7 @@ const envSchema = z.object({
       (value) => (value === '' ? undefined : value),
       z
         .string()
-        .regex(/^\d+-\d+$/, 'format attendu : min-max')
+        .regex(/^\d+-\d+$/, 'expected format: min-max')
         .optional(),
     )
     .transform((value) => {

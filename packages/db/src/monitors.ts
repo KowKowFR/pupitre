@@ -73,8 +73,8 @@ export type MonitorIncident = typeof monitorIncidents.$inferSelect;
  * at hand, that makes a sentence of it from `i18n/messages/monitors`. The same
  * split as `HttpError`: the data at the bottom, the words at the top.
  *
- * `Error.message` stays filled in in French, as everywhere else in the project:
- * it is what `Error.stack` shows and what Pino logs.
+ * `Error.message` is filled in in English, the language of the code: it is what
+ * `Error.stack` shows and what Pino logs.
  */
 export type MonitorConfigReason =
   /**

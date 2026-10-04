@@ -98,7 +98,7 @@ async function kubectlApply(ctx: ProxyHostContext, manifest: string, step: strin
     timeout: SHORT_MS * 2,
   });
   if (result.code !== 0)
-    fail(step, `kubectl apply : ${firstLine(result.stderr) ?? `code ${result.code}`}`);
+    fail(step, `kubectl apply: ${firstLine(result.stderr) ?? `code ${result.code}`}`);
 }
 
 // ─── the provider ────────────────────────────────────────────────────────────

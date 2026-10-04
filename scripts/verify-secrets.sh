@@ -319,8 +319,8 @@ jq -e '[.steps[] | select(.status == "failed")] | length == 0' "$BODY" >/dev/nul
 pass "all the steps: $(jq -rc '[.steps[] | "\(.key)=\(.status)"] | join(" ")' "$BODY")"
 
 step "7. Healthy containers, database initialized"
-PS=$(on_target "docker ps --filter label=tp.app=$SLUG --format '{{.Names}} {{.Status}}'")
-printf '%s\n' "$PS" | while IFS= read -r line; do [ -n "$line" ] && info "$line"; done
+PS=$(on_target "docker ps --filter label=pupitre.app=$SLUG --format '{{.Names}} {{.Status}}'")
+printf '%s\n' "$PS" | while IFS= read -r line; do [ -z "$line" ] || info "$line"; done
 printf '%s' "$PS" | grep -q 'app-'"$SLUG"'-db-1 .*healthy' \
   || fail "the database container is not healthy: $PS"
 printf '%s' "$PS" | grep -q 'app-'"$SLUG"'-console-1 .*healthy' \
@@ -629,8 +629,8 @@ STATUS=$(jq -r .status "$BODY")
 ALIAS_PORT=$(jq -r '.publishedPort // empty' "$BODY")
 pass "deployment $DA succeeded — published port $ALIAS_PORT"
 
-PS=$(on_target "docker ps --filter label=tp.app=$SLUG_ALIAS --format '{{.Names}} {{.Status}}'")
-printf '%s\n' "$PS" | while IFS= read -r line; do [ -n "$line" ] && info "$line"; done
+PS=$(on_target "docker ps --filter label=pupitre.app=$SLUG_ALIAS --format '{{.Names}} {{.Status}}'")
+printf '%s\n' "$PS" | while IFS= read -r line; do [ -z "$line" ] || info "$line"; done
 printf '%s' "$PS" | grep -q 'app-'"$SLUG_ALIAS"'-mariadb-1 .*healthy' \
   || fail "MariaDB is not healthy: $PS"
 pass "MariaDB is \"healthy\" — MARIADB_ROOT_PASSWORD let it initialize"

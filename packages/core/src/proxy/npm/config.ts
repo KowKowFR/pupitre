@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { invalid } from '../../validation.js';
 import type { ProxyDescriptor } from '../model.js';
 import type { ProbeSignatures } from '../probe.js';
+import { npmSay } from './messages.js';
 
 /**
  * Nginx Proxy Manager — its connection, and what it says about itself. Nothing
@@ -69,8 +70,8 @@ export const npmDescriptor: ProxyDescriptor<NpmConfig> = {
   parseConfig: (config) => npmConfigSchema.parse(config),
   parseSecrets: (secrets) => npmSecretsSchema.parse(secrets),
   entrypointHost: (config) => npmEntrypoint(config).host,
-  describe: (config) =>
-    `Nginx Proxy Manager · ${new URL(config.url).host} · compte ${config.email}`,
+  describe: (config, language) =>
+    `Nginx Proxy Manager · ${new URL(config.url).host} · ${npmSay(language)('describe.account', { email: config.email })}`,
   capabilities: () => ({
     // NPM requests its certificates from Let's Encrypt itself, in the account's
     // name.

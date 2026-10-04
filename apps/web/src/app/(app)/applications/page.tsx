@@ -11,7 +11,7 @@ import {
   listTargets,
 } from '@pupitre/db';
 import { LiveRefresh } from '@/components/realtime/live-refresh';
-import { getT } from '@/i18n/server';
+import { currentLanguage, getT } from '@/i18n/server';
 import { common } from '@/i18n/messages/common';
 import { newApplicationAi } from '@/lib/new-application';
 import { requirePagePermission } from '@/lib/page-auth';
@@ -35,6 +35,7 @@ export default async function ApplicationsPage({
 }) {
   const auth = await requirePagePermission('/applications', 'application:read');
   const canDeploy = auth.can('deployment:create');
+  const language = await currentLanguage();
   const [
     applications,
     targets,
@@ -124,7 +125,7 @@ export default async function ApplicationsPage({
           ? (targets.find((candidate) => candidate.id === proxy.hostTargetId)?.name ?? proxy.name)
           : null;
         return {
-          description: describeProxy(proxy.kind, proxy.config),
+          description: describeProxy(proxy.kind, proxy.config, language),
           capabilities: proxyCapabilities(proxy.kind, proxy.config),
           via: via ?? null,
         };

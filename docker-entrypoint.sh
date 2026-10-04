@@ -8,7 +8,7 @@ case "${1:-web}" in
   web)
     echo "[entrypoint] applying the migrations"
     $MIGRATE
-    echo "[entrypoint] seed RBAC (idempotent)"
+    echo "[entrypoint] RBAC seed (idempotent)"
     $SEED
     echo "[entrypoint] starting the Next.js panel on ${HOSTNAME:-0.0.0.0}:${PORT:-3000}"
     exec node /app/web/apps/web/server.js

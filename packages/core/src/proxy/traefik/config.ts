@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { acmeSettingsSchema, type ProxyDescriptor } from '../model.js';
 import type { ProbeSignatures } from '../probe.js';
+import { traefikSay } from './messages.js';
 
 /**
  * Traefik — its connection configuration, and what it says about itself.
@@ -66,12 +67,17 @@ export const traefikDescriptor: ProxyDescriptor<TraefikConfig> = {
   label: 'Traefik',
   placement: 'target',
   parseConfig: (config) => traefikConfigSchema.parse(config),
-  describe(config) {
-    const tls = config.certResolver ? `certificats « ${config.certResolver} »` : 'sans ACME';
+  describe(config, language) {
+    const say = traefikSay(language);
+    const tls = config.certResolver
+      ? say('describe.resolver', { resolver: config.certResolver })
+      : say('describe.noAcme');
     if (config.mode === 'kubernetes') {
-      return `Traefik du cluster · IngressClass ${config.ingressClass} · ${tls}`;
+      return `${say('describe.cluster', { ingressClass: config.ingressClass })} · ${tls}`;
     }
-    const where = config.container ? `conteneur ${config.container}` : 'fichiers';
+    const where = config.container
+      ? say('describe.container', { name: config.container })
+      : say('describe.files');
     return `Traefik · ${where} · ${tls}`;
   },
   capabilities(config) {

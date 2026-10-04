@@ -15,6 +15,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { remoteProxyViewForUi, waitForProxyCheck } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,8 +23,10 @@ export const dynamic = 'force-dynamic';
 /** The remote proxies — outside the targets, reached through their API. */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'target:read');
-  const proxies = await listRemoteProxies();
-  return NextResponse.json({ proxies: proxies.map(remoteProxyViewForUi) });
+  const [proxies, language] = await Promise.all([listRemoteProxies(), currentLanguage()]);
+  return NextResponse.json({
+    proxies: proxies.map((proxy) => remoteProxyViewForUi(proxy, language)),
+  });
 });
 
 const postSchema = z.object({
@@ -40,6 +43,7 @@ const postSchema = z.object({
  * given.
  */
 export const POST = apiRoute(async (request) => {
+  const language = await currentLanguage();
   const auth = await requirePermission(request, 'target:update');
   const input = await readJsonBody(request, postSchema);
   if (proxyPlacement(input.kind) !== 'remote') {
@@ -50,7 +54,9 @@ export const POST = apiRoute(async (request) => {
 
   const created = await createRemoteProxy({
     kind: input.kind,
-    name: input.name ?? describeProxy(input.kind, config).split(' · ').slice(0, 2).join(' · '),
+    name:
+      input.name ??
+      describeProxy(input.kind, config, language).split(' · ').slice(0, 2).join(' · '),
     config,
     secrets,
     createdBy: auth.userId,
@@ -82,7 +88,7 @@ export const POST = apiRoute(async (request) => {
   });
   const saved = await getProxy(created.id);
   return NextResponse.json(
-    { proxy: remoteProxyViewForUi(saved ?? created), checked: check !== null },
+    { proxy: remoteProxyViewForUi(saved ?? created, language), checked: check !== null },
     { status: 201 },
   );
 });

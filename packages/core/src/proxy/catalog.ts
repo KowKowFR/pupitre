@@ -1,3 +1,4 @@
+import type { UiLanguage } from '../i18n.js';
 import { bunkerwebDescriptor } from './bunkerweb/config.js';
 import type {
   AcmeSettings,
@@ -67,10 +68,10 @@ export function proxyCapabilities(kind: ProxyKind, config: unknown): ProxyCapabi
   return descriptor.capabilities(descriptor.parseConfig(config));
 }
 
-/** A line for the screen: enough to recognize the connection. */
-export function describeProxy(kind: ProxyKind, config: unknown): string {
+/** A line for the screen, in its language: enough to recognize the connection. */
+export function describeProxy(kind: ProxyKind, config: unknown, language: UiLanguage): string {
   const descriptor = descriptorOf(kind);
-  return descriptor.describe(descriptor.parseConfig(config));
+  return descriptor.describe(descriptor.parseConfig(config), language);
 }
 
 /** The certificate authority set by Pupitre, to name it. */

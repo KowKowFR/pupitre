@@ -76,10 +76,12 @@ export function createDecryptStream(masterKey?: string, language: UiLanguage = '
           data = header.subarray(BACKUP_HEADER_BYTES);
           header = header.subarray(0, BACKUP_HEADER_BYTES);
           if (!header.subarray(0, MAGIC.length).equals(MAGIC)) {
-            throw new BackupFormatError('this is not a Pupitre backup file');
+            throw new BackupFormatError(say('format.notPupitre'));
           }
           if (header[MAGIC.length] !== VERSION) {
-            throw new BackupFormatError(`version de format inconnue : ${header[MAGIC.length]}`);
+            throw new BackupFormatError(
+              say('format.unknownVersion', { version: String(header[MAGIC.length]) }),
+            );
           }
           const salt = header.subarray(MAGIC.length + 1, MAGIC.length + 1 + SALT_BYTES);
           const iv = header.subarray(MAGIC.length + 1 + SALT_BYTES);

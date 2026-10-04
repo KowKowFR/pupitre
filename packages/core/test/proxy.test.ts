@@ -678,9 +678,13 @@ describe('BunkerWeb — the connection and what it allows', () => {
       waf: true,
       remoteUpstream: 'any',
     });
-    assert.match(
-      describeProxy('bunkerweb', config),
-      /BunkerWeb · conteneur pupitre-bunkerweb · WAF/,
+    assert.equal(
+      describeProxy('bunkerweb', config, 'fr'),
+      'BunkerWeb · conteneur pupitre-bunkerweb · WAF · certificats Let’s Encrypt (essai)',
+    );
+    assert.equal(
+      describeProxy('bunkerweb', config, 'en'),
+      'BunkerWeb · container pupitre-bunkerweb · WAF · Let’s Encrypt (staging) certificates',
     );
     assert.deepEqual(proxyAcme('bunkerweb', config), {
       email: 'ops@example.fr',

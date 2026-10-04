@@ -151,7 +151,7 @@ if (isDirectRun) {
       const realigned = result.adminRealigned ? ', admin realigned' : '';
       // eslint-disable-next-line no-console
       console.log(
-        `[db] seed RBAC : ${result.permissions} permissions${created}${realigned}` +
+        `[db] RBAC seed: ${result.permissions} permissions${created}${realigned}` +
           (result.freshInstall ? ' (fresh install)' : ''),
       );
       await closeDb();

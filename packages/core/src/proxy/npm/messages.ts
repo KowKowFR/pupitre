@@ -50,6 +50,8 @@ const fr = {
 
   'reach.relaying': 'NPM relaie {hostname} vers {address}:{port}',
   'reach.silent': 'NPM ne répond pas sur {host}:{port} depuis le panel',
+
+  'describe.account': 'compte {email}',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -100,6 +102,8 @@ const en: Translated<typeof fr> = {
 
   'reach.relaying': 'NPM relays {hostname} to {address}:{port}',
   'reach.silent': 'NPM does not answer on {host}:{port} from the panel',
+
+  'describe.account': 'account {email}',
 };
 
 export const npmCopy = { fr, en };

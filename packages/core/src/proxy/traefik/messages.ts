@@ -72,6 +72,10 @@ const fr = {
   'apply.clusterOnly':
     'ce Traefik vit dans le cluster : il joint une application du cluster, ou une autre machine par son adresse — pas un port de la sienne',
   'apply.ingresses': 'Ingress appliqués dans {namespace} : {hostnames}',
+
+  'describe.cluster': 'Traefik du cluster · IngressClass {ingressClass}',
+  'describe.files': 'fichiers',
+  'describe.resolver': 'certificats « {resolver} »',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -142,6 +146,10 @@ const en: Translated<typeof fr> = {
   'apply.clusterOnly':
     'this Traefik lives in the cluster: it reaches a cluster application, or another machine by its address — not a port of its own machine',
   'apply.ingresses': 'Ingresses applied in {namespace}: {hostnames}',
+
+  'describe.cluster': 'cluster Traefik · IngressClass {ingressClass}',
+  'describe.files': 'files',
+  'describe.resolver': '“{resolver}” certificates',
 };
 
 export const traefikCopy = { fr, en };

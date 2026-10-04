@@ -256,8 +256,8 @@ export type ProxyDescriptor<C = unknown> = {
    * domain's DNS must point to.
    */
   entrypointHost?(config: C): string;
-  /** A line for the screen: enough to recognize the connection. */
-  describe(config: C): string;
+  /** A line for the screen, in its language: enough to recognize the connection. */
+  describe(config: C, language: UiLanguage): string;
   capabilities(config: C): ProxyCapabilities;
   /** The certificate authority set by Pupitre, to name it; `null` otherwise. */
   acme(config: C): Pick<AcmeSettings, 'email' | 'server'> | null;

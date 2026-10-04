@@ -95,7 +95,10 @@ export class S3BackupStore implements BackupStore {
       await assertEgressAllowed(url);
     } catch (error) {
       if (!(error instanceof EgressRefusedError)) throw error;
-      throw new BackupStoreError(`S3 : ${error.describe(this.language)}`, error);
+      throw new BackupStoreError(
+        this.say('s3.egress', { detail: error.describe(this.language) }),
+        error,
+      );
     }
     let response: Response;
     try {
@@ -107,7 +110,10 @@ export class S3BackupStore implements BackupStore {
       });
     } catch (error) {
       throw new BackupStoreError(
-        `stockage S3 injoignable (${this.base.host}) : ${error instanceof Error ? error.message : String(error)}`,
+        this.say('s3.unreachable', {
+          host: this.base.host,
+          detail: error instanceof Error ? error.message : String(error),
+        }),
         error,
       );
     }
@@ -197,7 +203,7 @@ export class S3BackupStore implements BackupStore {
   async get(key: string): Promise<Readable> {
     const response = await this.request('GET', this.objectKey(key));
     if (response.status === 404 || !response.body) {
-      throw new BackupStoreError(`S3 : « ${key} » introuvable`);
+      throw new BackupStoreError(this.say('s3.notFound', { key }));
     }
     return Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
   }

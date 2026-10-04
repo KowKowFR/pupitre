@@ -133,7 +133,8 @@ export async function handleProxyInstall(job: Job): Promise<{ ok: boolean; error
       config: config as Record<string, unknown>,
       managed: true,
       // The name as the installed configuration says it: "cluster Traefik"…
-      name: describeProxy(proxy.kind, config).split(' · ')[0] ?? proxy.name,
+      name:
+        describeProxy(proxy.kind, config, await instanceLanguage()).split(' · ')[0] ?? proxy.name,
     });
     await logAudit({
       actorId: data.actorId,

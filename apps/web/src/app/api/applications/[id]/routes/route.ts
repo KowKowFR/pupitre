@@ -19,6 +19,7 @@ import { apiRoute, readJsonBody } from '@/lib/http';
 import { assertServable, proxyViewForUi, routeViewForUi } from '@/lib/proxy';
 import { getOpsQueue } from '@/lib/queue';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,6 +33,7 @@ type Context = { params: Promise<{ id: string }> };
  * screen only offers that.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
+  const language = await currentLanguage();
   await requirePermission(request, 'application:read');
   const { id } = paramsSchema.parse(await context.params);
   const application = await getApplication(id);
@@ -58,7 +60,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
           id: target.id,
           name: target.name,
           live: live.some((couple) => couple.targetId === target.id && couple.inService),
-          proxy: serving ? proxyViewForUi(serving.proxy) : null,
+          proxy: serving ? proxyViewForUi(serving.proxy, language) : null,
           /** The proxy, when it is another machine's or a remote proxy. */
           via: serving?.link
             ? (nameOf.get(serving.proxy.hostTargetId ?? '') ?? serving.proxy.name)

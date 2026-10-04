@@ -107,7 +107,7 @@ export async function handleBackupDelete(job: Job): Promise<BackupJobResult> {
     },
     ip: data.ip,
   });
-  return { backupId: backup.id, status: 'success', bytes: 0, detail: `${removed} fichier(s)` };
+  return { backupId: backup.id, status: 'success', bytes: 0, detail: `${removed} file(s)` };
 }
 
 /** Write, read back, erase a witness file — and keep the verdict. */

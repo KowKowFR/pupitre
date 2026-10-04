@@ -104,7 +104,7 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
     } catch (error) {
       throw new RegistryError(
         'unreachable',
-        error instanceof Error ? error.message : 'registre injoignable',
+        error instanceof Error ? error.message : 'registry unreachable',
       );
     }
   }
@@ -114,7 +114,7 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
     const cached = tokens.get(key);
     if (cached) return cached;
     if (!isHttps(challenge.realm)) {
-      throw new RegistryError('unexpected', `serveur de jetons non HTTPS : ${challenge.realm}`);
+      throw new RegistryError('unexpected', `token server is not HTTPS: ${challenge.realm}`);
     }
     const url = new URL(challenge.realm);
     if (challenge.service) url.searchParams.set('service', challenge.service);

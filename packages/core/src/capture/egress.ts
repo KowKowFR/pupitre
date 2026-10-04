@@ -140,7 +140,7 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
       try {
         parsed = new URL(req.url ?? '');
       } catch {
-        res.writeHead(400).end('mandataire : URL absolue attendue');
+        res.writeHead(400).end('proxy: absolute URL expected');
         return;
       }
       if (parsed.protocol !== 'http:') {
@@ -190,7 +190,7 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
       );
       upstream.on('error', (error) => {
         if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
-        res.end(`mandataire : ${error.message}`);
+        res.end(`proxy: ${error.message}`);
       });
       req.pipe(upstream);
     })();

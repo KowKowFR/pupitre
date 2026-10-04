@@ -345,7 +345,7 @@ async function main(): Promise<void> {
       );
     }
     const firstRange = await appRange(sides[0]!);
-    const nowhere = await guarded('npm', 'adresse injoignable', () =>
+    const nowhere = await guarded('npm', 'unreachable address', () =>
       checkReach({
         origin,
         served: sides[0]!.ctx,

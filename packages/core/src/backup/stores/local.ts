@@ -66,7 +66,7 @@ export class LocalBackupStore implements BackupStore {
   async get(key: string): Promise<Readable> {
     const target = this.path(key);
     await stat(target).catch((error: unknown) => {
-      throw new BackupStoreError(`« ${key} » introuvable`, error);
+      throw new BackupStoreError(this.say('store.notFound', { key }), error);
     });
     return createReadStream(target);
   }

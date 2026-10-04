@@ -85,6 +85,27 @@ const fr = {
   'maintenance.noSubject': 'une fenêtre couvre au moins une cible ou une sonde',
   'purge.criteria':
     'Au moins un critère est requis (ids, statuses, olderThanDays, applicationId, targetId)',
+  // Built-in checks (`.regex()`, `.refine()` with a fixed sentence): found again
+  // by their French sentence, which must stay identical to the schema's.
+  'spec.slugFormat': 'nom en kebab-case : minuscules, chiffres et tirets',
+  'spec.semver': 'version semver attendue, ex. 1.4.2',
+  'spec.volumeSize': 'taille attendue, ex. 10Gi',
+  'spec.envName': 'variable en MAJUSCULES_AVEC_UNDERSCORES',
+  'secrets.name': 'nom en MAJUSCULES_AVEC_UNDERSCORES',
+  'backup.noDotDot': 'chemin sans « .. »',
+  'backup.httpOnly': 'http(s) seulement',
+  'backup.bucket': 'nom de bucket S3',
+  'backup.fingerprint': 'empreinte SHA256:…',
+  'backup.absolutePath': 'chemin absolu',
+  'catalog.domain': 'nom de domaine attendu, sans https:// ni chemin',
+  'proxy.bunkerwebAuthority': 'BunkerWeb n’accepte que Let’s Encrypt ou ZeroSSL',
+  'settings.timeZone': 'Fuseau horaire IANA inconnu',
+  'settings.httpUrl': 'adresse http(s) attendue',
+  'settings.claimPath': 'chemin de champ attendu, ex. groups ou realm_access.roles',
+  'settings.isoTimestamp': 'Horodatage ISO invalide',
+  'statusPage.slug': 'minuscules, chiffres et tirets, sans tiret au bord',
+  'statusUpdate.subject': 'sujet attendu : incident:<id> ou maintenance:<id>',
+  'schedules.missingCadence': 'cadence manquante',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -153,6 +174,25 @@ const en: Translated<typeof fr> = {
   'maintenance.noSubject': 'a window covers at least one target or probe',
   'purge.criteria':
     'At least one criterion is required (ids, statuses, olderThanDays, applicationId, targetId)',
+  'spec.slugFormat': 'kebab-case name: lowercase letters, digits and dashes',
+  'spec.semver': 'semver version expected, e.g. 1.4.2',
+  'spec.volumeSize': 'size expected, e.g. 10Gi',
+  'spec.envName': 'variable in UPPERCASE_WITH_UNDERSCORES',
+  'secrets.name': 'name in UPPERCASE_WITH_UNDERSCORES',
+  'backup.noDotDot': 'path without “..”',
+  'backup.httpOnly': 'http(s) only',
+  'backup.bucket': 'S3 bucket name',
+  'backup.fingerprint': 'SHA256:… fingerprint',
+  'backup.absolutePath': 'absolute path',
+  'catalog.domain': 'domain name expected, without https:// or a path',
+  'proxy.bunkerwebAuthority': 'BunkerWeb only accepts Let’s Encrypt or ZeroSSL',
+  'settings.timeZone': 'Unknown IANA time zone',
+  'settings.httpUrl': 'http(s) address expected',
+  'settings.claimPath': 'field path expected, e.g. groups or realm_access.roles',
+  'settings.isoTimestamp': 'Invalid ISO timestamp',
+  'statusPage.slug': 'lowercase letters, digits and dashes, no dash at either end',
+  'statusUpdate.subject': 'subject expected: incident:<id> or maintenance:<id>',
+  'schedules.missingCadence': 'missing schedule',
 };
 
 export const validationCopy = { fr, en };

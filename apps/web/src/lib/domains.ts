@@ -2,6 +2,7 @@ import 'server-only';
 import { CERTIFICATE_WARN_DAYS } from '@pupitre/core/proxy';
 import { listRoutes, listServingProxies, listTargets } from '@pupitre/db';
 import { proxyViewForUi, routeViewForUi, type RouteViewForUi } from './proxy';
+import { currentLanguage } from '@/i18n/server';
 
 const DAY_MS = 86_400_000;
 
@@ -27,6 +28,7 @@ export type DomainRow = RouteViewForUi & {
  * machines, and each one's proxy.
  */
 export async function listDomains(now: number = Date.now()): Promise<DomainRow[]> {
+  const language = await currentLanguage();
   const [routes, targets, proxies] = await Promise.all([
     listRoutes({}),
     listTargets(),
@@ -37,7 +39,7 @@ export async function listDomains(now: number = Date.now()): Promise<DomainRow[]
   return routes
     .map((route) => {
       const serving = proxies.get(route.targetId);
-      const view = serving ? proxyViewForUi(serving.proxy) : null;
+      const view = serving ? proxyViewForUi(serving.proxy, language) : null;
       const expiresAt = route.certificate?.notAfter ? Date.parse(route.certificate.notAfter) : NaN;
       const left = route.tls && !Number.isNaN(expiresAt) ? expiresAt - now : null;
       // Toward zero both ways: expired two days and a bit ago is said "two days", not

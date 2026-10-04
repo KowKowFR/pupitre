@@ -321,12 +321,12 @@ async function checkTemplate(
     await driver.destroy(ctx, onLog);
   } catch (error) {
     write(
-      `      ${yellow(`destroy : ${error instanceof Error ? error.message : String(error)}`)}\n`,
+      `      ${yellow(`destroy: ${error instanceof Error ? error.message : String(error)}`)}\n`,
     );
   }
   const leftovers = await exec(
     target.session,
-    `docker ps -a --filter 'label=tp.app=${spec.name}' --format '{{.Names}}'`,
+    `docker ps -a --filter 'label=pupitre.app=${spec.name}' --format '{{.Names}}'`,
     { timeout: 30_000 },
   );
   if (leftovers.stdout.trim() && result.outcome === 'ok') {

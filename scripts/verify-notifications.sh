@@ -502,9 +502,9 @@ pass "the probes post nothing: getMe for Telegram, GET of the webhook for Discor
 
 step "10. An unreachable channel does not break the notified action"
 # Closed port on the worker's loopback: the connection is refused right away.
-DEAD_ID=$(create_channel "{\"kind\":\"webhook\",\"name\":\"$PREFIX-injoignable\",
+DEAD_ID=$(create_channel "{\"kind\":\"webhook\",\"name\":\"$PREFIX-unreachable\",
   \"config\":{\"url\":\"http://127.0.0.1:45999/hook\"},\"secrets\":{},
-  \"events\":[\"security.role_changed\"]}" "injoignable")
+  \"events\":[\"security.role_changed\"]}" "unreachable")
 pass "unreachable channel created, subscribed to the same event as the webhook"
 
 code=$(req POST /api/admin/users \

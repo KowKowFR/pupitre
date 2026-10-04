@@ -596,7 +596,7 @@ async function exercise(
     if (address) for (const route of [secure, plain]) await declareDomain(route.hostname, address);
   }
 
-  const applied = await guarded(runtime, 'apply() — deux domaines', async () => {
+  const applied = await guarded(runtime, 'apply() — two domains', async () => {
     await provider.apply(proxyCtx, { appSlug: SPEC.name, routes: [secure, plain], upstream }, log);
     return true;
   });

@@ -140,7 +140,7 @@ export class SftpBackupStore implements BackupStore {
     const sftp = await this.open();
     const target = this.path(key);
     await call<Stats>((done) => sftp.stat(target, done)).catch((error: unknown) => {
-      throw new BackupStoreError(`SFTP : « ${key} » introuvable`, error);
+      throw new BackupStoreError(this.say('sftp.notFound', { key }), error);
     });
     return sftp.createReadStream(target);
   }
