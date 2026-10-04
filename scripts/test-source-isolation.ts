@@ -1,16 +1,17 @@
 /**
- * Un dépôt piégé ne passe pas : son code reste à part de la release.
+ * A booby-trapped repository does not get through: its code stays apart from
+ * the release.
  *
- *   pnpm test:source-isolation <cible-docker> <cible-k3s>
+ *   pnpm test:source-isolation <docker-target> <k3s-target>
  *
- * Sur chaque runtime, une application construite depuis l'archive d'un
- * « dépôt » qui porte, en plus de son code :
- *   - un `compose.override.yml` qui demande un conteneur privilégié avec le
- *     disque de la machine monté ;
- *   - un `docker-compose.yml` et un `.env` qui détournent le nom du projet ;
- *   - un dossier `k8s/` avec un manifeste à appliquer.
- * Elle doit se construire depuis `source/`, démarrer saine, et aucun piège ne
- * doit avoir pris. Puis tout est détruit. Sortie en code 1 au premier échec.
+ * On each runtime, an application built from the archive of a "repository"
+ * that carries, on top of its code:
+ *   - a `compose.override.yml` that asks for a privileged container with the
+ *     machine's disk mounted;
+ *   - a `docker-compose.yml` and a `.env` that hijack the project's name;
+ *   - a `k8s/` folder with a manifest to apply.
+ * It must build from `source/`, start healthy, and no trap must have taken.
+ * Then everything is destroyed. Exit code 1 at the first failure.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -32,12 +33,12 @@ const report = createReport();
 const { record } = report;
 
 const SPEC = parseAppSpec({
-  name: 'source-piegee',
+  name: 'source-trapped',
   version: '1.0.0',
   services: [
     {
       name: 'web',
-      // Relatif à la racine du dépôt, comme dans un vrai pupitre.json.
+      // Relative to the repository's root, as in a real pupitre.json.
       source: { type: 'dockerfile', context: 'app', dockerfile: 'Dockerfile' },
       port: 8080,
       exposed: true,
@@ -46,32 +47,32 @@ const SPEC = parseAppSpec({
   ],
 });
 
-/** Une archive comme celles de GitHub : tout sous un dossier de tête. */
+/** An archive like GitHub's: everything under a leading folder. */
 function hostileArchive(): { localPath: string; cleanup: () => void } {
-  const work = mkdtempSync(path.join(tmpdir(), 'pupitre-piege-'));
-  const repo = path.join(work, 'KowKowFR-piege-abc1234');
+  const work = mkdtempSync(path.join(tmpdir(), 'pupitre-trap-'));
+  const repo = path.join(work, 'KowKowFR-trap-abc1234');
   mkdirSync(path.join(repo, 'app'), { recursive: true });
   mkdirSync(path.join(repo, 'k8s'), { recursive: true });
   writeFileSync(
     path.join(repo, 'app', 'Dockerfile'),
     'FROM busybox:1.37\nCOPY index.html /www/index.html\nEXPOSE 8080\nCMD ["httpd", "-f", "-p", "8080", "-h", "/www"]\n',
   );
-  writeFileSync(path.join(repo, 'app', 'index.html'), '<h1>code du depot</h1>\n');
+  writeFileSync(path.join(repo, 'app', 'index.html'), '<h1>repository code</h1>\n');
   writeFileSync(
     path.join(repo, 'compose.override.yml'),
-    'services:\n  web:\n    privileged: true\n    volumes: ["/:/hote"]\n',
+    'services:\n  web:\n    privileged: true\n    volumes: ["/:/host"]\n',
   );
   writeFileSync(
     path.join(repo, 'docker-compose.yml'),
-    'services:\n  intrus:\n    image: busybox:1.37\n    command: ["sleep", "3600"]\n',
+    'services:\n  intruder:\n    image: busybox:1.37\n    command: ["sleep", "3600"]\n',
   );
   writeFileSync(
     path.join(repo, '.env'),
-    'COMPOSE_PROJECT_NAME=app-victime\nCOMPOSE_FILE=docker-compose.yml\n',
+    'COMPOSE_PROJECT_NAME=app-victim\nCOMPOSE_FILE=docker-compose.yml\n',
   );
   writeFileSync(
-    path.join(repo, 'k8s', 'piege.yaml'),
-    'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: pupitre-piege\n  namespace: default\ndata:\n  pris: "oui"\n',
+    path.join(repo, 'k8s', 'trap.yaml'),
+    'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: pupitre-trap\n  namespace: default\ndata:\n  taken: "yes"\n',
   );
   const localPath = path.join(work, 'source.tar.gz');
   execFileSync('tar', ['-czf', localPath, '-C', work, path.basename(repo)]);
@@ -92,7 +93,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
       host: target.host,
       rootPath: process.env.DRIVER_ROOT_PATH ?? '/opt/bootstrap',
     },
-    deployment: { id: `piege-${runtime}-${Date.now()}`, version: SPEC.version, sequence: 1 },
+    deployment: { id: `trap-${runtime}-${Date.now()}`, version: SPEC.version, sequence: 1 },
     sshSession: session,
     language: 'fr',
     appSlug: SPEC.name,
@@ -118,18 +119,18 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     const [root = '', source = ''] = layout.stdout.split('\n');
     record(
       runtime,
-      'le code du dépôt est dans source/, pas à la racine de la release',
+      "the repository's code is in source/, not at the root of the release",
       source.includes('compose.override.yml') &&
         !root.includes('compose.override.yml') &&
         !root.includes('docker-compose.yml'),
-      `racine : ${root.trim()}`,
+      `root: ${root.trim()}`,
     );
     await driver.build(ctx, log);
     await driver.deploy(ctx, log);
     const health = await driver.healthcheck(ctx);
     record(
       runtime,
-      'construite depuis source/app, démarrée saine',
+      'built from source/app, started healthy',
       health.healthy,
       health.detail ?? '',
     );
@@ -145,15 +146,15 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
       const [privileged = '', ...mounts] = (lines.at(-1) ?? '').split(' ');
       record(
         runtime,
-        'le compose.override.yml du dépôt n’est pas fusionné',
-        privileged === 'false' && !mounts.includes('/hote'),
-        `privileged=${privileged}, montages : ${mounts.filter(Boolean).join(' ') || 'aucun'}`,
+        "the repository's compose.override.yml is not merged",
+        privileged === 'false' && !mounts.includes('/host'),
+        `privileged=${privileged}, mounts: ${mounts.filter(Boolean).join(' ') || 'none'}`,
       );
       record(
         runtime,
-        'ni projet détourné, ni service intrus',
-        !containers.includes('app-victime') &&
-          !containers.includes('intrus') &&
+        'neither a hijacked project, nor an intruding service',
+        !containers.includes('app-victim') &&
+          !containers.includes('intruder') &&
           containers.includes(`app-${SPEC.name}`),
         containers,
       );
@@ -161,17 +162,17 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
       const kube = 'export KUBECONFIG=${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}; ';
       const trap = await exec(
         session,
-        `${kube}kubectl -n default get configmap pupitre-piege -o name 2>&1 || true`,
+        `${kube}kubectl -n default get configmap pupitre-trap -o name 2>&1 || true`,
       );
       record(
         runtime,
-        'le dossier k8s/ du dépôt n’est pas appliqué',
+        "the repository's k8s/ folder is not applied",
         /NotFound|not found/i.test(trap.stdout),
         trap.stdout.trim(),
       );
     }
   } catch (error) {
-    record(runtime, 'déroulé', false, error instanceof Error ? error.message : String(error));
+    record(runtime, 'run', false, error instanceof Error ? error.message : String(error));
   } finally {
     await driver.destroy(ctx, () => {}).catch(() => undefined);
     archive.cleanup();
@@ -182,16 +183,16 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
 async function main(): Promise<void> {
   const [dockerRef, k3sRef] = process.argv.slice(2);
   if (!dockerRef || !k3sRef) {
-    write('Usage : pnpm test:source-isolation <cible-docker> <cible-k3s>\n');
+    write('Usage: pnpm test:source-isolation <docker-target> <k3s-target>\n');
     process.exit(1);
   }
-  write(bold('Un dépôt piégé ne passe pas — le code reste dans source/\n'));
+  write(bold('A booby-trapped repository does not get through — the code stays in source/\n'));
   const applicationId = await ensureApplication(SPEC);
   await exercise('docker', dockerRef, applicationId);
   await exercise('k3s', k3sRef, applicationId);
   await getDb().delete(applications).where(eq(applications.id, applicationId));
   await closeDb();
-  report.summary('Aucun piège n’a pris.');
+  report.summary('No trap took.');
   process.exit(report.failures === 0 ? 0 : 1);
 }
 

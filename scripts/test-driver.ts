@@ -1,14 +1,14 @@
 /**
- * Déploie une AppSpec de bout en bout sur une cible Docker réelle.
+ * Deploys an AppSpec end to end on a real Docker target.
  *
- * C'est le chemin le plus court entre une AppSpec et une URL qui répond : pas de
- * pipeline, pas d'UI, juste le driver appelé directement.
+ * It is the shortest path between an AppSpec and a URL that answers: no
+ * pipeline, no UI, just the driver called directly.
  *
- *   pnpm test:driver <cible> [--spec chemin.json] [--keep]
- *   pnpm test:driver <cible> --rollback <version>
- *   pnpm test:driver <cible> --destroy
+ *   pnpm test:driver <target> [--spec path.json] [--keep]
+ *   pnpm test:driver <target> --rollback <version>
+ *   pnpm test:driver <target> --destroy
  *
- * `<cible>` est le nom ou l'UUID d'une cible enregistrée dans le panel.
+ * `<target>` is the name or the UUID of a target registered in the panel.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -55,7 +55,7 @@ type Options = {
   specPath: string;
   destroy: boolean;
   keep: boolean;
-  /** Version vers laquelle revenir, si `--rollback` est passé. */
+  /** Version to go back to, if `--rollback` is passed. */
   rollbackTo: string | null;
 };
 
@@ -65,7 +65,7 @@ function parseArgs(argv: string[]): Options {
 
   if (!target) {
     process.stdout.write(
-      'Usage : pnpm test:driver <nom-ou-id-de-cible> [--spec fichier.json] [--destroy] [--keep]\n',
+      'Usage: pnpm test:driver <target-name-or-id> [--spec file.json] [--destroy] [--keep]\n',
     );
     process.exit(1);
   }
@@ -81,7 +81,7 @@ function parseArgs(argv: string[]): Options {
   };
 }
 
-/** Une ligne `applications` est nécessaire : `port_allocations` la référence. */
+/** An `applications` row is required: `port_allocations` references it. */
 async function ensureApplication(spec: AppSpec): Promise<string> {
   const db = getDb();
   const [existing] = await db.select().from(applications).where(eq(applications.slug, spec.name));
@@ -99,7 +99,7 @@ async function ensureApplication(spec: AppSpec): Promise<string> {
     .values({ slug: spec.name, name: spec.name, appSpec: spec })
     .returning({ id: applications.id });
 
-  if (!created) throw new Error("l'insertion de l'application n'a rien retourné");
+  if (!created) throw new Error('inserting the application returned nothing');
   return created.id;
 }
 
@@ -118,22 +118,22 @@ async function main(): Promise<void> {
   );
   if (!found) {
     fail(
-      `Cible « ${options.target} » introuvable. Cibles connues : ` +
-        (all.map((t) => t.name).join(', ') || 'aucune'),
+      `Target "${options.target}" not found. Known targets: ` +
+        (all.map((t) => t.name).join(', ') || 'none'),
     );
   }
 
   const record = await getTargetSecret(found.id);
-  if (!record) fail(`Impossible de relire la cible ${found.id}`);
+  if (!record) fail(`Could not read target ${found.id} again`);
 
   ok(`${found.name} — ${found.sshUser}@${found.host}:${found.port}`);
-  // Le dernier preflight enregistré vient du worker, qui voit le réseau
-  // autrement que ce script. C'est `driver.preflight()`, ouvert sur notre
-  // propre session, qui fait autorité — voir l'étape 3.
+  // The last recorded preflight comes from the worker, which sees the network
+  // differently from this script. It is `driver.preflight()`, opened on our own
+  // session, that is authoritative — see step 3.
   info(
     record.target.runtimesAvailable.docker.available
-      ? `dernier preflight : Docker ${record.target.runtimesAvailable.docker.version}`
-      : `dernier preflight : ${record.target.status} — vérifié à l'étape 3`,
+      ? `last preflight: Docker ${record.target.runtimesAvailable.docker.version}`
+      : `last preflight: ${record.target.status} — checked at step 3`,
   );
 
   step('2. Session SSH');
@@ -150,7 +150,7 @@ async function main(): Promise<void> {
   };
 
   const session = await connect(sshTarget);
-  ok(`connectée en ${session.latencyMs} ms`);
+  ok(`connected in ${session.latencyMs} ms`);
 
   const applicationId = await ensureApplication(spec);
   const driver = getDriver('docker');
@@ -162,8 +162,8 @@ async function main(): Promise<void> {
   };
 
   const previousDeployment: DriverDeployment | undefined = options.rollbackTo
-    ? // Ce script déploie toujours sous le numéro 1 : la release visée est
-      // `{version}-r1`, ou `{version}` si elle date d'avant ce nommage.
+    ? // This script always deploys under number 1: the targeted release is
+      // `{version}-r1`, or `{version}` if it dates from before this naming.
       { id: 'previous', version: options.rollbackTo, sequence: 1 }
     : undefined;
 
@@ -182,7 +182,7 @@ async function main(): Promise<void> {
     applicationId,
     ...(previousDeployment ? { previousDeployment } : {}),
     portAllocator: createPortAllocator(),
-    // Plage restreinte quand la cible n'ouvre qu'une partie des ports.
+    // Restricted range when the target only opens part of the ports.
     ...(process.env.DRIVER_PORT_RANGE
       ? {
           portRange: (() => {
@@ -203,15 +203,15 @@ async function main(): Promise<void> {
         `  ${check.ok ? green('OK') : red('KO')} ${check.label} ${dim(check.detail ?? '')}\n`,
       );
     }
-    if (!preflight.ok) fail("la cible ne peut pas accueillir ce déploiement");
+    if (!preflight.ok) fail('the target cannot host this deployment');
 
     step('4. allocatePort()');
     const port = await driver.allocatePort(ctx);
-    ok(`port ${port} réservé dans port_allocations (contrainte unique target_id/port)`);
+    ok(`port ${port} reserved in port_allocations (unique target_id/port constraint)`);
 
     step('5. render()');
     const artifacts = await driver.render(ctx);
-    ok(`projet ${artifacts.projectName}, ${artifacts.files.length} fichier(s)`);
+    ok(`project ${artifacts.projectName}, ${artifacts.files.length} file(s)`);
     for (const file of artifacts.files) {
       info(`${file.path} — ${file.content.length} octets, mode ${(file.mode ?? 0o644).toString(8)}`);
     }
@@ -219,19 +219,19 @@ async function main(): Promise<void> {
     if (options.destroy) {
       step('6. destroy()');
       await driver.destroy(ctx, emit);
-      ok('déploiement détruit');
+      ok('deployment destroyed');
       return;
     }
 
     if (options.rollbackTo) {
-      step(`6. rollback() vers ${options.rollbackTo}`);
+      step(`6. rollback() to ${options.rollbackTo}`);
       await driver.rollback(ctx, emit);
 
       const health = await driver.healthcheck(ctx);
       if (!health.healthy) {
-        fail(`après rollback, sonde en échec : ${health.detail ?? 'sans détail'}`);
+        fail(`after rollback, probe failing: ${health.detail ?? 'no detail'}`);
       }
-      ok(`revenu à ${options.rollbackTo} — HTTP ${health.statusCode}`);
+      ok(`back to ${options.rollbackTo} — HTTP ${health.statusCode}`);
       return;
     }
 
@@ -239,23 +239,23 @@ async function main(): Promise<void> {
     const started = Date.now();
     await driver.upload(ctx, artifacts, emit);
     const built = await driver.build(ctx, emit);
-    info(built === null ? 'build : rien à construire (skipped)' : `build : ${built.join(', ')}`);
+    info(built === null ? 'build: nothing to build (skipped)' : `build: ${built.join(', ')}`);
     const result = await driver.deploy(ctx, emit);
-    ok(`déployé en ${Math.round((Date.now() - started) / 1000)} s`);
-    info(`release : ${result.releasePath}`);
+    ok(`deployed in ${Math.round((Date.now() - started) / 1000)} s`);
+    info(`release: ${result.releasePath}`);
     info(`images  : ${result.images.join(', ') || '—'}`);
 
     step('7. healthcheck()');
     const health = await driver.healthcheck(ctx);
     if (!health.healthy) {
       fail(
-        `sonde en échec après ${health.attempts} tentative(s) : ${health.detail ?? 'sans détail'}`,
+        `probe failing after ${health.attempts} attempt(s): ${health.detail ?? 'no detail'}`,
       );
     }
-    ok(`sain après ${health.attempts} tentative(s) — HTTP ${health.statusCode}`);
+    ok(`healthy after ${health.attempts} attempt(s) — HTTP ${health.statusCode}`);
 
-    step("8. L'URL répond");
-    if (!result.url) fail("le driver n'a pas produit d'URL");
+    step('8. The URL answers');
+    if (!result.url) fail('the driver produced no URL');
 
     const response = await fetch(result.url, { signal: AbortSignal.timeout(15_000) });
     if (!response.ok) fail(`${result.url} → HTTP ${response.status}`);
@@ -271,9 +271,9 @@ async function main(): Promise<void> {
         `${dim(`  Déploiement conservé. Nettoyage : pnpm test:driver ${options.target} --destroy`)}\n`,
       );
     } else {
-      step('9. Nettoyage');
+      step('9. Cleanup');
       await driver.destroy(ctx, emit);
-      ok('cible remise dans son état initial');
+      ok('target given back its initial state');
     }
     process.stdout.write('\n');
   } finally {

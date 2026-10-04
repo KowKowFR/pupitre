@@ -3,12 +3,12 @@ import { connect, type SshSession, type SshTarget } from '@pupitre/core/ssh';
 import { applications, eq, getDb, getTargetSecret, listTargets } from '@pupitre/db';
 
 /**
- * Ce que tout script de bout en bout fait avant d'éprouver quoi que ce soit :
- * ouvrir une session vers une cible déclarée, et avoir une application en base
- * pour les réservations de ports.
+ * What every end-to-end script does before trying anything out: opening a
+ * session to a declared target, and having an application in the database for
+ * the port reservations.
  *
- * Aucune politique de clé d'hôte : ces scripts visent des machines de test
- * jetables, dont la clé change à chaque recréation.
+ * No host key policy: these scripts aim at throwaway test machines, whose key
+ * changes at each recreation.
  */
 
 export type OpenedTarget = {
@@ -16,12 +16,12 @@ export type OpenedTarget = {
   target: { id: string; name: string; host: string };
 };
 
-/** Une session vers la cible nommée (ou désignée par son identifiant). */
+/** A session to the named target (or the one designated by its identifier). */
 export async function openTarget(ref: string): Promise<OpenedTarget> {
   const found = (await listTargets()).find((target) => target.id === ref || target.name === ref);
-  if (!found) throw new Error(`cible « ${ref} » introuvable`);
+  if (!found) throw new Error(`target "${ref}" not found`);
   const stored = await getTargetSecret(found.id);
-  if (!stored) throw new Error(`cible « ${ref} » illisible`);
+  if (!stored) throw new Error(`target "${ref}" unreadable`);
   const secret = decrypt(stored.encryptedCredential);
   const ssh: SshTarget = {
     host: stored.target.host,
@@ -36,7 +36,7 @@ export async function openTarget(ref: string): Promise<OpenedTarget> {
   return { session: await connect(ssh), target: found };
 }
 
-/** L'application de test en base, créée au besoin ; son identifiant. */
+/** The test application in the database, created if needed; its identifier. */
 export async function ensureApplication(spec: AppSpec): Promise<string> {
   const db = getDb();
   const [existing] = await db.select().from(applications).where(eq(applications.slug, spec.name));
@@ -45,11 +45,11 @@ export async function ensureApplication(spec: AppSpec): Promise<string> {
     .insert(applications)
     .values({ slug: spec.name, name: spec.name, appSpec: spec })
     .returning({ id: applications.id });
-  if (!created) throw new Error("l'application de test n'a pas été créée");
+  if (!created) throw new Error('the test application was not created');
   return created.id;
 }
 
-/** La plage de ports à éprouver : `DRIVER_PORT_RANGE` (`min-max`), ou rien. */
+/** The port range to try out: `DRIVER_PORT_RANGE` (`min-max`), or nothing. */
 export function portRangeFromEnv():
   { portRange: { min: number; max: number } } | Record<string, never> {
   const range = process.env.DRIVER_PORT_RANGE;

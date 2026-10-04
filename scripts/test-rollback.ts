@@ -1,17 +1,17 @@
 /**
- * Revenir en arrière retrouve le bon code — même quand la version ne change pas.
+ * Going back finds the right code — even when the version does not change.
  *
- *   pnpm test:rollback <cible-docker> <cible-k3s>
+ *   pnpm test:rollback <docker-target> <k3s-target>
  *
- * Un commit de code ne change pas la version de l'AppSpec. Sur chaque runtime,
- * une application construite depuis son code :
- *   1. la release A, puis la release B **de la même version** — B est servie ;
- *   2. retour à la release précédente — A est servie de nouveau ;
- *   3. (Docker) une release d'avant le nommage `-r{numéro}` se retrouve encore ;
- *   4. le ménage : au-delà de cinq releases, les plus anciennes partent, et
- *      leurs images construites avec elles ; les récentes restent ;
- *   5. la destruction ne laisse aucune image construite derrière elle.
- * Puis tout est détruit. Sortie en code 1 au premier échec.
+ * A code commit does not change the AppSpec's version. On each runtime, an
+ * application built from its code:
+ *   1. release A, then release B **of the same version** — B is served;
+ *   2. back to the previous release — A is served again;
+ *   3. (Docker) a release from before the `-r{number}` naming is still found;
+ *   4. the cleanup: beyond five releases, the oldest ones go, and their built
+ *      images with them; the recent ones stay;
+ *   5. the destruction leaves no built image behind it.
+ * Then everything is destroyed. Exit code 1 at the first failure.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -46,10 +46,10 @@ const SPEC = parseAppSpec({
   ],
 });
 
-/** Une archive de « dépôt » dont la page dit `label`. */
+/** A "repository" archive whose page says `label`. */
 function archive(label: string): { localPath: string; cleanup: () => void } {
   const work = mkdtempSync(path.join(tmpdir(), 'pupitre-retour-'));
-  const repo = path.join(work, 'depot-abc1234');
+  const repo = path.join(work, 'repo-abc1234');
   mkdirSync(path.join(repo, 'app'), { recursive: true });
   writeFileSync(
     path.join(repo, 'app', 'Dockerfile'),
@@ -107,7 +107,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
       await driver.deploy(ctx, log);
       const health = await driver.healthcheck(ctx);
       if (!health.healthy)
-        throw new Error(`release r${sequence} en mauvaise santé : ${health.detail ?? ''}`);
+        throw new Error(`release r${sequence} unhealthy: ${health.detail ?? ''}`);
     } finally {
       source.cleanup();
     }
@@ -138,13 +138,13 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
   const first = 7001;
   try {
     await deploy(first, 'A', null);
-    record(runtime, 'release A servie', (await served()) === 'version A');
+    record(runtime, 'release A served', (await served()) === 'version A');
 
     await deploy(first + 1, 'B', first);
     const both = (await exec(session, `ls -1 ${appPath} | grep -v current | tr '\\n' ' '`)).stdout;
     record(
       runtime,
-      'release B de la même version, à part : son répertoire et son image',
+      'release B of the same version, apart: its directory and its image',
       (await served()) === 'version B' &&
         both.includes(`1.0.0-r${first}`) &&
         both.includes(`1.0.0-r${first + 1}`) &&
@@ -156,11 +156,11 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
       { ...base, deployment: release(first + 1), previousDeployment: release(first) },
       log,
     );
-    record(runtime, 'retour en arrière : A servie de nouveau', (await served()) === 'version A');
+    record(runtime, 'going back: A served again', (await served()) === 'version A');
 
     let next = first + 2;
     if (runtime === 'docker') {
-      // Une release d'avant le nommage `-r{numéro}` : la même, sous la seule version.
+      // A release from before the `-r{number}` naming: the same, under the version alone.
       await exec(session, `mv ${appPath}/1.0.0-r${first} ${appPath}/1.0.0`);
       await deploy(next, 'C', first + 1);
       await driver.rollback(
@@ -169,21 +169,21 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
       );
       record(
         runtime,
-        'une release d’avant le nommage se retrouve encore',
+        'a release from before the naming is still found',
         (await served()) === 'version A',
       );
-      // Et les opérations courantes sur elle — sa santé — passent toujours.
+      // And the usual operations on it — its health — still go through.
       const legacy = await driver.healthcheck({ ...base, deployment: release(first) });
       record(
         runtime,
-        'une application d’avant la mise à jour reste pilotable (santé)',
+        'an application from before the update stays operable (health)',
         legacy.healthy,
         legacy.detail ?? '',
       );
       next += 1;
     }
 
-    // Le ménage : cinq releases gardées, les autres partent avec leurs images.
+    // The cleanup: five releases kept, the others go with their images.
     for (let index = 0; index < 5; index += 1) {
       await deploy(next, `D${index}`, next - 1);
       next += 1;
@@ -192,20 +192,20 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     const tags = await images();
     record(
       runtime,
-      'cinq releases gardées, les anciennes parties avec leurs images',
+      'five releases kept, the old ones gone with their images',
       !kept.includes(`1.0.0-r${first + 1} `) &&
         !tags.includes(`1.0.0-r${first + 1}`) &&
         tags.includes(`1.0.0-r${next - 1}`) &&
         kept.trim().split(/\s+/).length === 5,
-      `${kept.trim()} · images : ${tags.split('\n').length}`,
+      `${kept.trim()} · images: ${tags.split('\n').length}`,
     );
   } catch (error) {
-    record(runtime, 'déroulé', false, error instanceof Error ? error.message : String(error));
+    record(runtime, 'run', false, error instanceof Error ? error.message : String(error));
   } finally {
     await driver.destroy({ ...base, deployment: release(first) }, () => {}).catch(() => undefined);
-    // La destruction retire aussi les images construites, toutes releases confondues.
+    // The destruction also removes the built images, all releases together.
     const left = await images().catch(() => '?');
-    record(runtime, 'la destruction retire les images construites', left === '', left || 'aucune');
+    record(runtime, 'the destruction removes the built images', left === '', left || 'none');
     await disconnect(session);
   }
 }
@@ -213,16 +213,16 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
 async function main(): Promise<void> {
   const [dockerRef, k3sRef] = process.argv.slice(2);
   if (!dockerRef || !k3sRef) {
-    write('Usage : pnpm test:rollback <cible-docker> <cible-k3s>\n');
+    write('Usage: pnpm test:rollback <docker-target> <k3s-target>\n');
     process.exit(1);
   }
-  write(bold('Revenir en arrière retrouve le bon code, même sans changer de version\n'));
+  write(bold('Going back finds the right code, even without changing the version\n'));
   const applicationId = await ensureApplication(SPEC);
   await exercise('docker', dockerRef, applicationId);
   await exercise('k3s', k3sRef, applicationId);
   await getDb().delete(applications).where(eq(applications.id, applicationId));
   await closeDb();
-  report.summary('Le retour en arrière tient.');
+  report.summary('Going back holds.');
   process.exit(report.failures === 0 ? 0 : 1);
 }
 

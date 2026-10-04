@@ -1,7 +1,6 @@
 /**
- * La sortie des scripts de bout en bout : des couleurs, et un compteur de
- * vérifications qui décide du code de sortie. Partagé pour que chaque script
- * dise ses résultats de la même façon.
+ * The end-to-end scripts' output: colors, and a counter of checks that decides
+ * the exit code. Shared so that every script states its results the same way.
  */
 
 const ESC = String.fromCharCode(27);
@@ -12,7 +11,7 @@ export const bold = paint('1');
 export const dim = paint('2');
 export const write = (text: string) => process.stdout.write(text);
 
-/** Un compteur de vérifications : `record()` écrit une ligne OK/KO et la compte. */
+/** A counter of checks: `record()` writes an OK/KO line and counts it. */
 export function createReport() {
   let passes = 0;
   let failures = 0;
@@ -31,10 +30,10 @@ export function createReport() {
     get failures() {
       return failures;
     },
-    /** Le bilan, en une ligne, puis le verdict. */
+    /** The summary, in one line, then the verdict. */
     summary(success: string): void {
-      write(`\n  ${passes} vérification(s) au vert, ${failures} en échec\n`);
-      write(failures === 0 ? green(bold(`\n${success}\n`)) : red(bold('\nÉchec.\n')));
+      write(`\n  ${passes} check(s) green, ${failures} failing\n`);
+      write(failures === 0 ? green(bold(`\n${success}\n`)) : red(bold('\nFailure.\n')));
     },
   };
 }

@@ -146,9 +146,9 @@ trap cleanup EXIT
 make_tree() {
   local dir="$1" marker="$2"
   mkdir -p "$dir/www"
-  printf 'FROM busybox:1.37\nCOPY www/ /www/\nCOPY entree.sh /entree.sh\nEXPOSE 8080\nCMD ["/entree.sh"]\n' > "$dir/Dockerfile"
-  printf '#!/bin/sh\nexec httpd -f -p 8080 -h /www\n' > "$dir/entree.sh"
-  chmod 755 "$dir/entree.sh"
+  printf 'FROM busybox:1.37\nCOPY www/ /www/\nCOPY entry.sh /entry.sh\nEXPOSE 8080\nCMD ["/entry.sh"]\n' > "$dir/Dockerfile"
+  printf '#!/bin/sh\nexec httpd -f -p 8080 -h /www\n' > "$dir/entry.sh"
+  chmod 755 "$dir/entry.sh"
   printf '<h1>%s</h1>\n' "$marker" > "$dir/www/index.html"
   mkdir -p "$dir/.git" && printf '[core]\n' > "$dir/.git/config"
 }
@@ -231,13 +231,13 @@ pass "a body that is not an archive → 415"
 
 # ─── 3. Booby-trapped archive ─────────────────────────────────────────────────
 step "3. A booby-trapped archive"
-mkdir -p "$WORK/piege/site"
-make_tree "$WORK/piege/site" piege
+mkdir -p "$WORK/trap/site"
+make_tree "$WORK/trap/site" trap
 # Inside `site/`, this link stays in the archive; once `site/` is removed, it
 # would aim at `compose.yml`, at the root of the release.
-ln -s ../compose.yml "$WORK/piege/site/fuite"
-tar -czf "$WORK/piege.tar.gz" -C "$WORK/piege" site
-code=$(upload "$APP_ID" "$WORK/piege.tar.gz")
+ln -s ../compose.yml "$WORK/trap/site/leak"
+tar -czf "$WORK/trap.tar.gz" -C "$WORK/trap" site
+code=$(upload "$APP_ID" "$WORK/trap.tar.gz")
 [ "$code" = "202" ] || fail "sending → HTTP $code: $(cat "$BODY")"
 TRAP_ID=$(jq -r .archive.id "$BODY")
 [ "$(wait_archive "$APP_ID" "$TRAP_ID")" = "rejected" ] || fail "the booby-trapped archive got through"
@@ -277,7 +277,7 @@ PORT=$(jq -r .publishedPort "$BODY")
   || fail "the deployment's detail does not name its archive: $(jq -r .sourceArchiveName "$BODY")"
 page=$(docker_page "$PORT")
 [[ "$page" == *"code-v1"* ]] || fail "the served page does not carry the V1 mark: $page"
-pass "deployed (v1), it serves \"code-v1\" on port $PORT — entree.sh kept its execute bit"
+pass "deployed (v1), it serves \"code-v1\" on port $PORT — entry.sh kept its execute bit"
 
 RELEASE=$(docker compose exec -T ssh-target sh -c "ls -dt $DRIVER_ROOT_PATH/apps/$SLUG/*/ | head -1" | tr -d '\r')
 layout=$(docker compose exec -T ssh-target sh -c "ls -A $RELEASE | tr '\n' ' '; echo; ls -A ${RELEASE}source | tr '\n' ' '")

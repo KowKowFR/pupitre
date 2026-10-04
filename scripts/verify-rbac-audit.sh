@@ -62,7 +62,7 @@ if [ "$code" != "200" ]; then
   code=$(req POST /api/auth/sign-up/email "$ADMIN_JAR" \
     "{\"name\":\"Admin de vérification\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
   [ "$code" = "200" ] || fail "could not create the administrator (HTTP $code): $(cat "$BODY")
-     → si des comptes existent déjà, relancez avec ADMIN_EMAIL/ADMIN_PASSWORD d'un compte admin"
+     → if accounts already exist, rerun with the ADMIN_EMAIL/ADMIN_PASSWORD of an admin account"
   pass "administrator created — the first account gets the admin role"
 else
   pass "signed in as $ADMIN_EMAIL"

@@ -12,7 +12,7 @@ const TRAPS = [
   'simple',
   "l'apostrophe",
   "'' deux apostrophes ''",
-  '$(touch /tmp/pupitre-piege)',
+  '$(touch /tmp/pupitre-trap)',
   '`id`',
   '${HOME}',
   'a; rm -rf /',
