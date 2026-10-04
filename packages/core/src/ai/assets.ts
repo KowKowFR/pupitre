@@ -102,11 +102,11 @@ export function readCoreAsset(asset: CoreAssetPath, options: ReadAssetOptions): 
     try {
       content = readFileSync(candidate, 'utf8');
     } catch {
-      continue; // candidat suivant
+      continue; // next candidate
     }
 
     if (!options.looksRight(content)) {
-      rejected.push(`${candidate} (lu, mais ${options.expectation} manque)`);
+      rejected.push(`${candidate} (read, but ${options.expectation} is missing)`);
       continue;
     }
 
@@ -116,7 +116,7 @@ export function readCoreAsset(asset: CoreAssetPath, options: ReadAssetOptions): 
 
   const detail = [...rejected, ...tried.filter((path) => !rejected.some((r) => r.startsWith(path)))];
   throw new Error(
-    `ressource « ${asset} » introuvable ou méconnaissable dans @pupitre/core ` +
-      `(attendu : ${options.expectation}). Chemins tentés :\n  ${detail.join('\n  ')}`,
+    `resource "${asset}" not found or unrecognizable in @pupitre/core ` +
+      `(expected: ${options.expectation}). Paths tried:\n  ${detail.join('\n  ')}`,
   );
 }

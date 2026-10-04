@@ -35,10 +35,6 @@ const NOT_PRODUCT = {
   'packages/core/src/catalog/templates.ts': 'catalog templates, bilingual inline',
   'packages/core/src/permissions.ts': 'permission descriptions, bilingual inline',
   'packages/core/src/notifications/types.ts': 'secrets mask, bilingual inline',
-  // What is said to the model, not to the user: the prompt's language.
-  'packages/core/src/ai/generate.ts': 'messages to the model (prompt, retry)',
-  'packages/core/src/ai/prompt.ts': 'system prompt',
-  'packages/core/src/ai/model.ts': 'MissingApiKeyError fallback — the screen has its own',
   // Built-in checks found again by their sentence (`validation.ts`): the French
   // sentence is the key there.
   'packages/core/src/sources/types.ts': 'built-in check, found by its sentence',

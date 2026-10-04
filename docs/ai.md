@@ -126,7 +126,7 @@ failures and they do not call for the same reaction:
 describes the schema and its constraints, requires official images with a
 precise tag (**never `latest`**), a healthcheck per service, realistic
 `resources`, `runAsNonRoot` compatibility, the use of secret aliases, and forbids
-clear-text secrets in `env`. It is written in French for now; the description a
+clear-text secrets in `env`. It is written in English; the description a
 user types can be in any language the model understands.
 
 It carries `{{FIXTURE:name.json}}` markers replaced at load time by the **real**

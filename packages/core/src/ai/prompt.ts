@@ -28,7 +28,7 @@ function fixtureContent(name: string): string {
   // The original JSON is indented for human review: we publish it again as is,
   // the model reads better what is airy.
   return readCoreAsset(`spec/__fixtures__/${name}`, {
-    expectation: 'un objet JSON portant un champ « name »',
+    expectation: 'a JSON object carrying a "name" field',
     looksRight: (content) => {
       try {
         const parsed: unknown = JSON.parse(content);
@@ -49,7 +49,7 @@ export function generateAppSpecPrompt(): string {
   const template = readCoreAsset(GENERATE_APPSPEC_PROMPT_FILE, {
     // Sentinel: a file that does not carry its substitution marks is not our
     // prompt, whatever the path it comes from says.
-    expectation: 'les marques {{FIXTURE:…}} du prompt système',
+    expectation: 'the system prompt’s {{FIXTURE:…}} marks',
     looksRight: (content) => HAS_FIXTURE_MARK.test(content),
   });
 

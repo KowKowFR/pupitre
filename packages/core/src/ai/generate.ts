@@ -125,7 +125,7 @@ export type GenerateAppSpecOptions = {
   /**
    * The language of what comes back to the screen: the failure message and the
    * attempts' complaints. The dialogue with the model stays in the prompt's
-   * language. French by default.
+   * language, English. French by default.
    */
   language?: UiLanguage;
 };
@@ -153,20 +153,20 @@ export function formatIssues(error: z.ZodError, language: UiLanguage = 'fr'): st
 }
 
 function userMessage(input: GenerateAppSpecInput): string {
-  const lines = [`Description de l'application :`, input.prompt.trim()];
+  const lines = ['Application description:', input.prompt.trim()];
 
   const hints = input.hints;
   if (hints && (hints.runtime || hints.database || hints.language)) {
-    lines.push('', 'Contraintes supplémentaires :');
-    if (hints.language) lines.push(`- langage / plateforme applicative : ${hints.language}`);
-    if (hints.database) lines.push(`- base de données : ${hints.database}`);
+    lines.push('', 'Additional constraints:');
+    if (hints.language) lines.push(`- application language / platform: ${hints.language}`);
+    if (hints.database) lines.push(`- database: ${hints.database}`);
     if (hints.runtime) {
       // The runtime is NOT an AppSpec field — the spec knows neither Docker nor
       // Kubernetes. It is only passed on as sizing context, and we tell the model so
       // explicitly.
       lines.push(
-        `- runtime de destination : ${hints.runtime}. Ne le mentionne nulle part` +
-          ` dans la spec : l'AppSpec est neutre. Il ne sert qu'à dimensionner.`,
+        `- target runtime: ${hints.runtime}. Do not mention it anywhere in the spec:` +
+          ' the AppSpec is neutral. It is only there for sizing.',
       );
     }
   }
@@ -174,16 +174,16 @@ function userMessage(input: GenerateAppSpecInput): string {
   return lines.join('\n');
 }
 
-/** Retry message: Zod's complaints, word for word. */
+/** Retry message: Zod's complaints, word for word — in English, like the prompt. */
 function repairMessage(issues: string[]): string {
   return [
-    "La spec que tu viens de produire a été REJETÉE par la validation. Voici les",
-    'reproches, chemin par chemin :',
+    'The spec you just produced was REJECTED by validation. Here are the',
+    'complaints, path by path:',
     '',
     ...issues.map((issue) => `- ${issue}`),
     '',
-    "Corrige-les tous et renvoie l'AppSpec complète et corrigée. Ne commente pas,",
-    'ne t\'excuse pas, ne renvoie pas un fragment : la spec entière.',
+    'Fix them all and send back the complete, corrected AppSpec. Do not comment,',
+    'do not apologize, do not send a fragment: the whole spec.',
   ].join('\n');
 }
 
@@ -241,7 +241,7 @@ export async function generateAppSpec(
         schema: appSpecShapeSchema,
         schemaName: 'AppSpec',
         schemaDescription:
-          "Spécification neutre d'une application, indépendante du runtime de déploiement",
+          'Neutral specification of an application, independent of the deployment runtime',
         system,
         messages: turns,
         temperature: options.temperature ?? DEFAULT_TEMPERATURE,
@@ -281,9 +281,9 @@ export async function generateAppSpec(
           {
             role: 'user',
             content: zodError
-              ? repairMessage(formatIssues(zodError))
+              ? repairMessage(formatIssues(zodError, 'en'))
               : repairMessage([
-                  `(racine) : la réponse n'était pas un objet JSON exploitable — ${messageOf(error)}`,
+                  `(root): the answer was not a usable JSON object — ${messageOf(error, 'en')}`,
                 ]),
           },
         );
@@ -347,7 +347,7 @@ export async function generateAppSpec(
 
     turns.push(
       { role: 'assistant', content: safeJson(object) },
-      { role: 'user', content: repairMessage(formatIssues(parsed.error)) },
+      { role: 'user', content: repairMessage(formatIssues(parsed.error, 'en')) },
     );
   }
 

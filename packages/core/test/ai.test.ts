@@ -91,8 +91,8 @@ describe('system prompt', () => {
   it('loads from the versioned file', () => {
     const prompt = generateAppSpecPrompt();
     assert.ok(prompt.length > 2000, 'the prompt is substantial');
-    assert.match(prompt, /exactement un service/i);
-    assert.match(prompt, /jamais `latest`/i);
+    assert.match(prompt, /exactly one service/i);
+    assert.match(prompt, /never `latest`/i);
   });
 
   it('substitutes the prompt’s three fixtures, without leaving a mark', () => {
@@ -108,7 +108,7 @@ describe('system prompt', () => {
 describe('loading versioned resources', () => {
   it('reads a resource whose content is recognized', () => {
     const raw = readCoreAsset('spec/__fixtures__/simple.json', {
-      expectation: 'du JSON',
+      expectation: 'JSON',
       looksRight: (content) => content.trim().startsWith('{'),
     });
     assert.match(raw, /demo-api/);
@@ -125,15 +125,15 @@ describe('loading versioned resources', () => {
     assert.throws(
       () =>
         readCoreAsset('spec/__fixtures__/fullstack.json', {
-          expectation: 'un marqueur qui ne peut pas exister',
+          expectation: 'a marker that cannot exist',
           looksRight: () => false,
         }),
       (error: unknown) => {
         assert.ok(error instanceof Error);
-        assert.match(error.message, /méconnaissable/);
+        assert.match(error.message, /unrecognizable/);
         // The message must say what was tried, and what was missing.
-        assert.match(error.message, /Chemins tentés/);
-        assert.match(error.message, /lu, mais/);
+        assert.match(error.message, /Paths tried/);
+        assert.match(error.message, /read, but/);
         return true;
       },
     );
@@ -209,7 +209,7 @@ describe('generateAppSpec', () => {
     assert.match(text, /PostgreSQL/);
     assert.match(text, /Node\.js/);
     assert.match(text, /k3s/);
-    assert.match(text, /l'AppSpec est neutre/);
+    assert.match(text, /the AppSpec is neutral/);
   });
 
   it('retries ONCE with the Zod errors, and accepts the correction', async () => {
@@ -231,8 +231,8 @@ describe('generateAppSpec', () => {
     // The retry feeds the errors back word for word.
     assert.equal(calls.length, 2);
     const second = JSON.stringify(calls[1]?.prompt);
-    assert.match(second, /REJETÉE/);
-    assert.match(second, /exactement un service/);
+    assert.match(second, /REJECTED/);
+    assert.match(second, /exactly one service/);
   });
 
   it("stops after the retry: no third call, no repair by hand", async () => {

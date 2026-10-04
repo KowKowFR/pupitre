@@ -464,13 +464,13 @@ step('9. Le prompt système guide vers une application multi-services');
   info(`${prompt.length} caractères`);
 
   check('la consigne « application sur étagère + sa base » y figure', () => {
-    assert.match(prompt, /vient avec sa base/i);
+    assert.match(prompt, /comes with its database/i);
     assert.match(prompt, /GLPI/);
     assert.match(prompt, /dependsOn/);
   });
 
   check('la règle « aucun secret inventé » est explicite', () => {
-    assert.match(prompt, /n'inventes?\s+\*\*jamais\*\*\s+de valeur de secret/i);
+    assert.match(prompt, /\*\*never\*\*\s+make up a secret value/i);
     assert.match(prompt, /changeme/);
   });
 

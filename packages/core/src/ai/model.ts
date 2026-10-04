@@ -41,9 +41,9 @@ export class MissingApiKeyError extends Error {
   constructor(provider: AiProvider = 'openrouter') {
     const descriptor = aiProviderDescriptor(provider);
     super(
-      `Aucune clé d'API ${descriptor.label} n'est configurée : la génération d'AppSpec ` +
-        'par IA est désactivée. Renseignez-la dans Paramètres → Intelligence ' +
-        `artificielle${descriptor.envApiKeyVar ? `, ou via ${descriptor.envApiKeyVar}` : ''}.`,
+      `No ${descriptor.label} API key is configured: AI AppSpec generation is disabled. ` +
+        'Set it under Settings → Artificial intelligence' +
+        `${descriptor.envApiKeyVar ? `, or through ${descriptor.envApiKeyVar}` : ''}.`,
     );
     this.name = 'MissingApiKeyError';
     this.provider = provider;
