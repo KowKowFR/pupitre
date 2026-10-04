@@ -1,117 +1,114 @@
-# Politique de sécurité
+# Security policy
 
-Pupitre détient les clés SSH de vos machines, chiffre les secrets de vos
-applications et exécute des commandes privilégiées à distance. Une faille ici ne
-compromet pas un site web : elle compromet une infrastructure. Les signalements
-sont pris au sérieux.
+Pupitre holds the SSH keys of your machines, encrypts your applications' secrets
+and runs privileged commands remotely. A vulnerability here does not compromise a
+website: it compromises an infrastructure. Reports are taken seriously.
 
-## Signaler une faille
+## Reporting a vulnerability
 
-**N'ouvrez pas d'issue publique.**
+**Do not open a public issue.**
 
-Utilisez le signalement privé de GitHub :
+Use GitHub's private reporting:
 [Security → Report a vulnerability](https://github.com/KowKowFR/pupitre/security/advisories/new)
-sur le dépôt. Il crée un fil privé entre vous et le mainteneur, et permet de
-publier un avis une fois le correctif disponible.
+on the repository. It creates a private thread between you and the maintainer,
+and allows publishing an advisory once the fix is available.
 
-Si ce canal ne vous est pas accessible, écrivez au mainteneur,
-[@KowKowFR](https://github.com/KowKowFR), à l'adresse indiquée sur son profil.
+If that channel is not available to you, write to the maintainer,
+[@KowKowFR](https://github.com/KowKowFR), at the address shown on their profile.
 
-Ce qui aide, dans l'ordre d'utilité :
+What helps, in order of usefulness:
 
-1. la version — commit, ou sortie de `git rev-parse HEAD` ;
-2. le chemin d'attaque, étape par étape, et le privilège de départ (anonyme ?
-   `viewer` ? `operator` ?) ;
-3. l'impact concret : lecture d'un secret, exécution sur une cible, élévation de
-   privilège, déni de service ;
-4. une preuve reproductible — une requête `curl`, un script, une fixture.
+1. the version — commit, or the output of `git rev-parse HEAD`;
+2. the attack path, step by step, and the starting privilege (anonymous?
+   `viewer`? `operator`?);
+3. the concrete impact: reading a secret, execution on a target, privilege
+   escalation, denial of service;
+4. a reproducible proof — a `curl` request, a script, a fixture.
 
-**Ne testez que vos propres machines.** Le dépôt fournit de quoi monter une cible
-jetable en conteneur (`./scripts/setup-test-target.sh`).
+Reports in English or in French are both welcome.
 
-## Délais
+**Only test your own machines.** The repository provides what you need to set up
+a throwaway target in a container (`./scripts/setup-test-target.sh`).
 
-Le projet est maintenu par une personne, sur son temps. Ce qui est promis :
+## Timelines
 
-| Étape | Délai visé |
+The project is maintained by one person, on their own time. What is promised:
+
+| Step | Target delay |
 |---|---|
-| Accusé de réception | 7 jours |
-| Première évaluation (confirmé / rejeté / besoin d'info) | 14 jours |
-| Correctif ou plan de correction annoncé | 90 jours |
+| Acknowledgment | 7 days |
+| First assessment (confirmed / rejected / need info) | 14 days |
+| Fix or fix plan announced | 90 days |
 
-Aucune prime n'est offerte. Le crédit vous revient dans l'avis publié, sauf si
-vous préférez l'anonymat.
+No bounty is offered. Credit goes to you in the published advisory, unless you
+prefer anonymity.
 
-## Versions supportées
+## Supported versions
 
-Il n'existe **aucune version publiée** : pas de tag, pas de release, pas d'image
-distribuée. La seule chose maintenue est la branche `main`. Un correctif y est
-appliqué et rien n'est rétroporté nulle part.
+There is **no published version**: no tag, no release, no distributed image. The
+only thing maintained is the `main` branch. A fix is applied there and nothing is
+backported anywhere.
 
-Cela signifie aussi que si vous exploitez Pupitre, vous exploitez un commit :
-notez lequel.
+It also means that if you run Pupitre, you run a commit: write down which one.
 
-## Dans le périmètre
+## In scope
 
-- Contournement du RBAC : obtenir un effet sans détenir la permission
-  correspondante, sur n'importe laquelle des routes de
-  [`docs/api.md`](docs/api.md).
-- Fuite d'une valeur chiffrée — credential SSH, secret d'application, clé d'API
-  d'IA, secret de canal de notification, URL de webhook de sonde — par l'API, par
-  le HTML rendu, par le journal d'activité, par les logs, ou par les clés Redis.
-- Injection de commande sur une machine cible : faire exécuter par le driver ou
-  par le worker une commande qui n'était pas prévue, via un champ d'AppSpec, un
-  nom d'application, un nom de secret ou un paramètre de route.
-- Évasion de l'isolation entre applications déployées : atteindre, depuis
-  l'application `a`, le réseau, les volumes ou les secrets de l'application `b`.
-- Contournement des protections SSRF des sondes de supervision — services de
-  métadonnées cloud, `localhost`, `file://`, plages non routables, identifiants
-  dans l'URL, URL de webhook.
-- Failles d'authentification : reprise de session, contournement du TOTP,
-  réutilisation d'un code de secours, jeton d'invitation valable deux fois,
-  distinction observable entre une adresse connue et une adresse inconnue.
-- Cross-site scripting, CSRF, ou fixation de session dans le panel.
-- Élévation de privilège vers `admin` par n'importe quel chemin.
-- Un secret committé dans le dépôt, ou publié dans une image.
+- Bypassing RBAC: getting an effect without holding the corresponding
+  permission, on any of the routes in [`docs/api.md`](docs/api.md).
+- Leaking an encrypted value — SSH credential, application secret, AI API key,
+  notification channel secret, probe webhook URL, forge token, backup
+  destination key — through the API, the rendered HTML, the activity log, the
+  logs, or the Redis keys.
+- Command injection on a target machine: making the driver or the worker run a
+  command that was not intended, through an AppSpec field, an application name,
+  a secret name, an uploaded archive or a route parameter.
+- Escaping the isolation between deployed applications: reaching, from
+  application `a`, the network, volumes or secrets of application `b`.
+- Bypassing the SSRF protections of monitoring probes — cloud metadata
+  services, `localhost`, `file://`, non-routable ranges, credentials in the URL,
+  webhook URLs.
+- Authentication flaws: session takeover, TOTP bypass, reusing a backup code, an
+  invitation token valid twice, an observable difference between a known address
+  and an unknown one.
+- Cross-site scripting, CSRF, or session fixation in the panel.
+- Privilege escalation to `admin` by any path.
+- A secret committed to the repository, or published in an image.
 
-## Hors périmètre
+## Out of scope
 
-- **Les applications que vous déployez.** Pupitre les orchestre ; leur contenu et
-  leurs vulnérabilités vous appartiennent. Les scanners intégrés
-  (Trivy, Grype, Syft) sont un garde-fou, pas une garantie.
-- **La sécurité de vos machines cibles.** Le panel s'y connecte avec les
-  identifiants que vous lui donnez et exécute des commandes en `sudo`. Une cible
-  compromise l'était avant Pupitre, ou l'est devenue par ce que vous y avez
-  déployé.
-- **Une instance exposée sans reverse proxy ni TLS.** La pile compose publie sur
-  `127.0.0.1` par défaut ; l'exposer publiquement en clair est une décision
-  d'exploitation.
-- **Les limites déjà documentées.** Elles ne sont pas des découvertes : la
-  section « Limites connues » du [README](README.md) et
-  [`docs/feuille-de-route.md`](docs/feuille-de-route.md) les décrivent, avec ce
-  qu'il faudrait pour les lever. En particulier, la limitation de débit de
-  l'authentification est en mémoire de processus — donc par réplique — et la
-  rotation de `MASTER_KEY` n'est pas implémentée.
-- **Le pod constructeur BuildKit sur K3s est privilégié**, et c'est écrit. Ce
-  n'est pas un rapport de faille ; une manière de construire sans ce privilège en
-  serait une bonne contribution.
-- Rapports de scanner automatisé sans chemin d'exploitation démontré.
-- Absence d'en-têtes de durcissement, faiblesses de suites TLS, versions de
-  dépendances signalées par un outil mais sans exploitabilité ici.
-- Attaques exigeant un accès physique, un accès `root` préalable au panel, ou la
-  possession de `MASTER_KEY`.
+- **The applications you deploy.** Pupitre orchestrates them; their content and
+  their vulnerabilities are yours. The built-in scanners (Trivy, Grype, Syft) are
+  a safeguard, not a guarantee.
+- **The security of your target machines.** The panel connects to them with the
+  credentials you give it and runs commands with `sudo`. A compromised target was
+  compromised before Pupitre, or became so through what you deployed on it.
+- **An instance exposed without a reverse proxy or TLS.** The compose stack
+  publishes on `127.0.0.1` by default; exposing it publicly in clear is an
+  operations decision.
+- **Limits already documented.** They are not discoveries: the "Known limits"
+  section of the [README](README.md) and [`docs/roadmap.md`](docs/roadmap.md)
+  describe them, with what it would take to lift them. In particular,
+  `MASTER_KEY` rotation is not implemented.
+- **The BuildKit builder pod on K3s is privileged**, and that is written down.
+  It is not a vulnerability report; a way to build without that privilege would
+  be a good contribution.
+- Automated scanner reports without a demonstrated exploitation path.
+- Missing hardening headers, weak TLS suites, dependency versions flagged by a
+  tool but without exploitability here.
+- Attacks requiring physical access, prior `root` access to the panel, or
+  possession of `MASTER_KEY`.
 
-## Ce que le projet garantit déjà
+## What the project already guarantees
 
-Ces propriétés sont vérifiées à chaque passage des scripts de
-[`docs/verification.md`](docs/verification.md). Une contribution qui les casse
-est un bug de sécurité, même sans exploitation démontrée.
+These properties are checked on each run of the scripts in
+[`docs/verification.md`](docs/verification.md). A contribution that breaks them
+is a security bug, even without a demonstrated exploit.
 
-- Aucun credential ne sort de l'API, à quelque profondeur du JSON que ce soit.
-- Aucun secret n'apparaît dans le journal d'activité, dans les logs, dans le HTML
-  ni dans les clés BullMQ de Redis — y compris les **préfixes** de clé d'API, que
-  certains fournisseurs renvoient dans leurs messages d'erreur.
-- Un refus de permission est tracé, avec l'acteur et l'IP réelle derrière le
+- No credential leaves the API, at whatever depth of the JSON.
+- No secret appears in the activity log, the logs, the HTML or Redis's BullMQ
+  keys — including API key **prefixes**, which some providers send back in their
+  error messages.
+- A permission refusal is traced, with the actor and the real IP behind the
   reverse proxy.
-- Deux gardes de CI : aucun secret dans le dépôt, et les migrations appliquées
-  sont immuables.
+- Two CI guards: no secret in the repository, and applied migrations are
+  immutable.

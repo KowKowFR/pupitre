@@ -1,786 +1,800 @@
 # Architecture
 
-[`CLAUDE.md`](../CLAUDE.md) porte les décisions. Ce document explique ce qu'elles
-impliquent quand on ouvre le code — où regarder, et ce qui va vous surprendre.
+[`CLAUDE.md`](../CLAUDE.md) holds the decisions. This document explains what
+they imply when you open the code — where to look, and what will surprise you.
 
-- [Les quatre abstractions](#les-quatre-abstractions)
-- [Dépôts liés](#dépôts-liés)
-- [AppSpec — la spec neutre](#appspec--la-spec-neutre)
-- [Pipeline de déploiement](#pipeline-de-déploiement)
-- [Logs en direct](#logs-en-direct)
-- [Ports : la base tranche, la cible vérifie](#ports--la-base-tranche-la-cible-vérifie)
-- [UFW : une capacité du driver](#ufw--une-capacité-du-driver-pas-un-if-dans-le-worker)
-- [Healthcheck : trois issues, pas deux](#healthcheck--trois-issues-pas-deux)
-- [Rollback automatique](#rollback-automatique)
-- [Versions et rétention](#versions-et-rétention)
-- [Sauvegardes : un lieu, un format, deux runtimes](#sauvegardes--un-lieu-un-format-deux-runtimes)
-- [Reverse proxy : la route au proxy, l'amont au driver](#reverse-proxy--la-route-au-proxy-lamont-au-driver)
+- [The four abstractions](#the-four-abstractions)
+- [Linked repositories](#linked-repositories)
+- [AppSpec — the neutral spec](#appspec--the-neutral-spec)
+- [Deployment pipeline](#deployment-pipeline)
+- [Live logs](#live-logs)
+- [Ports: the database decides, the target checks](#ports-the-database-decides-the-target-checks)
+- [UFW: a driver capability](#ufw-a-driver-capability-not-an-if-in-the-worker)
+- [Healthcheck: three outcomes, not two](#healthcheck-three-outcomes-not-two)
+- [Automatic rollback](#automatic-rollback)
+- [Versions and retention](#versions-and-retention)
+- [Backups: one place, one format, two runtimes](#backups-one-place-one-format-two-runtimes)
+- [Reverse proxy: the route to the proxy, the upstream to the driver](#reverse-proxy-the-route-to-the-proxy-the-upstream-to-the-driver)
+- [Languages: one product, two languages](#languages-one-product-two-languages)
 
-## Les quatre abstractions
+## The four abstractions
 
-Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy,
-un scanner ou un fournisseur de code doit se faire en ajoutant une classe**. Ce
-qui suit est la conséquence pratique.
+The quality bar is written in `CLAUDE.md`: **adding a runtime, a proxy, a
+scanner or a code provider must be done by adding a class**. What follows is the
+practical consequence.
 
-| Interface | Fichier | Implémentations |
+| Interface | File | Implementations |
 |---|---|---|
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
-| `ProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider` (fichiers ou Ingress), `BunkerWebProvider` (API REST, WAF) |
+| `ProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider` (files or Ingress), `BunkerWebProvider` (REST API, WAF) |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
 | `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider`, `GitLabSourceProvider`, `GiteaSourceProvider` |
 
 **`DeploymentDriver`** — `preflight` `allocatePort` `render` `upload` `build`
-`deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus les
-méthodes d'inventaire `listWorkloads` `removeWorkload` `updateWorkload`
-`controlWorkload` `workloadLogs` `execInWorkload`, la lecture `runningImages`
-(les digests de ce qui tourne, pour les mises à jour d'images), les quatre
-méthodes de sauvegarde `exportVolume` `importVolume` `exportFromService`
-`importIntoService`, `upstream` — par où un reverse proxy joint l'application —,
-plus une fabrique `getDriver(runtime)`.
+`deploy` `healthcheck` `rollback` `destroy` `logs` `pruneReleases`, plus the
+inventory methods `listWorkloads` `removeWorkload` `updateWorkload`
+`controlWorkload` `workloadLogs` `execInWorkload`, the `runningImages` reading
+(the digests of what runs, for image updates), the four backup methods
+`exportVolume` `importVolume` `exportFromService` `importIntoService`,
+`upstream` — how a reverse proxy reaches the application —, plus a
+`getDriver(runtime)` factory.
 
-Le driver **n'importe rien** de `packages/db`, de `apps/web` ni de Redis : il
-reçoit tout par `DriverContext`, il exécute, et il émet des lignes via un
-callback. C'est l'appelant qui décide de les publier sur Redis, de les écrire en
-base, ou de les jeter.
+The driver **imports nothing** from `packages/db`, `apps/web` or Redis: it
+receives everything through `DriverContext`, it executes, and it emits lines
+through a callback. It is the caller that decides to publish them on Redis,
+write them to the database, or drop them.
 
-La réservation de ports suit la même règle. Le driver a besoin de la table
-`port_allocations`, mais n'a pas le droit de la connaître : le contexte porte une
-interface `PortAllocator`, dont l'implémentation Drizzle vit dans `packages/db`.
+Port reservation follows the same rule. The driver needs the
+`port_allocations` table, but is not allowed to know it: the context carries a
+`PortAllocator` interface, whose Drizzle implementation lives in `packages/db`.
 
 **`ProxyProvider`** — `detect` `installOptions` `install` `uninstall` `check`
-`apply` `probe` `publishAddress`, plus une fabrique `getProxyProvider(kind)`. Voir
-[Reverse proxy](#reverse-proxy--la-route-au-proxy-lamont-au-driver).
+`apply` `probe` `publishAddress`, plus a `getProxyProvider(kind)` factory. See
+[Reverse proxy](#reverse-proxy-the-route-to-the-proxy-the-upstream-to-the-driver).
 
-**Trois méthodes sont optionnelles** — `openFirewall?` et `closeFirewall?`,
-que `DockerComposeDriver` implémente et que `K3sDriver` ne déclare pas du tout ;
-`pruneIdleBuilder?`, à l'inverse, que seul `K3sDriver` implémente. Le pipeline
-et le worker appellent si la méthode existe ; ils ne demandent jamais quel
-runtime ils pilotent, ils demandent ce que le driver sait faire.
+**Three methods are optional** — `openFirewall?` and `closeFirewall?`, which
+`DockerComposeDriver` implements and `K3sDriver` does not declare at all;
+`pruneIdleBuilder?`, conversely, which only `K3sDriver` implements. The pipeline
+and the worker call it if the method exists; they never ask which runtime they
+are driving, they ask what the driver can do.
 
-La règle se vérifie en une commande :
+The rule can be checked with one command:
 
 ```bash
 grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' \
   | grep -v /drivers/ | grep -v /dist/
 ```
 
-**Un seul résultat**, et il vaut d'être nommé plutôt que balayé :
-`packages/db/src/deployments.ts:1506` choisit le mot « namespace » ou « projet
-Compose » dans le message d'un déploiement abandonné. Aucun chemin d'exécution
-n'en dépend — c'est du vocabulaire, pas une branche — mais la règle serait plus
-propre si ce mot venait du driver. À cette ligne près, le seul endroit du dépôt
-qui a le droit de savoir sur quel runtime il tourne, c'est un driver.
+It returns **no line**. The last one picked the word "namespace" or "Compose
+project" in the message of an abandoned deployment; the message now names
+`app-{slug}`, which holds for both runtimes. The only place in the repository
+allowed to know which runtime it runs on is a driver.
 
-## Dépôts liés
+## Linked repositories
 
-Une application peut être liée à une branche d'un dépôt **GitHub** (par une
-GitHub App), d'une instance **GitLab** (par un jeton de projet, de groupe ou de
-compte) ou d'une forge **Gitea / Forgejo / Codeberg** (par le jeton d'un
-compte de la forge). Le dépôt porte un `pupitre.json` — l'AppSpec, rien
-d'autre — à sa racine, ou dans le dossier de l'application pour un monorepo.
+An application can be linked to a branch of a **GitHub** repository (through a
+GitHub App), of a **GitLab** instance (through a project, group or account
+token) or of a **Gitea / Forgejo / Codeberg** forge (through the token of an
+account on the forge). The repository carries a `pupitre.json` — the AppSpec,
+nothing else — at its root, or in the application's folder for a monorepo.
 
-- **Un fournisseur, une classe.** Chaque liaison passe par la connexion de sa
-  forge ; `createSourceProvider()` (`packages/core/src/sources/registry.ts`)
-  en fabrique le client à partir de ses secrets déchiffrés. Le worker, le
-  polling, les statuts de commit, le téléchargement du code ne connaissent que
-  le contrat `SourceProvider`. Une connexion par fournisseur et par instance.
-- **Ce qui diffère reste dans la classe.** GitHub répond « rien de neuf » par un
-  ETag (304) ; Gitea n'en pose pas sur une branche, et le polling compare
-  l'empreinte au dernier commit vu. Gitea ne dit pas l'ancien chemin d'un
-  renommage, ni une base qui n'est pas ancêtre : la comparaison se déclare
-  alors « inconnue », et tout compte comme changé. Les dépôts proposés sont
-  ceux du compte du jeton — jamais la recherche publique de la forge, qui sur
-  Codeberg rendrait des centaines de milliers de dépôts.
-- **GitLab nomme un dépôt par tout son chemin** — `groupe/sous-groupe/projet` —,
-  que l'API prend encodé d'un bloc comme identifiant de projet ; le nom d'un
-  dépôt accepte donc plus de deux segments (`sourceRepositorySchema`), jamais
-  `.` ni `..`. GitLab dit l'ancien chemin d'un renommage, et signale une
-  comparaison tronquée à ses limites (`compare_timeout`) : elle se déclare
-  alors « inconnue ». Son automate de statuts refuse de redire « pending » à
-  un statut déjà en attente — le client le prend pour ce qu'il est, un état
-  déjà atteint. Les dépôts proposés sont les projets dont le jeton est membre.
-- **Un déploiement garde l'adresse web de son dépôt** (`deployments.source_url`) :
-  le lien vers son commit en découle, chez GitHub, GitLab comme chez Gitea,
-  même si la liaison disparaît ensuite.
+- **One provider, one class.** Each link goes through its forge's connection;
+  `createSourceProvider()` (`packages/core/src/sources/registry.ts`) builds its
+  client from its decrypted secrets. The worker, polling, commit statuses and
+  code download only know the `SourceProvider` contract. One connection per
+  provider and per instance.
+- **What differs stays in the class.** GitHub answers "nothing new" with an ETag
+  (304); Gitea sets none on a branch, and polling compares the hash with the
+  last commit seen. Gitea does not tell a rename's old path, nor a base that is
+  not an ancestor: the comparison then declares itself "unknown", and
+  everything counts as changed. The repositories offered are those of the
+  token's account — never the forge's public search, which on Codeberg would
+  return hundreds of thousands of repositories.
+- **GitLab names a repository by its full path** — `group/subgroup/project` —,
+  which the API takes encoded in one block as the project identifier; a
+  repository name therefore accepts more than two segments
+  (`sourceRepositorySchema`), never `.` or `..`. GitLab does tell a rename's old
+  path, and reports a comparison truncated at its limits (`compare_timeout`): it
+  then declares itself "unknown". Its status state machine refuses to say
+  "pending" again on a status already pending — the client takes it for what it
+  is, a state already reached. The repositories offered are the projects the
+  token is a member of.
+- **A deployment keeps its repository's web address**
+  (`deployments.source_url`): the link to its commit follows from it, on GitHub,
+  GitLab and Gitea alike, even if the link disappears afterwards.
 
-- **Le dépôt dit quoi, le panel dit où et quand.** Cibles, runtime et mode de
-  déclenchement vivent dans la liaison, sous RBAC. Le fichier ne porte ni cible,
-  ni runtime, ni script : un droit d'écriture sur le dépôt ne devient pas un
-  droit d'exécution sur les machines.
-- **Polling, jamais de webhook.** Le panel est privé. Le worker demande chaque
-  minute le dernier commit de chaque branche liée (`source:poll`, file de
-  supervision), avec un ETag : « rien de neuf » répond 304 et ne coûte rien.
-- **Où part un commit** (`deploy_to`), réglé par liaison :
-  - `none` — **mettre à jour l'application** : elle prend l'AppSpec du commit,
-    rien ne se déploie ; on la déploie ensuite où l'on veut ;
-  - `running` — **la redéployer là où elle tourne** : les cibles sont celles où
-    une version est en service à l'instant du commit ; ailleurs, rien ne
-    s'installe ;
-  - `targets` — sur les cibles de la liaison, qu'elle y tourne ou non.
-- **Trois modes**, pour `running` et `targets` : automatique ; automatique sauf
-  changement d'infra (le défaut) ; toujours validé. Ce qui est de l'infra est
-  décidé par `classifySpecChange()` : port, exposition, domaine, volumes, secrets,
-  variables, ressources, services ajoutés ou retirés.
-- **Le commit de l'application.** Chaque liaison retient le commit dont
-  l'application porte l'AppSpec (`synced_sha`). Un déploiement lancé à la main —
-  tiroir, « Nouvelle application » — emporte ce commit : c'est son code qui se
-  construit, où que l'application aille.
-- **Créer depuis le dépôt.** « Nouvelle application → Depuis un dépôt »
-  cherche les `pupitre.json` de la branche (`findFiles()`), lit et valide celui
-  qu'on choisit au commit en tête, puis crée l'application et sa liaison, sans
-  cible : le `name` du fichier devient celui de l'application.
-- **Le code voyage en archive, et reste à part.** Le worker télécharge
-  l'archive du commit exact et la passe au driver (`DriverContext.sourceArchive`),
-  qui la décompresse dans **`source/`** de la release — jamais à côté de ses
-  propres fichiers (`compose.yml`, `.env`, `k8s/`). Les contextes de construction
-  de l'AppSpec sont relatifs à la racine du dépôt et s'y résolvent
-  (`buildContextPath()`), et ils ne peuvent pas en sortir : ni chemin absolu, ni
-  `..`. Le build reste sur la cible, sans registry.
-- **Compose est toujours désigné.** Chaque appel passe `-p app-{slug}
-  -f compose.yml` : rien de ce qui traîne dans le dossier — un
-  `compose.override.yml`, un `.env` qui renommerait le projet — n'est lu.
-  Côté K3s, le dossier `k8s/` est vidé avant chaque rendu : `kubectl apply`
-  n'applique que ce que Pupitre vient d'écrire.
-- **Tout est tracé.** Chaque déploiement garde le dépôt, la branche et le commit ;
-  son état est renvoyé sur le commit GitHub (`pupitre/{cible}`).
+- **The repository says what, the panel says where and when.** Targets, runtime
+  and trigger mode live in the link, under RBAC. The file carries no target, no
+  runtime, no script: write access to the repository does not become execution
+  rights on the machines.
+- **Polling, never a webhook.** The panel is private. Every minute the worker
+  asks for the latest commit of each linked branch (`source:poll`, supervision
+  queue), with an ETag: "nothing new" answers 304 and costs nothing.
+- **Where a commit goes** (`deploy_to`), set per link:
+  - `none` — **update the application**: it takes the commit's AppSpec, nothing
+    deploys; you then deploy it where you want;
+  - `running` — **redeploy it where it runs**: the targets are those where a
+    version is in service at the time of the commit; elsewhere, nothing is
+    installed;
+  - `targets` — on the link's targets, whether it runs there or not.
+- **Three modes**, for `running` and `targets`: automatic; automatic except
+  infrastructure changes (the default); always approved. What counts as
+  infrastructure is decided by `classifySpecChange()`: port, exposure, domain,
+  volumes, secrets, variables, resources, services added or removed.
+- **The application's commit.** Each link keeps the commit whose AppSpec the
+  application carries (`synced_sha`). A deployment started by hand — drawer,
+  **New application** — takes that commit: it is its code that gets built,
+  wherever the application goes.
+- **Creating from the repository.** **New application → From a repository**
+  looks for the branch's `pupitre.json` files (`findFiles()`), reads and
+  validates the chosen one at the head commit, then creates the application and
+  its link, without a target: the file's `name` becomes the application's.
+- **The code travels as an archive, and stays apart.** The worker downloads the
+  archive of the exact commit and passes it to the driver
+  (`DriverContext.sourceArchive`), which unpacks it into the release's
+  **`source/`** — never next to its own files (`compose.yml`, `.env`, `k8s/`).
+  The AppSpec's build contexts are relative to the repository root and resolve
+  there (`buildContextPath()`), and they cannot leave it: no absolute path, no
+  `..`. The build stays on the target, without a registry.
+- **Compose is always designated.** Each call passes `-p app-{slug}
+  -f compose.yml`: nothing lying around in the folder — a
+  `compose.override.yml`, a `.env` that would rename the project — is read. On
+  K3s, the `k8s/` folder is emptied before each render: `kubectl apply` only
+  applies what Pupitre just wrote.
+- **Everything is traced.** Each deployment keeps the repository, the branch and
+  the commit; its state is sent back to the GitHub commit (`pupitre/{target}`).
 
-La première vérification d'une liaison enregistre le commit en tête sans
-déployer : lier un dépôt ne doit pas redéployer ce qui tourne. « Déployer ce
-commit » le fait à la demande.
+A link's first check records the head commit without deploying: linking a
+repository must not redeploy what runs. **Deploy this commit** does it on
+demand.
 
-## Le code téléversé
+## Uploaded code
 
-L'autre voie d'entrée du code, pour une application **sans dépôt lié** — créée
-par le formulaire, par l'IA, depuis le catalogue ou par import d'un
-`compose.yml` — dont un service se construit depuis un Dockerfile. Sa fiche
-porte une carte « Code de l'application » : on y téléverse une archive
-`.tar.gz`, `.tar` ou `.zip` (100 Mio au plus), et une CI peut faire de même
-avec un jeton (`POST /api/applications/:id/archives`).
+The other way in for code, for an application **without a linked repository** —
+created by the form, by AI, from the catalog or by importing a `compose.yml` —
+one of whose services is built from a Dockerfile. Its page carries an
+**Application code** card: you upload a `.tar.gz`, `.tar` or `.zip` archive
+there (100 MiB at most), and a CI can do the same with a token
+(`POST /api/applications/:id/archives`).
 
-- **Elle n'apporte que le code.** L'AppSpec reste celle du panel ; un
-  `pupitre.json` dans l'archive est ignoré. Ce n'est pas un `SourceProvider` :
-  il n'y a ni branche à suivre, ni commit à interroger — un humain ou une CI
-  envoie, c'est tout.
-- **La route range, le worker juge.** Le panel reconnaît le format aux premiers
-  octets, range l'envoi en base par morceaux d'un mégaoctet avec son SHA-256,
-  et rend `202`. Le worker (`source:archive-inspect`, file de supervision) relit
-  l'archive entrée par entrée (`@pupitre/core/source-upload`), refuse ce qui
-  sortirait du dossier, retire un dossier de tête unique (`mon-app/…`), écarte
-  `.git/`, `__MACOSX/`, `.DS_Store` et les fichiers AppleDouble `._*` du `tar`
-  de macOS, et range **une archive refaite** à la place de
-  l'envoi : c'est elle, et elle seule, qui part sur les machines.
-- **Ni le panel ni le worker n'ont de disque en commun** : les octets vivent dans
-  `source_archive_chunks`. Rien ne tient en mémoire en entier, et une sauvegarde
-  du panel les emporte.
-- **Le code de l'application est sa dernière archive.** Un déploiement emporte
-  son identifiant, son nom et son empreinte ; le worker la relit et la passe au
-  driver exactement comme l'archive d'un commit (`DriverContext.sourceArchive`,
-  décompressée dans `source/`). Les drivers n'ont pas changé d'une ligne.
-- **Refusé tôt.** Sans archive, avec une archive encore en lecture ou refusée,
-  ou quand un Dockerfile attendu n'y est pas, `POST /api/deployments` répond 409
-  sans rien enfiler — plutôt qu'un échec à l'étape `build`.
-- **Les cinq dernières** sont gardées : redéployer une version récente
-  reconstruit **son** code. Au-delà, la version garde le nom et l'empreinte de
-  son archive, mais ne se redéploie plus (409 `archive_gone`). Le retour arrière,
-  lui, n'en a pas besoin : il remet en service une release déjà sur la machine.
-- Une application liée à un dépôt n'accepte pas d'archive (409) : son code vient
-  du commit.
+- **It only brings the code.** The AppSpec stays the panel's; a `pupitre.json`
+  in the archive is ignored. It is not a `SourceProvider`: there is no branch to
+  follow, no commit to query — a human or a CI sends, that is all.
+- **The route stores, the worker judges.** The panel recognizes the format from
+  the first bytes, stores the upload in the database in one-megabyte chunks with
+  its SHA-256, and returns `202`. The worker (`source:archive-inspect`,
+  supervision queue) reads the archive entry by entry
+  (`@pupitre/core/source-upload`), refuses what would leave the folder, removes
+  a single leading folder (`my-app/…`), drops `.git/`, `__MACOSX/`, `.DS_Store`
+  and the AppleDouble `._*` files of macOS's `tar`, and stores **a rebuilt
+  archive** in place of the upload: it is that one, and that one only, that
+  goes to the machines.
+- **The panel and the worker share no disk**: the bytes live in
+  `source_archive_chunks`. Nothing is held in memory whole, and a panel backup
+  takes them along.
+- **The application's code is its latest archive.** A deployment takes its
+  identifier, name and hash; the worker reads it again and passes it to the
+  driver exactly like a commit's archive (`DriverContext.sourceArchive`,
+  unpacked into `source/`). The drivers did not change by a line.
+- **Refused early.** Without an archive, with an archive still being read or
+  refused, or when an expected Dockerfile is not in it, `POST /api/deployments`
+  answers 409 without enqueuing anything — rather than a failure at the `build`
+  step.
+- **The last five** are kept: redeploying a recent version rebuilds **its** code.
+  Beyond that, the version keeps its archive's name and hash, but can no longer
+  be redeployed (409 `archive_gone`). Rollback does not need it: it puts back in
+  service a release already on the machine.
+- An application linked to a repository does not accept an archive (409): its
+  code comes from the commit.
 
-## AppSpec — la spec neutre
+## AppSpec — the neutral spec
 
-`packages/core/src/spec/app-spec.ts`. **Aucun champ ne peut être rattaché à un
-runtime** : pas de `restart_policy`, pas d'`image_pull_policy`, pas de
-`namespace`. Ce que la spec ne sait pas dire, le driver le décide — la politique
-de redémarrage, le nommage des images, le réseau. Un test le vérifie en
-inspectant les clés déclarées du schéma (`neutralité vis-à-vis du runtime`).
+`packages/core/src/spec/app-spec.ts`. **No field can be tied to a runtime**: no
+`restart_policy`, no `image_pull_policy`, no `namespace`. What the spec cannot
+say, the driver decides — the restart policy, image naming, the network. A test
+checks it by inspecting the keys the schema declares (runtime neutrality).
 
-Refinements Zod : un seul service `exposed`, noms uniques, `dependsOn` référence
-des services existants, pas de cycle (parcours en profondeur), `ingress.targetService`
-existe, pas de clé déclarée à la fois en `env` et en `secrets`, pas d'alias de
-secret vers un nom inconnu, pas de cycle d'alias.
+Zod refinements: a single `exposed` service, unique names, `dependsOn`
+references existing services, no cycle (depth-first traversal),
+`ingress.targetService` exists, no key declared both in `env` and in
+`secrets`, no secret alias to an unknown name, no alias cycle.
 
-Trois fixtures dans `packages/core/src/spec/__fixtures__/` : `simple.json`
-(une API), `fullstack.json` (front + api + postgres, volumes et `dependsOn`),
-`invalid.json` (violations, une par refinement).
+Three fixtures in `packages/core/src/spec/__fixtures__/`: `simple.json` (an
+API), `fullstack.json` (front + api + postgres, volumes and `dependsOn`),
+`invalid.json` (violations, one per refinement).
 
-**Rendu Compose** — le driver construit un modèle typé, puis le sérialise en
-YAML. Jamais de concaténation de chaînes : un test injecte des guillemets, des
-sauts de ligne et des pièges YAML dans les variables d'environnement, et vérifie
-qu'ils traversent intacts. Les deux fixtures valides sont soumises à
-`docker compose config` — c'est Docker lui-même qui valide le rendu.
+**Compose rendering** — the driver builds a typed model, then serializes it to
+YAML. Never string concatenation: a test injects quotes, line breaks and YAML
+traps into environment variables, and checks that they come through intact.
+Both valid fixtures are submitted to `docker compose config` — it is Docker
+itself that validates the rendering.
 
-Isolation : un projet Compose par application (`app-{slug}`), son réseau bridge
-(`app-{slug}-net`), ses volumes nommés préfixés. Les secrets ne sont jamais
-inscrits dans le `compose.yml` : ils arrivent par un `.env` déposé en 0600.
+Isolation: one Compose project per application (`app-{slug}`), its bridge
+network (`app-{slug}-net`), its prefixed named volumes. Secrets are never
+written into `compose.yml`: they arrive through a `.env` placed with mode 0600.
 
-**Rendu K3s** — un namespace `app-{slug}`, puis des manifests numérotés par ordre
-d'application : `0-namespace`, `10-configmap`, `20-secret`, `30-persistentvolumeclaim`,
-`40-deployment`, `50-service`. Pas de port hôte ni d'Ingress : l'exposition passe
-par le reverse proxy du cluster, qui joint le Service — `allocatePort()` rend
-`null` et l'étape est `skipped`, `upstream()` rend le Service.
+**K3s rendering** — an `app-{slug}` namespace, then manifests numbered in
+application order: `0-namespace`, `10-configmap`, `20-secret`,
+`30-persistentvolumeclaim`, `40-deployment`, `50-service`. No host port and no
+Ingress: exposure goes through the cluster's reverse proxy, which reaches the
+Service — `allocatePort()` returns `null` and the step is `skipped`,
+`upstream()` returns the Service.
 
-Pour voir les deux rendus côte à côte sans rien déployer :
+To see both renderings side by side without deploying anything:
 
 ```bash
 pnpm tsx scripts/render-both.ts packages/core/src/spec/__fixtures__/simple.json
 ```
 
-## Catalogue — des AppSpec toutes faites
+## Catalog — ready-made AppSpecs
 
-`packages/core/src/catalog/`. Un modèle est une **fonction qui rend une AppSpec**
-à partir de quatre paramètres (nom, domaine, TLS, e-mail de la personne qui
-installe) — jamais un `compose.yml` recopié d'un README. Il passe par le même
-`appSpecSchema` que le reste, se déploie donc sur les deux runtimes, et un test
-instancie chaque modèle avec et sans domaine.
+`packages/core/src/catalog/`. A template is a **function that returns an
+AppSpec** from four parameters (name, domain, TLS, email of the person
+installing) — never a `compose.yml` copied from a README. It goes through the
+same `appSpecSchema` as the rest, therefore deploys on both runtimes, and a test
+instantiates each template with and without a domain.
 
-Ce que l'AppSpec ne sait pas dire, le catalogue ne le dit pas : une image qui
-exige une commande de démarrage (MinIO, Keycloak), une URL de base de données
-avec le mot de passe dedans (Umami, Outline) ou la socket Docker (Portainer)
-n'y entre pas. Les mots de passe partagés entre une application et sa base
-passent par les alias de secrets `{ name, from }`.
+What the AppSpec cannot say, the catalog does not say: an image that requires a
+start command (MinIO, Keycloak), a database URL with the password inside
+(Umami, Outline) or the Docker socket (Portainer) does not get in. Passwords
+shared between an application and its database go through `{ name, from }`
+secret aliases.
 
-Les secrets qui servent à **se connecter** sont saisis à l'installation
-(`askedSecrets`) : un secret généré ne se relit jamais, un mot de passe
-d'administration généré serait perdu. Les autres sont générés.
+The secrets used to **sign in** are entered at installation (`askedSecrets`): a
+generated secret is never read back, a generated administration password would
+be lost. The others are generated.
 
-Installer (`POST /api/catalog/{id}`) crée l'application, sans la déployer. Le
-choix de la cible reste le geste habituel, avec son pipeline et ses scans.
-Ajouter un modèle : une entrée dans `templates.ts`, rien d'autre.
+Installing (`POST /api/catalog/{id}`) creates the application, without
+deploying it. Choosing the target stays the usual gesture, with its pipeline and
+its scans. Adding a template: an entry in `templates.ts`, nothing else.
+Templates carry their texts in both languages, inline.
 
-**La preuve, sur une vraie cible** — `pnpm test:catalog <cible>` déploie chaque
-modèle par le driver (pull compris), attend sa sonde, le requête en HTTP depuis
-la cible sur son chemin de santé, puis le détruit et vérifie que rien ne reste.
-`--prune-images` vide les images entre deux modèles : réservé à une cible de
-test. Une image sans variante pour l'architecture de la cible est rapportée à
-part, hors des échecs : c'est un fait sur l'image, pas sur le modèle.
+**The proof, on a real target** — `pnpm test:catalog <target>` deploys each
+template through the driver (pull included), waits for its probe, requests it
+over HTTP from the target on its health path, then destroys it and checks that
+nothing remains. `--prune-images` empties the images between two templates:
+reserved for a test target. An image without a variant for the target's
+architecture is reported separately, outside the failures: it is a fact about
+the image, not about the template.
 
-## Import d'un docker-compose.yml
+## Importing a docker-compose.yml
 
-`packages/core/src/compose/` (sous-chemin `@pupitre/core/compose`, pour que
-l'analyseur YAML reste hors du navigateur). Le fichier devient une AppSpec
-**proposée**, jamais enregistrée d'office : elle part dans l'éditeur de
-« Nouvelle application », et c'est la création habituelle qui l'enregistre.
+`packages/core/src/compose/` (subpath `@pupitre/core/compose`, so the YAML
+parser stays out of the browser). The file becomes a **proposed** AppSpec, never
+saved automatically: it goes into the **New application** editor, and it is the
+usual creation that saves it.
 
-Rien n'est silencieux : chaque clé du fichier est traduite, ou nommée dans un
-message, à l'un de trois niveaux.
+Nothing is silent: each key of the file is translated, or named in a message,
+at one of three levels.
 
-- **bloquant** — l'application ne fonctionnera probablement pas sans une
-  décision humaine : `command`/`entrypoint` (l'AppSpec n'en porte pas), la
-  socket Docker, un fichier de l'hôte monté, `privileged`, `network_mode`… Ce
-  qui touche à l'isolation n'est jamais traduit « au mieux ».
-- **approximation** — un dossier de l'hôte devient un volume nommé vide, un
-  port non déclaré est deviné d'après l'image, une variable `${…}` prend sa
-  valeur par défaut.
-- **ignoré à dessein** — `restart`, `container_name`, les réseaux : Pupitre en
-  décide.
+- **blocking** — the application will probably not work without a human
+  decision: `command`/`entrypoint` (the AppSpec carries none), the Docker
+  socket, a mounted host file, `privileged`, `network_mode`… What touches
+  isolation is never translated "as best we can".
+- **approximation** — a host folder becomes an empty named volume, an
+  undeclared port is guessed from the image, a `${…}` variable takes its default
+  value.
+- **deliberately ignored** — `restart`, `container_name`, networks: Pupitre
+  decides them.
 
-Les variables qui ressemblent à des secrets ne sont jamais reprises en clair :
-elles deviennent des secrets générés, et deux noms qui partageaient la même
-valeur (ou la même variable du shell) deviennent un secret et un alias. Un
-seul service est exposé — celui qui publie un port, le mieux nommé s'ils sont
-plusieurs — et un domaine se lit dans les labels Traefik. Le YAML est lu avec
-une limite d'alias : un fichier piégé ne fait pas exploser la mémoire.
+Variables that look like secrets are never taken over in clear: they become
+generated secrets, and two names that shared the same value (or the same shell
+variable) become a secret and an alias. A single service is exposed — the one
+that publishes a port, the best named if there are several — and a domain is
+read from the Traefik labels. The YAML is read with an alias limit: a booby-trapped
+file does not blow up memory.
 
-## Pipeline de déploiement
+## Deployment pipeline
 
-`POST /api/deployments` **crée les onze étapes en base, toutes en `pending`**,
-enfile le job, et répond `202` sans rien attendre. L'UI affiche donc le pipeline
-complet avant que le worker n'ait commencé.
+`POST /api/deployments` **creates the eleven steps in the database, all
+`pending`**, enqueues the job, and answers `202` without waiting for anything.
+The UI therefore shows the full pipeline before the worker has started.
 
 ```
 preflight → allocate_port → render → upload → build → scan → backup → deploy → healthcheck → proxy → rollback
 ```
 
-`backup` sauvegarde les données de l'application juste avant de toucher à ce qui
-tourne — `skipped` sans politique « avant chaque déploiement », et au premier
-déploiement, où il n'y a rien à sauvegarder. Son échec arrête le pipeline :
-mieux vaut un déploiement qui n'a pas lieu qu'une mise à jour sans filet.
+`backup` backs up the application's data just before touching what runs —
+`skipped` without a "before each deployment" policy, and at the first
+deployment, where there is nothing to back up. Its failure stops the pipeline:
+better a deployment that does not happen than an update without a safety net.
 
-`rollback` est déclarée comme les autres, et `skipped` quand tout va bien. Une
-étape surgissant en cours de route ferait mentir le compteur « n / total » de
-l'UI et obligerait le client SSE à gérer un cas de plus. Un rollback qui n'a pas
-eu lieu est une information, pas un trou.
+`rollback` is declared like the others, and `skipped` when all goes well. A step
+appearing midway would make the UI's "n / total" counter lie and force the SSE
+client to handle one more case. A rollback that did not happen is information,
+not a gap.
 
-Chaque étape va de `pending` à `running` puis à `success`, `failed` ou `skipped`.
-Un échec arrête le pipeline et marque le reste `skipped`.
+Each step goes from `pending` to `running` then to `success`, `failed` or
+`skipped`. A failure stops the pipeline and marks the rest `skipped`.
 
-**Aucun `if (runtime === ...)` dans le worker.** Une étape est `skipped` quand le
-driver ou le proxy n'ont rien à faire — `allocatePort()` en K3s, `build()` sans
-service à construire, une application sans domaine ou une cible sans reverse
-proxy. Le worker enchaîne, il ne décide pas.
+**No `if (runtime === ...)` in the worker.** A step is `skipped` when the driver
+or the proxy have nothing to do — `allocatePort()` on K3s, `build()` with no
+service to build, an application without a domain or a target without a reverse
+proxy. The worker chains, it does not decide.
 
-**Le job est idempotent.** Relancer un déploiement échoué remet en `pending` ce
-qui n'a pas abouti et laisse les `success` intactes : seules les étapes non
-réussies sont rejouées.
+**The job is idempotent.** Retrying a failed deployment puts back to `pending`
+what did not succeed and leaves the `success` steps intact: only the steps that
+did not succeed are replayed.
 
-## Logs en direct
+## Live logs
 
-Le worker publie chaque ligne sur Redis (`deploy:{id}`) **et** l'ajoute à
-`deployment_steps.log`. Redis porte le direct, la colonne porte la relecture.
-Les écritures en base sont regroupées — une ligne de `docker compose pull`
-toutes les 30 ms ferait autant d'`UPDATE`.
+The worker publishes each line on Redis (`deploy:{id}`) **and** appends it to
+`deployment_steps.log`. Redis carries the live stream, the column carries the
+replay. Database writes are batched — a `docker compose pull` line every 30 ms
+would make as many `UPDATE`s.
 
-`GET /api/deployments/:id/logs` diffuse en SSE. L'ordre des opérations est ce
-qui garantit l'absence de trou :
+`GET /api/deployments/:id/logs` streams over SSE. The order of operations is
+what guarantees there is no gap:
 
-1. abonnement à Redis **avant** la lecture de l'historique ;
-2. les messages reçus pendant la lecture sont mis de côté ;
-3. envoi de l'historique persisté ;
-4. vidage de la file, puis direct.
+1. subscribe to Redis **before** reading the history;
+2. messages received during the read are set aside;
+3. send the persisted history;
+4. flush the queue, then go live.
 
-S'abonner après la lecture perdrait ce qui se produit entre les deux. Les deux
-chemins appliquent la même déduplication, de sorte qu'un rafraîchissement de page
-affiche exactement le même flux. Battement de cœur toutes les 15 s, connexion
-Redis dédiée par flux, relâchée à la déconnexion du client.
+Subscribing after the read would lose what happens in between. Both paths apply
+the same deduplication, so that a page refresh shows exactly the same stream.
+Heartbeat every 15 s, a dedicated Redis connection per stream, released when the
+client disconnects.
 
-Le même mécanisme sert ailleurs : `workload:{targetId}` pour la progression des
-actions sur les charges d'une cible, et le flux d'état de services de `/apps`.
+The same mechanism serves elsewhere: `workload:{targetId}` for the progress of
+actions on a target's workloads, and the service state stream of `/apps`.
 
-## Temps réel : présence, discussion, écrans vivants
+## Real time: presence, chat, live screens
 
-Un canal Redis unique, `pupitre:realtime`, porte des événements typés et validés
-(`@pupitre/core` → `realtime.ts`) : présence, messages de la discussion,
-signaux d'écran (`live`), activité du journal. `GET /api/realtime` les relaie en
-SSE — **un abonné Redis par processus**, pas par onglet, qui distribue en
-mémoire aux flux ouverts.
+A single Redis channel, `pupitre:realtime`, carries typed and validated events
+(`@pupitre/core` → `realtime.ts`): presence, chat messages, screen signals
+(`live`), audit activity. `GET /api/realtime` relays them over SSE — **one
+Redis subscriber per process**, not per tab, which dispatches in memory to the
+open streams.
 
-Côté navigateur, **un seul flux pour tous les onglets** : ils élisent un meneur
-(Web Locks) qui ouvre le flux et relaie aux autres (BroadcastChannel). En
-HTTP/1.1, un flux par onglet épuiserait les six connexions par origine.
+In the browser, **a single stream for all tabs**: they elect a leader (Web
+Locks) that opens the stream and relays to the others (BroadcastChannel). Over
+HTTP/1.1, one stream per tab would exhaust the six connections per origin.
 
-**Les écrans ne reçoivent jamais de données par ce canal.** Un signal dit
-« les déploiements ont bougé » ; la page qui l'écoute (`<LiveRefresh>`) se
-relit auprès du serveur, avec les permissions de la session. Signaux venus du
-worker (début et fin des tâches BullMQ) et du journal d'audit (un observateur
-nommé, à côté de celui des notifications). Au plus un rafraîchissement toutes
-les 4 s, rien tant que l'onglet est caché. L'activité du journal ne part qu'aux
-sessions qui ont `audit:read`.
+**Screens never receive data through this channel.** A signal says "deployments
+have moved"; the page listening to it (`<LiveRefresh>`) reads itself again from
+the server, with the session's permissions. Signals come from the worker (start
+and end of BullMQ tasks) and from the audit log (a named observer, next to the
+notifications one). At most one refresh every 4 s, nothing while the tab is
+hidden. Audit activity only goes to sessions that have `audit:read`.
 
-**Présence** — dans Redis, pas en base : nombre d'onglets ouverts, dernier
-signe de vie du flux, dernière interaction, choix de la personne (absent, ne
-pas déranger). L'état affiché se déduit (`effectivePresence`) : hors ligne sans
-onglet ou après 75 s de silence (processus tué), absent après 5 min sans
-interaction. Un balayage toutes les 20 s, sous verrou Redis, annonce ce que le
-temps seul fait changer.
+**Presence** — in Redis, not in the database: number of open tabs, last sign of
+life of the stream, last interaction, the person's choice (away, do not
+disturb). The displayed state is derived (`effectivePresence`): offline without
+a tab or after 75 s of silence (killed process), away after 5 min without
+interaction. A sweep every 20 s, under a Redis lock, announces what time alone
+changes.
 
-**Discussion** — une bulle en bas à droite de chaque écran, qui ouvre le fil
-par-dessus la page (couche 55 : sous les tiroirs et dialogues, qui piègent le
-focus). Elle vit dans le layout : elle survit à la navigation, et le fil reste
-à jour en direct même fermé. La bulle porte les non-lus — en rouge quand l'un
-d'eux mentionne la personne ou répond à l'un de ses messages — et un « +1 »
-s'en envole à chaque arrivée.
+**Chat** — a bubble at the bottom right of each screen, which opens the thread
+over the page (layer 55: under drawers and dialogs, which trap focus). It lives
+in the layout: it survives navigation, and the thread stays up to date live
+even when closed. The bubble carries the unread count — in red when one of them
+mentions the person or replies to one of their messages — and a "+1" floats
+away at each arrival.
 
-En base : `chat_messages` (avec `reply_to_id`), `chat_reads`, `chat_reactions`
-(clé `(message, personne, emoji)` : réagir deux fois retire). Une mention est un
-jeton `<@user|target|app:id>` posé par le compositeur, avec son libellé du
-moment ; la route ne garde que celles que l'auteur a le droit d'ouvrir. Une
-réaction n'est qu'un emoji (`isChatEmoji`), jamais du texte — sinon elle
-deviendrait un second canal de messages. Texte brut, jamais de HTML. Un
-message effacé garde sa ligne, vidée, et perd ses réactions ; effacer celui
-d'un autre demande `user:manage` et passe par `logAudit()`.
+In the database: `chat_messages` (with `reply_to_id`), `chat_reads`,
+`chat_reactions` (key `(message, person, emoji)`: reacting twice removes). A
+mention is a `<@user|target|app:id>` token set by the composer, with its label of
+the moment; the route only keeps those the author is allowed to open. A
+reaction is only an emoji (`isChatEmoji`), never text — otherwise it would
+become a second message channel. Plain text, never HTML. A deleted message
+keeps its row, emptied, and loses its reactions; deleting someone else's
+requires `user:manage` and goes through `logAudit()`.
 
-## Les fiches, dans des tiroirs
+## Records, in drawers
 
-Une application, une cible, une sonde, un run, une application en marche ne
-s'ouvrent pas dans une page à part : leur fiche est un **tiroir** (à onglets
-quand elle en a plusieurs) par-dessus leur liste
-(`components/record-drawer.tsx`). On ouvre, on lit, on agit, on referme, et la
-liste n'a pas bougé.
+An application, a target, a probe, a run, a running application do not open in
+a separate page: their record is a **drawer** (with tabs when it has several)
+over their list (`components/record-drawer.tsx`). You open, read, act, close,
+and the list has not moved.
 
-- **La sélection vit dans l'URL** (`?app=blog`, `?target=prod-1`,
-  `?monitor=<id>`, `/deployments?run=<id>`, `/apps?app=<id>`), avec l'onglet
-  (`&tab=versions`) et le mode modification (`&edit=1`) : une fiche se partage
-  et se recharge au même endroit ; J/K passent à la suivante sans changer
-  d'onglet. Un run se suit même s'il n'est pas sur la page affichée de la
-  liste : son en-tête vient alors de la fiche rendue au serveur.
-- **Ce que la ligne porte s'affiche tout de suite** — l'onglet « Aperçu ». Le
-  reste (versions, secrets, charges, mesures…) est rendu **au serveur** par la
-  page de la liste, qui lit `?app=` et passe chaque onglet en `ReactNode` au
-  tiroir. C'est pourquoi on l'ouvre par une navigation (`router.push`), pas par
-  un `pushState` : la page se relit, avec la fiche. Un onglet n'est monté qu'à
-  sa première ouverture (une liste de charges interroge la machine), puis reste
-  monté, caché.
-- **Modifier** remplace la fiche par son formulaire, dans le même tiroir.
-- Les anciennes adresses (`/applications/<id>`, `/targets/<id>`,
+- **The selection lives in the URL** (`?app=blog`, `?target=prod-1`,
+  `?monitor=<id>`, `/deployments?run=<id>`, `/apps?app=<id>`), with the tab
+  (`&tab=versions`) and edit mode (`&edit=1`): a record can be shared and
+  reloads at the same place; J/K move to the next one without changing tab. A
+  run can be followed even if it is not on the displayed page of the list: its
+  header then comes from the record rendered on the server.
+- **What the row carries shows right away** — the **Overview** tab. The rest
+  (versions, secrets, workloads, measurements…) is rendered **on the server** by
+  the list's page, which reads `?app=` and passes each tab as a `ReactNode` to
+  the drawer. That is why it is opened by a navigation (`router.push`), not by a
+  `pushState`: the page reads itself again, with the record. A tab is only
+  mounted when first opened (a workload list queries the machine), then stays
+  mounted, hidden.
+- **Edit** replaces the record with its form, in the same drawer.
+- The old addresses (`/applications/<id>`, `/targets/<id>`,
   `/targets/<id>/edit`, `/monitors/<id>`, `/deployments/<id>`, `/apps/<id>`)
-  redirigent vers la liste, tiroir ouvert (`next.config.ts`) : les liens des
-  e-mails et du chat continuent de mener quelque part.
+  redirect to the list, drawer open (`next.config.ts`): links in emails and in
+  the chat still lead somewhere.
 
-## La palette ⌘K
+## The ⌘K palette
 
-Elle cherche les cibles, les applications, les applications en marche, les
-runs, les sondes, les domaines, les rôles, les modèles du catalogue et les
-onglets des paramètres ; un résultat ouvre son tiroir. La recherche passe par
-`GET /api/search`, qui ne lit une famille qu'avec sa permission.
+It searches targets, applications, running applications, runs, probes,
+domains, roles, catalog templates and settings tabs; a result opens its drawer.
+The search goes through `GET /api/search`, which only reads a family with its
+permission.
 
-- **Tolérante** (`packages/core/src/fuzzy.ts`) : accents et casse ignorés,
-  chaque mot tapé doit répondre, puis — sur les noms seulement — les lettres
-  dans l'ordre (« prd1 » → « prod-1 ») et une faute de frappe (« graphana »).
-  Une description ne répond qu'à un vrai morceau de texte.
-- **Des actions** : un verbe tapé avec le nom (« tester prod-1 », « redémarrer
-  umami », « sonder glpi », « suspendre », « déployer », « modifier »,
-  « logs », « versions »), ou → sur un objet surligné. Chaque action exige sa
-  permission (`visibleCommands`) et n'apparaît pas sans elle. Redémarrer
-  demande une confirmation, dans la palette.
-- **Récents** au repos, gardés dans ce navigateur seulement ; **« Chercher
-  ailleurs »** poursuit la saisie dans le journal ou les déploiements.
+- **Tolerant** (`packages/core/src/fuzzy.ts`): accents and case ignored, each
+  typed word must match, then — on names only — the letters in order ("prd1" →
+  "prod-1") and one typo ("graphana"). A description only matches a real piece
+  of text.
+- **Actions**: a verb typed with the name ("test prod-1", "restart umami",
+  "probe glpi", "pause", "deploy", "edit", "logs", "versions" — in French or in
+  English), or → on a highlighted object. Each action requires its permission
+  (`visibleCommands`) and does not appear without it. Restarting asks for a
+  confirmation, in the palette.
+- **Recent items** at rest, kept in this browser only; **Search elsewhere**
+  continues the query in the audit log or the deployments.
 
-## Ports : la base tranche, la cible vérifie
+## Ports: the database decides, the target checks
 
-L'anti-collision **entre applications du panel** est la contrainte unique
-`port_allocations (target_id, port)`. L'allocation ne fait jamais « SELECT puis
-INSERT » : elle insère, et une violation `23505` renvoie le perdant au tirage
-suivant. Deux workers simultanés ne peuvent pas obtenir le même port.
+Collision avoidance **between the panel's applications** is the unique
+constraint `port_allocations (target_id, port)`. Allocation never does "SELECT
+then INSERT": it inserts, and a `23505` violation sends the loser to the next
+draw. Two simultaneous workers cannot get the same port.
 
-Reste ce que la base ne peut pas savoir : un service installé à la main sur la
-machine, qui écoute déjà. Le driver le constate après coup (`ss -tlnH`, ou
-`netstat -tln` sur les images qui n'ont pas `iproute2`), **abandonne** la
-réservation devenue inutile et rejoue en excluant ce port. Une réservation déjà
-acquise par l'application n'est jamais remise en cause : le port est occupé, oui,
-mais par elle.
+What remains is what the database cannot know: a service installed by hand on
+the machine, already listening. The driver notices it afterwards (`ss -tlnH`, or
+`netstat -tln` on images without `iproute2`), **abandons** the now useless
+reservation and tries again excluding that port. A reservation already held by
+the application is never questioned: the port is taken, yes, but by it.
 
-**La plage est portée par la cible** — `targets.port_range_start` /
-`port_range_end`, défaut 30000-32767, avec une contrainte
-`port_range_start <= port_range_end` en base. `DRIVER_PORT_RANGE` reste utile et
-dit autre chose : ce que l'environnement du worker peut atteindre. Les deux sont
-vraies, on garde **l'intersection** — garder la dernière lue en trahirait une.
+**The range is carried by the target** — `targets.port_range_start` /
+`port_range_end`, default 30000-32767, with a
+`port_range_start <= port_range_end` constraint in the database.
+`DRIVER_PORT_RANGE` stays useful and says something else: what the worker's
+environment can reach. Both are true, we keep **the intersection** — keeping the
+last one read would betray the other.
 
-**Le port est rendu à la destruction, et à l'échec.** La libération est dans un
-`finally`, y compris pour un crash hors pipeline. La condition n'est pas « le
-déploiement a échoué » mais « aucune version de cette application ne tourne sur
-cette cible » : un échec survenu après un déploiement réussi — ou après un
-rollback — laisse une version en service sur ce port, et le relâcher le donnerait
-à quelqu'un d'autre.
+**The port is released on destruction, and on failure.** Release is in a
+`finally`, including for a crash outside the pipeline. The condition is not "the
+deployment failed" but "no version of this application runs on this target": a
+failure after a successful deployment — or after a rollback — leaves a version
+in service on that port, and releasing it would hand it to someone else.
 
-`GET /api/targets/:id/ports` répond aux deux questions que la table seule ne sait
-pas formuler : combien reste-t-il, et qui a quoi.
+`GET /api/targets/:id/ports` answers the two questions the table alone cannot
+phrase: how many are left, and who has what.
 
-## UFW : une capacité du driver, pas un `if` dans le worker
+## UFW: a driver capability, not an `if` in the worker
 
 ```ts
 openFirewall?(ctx, port): Promise<void>
 closeFirewall?(ctx, port): Promise<void>
 ```
 
-**La règle est identifiée par son commentaire**, `pupitre:{slug}`, jamais
-par son numéro : `ufw status numbered` renumérote à chaque suppression, et une
-règle effacée par index efface la voisine dès qu'une autre est partie
-entre-temps. Le commentaire dit aussi à l'administrateur de la machine qui a
-ouvert ce port et pour quoi.
+**The rule is identified by its comment**, `pupitre:{slug}`, never by its number:
+`ufw status numbered` renumbers on each deletion, and a rule deleted by index
+deletes its neighbor as soon as another one has gone in the meantime. The comment
+also tells the machine's administrator who opened this port and for what.
 
-**Le panel n'active jamais UFW de sa propre initiative.** Activer le pare-feu
-d'une machine qu'on pilote en SSH est un excellent moyen de la perdre. S'il est
-inactif ou absent, le driver l'écrit dans les logs du déploiement et continue :
-le port publié par Docker reste joignable, c'est le filtrage qui n'existe pas.
+**The panel never enables UFW on its own initiative.** Enabling the firewall of
+a machine you drive over SSH is an excellent way to lose it. If it is inactive or
+absent, the driver writes so in the deployment logs and carries on: the port
+published by Docker stays reachable, it is the filtering that does not exist.
 
-## Healthcheck : trois issues, pas deux
+## Healthcheck: three outcomes, not two
 
-La sonde respecte `retries`, `intervalSec` et `timeoutSec` de l'AppSpec, avec un
-**backoff exponentiel plafonné** à 30 s — sans plafond, la cinquième tentative
-attendrait seize fois l'intervalle demandé et le réglage n'aurait plus de sens.
+The probe honors the AppSpec's `retries`, `intervalSec` and `timeoutSec`, with an
+**exponential backoff capped** at 30 s — without a cap, the fifth attempt would
+wait sixteen times the requested interval and the setting would no longer make
+sense.
 
-| Issue | Ce qu'elle veut dire |
+| Outcome | What it means |
 |---|---|
-| `healthy` | le service répond, et il répond bien |
-| `unhealthy` | il répond, mais hors 2xx/3xx — il tourne, il est cassé |
-| `unreachable` | rien au bout : conteneur absent, port fermé, pod non prêt |
+| `healthy` | the service answers, and answers well |
+| `unhealthy` | it answers, but outside 2xx/3xx — it runs, it is broken |
+| `unreachable` | nothing at the other end: container missing, port closed, pod not ready |
 
-Un service **non exposé** est sondé en TCP, pas en HTTP : une image `postgres`
-n'embarque ni `curl` ni `wget`, et lui poser une question HTTP produirait un
-faux négatif.
+A **non-exposed** service is probed over TCP, not HTTP: a `postgres` image ships
+neither `curl` nor `wget`, and asking it an HTTP question would produce a false
+negative.
 
-**Le diagnostic est capturé avant que la sonde ne rende la main** — Docker :
-`docker compose ps -a` plus les 200 dernières lignes de logs de chaque service ;
-K3s : `kubectl get pods`, `describe` et `logs` des pods en cause. L'ordre est ce
-qui compte : un rollback automatique redémarre l'ancienne version et effacerait
-la scène. Le diagnostic part dans `deployment_steps.error` **et** dans le flux
-SSE.
+**The diagnosis is captured before the probe returns** — Docker:
+`docker compose ps -a` plus the last 200 log lines of each service; K3s:
+`kubectl get pods`, `describe` and `logs` of the pods involved. The order is what
+matters: an automatic rollback restarts the old version and would wipe the
+scene. The diagnosis goes into `deployment_steps.error` **and** into the SSE
+stream.
 
-## Rollback automatique
+## Automatic rollback
 
-Trois conditions, toutes des données : l'échec porte sur `healthcheck`,
-`deployments.auto_rollback` est vrai (case cochée par défaut au formulaire), et
-`previous_deployment_id` existe. Un échec ailleurs — un scan bloquant, un
-`deploy` qui n'a jamais démarré — ne déclenche rien : il n'y a rien à défaire, la
-version précédente n'a jamais cessé de tourner.
+Three conditions, all of them data: the failure is on `healthcheck` — or on a
+`deploy` whose new version never became healthy —, `deployments.auto_rollback` is
+true (box ticked by default in the form), and `previous_deployment_id` exists. A
+failure elsewhere — a blocking scan, a `deploy` that never started — triggers
+nothing: there is nothing to undo, the previous version never stopped running.
 
-Le pipeline appelle `driver.rollback()`, puis **revérifie la santé de la version
-restaurée avec sa propre AppSpec** — pas avec celle qui vient d'échouer. C'est
-tout l'intérêt de figer l'AppSpec dans chaque déploiement : la v2 a pu déplacer
-sa route de santé ou changer de port, et la sonder avec les réglages de la v2
-poserait la mauvaise question à la bonne machine.
+The pipeline calls `driver.rollback()`, then **checks the health of the restored
+version again with its own AppSpec** — not with the one that just failed. That
+is the whole point of freezing the AppSpec in each deployment: v2 may have moved
+its health route or changed port, and probing it with v2's settings would ask the
+right machine the wrong question.
 
-Le déploiement finit alors en **`rolled_back`**. L'UI le peint en ambre et
-non en rouge : quelque chose s'est mal passé, et le filet a fonctionné.
+The deployment then ends as **`rolled_back`**. The UI paints it amber and not
+red: something went wrong, and the safety net worked.
 
-Si le rollback échoue à son tour, le déploiement finit `failed` et l'erreur
-nomme les deux échecs. **Jamais de second rollback** : rejouer la même commande
-ne réglera pas ce qui vient d'échouer, et enchaîner les tentatives éloignerait la
-machine d'un état connu.
+If the rollback fails in turn, the deployment ends `failed` and the error names
+both failures. **Never a second rollback**: replaying the same command will not
+fix what just failed, and chaining attempts would take the machine further from
+a known state.
 
-## Versions et rétention
+## Versions and retention
 
-Il n'y a pas de table « versions » : **le déploiement *est* la version**, et son
-`app_spec` figée est ce qui rend un redéploiement possible des mois plus tard,
-même si l'application a changé depuis.
+There is no "versions" table: **the deployment *is* the version**, and its frozen
+`app_spec` is what makes a redeployment possible months later, even if the
+application has changed since.
 
-`POST /api/applications/:id/redeploy` n'est pas un rollback. Le rollback remet en
-service une release déjà présente sur la cible ; le redéploiement refait un
-pipeline complet — nouveau numéro, nouveaux scans — à partir de l'AppSpec de
-l'époque. C'est ce qui permet de rejouer une version sur une *autre* cible, ou
-après un `destroy`.
+`POST /api/applications/:id/redeploy` is not a rollback. Rollback puts back in
+service a release already present on the target; redeployment runs a full
+pipeline again — new number, new scans — from the AppSpec of the time. It is
+what allows replaying a version on *another* target, or after a `destroy`.
 
-**Une release par déploiement.** Sur la cible, chaque déploiement dépose sa
-release dans `{racine}/apps/{slug}/{version}-r{numéro}` (`releaseName()`), et les
-images qu'il construit portent la même étiquette : `app-{slug}/{service}:1.0.0-r12`.
-La version seule ne suffisait pas — un commit de code ne la change pas — : deux
-déploiements de `1.0.0` partageaient un répertoire et une étiquette, le second
-écrasait le premier, et revenir en arrière relançait le nouveau code. Le numéro
-est celui du déploiement, propre à l'application. Une release déposée avant ce
-nommage, sous la seule version, se retrouve encore : le rollback et les
-opérations courantes (journaux, santé, redémarrage) la cherchent à l'ancien nom
-quand le nouveau n'existe pas. Côté K3s, l'étiquette nouvelle change le gabarit
-des pods : ils sont remplacés, et `rollout undo` retrouve l'image d'avant.
+**One release per deployment.** On the target, each deployment places its
+release in `{root}/apps/{slug}/{version}-r{number}` (`releaseName()`), and the
+images it builds carry the same tag: `app-{slug}/{service}:1.0.0-r12`. The
+version alone was not enough — a code commit does not change it —: two
+deployments of `1.0.0` shared a directory and a tag, the second overwrote the
+first, and going back restarted the new code. The number is the deployment's,
+specific to the application. A release placed before this naming, under the
+version alone, is still found: rollback and day-to-day operations (logs, health,
+restart) look for it under the old name when the new one does not exist. On K3s,
+the new tag changes the pods' template: they are replaced, and `rollout undo`
+finds the previous image.
 
-**Rétention : les cinq derniers répertoires de version**, ménage fait au
-déploiement suivant — le seul moment où l'on sait laquelle vient de devenir la
-courante. Le tri se fait sur la date de modification et non sur le nom : `1.10.0`
-précède `1.9.0` lexicographiquement, et c'est l'ordre de déploiement qui compte.
-La release pointée par `current` n'est jamais supprimée, même si elle est
-ancienne — ce qui est exactement le cas après un rollback. Elle s'ajoute alors
-aux cinq plus récentes : six répertoires au pire, jamais davantage. Les images
-construites d'une release effacée partent avec elle (`docker image rm`,
-`crictl rmi`) — une étiquette par release, sans ménage, remplirait le disque ;
-une image encore employée est refusée, et c'est voulu.
+**Retention: the last five release directories**, cleaned up at the next
+deployment — the only moment you know which one just became current. Sorting is
+by modification date and not by name: `1.10.0` comes before `1.9.0`
+lexicographically, and it is the deployment order that matters. The release
+pointed to by `current` is never deleted, even if it is old — which is exactly
+the case after a rollback. It then adds to the five most recent: six directories
+at worst, never more. The built images of a deleted release go with it
+(`docker image rm`, `crictl rmi`) — one tag per release, without cleanup, would
+fill the disk; an image still in use is refused, and that is intended.
 
-La **destruction** d'un déploiement retire de même toutes les images construites
-pour l'application, toutes releases confondues : celles dont le nom commence par
-`app-{slug}/`, sous Docker comme dans le containerd de K3s.
+The **destruction** of a deployment likewise removes all the images built for
+the application, all releases together: those whose name starts with
+`app-{slug}/`, on Docker as in K3s's containerd.
 
-`pruneReleases()` est une **méthode de l'interface** et non un détail interne :
-la tâche planifiée `cleanup:versions` en a besoin depuis l'extérieur, et le
-chemin des releases est une décision du driver, pas de l'appelant.
+`pruneReleases()` is an **interface method** and not an internal detail: the
+`cleanup:versions` scheduled task needs it from the outside, and the release path
+is a driver decision, not the caller's.
 
-Le **constructeur d'images** de K3s — un BuildKit en pod, que le driver pose au
-premier build et garde pour son cache — expire de la même façon, par
-`pruneIdleBuilder?()`. Chaque build le date dans le manifeste qu'il applique
-(`pupitre.io/last-build`, sur le Deployment et non sur le pod : rien ne
-redémarre). Toutes les heures, le worker (`builder:prune`, file `ops`) demande
-à chaque cible, pour chaque runtime dont le driver déclare la méthode, de
-retirer ce qui n'a pas servi depuis 24 heures — une durée écrite dans le
-driver. La suppression porte une précondition sur la version lue
-(`kubectl delete --raw` avec `preconditions.resourceVersion`) : un build qui le
-réclame entre la lecture et la suppression change cette version, l'API répond
-`Conflict`, et il reste. Ni le namespace ni les images déjà importées ne sont
-touchés ; le retrait est au journal (`target.builder.removed`). Docker construit
-sans rien poser : son driver ne déclare pas la méthode, et aucune session n'est
-ouverte vers une cible qui n'a rien à expirer.
+The K3s **image builder** — a BuildKit in a pod, which the driver sets up at the
+first build and keeps for its cache — expires the same way, through
+`pruneIdleBuilder?()`. Each build stamps it in the manifest it applies
+(`pupitre.io/last-build`, on the Deployment and not on the pod: nothing
+restarts). Every hour, the worker (`builder:prune`, `ops` queue) asks each
+target, for each runtime whose driver declares the method, to remove what has
+not been used for 24 hours — a duration written in the driver. The deletion
+carries a precondition on the version read (`kubectl delete --raw` with
+`preconditions.resourceVersion`): a build that claims it between the read and the
+deletion changes that version, the API answers `Conflict`, and it stays. Neither
+the namespace nor already imported images are touched; the removal is in the
+audit log (`target.builder.removed`). Docker builds without setting anything up:
+its driver does not declare the method, and no session is opened to a target that
+has nothing to expire.
 
-## Sauvegardes : un lieu, un format, deux runtimes
+## Backups: one place, one format, two runtimes
 
-Trois pièces, chacune à sa place.
+Three pieces, each in its place.
 
-**Le driver sait lire et écrire des données, pas où les ranger.** Ses quatre
-méthodes de sauvegarde échangent un **flux d'octets** avec la cible, par
-`execPipe` — une commande SSH dont stdin et stdout sont des flux bruts, sans
-découpage en lignes :
+**The driver knows how to read and write data, not where to store it.** Its four
+backup methods exchange a **byte stream** with the target, through `execPipe` —
+an SSH command whose stdin and stdout are raw streams, without line splitting:
 
-| Méthode | `DockerComposeDriver` | `K3sDriver` |
+| Method | `DockerComposeDriver` | `K3sDriver` |
 |---|---|---|
-| `exportVolume` / `importVolume` | un conteneur `busybox` éphémère monte le volume, retrouvé par ses labels Compose, et `tar` | un pod d'aide monte le PVC, `tar` par `kubectl exec`, pod supprimé dans tous les cas |
-| `exportFromService` / `importIntoService` | `docker exec` dans le conteneur du service | `kubectl exec` dans le pod du service |
+| `exportVolume` / `importVolume` | an ephemeral `busybox` container mounts the volume, found through its Compose labels, and `tar` | a helper pod mounts the PVC, `tar` through `kubectl exec`, pod deleted in every case |
+| `exportFromService` / `importIntoService` | `docker exec` in the service's container | `kubectl exec` in the service's pod |
 
-La commande lancée dans le service — `pg_dumpall`, `mariadb-dump`, `mongodump`
-et leurs réciproques — vient de `packages/core/src/backup/model.ts`, pas du
-driver : quoi exporter est une affaire de moteur de base, pas de runtime. Elle
-lit ses identifiants dans l'environnement que l'image a déjà reçu ; le panel ne
-les voit jamais.
+The command run in the service — `pg_dumpall`, `mariadb-dump`, `mongodump` and
+their counterparts — comes from `packages/core/src/backup/model.ts`, not from the
+driver: what to export is a matter of database engine, not of runtime. It reads
+its credentials from the environment the image already received; the panel never
+sees them.
 
-**`BackupStore` dit où.** `check` `put` `get` `remove` `removePrefix` `list` —
-dans `packages/core/src/backup/stores/`, trois implémentations : `S3BackupStore`
-(signature SigV4 écrite à la main, envoi en plusieurs parties de 16 Mio),
-`SftpBackupStore` (empreinte d'hôte vérifiable), `LocalBackupStore` (un dossier
-monté dans le worker). Une destination de plus, c'est une classe, son schéma Zod
-dans `destinations.ts` et une ligne dans la table de `openBackupStore`.
+**`BackupStore` says where.** `check` `put` `get` `remove` `removePrefix` `list`
+— in `packages/core/src/backup/stores/`, three implementations: `S3BackupStore`
+(SigV4 signing written by hand, multipart upload of 16 MiB), `SftpBackupStore`
+(verifiable host fingerprint), `LocalBackupStore` (a folder mounted in the
+worker). One more destination is a class, its Zod schema in `destinations.ts`
+and a line in `openBackupStore`'s table.
 
-**Le format `.pupb` dit comment.** Chaque morceau est chiffré en flux,
-AES-256-GCM, sous une clé **dérivée** de `MASTER_KEY` par HKDF avec un sel tiré
-au hasard pour chaque fichier. L'en-tête — `PUPB`, version, sel, IV — est
-authentifié avec le contenu, l'étiquette GCM ferme le fichier. Un octet changé,
-une clé différente : le déchiffrement échoue, il ne rend jamais un contenu faux.
-Chaque sauvegarde dépose aussi son `manifest.json.pupb` : la liste de ses
-morceaux, leurs tailles et leurs empreintes SHA-256, de quoi relire la
-destination **sans** la base du panel — c'est le jour où elle est perdue qu'on
-en a besoin.
+**The `.pupb` format says how.** Each chunk is encrypted as a stream,
+AES-256-GCM, under a key **derived** from `MASTER_KEY` with HKDF and a random
+salt for each file. The header — `PUPB`, version, salt, IV — is authenticated
+with the content, the GCM tag closes the file. One byte changed, a different key:
+decryption fails, it never returns wrong content. Each backup also places its
+`manifest.json.pupb`: the list of its chunks, their sizes and SHA-256 hashes,
+enough to read the destination **without** the panel database — it is the day
+that one is lost that you need it.
 
-Le chemin d'une sauvegarde ne touche jamais le disque du worker : cible → SSH →
-gzip → chiffrement → destination, en flux, avec contre-pression. La restauration
-fait l'inverse **en deux temps** : elle télécharge et vérifie tout (empreinte et
-étiquette GCM) dans `BACKUP_TMP_DIR`, et n'applique rien tant qu'un seul morceau
-est douteux. Une archive corrompue ne doit pas trouver une application à moitié
-effacée.
+A backup's path never touches the worker's disk: target → SSH → gzip →
+encryption → destination, as a stream, with backpressure. Restore does the
+reverse **in two stages**: it downloads and verifies everything (hash and GCM
+tag) in `BACKUP_TMP_DIR`, and applies nothing while a single chunk is doubtful.
+A corrupted archive must not find a half-erased application.
 
-Conséquence de la neutralité : une sauvegarde ne connaît que des noms de
-l'AppSpec — service, volume, moteur. Rien n'y dit Docker ni Kubernetes.
+A consequence of neutrality: a backup only knows AppSpec names — service,
+volume, engine. Nothing in it says Docker or Kubernetes.
 
-## Reverse proxy : la route au proxy, l'amont au driver
+## Reverse proxy: the route to the proxy, the upstream to the driver
 
-Trois notions, chacune à sa place (`packages/core/src/proxy/model.ts`) :
+Three notions, each in its place (`packages/core/src/proxy/model.ts`):
 
-- **la connexion** — un proxy que le panel pilote, rangé dans `proxies` : son
-  genre, sa configuration, et s'il a été installé par Pupitre (`managed`) ou
-  seulement trouvé. Au plus un par machine ; une machine sans proxy peut
-  passer par celui d'une autre, par une **liaison** (`proxy_links`) — voir
-  plus bas ;
-- **la route** — un nom de domaine, une application, une cible, rangée dans
-  `routes`. **Unique par nom, tenu par la base** : deux applications ne
-  réclament pas le même domaine, et le perdant d'une course reçoit une 23505,
-  comme pour les ports ;
-- **l'amont** — par où le proxy joint l'application. C'est `driver.upstream()`
-  qui le dit : le port publié côté Compose, le Service côté K3s. Le driver ne
-  pose jamais de route ; le proxy ne sait pas sur quel runtime il route.
+- **the connection** — a proxy the panel drives, stored in `proxies`: its kind,
+  its configuration, and whether it was installed by Pupitre (`managed`) or only
+  found. At most one per machine; a machine without a proxy can go through
+  another one's, through a **link** (`proxy_links`) — see below;
+- **the route** — a domain name, an application, a target, stored in `routes`.
+  **Unique per name, held by the database**: two applications do not claim the
+  same domain, and the loser of a race gets a 23505, as for ports;
+- **the upstream** — how the proxy reaches the application. It is
+  `driver.upstream()` that says it: the published port on Compose, the Service on
+  K3s. The driver never sets a route; the proxy does not know which runtime it
+  routes to.
 
-**Déclaratif.** `apply()` reçoit l'ensemble des routes d'une application et fait
-en sorte que le proxy n'en ait pas d'autres : ajouter, retirer, modifier un
-domaine, c'est le même appel, et une liste vide nettoie. Chaque objet posé
-porte la marque de Pupitre et le nom de l'application — un proxy partagé avec
-des routes faites à la main ne voit jamais celles-ci touchées.
+**Declarative.** `apply()` receives all of an application's routes and makes sure
+the proxy has no others: adding, removing, changing a domain is the same call,
+and an empty list cleans up. Each object set carries Pupitre's mark and the
+application's name — a proxy shared with routes made by hand never sees those
+touched.
 
-**Traefik, deux façons d'être piloté** — ce sont ses propres fournisseurs :
+**Traefik, two ways of being driven** — they are its own providers:
 
-| Mode | Ce que Pupitre dépose | Amont attendu |
+| Mode | What Pupitre places | Expected upstream |
 |---|---|---|
-| `file` | `{dossier}/{slug}.yml`, relu à chaud par Traefik | un port de la machine |
-| `kubernetes` | des `Ingress` (et un `Middleware` de redirection) dans le namespace de l'application | un Service du cluster |
+| `file` | `{folder}/{slug}.yml`, reloaded live by Traefik | a port on the machine |
+| `kubernetes` | `Ingress` objects (and a redirect `Middleware`) in the application's namespace | a cluster Service |
 
-Le mode suit l'installation trouvée sur la machine, pas le runtime des
-applications : c'est une propriété du proxy. Un amont que le mode ne sait pas
-joindre est refusé, en le disant.
+The mode follows the installation found on the machine, not the applications'
+runtime: it is a property of the proxy. An upstream the mode cannot reach is
+refused, saying so.
 
-**Ce qu'un proxy dit de lui, sans rien exécuter.** L'écran et l'API ne
-nomment jamais un proxy : chacun déclare une fiche (`traefik/config.ts`,
-`bunkerweb/config.ts`), réunies dans `catalog.ts` — lire sa configuration, se
-décrire, et ses **capacités** : HTTPS, certificats automatiques, WAF (le
-champ Domaines propose alors une protection par domaine), et comment il joint
-une autre machine (`remoteUpstream` : toute adresse, IPv4 seulement — le
-Traefik d'un cluster —, ou pas du tout). Une option d'installation dit quelles
-autorités de certification elle accepte ; la sonde reçoit du proxy ses
-**signatures** — ce qu'il sert à un nom inconnu (Traefik : 404 et son corps ;
-BunkerWeb : sa page par défaut, **en 200**) et le certificat qu'il présente en
-attendant le vrai. Sans elles, une route absente passerait pour une route qui
-répond.
+**What a proxy says about itself, without executing anything.** The screen and
+the API never name a proxy: each one declares a record (`traefik/config.ts`,
+`bunkerweb/config.ts`), gathered in `catalog.ts` — reading its configuration,
+describing itself, and its **capabilities**: HTTPS, automatic certificates, WAF
+(the Domains field then offers a protection per domain), and how it reaches
+another machine (`remoteUpstream`: any address, IPv4 only — a cluster's Traefik
+—, or not at all). An installation option says which certificate authorities it
+accepts; the probe receives from the proxy its **signatures** — what it serves to
+an unknown name (Traefik: 404 and its body; BunkerWeb: its default page, **with
+a 200**) and the certificate it presents while waiting for the real one. Without
+them, a missing route would pass for a route that answers.
 
-**BunkerWeb, par son API.** Un service BunkerWeb par domaine, créé, modifié ou
-retiré par l'API REST de BunkerWeb, appelée depuis sa machine par SSH. Le
-jeton est lu dans le conteneur à chaque appel et passé à `curl` par un
-fichier temporaire : il ne quitte jamais la machine. BunkerWeb n'ayant pas
-d'étiquette où marquer ce qui est à Pupitre, un **registre** par application
-(`{racine}/bunkerweb/routes/*.json`, sur sa machine) dit quels domaines Pupitre
-y a posés : `planServices()` en tire ce qu'il faut créer, modifier, retirer —
-sans jamais toucher un service fait à la main, ni retirer un domaine qu'une
-autre application a repris. Son API relisant et réécrivant la configuration
-entière à chaque appel, deux poses sur le même BunkerWeb passent l'une après
-l'autre. Son nginx résolvant par DNS et pas par `/etc/hosts`, l'amont est
-toujours une adresse IP : la passerelle Docker pour une application de sa
-machine — c'est là que le driver la publie (`publishAddress()`), et pas sur
-toutes les interfaces — ou l'adresse de la liaison pour le proxy central.
-BunkerWeb appliquant en différé et revenant en silence à la configuration
-précédente quand nginx refuse la nouvelle, `apply()` attend de voir les
-domaines servis et, sinon, rapporte le refus lu dans son journal. Ses sondes
-passent sa liste blanche par un en-tête secret (`ProbeSignatures.headerFile`,
-lu par `curl -H @fichier`), pas par leur adresse.
+**BunkerWeb, through its API.** One BunkerWeb service per domain, created,
+changed or removed through BunkerWeb's REST API, called from its machine over
+SSH. The token is read in the container on each call and passed to `curl`
+through a temporary file: it never leaves the machine. Since BunkerWeb has no
+label in which to mark what is Pupitre's, a **registry** per application
+(`{root}/bunkerweb/routes/*.json`, on its machine) says which domains Pupitre set
+there: `planServices()` derives what to create, change, remove — without ever
+touching a service made by hand, or removing a domain another application took
+over. Since its API reads and rewrites the whole configuration on each call, two
+changes on the same BunkerWeb go one after the other. Since its nginx resolves
+through DNS and not `/etc/hosts`, the upstream is always an IP address: the
+Docker gateway for an application on its machine — that is where the driver
+publishes it (`publishAddress()`), and not on every interface — or the link's
+address for the central proxy. Since BunkerWeb applies lazily and silently goes
+back to the previous configuration when nginx refuses the new one, `apply()`
+waits to see the domains served and, otherwise, reports the refusal read in its
+log. Its probes pass its whitelist with a secret header
+(`ProbeSignatures.headerFile`, read by `curl -H @file`), not by their address.
 
-**Le port de l'application n'est plus ouvert au monde.** Le pipeline dit au
-driver comment la publier — `DriverContext.exposure`, une **intention**, pas un
-runtime : `bindAddress` (où écouter), `allowFrom` (qui laisser entrer),
-`byPort` (il faut un port). Chaque driver la traduit à sa façon :
+**The application's port is no longer open to the world.** The pipeline tells
+the driver how to publish it — `DriverContext.exposure`, an **intention**, not a
+runtime: `bindAddress` (where to listen), `allowFrom` (who to let in), `byPort`
+(a port is needed). Each driver translates it its own way:
 
-| Qui sert l'application | `exposure` | Compose | K3s |
+| Who serves the application | `exposure` | Compose | K3s |
 |---|---|---|---|
-| un proxy de la machine | `bindAddress: 127.0.0.1` | port sur la boucle locale, pare-feu fermé | rien : le proxy du cluster joint le Service |
-| le proxy d'une autre machine | `byPort`, `bindAddress` (l'adresse de la liaison si elle est à la machine), `allowFrom` (l'adresse d'arrivée du proxy) | port sur cette adresse, `ufw allow from` le proxy | `NodePort` sur le point d'entrée, `externalTrafficPolicy: Local`, `NetworkPolicy` qui n'accepte que le proxy |
+| a proxy on the machine | `bindAddress: 127.0.0.1` | port on the loopback, firewall closed | nothing: the cluster's proxy reaches the Service |
+| another machine's proxy | `byPort`, `bindAddress` (the link's address if it belongs to the machine), `allowFrom` (the proxy's arrival address) | port on that address, `ufw allow from` the proxy | `NodePort` on the entry point, `externalTrafficPolicy: Local`, a `NetworkPolicy` that accepts only the proxy |
 
-Sinon, ce port en HTTP clair contournerait le HTTPS du proxy. Côté K3s, le
-`NodePort` passe avant le pare-feu de la machine — d'où la `NetworkPolicy`, et
-`Local` pour que le pod voie l'adresse d'origine. `apply` ne retirant rien, le
-driver supprime la `NetworkPolicy` quand elle n'a plus lieu d'être.
+Otherwise, that port in clear HTTP would bypass the proxy's HTTPS. On K3s, the
+`NodePort` goes before the machine's firewall — hence the `NetworkPolicy`, and
+`Local` so that the pod sees the original address. Since `apply` removes nothing,
+the driver deletes the `NetworkPolicy` when it no longer has a reason to exist.
 
-**Le proxy central.** Une liaison (`proxy_links`) relie une machine au proxy
-d'une autre, avec l'adresse par laquelle celle-ci la joint. `checkReach()`
-(`packages/core/src/proxy/reach.ts`) l'éprouve pour de vrai : un écouteur
-éphémère sur la machine servie, dans la plage des applications, et une
-connexion depuis la machine du proxy qui doit en rapporter un jeton ; il en
-tire l'adresse d'arrivée (NAT compris) et dit si l'adresse est à la machine.
-Le test de la liaison et le **préflight** de chaque déploiement à domaines
-d'une machine reliée passent par lui — un chemin bloqué arrête le déploiement
-avant toute construction. `resolveServingProxy()` répond « qui
-sert cette cible » — le sien, sinon celui de sa liaison — et tout le reste
-(champ Domaines, pipeline, sonde) passe par lui. Pour le proxy, rien ne change
-que l'amont : un port **avec une adresse** (`{ kind: 'port', host, port }`), et
-une **portée** (`ProxyRouteSet.scope`) qui met la machine d'origine dans le nom
-des objets — la même application peut tourner sur deux machines servies par le
-même proxy. Le Traefik en fichier y route directement ; celui d'un cluster
-reçoit un `Service` sans sélecteur et une `EndpointSlice` vers l'autre machine,
-dans le namespace `pupitre-routes` — ni `ExternalName`, que Traefik refuse par
-défaut, ni réglage du proxy. Le worker ouvre une session vers la machine du
-proxy le temps de poser ou de sonder ; la tournée `routes:check` regroupe les
-domaines par proxy.
+**The central proxy.** A link (`proxy_links`) connects a machine to another
+one's proxy, with the address through which the latter reaches it. `checkReach()`
+(`packages/core/src/proxy/reach.ts`) tests it for real: an ephemeral listener on
+the served machine, in the applications' range, and a connection from the
+proxy's machine that must bring back a token from it; it derives the arrival
+address (NAT included) and says whether the address belongs to the machine. The
+link test and the **preflight** of each deployment with domains on a linked
+machine go through it — a blocked path stops the deployment before any build.
+`resolveServingProxy()` answers "who serves this target" — its own, otherwise its
+link's — and everything else (Domains field, pipeline, probe) goes through it.
+For the proxy, nothing changes but the upstream: a port **with an address**
+(`{ kind: 'port', host, port }`), and a **scope** (`ProxyRouteSet.scope`) that
+puts the origin machine in the objects' names — the same application can run on
+two machines served by the same proxy. The file-based Traefik routes there
+directly; a cluster's Traefik gets a `Service` without a selector and an
+`EndpointSlice` to the other machine, in the `pupitre-routes` namespace —
+neither `ExternalName`, which Traefik refuses by default, nor a proxy setting.
+The worker opens a session to the proxy's machine for the time needed to set or
+probe; the `routes:check` round groups domains by proxy.
 
-**Un proxy hors des cibles : Nginx Proxy Manager.** Il tourne souvent sur une
-machine à part, que Pupitre ne pilote pas : il ne la joint que par l'API de
-NPM, avec un compte à lui. C'est le placement `remote` du modèle, et un second
-contrat, `RemoteProxyProvider` — `check() apply() probe() reach()` —, sans ce
-qui suppose une machine (ni détection, ni installation : on s'y connecte).
-La fiche du catalogue dit le placement d'un genre ; le worker n'en sait pas
-plus : `openProxy()` (`apps/worker/src/proxy/connect.ts`) rend les mêmes gestes
-— poser, sonder, tester, éprouver une liaison — par SSH ou par l'API, et tout
-le reste (pipeline, « Appliquer », destruction, tournée) passe par lui. La
-connexion vit dans `proxies` sans machine hôte ; son mot de passe dans
-`encrypted_secrets`, chiffré sous `MASTER_KEY`, déchiffré par le worker seul.
-Elle sert des machines **par liaison**, toujours — l'amont est un port avec une
-adresse, comme pour le proxy central. Trois choses changent de main :
+**A proxy outside the targets: Nginx Proxy Manager.** It often runs on a separate
+machine that Pupitre does not drive: it only reaches it through NPM's API, with
+an account of its own. It is the model's `remote` placement, and a second
+contract, `RemoteProxyProvider` — `check() apply() probe() reach()` —, without
+what assumes a machine (no detection, no installation: you connect to it). The
+catalog record says a kind's placement; the worker knows no more:
+`openProxy()` (`apps/worker/src/proxy/connect.ts`) returns the same gestures —
+set, probe, test, test a link — over SSH or through the API, and everything else
+(pipeline, **Apply**, destruction, round) goes through it. The connection lives
+in `proxies` without a host machine; its password in `encrypted_secrets`,
+encrypted under `MASTER_KEY`, decrypted by the worker alone. It serves machines
+**through a link**, always — the upstream is a port with an address, as for the
+central proxy. Three things change hands:
 
-- **la sonde** part du panel vers l'entrée de NPM (`probeDirect()`), le nom en
-  `Host` et en SNI — et plus de la machine du proxy ;
-- **le test d'une liaison** ne peut plus lancer `curl` depuis la machine du
-  proxy : `checkReach()` reçoit une **origine** (`ReachOrigin`), et celle d'un
-  proxy distant pose sur NPM un hôte éphémère vers l'écouteur, l'interroge par
-  son entrée, puis le retire. NPM ne dit pas sa table de routage : l'adresse
-  d'arrivée n'est relevée que par l'écouteur (python3 ou perl sur la machine
-  servie), et le test dit quand elle ne l'est pas ;
-- **les certificats** : NPM les demande lui-même à Let's Encrypt, au nom du
-  compte ; un certificat déjà présent qui couvre le domaine (un joker obtenu
-  par défi DNS) est repris tel quel.
+- **the probe** goes from the panel to NPM's entrance (`probeDirect()`), the name
+  in `Host` and in SNI — and no longer from the proxy's machine;
+- **a link test** can no longer run `curl` from the proxy's machine:
+  `checkReach()` receives an **origin** (`ReachOrigin`), and a remote proxy's one
+  sets up an ephemeral host on NPM to the listener, queries it through its
+  entrance, then removes it. NPM does not tell its routing table: the arrival
+  address is only recorded by the listener (python3 or perl on the served
+  machine), and the test says when it is not;
+- **certificates**: NPM requests them itself from Let's Encrypt, in the
+  account's name; a certificate already present that covers the domain (a
+  wildcard obtained through a DNS challenge) is reused as is.
 
-Un domaine est un « proxy host » de NPM, marqué dans son `meta` (`pupitre` :
-l'application, la portée, le certificat que Pupitre a demandé pour lui) : seuls
-ceux-là sont lus, modifiés, retirés, et seuls leur domaine, leur amont et leur
-HTTPS sont tenus — ce qu'on règle dans NPM sur ces hôtes reste. Trois
-comportements de NPM sont contournés ici, et pas ailleurs : il recharge nginx
-sans attendre qu'il ait pris (le test d'une liaison attend que son site par
-défaut cesse de répondre pour le nom) ; pour un hôte déjà en service, il le
-retire de nginx le temps d'une demande de certificat et lance certbot aussitôt
-(un hôte neuf demande donc son certificat **avant** d'exister ; un hôte déjà là
-a droit à un nouvel essai) ; et il refuse un second certbot pendant le premier
-(les demandes d'un worker vers une instance passent l'une après l'autre).
+A domain is an NPM "proxy host", marked in its `meta` (`pupitre`: the
+application, the scope, the certificate Pupitre requested for it): only those are
+read, changed, removed, and only their domain, upstream and HTTPS are held — what
+you set in NPM on those hosts stays. Three NPM behaviors are worked around here,
+and nowhere else: it reloads nginx without waiting for it to take (a link test
+waits for its default site to stop answering for the name); for a host already in
+service, it removes it from nginx for the duration of a certificate request and
+runs certbot right away (a new host therefore requests its certificate **before**
+existing; a host already there gets a retry); and it refuses a second certbot
+during the first (a worker's requests to one instance go one after the other).
 
-**Dans le pipeline**, les domaines sont décidés avant le rendu — ils décident de
-la publication du port —, et posés à l'étape `proxy`, après `healthcheck`. Puis
-chacun est **éprouvé à travers le proxy**, depuis sa machine, le nom forcé vers
-la boucle locale (`probe()`) : HTTP, HTTPS, redirection, et le certificat
-présenté. Un domaine qui ne répond pas n'annule pas un déploiement sain — la
-nouvelle version tourne — : la route est notée en échec et le journal dit
-pourquoi. Seule une configuration que le proxy refuse fait échouer l'étape.
+**In the pipeline**, domains are decided before rendering — they decide how the
+port is published —, and set at the `proxy` step, after `healthcheck`. Then each
+one is **tested through the proxy**, from its machine, the name forced to the
+loopback (`probe()`): HTTP, HTTPS, redirect, and the certificate presented. A
+domain that does not answer does not cancel a healthy deployment — the new
+version runs —: the route is marked as failed and the log says why. Only a
+configuration the proxy refuses fails the step.
 
-**Ensuite**, la tâche `routes:check` (toutes les dix minutes, file
-`supervision`) sonde chaque domaine de la même façon. Deux échecs de suite font
-tomber la route et écrivent `route.down` au journal — donc une notification —,
-le retour écrit `route.recovered`. Un certificat en cours d'émission est relu à
-30 secondes puis à 2 minutes, plutôt qu'à la tournée suivante.
+**Afterwards**, the `routes:check` task (every ten minutes, `supervision` queue)
+probes each domain the same way. Two consecutive failures bring the route down
+and write `route.down` to the audit log — hence a notification —, recovery
+writes `route.recovered`. A certificate being issued is read again at 30 seconds
+then at 2 minutes, rather than at the next round.
 
-**Avant ce modèle**, le driver K3s rendait lui-même un `Ingress` depuis
-l'AppSpec, et le pipeline déposait sous Docker un fichier pour un Traefik
-supposé présent. La migration `0027` a déclaré ces deux proxies tels qu'ils
-étaient et changé en routes les domaines en service : rien ne casse à la mise à
-jour. L'`Ingress` posé par le proxy porte le nom de l'ancien et le remplace.
+**Before this model**, the K3s driver rendered an `Ingress` itself from the
+AppSpec, and the pipeline placed on Docker a file for a Traefik assumed to be
+present. Migration `0027` declared those two proxies as they were and turned the
+domains in service into routes: nothing breaks on upgrade. The `Ingress` set by
+the proxy carries the old one's name and replaces it.
 
+## Languages: one product, two languages
+
+The code, its comments and its documentation are in English. The product speaks
+French or English, as set for the instance (**Settings → Regional settings**: a
+French locale gives French, any other English).
+
+- **The screens** take their texts from `apps/web/src/i18n/messages/`, a French
+  dictionary and its English counterpart per area; `Translated<typeof fr>` makes
+  a missing key a compile error. The vocabulary is fixed in
+  `apps/web/src/i18n/GLOSSARY.md`.
+- **What happens away from the screens** — a deployment log, a driver error, a
+  schema complaint, a failed backup, a notification — is translated **when it is
+  emitted**, in the instance's language: each area of `@pupitre/core`, the worker
+  and `@pupitre/db` has its `messages.ts`, and the contexts carry the language
+  (`TargetContext.language`, `ProbeContext.language`…). What is stored in the
+  database (a step's log, an error) stays in the language it was written in.
+- **Zod complaints** keep a French sentence as their message — the AI correction
+  loop reads it — and carry their key and variables (`invalid()` in
+  `packages/core/src/validation.ts`); `issueMessage()` and `localizeZodError()`
+  say them again in the screen's language.
+- **Two test guards** refuse French hard-coded where a user would read it:
+  `apps/web/test/i18n.test.mjs` for the panel, `apps/web/test/product-messages.test.mjs`
+  for `core`, the worker and the database. Pino logs and programming invariants
+  (`new Error()`) are not shown to users and stay out of them.

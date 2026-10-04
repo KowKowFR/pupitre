@@ -1,175 +1,184 @@
-# Contribuer à Pupitre
+# Contributing to Pupitre
 
-Merci de vous y intéresser. Ce guide décrit **ce projet-ci** : ses trois
-abstractions, sa règle d'immuabilité des migrations, ses 26 scripts de
-vérification. Ce n'est pas un modèle générique, et suivre un modèle générique ne
-suffira pas à faire passer une revue ici.
+Thank you for your interest. This guide describes **this project**: its four
+abstractions, its migration immutability rule, its verification scripts. It is
+not a generic template, and following a generic template will not be enough to
+get a review through here.
 
-Le français est la langue du projet : code, commentaires, messages de commit,
-issues et documentation. L'interface, elle, est bilingue : un texte d'écran va
-dans `apps/web/src/i18n/messages/`, en français **et** en anglais — une garde des
-tests refuse un texte français écrit en dur dans le code du panel.
+English is the project language: code, comments, commit messages, issues and
+documentation. The interface itself is bilingual: a screen text goes in
+`apps/web/src/i18n/messages/`, in French **and** in English — a test guard
+refuses a French text hard-coded in the panel. The same goes for what the
+worker, `@pupitre/core` and `@pupitre/db` say to a user (a deployment log, an
+error, a schema complaint): it goes through their dictionaries.
 
-- [Avant d'écrire du code](#avant-décrire-du-code)
-- [Monter l'environnement](#monter-lenvironnement)
-- [Les règles qui font échouer une revue](#les-règles-qui-font-échouer-une-revue)
-- [Migrations : la règle d'immuabilité](#migrations--la-règle-dimmuabilité)
-- [Vérifier son travail](#vérifier-son-travail)
-- [Commits et pull requests](#commits-et-pull-requests)
-- [Licence des contributions](#licence-des-contributions)
+- [Before writing code](#before-writing-code)
+- [Setting up the environment](#setting-up-the-environment)
+- [The rules that fail a review](#the-rules-that-fail-a-review)
+- [Migrations: the immutability rule](#migrations-the-immutability-rule)
+- [Verifying your work](#verifying-your-work)
+- [Commits and pull requests](#commits-and-pull-requests)
+- [License of contributions](#license-of-contributions)
 
-## Avant d'écrire du code
+## Before writing code
 
-**Lisez [`CLAUDE.md`](CLAUDE.md).** Il fait cinq minutes et il fait autorité sur
-la forme du code. Les huit « règles non négociables » qu'il porte ne sont pas des
-préférences de style : une contribution qui en enfreint une est refusée, même si
-elle marche.
+**Read [`CLAUDE.md`](CLAUDE.md).** It takes five minutes and it is the authority
+on the shape of the code. Its nine "non-negotiable rules" are not style
+preferences: a contribution that breaks one is refused, even if it works.
 
-Ensuite, selon ce que vous touchez :
+Then, depending on what you touch:
 
-| Vous touchez à… | Lisez d'abord |
+| You are touching… | Read first |
 |---|---|
-| un driver, l'AppSpec, le pipeline | [`docs/architecture.md`](docs/architecture.md) |
-| l'authentification, le RBAC, le chiffrement, les scanners | [`docs/securite.md`](docs/securite.md) |
-| une sonde, une notification, une tâche planifiée | [`docs/supervision.md`](docs/supervision.md) |
-| une route d'API | [`docs/api.md`](docs/api.md) |
-| une table | [`docs/base-de-donnees.md`](docs/base-de-donnees.md) |
-| la génération par IA | [`docs/ia.md`](docs/ia.md) |
+| a driver, the AppSpec, the pipeline | [`docs/architecture.md`](docs/architecture.md) |
+| authentication, RBAC, encryption, the scanners | [`docs/security.md`](docs/security.md) |
+| a probe, a notification, a scheduled task | [`docs/monitoring.md`](docs/monitoring.md) |
+| an API route | [`docs/api.md`](docs/api.md) |
+| a table | [`docs/database.md`](docs/database.md) |
+| AI generation | [`docs/ai.md`](docs/ai.md) |
 
-Pour un changement qui dépasse la correction de bug, **ouvrez une issue avant**.
-Le projet a des décisions figées (section « Décisions déjà tranchées » de
-`CLAUDE.md`) : une pull request qui les rouvre sans discussion préalable coûte du
-temps à tout le monde. Ce qui est ouvert, en revanche, est listé dans
-[`docs/feuille-de-route.md`](docs/feuille-de-route.md).
+For a change that goes beyond a bug fix, **open an issue first**. The project
+has settled decisions (the "Decisions already made" section of `CLAUDE.md`): a
+pull request that reopens one without prior discussion costs everyone time.
+What is open, on the other hand, is listed in
+[`docs/roadmap.md`](docs/roadmap.md).
 
-## Monter l'environnement
+## Setting up the environment
 
-Monorepo pnpm, quatre projets. Node ≥ 24 et pnpm 10 (la version exacte est dans
-le champ `packageManager` du `package.json` racine — laissez Corepack la lire,
-ne l'écrivez nulle part ailleurs).
+A pnpm monorepo, four projects. Node ≥ 24 and pnpm 10 (the exact version is in
+the `packageManager` field of the root `package.json` — let Corepack read it,
+write it nowhere else).
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres redis   # les dépendances dans Docker
+docker compose up -d postgres redis   # the dependencies in Docker
 pnpm install
-pnpm dev                              # web (3000) + worker, en watch
+pnpm dev                              # web (3000) + worker, in watch mode
 ```
 
-Le détail — pile complète, cibles de test, profils compose — est dans
-[`docs/demarrage.md`](docs/demarrage.md).
+The details — full stack, test targets, compose profiles — are in
+[`docs/getting-started.md`](docs/getting-started.md).
 
-**`pnpm build:packages` avant tout typecheck.** `@pupitre/core` et `@pupitre/db`
-sont consommés par leur `dist`, pas par leurs sources : sur une copie neuve,
-lancer `pnpm -r typecheck` en premier produit une trentaine d'erreurs
-`TS2307: Cannot find module '@pupitre/core'` sur des symboles qui existent
-pourtant. `pnpm typecheck` à la racine enchaîne déjà la construction ; c'est
-seulement si vous appelez les commandes une par une que l'ordre compte. Le
-raisonnement complet est dans [`.github/ci-local.md`](.github/ci-local.md).
+**`pnpm build:packages` before any typecheck.** `@pupitre/core` and `@pupitre/db`
+are consumed through their `dist`, not their sources: on a fresh clone, running
+`pnpm -r typecheck` first produces some thirty
+`TS2307: Cannot find module '@pupitre/core'` errors on symbols that do exist.
+`pnpm typecheck` at the root already chains the build; the order only matters
+if you call the commands one by one. The full reasoning is in
+[`.github/ci-local.md`](.github/ci-local.md).
 
-## Les règles qui font échouer une revue
+## The rules that fail a review
 
-### 1. Les quatre abstractions ne se contournent pas
+### 1. The four abstractions are not bypassed
 
-| Interface | Fichier | Implémentations |
+| Interface | File | Implementations |
 |---|---|---|
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
 | `ProxyProvider` / `RemoteProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider`, `BunkerWebProvider` / `NginxProxyManagerProvider` |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
 | `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider`, `GitLabSourceProvider`, `GiteaSourceProvider` |
 
-Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy,
-un scanner ou un fournisseur de code doit se faire en ajoutant une classe, sans
-modifier une ligne ailleurs.** Si votre patch a besoin de changer le worker pour ajouter un scanner,
-c'est le patch qui est faux, pas l'abstraction.
+The quality bar is written in `CLAUDE.md`: **adding a runtime, a proxy, a
+scanner or a code provider must be done by adding a class, without changing a
+line elsewhere.** If your patch needs to change the worker to add a scanner, it
+is the patch that is wrong, not the abstraction.
 
-Corollaire vérifiable en une commande :
+A corollary you can check with one command:
 
 ```bash
 grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' \
   | grep -v /drivers/ | grep -v /dist/
 ```
 
-Elle ne rend **aucune ligne** aujourd'hui. Votre patch ne doit pas en ajouter
-une.
+It returns **no line** today. Your patch must not add one.
 
-Une divergence entre runtimes se traite dans le driver : soit une méthode qui
-rend `null` (comme `allocatePort()` en K3s), soit une méthode optionnelle qu'un
-driver ne déclare pas (comme `openFirewall?`). Le pipeline appelle si la méthode
-existe ; il ne demande jamais quel runtime il pilote.
+A divergence between runtimes is handled in the driver: either a method that
+returns `null` (like `allocatePort()` on K3s), or an optional method a driver
+does not declare (like `openFirewall?`). The pipeline calls it if the method
+exists; it never asks which runtime it is driving.
 
-### 2. L'AppSpec ne connaît ni Docker ni Kubernetes
+### 2. The AppSpec knows neither Docker nor Kubernetes
 
-`packages/core/src/spec/app-spec.ts`. Aucun champ ne doit pouvoir être rattaché à
-un runtime : pas de `restart_policy`, pas de `image_pull_policy`, pas de
-`namespace`. Un test le vérifie en inspectant les clés déclarées du schéma. Si
-vous ajoutez un champ, demandez-vous d'abord si les deux drivers savent le
-traduire ; sinon, c'est une décision du driver, pas une donnée de la spec.
+`packages/core/src/spec/app-spec.ts`. No field may be tied to a runtime: no
+`restart_policy`, no `image_pull_policy`, no `namespace`. A test checks it by
+inspecting the keys the schema declares. If you add a field, first ask whether
+both drivers can translate it; if not, it is a driver decision, not spec data.
 
-### 3. Toute opération longue passe par BullMQ
+### 3. Every long-running operation goes through BullMQ
 
-Une route HTTP enfile et répond `202`. Elle n'attend jamais une session SSH.
-La seule exception assumée aujourd'hui est la purge d'historique, qui est un
-`DELETE` en base et rien d'autre.
+An HTTP route enqueues and answers `202`. It never waits for an SSH session.
+The only accepted exception today is the history purge, which is a `DELETE` in
+the database and nothing else.
 
-Et des **Route Handlers REST**, pas de Server Actions pour les déploiements : le
-worker et d'éventuels webhooks doivent pouvoir appeler la même API.
+And **REST Route Handlers**, no Server Actions for deployments: the worker and
+any webhooks must be able to call the same API.
 
-### 4. Rien de secret ne sort
+### 4. Nothing secret gets out
 
-Les credentials SSH, les valeurs de secrets d'application, la clé d'API d'IA, les
-secrets des canaux de notification et les URL de webhook des sondes sont chiffrés
-en base (AES-256-GCM, clés dérivées de `MASTER_KEY` par HKDF). Une requête de
-lecture ne sélectionne pas la colonne chiffrée : la réponse HTTP ne *peut* donc
-pas la contenir, même par accident. Gardez cette propriété — ne l'obtenez pas en
-filtrant au dernier moment.
+SSH credentials, application secret values, the AI API key, notification
+channel secrets and probe webhook URLs are encrypted in the database
+(AES-256-GCM, keys derived from `MASTER_KEY` with HKDF). A read query does not
+select the encrypted column: the HTTP response therefore *cannot* contain it,
+even by accident. Keep that property — do not get it by filtering at the last
+moment.
 
-Le journal d'activité passe par **`logAudit()`**, point d'entrée unique. Jamais
-d'insert dispersé dans un handler.
+The audit log goes through **`logAudit()`**, a single entry point. Never
+scattered inserts in a handler.
 
-### 5. L'anti-collision de ports est une contrainte de base
+### 5. Port collision avoidance is a database constraint
 
-Une unicité `(target_id, port)` sur `port_allocations`, et une violation `23505`
-renvoie le perdant au tirage suivant. Pas de « SELECT puis INSERT ». Pas de `if`.
+A `(target_id, port)` uniqueness on `port_allocations`, and a `23505` violation
+sends the loser to the next draw. No "SELECT then INSERT". No `if`.
 
-### 6. Les permissions sont des chaînes `ressource:action`
+### 6. Permissions are `resource:action` strings
 
-Trente-huit aujourd'hui, dans `packages/core/src/permissions.ts` :
+Thirty-eight today, in `packages/core/src/permissions.ts`:
 
 ```bash
 grep -oE "'[a-z0-9_-]+:[a-z0-9_-]+'" packages/core/src/permissions.ts | sort -u | wc -l
 ```
 
-Toute route protégée passe par `requirePermission()`. Une nouvelle capacité
-ajoute une permission au catalogue — elle ne réutilise pas une permission
-voisine parce que c'était plus court.
+Every protected route goes through `requirePermission()`. A new capability adds
+a permission to the catalog — it does not reuse a neighboring permission
+because that was shorter.
 
-## Migrations : la règle d'immuabilité
+### 7. What a user reads goes through a dictionary
 
-**Jamais éditer une migration déjà appliquée. Toujours en créer une nouvelle.**
+A screen text, a line of a deployment log, a driver error, a schema complaint:
+each lives in a French dictionary and its English counterpart
+(`Translated<typeof fr>` makes a missing key a compile error), and is rendered
+in the instance language. Two test guards refuse French hard-coded in the panel
+(`apps/web/test/i18n.test.mjs`) and in `core`, the worker and the database
+(`apps/web/test/product-messages.test.mjs`). Pino logs and programming
+invariants (`new Error()`) are not shown to users and stay out of it.
 
-Une migration passée sur une instance ne sera jamais rejouée : la modifier ne
-change rien là-bas, et tout ailleurs. Le dépôt en compte quinze
-(`packages/db/migrations/*.sql`), et **une garde de CI refuse toute modification,
-suppression ou renommage** d'un fichier déjà présent sur la branche par défaut.
-Un ajout reste évidemment permis.
+## Migrations: the immutability rule
 
-Le flux normal :
+**Never edit a migration that has been applied. Always create a new one.**
+
+A migration that has run on an instance will never be replayed: changing it
+changes nothing there, and everything elsewhere. The repository has
+forty-six of them (`packages/db/migrations/*.sql`), and **a CI guard refuses any
+change, deletion or rename** of a file already present on the default branch.
+An addition is of course allowed.
+
+The normal flow:
 
 ```bash
-# modifiez packages/db/src/schema/*.ts, puis
-pnpm db:generate      # produit un nouveau fichier .sql
-pnpm db:migrate       # l'applique en local
+# edit packages/db/src/schema/*.ts, then
+pnpm db:generate      # produces a new .sql file
+pnpm db:migrate       # applies it locally
 ```
 
-Relisez le SQL généré avant de le committer. Drizzle produit parfois un `DROP`
-là où vous vouliez un `RENAME`.
+Read the generated SQL before committing it. Drizzle sometimes produces a
+`DROP` where you wanted a `RENAME`.
 
-## Vérifier son travail
+## Verifying your work
 
-### Le socle, sans aucun service
+### The base, without any service
 
-Il tourne en une trentaine de secondes sur un poste et c'est ce que la CI exige
-de toute pull request :
+It runs in about thirty seconds on a workstation, and it is what CI requires of
+every pull request:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -182,76 +191,76 @@ pnpm test:schedule
 pnpm test:ai
 ```
 
-### Les scripts de vérification
+### The verification scripts
 
-Vingt-six `scripts/verify-*.sh`. Ce ne sont **pas** des tests unitaires : ils
-empruntent exactement les mêmes routes que l'interface, contre une pile qui
-tourne, avec `curl` et `jq`, et vérifient souvent l'effet réel sur la machine
-cible ou en SQL. [`docs/verification.md`](docs/verification.md) dit ce que chacun
-prouve.
+Thirty-three `scripts/verify-*.sh`. They are **not** unit tests: they take
+exactly the same routes as the interface, against a running stack, with `curl`
+and `jq`, and often check the real effect on the target machine or in SQL.
+[`docs/verification.md`](docs/verification.md) says what each one proves.
 
-Neuf d'entre eux ne demandent que la pile compose :
+Some of them only need the compose stack:
 
 ```bash
 docker compose up -d --wait
 docker compose --profile test up -d mailpit
 ./scripts/verify-rbac-audit.sh
 ./scripts/verify-roles.sh
-# … voir .github/ci-local.md pour la liste des neuf
+# … see .github/ci-local.md for the list
 ```
 
-Les autres exigent une cible SSH déployable, que
-`./scripts/setup-test-target.sh` provisionne en conteneur.
+The others need a deployable SSH target, which
+`./scripts/setup-test-target.sh` provisions in a container.
 
-**Si vous ajoutez une capacité, ajoutez son script de vérification.** Les
-conventions à respecter : sortir en code non nul au premier point en échec ;
-créer sa propre matière et la démonter par un `trap` ; être relançable ; et
-surtout, quand quelque chose ne *peut pas* être vérifié dans l'environnement
-courant, **le dire et sauter** — jamais fabriquer un faux succès. C'est la
-convention la plus importante du dépôt.
+**If you add a capability, add its verification script.** The conventions to
+follow: exit with a non-zero code at the first failing point; create your own
+material and tear it down with a `trap`; be re-runnable; and above all, when
+something *cannot* be verified in the current environment, **say so and skip**
+— never fabricate a false success. It is the most important convention of the
+repository.
 
-Si vous renommez un script, pensez aux références croisées :
-`docs/verification.md`, `.github/workflows/e2e.yml`, `.github/ci-local.md`, et
-les scripts qui s'appellent entre eux.
+If you rename a script, think of the cross-references:
+`docs/verification.md`, `.github/workflows/e2e.yml`, `.github/ci-local.md`, and
+the scripts that call one another.
 
-### La parité des runtimes
+### Runtime parity
 
 ```bash
-pnpm test:parity <cible-docker> <cible-k3s>
+pnpm test:parity <docker-target> <k3s-target>
 ```
 
-Une seule AppSpec, deux runtimes, jamais un champ modifié entre les deux. C'est
-le test qui valide l'architecture, et il doit rester vert. Il exige deux cibles
-enregistrées et joignables depuis le poste ;
-[`docs/demarrage.md`](docs/demarrage.md#la-cible-k3s-de-test) explique comment
-monter la cible K3s.
+One AppSpec, two runtimes, never a field changed between the two. It is the
+test that validates the architecture, and it must stay green. It needs two
+targets registered and reachable from the workstation;
+[`docs/getting-started.md`](docs/getting-started.md#the-k3s-test-target)
+explains how to set up the K3s target.
 
-## Commits et pull requests
+## Commits and pull requests
 
-- **Une pull request, un sujet.** Un renommage massif mélangé à une correction
-  de bug est irrelisable.
-- **Messages de commit en français**, à l'impératif ou au constat, décrivant
-  l'effet et non le fichier touché. Regardez `git log` : la forme y est établie.
-- **Pas de secret dans le dépôt.** Une garde de CI cherche les clés à la forme
-  réelle de leur fournisseur, les valeurs de `MASTER_KEY` et de
-  `BETTER_AUTH_SECRET` à la forme d'un secret, et les clés privées complètes.
-  `.env` et `.test-target-key*` sont ignorés par git — laissez-les l'être.
-- **Décrivez ce que vous avez lancé**, avec la sortie réelle. Le modèle de pull
-  request le demande. « Ça marche chez moi » n'est pas une vérification.
-- Les changements de comportement documenté mettent la documentation à jour dans
-  la même pull request. Un `docs/` en retard est une régression.
+- **One pull request, one topic.** A mass rename mixed with a bug fix cannot be
+  reviewed.
+- **Commit messages in English**, in the imperative or as a statement,
+  describing the effect rather than the file touched. Look at `git log`: the
+  form is established there (`type(scope): summary`).
+- **No secret in the repository.** A CI guard looks for keys shaped like their
+  provider's real keys, `MASTER_KEY` and `BETTER_AUTH_SECRET` values shaped like
+  a secret, and full private keys. `.env` and `.test-target-key*` are ignored by
+  git — leave them that way.
+- **Describe what you ran**, with the real output. The pull request template
+  asks for it. "Works on my machine" is not a verification.
+- Changes to documented behavior update the documentation in the same pull
+  request. A `docs/` that lags behind is a regression.
 
-## Licence des contributions
+## License of contributions
 
-Pupitre est sous **GNU AGPL v3 ou ultérieure** ([`LICENSE`](LICENSE)). En
-proposant une contribution, vous acceptez qu'elle soit distribuée sous cette
-licence. Il n'y a pas de CLA.
+Pupitre is under the **GNU AGPL v3 or later** ([`LICENSE`](LICENSE)). By
+submitting a contribution, you agree that it is distributed under this license.
+There is no CLA.
 
-Conséquence à connaître avant de contribuer du code venu d'ailleurs : n'importez
-pas de code sous une licence incompatible avec l'AGPL, et signalez toute
-dépendance nouvelle dans votre pull request — les dépendances font l'objet d'un
-journal de décisions, [`docs/dependances.md`](docs/dependances.md), et sont
-souvent épinglées à la version exacte pour de bonnes raisons.
+A consequence to know before contributing code from elsewhere: do not import
+code under a license incompatible with the AGPL, and point out any new
+dependency in your pull request — dependencies have a decision log,
+[`docs/dependencies.md`](docs/dependencies.md), and are often pinned to the
+exact version for good reasons.
 
-Pour signaler une faille de sécurité, **n'ouvrez pas d'issue** :
-[`SECURITY.md`](SECURITY.md) décrit la voie privée.
+To report a security vulnerability, **do not open an issue**:
+[`SECURITY.md`](SECURITY.md) describes the private channel.

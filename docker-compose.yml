@@ -143,7 +143,7 @@ services:
   #
   # La clé est celle que `setup-test-target.sh` a produite : les deux cibles de
   # test partagent la même paire. Il reste ensuite à enregistrer les cibles à la
-  # main — `docs/demarrage.md` donne les deux lignes à saisir et explique
+  # main — `docs/getting-started.md` donne les deux lignes à saisir et explique
   # pourquoi il en faut deux (`k3s-target:22` pour le worker, `127.0.0.1:2223`
   # pour le poste).
   #

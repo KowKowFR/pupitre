@@ -1,43 +1,46 @@
-# Traduire Pupitre
+# Translating Pupitre
 
-Ce fichier fait autorité sur les mots. Il se lit avant d'écrire une chaîne
-anglaise, et il se met à jour quand un terme du domaine apparaît.
+This file is the authority on words. Read it before writing an English string,
+and update it when a domain term appears.
 
-## La voix
+The French dictionary is the source: each `messages/*.ts` module declares
+`const fr` first, and `const en: Translated<typeof fr>` follows it key for key.
+The tables below therefore go from French to English.
 
-Le panel parle **sobre, technique, à la deuxième personne**, avec un vocabulaire
-d'instrument. Ses textes disent **pourquoi** plutôt que quoi, et annoncent
-franchement ce qui ne marche pas.
+## The voice
 
-L'anglais garde cette voix, pas les mots. « gérée par le panel — passez par son
-déploiement » ne devient pas *managed by the panel — go through its deployment*
-mais *managed by the panel — deploy it from there*. Une phrase française qui
-tourne autour du verbe se réécrit en anglais autour du verbe : plus court, plus
-direct, jamais plus bavard que l'original.
+The panel speaks **plainly, technically, in the second person**, with an
+instrument's vocabulary. Its texts say **why** rather than what, and announce
+frankly what does not work.
 
-Trois réflexes :
+English keeps that voice, not the words. « gérée par le panel — passez par son
+déploiement » does not become *managed by the panel — go through its deployment*
+but *managed by the panel — deploy it from there*. A French sentence that turns
+around the verb is rewritten in English around the verb: shorter, more direct,
+never wordier than the original.
 
-- **Pas de mot à mot.** Si la version anglaise fait dix mots de plus, elle est
-  fausse.
-- **Pas de politesse ajoutée.** Ni *please*, ni *sorry*, ni *Oops*. Le français
-  n'en met pas.
-- **Pas d'euphémisme.** « rien ne sera analysé » devient *nothing will be
-  scanned*, pas *scanning may be limited*.
+Three reflexes:
 
-Orthographe : **américaine** (`canceled`, `behavior`, `analyze`). C'est la
-variante par défaut d'un projet open source, et `en-GB` comme `en-US` retombent
-sur le même dictionnaire.
+- **No word for word.** If the English version has ten more words, it is wrong.
+- **No added politeness.** Neither *please*, nor *sorry*, nor *Oops*. The French
+  puts none.
+- **No euphemism.** « rien ne sera analysé » becomes *nothing will be scanned*,
+  not *scanning may be limited*.
 
-Typographie : le français garde ses guillemets `«  »` et son espace insécable
-avant `: ; ? !`. L'anglais prend les guillemets courbes `“ ”` et pas d'espace
-avant la ponctuation double. Les apostrophes anglaises sont `’`, pas `'`.
+Spelling: **American** (`canceled`, `behavior`, `analyze`). It is the default
+variant of an open source project, and `en-GB` as well as `en-US` fall back on
+the same dictionary.
 
-## Le glossaire
+Typography: French keeps its `«  »` quotation marks and its non-breaking space
+before `: ; ? !`. English takes curly quotes `“ ”` and no space before double
+punctuation. English apostrophes are `’`, not `'`.
 
-| Français | Anglais | Ne pas écrire |
+## The glossary
+
+| French | English | Do not write |
 | --- | --- | --- |
 | cible | target | host, machine, server |
-| sonde | probe | monitor *(désigne l'objet, pas la mesure)* |
+| sonde | probe | monitor *(designates the object, not the measurement)* |
 | supervision (de sites) | monitoring | supervision |
 | relevé | readout | reading, measurement, sample |
 | déploiement | deployment | release, rollout |
@@ -45,16 +48,16 @@ avant la ponctuation double. Les apostrophes anglaises sont `’`, pas `'`.
 | preflight | preflight | pre-flight, preflight check |
 | étiquette | label | tag |
 | seuil | threshold | limit |
-| épisode | episode | incident *(réservé à `incident`)* |
+| épisode | episode | incident *(reserved for `incident`)* |
 | panne / incident | outage / incident | downtime |
 | charge (de travail) | workload | container, pod |
 | tâche planifiée | scheduled job | cron, task |
 | file / queue | queue | job list |
-| journal d'activité | activity log | audit log *(en UI ; `audit` reste la permission)* |
+| journal d'activité | activity log | audit log *(in the UI; `audit` stays the permission)* |
 | enfilé (dans la queue) | queued | enqueued |
 | bloqué (par un scan) | blocked | denied |
 | coincé (déploiement) | stuck | frozen, hung |
-| finding | finding | issue, vulnerability *(sauf en prose)* |
+| finding | finding | issue, vulnerability *(except in prose)* |
 | scanner | scanner | analyzer |
 | analyse (d'image) | scan | analysis |
 | plan de contrôle | control plane | dashboard |
@@ -62,10 +65,10 @@ avant la ponctuation double. Les apostrophes anglaises sont `’`, pas `'`.
 | étape | step | stage |
 | rôle / permission | role / permission | — |
 | clé d'API | API key | token |
-| jeton d'API *(l'accès d'une CI au panel ; la clé d'API reste celle d'un fournisseur d'IA)* | API token | key, PAT |
-| second facteur | second factor | 2FA *(sauf en libellé court)* |
+| jeton d'API *(a CI's access to the panel; the API key stays an AI provider's)* | API token | key, PAT |
+| second facteur | second factor | 2FA *(except in a short label)* |
 | canal (de notification) | channel | destination |
-| résumé (digest) | digest | summary *(réservé à « récapitulatif »)* |
+| résumé (digest) | digest | summary *(reserved for « récapitulatif »)* |
 | récapitulatif | summary | recap |
 | régionalisation | regional settings | localization, i18n |
 | instance | instance | server, site |
@@ -73,38 +76,38 @@ avant la ponctuation double. Les apostrophes anglaises sont `’`, pas `'`.
 | identifiant | ID | identifier |
 | hôte | host | — |
 | port alloué | allocated port | assigned port |
-| rollback | rollback | roll back *(en nom)* |
+| rollback | rollback | roll back *(as a noun)* |
 | purge | purge | cleanup |
 | relancer | run again / restart | relaunch, retry *(retry = « réessayer »)* |
-| écarter (un scanner) | skip | disable *(réservé à « désactiver »)* |
+| écarter (un scanner) | skip | disable *(reserved for « désactiver »)* |
 | poser (un seuil, une clé) | set | put, place |
 | joignable / injoignable | reachable / unreachable | available |
 | en panne | down | offline |
 | rétabli | recovered | back up |
 
-## Le glossaire, par domaine
+## The glossary, by area
 
-Les mots ci-dessus valent partout. Ceux-ci ont été tranchés en traduisant un
-écran précis ; ils sont ici pour que le suivant ne retranche pas autrement.
+The words above apply everywhere. These were decided while translating a given
+screen; they are here so that the next person does not decide otherwise.
 
-### Cibles, charges, parc
+### Targets, workloads, fleet
 
-| Français | Anglais |
+| French | English |
 | --- | --- |
 | parc | fleet |
-| machine (dans un inventaire) | host |
-| genre d'une charge | `container` / `pod` / `deployment` *(des clés, pas des mots)* |
+| machine (in an inventory) | host |
+| genre d'une charge | `container` / `pod` / `deployment` *(keys, not words)* |
 | plage de ports publiables | publishable port range |
 | élévation sudo | sudo elevation |
 | empreinte (SSH) | fingerprint |
 | contrôle (de preflight) | check |
 | hors panel | outside the panel |
 | fiche (d'une cible) | details |
-| Gio / Mio | GiB / MiB *(base 1024 — vérifier le calcul avant de choisir)* |
+| Gio / Mio | GiB / MiB *(base 1024 — check the computation before choosing)* |
 
-### Déploiements, applications, scans
+### Deployments, applications, scans
 
-| Français | Anglais |
+| French | English |
 | --- | --- |
 | bloquant / conforme | blocking / clear |
 | indéterminé / en erreur | inconclusive / errored |
@@ -120,12 +123,12 @@ Les mots ci-dessus valent partout. Ceux-ci ont été tranchés en traduisant un
 | seuil de blocage | blocking threshold |
 | bloquer sur HIGH ou plus | block on HIGH and above |
 
-### Supervision, sondes, tâches
+### Monitoring, probes, jobs
 
-| Français | Anglais |
+| French | English |
 | --- | --- |
-| mesure *(un relevé de sonde)* | readout *(comme « relevé » — un seul mot pour une seule chose)* |
-| cadence | cadence *(rendue « every … », jamais « rate »)* |
+| mesure *(a probe readout)* | readout *(like « relevé » — a single word for a single thing)* |
+| cadence | cadence *(rendered « every … », never « rate »)* |
 | balayage | sweep |
 | frise (des verdicts) | strip |
 | bannière (TCP) | banner |
@@ -139,9 +142,9 @@ Les mots ci-dessus valent partout. Ceux-ci ont été tranchés en traduisant un
 | suspendue automatiquement | paused automatically |
 | répond mal | answers badly |
 
-### Comptes, rôles, journal
+### Accounts, roles, activity log
 
-| Français | Anglais |
+| French | English |
 | --- | --- |
 | connexion / se connecter | sign-in / sign in |
 | déconnexion | signing out |
@@ -149,7 +152,7 @@ Les mots ci-dessus valent partout. Ceux-ci ont été tranchés en traduisant un
 | code de secours | recovery code |
 | jeton / lien périmé | token / expired link |
 | invitation périmée | invitation expired |
-| relancer (une invitation) | send again *(« run again » vise une tâche)* |
+| relancer (une invitation) | send again *(« run again » is for a job)* |
 | réactiver (un compte) | re-enable |
 | configuration en cours (2FA) | setup under way |
 | système / anonyme | system / anonymous |
@@ -157,34 +160,34 @@ Les mots ci-dessus valent partout. Ceux-ci ont été tranchés en traduisant un
 | type de ressource | resource type |
 | nom affiché | displayed name |
 
-### Paramètres, assistant, alertes
+### Settings, setup guide, alerts
 
-| Français | Anglais |
+| French | English |
 | --- | --- |
 | prise en main / premiers pas | getting started / first steps |
-| parcours de prise en main | walkthrough *(distinct de « setup guide » = l'assistant) *|
+| parcours de prise en main | walkthrough *(distinct from « setup guide » = the wizard)* |
 | sous-titre (de l'instance) | tagline |
 | faite / passée / à faire | done / skipped / to do |
-| passage (compteur de relances) | run |
-| branchées (pastille de canaux) | wired |
+| passage (counter of reruns) | run |
+| branchées (channel badge) | wired |
 | garde-fou de volume | volume guard |
-| inactifs (champs en lecture seule) | inert |
+| inactifs (read-only fields) | inert |
 | économique / équilibré / le plus capable | budget / balanced / most capable |
-| constat (champ d'alerte) | observation |
+| constat (alert field) | observation |
 | pire valeur atteinte | worst value reached |
 | origine du seuil / levée par | threshold origin / cleared by |
 | version tentée / restaurée | attempted / restored version |
-| chiffrement (champ SMTP) | encryption |
+| chiffrement (SMTP field) | encryption |
 | identifiant de conversation | chat ID |
 | poste d'exploitation | operations desk |
 | en vol | in flight |
 | refus d'accès | access denials |
 
-## Le mécanisme
+## The mechanism
 
-Les dictionnaires vivent dans `messages/`, **un module par surface**. Chacun
-n'importe que des *types* : c'est ce qui permet à la garde de les charger avec
-Node sans rien compiler.
+The panel's dictionaries live in `messages/`, **one module per surface**. Each
+one only imports *types*: that is what lets the guard load them with Node without
+compiling anything.
 
 ```ts
 import type { Translated } from '@pupitre/core';
@@ -202,69 +205,72 @@ const en: Translated<typeof fr> = {
 export const targets = { fr, en };
 ```
 
-L'annotation `Translated<typeof fr>` est **la** garde : une clé manquante, une
-clé en trop ou un pluriel promis puis rendu en chaîne simple font échouer
-`pnpm typecheck`. Aucune traduction ne peut donc partir à moitié.
+The `Translated<typeof fr>` annotation is **the** guard: a missing key, an extra
+key or a plural promised then returned as a plain string fail `pnpm typecheck`.
+No translation can therefore go out half done.
 
-Usage :
+Usage:
 
 ```tsx
-// composant serveur
+// server component
 const t = await getT(targets);   // @/i18n/server
-// composant client
+// client component
 const t = useT(targets);         // @/i18n/client
 t('page.title');
 t('count', { count: n });
 ```
 
-## Les pluriels
+Away from the screens, `@pupitre/core`, the worker and `@pupitre/db` follow the
+same pattern in their own `messages.ts` files, with `translator(copy, language)`
+from `@pupitre/core`: the language comes from the instance, through the context
+(`TargetContext.language`, `ProbeContext.language`…).
 
-`${n > 1 ? 's' : ''}` ne survit pas à l'anglais : le français écrit « 0 cible
-prête », l'anglais *0 targets ready*. `Intl.PluralRules` connaît cette
-différence — on lui laisse le travail.
+## Plurals
+
+`${n > 1 ? 's' : ''}` does not survive English: French writes « 0 cible prête »,
+English *0 targets ready*. `Intl.PluralRules` knows that difference — we leave
+it the work.
 
 ```ts
 'ready': { one: '{count} cible prête', other: '{count} cibles prêtes' },
 ```
 
-`zero` est facultatif et n'est pas une forme grammaticale : c'est la place de
-« Aucune cible » là où « 0 cible » se lirait mal.
+`zero` is optional and is not a grammatical form: it is the place for « Aucune
+cible » where « 0 cible » would read badly.
 
-## La règle qui ne se discute pas
+## The rule that is not up for debate
 
-**La colonne `fr` reproduit à l'identique la chaîne qui existait.** Pas une
-virgule déplacée, pas une apostrophe redressée. Des vérifications d'intégration
-cherchent ces chaînes exactes dans le HTML servi ; le français par défaut doit
-rester octet pour octet ce qu'il était. Une amélioration de formulation
-française est un autre commit.
+**The `fr` column reproduces the string that existed exactly.** Not a comma
+moved, not an apostrophe straightened. Integration checks look for these exact
+strings in the served HTML; the default French must stay byte for byte what it
+was. An improvement of French wording is another commit.
 
-## La frontière
+## The boundary
 
-Traduit : tout ce qui s'affiche dans le panel, les messages d'erreur de l'API,
-les e-mails transactionnels, les alertes des canaux.
+Translated: everything shown in the panel, the API's error messages,
+transactional emails, channel alerts, deployment logs, driver errors and schema
+complaints — the last three when they are emitted, in the instance's language.
 
-Pas traduit, et volontairement : les commentaires de code, les messages Pino,
-les clés de permission, les codes d'erreur, les noms d'action du journal
-d'activité, les identifiants de queue et les libellés de fournisseurs.
+Not translated, on purpose: code comments, Pino messages, permission keys, error
+codes, activity log action names, queue identifiers and provider labels.
 
-Pas traduit non plus, parce que ce sont des **données** et non des phrases : ce
-qu'un utilisateur a saisi (nom d'instance, sous-titre, description de cible,
-libellé de rôle), les charges utiles du journal d'activité, les lignes de log de
-déploiement écrites par le worker, et les sorties de commandes distantes.
+Not translated either, because they are **data** and not sentences: what a user
+entered (instance name, tagline, target description, role label), activity log
+payloads, a deployment log line already written (it stays in the language it was
+written in), and the output of remote commands.
 
-## L'échappatoire
+## The escape hatch
 
-Une chaîne française légitime dans un composant — un script shell à
-copier-coller, un marqueur interne, une valeur d'audit — se marque avec un
-commentaire `i18n-ignore` **sur la ligne ou juste au-dessus**, qui dit
-*pourquoi*. La marque couvre la déclaration qu'elle précède et s'arrête à la
-première ligne vide.
+A legitimate French string in a component — a shell script to copy and paste,
+an internal marker, an audit value — is marked with an `i18n-ignore` comment
+**on the line or just above**, which says *why*. The mark covers the
+declaration it precedes and stops at the first empty line.
 
 ```ts
-// i18n-ignore — charge utile d'audit, figée à l'écriture : la traduire
-// fixerait la langue de la trace pour toujours.
+// i18n-ignore — audit payload, frozen when written: translating it would fix
+// the language of the trace forever.
 secrets: channel.configuredSecrets.map((field) => `${field} (défini)`),
 ```
 
-Trois familles n'ont besoin d'aucune marque, la garde les traverse d'elle-même :
-`logger.*()`, `console.*()` et `new Error()`.
+Three families need no mark, the guard goes through them by itself:
+`logger.*()`, `console.*()` and `new Error()`.

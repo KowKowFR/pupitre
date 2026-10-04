@@ -1,0 +1,130 @@
+name: Bug report
+description: Something does not behave the way the documentation says.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Two checks before going on, they save time on both sides:
+
+        - the **"Known limits"** section of the README lists what already does
+          not work, with measurements. Your problem may be described there;
+        - a **security vulnerability** is not reported here. See `SECURITY.md`.
+
+        English or French, as you prefer.
+
+  - type: textarea
+    id: expected-observed
+    attributes:
+      label: What you expected, and what you got
+      description: >-
+        If the documentation says something other than what the code does, quote
+        the passage — the documentation may be the one that is wrong.
+      placeholder: |
+        Expected: the deployment stops at the "scan" step with failOn: HIGH.
+        Got: the step turns success, and the deployment carries on.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      description: >-
+        Number the steps. A `curl` command, a minimal AppSpec or a script are
+        worth more than a description.
+      placeholder: |
+        1. cp .env.example .env && docker compose up -d --build
+        2. ./scripts/setup-test-target.sh
+        3. create an application from the spec below
+        4. deploy with failOn: HIGH
+    validations:
+      required: true
+
+  - type: textarea
+    id: appspec
+    attributes:
+      label: AppSpec involved, if the problem affects a deployment
+      description: >-
+        Reduce it to the minimum that reproduces. **Remove any secret value.**
+      render: json
+
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Target runtime
+      options:
+        - Docker Compose
+        - K3s
+        - both
+        - not applicable
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area involved
+      multiple: true
+      options:
+        - Panel (apps/web)
+        - Worker (apps/worker)
+        - Docker driver
+        - K3s driver
+        - AppSpec and rendering
+        - Reverse proxy and domains
+        - Linked repositories and uploaded code
+        - Scanners (Trivy / Grype / Syft)
+        - Secrets and encryption
+        - RBAC, accounts, TOTP, single sign-on
+        - Website or server monitoring
+        - Notifications
+        - Backups
+        - Scheduled tasks
+        - AI generation
+        - Translations
+        - Documentation
+        - I don't know
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >-
+        `docker compose logs --tail=200 panel worker`, or the deployment's log
+        export. **Read it again before pasting**: no key, no password, no IP
+        address you do not want to publish.
+      render: text
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit
+      description: 'Output of `git rev-parse --short HEAD`. There is no published version.'
+      placeholder: 94a3dd2
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: >-
+        The panel's system, the target's system, Docker or k3s versions on the
+        target side. `curl -s http://localhost:3000/api/health` is useful too.
+      placeholder: |
+        Panel   : macOS 15, Docker Desktop 4.x
+        Target  : Debian 12, Docker 27.3
+        health  : {"status":"ok","db":"ok","redis":"ok"}
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I read the "Known limits" section of the README and my problem is not described there.
+          required: true
+        - label: This report contains no key, no password and no secret value.
+          required: true

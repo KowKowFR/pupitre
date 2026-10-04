@@ -1,20 +1,20 @@
 <!--
-Merci. Ce modèle est court exprès : ce qu'il demande, c'est ce que la revue
-regardera de toute façon. Supprimez les sections sans objet.
-Guide complet : CONTRIBUTING.md
+Thank you. This template is short on purpose: what it asks for is what review
+will look at anyway. Delete the sections that do not apply.
+Full guide: CONTRIBUTING.md
 -->
 
-## Ce que ça change
+## What this changes
 
-<!-- Deux ou trois phrases. L'effet, pas la liste des fichiers touchés. -->
+<!-- Two or three sentences. The effect, not the list of files touched. -->
 
-Ferme #
+Closes #
 
-## Ce que j'ai lancé
+## What I ran
 
 <!--
-Collez la SORTIE RÉELLE, pas une case cochée. « Ça marche chez moi » n'est pas
-une vérification. Le socle est celui de la CI :
+Paste the REAL OUTPUT, not a ticked box. "Works on my machine" is not a
+verification. The base is the CI's:
 -->
 
 ```
@@ -28,29 +28,29 @@ pnpm test:ai
 ```
 
 <!--
-Et les scripts de vérification concernés par ce que vous touchez, avec leur
-dernière ligne. Si vous n'avez pas pu en lancer un — pas de cible, pas de
-cluster, pas de clé d'IA — DITES-LE ici plutôt que de l'omettre.
+And the verification scripts concerned by what you touch, with their last line.
+If you could not run one — no target, no cluster, no AI key — SAY SO here rather
+than leaving it out.
 -->
 
-## Les règles du projet
+## The project's rules
 
-- [ ] Aucun `if (runtime === ...)` de plus hors des drivers.
+- [ ] No new `if (runtime === ...)` outside the drivers.
       `grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' | grep -v /drivers/ | grep -v /dist/`
-      rend toujours la même unique ligne connue, pas une de plus.
-- [ ] Aucune opération longue dans une route HTTP : ça passe par BullMQ.
-- [ ] Le journal d'activité passe par `logAudit()`, pas par un insert dispersé.
-- [ ] Aucun secret en clair — ni en base, ni dans les logs, ni dans une réponse
-      d'API, ni dans ce diff.
-- [ ] Aucune migration existante n'a été modifiée, renommée ni supprimée. Les
-      nouvelles ont été relues à la main.
-- [ ] Une nouvelle route protégée passe par `requirePermission()`.
-- [ ] La documentation concernée est à jour dans cette même pull request.
+      still returns no line.
+- [ ] No long-running operation in an HTTP route: it goes through BullMQ.
+- [ ] The audit log goes through `logAudit()`, not through a scattered insert.
+- [ ] No secret in clear — neither in the database, nor in the logs, nor in an API
+      response, nor in this diff.
+- [ ] No existing migration was changed, renamed or deleted. New ones were read
+      by hand.
+- [ ] A new protected route goes through `requirePermission()`.
+- [ ] What a user reads goes through a dictionary, in French and in English.
+- [ ] The relevant documentation is up to date in this same pull request.
 
-## Ce qui manque, ou ce dont je ne suis pas sûr
+## What is missing, or what I am not sure about
 
 <!--
-Une pull request honnête sur ses trous se relit mieux qu'une pull request
-silencieuse. Ce que vous n'avez pas pu vérifier, ce que vous soupçonnez, ce que
-vous avez laissé pour plus tard : c'est ici.
+A pull request honest about its gaps reads better than a silent one. What you
+could not verify, what you suspect, what you left for later: it goes here.
 -->

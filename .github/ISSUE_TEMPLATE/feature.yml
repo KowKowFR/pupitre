@@ -1,0 +1,93 @@
+name: Feature proposal
+description: A missing capability, or a way of doing things to change.
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Three things to know before writing, they often decide the answer:
+
+        - **`CLAUDE.md` holds settled decisions** (no registry, no Ansible, no
+          Linux cron, build on the target machine). A proposal that reopens one
+          must first say why the decision was wrong;
+        - **`docs/roadmap.md`** lists what is already missing, with the place in
+          the code concerned. Your idea may be there;
+        - the project's quality bar is that **adding a runtime, a proxy, a
+          scanner or a code provider is done by adding a class**, without
+          changing a line elsewhere. Proposals that respect this shape move
+          fast; the others do not.
+
+        English or French, as you prefer.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >-
+        Describe the situation you live, not the solution. "I cannot X because
+        Y", rather than "a Z button should be added".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: >-
+        If you see where it lives in the code — a driver, an interface, a table,
+        a route — say so.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: abstraction
+    attributes:
+      label: Is it a new implementation of an existing abstraction?
+      description: >-
+        A new runtime, a new proxy, a new scanner, a new code provider, a new
+        probe type or a new notification channel plugs into an interface that
+        already exists.
+      options:
+        - 'No'
+        - 'Yes — a DeploymentDriver'
+        - 'Yes — a ProxyProvider'
+        - 'Yes — a Scanner'
+        - 'Yes — a SourceProvider'
+        - 'Yes — a probe type'
+        - 'Yes — a notification channel'
+        - I don't know
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What else you considered
+      description: >-
+        Including the workarounds that work today. An acceptable workaround is a
+        legitimate reason to do nothing.
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: How we would know it is done
+      description: >-
+        The project verifies its capabilities with scripts that take the same
+        routes as the interface. What would this one look like? What should it
+        prove, and on which infrastructure?
+      placeholder: >-
+        One more scanner, ticked alone in the policy, gives the same blocking
+        verdict as Trivy on the same deliberately vulnerable image, and the
+        comparison is made CVE by CVE.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I read `docs/roadmap.md` and my proposal is not already there.
+          required: true
+        - label: >-
+            If my proposal reopens a settled decision of `CLAUDE.md`, I said so
+            explicitly above.
+          required: true

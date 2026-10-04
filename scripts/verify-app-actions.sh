@@ -24,7 +24,7 @@
 #
 # Prérequis : une cible Docker et une cible K3s déployables.
 #   ./scripts/setup-test-target.sh   provisionne la première
-#   docs/demarrage.md                explique la seconde
+#   docs/getting-started.md          explique la seconde
 #
 # Usage :
 #   ./scripts/verify-app-actions.sh
