@@ -1,3 +1,4 @@
+import type { UiLanguage } from '../i18n.js';
 /**
  * Types de la couche SSH. Volontairement séparés du client pour que le reste
  * du monorepo puisse les importer sans tirer `ssh2` dans son graphe.
@@ -86,4 +87,9 @@ export type ConnectOptions = {
   /** Tentatives sur échec réseau. Défaut : 3. Jamais appliqué à un échec d'authentification. */
   retries?: number;
   logger?: SshLogger;
+  /**
+   * La langue de ce que la session dira — erreurs de connexion, délais
+   * dépassés. Celle de l'instance ; le français à défaut.
+   */
+  language?: UiLanguage;
 };

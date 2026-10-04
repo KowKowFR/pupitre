@@ -1,6 +1,7 @@
 import { exec } from '../ssh/client.js';
 import type { DriverContext, LogSink, TargetContext } from './types.js';
 import { firstLine, shellQuote } from '../shell.js';
+import { driverSay } from './messages.js';
 
 /**
  * Pare-feu UFW sur la machine cible.
@@ -95,12 +96,11 @@ export async function ufwAllowPort(
   /** N'ouvrir qu'à cette adresse — un proxy distant. Absente : à tous. */
   from?: string,
 ): Promise<void> {
+  const say = driverSay(ctx.language);
   const state = await ufwState(ctx);
   if (state !== 'active') {
     onLog(
-      state === 'absent'
-        ? `⚠ ufw absent de ${ctx.target.name} — le port ${port} n'est filtré par personne`
-        : `⚠ ufw inactif sur ${ctx.target.name} — aucune règle posée pour le port ${port}`,
+      say(state === 'absent' ? 'ufw.absent' : 'ufw.inactive', { target: ctx.target.name, port }),
     );
     return;
   }
@@ -116,7 +116,9 @@ export async function ufwAllowPort(
   if (result.code !== 0) {
     // Un pare-feu qui refuse une règle n'est pas une raison de perdre le
     // déploiement : on le dit fort, on ne l'interrompt pas.
-    onLog(`⚠ ufw ${rule} a échoué : ${firstLine(result.stderr) ?? `code ${result.code}`}`);
+    onLog(
+      say('ufw.ruleFailed', { rule, detail: firstLine(result.stderr) ?? `code ${result.code}` }),
+    );
     return;
   }
   onLog(`ufw ${rule} (${comment})`);
@@ -134,9 +136,10 @@ export async function ufwDelete(
   port: number,
   onLog: LogSink,
 ): Promise<void> {
+  const say = driverSay(ctx.language);
   const state = await ufwState(ctx);
   if (state !== 'active') {
-    onLog(`⚠ ufw ${state === 'absent' ? 'absent' : 'inactif'} — aucune règle à retirer`);
+    onLog(say(state === 'absent' ? 'ufw.nothingToRemove.absent' : 'ufw.nothingToRemove.inactive'));
     return;
   }
 
@@ -170,12 +173,12 @@ export async function ufwDelete(
   );
 
   if (remaining.stdout.trim().length > 0) {
-    onLog(`⚠ la règle ${port}/tcp (${comment}) est toujours présente : ${remaining.stdout.trim()}`);
+    onLog(say('ufw.stillThere', { port, comment, rules: remaining.stdout.trim() }));
     return;
   }
   onLog(
     result.code === 0
       ? `ufw delete allow ${port}/tcp (${comment})`
-      : `ufw : plus aucune règle ${port}/tcp (${comment})`,
+      : say('ufw.noRuleLeft', { port, comment }),
   );
 }

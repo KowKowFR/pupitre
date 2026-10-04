@@ -3,6 +3,7 @@ import { collectHostMetrics } from '@pupitre/core/ssh';
 import { getTargetSecret, recordTargetSample, type SampleSource } from '@pupitre/db';
 import { sshTargetOf } from '../deploy/ssh-target.js';
 import { env } from '../env.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
 
 /**
@@ -26,6 +27,7 @@ export async function collectAndRecord(
 
   const metrics = await collectHostMetrics(targetId, sshTargetOf(record), {
     rootPath: env.DRIVER_ROOT_PATH,
+    language: await instanceLanguage(),
     logger,
   });
 

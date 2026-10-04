@@ -854,6 +854,7 @@ function fakeTarget(
   const ctx: TargetContext = {
     target: { id: 'cible', name: 'k3s-1', host: 'k3s.test', rootPath: '/opt/pupitre' },
     sshSession: session,
+    language: 'fr',
   };
   return { ctx, commands };
 }

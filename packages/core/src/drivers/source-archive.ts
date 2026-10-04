@@ -2,7 +2,9 @@ import { posix } from 'node:path';
 import { exec, upload } from '../ssh/client.js';
 import type { SshSession } from '../ssh/client.js';
 import { DriverError, type LogSink, type RuntimeKind, type SourceArchive } from './types.js';
+import type { UiLanguage } from '../i18n.js';
 import { shellQuote } from '../shell.js';
+import { driverSay } from './messages.js';
 
 /** Décompresser un gros dépôt prend du temps ; au-delà, quelque chose ne va pas. */
 const EXTRACT_TIMEOUT_MS = 5 * 60_000;
@@ -48,10 +50,12 @@ export async function extractSourceArchive(
   archive: SourceArchive,
   onLog: LogSink,
   runtime: RuntimeKind,
+  language: UiLanguage,
 ): Promise<void> {
+  const say = driverSay(language);
   const remote = `${release}/.pupitre-source.tar.gz`;
   const directory = `${release}/${SOURCE_DIR}`;
-  onLog(`dépôt du code source (archive du commit) dans ${SOURCE_DIR}/`);
+  onLog(say('source.depositing', { dir: SOURCE_DIR }));
   await upload(session, archive.localPath, remote);
 
   const result = await exec(
@@ -63,8 +67,8 @@ export async function extractSourceArchive(
   );
   if (result.code !== 0) {
     const detail = result.stderr.trim().split('\n')[0] || `code ${result.code}`;
-    onLog(`✗ extraction du code source : ${detail}`);
-    throw new DriverError(`Extraction du code source impossible : ${detail}`, runtime, 'upload');
+    onLog(say('source.extractFailed.log', { detail }));
+    throw new DriverError(say('source.extractFailed', { detail }), runtime, 'upload');
   }
-  onLog('✓ code source extrait');
+  onLog(say('source.extracted'));
 }

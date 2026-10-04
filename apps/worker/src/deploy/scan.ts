@@ -24,6 +24,7 @@ import {
   finishScanRun,
 } from '@pupitre/db';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 
 /**
  * Étape « scan » du pipeline.
@@ -90,11 +91,12 @@ export type ScanStepInput = {
  */
 export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepResult> {
   const { deploymentId, ctx, config, images, onLog } = input;
+  const say = workerSay(ctx.language);
 
   if (input.clearPrevious !== false) {
     // Une relance rejoue l'étape : on repart d'une ardoise propre.
     const removed = await clearScanRuns(deploymentId);
-    if (removed > 0) onLog(`${removed} exécution(s) précédente(s) écartée(s)`);
+    if (removed > 0) onLog(say('scan.cleared', { count: removed }));
   }
 
   // Les failles acceptées valent au moment du scan : c'est l'application qui
@@ -107,10 +109,14 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
   };
 
   onLog(
-    `${config.scanners.map(scannerLabel).join(', ')} sur ${images.length} image(s) — ` +
-      `seuil de blocage : ${config.failOn}` +
-      (policy.onlyFixable ? ', failles corrigeables seulement' : '') +
-      (acceptances.length > 0 ? `, ${acceptances.length} faille(s) acceptée(s)` : ''),
+    say('scan.plan', {
+      scanners: config.scanners.map(scannerLabel).join(', '),
+      images: images.length,
+      failOn: config.failOn,
+      options:
+        (policy.onlyFixable ? say('scan.plan.onlyFixable') : '') +
+        (acceptances.length > 0 ? say('scan.plan.accepted', { count: acceptances.length }) : ''),
+    }),
   );
 
   // Installation d'abord, en parallèle entre outils distincts : deux exécutions
@@ -125,7 +131,7 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
         logger.info({ scanner: key, version }, 'scanner disponible sur la cible');
       } catch (error) {
         // L'échec est reproduit — et enregistré — au moment du `run`.
-        onLog(`${prefix} installation impossible : ${errorMessage(error)}`);
+        onLog(say('scan.installFailed', { prefix, error: errorMessage(error) }));
       }
     }),
   );
@@ -147,7 +153,7 @@ export async function runSecurityScan(input: ScanStepInput): Promise<ScanStepRes
     // d'écriture en base, pas un scanner en défaut. On le rend visible.
     const task = tasks[index];
     const message = errorMessage(result.reason);
-    onLog(`[${task?.scanner ?? '?'}] exécution non enregistrée : ${message}`);
+    onLog(say('scan.unrecorded', { scanner: task?.scanner ?? '?', error: message }));
     if (task) {
       runs.push({
         scanner: task.scanner,
@@ -202,6 +208,7 @@ async function runOne(
   policy: ScanPolicy,
 ): Promise<ScanRunOutcome> {
   const { deploymentId, ctx, config, store, onLog } = input;
+  const say = workerSay(ctx.language);
   const prefix = `[${task.scanner}]`;
   const scanner = getScanner(task.scanner);
 
@@ -236,14 +243,20 @@ async function runOne(
 
     const worst = worstSeverity(counts);
     onLog(
-      `${prefix} ${report.kind === 'sbom' ? 'SBOM produit' : `${report.findings.length} finding(s)`}` +
-        `${worst ? ` — pire sévérité : ${worst}` : ''}` +
+      `${prefix} ` +
+        (report.kind === 'sbom'
+          ? say('scan.sbom')
+          : say('scan.findings', { count: report.findings.length })) +
+        (worst ? say('scan.worst', { severity: worst }) : '') +
         (report.kind === 'vulnerability'
-          ? ` — ${summary.fixable} corrigeable(s)` +
-            (summary.accepted > 0 ? `, ${summary.accepted} acceptée(s)` : '') +
-            `, ${summary.blocking} bloquante(s)`
+          ? say('scan.vulnerabilities', {
+              fixable: summary.fixable,
+              accepted:
+                summary.accepted > 0 ? say('scan.accepted', { count: summary.accepted }) : '',
+              blocking: summary.blocking,
+            })
           : '') +
-        ` — verdict ${verdict} (${report.durationMs} ms)`,
+        say('scan.verdict', { verdict, ms: report.durationMs }),
     );
 
     return {

@@ -136,7 +136,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
   const [blockers, reservedPorts, historyCount] = await Promise.all([
-    listApplicationDeletionBlockers(id),
+    listApplicationDeletionBlockers(id, { language: await currentLanguage() }),
     listApplicationPortAllocations(id),
     countDeploymentsFor(id),
   ]);
@@ -177,7 +177,11 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const application = await getApplication(id);
   if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  const blockers = await listApplicationDeletionBlockers(id);
+  // Les listes ci-dessous s'insèrent DANS la phrase : elles ne peuvent pas
+  // attendre la sérialisation comme `msg()`. On lit la langue ici pour que
+  // les morceaux tombent d'accord.
+  const language = await currentLanguage();
+  const blockers = await listApplicationDeletionBlockers(id, { language });
 
   // Un déploiement en cours ne se détruit pas et ne s'efface pas, forçage
   // compris : effacer la ligne sous le worker qui l'écrit laisserait la machine
@@ -185,10 +189,6 @@ export const POST = apiRoute<Context>(async (request, context) => {
   // on attend.
   const inProgress = blockers.filter((blocker) => blocker.reason === 'in_progress');
   if (inProgress.length > 0) {
-    // Les listes ci-dessous s'insèrent DANS la phrase : elles ne peuvent pas
-    // attendre la sérialisation comme `msg()`. On lit la langue ici pour que
-    // les deux morceaux tombent d'accord.
-    const language = await currentLanguage();
     throw new ConflictError(
       msg(messages, 'error.deploymentsInProgress', {
         count: inProgress.length,
@@ -206,7 +206,6 @@ export const POST = apiRoute<Context>(async (request, context) => {
   }
 
   if (force && confirm !== application.slug) {
-    const language = await currentLanguage();
     throw new HttpError(
       422,
       'confirmation_required',

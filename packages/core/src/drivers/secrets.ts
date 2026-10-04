@@ -5,6 +5,8 @@ import {
   storedSecretNames,
   type AppSpec,
 } from '../spec/index.js';
+import type { UiLanguage } from '../i18n.js';
+import { driverSay } from './messages.js';
 
 /**
  * Résolution des valeurs de secrets, au moment du rendu.
@@ -29,11 +31,11 @@ import {
 export class UnresolvedSecretError extends Error {
   override readonly name = 'UnresolvedSecretError';
 
-  constructor(readonly names: readonly string[]) {
-    super(
-      `Secret(s) déclaré(s) par l'AppSpec mais sans valeur résolue : ${names.join(', ')}. ` +
-        "Renseignez-les sur l'écran de l'application avant de déployer.",
-    );
+  constructor(
+    readonly names: readonly string[],
+    language: UiLanguage = 'fr',
+  ) {
+    super(driverSay(language)('secrets.unresolved', { names: names.join(', ') }));
   }
 }
 
@@ -70,6 +72,7 @@ export { storedSecretNames };
 export function completeSecretValues(
   spec: AppSpec,
   values: Readonly<Record<string, string>> = {},
+  language: UiLanguage = 'fr',
 ): Record<string, string> {
   const bindings = secretBindings(spec);
   const complete: Record<string, string> = {};
@@ -86,6 +89,6 @@ export function completeSecretValues(
     }
   }
 
-  if (missing.size > 0) throw new UnresolvedSecretError([...missing]);
+  if (missing.size > 0) throw new UnresolvedSecretError([...missing], language);
   return complete;
 }

@@ -248,6 +248,7 @@ const fr = {
     "Ce déploiement s'est conclu pendant la vérification : rien à débloquer.",
   'error.settledWhileUnblocking':
     "Ce déploiement s'est conclu pendant le déblocage : son statut n'a pas été touché.",
+  'unblock.cause': 'file interrogée à la demande depuis le panel',
 
   /**
    * Le refus de déblocage. Il **nomme** la tâche qui innocente le déploiement :
@@ -480,6 +481,7 @@ const en: Translated<typeof fr> = {
     'This deployment settled while it was being checked: nothing to unblock.',
   'error.settledWhileUnblocking':
     'This deployment settled while it was being unblocked: its status was left alone.',
+  'unblock.cause': 'queue checked on demand from the panel',
 
   'unblock.refusal.job': {
     one: 'This deployment is not stuck: its job “{name}” (#{id}) is still in the “ops” queue, in state “{state}”. A deployment can legitimately take several minutes — a build, a large image to pull, an app slow to answer. This one is {count} minute in. Wait for its verdict, or destroy it once it has ruled.',
