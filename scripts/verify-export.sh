@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# Vérifie l'export des logs :
+# Checks the logs export:
 #
-#   1. l'export texte d'un déploiement existant renvoie du contenu, avec les
-#      bons en-têtes HTTP (content-type, content-disposition)
-#   2. l'export JSONL produit des lignes qui passent toutes `jq -e .`
-#   3. le nombre de lignes exportées correspond EXACTEMENT au contenu de la base
-#      — c'est ce qui prouve que la pagination ne tronque rien
-#   4. un identifiant inexistant renvoie 404, un identifiant mal formé 422
-#   5. `deployment:read` est requis : un utilisateur sans cette permission → 403
-#   6. l'export laisse une trace dans le journal d'audit
+#   1. the text export of an existing deployment returns content, with the
+#      right HTTP headers (content-type, content-disposition)
+#   2. the JSONL export produces lines that all pass `jq -e .`
+#   3. the number of exported lines matches EXACTLY the database's content
+#      — it is what proves that the pagination truncates nothing
+#   4. an unknown identifier returns 404, a malformed identifier 422
+#   5. `deployment:read` is required: a user without this permission → 403
+#   6. the export leaves a trace in the audit log
 #
-# Usage :
+# Usage:
 #   ./scripts/verify-export.sh
 #   BASE_URL=http://localhost:3200 ./scripts/verify-export.sh
 #
@@ -33,7 +33,7 @@ HDR="$WORK/headers.txt"
 OUT="$WORK/export.out"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -49,7 +49,7 @@ req() {
   curl "${args[@]}"
 }
 
-# Télécharge un export en conservant en-têtes et corps séparément.
+# Downloads an export, keeping the headers and the body apart.
 download() {
   local path="$1" jar="${2:-$JAR}"
   curl -s -D "$HDR" -o "$OUT" -w '%{http_code}' \
@@ -74,7 +74,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -82,19 +82,19 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
-step "2. Un déploiement dont le journal n'est pas vide"
+step "2. A deployment whose log is not empty"
 DEPLOYMENT_ID=$(psql_q "select d.id from deployments d
   join deployment_steps s on s.deployment_id = d.id
   group by d.id having sum(length(s.log)) > 0
   order by sum(length(s.log)) desc limit 1;")
-[ -n "$DEPLOYMENT_ID" ] || fail "aucun déploiement avec des logs en base"
+[ -n "$DEPLOYMENT_ID" ] || fail "no deployment with logs in the database"
 
 META=$(psql_q "select a.slug || '|' || d.version || '|' ||
   to_char((coalesce(d.finished_at, d.created_at) at time zone 'UTC'), 'YYYY-MM-DD')
@@ -102,45 +102,44 @@ META=$(psql_q "select a.slug || '|' || d.version || '|' ||
   where d.id = '$DEPLOYMENT_ID';")
 SLUG="${META%%|*}"; REST="${META#*|}"; VERSION="${REST%%|*}"; STAMP="${REST#*|}"
 
-# Référence : ce que la base contient, ligne par ligne, sans les vides.
+# Reference: what the database contains, line by line, without the empty ones.
 DB_LINES=$(psql_q "select count(*) from deployment_steps s,
   unnest(string_to_array(s.log, E'\n')) as l
   where s.deployment_id = '$DEPLOYMENT_ID' and btrim(l) <> '';")
 
-pass "déploiement $DEPLOYMENT_ID — $SLUG v$VERSION"
-info "la base contient $DB_LINES ligne(s) de journal"
+pass "deployment $DEPLOYMENT_ID — $SLUG v$VERSION"
+info "the database contains $DB_LINES log line(s)"
 
 step "3. Export texte"
 code=$(download "/api/deployments/$DEPLOYMENT_ID/logs/export?format=text")
 [ "$code" = "200" ] || fail "export texte → HTTP $code : $(head -c 300 "$OUT")"
-[ -s "$OUT" ] || fail "le fichier exporté est vide"
+[ -s "$OUT" ] || fail "the exported file is empty"
 
 CT=$(header_of content-type)
-[ "$CT" = "text/plain; charset=utf-8" ] || fail "content-type inattendu : « $CT »"
+[ "$CT" = "text/plain; charset=utf-8" ] || fail "unexpected content-type: \"$CT\""
 pass "content-type : $CT"
 
 CD=$(header_of content-disposition)
 EXPECTED="attachment; filename=\"$SLUG-v$VERSION-$STAMP.log\""
 case "$CD" in
   "$EXPECTED"*) pass "content-disposition : $CD" ;;
-  *) fail "content-disposition inattendu : « $CD » (attendu « $EXPECTED… »)" ;;
+  *) fail "unexpected content-disposition: \"$CD\" (expected \"$EXPECTED…\")" ;;
 esac
-grep -q "filename\*=UTF-8''" <<< "$CD" || fail "la forme RFC 6266 « filename* » manque"
-pass "forme « filename* » présente (RFC 6266)"
+grep -q "filename\*=UTF-8''" <<< "$CD" || fail "the RFC 6266 \"filename*\" form is missing"
+pass "\"filename*\" form present (RFC 6266)"
 
-grep -q "^# Deployment log" "$OUT" || fail "en-tête du fichier absent"
-grep -q "^# Exported on " "$OUT" || fail "le fichier ne dit pas quand il a été exporté"
-pass "en-tête : $(head -1 "$OUT")"
+grep -q "^# Deployment log" "$OUT" || fail "file header missing"
+grep -q "^# Exported on " "$OUT" || fail "the file does not say when it was exported"
+pass "header: $(head -1 "$OUT")"
 
-# Une entrée de journal peut tenir sur plusieurs lignes physiques : le bloc de
-# diagnostic d'un rollback (« $ docker compose ps -a » et sa sortie) est UNE
-# entrée en base. Compter les lignes du fichier comparerait des lignes physiques
-# à des entrées logiques. On compte donc les débuts d'entrée, reconnaissables à
-# leur horodatage en tête.
+# A log entry can span several physical lines: a rollback's diagnostic block
+# ("$ docker compose ps -a" and its output) is ONE entry in the database.
+# Counting the file's lines would compare physical lines to logical entries. So
+# we count the entry starts, recognizable by their leading timestamp.
 TEXT_LINES=$(grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T' "$OUT" || true)
 [ "$TEXT_LINES" = "$DB_LINES" ] \
-  || fail "export texte : $TEXT_LINES ligne(s) exportée(s) pour $DB_LINES en base"
-pass "$TEXT_LINES ligne(s) exportées = $DB_LINES ligne(s) en base"
+  || fail "text export: $TEXT_LINES line(s) exported for $DB_LINES in the database"
+pass "$TEXT_LINES exported line(s) = $DB_LINES line(s) in the database"
 info "$(grep -v '^#' "$OUT" | head -1)"
 
 step "4. Export JSONL"
@@ -148,63 +147,63 @@ code=$(download "/api/deployments/$DEPLOYMENT_ID/logs/export?format=jsonl")
 [ "$code" = "200" ] || fail "export jsonl → HTTP $code : $(head -c 300 "$OUT")"
 
 CT=$(header_of content-type)
-[ "$CT" = "application/x-ndjson; charset=utf-8" ] || fail "content-type inattendu : « $CT »"
+[ "$CT" = "application/x-ndjson; charset=utf-8" ] || fail "unexpected content-type: \"$CT\""
 pass "content-type : $CT"
 
 CD=$(header_of content-disposition)
 case "$CD" in
   "attachment; filename=\"$SLUG-v$VERSION-$STAMP.jsonl\""*) pass "content-disposition : $CD" ;;
-  *) fail "content-disposition inattendu : « $CD »" ;;
+  *) fail "unexpected content-disposition: \"$CD\"" ;;
 esac
 
-# Chaque ligne doit être un objet JSON à elle seule : c'est tout le contrat du
-# format. On les valide une par une, pas en bloc.
+# Each line must be a JSON object on its own: it is the whole contract of the
+# format. They are validated one by one, not as a block.
 bad=0
 while IFS= read -r line; do
   jq -e . >/dev/null 2>&1 <<< "$line" || bad=$((bad + 1))
 done < "$OUT"
-[ "$bad" = "0" ] || fail "$bad ligne(s) JSONL invalide(s)"
+[ "$bad" = "0" ] || fail "$bad invalid JSONL line(s)"
 JSONL_LINES=$(wc -l < "$OUT" | tr -d ' ')
-pass "$JSONL_LINES ligne(s) passent toutes « jq -e . »"
+pass "$JSONL_LINES line(s) all pass \"jq -e .\""
 
 [ "$JSONL_LINES" = "$DB_LINES" ] \
-  || fail "export jsonl : $JSONL_LINES ligne(s) exportée(s) pour $DB_LINES en base"
-pass "$JSONL_LINES ligne(s) exportées = $DB_LINES ligne(s) en base"
+  || fail "jsonl export: $JSONL_LINES line(s) exported for $DB_LINES in the database"
+pass "$JSONL_LINES exported line(s) = $DB_LINES line(s) in the database"
 
 jq -e 'has("ts") and has("step") and has("stream") and has("line")' >/dev/null <<< "$(head -1 "$OUT")" \
-  || fail "une ligne JSONL ne porte pas les quatre champs attendus"
+  || fail "a JSONL line does not carry the four expected fields"
 pass "champs : $(head -1 "$OUT" | jq -c 'keys')"
 
-step "5. Identifiants refusés"
+step "5. Refused identifiers"
 code=$(download "/api/deployments/00000000-0000-4000-8000-000000000000/logs/export")
-[ "$code" = "404" ] || fail "uuid inconnu : attendu 404, reçu $code"
+[ "$code" = "404" ] || fail "unknown uuid: expected 404, got $code"
 pass "uuid inconnu → 404"
 
 code=$(download "/api/deployments/pas-un-uuid/logs/export")
-[ "$code" = "422" ] || fail "identifiant mal formé : attendu 422, reçu $code"
-pass "identifiant mal formé → 422"
+[ "$code" = "422" ] || fail "malformed identifier: expected 422, got $code"
+pass "malformed identifier → 422"
 
 code=$(download "/api/deployments/$DEPLOYMENT_ID/logs/export?format=csv")
-[ "$code" = "422" ] || fail "format inconnu : attendu 422, reçu $code"
+[ "$code" = "422" ] || fail "unknown format: expected 422, got $code"
 pass "format inconnu → 422"
 
-step "6. « deployment:read » est requis"
+step "6. \"deployment:read\" is required"
 req DELETE "/api/admin/roles/$ROLE_KEY" >/dev/null 2>&1 || true
 code=$(req POST /api/admin/roles \
   "{\"key\":\"$ROLE_KEY\",\"label\":\"Export — sans lecture\",\"permissions\":[\"target:read\"]}")
 case "$code" in
-  201) pass "rôle « $ROLE_KEY » créé, sans deployment:read" ;;
-  409) pass "rôle « $ROLE_KEY » déjà présent" ;;
+  201) pass "role \"$ROLE_KEY\" created, without deployment:read" ;;
+  409) pass "role \"$ROLE_KEY\" already present" ;;
   *)   fail "POST /api/admin/roles → HTTP $code : $(cat "$BODY")" ;;
 esac
 
 code=$(req POST /api/admin/users \
   "{\"name\":\"Sans lecture\",\"email\":\"$GUEST_EMAIL\",\"password\":\"$GUEST_PASSWORD\",\"role\":\"$ROLE_KEY\"}")
 case "$code" in
-  201) pass "utilisateur $GUEST_EMAIL créé" ;;
+  201) pass "user $GUEST_EMAIL created" ;;
   409) req PATCH "/api/admin/users/$(psql_q "select id from users where email = '$GUEST_EMAIL';")/role" \
          "{\"role\":\"$ROLE_KEY\"}" >/dev/null
-       pass "utilisateur $GUEST_EMAIL déjà présent, réattribué à « $ROLE_KEY »" ;;
+       pass "user $GUEST_EMAIL already present, reassigned to \"$ROLE_KEY\"" ;;
   *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
 esac
 GUEST_ID=$(psql_q "select id from users where email = '$GUEST_EMAIL';")
@@ -217,40 +216,40 @@ for _ in 1 2 3 4 5; do
   [ "$code" = "429" ] || break
   sleep 6
 done
-[ "$code" = "200" ] || fail "connexion de $GUEST_EMAIL impossible (HTTP $code) : $(cat "$BODY")"
-pass "connecté en tant que $GUEST_EMAIL"
+[ "$code" = "200" ] || fail "sign-in of $GUEST_EMAIL failed (HTTP $code): $(cat "$BODY")"
+pass "signed in as $GUEST_EMAIL"
 
 code=$(download "/api/deployments/$DEPLOYMENT_ID/logs/export?format=text" "$GUEST_JAR")
-[ "$code" = "403" ] || fail "sans deployment:read : attendu 403, reçu $code — $(head -c 300 "$OUT")"
+[ "$code" = "403" ] || fail "without deployment:read: expected 403, got $code — $(head -c 300 "$OUT")"
 jq -e '.error.details.permission == "deployment:read"' >/dev/null < "$OUT" \
-  || fail "le refus ne nomme pas la permission attendue : $(head -c 200 "$OUT")"
-pass "export refusé → 403 (permission deployment:read)"
+  || fail "the refusal does not name the expected permission: $(head -c 200 "$OUT")"
+pass "export refused → 403 (deployment:read permission)"
 
-step "7. Traçabilité"
+step "7. Traceability"
 code=$(req GET "/api/audit-logs?action=deployment.logs.exported&pageSize=20")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 jq -e --arg id "$DEPLOYMENT_ID" \
   '[.items[] | select(.resourceId == $id)] | length >= 2' "$BODY" >/dev/null \
-  || fail "les deux exports ne figurent pas au journal d'audit"
+  || fail "the two exports are not in the audit log"
 pass "audit : deployment.logs.exported"
 
 jq -e --arg id "$DEPLOYMENT_ID" --argjson n "$DB_LINES" \
   '[.items[] | select(.resourceId == $id and .after.format == "jsonl" and .after.lines == $n)] | length > 0' \
-  "$BODY" >/dev/null || fail "l'entrée d'audit ne porte pas le format et le compte de lignes"
+  "$BODY" >/dev/null || fail "the audit entry does not carry the format and the line count"
 info "$(jq -c --arg id "$DEPLOYMENT_ID" \
   'first(.items[] | select(.resourceId == $id)) | {action, actorEmail, after}' "$BODY")"
-pass "format et nombre de lignes journalisés"
+pass "format and number of lines logged"
 
 jq -e '[.items[] | select(.action == "permission.denied")] | length == 0' "$BODY" >/dev/null || true
 code=$(req GET "/api/audit-logs?action=permission.denied&pageSize=10")
 jq -e '[.items[] | select(.resourceId == "deployment:read")] | length > 0' "$BODY" >/dev/null \
-  || fail "le refus de permission n'est pas journalisé"
+  || fail "the permission refusal is not logged"
 pass "audit : permission.denied sur deployment:read"
 
-step "8. Ménage"
+step "8. Cleanup"
 req DELETE "/api/admin/users/$GUEST_ID" >/dev/null
 req DELETE "/api/admin/roles/$ROLE_KEY" >/dev/null
-pass "utilisateur et rôle de test supprimés"
+pass "test user and role deleted"
 
-printf '\n\033[32m✓ Export des logs vérifié.\033[0m\n'
-printf '\033[2m  Écran : %s/deployments/%s\033[0m\n\n' "$BASE_URL" "$DEPLOYMENT_ID"
+printf '\n\033[32m✓ Log export verified.\033[0m\n'
+printf '\033[2m  Screen: %s/deployments/%s\033[0m\n\n' "$BASE_URL" "$DEPLOYMENT_ID"

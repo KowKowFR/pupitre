@@ -40,7 +40,7 @@ BODY="$WORK/body.json"
 JAR="$WORK/admin.jar"
 APP_ID=""
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -101,7 +101,7 @@ wait_deployment() {
     status=$(jq -r .status "$BODY")
     case "$status" in success|failed|rolled_back|destroyed) printf '%s' "$status"; return ;; esac
   done
-  fail "le déploiement $id n'a pas abouti en 10 minutes (statut « $status »)"
+  fail "deployment $id did not complete in 10 minutes (status \"$status\")"
 }
 
 page() {
@@ -136,14 +136,14 @@ for _ in 1 2 3 4 5; do
   sleep 6
 done
 [ "$code" = "200" ] || fail "connexion → HTTP $code"
-[ "$(jq -r '.user.role // empty' "$BODY")" = "admin" ] || fail "« $ADMIN_EMAIL » n'est pas administrateur"
-pass "connecté en tant que $ADMIN_EMAIL"
+[ "$(jq -r '.user.role // empty' "$BODY")" = "admin" ] || fail "\"$ADMIN_EMAIL\" is not an administrator"
+pass "signed in as $ADMIN_EMAIL"
 
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$DOCKER_TARGET" '.items[] | select(.name == $n) | .id' "$BODY")
 [ -n "$TARGET_ID" ] || fail "cible « $DOCKER_TARGET » introuvable"
 
-# Restes d'un passage précédent.
+# Leftovers from a previous pass.
 req GET /api/applications >/dev/null
 old=$(jq -r --arg s "$SLUG" '.items[] | select(.slug == $s) | .id' "$BODY" | head -1)
 [ -n "$old" ] && { info "reste d'un passage précédent : $SLUG"; cascade_delete "$old"; }
@@ -188,7 +188,7 @@ pass "le pupitre.json de main se trouve, au commit $(jq -r '.sha[0:7]' "$BODY")"
 step "3. Créer l'application depuis Gitea, la déployer sur Docker"
 code=$(req POST /api/applications/from-source \
   "{\"provider\":\"gitea\",\"repository\":\"$REPO\",\"branch\":\"main\",\"specPath\":\"pupitre.json\",\"deployTo\":\"running\",\"mode\":\"auto_unless_infra\"}")
-[ "$code" = "201" ] || fail "création → HTTP $code : $(cat "$BODY")"
+[ "$code" = "201" ] || fail "creation → HTTP $code: $(cat "$BODY")"
 APP_ID=$(jq -r .application.id "$BODY")
 SOURCE_ID=$(jq -r .source.id "$BODY")
 [ "$(psql_q "select c.provider from application_sources s join source_connections c on c.id = s.connection_id where s.id = '$SOURCE_ID';")" = "gitea" ] \
@@ -255,7 +255,7 @@ wait_status "$SHA3" "pupitre" pending
 pass "en attente (infra), rien de déployé, « pending » écrit sur le commit"
 
 # ─── 6. Journal et ménage ─────────────────────────────────────────────────────
-step "6. Le journal"
+step "6. The log"
 [ "$(psql_q "select count(*) from audit_logs where action = 'integration.gitea.connected' and created_at > now() - interval '1 hour';")" -ge 1 ] \
   || fail "la connexion de la forge n'est pas au journal"
 [ "$(psql_q "select count(*) from audit_logs where action = 'source.linked' and after->>'provider' = 'gitea' and created_at > now() - interval '1 hour';")" -ge 1 ] \
@@ -264,7 +264,7 @@ leak=$(psql_q "select count(*) from audit_logs where created_at > now() - interv
 [ "$leak" = "0" ] || fail "le jeton de la forge apparaît au journal"
 pass "connexion et liaison au journal, sans le jeton"
 
-step "7. Ménage"
+step "7. Cleanup"
 cascade_delete "$APP_ID"
 APP_ID=""
 code=$(req DELETE /api/integrations/gitea)

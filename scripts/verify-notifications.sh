@@ -69,7 +69,7 @@ BODY="$WORK/body.json"
 RECV="$WORK/receiver.log"
 RECEIVER_PID=""
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 command -v node >/dev/null || { echo "node est requis"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -111,7 +111,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -119,7 +119,7 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 # Supprime tout ce que ce script a pu créer, y compris lors d'une exécution
@@ -288,9 +288,9 @@ create_channel() {
   jq -r .id "$BODY"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 # Empreinte de référence : ce script ne doit modifier aucun paramètre d'instance.
 SETTINGS_BEFORE=$(psql_q "select md5(value::text) from app_settings where id = 1;")
@@ -319,7 +319,7 @@ start_receiver
 pass "récepteur HTTP sur le port $RECEIVER_PORT"
 
 docker compose --profile test up -d mailpit >/dev/null 2>&1 \
-  || fail "impossible de démarrer Mailpit (profil compose « test »)"
+  || fail "could not start Mailpit (compose profile \"test\")"
 for _ in $(seq 1 30); do
   curl -sf "$MAILPIT_HTTP/api/v1/messages" >/dev/null 2>&1 && break
   sleep 1
@@ -588,14 +588,14 @@ pass "envoi d'un message d'essai refusé → 403 (un essai fait partir un messag
 
 code=$(req_reader DELETE "/api/notifications/channels/$HOOK_ID")
 [ "$code" = "403" ] || fail "suppression par un lecteur : attendu 403, reçu $code"
-pass "suppression refusée → 403"
+pass "deletion refused → 403"
 
 step "13. Traçabilité"
 code=$(req GET "/api/audit-logs?resourceType=notification_channel&pageSize=50")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 for action in notification.channel.created notification.channel.tested notification.delivery.failed; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
   pass "audit : $action"
 done
 
@@ -614,7 +614,7 @@ pass "les quatre canaux sont abonnés à « security.role_changed »"
 # changement de rôle de l'étape 10 a ouvert une fenêtre. On attend qu'elle se
 # referme d'elle-même — et cette attente est déjà une preuve : une fenêtre qui
 # se ferme sans rien avoir retenu remet le groupe au silence.
-wait_group_silent 120 || fail "le groupe « $GROUP » ne redevient pas silencieux"
+wait_group_silent 120 || fail "the group \"$GROUP\" does not become silent again"
 pass "fenêtre précédente refermée sans rien retenir → groupe silencieux"
 
 make_burst_users rafale "$BURST_SIZE"

@@ -80,7 +80,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -127,17 +127,17 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
-# Le compte doit être administrateur : sans cela le script s'écroulerait bien
-# plus loin sur un 403 énigmatique.
+# The account must be an administrator: without that the script would collapse
+# much further on a cryptic 403.
 assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir $BASE_URL/admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see $BASE_URL/admin/users"
 }
 
 # AppSpec courte : le déploiement aboutit en une trentaine de secondes.
@@ -231,11 +231,11 @@ wait_status() {
 
 step "1. Connexion, cible et inventaire de départ"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
-[ -n "$TARGET_ID" ] || fail "cible « $TARGET_NAME » introuvable — lancez ./scripts/setup-test-target.sh"
+[ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 TARGET_HOST=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .host' "$BODY")
 pass "cible $TARGET_NAME ($TARGET_HOST) — $TARGET_ID"
 
@@ -481,7 +481,7 @@ code=$(req POST /api/admin/roles \
   "{\"key\":\"$ROLE_KEY\",\"label\":\"Vérification sans purge\",\"permissions\":[\"application:read\",\"target:read\",\"deployment:read\",\"deployment:create\",\"deployment:rollback\",\"deployment:destroy\"]}")
 case "$code" in
   201) pass "rôle « $ROLE_KEY » créé : tout sur les déploiements SAUF deployment:purge" ;;
-  409) pass "rôle « $ROLE_KEY » déjà présent" ;;
+  409) pass "role \"$ROLE_KEY\" already present" ;;
   *)   fail "POST /api/admin/roles → HTTP $code : $(cat "$BODY")" ;;
 esac
 
@@ -538,7 +538,7 @@ pass "un second déblocage ne réécrit rien → 409"
 
 # ─── 9. Ménage ────────────────────────────────────────────────────────────────
 
-step "9. Ménage"
+step "9. Cleanup"
 
 code=$(req POST "/api/applications/$PERDUE_ID/cascade" "{\"confirm\":\"$PERDUE_SLUG\"}")
 if [ "$code" = "202" ]; then

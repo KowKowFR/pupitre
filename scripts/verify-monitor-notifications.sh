@@ -74,7 +74,7 @@ WORK="$(mktemp -d)"
 JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -109,7 +109,7 @@ purge() {
 
 cleanup() {
   local code=$?
-  printf '\n\033[1m%s\033[0m\n' "Ménage"
+  printf '\n\033[1m%s\033[0m\n' "Cleanup"
 
   if [ -n "$POLICY_BEFORE" ]; then
     req PATCH /api/notifications/digests "{\"windowMs\":$POLICY_BEFORE}" >/dev/null 2>&1 || true
@@ -258,7 +258,7 @@ curl -fsS "$BASE_URL/api/health" >/dev/null || fail "le panel ne répond pas apr
 pass "MONITOR_ALLOWED_CIDRS=$SUBNET — la garde n'est pas levée, elle est ouverte sur ce seul réseau"
 
 docker compose --profile test up -d mailpit >/dev/null 2>&1 \
-  || fail "impossible de démarrer Mailpit (profil compose « test »)"
+  || fail "could not start Mailpit (compose profile \"test\")"
 for _ in $(seq 1 30); do
   curl -sf "$MAILPIT_HTTP/api/v1/messages" >/dev/null 2>&1 && break
   sleep 1
@@ -283,18 +283,18 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 SETTINGS_BEFORE=$(psql_q "select md5(value::text) from app_settings where id = 1;")
 MONITORS_BEFORE=$(psql_q "select count(*) from monitors where name not like '$PREFIX-%';")
@@ -454,7 +454,7 @@ info "l'hystérésis vit dans la machine à états — le catalogue n'a rien à 
 # ─────────────────────────────────────────────────────────────────────────────
 step "9. La panne confirmée part sur TOUS les canaux abonnés, et une seule fois"
 
-wait_group_silent 120 || fail "le groupe « $GROUP » ne redevient pas silencieux"
+wait_group_silent 120 || fail "the group \"$GROUP\" does not become silent again"
 rx_reset
 curl -s -X DELETE "$MAILPIT_HTTP/api/v1/messages" >/dev/null
 
@@ -645,7 +645,7 @@ pass "sonde rétablie avant la rafale"
 # ─────────────────────────────────────────────────────────────────────────────
 step "14. Une rafale de $BURST_SIZE pannes : UN résumé qui les NOMME"
 
-wait_group_silent 120 || fail "le groupe « $GROUP » ne redevient pas silencieux"
+wait_group_silent 120 || fail "the group \"$GROUP\" does not become silent again"
 pass "fenêtre précédente refermée sans rien retenir → groupe silencieux"
 
 # Seuil à 1 : une seule mesure suffit à confirmer, ce qui permet de coucher les
@@ -809,7 +809,7 @@ step "16. Traçabilité"
 req GET "/api/audit-logs?resourceType=monitor&pageSize=100" >/dev/null
 for action in monitor.down monitor.recovered; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
 done
 pass "audit : monitor.down et monitor.recovered — la source des messages, pas un doublon"
 jq -e '[.items[] | select(.action == "monitor.recovered")][0].after.durationSeconds != null' "$BODY" \

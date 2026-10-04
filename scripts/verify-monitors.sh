@@ -43,7 +43,7 @@ JAR="$WORK/admin.jar"
 VJAR="$WORK/viewer.jar"
 BODY="$WORK/body.json"
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -63,7 +63,7 @@ psql_q() { docker compose exec -T postgres psql -U tp -d tp -tAc "$1"; }
 
 cleanup() {
   local code=$?
-  printf '\n\033[1m%s\033[0m\n' "Ménage"
+  printf '\n\033[1m%s\033[0m\n' "Cleanup"
 
   # Sondes de test (cascade sur mesures et incidents).
   psql_q "delete from monitors where name like 'verify-%';" >/dev/null 2>&1 || true
@@ -193,7 +193,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -201,11 +201,11 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 psql_q "delete from monitors where name like 'verify-%';" >/dev/null
 
@@ -288,7 +288,7 @@ code=$(req POST /api/monitors "$(jq -nc \
     config:{url:$url,keyword:"SUPERVISION-OK"},
     intervalSeconds:30,failureThreshold:3,recoveryThreshold:2,
     webhookUrl:$hook}')")
-[ "$code" = "201" ] || fail "création → HTTP $code : $(cat "$BODY")"
+[ "$code" = "201" ] || fail "creation → HTTP $code: $(cat "$BODY")"
 LIVE_ID=$(jq -r '.id' "$BODY")
 jq -e '.neverRan == true' "$BODY" >/dev/null || fail "une sonde neuve doit se dire jamais exécutée"
 jq -e '.uptime24h.ratio == null' "$BODY" >/dev/null \
@@ -447,7 +447,7 @@ pass "2 messages au total pour toute la panne : une alerte, un rétablissement"
 req GET "/api/audit-logs?resourceType=monitor&pageSize=20" >/dev/null
 for action in monitor.created monitor.down monitor.recovered; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
   pass "audit : $action"
 done
 
@@ -457,7 +457,7 @@ step "10. Une URL morte : connexion refusée, panne confirmée au seuil"
 code=$(req POST /api/monitors "$(jq -nc --arg url "$DEAD_URL" \
   '{name:"verify-dead",type:"http",config:{url:$url,timeoutMs:3000},
     intervalSeconds:30,failureThreshold:2,recoveryThreshold:1}')")
-[ "$code" = "201" ] || fail "création → HTTP $code : $(cat "$BODY")"
+[ "$code" = "201" ] || fail "creation → HTTP $code: $(cat "$BODY")"
 DEAD_ID=$(jq -r '.id' "$BODY")
 
 probe "$DEAD_ID"
@@ -479,7 +479,7 @@ step "11. Le taux de disponibilité, sur un historique fabriqué"
 
 code=$(req POST /api/monitors '{"name":"verify-uptime","type":"http",
   "config":{"url":"https://example.com/"},"intervalSeconds":3600,"enabled":false}')
-[ "$code" = "201" ] || fail "création → HTTP $code : $(cat "$BODY")"
+[ "$code" = "201" ] || fail "creation → HTTP $code: $(cat "$BODY")"
 UP_ID=$(jq -r '.id' "$BODY")
 
 # 40 mesures sur 24 h : 37 saines, 3 en échec → 92,50 %.
@@ -597,7 +597,7 @@ pass "création refusée → 403, permission « monitor:manage » nommée"
 
 code=$(req DELETE "/api/monitors/$LIVE_ID" "" "$VJAR")
 [ "$code" = "403" ] || fail "suppression sans monitor:manage : attendu 403, reçu $code"
-pass "suppression refusée → 403"
+pass "deletion refused → 403"
 
 code=$(req POST "/api/monitors/$LIVE_ID/check" "" "$VJAR")
 [ "$code" = "403" ] || fail "sonder à la demande sans monitor:manage : attendu 403, reçu $code"

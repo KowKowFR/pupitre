@@ -35,7 +35,7 @@ JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 # Sur stderr : `deploy()` est appelée en substitution de commande, et un message
@@ -53,9 +53,9 @@ req() {
   curl "${args[@]}"
 }
 
-# Better Auth limite les connexions répétées depuis une même IP. Les scripts de
-# vérification s'enchaînent : on patiente plutôt que de retomber par erreur sur
-# l'inscription, qui donnerait un message trompeur.
+# Better Auth limits repeated sign-ins from the same IP. The verification
+# scripts follow one another: we wait rather than fall back by mistake on the
+# sign-up, which would give a misleading message.
 login() {
   local code
   for _ in 1 2 3 4 5; do
@@ -70,20 +70,20 @@ login() {
 
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
-# Le compte doit être administrateur. Se contenter d'une connexion réussie
-# laisserait le script échouer bien plus loin, sur un 403 énigmatique : c'est
-# exactement ce qui arrive quand quelqu'un a déjà créé SON compte (qui devient
-# admin), et que l'inscription de repli fabrique un simple viewer.
+# The account must be an administrator. Settling for a successful sign-in would
+# let the script fail much further, on a cryptic 403: that is exactly what
+# happens when someone already created THEIR account (which becomes admin), and
+# the fallback sign-up makes a mere viewer.
 assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
 
-  printf '  \033[31m✗\033[0m %s\n' "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin »."
+  printf '  \033[31m✗\033[0m %s\n' "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\"."
   printf '    Le premier compte créé sur une base vierge devient administrateur ;\n'
   printf '    les suivants sont de simples viewers.\n\n'
   printf '    Deux issues :\n'
@@ -132,9 +132,9 @@ step_status() {
   jq -r --arg k "$2" '.steps[] | select(.key == $k) | .status' "$1"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 step "2. Application volontairement vulnérable ($SPEC)"
 SLUG=$(jq -r .name "$SPEC")
@@ -156,10 +156,10 @@ info "image analysée : $IMAGE"
 step "3. Cible Docker"
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
-[ -n "$TARGET_ID" ] || fail "cible « $TARGET_NAME » introuvable — lancez ./scripts/setup-test-target.sh"
+[ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 jq -e --arg n "$TARGET_NAME" \
   '.items[] | select(.name == $n) | .runtimesAvailable.docker.available == true' "$BODY" >/dev/null \
-  || fail "la cible « $TARGET_NAME » n'a pas de runtime Docker — lancez un preflight"
+  || fail "the target \"$TARGET_NAME\" has no Docker runtime — run a preflight"
 pass "$TARGET_NAME prête"
 
 # ─── 1. Trivy + failOn CRITICAL ───────────────────────────────────────────────
@@ -290,7 +290,7 @@ pass "GET /api/scans/<scan Trivy>/sbom → 409, comme attendu"
 
 # ─── 5. Traçabilité ───────────────────────────────────────────────────────────
 
-step "8. Traçabilité"
+step "8. Traceability"
 code=$(req GET "/api/audit-logs?resourceType=deployment&pageSize=100")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 

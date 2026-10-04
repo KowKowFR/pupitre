@@ -1,20 +1,20 @@
-# Cible SSH de test portant un vrai cluster K3s.
+# SSH test target carrying a real K3s cluster.
 #
-# Pendant de `scripts/test-target/`, dont le Dockerfile dit explicitement que
-# `kubectl` en est absent pour que le preflight rapporte « K3s ✗ ». Celle-ci est
-# l'inverse : un cluster réel, joignable en SSH, sur lequel le `K3sDriver` peut
-# être exercé pour de bon.
+# The counterpart of `scripts/test-target/`, whose Dockerfile says explicitly that
+# `kubectl` is absent from it so that the preflight reports "K3s ✗". This one is
+# the reverse: a real cluster, reachable over SSH, on which the `K3sDriver` can be
+# exercised for good.
 #
-# Elle existe pour satisfaire le critère que CLAUDE.md appelle « le test qui
-# valide l'architecture » : déployer la même AppSpec sur une cible Docker et une
-# cible K3s. `scripts/render-both.ts` prouve que le *rendu* est neutre ; il ne
-# prouve pas qu'un déploiement K3s aboutit.
+# It exists to satisfy the criterion CLAUDE.md calls "the test that validates
+# the architecture": deploying the same AppSpec on a Docker target and a K3s
+# target. `scripts/render-both.ts` proves that the *rendering* is neutral; it does
+# not prove that a K3s deployment succeeds.
 #
-# Pourquoi pas l'image `rancher/k3s` : elle est minimale et n'a ni gestionnaire
-# de paquets, ni sshd. Or le driver passe **par SSH** — une cible sans sshd ne
-# ressemble à rien de ce que le panel sait joindre. On part donc d'Alpine et on
-# pose le binaire k3s, qui se suffit à lui-même : pas de systemd, pas d'openrc,
-# c'est un exécutable unique que l'entrypoint lance comme n'importe quel démon.
+# Why not the `rancher/k3s` image: it is minimal and has neither a package manager
+# nor sshd. Yet the driver goes **through SSH** — a target without sshd looks like
+# nothing the panel knows how to reach. So we start from Alpine and set the k3s
+# binary, which is self-sufficient: no systemd, no openrc, it is a single
+# executable the entrypoint starts like any daemon.
 FROM alpine:3.21
 
 ARG K3S_VERSION=v1.33.4+k3s1
@@ -29,29 +29,29 @@ RUN apk add --no-cache \
       conntrack-tools \
  && ssh-keygen -A \
  && adduser -D -s /bin/sh tp \
- # `adduser -D` laisse le compte verrouillé (`!` dans /etc/shadow) et sshd
- # refuse un compte verrouillé, même en authentification par clé. `*` interdit
- # la connexion par mot de passe sans verrouiller le compte.
+ # `adduser -D` leaves the account locked (`!` in /etc/shadow) and sshd refuses a
+ # locked account, even with key authentication. `*` forbids password sign-in
+ # without locking the account.
  && sed -i 's/^tp:!:/tp:*:/' /etc/shadow \
  && echo 'tp ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/tp \
  && chmod 0440 /etc/sudoers.d/tp \
  && mkdir -p /home/tp/.ssh \
  && chmod 700 /home/tp/.ssh
 
-# Le binaire k3s, pour l'architecture de l'hôte. Les noms de fichiers amont
-# diffèrent de ceux de `uname -m` : k3s (amd64), k3s-arm64, k3s-armhf.
+# The k3s binary, for the host's architecture. The upstream file names differ
+# from `uname -m`'s: k3s (amd64), k3s-arm64, k3s-armhf.
 RUN set -eu; \
     case "$(uname -m)" in \
       x86_64)  asset='k3s' ;; \
       aarch64) asset='k3s-arm64' ;; \
       armv7l)  asset='k3s-armhf' ;; \
-      *) echo "architecture non prise en charge : $(uname -m)" >&2; exit 1 ;; \
+      *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
     esac; \
     curl -fsSL -o /usr/local/bin/k3s \
       "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/${asset}"; \
     chmod +x /usr/local/bin/k3s; \
-    # `kubectl` est un sous-commande de k3s : le lien suffit, et c'est ce que
-    # cherche le preflight (`for b in ufw curl git docker kubectl`).
+    # `kubectl` is a k3s subcommand: the link is enough, and it is what the
+    # preflight looks for (`for b in ufw curl git docker kubectl`).
     ln -s /usr/local/bin/k3s /usr/local/bin/kubectl; \
     ln -s /usr/local/bin/k3s /usr/local/bin/crictl
 
@@ -66,8 +66,8 @@ RUN sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/
 COPY entrypoint.sh /usr/local/bin/k3s-target-entrypoint.sh
 RUN chmod +x /usr/local/bin/k3s-target-entrypoint.sh
 
-# 22 pour le driver, 80 pour l'Ingress : en K3s le panel n'alloue aucun port,
-# l'exposition passe par le contrôleur d'ingress (Traefik, embarqué dans k3s).
+# 22 for the driver, 80 for the Ingress: on K3s the panel allocates no port, the
+# exposure goes through the ingress controller (Traefik, embedded in k3s).
 EXPOSE 22 80
 
 ENTRYPOINT ["/usr/local/bin/k3s-target-entrypoint.sh"]

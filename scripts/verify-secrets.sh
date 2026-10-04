@@ -58,7 +58,7 @@ JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -97,7 +97,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -107,7 +107,7 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 # Enfile un déploiement et attend son état terminal. Identifiant sur stdout.
@@ -183,7 +183,7 @@ cleanup() {
   [ "$CLEANED" = "1" ] && return 0
   CLEANED=1
   [ -n "${APP_ID:-}${ALIAS_APP_ID:-}" ] || return 0
-  printf '\n\033[1m%s\033[0m\n' "Ménage"
+  printf '\n\033[1m%s\033[0m\n' "Cleanup"
   if [ -n "${ALIAS_APP_ID:-}" ]; then remove_app "$ALIAS_APP_ID" "$SLUG_ALIAS"; fi
   if [ -n "${APP_ID:-}" ]; then remove_app "$APP_ID" "$SLUG"; fi
   return 0
@@ -207,17 +207,17 @@ purge_previous() {
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 step "2. Cible de vérification"
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
-[ -n "$TARGET_ID" ] || fail "cible « $TARGET_NAME » introuvable — lancez ./scripts/setup-test-target.sh"
+[ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 jq -e --arg n "$TARGET_NAME" \
   '.items[] | select(.name == $n) | .runtimesAvailable.docker.available == true' "$BODY" >/dev/null \
-  || fail "la cible « $TARGET_NAME » n'a pas de runtime Docker — lancez un preflight"
+  || fail "the target \"$TARGET_NAME\" has no Docker runtime — run a preflight"
 pass "cible « $TARGET_NAME » ($TARGET_ID), runtime Docker disponible"
 on_target 'echo ok' >/dev/null 2>&1 || fail "SSH vers la cible impossible ($SSH_USER@$SSH_HOST:$SSH_PORT)"
 pass "SSH vers la cible opérationnel"
@@ -261,7 +261,7 @@ cat > "$WORK/spec.json" <<JSON
 }
 JSON
 
-# Ménage d'une exécution précédente.
+# Cleanup from a previous run.
 purge_previous "$SLUG"
 purge_previous "$SLUG_ALIAS"
 

@@ -49,7 +49,7 @@ VIEWER_JAR="$WORK/viewer.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -88,7 +88,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" "$jar")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -96,7 +96,7 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 onboarding_json() { psql_q "select value->'onboarding' from app_settings where id = 1;"; }
@@ -113,9 +113,9 @@ cleanup_targets() {
   done
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 # Ménage d'une exécution précédente, avant toute mesure.
 cleanup_targets
@@ -383,8 +383,8 @@ step "7. Un viewer ne se voit proposer aucune étape"
 code=$(req POST /api/admin/users \
   "{\"name\":\"Viewer assistant\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
 case "$code" in
-  201) pass "utilisateur viewer créé" ;;
-  409) pass "utilisateur viewer déjà présent" ;;
+  201) pass "viewer user created" ;;
+  409) pass "viewer user already present" ;;
   *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
 esac
 VIEWER_ID=$(psql_q "select id from users where email = '$VIEWER_EMAIL';")
@@ -395,8 +395,8 @@ for _ in 1 2 3 4 5; do
   [ "$code" = "429" ] || break
   sleep 6
 done
-[ "$code" = "200" ] || fail "connexion viewer impossible (HTTP $code) : $(cat "$BODY")"
-pass "connecté en tant que $VIEWER_EMAIL"
+[ "$code" = "200" ] || fail "viewer sign-in failed (HTTP $code): $(cat "$BODY")"
+pass "signed in as $VIEWER_EMAIL"
 
 code=$(req GET /api/onboarding '' "$VIEWER_JAR")
 [ "$code" = "200" ] || fail "GET /api/onboarding (viewer) → HTTP $code"
@@ -472,7 +472,7 @@ code=$(req GET "/api/audit-logs?resourceType=settings&pageSize=50")
 for action in onboarding.offered onboarding.step.completed onboarding.step.skipped \
               onboarding.completed onboarding.dismissed onboarding.restarted; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
   pass "audit : $action"
 done
 
@@ -485,14 +485,14 @@ for id in "$ID_A" "$ID_B"; do
 done
 pass "audit : les deux cibles créées, par les deux chemins, sont tracées à l'identique"
 
-step "12. Ménage"
+step "12. Cleanup"
 cleanup_targets
 remaining=$(psql_q "select count(*) from targets where name in ('$TARGET_A','$TARGET_B');")
 [ "$remaining" = "0" ] || fail "$remaining cible(s) de vérification subsistent"
 pass "cibles de vérification supprimées"
 
 [ -n "$VIEWER_ID" ] && req DELETE "/api/admin/users/$VIEWER_ID" >/dev/null
-pass "utilisateur viewer supprimé"
+pass "viewer user deleted"
 
 code=$(req PATCH /api/settings \
   "$(jq -nc --arg n "$ORIGINAL_NAME" --arg t "$ORIGINAL_TAGLINE" \

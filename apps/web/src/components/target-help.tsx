@@ -228,28 +228,28 @@ export function TargetHelp({ label, className }: Props) {
 
 // i18n-ignore — shell to copy and paste, comments included: it is a file, not a
 // sentence. See the comment above.
-const PREPARE_SCRIPT = `# 1 — un compte dédié pour le panel
+const PREPARE_SCRIPT = `# 1 — a dedicated account for the panel
 sudo adduser --disabled-password --gecos '' deploy
 
-# 2 — Docker, et surtout : le compte parle au démon SANS sudo
-curl -fsSL https://get.docker.com | sh        # script officiel Docker
-sudo usermod -aG docker deploy                # ← indispensable
-#    ou, pour une cible Kubernetes :
+# 2 — Docker, and above all: the account talks to the daemon WITHOUT sudo
+curl -fsSL https://get.docker.com | sh        # official Docker script
+sudo usermod -aG docker deploy                # ← essential
+#    or, for a Kubernetes target:
 curl -sfL https://get.k3s.io | \\
   INSTALL_K3S_EXEC="--write-kubeconfig-mode 644" sh -
-#    644 n'est pas cosmétique : le driver lit /etc/rancher/k3s/k3s.yaml
-#    sans sudo, et K3s l'écrit en 0600 root par défaut.
+#    644 is not cosmetic: the driver reads /etc/rancher/k3s/k3s.yaml
+#    without sudo, and K3s writes it as 0600 root by default.
 
-# 3 — sudo sans mot de passe (création de /opt/bootstrap, règles UFW)
+# 3 — passwordless sudo (creating /opt/bootstrap, UFW rules)
 echo 'deploy ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/deploy
 sudo chmod 0440 /etc/sudoers.d/deploy
 
-# 4 — le pare-feu. L'ORDRE COMPTE : autoriser 22 AVANT d'activer.
+# 4 — the firewall. ORDER MATTERS: allow 22 BEFORE enabling.
 sudo ufw allow 22/tcp
-sudo ufw allow 30000:32767/tcp                # la plage que vous déclarerez
+sudo ufw allow 30000:32767/tcp                # the range you will declare
 sudo ufw --force enable
 
-# 5 — se reconnecter, puis vérifier ce que le preflight vérifiera
+# 5 — reconnect, then check what the preflight will check
 exit
 ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 '
   sudo -n true && echo "sudo   : nopasswd ok"
@@ -258,20 +258,20 @@ ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 '
 '`;
 
 // i18n-ignore — same reason as `PREPARE_SCRIPT`: shell, not prose.
-const KEY_SCRIPT = `# sur VOTRE poste — une paire dédiée, sans passphrase (-N '')
+const KEY_SCRIPT = `# on YOUR workstation — a dedicated pair, without a passphrase (-N '')
 ssh-keygen -t ed25519 -N '' -C 'pupitre' -f ~/.ssh/pupitre-deploy
 
-# la publique part sur la cible
+# the public one goes to the target
 ssh-copy-id -i ~/.ssh/pupitre-deploy.pub deploy@10.0.0.12
 
-# … ou à la main, avec les permissions exactes qu'exige sshd
+# … or by hand, with the exact permissions sshd requires
 #   mkdir -p ~/.ssh && chmod 700 ~/.ssh
-#   cat >> ~/.ssh/authorized_keys        # coller pupitre-deploy.pub
+#   cat >> ~/.ssh/authorized_keys        # paste pupitre-deploy.pub
 #   chmod 600 ~/.ssh/authorized_keys
 #   chown -R deploy:deploy ~/.ssh
 
-# vérifier AVANT de remplir le formulaire
-ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 true && echo 'clé acceptée'
+# check BEFORE filling in the form
+ssh -i ~/.ssh/pupitre-deploy deploy@10.0.0.12 true && echo 'key accepted'
 
-# c'est le contenu de CE fichier-ci que l'on colle dans le formulaire
+# it is THIS file's content that is pasted into the form
 cat ~/.ssh/pupitre-deploy`;

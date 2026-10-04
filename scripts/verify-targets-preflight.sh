@@ -36,7 +36,7 @@ JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -90,7 +90,7 @@ if [ "$code" != "200" ]; then
   [ "$code" = "200" ] || fail "connexion et inscription impossibles (HTTP $code) : $(cat "$BODY")"
   pass "administrateur créé (première exécution)"
 else
-  pass "connecté en tant que $ADMIN_EMAIL"
+  pass "signed in as $ADMIN_EMAIL"
 fi
 
 step "2. Ajouter une cible avec une clé SSH"
@@ -245,7 +245,7 @@ jq -e '.preflightReport.checks | map(select(.status == "success")) | length >= 6
   || fail "trop peu de contrôles réussis : $(jq -c '[.preflightReport.checks[] | {key,status}]' "$BODY")"
 pass "$(jq -r '.preflightReport.checks | length' "$BODY") contrôles exécutés, kubectl absent n'a rien fait échouer"
 
-step "9. Traçabilité"
+step "9. Traceability"
 # Un filtre par action plutôt qu'une page unique : le script est relançable, et
 # la création de la cible finit par sortir des vingt entrées les plus récentes
 # une fois quelques preflights enchaînés. L'assertion, elle, ne change pas.
@@ -254,7 +254,7 @@ for action in target.created target.preflight.requested target.preflight.complet
   [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
   jq -e --arg a "$action" --arg id "$TARGET_ID" \
     '[.items[] | select(.action == $a and .resourceId == $id)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
   pass "audit : $action"
 done
 

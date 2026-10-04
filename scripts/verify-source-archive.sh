@@ -42,7 +42,7 @@ APP_ID=""
 OTHER_ID=""
 TOKEN_IDS=()
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 command -v python3 >/dev/null || { echo "python3 est requis pour fabriquer le zip"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -85,7 +85,7 @@ wait_archive() {
   fail "l'archive $id n'a pas été lue en une minute (statut « $status »)"
 }
 
-# Déploie et attend le verdict. Écho : "<deploymentId> <statut>".
+# Deploys and waits for the verdict. Echoes: "<deploymentId> <status>".
 deploy_and_wait() {
   local app="$1" target="$2" runtime="$3" code id status=""
   code=$(req POST /api/deployments \
@@ -105,7 +105,7 @@ wait_deployment() {
       success|failed|rolled_back|destroyed) printf '%s %s' "$id" "$status"; return ;;
     esac
   done
-  fail "le déploiement $id n'a pas abouti en 10 minutes (statut « $status »)"
+  fail "deployment $id did not complete in 10 minutes (status \"$status\")"
 }
 
 # Ce que l'application sert, lu depuis la machine Docker elle-même.
@@ -178,8 +178,8 @@ for _ in 1 2 3 4 5; do
   sleep 6
 done
 [ "$code" = "200" ] || fail "connexion → HTTP $code : $(cat "$BODY")"
-[ "$(jq -r '.user.role // empty' "$BODY")" = "admin" ] || fail "« $ADMIN_EMAIL » n'est pas administrateur"
-pass "connecté en tant que $ADMIN_EMAIL"
+[ "$(jq -r '.user.role // empty' "$BODY")" = "admin" ] || fail "\"$ADMIN_EMAIL\" is not an administrator"
+pass "signed in as $ADMIN_EMAIL"
 
 req GET /api/targets >/dev/null
 DOCKER_ID=$(jq -r --arg n "$DOCKER_TARGET" '.items[] | select(.name == $n) | .id' "$BODY")
@@ -191,7 +191,7 @@ if [ -n "$K3S_TARGET" ]; then
 fi
 pass "cibles : $DOCKER_TARGET${K3S_TARGET:+, $K3S_TARGET}"
 
-# Restes d'un passage précédent.
+# Leftovers from a previous pass.
 req GET /api/applications >/dev/null
 cp "$BODY" "$WORK/applications.json"
 for slug in "$SLUG" "$OTHER_SLUG"; do

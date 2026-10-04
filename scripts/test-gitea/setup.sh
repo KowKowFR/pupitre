@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# Prépare la forge Gitea de test : un compte, un jeton, un dépôt avec son
-# pupitre.json. Rejouable — ce qui existe déjà est repris.
+# Prepares the test Gitea forge: an account, a token, a repository with its
+# pupitre.json. Replayable — what already exists is reused.
 #
 #   docker compose --profile test up -d gitea
-#   ./scripts/test-gitea/setup.sh            # écrit le jeton sur la sortie
+#   ./scripts/test-gitea/setup.sh            # writes the token to the output
 #
-# Le dépôt `pupitre/bonjour` porte une application `bonjour-gitea` construite
-# depuis son Dockerfile (busybox httpd, port 8080) : de quoi éprouver la
-# liaison, le polling, la construction et les statuts de commit.
+# The `pupitre/bonjour` repository carries a `bonjour-gitea` application built
+# from its Dockerfile (busybox httpd, port 8080): enough to try out the link, the
+# polling, the build and the commit statuses.
 #
 set -euo pipefail
 
@@ -26,23 +26,23 @@ api() {
   curl "${args[@]}"
 }
 
-# Le compte, par la ligne de commande de Gitea : l'inscription est fermée.
+# The account, through Gitea's command line: sign-up is closed.
 docker compose exec -T -u git gitea gitea admin user create \
   --username "$GITEA_USER" --password "$GITEA_PASSWORD" --email "$GITEA_USER@forge.test" \
   --admin --must-change-password=false >/dev/null 2>&1 || true
 
-# Un jeton neuf à chaque passage : Gitea ne rend sa valeur qu'à la création.
+# A new token at each pass: Gitea only returns its value at creation.
 api DELETE "/users/$GITEA_USER/tokens/pupitre-test" >/dev/null || true
 code=$(api POST "/users/$GITEA_USER/tokens" \
   '{"name":"pupitre-test","scopes":["write:repository","read:user"]}')
-[ "$code" = "201" ] || { echo "jeton : HTTP $code $(cat /tmp/gitea-setup.json)" >&2; exit 1; }
+[ "$code" = "201" ] || { echo "token: HTTP $code $(cat /tmp/gitea-setup.json)" >&2; exit 1; }
 TOKEN=$(jq -r .sha1 /tmp/gitea-setup.json)
 
-# Le dépôt et ses fichiers.
+# The repository and its files.
 code=$(api GET "/repos/$GITEA_USER/$REPO")
 if [ "$code" = "404" ]; then
   code=$(api POST /user/repos "{\"name\":\"$REPO\",\"private\":true,\"auto_init\":true,\"default_branch\":\"main\"}")
-  [ "$code" = "201" ] || { echo "dépôt : HTTP $code $(cat /tmp/gitea-setup.json)" >&2; exit 1; }
+  [ "$code" = "201" ] || { echo "repository: HTTP $code $(cat /tmp/gitea-setup.json)" >&2; exit 1; }
 fi
 
 put_file() {

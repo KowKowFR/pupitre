@@ -42,7 +42,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -65,7 +65,7 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 login() {
@@ -81,7 +81,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -121,9 +121,9 @@ inventory() {
   cp "$BODY" "$WORK/inventory.json"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 step "2. La cible de vérification"
 code=$(req GET /api/targets)
@@ -261,8 +261,8 @@ step "8. Les permissions"
 code=$(req POST /api/admin/users \
   "{\"name\":\"Lecteur charges\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
 case "$code" in
-  201) pass "utilisateur viewer créé" ;;
-  409) pass "utilisateur viewer déjà présent" ;;
+  201) pass "viewer user created" ;;
+  409) pass "viewer user already present" ;;
   *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
 esac
 VIEWER_ID=$(psql_q "select id from users where email = '$VIEWER_EMAIL';")
@@ -296,14 +296,14 @@ pass "viewer ne met pas à jour → 403"
 
 JAR="$ADMIN_JAR"
 
-step "9. Traçabilité"
+step "9. Traceability"
 code=$(req GET "/api/audit-logs?resourceType=target&pageSize=50")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 
 for action in workload.remove.refused workload.update.requested workload.updated \
               workload.remove.requested workload.removed; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
   pass "audit : $action"
 done
 
@@ -344,14 +344,14 @@ for slug in $HERE; do
 done
 pass "leurs conteneurs tournent toujours sur « $TARGET_NAME » : $HERE"
 
-step "11. Ménage"
+step "11. Cleanup"
 on_target "docker rm -f $COBAYE >/dev/null 2>&1" >/dev/null 2>&1 || true
 remaining=$(on_target "docker ps -aq --filter name=^$COBAYE" | wc -l | tr -d ' ')
 [ "$remaining" = "0" ] || fail "$remaining cobaye(s) survivant(s) sur la cible"
 pass "aucun cobaye ne survit sur la cible"
 
 [ -n "$VIEWER_ID" ] && req DELETE "/api/admin/users/$VIEWER_ID" >/dev/null
-pass "utilisateur de test supprimé"
+pass "test user deleted"
 
 printf '\n\033[32m✓ Gestion des charges vérifiée.\033[0m\n'
 printf '\033[2m  Écran : %s/targets/%s\033[0m\n\n' "$BASE_URL" "$TARGET_ID"

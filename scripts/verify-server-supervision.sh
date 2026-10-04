@@ -77,7 +77,7 @@ restore_all() {
 
 trap 'restore_all; rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -102,12 +102,12 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
-# Better Auth limite les connexions répétées depuis une même IP. Les scripts de
-# vérification s'enchaînent : on patiente plutôt que de retomber par erreur sur
-# l'inscription, qui donnerait un message trompeur.
+# Better Auth limits repeated sign-ins from the same IP. The verification
+# scripts follow one another: we wait rather than fall back by mistake on the
+# sign-up, which would give a misleading message.
 login() {
   local code
   for _ in 1 2 3 4 5; do
@@ -121,7 +121,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -156,9 +156,9 @@ server_section() {
   awk -v RS='data-server-id="' -v id="$1" 'index($0, id) == 1 { print; exit }' "$HTML"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 step "2. Prérequis"
 # `grep -q` ferme le tuyau au premier succès : sous `pipefail`, le producteur
@@ -171,7 +171,7 @@ printf '%s\n' "$RUNNING" | grep -qx "$TARGET_SERVICE" \
 code=$(req GET /api/targets)
 [ "$code" = "200" ] || fail "GET /api/targets → HTTP $code"
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY" | head -1)
-[ -n "$TARGET_ID" ] || fail "cible « $TARGET_NAME » introuvable — lancez ./scripts/setup-test-target.sh"
+[ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 ORIGINAL_HOST=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .host' "$BODY" | head -1)
 pass "cible « $TARGET_NAME » — $TARGET_ID ($ORIGINAL_HOST)"
 
@@ -513,7 +513,7 @@ printf '%s\n' "$WORKER_LOG" | grep -q 'metrics reading completed' \
   || fail "le worker n'a jamais journalisé de relevé"
 pass "c'est le worker qui a ouvert les sessions SSH"
 
-step "10. Ménage"
+step "10. Cleanup"
 code=$(req DELETE "/api/deployments/$DEP_ID")
 [ "$code" = "202" ] || fail "DELETE /api/deployments/$DEP_ID → HTTP $code : $(cat "$BODY")"
 for _ in $(seq 1 90); do
@@ -537,7 +537,7 @@ pass "cible morte supprimée"
 if [ -n "$VIEWER_ID" ]; then req DELETE "/api/admin/users/$VIEWER_ID" >/dev/null; fi
 code=$(req DELETE "/api/admin/roles/$ROLE_KEY")
 [ "$code" = "200" ] || fail "DELETE /api/admin/roles/$ROLE_KEY → HTTP $code : $(cat "$BODY")"
-pass "utilisateur et rôle de test supprimés"
+pass "test user and role deleted"
 
 req GET /api/apps >/dev/null
 LIVE_AFTER=$(jq -r '[.items[].applicationSlug] | sort | join(",")' "$BODY")

@@ -26,7 +26,7 @@ ADMIN_JAR="$JAR_DIR/admin.jar"
 VIEWER_JAR="$JAR_DIR/viewer.jar"
 trap 'rm -rf "$JAR_DIR"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -65,7 +65,7 @@ if [ "$code" != "200" ]; then
      → si des comptes existent déjà, relancez avec ADMIN_EMAIL/ADMIN_PASSWORD d'un compte admin"
   pass "administrateur créé — le premier compte reçoit le rôle admin"
 else
-  pass "connecté en tant que $ADMIN_EMAIL"
+  pass "signed in as $ADMIN_EMAIL"
 fi
 ADMIN_ROLE=$(jq -r '.user.role // "?"' "$BODY")
 [ "$ADMIN_ROLE" = "admin" ] || fail "le compte $ADMIN_EMAIL a le rôle « $ADMIN_ROLE », pas « admin »"

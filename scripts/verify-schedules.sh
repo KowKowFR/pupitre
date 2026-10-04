@@ -44,7 +44,7 @@ JAR="$WORK/admin.jar"
 VJAR="$WORK/viewer.jar"
 BODY="$WORK/body.json"
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -111,7 +111,7 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 login() {
@@ -127,13 +127,13 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 # Ménage d'une exécution précédente, avant toute chose.
 for key in "$SIMPLE_KEY" "$EXPERT_KEY" "$PARIS_KEY"; do
@@ -481,8 +481,8 @@ step "12. job:manage est requis pour écrire"
 code=$(req POST /api/admin/users \
   "{\"name\":\"Viewer planning\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
 case "$code" in
-  201) pass "utilisateur viewer créé" ;;
-  409) pass "utilisateur viewer déjà présent" ;;
+  201) pass "viewer user created" ;;
+  409) pass "viewer user already present" ;;
   *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
 esac
 VIEWER_ID=$(psql_q "select id from users where email = '$VIEWER_EMAIL';")
@@ -493,8 +493,8 @@ for _ in 1 2 3 4 5; do
   [ "$code" = "429" ] || break
   sleep 6
 done
-[ "$code" = "200" ] || fail "connexion viewer impossible (HTTP $code) : $(cat "$BODY")"
-pass "connecté en tant que $VIEWER_EMAIL"
+[ "$code" = "200" ] || fail "viewer sign-in failed (HTTP $code): $(cat "$BODY")"
+pass "signed in as $VIEWER_EMAIL"
 
 code=$(vreq GET /api/jobs)
 [ "$code" = "200" ] || fail "un viewer doit pouvoir lire (job:read) — HTTP $code"
@@ -513,7 +513,7 @@ pass "modification refusée → 403"
 
 code=$(vreq DELETE "/api/jobs/$SIMPLE_ID")
 [ "$code" = "403" ] || fail "suppression par un viewer : attendu 403, reçu $code"
-pass "suppression refusée → 403"
+pass "deletion refused → 403"
 
 STORED=$(psql_q "select cron from scheduled_jobs where key = '$SIMPLE_KEY';")
 [ "$STORED" = "*/30 * * * *" ] || fail "la cadence a bougé malgré les refus : « $STORED »"
@@ -524,7 +524,7 @@ code=$(req GET "/api/audit-logs?resourceType=scheduled_job&pageSize=20")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 for action in schedule.created schedule.updated; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
   pass "audit : $action"
 done
 
@@ -553,7 +553,7 @@ left=$(psql_q "select count(*) from scheduled_jobs where key like 'verify:schedu
 pass "aucune tâche de test en base"
 
 [ -n "$VIEWER_ID" ] && req DELETE "/api/admin/users/$VIEWER_ID" >/dev/null 2>&1 || true
-pass "utilisateur de test supprimé"
+pass "test user deleted"
 
 printf '\n\033[32m✓ Saisie simplifiée et fuseau des tâches planifiées vérifiés.\033[0m\n'
 printf '\033[2m  Écran : %s/jobs — fuseau par défaut des nouvelles tâches : %s\033[0m\n\n' \

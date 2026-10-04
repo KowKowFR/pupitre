@@ -35,7 +35,7 @@ WORK="$(mktemp -d)"
 ADMIN_JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -127,7 +127,7 @@ if [ "$code" != "200" ]; then
     "{\"name\":\"Admin de vérification\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
   [ "$code" = "200" ] || fail "impossible de se connecter ou de créer l'administrateur (HTTP $code)"
 fi
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 req GET /api/settings >/dev/null
 if jq -e --arg i "$ISSUER" '.ssoClientSecretConfigured and .settings.sso.issuer != $i' "$BODY" >/dev/null; then
   fail "une connexion unique réelle est réglée sur cette instance : ce script la remplacerait"

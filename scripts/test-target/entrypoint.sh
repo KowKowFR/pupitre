@@ -1,10 +1,10 @@
 #!/bin/sh
-# Démarre le daemon Docker de la cible, puis sshd.
+# Starts the target's Docker daemon, then sshd.
 set -eu
 
 SOCKET=/var/run/docker.sock
 
-echo "[test-target] démarrage du daemon Docker"
+echo "[test-target] starting the Docker daemon"
 dockerd-entrypoint.sh dockerd >/var/log/dockerd.log 2>&1 &
 
 for _ in $(seq 1 60); do
@@ -13,14 +13,14 @@ for _ in $(seq 1 60); do
 done
 
 if ! docker info >/dev/null 2>&1; then
-  echo "[test-target] le daemon Docker n'a pas démarré :"
+  echo "[test-target] the Docker daemon did not start:"
   tail -20 /var/log/dockerd.log || true
   exit 1
 fi
-echo "[test-target] daemon prêt — $(docker info --format '{{.ServerVersion}}')"
+echo "[test-target] daemon ready — $(docker info --format '{{.ServerVersion}}')"
 
-# Le compte de déploiement doit pouvoir parler au daemon sans sudo, comme sur
-# une machine correctement provisionnée où il appartient au groupe `docker`.
+# The deployment account must be able to talk to the daemon without sudo, as on a
+# correctly provisioned machine where it belongs to the `docker` group.
 GID=$(stat -c '%g' "$SOCKET")
 GROUP=$(getent group "$GID" | cut -d: -f1 || true)
 if [ -z "$GROUP" ]; then
@@ -28,7 +28,7 @@ if [ -z "$GROUP" ]; then
   addgroup -g "$GID" "$GROUP" 2>/dev/null || true
 fi
 addgroup tp "$GROUP" 2>/dev/null || true
-echo "[test-target] tp ajouté au groupe $GROUP (gid $GID)"
+echo "[test-target] tp added to the $GROUP group (gid $GID)"
 
-echo "[test-target] démarrage de sshd"
+echo "[test-target] starting sshd"
 exec /usr/sbin/sshd -D -e

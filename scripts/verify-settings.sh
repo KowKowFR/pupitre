@@ -69,7 +69,7 @@ restore_ai_key() {
 # qui s'interrompt à l'étape 7 ne doit pas laisser l'instance amputée.
 trap 'restore_ai_key; rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -147,7 +147,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -155,12 +155,12 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 step "2. Lecture des paramètres — les défauts sont complets"
 # Table remise à zéro : on veut prouver qu'une base vierge rend bien un objet
@@ -376,8 +376,8 @@ step "8. settings:manage pour écrire — un auditeur voit, et ne touche à rien
 code=$(req POST /api/admin/users \
   "{\"name\":\"Viewer paramètres\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"auditor\"}")
 case "$code" in
-  201) pass "utilisateur viewer créé" ;;
-  409) pass "utilisateur viewer déjà présent" ;;
+  201) pass "viewer user created" ;;
+  409) pass "viewer user already present" ;;
   *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
 esac
 
@@ -400,8 +400,8 @@ for _ in 1 2 3 4 5; do
   [ "$code" = "429" ] || break
   sleep 6
 done
-[ "$code" = "200" ] || fail "connexion viewer impossible (HTTP $code) : $(cat "$BODY")"
-pass "connecté en tant que $VIEWER_EMAIL"
+[ "$code" = "200" ] || fail "viewer sign-in failed (HTTP $code): $(cat "$BODY")"
+pass "signed in as $VIEWER_EMAIL"
 
 code=$(req GET /api/settings '' "$VIEWER_JAR")
 [ "$code" = "200" ] || fail "un viewer doit pouvoir lire les paramètres : HTTP $code"
@@ -623,7 +623,7 @@ else
   pass "paramètres restaurés, clé de test effacée (aucune clé d'instance au départ)"
 fi
 req DELETE "/api/admin/users/$viewer_id" >/dev/null
-pass "utilisateur viewer supprimé"
+pass "viewer user deleted"
 # L'assistant a été abandonné à l'étape 2 pour rendre les pages consultables.
 # On le laisse « terminé » plutôt qu'« abandonné » : c'est l'état d'une
 # instance en service, et celui que les autres scripts trouvent.

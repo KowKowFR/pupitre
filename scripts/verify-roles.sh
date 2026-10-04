@@ -26,7 +26,7 @@ JAR="$WORK/admin.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -57,7 +57,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -65,14 +65,14 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
-# Ménage d'une exécution précédente.
+# Cleanup from a previous run.
 req DELETE "/api/admin/roles/$ROLE_KEY" >/dev/null 2>&1 || true
 
 step "2. Les rôles viennent de la base, pas du code"
@@ -191,18 +191,18 @@ code=$(req PATCH /api/admin/roles/viewer "{\"permissions\":$ORIGINAL}")
 [ "$code" = "200" ] || fail "restauration de viewer → HTTP $code"
 pass "viewer restauré à ses $(jq -r 'length' <<< "$ORIGINAL") permission(s) d'avant"
 
-step "9. Traçabilité"
+step "9. Traceability"
 code=$(req GET "/api/audit-logs?resourceType=role&pageSize=20")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 for action in role.created role.updated role.deleted; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
-    || fail "action « $action » absente du journal d'audit"
+    || fail "action \"$action\" missing from the audit log"
   pass "audit : $action"
 done
 
-step "10. Ménage"
+step "10. Cleanup"
 req DELETE "/api/admin/users/$user_id" >/dev/null
-pass "utilisateur de test supprimé"
+pass "test user deleted"
 
 printf '\n\033[32m✓ Gestion des rôles vérifiée.\033[0m\n'
 printf '\033[2m  Écran : %s/admin/roles\033[0m\n\n' "$BASE_URL"

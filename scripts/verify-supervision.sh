@@ -39,7 +39,7 @@ BODY="$WORK/body.json"
 SSE="$WORK/stream.sse"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -59,7 +59,7 @@ assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir /admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see /admin/users"
 }
 
 login() {
@@ -75,7 +75,7 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
@@ -142,7 +142,7 @@ deploy_and_wait() {
       success|failed|rolled_back|destroyed) printf '%s %s' "$id" "$status"; return ;;
     esac
   done
-  fail "le déploiement $id n'a pas abouti en 5 minutes (statut « $status »)"
+  fail "deployment $id did not complete in 5 minutes (status \"$status\")"
 }
 
 destroy_and_wait() {
@@ -155,12 +155,12 @@ destroy_and_wait() {
     status=$(jq -r .status "$BODY")
     [ "$status" = "destroyed" ] && return
   done
-  fail "le déploiement $id n'a pas été détruit en 3 minutes (statut « $status »)"
+  fail "deployment $id was not destroyed in 3 minutes (status \"$status\")"
 }
 
-step "1. Connexion"
+step "1. Sign-in"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 step "2. Les applications supervisées"
 code=$(req GET /api/apps)
@@ -270,7 +270,7 @@ else
   info "aucun déploiement échoué sous la main — cas non exercé"
 fi
 
-step "8. Traçabilité"
+step "8. Traceability"
 code=$(req GET "/api/audit-logs?resourceType=deployment&pageSize=30")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 jq -e '[.items[] | select(.action == "app.restart.requested")] | length > 0' "$BODY" >/dev/null \
@@ -288,7 +288,7 @@ step "9. Une application dont la dernière mise à jour a échoué reste listée
 
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
-[ -n "$TARGET_ID" ] || fail "cible « $TARGET_NAME » introuvable — lancez ./scripts/setup-test-target.sh"
+[ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 info "cible $TARGET_NAME — $TARGET_ID"
 
 MAJ_APP=$(upsert_app "$FAILED_UPDATE_SLUG" "$(spec_ok "$FAILED_UPDATE_SLUG" 1.0.0)")
@@ -338,7 +338,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" --max-time 8 \
 [ "$code" = "200" ] || fail "le flux de logs de la v1 en service devrait s'ouvrir (HTTP $code)"
 pass "le flux de logs de la version en service s'ouvre toujours"
 
-step "10. Ménage"
+step "10. Cleanup"
 destroy_and_wait "$MAJ_V1"
 pass "déploiement de test détruit sur la cible"
 code=$(req DELETE "/api/deployments/$MAJ_V2/purge")

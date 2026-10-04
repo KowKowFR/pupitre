@@ -44,7 +44,7 @@ VJAR="$WORK/viewer.jar"
 BODY="$WORK/body.json"
 trap 'rm -rf "$WORK"' EXIT
 
-command -v jq >/dev/null || { echo "jq est requis"; exit 1; }
+command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; exit 1; }
@@ -86,20 +86,20 @@ login() {
   done
   code=$(req POST /api/auth/sign-up/email \
     "{\"name\":\"Admin\",\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}")
-  [ "$code" = "200" ] || fail "connexion impossible (HTTP $code) : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "sign-in failed (HTTP $code): $(cat "$BODY")"
   assert_admin
 }
 
-# Le compte doit être administrateur : sans cela le script s'écroulerait bien
-# plus loin sur un 403 énigmatique.
+# The account must be an administrator: without that the script would collapse
+# much further on a cryptic 403.
 assert_admin() {
   local role
   role=$(jq -r '.user.role // empty' "$BODY")
   [ "$role" = "admin" ] && return 0
-  fail "« $ADMIN_EMAIL » a le rôle « ${role:-aucun} », pas « admin » — voir $BASE_URL/admin/users"
+  fail "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\" — see $BASE_URL/admin/users"
 }
 
-# AppSpec minimale : un service exposé, une image, une route de santé.
+# Minimal AppSpec: an exposed service, an image, a health route.
 spec_json() {
   local name="$1" version="$2"
   jq -n --arg n "$name" --arg v "$version" --arg i "$IMAGE" \
@@ -144,7 +144,7 @@ upsert_app() {
   jq -r .id "$BODY"
 }
 
-# Déploie et attend le verdict. Écho : "<deploymentId> <statut>".
+# Deploys and waits for the verdict. Echoes: "<deploymentId> <status>".
 deploy_and_wait() {
   local app_id="$1" target_id="$2" code id status
   code=$(req POST /api/deployments \
@@ -160,7 +160,7 @@ deploy_and_wait() {
       success|failed|rolled_back|destroyed) printf '%s %s' "$id" "$status"; return ;;
     esac
   done
-  fail "le déploiement $id n'a pas abouti en 5 minutes (statut « $status »)"
+  fail "deployment $id did not complete in 5 minutes (status \"$status\")"
 }
 
 destroy_and_wait() {
@@ -173,18 +173,18 @@ destroy_and_wait() {
     status=$(jq -r .status "$BODY")
     [ "$status" = "destroyed" ] && return
   done
-  fail "le déploiement $id n'a pas été détruit en 3 minutes (statut « $status »)"
+  fail "deployment $id was not destroyed in 3 minutes (status \"$status\")"
 }
 
 # ─── 1. Contexte ──────────────────────────────────────────────────────────────
 
-step "1. Connexion et cible"
+step "1. Sign-in and target"
 login
-pass "connecté en tant que $ADMIN_EMAIL"
+pass "signed in as $ADMIN_EMAIL"
 
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
-[ -n "$TARGET_ID" ] || fail "cible « $TARGET_NAME » introuvable — lancez ./scripts/setup-test-target.sh"
+[ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 pass "cible $TARGET_NAME — $TARGET_ID"
 
 # Applications en marche AVANT le passage du script : elles doivent être
@@ -379,8 +379,8 @@ step "8. « deployment:purge » est requis"
 code=$(req POST /api/admin/users \
   "{\"name\":\"Viewer purge\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
 case "$code" in
-  201) pass "utilisateur viewer créé" ;;
-  409) pass "utilisateur viewer déjà présent" ;;
+  201) pass "viewer user created" ;;
+  409) pass "viewer user already present" ;;
   *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
 esac
 VIEWER_ID=$(psql_q "select id from users where email = '$VIEWER_EMAIL';")
@@ -391,8 +391,8 @@ for _ in 1 2 3 4 5; do
   [ "$code" = "429" ] || break
   sleep 6
 done
-[ "$code" = "200" ] || fail "connexion viewer impossible (HTTP $code) : $(cat "$BODY")"
-pass "connecté en tant que $VIEWER_EMAIL"
+[ "$code" = "200" ] || fail "viewer sign-in failed (HTTP $code): $(cat "$BODY")"
+pass "signed in as $VIEWER_EMAIL"
 
 # Il lit l'historique — c'est bien un viewer, pas un compte cassé.
 code=$(vreq GET /api/deployments)
@@ -488,12 +488,12 @@ LIVE_AFTER=$(jq -r '[.items[].applicationSlug] | sort | join(",")' "$BODY")
   || fail "les applications en marche ont changé : « $LIVE_BEFORE » → « $LIVE_AFTER »"
 pass "toujours en marche : ${LIVE_AFTER:-aucune}"
 
-step "11. Ménage"
+step "11. Cleanup"
 code=$(req DELETE "/api/applications/$APP_ID")
 [ "$code" = "200" ] || warn "suppression de $APP_SLUG → HTTP $code : $(cat "$BODY")"
 [ "$code" = "200" ] && pass "application de test supprimée"
 req DELETE "/api/admin/users/$VIEWER_ID" >/dev/null
-pass "utilisateur viewer supprimé"
+pass "viewer user deleted"
 
 printf '\n\033[32m✓ Purge de l’historique vérifiée.\033[0m\n'
 printf '\033[2m  Écran : %s/deployments\033[0m\n\n' "$BASE_URL"
