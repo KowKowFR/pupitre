@@ -41,8 +41,8 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 VIEWER_EMAIL="${VIEWER_EMAIL:-viewer@example.test}"
 VIEWER_PASSWORD="${VIEWER_PASSWORD:-motdepasse-tres-long}"
-DOCKER_TARGET="${DOCKER_TARGET:-cible-de-verification}"
-K3S_TARGET="${K3S_TARGET:-cible-k3s}"
+DOCKER_TARGET="${DOCKER_TARGET:-verification-target}"
+K3S_TARGET="${K3S_TARGET:-verification-k3s-target}"
 # Containers carrying the test targets: used for the "closest" checks, those
 # that look at the machine and not at the panel's database.
 DOCKER_CONTAINER="${DOCKER_CONTAINER:-pupitre-ssh-target-1}"

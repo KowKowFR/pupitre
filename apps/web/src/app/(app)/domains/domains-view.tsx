@@ -42,14 +42,14 @@ type ApiError = { error?: { message?: string } };
 
 /**
  * The domains table and a domain's drawer. The drawer follows the URL
- * (`?domaine=…`): J/K move from one domain to the next, and the link can be
+ * (`?domain=…`): J/K move from one domain to the next, and the link can be
  * shared.
  */
 export function DomainsView({ rows, format }: { rows: DomainViewRow[]; format: FormatSettings }) {
   const t = useT(messages);
   const tp = useT(proxyMessages);
   const drawer = useDrawerSelection(
-    'domaine',
+    'domain',
     rows.map((row) => row.id),
   );
   const current = rows.find((row) => row.id === drawer.selected) ?? null;

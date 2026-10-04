@@ -37,7 +37,7 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.43}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
 TARGET_SERVICE="${TARGET_SERVICE:-ssh-target}"
 
 READER_ROLE="${READER_ROLE:-verif-histo-lecteur}"

@@ -10,10 +10,10 @@ import { SecurityForm } from './security-form';
 
 export const dynamic = 'force-dynamic';
 
-const section = settingsSection('/admin/settings/securite');
+const section = settingsSection('/admin/settings/security');
 
 export default async function SecuritySettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/securite', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/security', 'settings:read');
   const { settings } = await getAppSettings();
   const t = await getT(messages);
 

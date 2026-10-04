@@ -154,7 +154,12 @@ function ServerCard({
       <Collapsible defaultOpen>
         <div className="card-h flex-wrap gap-y-2 !px-4 !py-3">
           {hasApps ? (
-            <CollapsibleTrigger className="min-w-0 gap-2.5">{identity}</CollapsibleTrigger>
+            // `data-server-disclosure`: the verification script tells this disclosure apart
+            // from the header's other buttons — the thresholds dialog's trigger carries
+            // `aria-expanded` too, on an empty server as well.
+            <CollapsibleTrigger className="min-w-0 gap-2.5" data-server-disclosure>
+              {identity}
+            </CollapsibleTrigger>
           ) : (
             // No disclosure on an empty server: opening it to find nothing is a broken
             // promise. The badge, next to it, already says everything.

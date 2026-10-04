@@ -10,7 +10,7 @@ import { RegionalForm } from './regional-form';
 export const dynamic = 'force-dynamic';
 
 export default async function RegionalSettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/regionalisation', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/regional', 'settings:read');
   const { settings } = await getAppSettings();
   const t = await getT(messages);
 

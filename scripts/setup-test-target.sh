@@ -6,8 +6,8 @@
 # daemon) and registers two targets in the panel, because the worker and your
 # workstation do not see the machine at the same address:
 #
-#   cible-de-verification   ssh-target:22    seen from the worker      (UI, preflight)
-#   cible-docker-locale     127.0.0.1:2222   seen from the workstation (pnpm test:driver)
+#   verification-target   ssh-target:22    seen from the worker      (UI, preflight)
+#   local-docker-target     127.0.0.1:2222   seen from the workstation (pnpm test:driver)
 #
 # It is the same machine, reached through two network paths.
 #
@@ -180,11 +180,11 @@ register() {
   jq -r .id "$BODY"
 }
 
-WORKER_TARGET=$(register 'cible-de-verification' 'ssh-target' 22)
-pass "cible-de-verification  ssh-target:22   (worker, UI)  $WORKER_TARGET"
+WORKER_TARGET=$(register 'verification-target' 'ssh-target' 22)
+pass "verification-target  ssh-target:22   (worker, UI)  $WORKER_TARGET"
 
-HOST_TARGET=$(register 'cible-docker-locale' '127.0.0.1' 2222)
-pass "cible-docker-locale    127.0.0.1:2222  (workstation) $HOST_TARGET"
+HOST_TARGET=$(register 'local-docker-target' '127.0.0.1' 2222)
+pass "local-docker-target    127.0.0.1:2222  (workstation) $HOST_TARGET"
 
 step "5. Preflight from the worker"
 JOB=$(req POST "/api/targets/$WORKER_TARGET/preflight" '{}' >/dev/null; jq -r .jobId "$BODY")
@@ -199,6 +199,6 @@ jq -e '.runtimesAvailable.docker.available == true' "$BODY" >/dev/null \
 pass "Docker ✓ $(jq -r '.runtimesAvailable.docker.version' "$BODY") — K3s ✗"
 
 printf '\n\033[32m✓ Test target ready.\033[0m\n'
-printf '\033[2m  Deploy:     DRIVER_PORT_RANGE=30000-30009 pnpm test:driver cible-docker-locale\033[0m\n'
+printf '\033[2m  Deploy:     DRIVER_PORT_RANGE=30000-30009 pnpm test:driver local-docker-target\033[0m\n'
 printf '\033[2m  UFW active: TEST_TARGET_UFW=1 ./scripts/setup-test-target.sh\033[0m\n'
 printf '\033[2m  Clean up:   docker compose --profile test down -v ssh-target\033[0m\n\n'

@@ -30,7 +30,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-DOCKER_TARGET="${DOCKER_TARGET:-cible-de-verification}"
+DOCKER_TARGET="${DOCKER_TARGET:-verification-target}"
 DB_NAME="${DB_NAME:-tp}"
 GITLAB_URL="${GITLAB_URL:-http://localhost:3040}"
 REPO="atelier/web/bonjour"

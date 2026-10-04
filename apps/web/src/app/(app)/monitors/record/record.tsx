@@ -128,7 +128,7 @@ export async function monitorRecord(
     ),
     actions:
       auth.can('maintenance:manage') && maintenance.length === 0 ? (
-        <ScheduleMaintenanceLink subject="sonde" id={row.id} />
+        <ScheduleMaintenanceLink subject="monitor" id={row.id} />
       ) : null,
     edit:
       editTypes && isMonitorType(row.type)

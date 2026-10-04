@@ -15,5 +15,5 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsRootPage() {
   await requirePagePermission(SETTINGS_ROOT, 'settings:read');
   const first = SETTINGS_GROUPS[0] ? groupSections(SETTINGS_GROUPS[0])[0] : undefined;
-  redirect((first?.href ?? '/admin/settings/identite') as never);
+  redirect((first?.href ?? '/admin/settings/identity') as never);
 }

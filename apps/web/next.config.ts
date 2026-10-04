@@ -4,6 +4,18 @@ import type { NextConfig } from 'next';
 
 const monorepoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
+/** The settings sections' addresses before the English migration, and today's. */
+const FRENCH_SETTINGS_SLUGS: Record<string, string> = {
+  identite: 'identity',
+  regionalisation: 'regional',
+  securite: 'security',
+  connexion: 'sso',
+  comptes: 'accounts',
+  ia: 'ai',
+  sauvegardes: 'backups',
+  demarrage: 'onboarding',
+};
+
 const nextConfig: NextConfig = {
   // A single Docker image: the Next server embeds its traced dependencies.
   output: 'standalone',
@@ -84,7 +96,14 @@ const nextConfig: NextConfig = {
       // The settings no longer have a summary: their root leads to the first tab of
       // the first group. A plain 307, before any rendering — the root page does it
       // too, but mid-stream, hence on the browser side.
-      { source: '/admin/settings', destination: '/admin/settings/identite', permanent: false },
+      { source: '/admin/settings', destination: '/admin/settings/identity', permanent: false },
+      // The settings sections had French addresses until the English migration: they
+      // linger in bookmarks and runbooks. A 308 keeps the query parameters.
+      ...Object.entries(FRENCH_SETTINGS_SLUGS).map(([old, slug]) => ({
+        source: `/admin/settings/${old}`,
+        destination: `/admin/settings/${slug}`,
+        permanent: true,
+      })),
       // Records live in drawers, on top of their list. The old addresses — links
       // from emails, notifications, the chat — lead there; the query parameters
       // follow (`?tab=proxy`).
@@ -114,6 +133,30 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       { source: '/apps/:id([0-9a-f-]{36})', destination: '/apps?app=:id', permanent: false },
+      // Links already sent — notification emails, the chat — carry the drawers' French
+      // parameters from before the English migration. `missing` stops the loop: the
+      // other query parameters are passed through, the old one included.
+      {
+        source: '/maintenance',
+        has: [{ type: 'query', key: 'fenetre', value: '(?<id>[^&]+)' }],
+        missing: [{ type: 'query', key: 'window' }],
+        destination: '/maintenance?window=:id',
+        permanent: false,
+      },
+      {
+        source: '/status-pages',
+        has: [{ type: 'query', key: 'annonce', value: '(?<subject>[^&]+)' }],
+        missing: [{ type: 'query', key: 'announce' }],
+        destination: '/status-pages?announce=:subject',
+        permanent: false,
+      },
+      {
+        source: '/domains',
+        has: [{ type: 'query', key: 'domaine', value: '(?<id>[^&]+)' }],
+        missing: [{ type: 'query', key: 'domain' }],
+        destination: '/domains?domain=:id',
+        permanent: false,
+      },
     ]);
   },
 };

@@ -9,10 +9,10 @@ import { IdentityForm } from './identity-form';
 
 export const dynamic = 'force-dynamic';
 
-const section = settingsSection('/admin/settings/identite');
+const section = settingsSection('/admin/settings/identity');
 
 export default async function IdentitySettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/identite', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/identity', 'settings:read');
   const { settings } = await getAppSettings();
   const t = await getT(messages);
 

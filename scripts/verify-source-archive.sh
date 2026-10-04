@@ -29,7 +29,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-DOCKER_TARGET="${DOCKER_TARGET:-cible-de-verification}"
+DOCKER_TARGET="${DOCKER_TARGET:-verification-target}"
 K3S_TARGET="${K3S_TARGET:-}"
 DRIVER_ROOT_PATH="${DRIVER_ROOT_PATH:-/opt/bootstrap}"
 SLUG="${SLUG:-archive-verif}"

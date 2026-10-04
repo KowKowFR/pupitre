@@ -724,7 +724,7 @@ export function CommandPalette({
         meta: t('palette.cmd.language.meta'),
         verb: 'open',
         words: 'locale i18n',
-        perform: () => go('/admin/settings/regionalisation'),
+        perform: () => go('/admin/settings/regional'),
       },
       'preferences',
     );
@@ -928,7 +928,7 @@ function hrefOf(hit: SearchHit): string {
     case 'monitor':
       return `/monitors?monitor=${hit.id}`;
     case 'domain':
-      return `/domains?domaine=${hit.id}`;
+      return `/domains?domain=${hit.id}`;
     case 'role':
       return `/admin/roles?role=${encodeURIComponent(hit.key)}`;
     case 'template':

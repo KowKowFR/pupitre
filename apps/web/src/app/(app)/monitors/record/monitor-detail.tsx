@@ -287,7 +287,7 @@ export function MonitorDetail({
                   ) : null}
                   {announcements ? (
                     <Link
-                      href={`/status-pages?annonce=incident:${incident.id}`}
+                      href={`/status-pages?announce=incident:${incident.id}`}
                       className="link t-cap ml-auto inline-flex items-center gap-1"
                     >
                       <Megaphone aria-hidden className="size-3.5" />

@@ -190,7 +190,7 @@ export async function targetRecord(
     overview,
     actions:
       auth.can('maintenance:manage') && maintenance.length === 0 ? (
-        <ScheduleMaintenanceLink subject="cible" id={target.id} />
+        <ScheduleMaintenanceLink subject="target" id={target.id} />
       ) : null,
     counts: ports ? { ports: `${ports.used}/${ports.capacity}` } : {},
     tabs: {

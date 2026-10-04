@@ -210,7 +210,7 @@ function contextFor(target: Target, spec: AppSpec, applicationId: string): Drive
     },
     deployment: { id: `catalog-${spec.name}-${Date.now()}`, version: spec.version, sequence: 1 },
     sshSession: target.session,
-    language: 'fr',
+    language: 'en',
     appSlug: spec.name,
     applicationId,
     portAllocator: createPortAllocator(),

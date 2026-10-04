@@ -28,7 +28,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-DOCKER_TARGET="${DOCKER_TARGET:-cible-de-verification}"
+DOCKER_TARGET="${DOCKER_TARGET:-verification-target}"
 GITEA_URL="${GITEA_URL:-http://localhost:3030}"
 GITEA_USER="${GITEA_USER:-pupitre}"
 GITEA_PASSWORD="${GITEA_PASSWORD:-motdepasse-forge-test}"

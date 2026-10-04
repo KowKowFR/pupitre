@@ -358,9 +358,9 @@ export function OpenBreaches({ breaches }: { breaches: readonly BreachView[] }) 
  * doing", the strip "since when". It opens on its own when the second question
  * is the one being asked — unreachable machine, threshold crossed.
  *
- * A native `<details>` and not an `aria-expanded` disclosure: it costs no state,
- * and the screen's contract reserves `aria-expanded` for a server's list of
- * applications.
+ * A native `<details>` and not a `Collapsible`: it costs no state, and the
+ * server's list of applications stays the section's only disclosure
+ * (`data-server-disclosure`).
  */
 export function HostHistory({
   targetId,

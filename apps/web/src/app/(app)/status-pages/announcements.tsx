@@ -87,7 +87,7 @@ function timing(subject: AnnounceSubjectJson, t: T, when: (value: string) => str
 
 /**
  * The announcements: the outages and maintenance windows of your pages' probes,
- * and for each one a drawer (`?annonce=incident:<id>`) where to publish what the
+ * and for each one a drawer (`?announce=incident:<id>`) where to publish what the
  * visitors will read.
  */
 export function Announcements({
@@ -101,7 +101,7 @@ export function Announcements({
   const router = useRouter();
   const when = whenOf(format);
   const drawer = useDrawerSelection(
-    'annonce',
+    'announce',
     subjects.map((subject) => subject.key),
   );
   const current = subjects.find((subject) => subject.key === drawer.selected) ?? null;

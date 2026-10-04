@@ -30,7 +30,7 @@ export async function MaintenanceMark({
       variant="warn"
       action={
         canRead ? (
-          <Link href={`/maintenance?fenetre=${last.id}` as never} className="btn btn-ghost btn-sm">
+          <Link href={`/maintenance?window=${last.id}` as never} className="btn btn-ghost btn-sm">
             {t('banner.open')}
           </Link>
         ) : undefined
@@ -46,12 +46,12 @@ export async function ScheduleMaintenanceLink({
   subject,
   id,
 }: {
-  subject: 'cible' | 'sonde';
+  subject: 'target' | 'monitor';
   id: string;
 }) {
   const t = await getT(messages);
   return (
-    <Link href={`/maintenance?nouvelle=1&${subject}=${id}` as never} className="btn btn-secondary">
+    <Link href={`/maintenance?new=1&${subject}=${id}` as never} className="btn btn-secondary">
       <Wrench aria-hidden />
       {t('action.schedule')}
     </Link>

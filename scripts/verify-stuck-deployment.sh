@@ -34,7 +34,7 @@
 # and after: no application in service is touched.
 #
 # The "vps" target is NEVER called upon. Everything plays out on
-# "cible-de-verification" (the ssh-target container).
+# "verification-target" (the ssh-target container).
 #
 # The worker is stopped and restarted several times: it is the very subject of
 # the test. Count about twelve minutes.
@@ -48,7 +48,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
 IMAGE="${IMAGE:-docker.io/library/nginx:1.29-alpine}"
 

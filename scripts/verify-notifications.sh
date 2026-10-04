@@ -44,7 +44,7 @@ MAILPIT_HTTP="${MAILPIT_HTTP:-http://127.0.0.1:8025}"
 # Name reserved for this script. Everything carrying it is deleted at the start and at the end.
 PREFIX="verif-notif"
 READER_EMAIL="notif-lecteur@example.test"
-SUBJECT_EMAIL="notif-cobaye@example.test"
+SUBJECT_EMAIL="notif-guinea-pig@example.test"
 READER_ROLE="$PREFIX-lecteur"
 
 # Throwaway secrets. They are shaped like real tokens — it is what allows
@@ -508,7 +508,7 @@ DEAD_ID=$(create_channel "{\"kind\":\"webhook\",\"name\":\"$PREFIX-unreachable\"
 pass "unreachable channel created, subscribed to the same event as the webhook"
 
 code=$(req POST /api/admin/users \
-  "{\"name\":\"Cobaye notifications\",\"email\":\"$SUBJECT_EMAIL\",\"password\":\"motdepasse-tres-long\",\"role\":\"viewer\"}")
+  "{\"name\":\"Guinea pig notifications\",\"email\":\"$SUBJECT_EMAIL\",\"password\":\"motdepasse-tres-long\",\"role\":\"viewer\"}")
 case "$code" in 201|409) : ;; *) fail "POST /api/admin/users → HTTP $code: $(cat "$BODY")" ;; esac
 SUBJECT_ID=$(psql_q "select id from users where email = '$SUBJECT_EMAIL';")
 [ -n "$SUBJECT_ID" ] || fail "guinea pig user not found"

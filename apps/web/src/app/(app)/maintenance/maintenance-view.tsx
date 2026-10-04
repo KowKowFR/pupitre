@@ -69,10 +69,10 @@ async function failure(response: Response, fallback: string): Promise<string> {
   return body.error?.message ?? fallback;
 }
 
-/** The header's button: it opens the scheduling drawer (`?nouvelle=1`). */
+/** The header's button: it opens the scheduling drawer (`?new=1`). */
 export function NewMaintenanceButton() {
   const t = useT(messages);
-  const adding = useDrawerSelection('nouvelle');
+  const adding = useDrawerSelection('new');
   return (
     <Button onClick={() => adding.open('1')}>
       <Plus aria-hidden />
@@ -101,10 +101,10 @@ export function MaintenanceView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const detail = useDrawerSelection(
-    'fenetre',
+    'window',
     windows.map((window) => window.id),
   );
-  const adding = useDrawerSelection('nouvelle');
+  const adding = useDrawerSelection('new');
   const current = windows.find((window) => window.id === detail.selected) ?? null;
 
   const groups = (['active', 'upcoming', 'ended'] as const)
@@ -114,10 +114,10 @@ export function MaintenanceView({
   // A "Put under maintenance" link from a target or a probe arrives with its
   // subject: the form starts from there.
   const prefill = {
-    targetIds: [searchParams.get('cible')].filter((id): id is string =>
+    targetIds: [searchParams.get('target')].filter((id): id is string =>
       targets.some((target) => target.id === id),
     ),
-    monitorIds: [searchParams.get('sonde')].filter((id): id is string =>
+    monitorIds: [searchParams.get('monitor')].filter((id): id is string =>
       monitors.some((monitor) => monitor.id === id),
     ),
   };
@@ -405,7 +405,7 @@ function MaintenanceDrawer({
 
         {canAnnounce ? (
           <Link
-            href={`/status-pages?annonce=maintenance:${window.id}`}
+            href={`/status-pages?announce=maintenance:${window.id}`}
             className="link t-sm inline-flex items-center gap-1.5 self-start"
           >
             <Megaphone aria-hidden className="size-4" />

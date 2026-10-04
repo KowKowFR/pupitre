@@ -363,7 +363,7 @@ They are published in `/status-pages`, **Announcements** section
 investigating" is an operations gesture, and the operator gets it on a fresh
 installation). The section lists the outages of your pages' probes, ongoing or
 closed less than 7 days ago, and the maintenance windows affecting them; each one
-opens in a drawer (`?annonce=incident:<id>`, `?annonce=maintenance:<id>`) where
+opens in a drawer (`?announce=incident:<id>`, `?announce=maintenance:<id>`) where
 you publish, correct or remove. A probe's record and a window's lead there
 directly — even for a probe no page shows, with the warning that the
 announcement will appear nowhere.

@@ -16,7 +16,7 @@ import { AccountsForm, type PolicyReach } from './accounts-form';
 
 export const dynamic = 'force-dynamic';
 
-const section = settingsSection('/admin/settings/comptes');
+const section = settingsSection('/admin/settings/accounts');
 
 /**
  * Accounts and sessions: the required second factor, the sessions' duration.
@@ -26,7 +26,7 @@ const section = settingsSection('/admin/settings/comptes');
  * only has to show the chosen one.
  */
 export default async function AccountsSettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/comptes', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/accounts', 'settings:read');
   const [{ settings }, roles, exposure, t] = await Promise.all([
     getAppSettings(),
     listRolesWithPermissions(),

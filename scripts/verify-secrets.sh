@@ -27,7 +27,7 @@
 #      authentication succeeds, it is the only test that matters
 #  13. the K3s rendering gets the same complete map as the Docker rendering
 #
-# The target used is `cible-de-verification` (docker-in-docker), never a
+# The target used is `verification-target` (docker-in-docker), never a
 # production machine. Everything the script creates is destroyed at the end.
 #
 # Usage:
@@ -39,7 +39,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.77}"
 SLUG="${SLUG:-verif-secrets}"
 SLUG_ALIAS="${SLUG_ALIAS:-verif-alias}"

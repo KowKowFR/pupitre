@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic';
  * "Status pages": the public pages the administrator composes — the list here,
  * the editor in a drawer (`?page=<id>`, `?page=nouvelle`) — and the announcements
  * published there during an outage or a maintenance window
- * (`?annonce=incident:<id>`). Each one sees the part their role opens to them.
+ * (`?announce=incident:<id>`). Each one sees the part their role opens to them.
  */
 export default async function StatusPagesPage({
   searchParams,

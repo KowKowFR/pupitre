@@ -26,7 +26,7 @@ function fakeSession(rules: Array<[RegExp, Answer]>) {
   const commands: string[] = [];
   const session = {
     id: 'session-test',
-    host: 'cible.test',
+    host: 'target.test',
     language: 'en',
     target: { sudoMethod: 'nopasswd' },
     client: {
@@ -63,7 +63,7 @@ const spec = parseAppSpec({
 function contextFor(session: SshSession): DriverContext {
   return {
     spec,
-    target: { id: 'cible', name: 'cible-1', host: 'cible.test', rootPath: '/opt/pupitre' },
+    target: { id: 'target', name: 'target-1', host: 'target.test', rootPath: '/opt/pupitre' },
     deployment: { id: 'deploiement-2', version: '1.0.1', sequence: 2 },
     previousDeployment: { id: 'deploiement-1', version: '1.0.0', sequence: 1 },
     sshSession: session,

@@ -730,7 +730,7 @@ An application without a volume has nothing to back up, and the screen says so.
 
 ### The destination
 
-`/admin/settings/sauvegardes`, `settings:manage`. A single destination in
+`/admin/settings/backups`, `settings:manage`. A single destination in
 service, **off the panel's machine** — a backup that burns with what it
 protects is not one:
 
@@ -829,7 +829,7 @@ also the way to move data from one machine to another.
 
 ### The overview
 
-In `/admin/settings/sauvegardes`, the **Applications** card lists, with
+In `/admin/settings/backups`, the **Applications** card lists, with
 `backup:read`, each application that has a backup or a policy: the last backup
 and its outcome, their count and size, the active options. Each one unfolds into
 its full history, from which you restore or delete as from the page — enough to
@@ -1011,16 +1011,16 @@ reads as a tooltip (the ⓘ icon next to the label).
 
 | Section | URL | What is set there |
 |---|---|---|
-| **Instance** · Identity | `/admin/settings/identite` | the instance's name and tagline |
-| **Instance** · Regional settings | `/admin/settings/regionalisation` | time zone, locale — hence the panel's language —, date and time format |
-| **Security and access** · Security scanning | `/admin/settings/securite` | active scanners and blocking threshold — see [`security.md`](security.md#the-blocking-policy-lives-in-the-settings) |
-| **Security and access** · Single sign-on | `/admin/settings/connexion` | the OpenID Connect provider — see [Single sign-on with Keycloak](#single-sign-on-with-keycloak) |
-| **Security and access** · Accounts and sessions | `/admin/settings/comptes` | required second factor, session length — see [`security.md`](security.md#required-second-factor) |
+| **Instance** · Identity | `/admin/settings/identity` | the instance's name and tagline |
+| **Instance** · Regional settings | `/admin/settings/regional` | time zone, locale — hence the panel's language —, date and time format |
+| **Security and access** · Security scanning | `/admin/settings/security` | active scanners and blocking threshold — see [`security.md`](security.md#the-blocking-policy-lives-in-the-settings) |
+| **Security and access** · Single sign-on | `/admin/settings/sso` | the OpenID Connect provider — see [Single sign-on with Keycloak](#single-sign-on-with-keycloak) |
+| **Security and access** · Accounts and sessions | `/admin/settings/accounts` | required second factor, session length — see [`security.md`](security.md#required-second-factor) |
 | **Integrations** · Notifications | `/admin/settings/notifications` | the four channels — see [`monitoring.md`](monitoring.md#notifications) |
-| **Integrations** · Artificial intelligence | `/admin/settings/ia` | provider, model, key — see [`ai.md`](ai.md) |
+| **Integrations** · Artificial intelligence | `/admin/settings/ai` | provider, model, key — see [`ai.md`](ai.md) |
 | **Integrations** · Code repositories | `/admin/settings/integrations` | the GitHub App, the GitLab instance and the Gitea forge of linked repositories — see [`architecture.md`](architecture.md#linked-repositories) |
-| **Operations** · Backups | `/admin/settings/sauvegardes` | destination, panel database — see [Backups](#backups) |
-| **Operations** · Setup guide | `/admin/settings/demarrage` | run the guide again |
+| **Operations** · Backups | `/admin/settings/backups` | destination, panel database — see [Backups](#backups) |
+| **Operations** · Setup guide | `/admin/settings/onboarding` | run the guide again |
 
 A "Read-only" banner shows without `settings:manage`, and the permission is
 **checked again in each page**: a layout is not re-executed on client
@@ -1128,7 +1128,7 @@ installation is configured when nobody did anything; confusing `pending` and
 `in_progress` would make whoever closes their browser in the middle start over.
 `completed` and `skipped` are two distinct and exclusive lists.
 
-Running it again (`/admin/settings/demarrage`, `settings:manage`) resets the
+Running it again (`/admin/settings/onboarding`, `settings:manage`) resets the
 guide and **increments a `runs` counter**: "never run" and "run three times
 then abandoned" do not look alike.
 

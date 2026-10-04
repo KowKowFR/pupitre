@@ -16,11 +16,11 @@
 #   6. the port reservations are given back — checked in SQL
 #
 # The script creates its own material (applications "fd-*", target
-# "cible-fantome") and cleans it up. It touches NO application already in
+# "ghost-target") and cleans it up. It touches NO application already in
 # service: the `/api/apps` inventory is compared before and after.
 #
 # The "vps" target is never called upon. Everything plays out on
-# "cible-de-verification" (the ssh-target container) and on a ghost target
+# "verification-target" (the ssh-target container) and on a ghost target
 # created for the occasion.
 #
 # Usage:
@@ -32,8 +32,8 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
-GHOST_NAME="${GHOST_NAME:-cible-fantome}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
+GHOST_NAME="${GHOST_NAME:-ghost-target}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
 IMAGE="${IMAGE:-docker.io/library/nginx:1.29-alpine}"
 

@@ -28,7 +28,7 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
 # Docker-in-docker container carrying the target: it is the one queried
 # directly to cross-check the readout, and on it that a command is hidden.
 TARGET_SERVICE="${TARGET_SERVICE:-ssh-target}"
@@ -433,7 +433,7 @@ if [ -n "$WITNESS_ID" ]; then
   WITNESS_SECTION=$(server_section "$WITNESS_ID")
   printf '%s' "$WITNESS_SECTION" | grep -qE 'Aucune application supervisée|No monitored application' \
     || fail "the control server does not announce that it is empty"
-  if printf '%s' "$WITNESS_SECTION" | grep -q 'aria-expanded'; then
+  if printf '%s' "$WITNESS_SECTION" | grep -q 'data-server-disclosure'; then
     fail "an empty server must not offer a disclosure"
   fi
   pass "a server without an application says so, and offers no disclosure"
