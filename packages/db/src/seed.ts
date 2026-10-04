@@ -13,20 +13,20 @@ import { closeDb, getDb, type Database } from './client.js';
 import { permissions, rolePermissions, roles } from './schema/rbac.js';
 
 /**
- * Seed RBAC — rejoué à chaque démarrage du panel.
+ * RBAC seed — replayed at each panel startup.
  *
- * Il fait trois choses, et **rien d'autre** :
+ * It does three things, and **nothing else**:
  *
- *   1. il installe le vocabulaire de permissions (toujours sûr : ce sont des
- *      constantes du code, pas des décisions d'exploitation) ;
- *   2. il garantit que `admin` existe et détient l'intégralité des permissions —
- *      c'est le garde-fou qui empêche de se verrouiller hors de son panel ;
- *   3. sur une base vierge uniquement, il installe `operator` et `viewer`
- *      comme points de départ.
+ *   1. it installs the permissions vocabulary (always safe: they are code
+ *      constants, not operations decisions);
+ *   2. it guarantees that `admin` exists and holds all the permissions — it is
+ *      the safeguard that prevents locking yourself out of your panel;
+ *   3. on an empty database only, it installs `operator` and `viewer` as
+ *      starting points.
  *
- * Ce qu'il ne fait **plus** : réaligner les permissions des rôles existants.
- * Depuis que l'écran d'administration permet de les modifier, les réaligner
- * reviendrait à effacer un choix délibéré au prochain `docker compose up`.
+ * What it **no longer** does: realign the existing roles' permissions. Since the
+ * administration screen allows changing them, realigning them would amount to
+ * erasing a deliberate choice at the next `docker compose up`.
  */
 export type SeedReport = {
   permissions: number;
@@ -55,7 +55,7 @@ export async function seedRbac(db: Database = getDb()): Promise<SeedReport> {
     const allPermissions = await tx.select().from(permissions);
     const permissionIdByKey = new Map(allPermissions.map((p) => [p.key, p.id]));
 
-    // 2. Y a-t-il déjà des rôles ? Une base vierge se reconnaît à ça.
+    // 2. Are there already roles? An empty database is recognized by that.
     const [existingCount] = await tx.select({ value: count() }).from(roles);
     const freshInstall = (existingCount?.value ?? 0) === 0;
 
@@ -67,8 +67,8 @@ export async function seedRbac(db: Database = getDb()): Promise<SeedReport> {
 
     const rolesCreated: string[] = [];
 
-    // Sur une installation vierge : les trois rôles de départ.
-    // Ensuite : `admin` seul, et seulement s'il a disparu.
+    // On an empty installation: the three starting roles.
+    // Afterwards: `admin` alone, and only if it disappeared.
     const toCreate = freshInstall ? SEEDED_ROLES : ([LOCKED_ROLE] as const);
 
     for (const key of toCreate) {
@@ -101,8 +101,8 @@ export async function seedRbac(db: Database = getDb()): Promise<SeedReport> {
       }
     }
 
-    // 3. `admin` détient toujours tout. Une permission ajoutée au vocabulaire
-    //    lui revient d'office, et personne ne peut la lui retirer.
+    // 3. `admin` always holds everything. A permission added to the vocabulary goes
+    //    to it automatically, and nobody can take it away.
     const admin = byKey.get(LOCKED_ROLE);
     let adminRealigned = false;
 
@@ -158,7 +158,7 @@ if (isDirectRun) {
     })
     .catch(async (error: unknown) => {
       // eslint-disable-next-line no-console
-      console.error('[db] échec du seed RBAC', error);
+      console.error('[db] RBAC seed failed', error);
       await closeDb();
       process.exit(1);
     });

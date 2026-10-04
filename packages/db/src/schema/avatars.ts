@@ -4,23 +4,23 @@ import { users } from './auth.js';
 import { bytea } from './columns.js';
 
 /**
- * La photo de profil de chaque personne, en base — pas de service de fichiers
- * à côté, rien de plus à sauvegarder que la base elle-même.
+ * Each person's profile picture, in the database — no file service on the side,
+ * nothing more to back up than the database itself.
  *
- * Une ligne par personne au plus, remplacée à chaque envoi. La photo est petite
- * par construction : un carré de 256 px réencodé par le navigateur, 512 Kio au
- * plus (voir `media.ts` dans `@pupitre/core`).
+ * At most one row per person, replaced at each upload. The picture is small by
+ * construction: a 256 px square re-encoded by the browser, 512 KiB at most (see
+ * `media.ts` in `@pupitre/core`).
  *
- * `users.image`, le champ que Better Auth porte dans la session, reçoit l'URL
- * **versionnée** de la photo (`/api/users/:id/avatar?v=…`) : chaque écran qui
- * connaît la personne connaît sa photo, et une nouvelle photo change d'URL —
- * le navigateur peut donc garder l'ancienne en cache aussi longtemps qu'il veut.
+ * `users.image`, the field Better Auth carries in the session, receives the
+ * picture's **versioned** URL (`/api/users/:id/avatar?v=…`): each screen that
+ * knows the person knows their picture, and a new picture changes URL — the
+ * browser can therefore keep the old one in cache as long as it likes.
  */
 export const userAvatars = pgTable('user_avatars', {
   userId: text('user_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
-  /** Lu dans les octets à l'arrivée, jamais pris dans l'en-tête de la requête. */
+  /** Read from the bytes on arrival, never taken from the request's header. */
   contentType: text('content_type').$type<ImageMediaType>().notNull(),
   width: integer('width').notNull(),
   height: integer('height').notNull(),

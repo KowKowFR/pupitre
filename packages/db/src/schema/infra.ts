@@ -19,28 +19,28 @@ import { users } from './auth.js';
 export type RuntimeKey = 'docker' | 'k3s';
 
 /**
- * Étiquettes libres posées par l'opérateur, ex. `env=prod`, `zone=eu-west`.
+ * Free labels set by the operator, e.g. `env=prod`, `zone=eu-west`.
  *
- * Le modèle reste des paires clé/valeur, comme Kubernetes, et **ne porte pas de
- * couleur**. La couleur d'une étiquette est dérivée de son texte au rendu
- * (hachage → teinte), ce qui la rend stable partout sans rien stocker et,
- * surtout, empêche quiconque de peindre une étiquette en rouge ou en vert —
- * ces teintes-là disent l'état d'une machine dans ce panel, pas son étiquette.
+ * The model stays key/value pairs, like Kubernetes, and **carries no color**. A
+ * label's color is derived from its text at render time (hash → hue), which makes
+ * it stable everywhere without storing anything and, above all, prevents anyone
+ * from painting a label red or green — those hues tell a machine's state in this
+ * panel, not its label.
  */
 export type TargetLabels = Record<string, string>;
 
-/** Machine distante sur laquelle le control plane déploie. */
+/** Remote machine the control plane deploys onto. */
 export const targets = pgTable(
   'targets',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     name: text('name').notNull().unique(),
     /**
-     * À quoi sert cette machine, en une ou deux phrases.
+     * What this machine is for, in one or two sentences.
      *
-     * `NULL` et non `''` quand elle est absente : une chaîne vide se mettrait à
-     * occuper une ligne dans chaque tableau, et « pas de description » n'est pas
-     * « une description vide ». Le schéma Zod normalise donc `''` en `null`.
+     * `NULL` and not `''` when absent: an empty string would start taking a line in
+     * every table, and "no description" is not "an empty description". The Zod
+     * schema therefore normalizes `''` to `null`.
      */
     description: text('description'),
     host: text('host').notNull(),
@@ -49,43 +49,42 @@ export const targets = pgTable(
     authMethod: sshAuthMethodEnum('auth_method').notNull(),
     sudoMethod: sudoMethodEnum('sudo_method').notNull().default('nopasswd'),
     /**
-     * AES-256-GCM sous `MASTER_KEY`, format `version:iv:authTag:ciphertext`.
-     * Jamais renvoyé par l'API, jamais journalisé. Déchiffré uniquement par le
-     * worker, au moment d'ouvrir la session SSH.
+     * AES-256-GCM under `MASTER_KEY`, `version:iv:authTag:ciphertext` format. Never
+     * returned by the API, never logged. Decrypted only by the worker, when opening
+     * the SSH session.
      */
     encryptedCredential: text('encrypted_credential').notNull(),
     /**
-     * L'empreinte de la clé d'hôte retenue (`SHA256:…`), relevée au premier
-     * contact — comme `known_hosts`. Une autre clé fait ensuite refuser la
-     * connexion. `NULL` : machine jamais jointe, ou dont l'adresse a changé.
+     * The fingerprint of the recorded host key (`SHA256:…`), noted at first contact
+     * — like `known_hosts`. Another key then makes the connection be refused.
+     * `NULL`: machine never reached, or whose address changed.
      */
     hostKeyFingerprint: text('host_key_fingerprint'),
     hostKeyRecordedAt: timestamp('host_key_recorded_at', { withTimezone: true }),
     /**
-     * Une clé présentée qui n'était pas la retenue, en attente d'une décision :
-     * l'accepter (la machine a été réinstallée) ou l'écarter.
+     * A presented key that was not the recorded one, waiting for a decision: accept
+     * it (the machine was reinstalled) or dismiss it.
      */
     hostKeyPending: text('host_key_pending'),
     hostKeyPendingAt: timestamp('host_key_pending_at', { withTimezone: true }),
     /**
-     * Depuis quand Pupitre ne joint plus la machine en SSH — le premier relevé
-     * manqué d'une série confirmée —, ou `null`. C'est l'épisode : il s'ouvre
-     * une fois, se ferme une fois, et c'est ce qui fait partir une seule alerte.
+     * Since when Pupitre no longer reaches the machine over SSH — the first missed
+     * reading of a confirmed series —, or `null`. It is the episode: it opens once,
+     * closes once, and that is what makes a single alert go out.
      */
     unreachableSince: timestamp('unreachable_since', { withTimezone: true }),
     labels: jsonb('labels').$type<TargetLabels>().notNull().default({}),
-    /** Résultat structuré du dernier preflight : versions comprises. */
+    /** Structured result of the last preflight: versions included. */
     runtimesAvailable: jsonb('runtimes_available')
       .$type<RuntimesAvailable>()
       .notNull()
       .default(EMPTY_RUNTIMES),
     /**
-     * Plage de ports publiables sur cette machine.
+     * Range of ports publishable on this machine.
      *
-     * Par cible, et non globale : une VM derrière un pare-feu n'ouvre souvent
-     * qu'une poignée de ports, et deux cibles n'ont aucune raison d'avoir la
-     * même politique. Le défaut reprend la plage `nodePort` de Kubernetes,
-     * inoccupée sur une machine standard.
+     * Per target, and not global: a VM behind a firewall often only opens a handful
+     * of ports, and two targets have no reason to have the same policy. The default
+     * takes Kubernetes's `nodePort` range, unused on a standard machine.
      */
     portRangeStart: integer('port_range_start').notNull().default(30_000),
     portRangeEnd: integer('port_range_end').notNull().default(32_767),
@@ -97,20 +96,20 @@ export const targets = pgTable(
   },
   (t) => [
     uniqueIndex('targets_host_port_user_idx').on(t.host, t.port, t.sshUser),
-    // Une plage inversée rendrait toute allocation impossible sans rien dire.
-    // C'est la base qui refuse, pas une validation qu'on pourrait contourner
-    // en écrivant directement en SQL.
+    // An inverted range would make any allocation impossible without saying
+    // anything. It is the database that refuses, not a validation one could bypass
+    // by writing directly in SQL.
     check('targets_port_range_check', sql`${t.portRangeStart} <= ${t.portRangeEnd}`),
-    // La borne de longueur est en base, comme la plage de ports : la validation
-    // Zod protège le formulaire, la contrainte protège la donnée. 280 caractères
-    // tiennent en trois lignes sur une fiche et se coupent proprement à une ligne
-    // dans un tableau dense ; au-delà on écrit une procédure, pas une étiquette
-    // d'inventaire, et le panel n'a nulle part où la rendre correctement.
+    // The length bound is in the database, like the port range: the Zod validation
+    // protects the form, the constraint protects the data. 280 characters fit in
+    // three lines on a record and cut cleanly to one line in a dense table; beyond
+    // that one writes a procedure, not an inventory label, and the panel has
+    // nowhere to render it properly.
     check('targets_description_length_check', sql`char_length(${t.description}) <= 280`),
   ],
 );
 
-/** Application décrite par une AppSpec neutre, indépendante du runtime. */
+/** Application described by a neutral AppSpec, independent of the runtime. */
 export const applications = pgTable(
   'applications',
   {
@@ -120,21 +119,21 @@ export const applications = pgTable(
     description: text('description'),
     appSpec: jsonb('app_spec').$type<AppSpec>().notNull(),
     /**
-     * Trace de la génération par IA, quand l'application en vient.
+     * Trace of the AI generation, when the application comes from it.
      *
-     * `generation_prompt` est la demande de l'utilisateur, mot pour mot, et
-     * `generated_app_spec` la spec telle que le modèle l'a produite — avant
-     * toute retouche dans l'éditeur. `app_spec` porte, elle, ce qui a été
-     * *validé* : les deux diffèrent dès que quelqu'un corrige une image ou un
-     * dimensionnement, et c'est exactement ce que l'on veut pouvoir relire.
+     * `generation_prompt` is the user's request, word for word, and
+     * `generated_app_spec` the spec as the model produced it — before any touch-up
+     * in the editor. `app_spec` carries what was *approved*: the two differ as soon
+     * as someone fixes an image or a sizing, and that is exactly what we want to be
+     * able to read again.
      */
     generationPrompt: text('generation_prompt'),
     generationModel: text('generation_model'),
     generatedAppSpec: jsonb('generated_app_spec').$type<AppSpec>(),
     generatedAt: timestamp('generated_at', { withTimezone: true }),
     /**
-     * Le réglage de scan de l'application : son seuil de blocage, et s'il ne
-     * vaut que pour les failles corrigeables. `null` : comme l'instance.
+     * The application's scan setting: its blocking threshold, and whether it only
+     * holds for fixable vulnerabilities. `null`: like the instance.
      */
     scanFailOn: failOnEnum('scan_fail_on'),
     scanOnlyFixable: boolean('scan_only_fixable'),

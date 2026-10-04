@@ -20,11 +20,11 @@ import {
 } from './schema/proxies.js';
 
 /**
- * Les reverse proxies et leurs routes.
+ * The reverse proxies and their routes.
  *
- * Même règle que `targets.ts` et `backups.ts` : `encrypted_secrets` ne sort
- * d'ici que par `resolveProxySecrets()`, réservée au worker. Toute autre
- * lecture rend la connexion sans ses secrets.
+ * The same rule as `targets.ts` and `backups.ts`: `encrypted_secrets` only
+ * leaves here through `resolveProxySecrets()`, reserved to the worker. Any other
+ * read returns the connection without its secrets.
  */
 
 export type ProxyView = Omit<ProxyRow, 'encryptedSecrets'>;
@@ -36,7 +36,7 @@ function view(row: ProxyRow): ProxyView {
 
 // ─── connexions ──────────────────────────────────────────────────────────────
 
-/** Le proxy qui sert cette machine — aujourd'hui, celui qui y tourne. */
+/** The proxy serving this machine — today, the one running on it. */
 export async function getProxyForTarget(
   targetId: string,
   db: Database = getDb(),
@@ -50,7 +50,7 @@ export async function getProxy(id: string, db: Database = getDb()): Promise<Prox
   return row ? view(row) : null;
 }
 
-/** Les proxies par machine servie : pour la liste des cibles. */
+/** The proxies per served machine: for the targets list. */
 export async function listTargetProxies(db: Database = getDb()): Promise<Map<string, ProxyView>> {
   const rows = await db.select().from(proxies);
   return new Map(
@@ -59,8 +59,8 @@ export async function listTargetProxies(db: Database = getDb()): Promise<Map<str
 }
 
 /**
- * Pose (ou remplace) la connexion d'une machine. Une seule par machine : un
- * second proxy sur les mêmes ports 80 et 443 n'aurait pas de sens.
+ * Sets (or replaces) a machine's connection. Only one per machine: a second
+ * proxy on the same ports 80 and 443 would make no sense.
  */
 export async function saveTargetProxy(
   input: {
@@ -101,14 +101,14 @@ export async function saveTargetProxy(
       set: values,
     })
     .returning();
-  if (!row) throw new Error("la connexion au proxy n'a pas été enregistrée");
+  if (!row) throw new Error("the proxy connection was not saved");
   return view(row);
 }
 
 /**
- * Une connexion à un proxy **distant** — hors des cibles, joint par son API
- * (Nginx Proxy Manager). Ses identifiants sont chiffrés ici, et ne ressortent
- * que par `resolveProxySecrets()`.
+ * A connection to a **remote** proxy — outside the targets, reached through its
+ * API (Nginx Proxy Manager). Its credentials are encrypted here, and only come
+ * back out through `resolveProxySecrets()`.
  */
 export async function createRemoteProxy(
   input: {
@@ -134,13 +134,13 @@ export async function createRemoteProxy(
       createdBy: input.createdBy,
     })
     .returning();
-  if (!row) throw new Error("la connexion au proxy n'a pas été enregistrée");
+  if (!row) throw new Error("the proxy connection was not saved");
   return view(row);
 }
 
 /**
- * Change une connexion distante. `secrets` absent : ceux d'avant restent — un
- * formulaire n'a pas à renvoyer un mot de passe qu'il n'a jamais reçu.
+ * Changes a remote connection. `secrets` absent: the previous ones stay — a form
+ * does not have to send back a password it never received.
  */
 export async function updateRemoteProxy(
   id: string,
@@ -168,7 +168,7 @@ export async function updateRemoteProxy(
   return row ? view(row) : null;
 }
 
-/** Les proxies distants, chacun avec le nombre de machines qu'il sert. */
+/** The remote proxies, each with the number of machines it serves. */
 export async function listRemoteProxies(
   db: Database = getDb(),
 ): Promise<Array<ProxyView & { linkCount: number }>> {
@@ -213,7 +213,7 @@ export async function deleteProxy(id: string, db: Database = getDb()): Promise<v
   await db.delete(proxies).where(eq(proxies.id, id));
 }
 
-/** Pour le worker seul : les secrets de la connexion, déchiffrés. */
+/** For the worker alone: the connection's secrets, decrypted. */
 export async function resolveProxySecrets(
   id: string,
   db: Database = getDb(),
@@ -225,12 +225,12 @@ export async function resolveProxySecrets(
   return row?.secrets ? (JSON.parse(decrypt(row.secrets)) as Record<string, string>) : {};
 }
 
-// ─── le proxy central ────────────────────────────────────────────────────────
+// ─── the central proxy ───────────────────────────────────────────────────────
 
-/** Le proxy qui sert une machine : le sien, ou celui d'une autre par une liaison. */
+/** The proxy serving a machine: its own, or another's through a link. */
 export type ServingProxy = {
   proxy: ProxyView;
-  /** `null` : le proxy tourne sur la machine même. */
+  /** `null`: the proxy runs on the machine itself. */
   link: ProxyLinkRow | null;
 };
 
@@ -243,8 +243,8 @@ export async function getTargetLink(
 }
 
 /**
- * Qui sert cette machine. Son propre proxy d'abord — une machine qui en a un
- * n'a pas de liaison, l'API y veille —, sinon celui de sa liaison.
+ * Who serves this machine. Its own proxy first — a machine that has one has no
+ * link, the API makes sure of it —, otherwise its link's.
  */
 export async function resolveServingProxy(
   targetId: string,
@@ -258,7 +258,7 @@ export async function resolveServingProxy(
   return proxy ? { proxy, link } : null;
 }
 
-/** Le proxy de chaque machine servie, le sien ou celui d'une autre : pour les listes. */
+/** Each served machine's proxy, its own or another's: for the lists. */
 export async function listServingProxies(
   db: Database = getDb(),
 ): Promise<Map<string, ServingProxy>> {
@@ -294,7 +294,7 @@ export async function saveTargetLink(
     .values({ targetId: input.targetId, ...values, createdBy: input.createdBy })
     .onConflictDoUpdate({ target: proxyLinks.targetId, set: values })
     .returning();
-  if (!row) throw new Error("la liaison n'a pas été enregistrée");
+  if (!row) throw new Error("the link was not saved");
   return row;
 }
 
@@ -325,7 +325,7 @@ export async function deleteTargetLink(targetId: string, db: Database = getDb())
   await db.delete(proxyLinks).where(eq(proxyLinks.targetId, targetId));
 }
 
-/** Les machines qu'un proxy sert par liaison, avec leur nom. */
+/** The machines a proxy serves through a link, with their name. */
 export async function listProxyLinks(
   proxyId: string,
   db: Database = getDb(),
@@ -339,7 +339,7 @@ export async function listProxyLinks(
   return rows.map((row) => ({ ...row.link, targetName: row.targetName }));
 }
 
-/** Les domaines qui passent par ce proxy : ceux de sa machine et ceux des machines qu'il sert. */
+/** The domains going through this proxy: its machine's and those of the machines it serves. */
 export async function countRoutesServedBy(
   proxyId: string,
   db: Database = getDb(),
@@ -364,7 +364,7 @@ export async function countRoutesServedBy(
 
 // ─── routes ──────────────────────────────────────────────────────────────────
 
-/** Un domaine déjà pris par une autre application, ou sur une autre cible. */
+/** A domain already taken by another application, or on another target. */
 export class RouteTakenError extends Error {
   constructor(
     readonly hostname: string,
@@ -386,7 +386,7 @@ function isUniqueViolation(error: unknown): boolean {
 
 export type RouteView = RouteRow & { applicationSlug: string; targetName: string };
 
-/** Une route, par son identifiant. */
+/** A route, by its identifier. */
 export async function getRouteById(id: string, db: Database = getDb()): Promise<RouteRow | null> {
   const [row] = await db.select().from(routes).where(eq(routes.id, id)).limit(1);
   return row ?? null;
@@ -416,10 +416,9 @@ export async function listRoutes(
 }
 
 /**
- * Les domaines d'une application sur une cible, en une fois : ceux qui ne
- * sont plus dans la liste partent, les autres sont posés ou mis à jour. Un
- * domaine pris ailleurs est refusé — vérifié avant, et tenu par la contrainte
- * d'unicité si deux demandes se croisent.
+ * An application's domains on a target, at once: those no longer in the list
+ * go, the others are set or updated. A domain taken elsewhere is refused —
+ * checked before, and held by the uniqueness constraint if two requests cross.
  */
 export async function replaceRoutes(
   applicationId: string,
@@ -482,7 +481,7 @@ export async function replaceRoutes(
   }
 }
 
-/** L'échéance du certificat signalé pour cette route, ou `null` une fois renouvelé. */
+/** The expiry of the certificate reported for this route, or `null` once renewed. */
 export async function setRouteCertificateAlert(
   id: string,
   notAfter: string | null,
@@ -520,7 +519,7 @@ export async function deleteRoutesOf(
   return removed.length;
 }
 
-/** Les routes d'une machine, par application : pour la carte du proxy et sa suppression. */
+/** A machine's routes, per application: for the proxy's map and its deletion. */
 export async function countRoutesByTarget(
   targetId: string,
   db: Database = getDb(),
@@ -532,7 +531,7 @@ export async function countRoutesByTarget(
   return row?.count ?? 0;
 }
 
-/** Les couples (application, cible) qui ont des routes — ce que la sonde périodique parcourt. */
+/** The (application, target) pairs that have routes — what the periodic probe goes through. */
 export async function listRoutedCouples(
   db: Database = getDb(),
 ): Promise<Array<{ applicationId: string; targetId: string }>> {

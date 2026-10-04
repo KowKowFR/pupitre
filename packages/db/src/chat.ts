@@ -14,16 +14,15 @@ import { users } from './schema/auth.js';
 import { chatAttachments, chatMessages, chatReactions, chatReads } from './schema/chat.js';
 
 /**
- * La discussion d'équipe : écrire, répondre, réagir, relire, effacer, compter
- * les non-lus.
+ * The team chat: write, reply, react, read, erase, count the unread.
  *
- * Rien ici ne publie : c'est la route qui, une fois la ligne écrite, la pousse
- * sur le canal temps réel. La base reste la source de vérité — un onglet qui
- * se reconnecte relit l'historique, il ne compte pas sur le direct.
+ * Nothing here publishes: it is the route that, once the row is written, pushes
+ * it on the real-time channel. The database stays the source of truth — a tab
+ * that reconnects reads the history again, it does not count on the live feed.
  *
- * Une page de messages coûte quatre requêtes, quelle que soit sa taille : les
- * messages, les originaux qu'ils citent, leurs réactions, leurs images (les
- * métadonnées seulement — les octets se servent à part).
+ * A page of messages costs four queries, whatever its size: the messages, the
+ * originals they quote, their reactions, their images (the metadata only — the
+ * bytes are served separately).
  */
 
 const messageColumns = {
@@ -63,7 +62,7 @@ function quoteOf(row: MessageRow): ChatQuote {
   };
 }
 
-/** Les réactions de plusieurs messages, groupées par emoji dans l'ordre d'arrivée. */
+/** The reactions of several messages, grouped by emoji in order of arrival. */
 export async function listChatReactions(
   messageIds: readonly string[],
   db: Database = getDb(),
@@ -89,7 +88,7 @@ export async function listChatReactions(
   return byMessage;
 }
 
-/** Les images de plusieurs messages, sans leurs octets, dans l'ordre d'affichage. */
+/** The images of several messages, without their bytes, in display order. */
 export async function listChatAttachments(
   messageIds: readonly string[],
   db: Database = getDb(),
@@ -140,7 +139,8 @@ async function hydrate(rows: MessageRow[], db: Database): Promise<StoredChatMess
     channel: row.channel,
     authorId: row.authorId,
     authorName: row.authorName,
-    // Un message effacé ne rend plus rien de son contenu, même à qui le demande.
+    // An erased message no longer returns anything of its content, even to whoever
+    // asks.
     body: row.deletedAt ? '' : row.body,
     mentions: row.deletedAt ? [] : row.mentions,
     replyTo: row.replyToId ? (quotes.get(row.replyToId) ?? null) : null,
@@ -153,7 +153,7 @@ async function hydrate(rows: MessageRow[], db: Database): Promise<StoredChatMess
 
 export type NewChatAttachment = Omit<ChatAttachment, 'id'> & { data: Buffer };
 
-/** Le message et ses images, dans la même transaction : jamais l'un sans les autres. */
+/** The message and its images, in the same transaction: never one without the others. */
 export async function insertChatMessage(
   input: {
     channel: string;
@@ -176,7 +176,7 @@ export async function insertChatMessage(
         replyToId: input.replyToId,
       })
       .returning({ id: chatMessages.id });
-    if (!row) throw new Error("le message n'a pas été enregistré");
+    if (!row) throw new Error("the message was not saved");
     const attachments = input.attachments ?? [];
     if (attachments.length > 0) {
       await tx
@@ -192,7 +192,7 @@ export async function insertChatMessage(
     return row;
   });
   const message = await getChatMessage(created.id, db);
-  if (!message) throw new Error("le message n'a pas été relu");
+  if (!message) throw new Error("the message could not be read back");
   return message;
 }
 
@@ -210,8 +210,8 @@ export async function getChatMessage(
 }
 
 /**
- * Une page du fil, du plus ancien au plus récent. `before` remonte le temps :
- * la page d'avant commence juste avant le plus ancien message affiché.
+ * A page of the thread, from oldest to newest. `before` goes back in time: the
+ * previous page starts just before the oldest message shown.
  */
 export async function listChatMessages(
   channel: string,
@@ -237,8 +237,8 @@ export type ReactionToggle =
   { ok: true; reactions: ChatReaction[] } | { ok: false; reason: 'not_found' | 'too_many' };
 
 /**
- * Pose la réaction, ou la retire si elle y est déjà : le même geste dans les
- * deux sens, comme partout ailleurs. Un message effacé ne se réagit plus.
+ * Sets the reaction, or removes it if it is already there: the same gesture both
+ * ways, as everywhere else. An erased message can no longer be reacted to.
  */
 export async function toggleChatReaction(
   messageId: string,
@@ -274,8 +274,8 @@ export async function toggleChatReaction(
 }
 
 /**
- * Efface un message : la ligne reste, son contenu, ses réactions et ses images
- * partent — les octets avec, pas seulement leur affichage.
+ * Erases a message: the row stays, its content, its reactions and its images go
+ * — the bytes with them, not only their display.
  */
 export async function deleteChatMessage(id: string, db: Database = getDb()): Promise<boolean> {
   const rows = await db
@@ -290,7 +290,7 @@ export async function deleteChatMessage(id: string, db: Database = getDb()): Pro
   return rows.length > 0;
 }
 
-/** Les octets d'une image, pour la route qui la sert — et elle seule. */
+/** An image's bytes, for the route that serves it — and that route alone. */
 export async function getChatAttachmentData(
   id: string,
   db: Database = getDb(),
@@ -307,7 +307,7 @@ export async function getChatAttachmentData(
   return row ?? null;
 }
 
-/** Marque le salon lu jusqu'à `at` — jamais en arrière. */
+/** Marks the room read up to `at` — never backward. */
 export async function markChatRead(
   userId: string,
   channel: string,
@@ -335,7 +335,7 @@ export async function getChatReadMarker(
   return row?.lastReadAt ?? null;
 }
 
-/** Les messages des autres, arrivés depuis la dernière lecture. */
+/** The others' messages, arrived since the last read. */
 export async function countUnreadChat(
   userId: string,
   channel: string,
@@ -357,8 +357,8 @@ export async function countUnreadChat(
 }
 
 /**
- * Parmi les non-lus, ceux qui s'adressent à la personne : une mention, ou une
- * réponse à l'un de ses messages. Ce sont eux qui colorent la bulle.
+ * Among the unread, those addressed to the person: a mention, or a reply to one
+ * of their messages. They are the ones that color the bubble.
  */
 export async function countUnreadChatMentions(
   userId: string,
@@ -386,7 +386,7 @@ export async function countUnreadChatMentions(
 
 export type ChatMember = { id: string; name: string; email: string; image: string | null };
 
-/** Les personnes qu'on peut mentionner : tous les comptes actifs. */
+/** The people who can be mentioned: every active account. */
 export async function listChatMembers(db: Database = getDb()): Promise<ChatMember[]> {
   return db
     .select({ id: users.id, name: users.name, email: users.email, image: users.image })

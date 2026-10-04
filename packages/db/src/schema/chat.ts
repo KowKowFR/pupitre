@@ -15,27 +15,27 @@ import { users } from './auth.js';
 import { bytea } from './columns.js';
 
 /**
- * La discussion d'équipe.
+ * The team chat.
  *
- * Un message effacé garde sa ligne (`deleted_at`) : le fil ne se recoud pas
- * dans le dos de ceux qui l'ont lu, et « message supprimé » reste une
- * information. Son corps, lui, est vidé à l'effacement.
+ * An erased message keeps its row (`deleted_at`): the thread is not stitched up
+ * behind the backs of those who read it, and "message deleted" stays
+ * information. Its body is emptied at erasure.
  */
 export const chatMessages = pgTable(
   'chat_messages',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    /** Un seul salon pour l'instant, `general` ; la colonne prépare les suivants. */
+    /** A single room for now, `general`; the column prepares the next ones. */
     channel: text('channel').notNull().default('general'),
-    /** `null` : l'auteur a été supprimé. Le message reste, anonyme. */
+    /** `null`: the author was deleted. The message stays, anonymous. */
     authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
     /** Texte brut, mentions en jetons `<@kind:id>`. Jamais de HTML. */
     body: text('body').notNull(),
     mentions: jsonb('mentions').$type<ChatMention[]>().notNull().default([]),
     /**
-     * Le message auquel celui-ci répond. `set null` : si l'original disparaît
-     * de la base, la réponse reste, sans citation — mais un effacement doux
-     * garde la ligne, et la citation dit alors « message supprimé ».
+     * The message this one replies to. `set null`: if the original disappears from
+     * the database, the reply stays, without a quote — but a soft erasure keeps the
+     * row, and the quote then says "message deleted".
      */
     replyToId: uuid('reply_to_id').references((): AnyPgColumn => chatMessages.id, {
       onDelete: 'set null',
@@ -46,7 +46,7 @@ export const chatMessages = pgTable(
   (t) => [index('chat_messages_channel_created_idx').on(t.channel, t.createdAt)],
 );
 
-/** Jusqu'où chacun a lu, par salon : de quoi compter les non-lus. */
+/** How far each person has read, per room: enough to count the unread. */
 export const chatReads = pgTable(
   'chat_reads',
   {
@@ -60,8 +60,8 @@ export const chatReads = pgTable(
 );
 
 /**
- * Les réactions : un emoji, une personne, un message. La clé primaire fait
- * qu'on ne réagit qu'une fois avec le même emoji — cliquer à nouveau retire.
+ * The reactions: an emoji, a person, a message. The primary key means one only
+ * reacts once with the same emoji — clicking again removes it.
  */
 export const chatReactions = pgTable(
   'chat_reactions',
@@ -82,17 +82,16 @@ export const chatReactions = pgTable(
 );
 
 /**
- * Les images jointes à un message.
+ * The images attached to a message.
  *
- * En base, comme les captures de la supervision, et pour la même raison : une
- * seule chose à sauvegarder, pas de volume partagé entre le panel et le worker.
- * Le coût est borné à l'entrée — quatre images par message, trois mégaoctets
- * chacune au plus, réencodées par le navigateur (voir `media.ts` dans
- * `@pupitre/core`) — et à la sortie : effacer le message efface ses images,
- * pas seulement leur affichage.
+ * In the database, like monitoring's captures, and for the same reason: a single
+ * thing to back up, no volume shared between the panel and the worker. The cost
+ * is bounded on the way in — four images per message, three megabytes each at
+ * most, re-encoded by the browser (see `media.ts` in `@pupitre/core`) — and on
+ * the way out: erasing the message erases its images, not only their display.
  *
- * ⚠ `data` ne part jamais dans un `select *` : le fil ne lit que les
- * métadonnées, la route `/api/chat/attachments/:id` seule lit les octets.
+ * ⚠ `data` never goes out in a `select *`: the thread only reads the metadata,
+ * the `/api/chat/attachments/:id` route alone reads the bytes.
  */
 export const chatAttachments = pgTable(
   'chat_attachments',
@@ -101,9 +100,9 @@ export const chatAttachments = pgTable(
     messageId: uuid('message_id')
       .notNull()
       .references(() => chatMessages.id, { onDelete: 'cascade' }),
-    /** L'ordre d'affichage dans le message. */
+    /** The display order in the message. */
     position: integer('position').notNull().default(0),
-    /** Lu dans les octets à l'arrivée, jamais pris dans l'en-tête de la requête. */
+    /** Read from the bytes on arrival, never taken from the request's header. */
     contentType: text('content_type').$type<ImageMediaType>().notNull(),
     width: integer('width').notNull(),
     height: integer('height').notNull(),

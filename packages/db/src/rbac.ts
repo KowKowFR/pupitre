@@ -14,17 +14,16 @@ import { permissions, rolePermissions, roles, userRoles } from './schema/rbac.js
 import { accounts, users } from './schema/auth.js';
 
 /**
- * Rôles et permissions.
+ * Roles and permissions.
  *
- * L'autorité, à l'exécution, est la table `roles` — pas une constante du code.
- * Un administrateur crée des rôles et ajuste leurs permissions ; seul `admin`
- * est verrouillé, pour qu'on ne puisse pas se retirer les droits nécessaires
- * pour se les rendre.
+ * The authority, at runtime, is the `roles` table — not a constant of the code.
+ * An administrator creates roles and adjusts their permissions; only `admin` is
+ * locked, so that one cannot remove the rights needed to give them back.
  */
 
 export type Role = typeof roles.$inferSelect;
 
-/** Rôles et permissions effectives d'un utilisateur, résolus en une requête. */
+/** A user's roles and effective permissions, resolved in one query. */
 export type UserGrants = {
   roles: RoleKey[];
   permissions: Permission[];
@@ -51,13 +50,13 @@ export async function getUserGrants(
 
   return {
     roles: [...roleKeys],
-    // Une permission retirée du vocabulaire ne doit plus rien accorder, même si
-    // une ligne traîne encore en base.
+    // A permission removed from the vocabulary must no longer grant anything, even
+    // if a row still lingers in the database.
     permissions: [...permissionKeys].filter(isPermission),
   };
 }
 
-/** Remplace les rôles d'un utilisateur. `users.role` reflète le rôle principal. */
+/** Replaces a user's roles. `users.role` reflects the main role. */
 export async function setUserRoles(
   userId: string,
   roleKeys: RoleKey[],
@@ -71,12 +70,12 @@ export async function setUserRoles(
       if (rows.length !== roleKeys.length) {
         const known = new Set(rows.map((r) => r.key));
         const missing = roleKeys.filter((k) => !known.has(k));
-        throw new Error(`rôle(s) inconnu(s) : ${missing.join(', ')}`);
+        throw new Error(`unknown role(s): ${missing.join(', ')}`);
       }
       await tx.insert(userRoles).values(rows.map((r) => ({ userId, roleId: r.id })));
     }
 
-    // Le plugin admin de Better Auth lit `users.role` : on le tient à jour.
+    // Better Auth's admin plugin reads `users.role`: we keep it up to date.
     await tx
       .update(users)
       .set({ role: roleKeys[0] ?? null, updatedAt: new Date() })
@@ -95,7 +94,7 @@ export async function listRoles(db: Database = getDb()): Promise<Role[]> {
   return db.select().from(roles).orderBy(asc(roles.key));
 }
 
-/** Rôles, leurs permissions et le nombre d'utilisateurs qui les portent. */
+/** Roles, their permissions and the number of users carrying them. */
 export async function listRolesWithPermissions(
   db: Database = getDb(),
 ): Promise<RoleWithPermissions[]> {
@@ -128,18 +127,18 @@ export async function listRolesWithPermissions(
   }));
 }
 
-/** Ce que la politique du second facteur doit savoir d'un compte actif. */
+/** What the second factor policy must know about an active account. */
 export type TwoFactorExposure = {
   userId: string;
   twoFactorEnabled: boolean;
-  /** Sans mot de passe, le compte n'entre que par la connexion unique. */
+  /** Without a password, the account only gets in through single sign-on. */
   hasPassword: boolean;
   permissions: Permission[];
 };
 
 /**
- * Les comptes actifs, leur second facteur et leurs permissions effectives : de
- * quoi dire, avant de l'enregistrer, qui une politique tiendrait à l'écart.
+ * The active accounts, their second factor and their effective permissions:
+ * enough to say, before saving it, whom a policy would keep out.
  */
 export async function listTwoFactorExposure(db: Database = getDb()): Promise<TwoFactorExposure[]> {
   const [active, grants, passwords] = await Promise.all([
@@ -194,7 +193,7 @@ export async function countUsersWithRole(
   return row?.value ?? 0;
 }
 
-// ─── écriture ─────────────────────────────────────────────────────────────────
+// ─── writing ──────────────────────────────────────────────────────────────────
 
 export const roleKeySchema = z
   .string()
@@ -223,7 +222,7 @@ export const updateRoleSchema = z.object({
 export type CreateRoleInput = z.infer<typeof createRoleSchema>;
 export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
 
-/** Le rôle demandé est-il modifiable ? Un rôle verrouillé ne l'est pas. */
+/** Can the requested role be changed? A locked role cannot. */
 export class LockedRoleError extends Error {
   constructor(readonly key: string) {
     super(`Le rôle « ${key} » est verrouillé : il ne peut être ni modifié ni supprimé.`);
@@ -231,7 +230,7 @@ export class LockedRoleError extends Error {
   }
 }
 
-/** Le rôle est encore porté par des utilisateurs. */
+/** The role is still carried by users. */
 export class RoleInUseError extends Error {
   constructor(
     readonly key: string,
@@ -262,11 +261,10 @@ export async function createRole(
       })
       .returning();
 
-    if (!role) throw new Error("createRole : l'insertion n'a rien retourné");
+    if (!role) throw new Error("createRole: the insert returned nothing");
 
-    // On retourne ce qui a RÉELLEMENT été écrit, pas ce qu'on nous a passé :
-    // une clé inconnue du vocabulaire n'est pas persistée, et la réponse ne
-    // doit pas prétendre le contraire.
+    // We return what was REALLY written, not what we were passed: a key unknown to
+    // the vocabulary is not persisted, and the response must not claim otherwise.
     const granted = await replacePermissions(tx, role.id, input.permissions);
 
     return { ...role, permissions: granted, userCount: 0 };
@@ -293,7 +291,7 @@ export async function updateRole(
       .where(eq(roles.id, existing.id))
       .returning();
 
-    if (!role) throw new Error("updateRole : la mise à jour n'a rien retourné");
+    if (!role) throw new Error("updateRole: the update returned nothing");
 
     const granted =
       patch.permissions === undefined
@@ -305,8 +303,8 @@ export async function updateRole(
 }
 
 /**
- * Supprime un rôle. Refuse si un utilisateur le porte encore : c'est la même
- * règle que pour une cible qui porte un déploiement vivant.
+ * Deletes a role. Refuses if a user still carries it: it is the same rule as for
+ * a target carrying a live deployment.
  */
 export async function deleteRole(key: string, db: Database = getDb()): Promise<boolean> {
   const existing = await getRoleByKey(key, db);
@@ -321,9 +319,9 @@ export async function deleteRole(key: string, db: Database = getDb()): Promise<b
 }
 
 /**
- * Réécrit l'ensemble des permissions d'un rôle et retourne celles réellement
- * accordées. Une clé absente de la table `permissions` est écartée sans bruit :
- * le vocabulaire est fixé par le code, la base ne fait qu'en refléter l'état.
+ * Rewrites a role's whole set of permissions and returns those really granted. A
+ * key absent from the `permissions` table is discarded silently: the vocabulary
+ * is set by the code, the database only reflects its state.
  */
 async function replacePermissions(
   tx: Database,
@@ -352,7 +350,7 @@ async function replacePermissions(
     .sort();
 }
 
-/** Le rôle `admin` détient-il bien la totalité des permissions ? */
+/** Does the `admin` role really hold all the permissions? */
 export async function assertAdminIntegrity(db: Database = getDb()): Promise<boolean> {
   const admin = await getRoleByKey(LOCKED_ROLE, db);
   return admin !== null && admin.permissions.length === PERMISSIONS.length;

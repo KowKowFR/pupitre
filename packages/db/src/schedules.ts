@@ -15,19 +15,19 @@ import { scheduledJobRuns, scheduledJobs } from './schema/ops.js';
 import { getAppSettingsValue } from './settings.js';
 
 /**
- * Persistance des tâches planifiées.
+ * Persistence of scheduled tasks.
  *
- * La base est la **source de vérité** ; BullMQ n'en est que le miroir
- * d'exécution. Le worker réconcilie l'un sur l'autre à chaque démarrage : une
- * tâche désactivée ici disparaît de Redis, une tâche présente ici et absente de
- * Redis y est recréée. C'est ce qui permet à un redémarrage du worker — ou à un
- * `docker compose down` — de ne rien perdre.
+ * The database is the **source of truth**; BullMQ is only its execution mirror.
+ * The worker reconciles one onto the other at each startup: a task disabled here
+ * disappears from Redis, a task present here and absent from Redis is recreated
+ * there. That is what lets a worker restart — or a `docker compose down` — lose
+ * nothing.
  */
 
 export type ScheduledJob = typeof scheduledJobs.$inferSelect;
 export type ScheduledJobRun = typeof scheduledJobRuns.$inferSelect;
 
-/** Une clé BullMQ : lisible, stable, utilisable dans une URL et dans Redis. */
+/** A BullMQ key: readable, stable, usable in a URL and in Redis. */
 const keySchema = z
   .string()
   .trim()
@@ -36,17 +36,16 @@ const keySchema = z
   .regex(/^[a-z0-9]+(?:[:._-][a-z0-9]+)*$/, 'clé en minuscules, séparateurs `: . _ -`');
 
 /**
- * Cadence : une expression cron, ou une périodicité simplifiée.
+ * Interval: a cron expression, or a simplified periodicity.
  *
- * Le mode simplifié de l'écran est une **commodité de saisie** ; le serveur ne
- * fait pas confiance au client pour autant. `schedule` est converti ici par
- * `toCron()` puis validé par `cronSchema`, exactement comme une expression
- * écrite à la main : il n'existe qu'un seul chemin de validation, et un seul
- * format persisté.
+ * The screen's simplified mode is an **input convenience**; the server does not
+ * trust the client for all that. `schedule` is converted here by `toCron()` then
+ * validated by `cronSchema`, exactly like a hand-written expression: there is
+ * only one validation path, and one persisted format.
  *
- * Fournir les deux à la fois est refusé — deux cadences dans un même corps de
- * requête, il faudrait en choisir une, et choisir à la place de l'appelant est
- * la meilleure façon de planifier autre chose que ce qu'il demandait.
+ * Providing both at once is refused — two intervals in the same request body,
+ * one would have to be chosen, and choosing in the caller's place is the best
+ * way to schedule something other than what was asked.
  */
 const cadenceFields = {
   cron: cronSchema.optional(),
@@ -69,8 +68,8 @@ function resolveCadence(
 
   if (input.schedule !== undefined) {
     const rendered = toCron(input.schedule);
-    // La conversion est censée produire une expression valide ; on la revalide
-    // quand même, pour que `cronSchema` reste l'unique porte d'entrée.
+    // The conversion is supposed to produce a valid expression; we validate it again
+    // anyway, so that `cronSchema` stays the only way in.
     const parsed = cronSchema.safeParse(rendered);
     if (!parsed.success) {
       ctx.addIssue({
@@ -97,9 +96,9 @@ export const createScheduledJobSchema = z
     type: scheduledJobTypeSchema,
     ...cadenceFields,
     /**
-     * Absent = fuseau des paramètres d'instance, résolu par
-     * `createScheduledJob()`. Pas de défaut Zod ici : le défaut demande une
-     * lecture en base, et un schéma ne lit rien.
+     * Absent = the instance settings' time zone, resolved by `createScheduledJob()`.
+     * No Zod default here: the default requires a database read, and a schema reads
+     * nothing.
      */
     timezone: scheduleTimeZoneSchema.optional(),
     payload: z.record(z.string(), z.unknown()).default({}),
@@ -153,7 +152,7 @@ export async function listScheduledJobs(db: Database = getDb()): Promise<Schedul
   return db.select().from(scheduledJobs).orderBy(asc(scheduledJobs.key));
 }
 
-/** Tâches à installer dans BullMQ. Le reste doit en être retiré. */
+/** Tasks to install in BullMQ. The rest must be removed from it. */
 export async function listEnabledScheduledJobs(
   db: Database = getDb(),
 ): Promise<ScheduledJob[]> {
@@ -184,13 +183,13 @@ export async function createScheduledJob(
   input: CreateScheduledJobInput,
   db: Database = getDb(),
 ): Promise<ScheduledJob> {
-  // Sans clé explicite, on prend celle que le type propose : `scan:periodic`,
-  // `health:periodic`… La contrainte d'unicité fait le reste.
+  // Without an explicit key, we take the one the type offers: `scan:periodic`,
+  // `health:periodic`… The uniqueness constraint does the rest.
   const key = input.key ?? SCHEDULED_JOB_TYPES[input.type].defaultKey;
 
-  // Défaut du fuseau : celui que l'opérateur a déjà déclaré dans les paramètres
-  // d'instance. Pas `UTC` en dur — ce serait redemander à chacun de convertir
-  // mentalement une heure qu'il a pourtant déjà exprimée une fois.
+  // Time zone default: the one the operator already declared in the instance
+  // settings. Not a hard-coded `UTC` — that would ask everyone again to mentally
+  // convert a time they already expressed once.
   const timezone = input.timezone ?? (await getAppSettingsValue(db)).timezone;
 
   const [row] = await db
@@ -205,7 +204,7 @@ export async function createScheduledJob(
     })
     .returning();
 
-  if (!row) throw new Error("createScheduledJob : l'insertion n'a rien retourné");
+  if (!row) throw new Error("createScheduledJob: the insert returned nothing");
   return row;
 }
 
@@ -244,7 +243,7 @@ export async function touchScheduledJob(
   await db.update(scheduledJobs).set({ lastRunAt: at }).where(eq(scheduledJobs.id, id));
 }
 
-// ─── historique des exécutions ────────────────────────────────────────────────
+// ─── run history ──────────────────────────────────────────────────────────────
 
 export async function startScheduledJobRun(
   input: { scheduledJobId: string; manual: boolean },
@@ -260,7 +259,7 @@ export async function startScheduledJobRun(
     })
     .returning();
 
-  if (!row) throw new Error("startScheduledJobRun : l'insertion n'a rien retourné");
+  if (!row) throw new Error("startScheduledJobRun: the insert returned nothing");
   return row;
 }
 
@@ -297,7 +296,7 @@ export async function listScheduledJobRuns(
     .limit(limit);
 }
 
-/** Dernière exécution de chaque tâche, en une requête, pour la liste. */
+/** Each task's last run, in one query, for the list. */
 export async function lastRunsByJob(
   db: Database = getDb(),
 ): Promise<Map<string, ScheduledJobRun>> {
@@ -314,7 +313,7 @@ export async function lastRunsByJob(
   return map;
 }
 
-/** Purge les exécutions au-delà des `keep` plus récentes, toutes tâches confondues. */
+/** Purges the runs beyond the `keep` most recent, all tasks together. */
 export async function pruneScheduledJobRuns(
   scheduledJobId: string,
   keep = 50,
@@ -335,7 +334,7 @@ export async function pruneScheduledJobRuns(
   return removed;
 }
 
-/** Tâches d'un type donné, pour éviter d'en installer deux qui font la même chose. */
+/** Tasks of a given type, to avoid installing two that do the same thing. */
 export async function countScheduledJobsOfType(
   type: ScheduledJobType,
   db: Database = getDb(),

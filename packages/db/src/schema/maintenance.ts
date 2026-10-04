@@ -15,13 +15,13 @@ import { targets } from './infra.js';
 import { monitors } from './monitors.js';
 
 /**
- * Les fenêtres de maintenance : « prod-1 en maintenance de 22 h à 23 h ».
+ * Maintenance windows: "prod-1 under maintenance from 10 pm to 11 pm".
  *
- * `starts_at` et `ends_at` font foi pour la mise en sourdine : la distribution
- * des notifications les compare à l'heure, sans attendre personne.
- * `started_at` et `ended_at` ne disent que ce que le balayage a **annoncé** —
- * le début (une fois) et la fin (une fois, en libérant ce qui est resté en
- * panne). Ce sont eux qui empêchent une seconde annonce.
+ * `starts_at` and `ends_at` are authoritative for muting: the notification
+ * delivery compares them with the time, without waiting for anyone. `started_at`
+ * and `ended_at` only say what the sweep **announced** — the start (once) and the
+ * end (once, releasing what stayed down). They are what prevents a second
+ * announcement.
  */
 export const maintenanceWindows = pgTable(
   'maintenance_windows',
@@ -43,7 +43,7 @@ export const maintenanceWindows = pgTable(
   ],
 );
 
-/** Les cibles d'une fenêtre. Supprimer la cible la retire de la fenêtre. */
+/** A window's targets. Deleting the target removes it from the window. */
 export const maintenanceWindowTargets = pgTable(
   'maintenance_window_targets',
   {
@@ -60,7 +60,7 @@ export const maintenanceWindowTargets = pgTable(
   ],
 );
 
-/** Les sondes d'une fenêtre, nommées explicitement. */
+/** A window's probes, named explicitly. */
 export const maintenanceWindowMonitors = pgTable(
   'maintenance_window_monitors',
   {
@@ -78,12 +78,12 @@ export const maintenanceWindowMonitors = pgTable(
 );
 
 /**
- * Une alerte retenue par une fenêtre : la tâche de distribution telle qu'elle
- * serait partie, recopiée pour pouvoir partir plus tard, à l'identique.
+ * An alert held by a window: the delivery job as it would have gone out, copied
+ * so it can go out later, identically.
  *
- * `family` regroupe la panne et le rétablissement d'un même sujet ; `opens`
- * dit lequel des deux. À la fin de la fenêtre, la dernière alerte de chaque
- * famille part si elle ouvre un problème (`released_at`).
+ * `family` groups the outage and the recovery of the same subject; `opens` says
+ * which of the two. At the end of the window, the last alert of each family goes
+ * out if it opens a problem (`released_at`).
  */
 export const maintenanceHeldAlerts = pgTable(
   'maintenance_held_alerts',
@@ -95,7 +95,7 @@ export const maintenanceHeldAlerts = pgTable(
     event: text('event').notNull(),
     family: text('family').notNull(),
     opens: boolean('opens').notNull(),
-    /** Ce que l'alerte aurait dit, pour l'écran et le message de fin. */
+    /** What the alert would have said, for the screen and the end message. */
     label: text('label').notNull(),
     subjectType: text('subject_type').notNull(),
     subjectId: text('subject_id').notNull(),

@@ -8,12 +8,12 @@ import { deployments } from './schema/deployments.js';
 import { targets } from './schema/infra.js';
 
 /**
- * Accès aux machines cibles.
+ * Access to target machines.
  *
- * Règle absolue : `encrypted_credential` ne sort d'ici que par
- * `getTargetSecret()`, réservé au worker. Toutes les autres lectures passent
- * par `publicColumns`, où la colonne n'existe simplement pas — le secret ne
- * peut donc pas fuir par oubli de filtrage.
+ * Absolute rule: `encrypted_credential` only leaves here through
+ * `getTargetSecret()`, reserved to the worker. Every other read goes through
+ * `publicColumns`, where the column simply does not exist — the secret therefore
+ * cannot leak by a forgotten filter.
  */
 
 const publicColumns = {
@@ -40,11 +40,11 @@ const publicColumns = {
   updatedAt: targets.updatedAt,
 } as const;
 
-/** Une cible telle qu'elle peut être exposée par l'API. Sans credential. */
+/** A target as it can be exposed by the API. Without credential. */
 export type PublicTarget = {
   id: string;
   name: string;
-  /** `null` quand rien n'a été saisi — jamais `''`. Voir le schéma. */
+  /** `null` when nothing was entered — never `''`. See the schema. */
   description: string | null;
   host: string;
   port: number;
@@ -52,40 +52,39 @@ export type PublicTarget = {
   authMethod: 'key' | 'password';
   sudoMethod: 'nopasswd' | 'password';
   labels: TargetLabels;
-  /** Plage de ports publiables sur cette machine, bornes comprises. */
+  /** Range of ports publishable on this machine, bounds included. */
   portRangeStart: number;
   portRangeEnd: number;
   runtimesAvailable: RuntimesAvailable;
   preflightReport: PreflightReport | null;
   lastPreflightAt: Date | null;
   status: 'unknown' | 'ok' | 'degraded' | 'unreachable';
-  /** L'empreinte de la clé d'hôte retenue — `null` avant le premier contact. */
+  /** The fingerprint of the recorded host key — `null` before the first contact. */
   hostKeyFingerprint: string | null;
   hostKeyRecordedAt: Date | null;
-  /** Une autre clé présentée depuis, en attente d'une décision. */
+  /** Another key presented since, waiting for a decision. */
   hostKeyPending: string | null;
   hostKeyPendingAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
 
-/** Un port publiable : au-dessus des ports réservés, sous la limite TCP. */
+/** A publishable port: above the reserved ports, under the TCP limit. */
 const portNumberSchema = z.number().int().min(1024).max(65_535);
 
 /**
- * Longueur maximale d'une description de cible. Exportée parce que le
- * formulaire doit afficher le même compteur que celui qui refusera la saisie —
- * et parce que la contrainte `targets_description_length_check` porte le même
- * nombre. Trois endroits, une seule constante.
+ * Maximum length of a target description. Exported because the form must show
+ * the same counter as the one that will refuse the input — and because the
+ * `targets_description_length_check` constraint carries the same number. Three
+ * places, a single constant.
  */
 export const TARGET_DESCRIPTION_MAX = 280;
 
 /**
- * Nombre maximal d'étiquettes sur une cible.
+ * Maximum number of labels on a target.
  *
- * Ce n'est pas une limite technique mais une limite de lisibilité : au-delà
- * d'une douzaine, une ligne de tableau devient un mur de pastilles et
- * l'étiquette cesse de servir à repérer quoi que ce soit.
+ * It is not a technical limit but a readability one: beyond a dozen, a table row
+ * becomes a wall of badges and the label stops helping to spot anything.
  */
 export const TARGET_LABELS_MAX = 12;
 
@@ -97,12 +96,12 @@ export const labelsSchema = z
   );
 
 /**
- * Une description absente doit valoir `null`, pas `''`.
+ * A missing description must be `null`, not `''`.
  *
- * Le formulaire renvoie toujours la valeur du `<textarea>`, donc `''` quand
- * l'utilisateur efface le texte : sans cette normalisation, effacer une
- * description la remplacerait par une chaîne vide, que chaque écran devrait
- * ensuite penser à traiter comme une absence. On tranche ici, une fois.
+ * The form always sends the `<textarea>`'s value, hence `''` when the user
+ * erases the text: without this normalization, erasing a description would
+ * replace it with an empty string, which each screen would then have to
+ * remember to treat as absent. We decide here, once.
  */
 const descriptionSchema = z
   .string()
@@ -114,20 +113,19 @@ const descriptionSchema = z
   });
 
 /**
- * Les champs d'une cible, **sans valeur par défaut**.
+ * A target's fields, **without default values**.
  *
- * La séparation n'est pas cosmétique. `z.object({…}).partial()` rend chaque
- * champ facultatif mais **ne retire pas les `.default()`** : le schéma de
- * modification, bâti ainsi, renvoyait pour un corps `{"name":"x"}` un objet
- * contenant aussi `port: 22`, `labels: {}` et la plage de ports par défaut.
- * `updateTarget()` n'ignorant que les clés `undefined`, un PATCH partiel
- * écrasait donc silencieusement les étiquettes et la plage de ports de la
- * cible. Le formulaire du panel renvoyant toujours tous les champs, personne ne
- * l'avait vu ; un appel direct à l'API, lui, en faisait les frais.
+ * The split is not cosmetic. `z.object({…}).partial()` makes each field optional
+ * but **does not remove the `.default()`s**: the update schema, built that way,
+ * returned for a `{"name":"x"}` body an object also containing `port: 22`,
+ * `labels: {}` and the default port range. `updateTarget()` only ignoring
+ * `undefined` keys, a partial PATCH therefore silently overwrote the target's
+ * labels and port range. The panel's form always sending every field, nobody
+ * had noticed; a direct API call paid the price.
  *
- * Les défauts n'appartiennent qu'à la création : c'est le seul moment où
- * « absent » veut dire « prends la valeur usuelle ». En modification, absent
- * veut dire « n'y touche pas », et rien d'autre.
+ * Defaults only belong to creation: it is the only moment when "absent" means
+ * "take the usual value". On update, absent means "leave it alone", and nothing
+ * else.
  */
 const targetFieldShapes = {
   name: z.string().min(2).max(80),
@@ -136,7 +134,7 @@ const targetFieldShapes = {
   port: z.number().int().min(1).max(65535),
   sshUser: z.string().min(1).max(64),
   authMethod: z.enum(['key', 'password']),
-  /** Clé privée ou mot de passe. Chiffré avant insertion, jamais relu par l'API. */
+  /** Private key or password. Encrypted before insertion, never read back by the API. */
   credential: z.string().min(1).max(32_768),
   sudoMethod: z.enum(['nopasswd', 'password']),
   labels: labelsSchema,
@@ -152,9 +150,9 @@ export const createTargetSchema = z
     sudoMethod: targetFieldShapes.sudoMethod.default('nopasswd'),
     labels: targetFieldShapes.labels.default({}),
     /**
-     * Plage de ports publiables. Défaut : la plage `nodePort` de Kubernetes,
-     * inoccupée sur une machine standard. Les ports réservés (< 1024) sont
-     * exclus : y publier une application exigerait root pour rien.
+     * Range of publishable ports. Default: Kubernetes's `nodePort` range, unused on
+     * a standard machine. Reserved ports (< 1024) are excluded: publishing an
+     * application there would require root for nothing.
      */
     portRangeStart: targetFieldShapes.portRangeStart.default(30_000),
     portRangeEnd: targetFieldShapes.portRangeEnd.default(32_767),
@@ -165,13 +163,13 @@ export const createTargetSchema = z
   });
 
 /**
- * Le patch est partiel : impossible de valider `start <= end` sans relire ce
- * qui est déjà en base. Le contrôle est fait par l'appelant, qui a les deux
- * valeurs — et par la contrainte `targets_port_range_check`, qui a le dernier
- * mot quoi qu'il arrive.
+ * The patch is partial: impossible to validate `start <= end` without reading
+ * what is already in the database. The check is done by the caller, which has
+ * both values — and by the `targets_port_range_check` constraint, which has the
+ * last word whatever happens.
  *
- * Un `credential` absent laisse celui déjà en base : le formulaire d'édition
- * n'a jamais besoin de le renvoyer.
+ * An absent `credential` leaves the one already in the database: the edit form
+ * never needs to send it back.
  */
 export const updateTargetSchema = z.object(targetFieldShapes).partial();
 
@@ -191,8 +189,8 @@ export async function getTarget(
 }
 
 /**
- * Lecture du secret chiffré. **Worker uniquement.**
- * Aucune route HTTP ne doit appeler cette fonction.
+ * Reads the encrypted secret. **Worker only.**
+ * No HTTP route must call this function.
  */
 export async function getTargetSecret(
   id: string,
@@ -226,7 +224,7 @@ export async function createTarget(
     })
     .returning(publicColumns);
 
-  if (!row) throw new Error("createTarget : l'insertion n'a retourné aucune ligne");
+  if (!row) throw new Error("createTarget: the insert returned no row");
   return row;
 }
 
@@ -254,9 +252,9 @@ export async function updateTarget(
     values.encryptedCredential = patch.encryptedCredential;
   }
 
-  // Une autre adresse, c'est une autre machine : sa clé n'est plus connue, et
-  // la prochaine connexion la relèvera. Sans cela, viser une nouvelle machine
-  // serait refusé comme une usurpation.
+  // Another address is another machine: its key is no longer known, and the next
+  // connection will record it. Without this, targeting a new machine would be
+  // refused as an impersonation.
   if (patch.host !== undefined || patch.port !== undefined) {
     const [current] = await db
       .select({ host: targets.host, port: targets.port })
@@ -283,12 +281,12 @@ export async function updateTarget(
   return row ?? null;
 }
 
-// ─── la clé d'hôte ──────────────────────────────────────────────────────────
+// ─── the host key ───────────────────────────────────────────────────────────
 
 /**
- * Retient la clé d'une machine jamais jointe. Sans effet si une clé est déjà
- * retenue — deux premières connexions simultanées n'en retiennent qu'une.
- * `true` : elle vient d'être retenue.
+ * Records the key of a machine never reached. No effect if a key is already
+ * recorded — two simultaneous first connections only record one. `true`: it was
+ * just recorded.
  */
 export async function recordTargetHostKey(
   id: string,
@@ -304,9 +302,9 @@ export async function recordTargetHostKey(
 }
 
 /**
- * Note la clé inattendue qu'une machine vient de présenter. `true` si c'est
- * nouveau — une autre clé que celle déjà notée : c'est là qu'on prévient, pas à
- * chaque tentative de connexion qui suit.
+ * Notes the unexpected key a machine just presented. `true` if it is new —
+ * another key than the one already noted: that is when we warn, not at each
+ * connection attempt that follows.
  */
 export async function setTargetHostKeyPending(
   id: string,
@@ -327,9 +325,9 @@ export async function setTargetHostKeyPending(
 }
 
 /**
- * Tranche une clé en attente : `accept` la retient à la place de l'ancienne
- * (la machine a été réinstallée), `dismiss` l'écarte et garde l'ancienne.
- * `null` : rien n'était en attente.
+ * Decides a pending key: `accept` records it in place of the old one (the
+ * machine was reinstalled), `dismiss` discards it and keeps the old one. `null`:
+ * nothing was pending.
  */
 export async function resolveTargetHostKey(
   id: string,
@@ -360,22 +358,22 @@ export async function deleteTarget(id: string, db: Database = getDb()): Promise<
   return row !== undefined;
 }
 
-/** Statuts qui interdisent la suppression d'une cible. */
+/** Statuses that forbid deleting a target. */
 const LIVE_DEPLOYMENT_STATUSES = ['pending', 'running', 'success'] as const;
 
 /**
- * Ce qui empêche de supprimer une cible, en deux nombres.
+ * What prevents deleting a target, in two numbers.
  *
- * `deployments.target_id` est en `ON DELETE restrict` : **toute** ligne de
- * déploiement bloque la suppression, y compris un `failed` d'il y a trois
- * semaines ou un `destroyed` dont plus rien ne tourne. Ne compter que les
- * déploiements vivants laissait donc passer la garde applicative, et c'est la
- * contrainte qui refusait ensuite — l'appelant recevait une erreur de base de
- * données en 500 là où il attendait un refus motivé.
+ * `deployments.target_id` is `ON DELETE restrict`: **any** deployment row blocks
+ * the deletion, including a `failed` from three weeks ago or a `destroyed` where
+ * nothing runs anymore. Only counting live deployments therefore let the
+ * application guard through, and it was the constraint that refused afterwards —
+ * the caller received a database error as a 500 where it expected a reasoned
+ * refusal.
  *
- * Les deux nombres sont rendus séparément parce qu'ils appellent deux gestes
- * différents : détruire ce qui tourne, ou purger ce qui n'est plus qu'une
- * trace. Les additionner rendrait le message inutilisable.
+ * Both numbers are returned separately because they call for two different
+ * gestures: destroying what runs, or purging what is only a trace. Adding them
+ * up would make the message unusable.
  */
 export async function countDeploymentsOnTarget(
   targetId: string,
@@ -399,7 +397,7 @@ export async function countDeploymentsOnTarget(
   return { live, history };
 }
 
-/** Un nom ou un triplet (host, port, user) déjà pris renvoie `true`. */
+/** A name or a (host, port, user) triplet already taken returns `true`. */
 export async function findConflictingTarget(
   input: { name: string; host: string; port: number; sshUser: string },
   excludeId?: string,
@@ -425,7 +423,7 @@ export async function findConflictingTarget(
   return null;
 }
 
-/** Écrit le résultat d'un preflight. Appelé par le worker. */
+/** Writes a preflight's result. Called by the worker. */
 export async function savePreflightResult(
   targetId: string,
   report: PreflightReport,

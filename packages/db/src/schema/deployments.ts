@@ -21,14 +21,13 @@ export const deployments = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     /**
-     * Numéro de run, global à l'instance : `#129` désigne un seul run, quelle
-     * que soit l'application. C'est lui qu'on se dit à voix haute et qu'on
-     * tape dans une recherche.
+     * Run number, global to the instance: `#129` designates a single run, whatever
+     * the application. It is what is said out loud and typed in a search.
      *
-     * À ne pas confondre avec `version`, qui compte les déploiements **d'une**
-     * application et sert de repère au rollback. Une séquence Postgres et non
-     * un `max() + 1` : deux déploiements lancés au même instant ne peuvent pas
-     * recevoir le même numéro. Un numéro purgé n'est jamais réattribué.
+     * Not to be confused with `version`, which counts the deployments **of one**
+     * application and serves as the rollback marker. A Postgres sequence and not a
+     * `max() + 1`: two deployments started at the same instant cannot get the same
+     * number. A purged number is never reassigned.
      */
     number: integer('number').notNull().generatedByDefaultAsIdentity(),
     applicationId: uuid('application_id')
@@ -39,89 +38,87 @@ export const deployments = pgTable(
       .references(() => targets.id, { onDelete: 'restrict' }),
     runtime: runtimeEnum('runtime').notNull(),
     status: deploymentStatusEnum('status').notNull().default('pending'),
-    /** Numéro de version incrémental par application. */
+    /** Incremental version number per application. */
     version: integer('version').notNull().default(1),
     imageTag: text('image_tag'),
     url: text('url'),
     /**
-     * AppSpec figée au moment du déploiement. `applications.app_spec` peut
-     * changer ensuite : un déploiement doit rester relisible tel qu'il a été
-     * exécuté, et un rollback doit repartir de la bonne version.
+     * AppSpec frozen at deployment time. `applications.app_spec` may change
+     * afterwards: a deployment must stay readable as it was run, and a rollback must
+     * start again from the right version.
      */
     appSpec: jsonb('app_spec').$type<AppSpec>(),
     /**
-     * Scanners retenus et seuil de blocage, figés au déploiement comme
-     * l'AppSpec. Le gate est une donnée, jamais un `if` codé en dur.
+     * Chosen scanners and blocking threshold, frozen at deployment like the AppSpec.
+     * The gate is data, never a hard-coded `if`.
      */
     scanConfig: jsonb('scan_config').$type<ScanConfig>(),
     publishedPort: integer('published_port'),
-    /** Étape sur laquelle le pipeline s'est arrêté, le cas échéant. */
+    /** Step the pipeline stopped on, if any. */
     failedStep: text('failed_step'),
     /**
-     * Politique de rollback, figée au déploiement comme l'AppSpec et la
-     * configuration de scan. Un healthcheck raté déclenche alors le retour à
-     * `previous_deployment_id`, sans intervention.
+     * Rollback policy, frozen at deployment like the AppSpec and the scan
+     * configuration. A failed healthcheck then triggers the return to
+     * `previous_deployment_id`, without intervention.
      *
-     * C'est une donnée et non un réglage global : la même application peut
-     * mériter un rollback automatique en production et un arrêt sur échec en
-     * recette, où l'on veut justement inspecter les dégâts.
+     * It is data and not a global setting: the same application may deserve an
+     * automatic rollback in production and a stop on failure in acceptance, where
+     * one precisely wants to inspect the damage.
      */
     autoRollback: boolean('auto_rollback').notNull().default(true),
-    /** Déploiement vers lequel un rollback ramène. */
+    /** Deployment a rollback brings back to. */
     previousDeploymentId: uuid('previous_deployment_id').references(
       (): AnyPgColumn => deployments.id,
       { onDelete: 'set null' },
     ),
     /**
-     * Santé constatée par le healthcheck **périodique**, distincte du
-     * `status` du déploiement : un déploiement `success` peut devenir
-     * `unreachable` trois heures plus tard sans cesser d'avoir réussi. La sonde
-     * périodique n'écrit que ces deux colonnes — elle ne rollback jamais.
+     * Health observed by the **periodic** healthcheck, distinct from the
+     * deployment's `status`: a `success` deployment can become `unreachable` three
+     * hours later without ceasing to have succeeded. The periodic probe only writes
+     * these two columns — it never rolls back.
      */
     healthStatus: healthStatusEnum('health_status').notNull().default('unknown'),
     lastHealthAt: timestamp('last_health_at', { withTimezone: true }),
     /**
-     * Depuis quand cette application est **volontairement** arrêtée. `null` :
-     * elle est censée tourner.
+     * Since when this application is **deliberately** stopped. `null`: it is
+     * supposed to run.
      *
-     * ── Pourquoi une colonne, et pas une valeur `stopped` dans le statut ────
-     * Parce que `status` raconte **l'issue d'un déploiement** — a-t-il abouti,
-     * échoué, été replié, détruit — et qu'un arrêt n'est pas une issue : le
-     * déploiement a réussi, et il a toujours réussi une heure après qu'on a
-     * coupé les conteneurs. Écraser `success` par `stopped` perdrait cette
-     * information, et le jour du redémarrage il faudrait deviner vers quoi
-     * revenir.
+     * ── Why a column, and not a `stopped` value in the status ───────────────
+     * Because `status` tells **a deployment's outcome** — did it succeed, fail, get
+     * rolled back, destroyed — and a stop is not an outcome: the deployment
+     * succeeded, and it still succeeded an hour after the containers were cut.
+     * Overwriting `success` with `stopped` would lose that information, and the day
+     * of the restart one would have to guess what to go back to.
      *
-     * La conséquence pratique confirme la théorie : `status` gouverne
-     * `isSupervisable()`, donc l'accès aux logs et au redémarrage. Une valeur
-     * de plus rendrait muette la console d'une application arrêtée — c'est-à-
-     * dire au moment précis où l'on veut lire les dernières lignes pour savoir
-     * pourquoi on l'a arrêtée.
+     * The practical consequence confirms the theory: `status` governs
+     * `isSupervisable()`, hence access to logs and restart. One more value would
+     * silence a stopped application's console — that is, at the precise moment one
+     * wants to read the last lines to know why it was stopped.
      *
-     * Un horodatage plutôt qu'un booléen : « arrêtée depuis mardi » est ce que
-     * l'écran a besoin de dire, et un booléen ne l'aurait jamais su.
+     * A timestamp rather than a boolean: "stopped since Tuesday" is what the screen
+     * needs to say, and a boolean would never have known it.
      */
     stoppedAt: timestamp('stopped_at', { withTimezone: true }),
     triggeredBy: text('triggered_by').references(() => users.id, { onDelete: 'set null' }),
     /**
-     * La liaison à un dépôt qui a déclenché ce run, et le commit exact : on
-     * redéploie ce qui a tourné, pas « la dernière version de main ». Le dépôt
-     * et la branche sont recopiés — une liaison supprimée ne doit pas rendre
-     * l'historique muet sur l'origine du code.
+     * The link to a repository that triggered this run, and the exact commit: we
+     * redeploy what ran, not "the latest version of main". The repository and the
+     * branch are copied — a deleted link must not make the history silent about the
+     * code's origin.
      */
     sourceId: uuid('source_id').references(() => applicationSources.id, { onDelete: 'set null' }),
     sourceRepository: text('source_repository'),
     sourceRef: text('source_ref'),
     sourceSha: text('source_sha'),
     /**
-     * L'adresse web du dépôt, telle que sa forge la sert : le lien vers le
-     * commit en découle, que ce soit GitHub, Gitea ou GitLab, et survit à la liaison.
+     * The repository's web address, as its forge serves it: the link to the commit
+     * follows from it, whether GitHub, Gitea or GitLab, and outlives the link.
      */
     sourceUrl: text('source_url'),
     /**
-     * L'archive de code téléversée que ce run construit — l'autre origine du
-     * code. Son nom et son empreinte sont recopiés pour la même raison que le
-     * dépôt : une archive écartée ne rend pas l'historique muet.
+     * The uploaded code archive this run builds — the code's other origin. Its name
+     * and its hash are copied for the same reason as the repository: a discarded
+     * archive does not make the history silent.
      */
     sourceArchiveId: uuid('source_archive_id').references(() => sourceArchives.id, {
       onDelete: 'set null',
@@ -143,7 +140,7 @@ export const deployments = pgTable(
   ],
 );
 
-/** Machine à états visible dans l'UI : une ligne par étape du pipeline. */
+/** State machine visible in the UI: one row per pipeline step. */
 export const deploymentSteps = pgTable(
   'deployment_steps',
   {
@@ -152,14 +149,14 @@ export const deploymentSteps = pgTable(
       .notNull()
       .references(() => deployments.id, { onDelete: 'cascade' }),
     order: integer('order').notNull(),
-    /** Identifiant stable de l'étape, ex. `render`, `upload`, `compose_up`. */
+    /** The step's stable identifier, e.g. `render`, `upload`, `compose_up`. */
     key: text('key').notNull(),
     label: text('label').notNull(),
     status: stepStatusEnum('status').notNull().default('pending'),
     error: text('error'),
     /**
-     * Journal de l'étape, en append. Doublonne le canal Redis à dessein :
-     * Redis diffuse le direct, cette colonne permet la relecture après coup.
+     * The step's log, appended. Duplicates the Redis channel on purpose: Redis
+     * broadcasts live, this column allows replay afterwards.
      */
     log: text('log').notNull().default(''),
     startedAt: timestamp('started_at', { withTimezone: true }),
@@ -173,8 +170,8 @@ export const deploymentSteps = pgTable(
 );
 
 /**
- * Anti-collision de ports. La garantie est la contrainte unique
- * `(target_id, port)` — jamais un `if` en TypeScript.
+ * Port collision avoidance. The guarantee is the unique `(target_id, port)`
+ * constraint — never an `if` in TypeScript.
  */
 export const portAllocations = pgTable(
   'port_allocations',

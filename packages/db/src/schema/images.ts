@@ -4,18 +4,18 @@ import { deployments } from './deployments.js';
 import { applications, targets } from './infra.js';
 
 /**
- * Le dernier constat sur l'image de chaque service déployé : ce qui tourne,
- * ce que le registre annonce aujourd'hui pour le même tag, et s'il existe un
- * tag plus récent.
+ * The last finding about each deployed service's image: what runs, what the
+ * registry announces today for the same tag, and whether a more recent tag
+ * exists.
  *
- * Une ligne par (application, cible, service) : une application déployée sur
- * deux machines peut y tourner sur deux contenus différents — l'une a été
- * redéployée hier, l'autre il y a six mois. La ligne est **remplacée** à
- * chaque vérification ; l'historique des annonces, lui, est dans le journal
- * d'audit (`image.update.available`), qui est aussi ce qui notifie.
+ * One row per (application, target, service): an application deployed on two
+ * machines can run there on two different contents — one was redeployed
+ * yesterday, the other six months ago. The row is **replaced** at each check;
+ * the history of announcements is in the audit log (`image.update.available`),
+ * which is also what notifies.
  *
- * Les valeurs sont des digests (`sha256:…`) et des tags publics : rien de
- * sensible, rien à chiffrer.
+ * The values are digests (`sha256:…`) and public tags: nothing sensitive,
+ * nothing to encrypt.
  */
 export const imageUpdates = pgTable(
   'image_updates',
@@ -27,28 +27,28 @@ export const imageUpdates = pgTable(
     targetId: uuid('target_id')
       .notNull()
       .references(() => targets.id, { onDelete: 'cascade' }),
-    /** Le déploiement en service au moment du constat. */
+    /** The deployment in service at the time of the finding. */
     deploymentId: uuid('deployment_id').references(() => deployments.id, {
       onDelete: 'set null',
     }),
     service: text('service').notNull(),
-    /** La référence telle qu'écrite dans l'AppSpec : `postgres:16`. */
+    /** The reference as written in the AppSpec: `postgres:16`. */
     image: text('image').notNull(),
     status: imageUpdateStatusEnum('status').notNull(),
-    /** Ce qui tourne. Plusieurs pendant un rollout ; le premier suffit à l'affichage. */
+    /** What runs. Several during a rollout; the first is enough for display. */
     runningDigest: text('running_digest'),
-    /** Ce que le registre annonce aujourd'hui pour ce tag. */
+    /** What the registry announces today for this tag. */
     latestDigest: text('latest_digest'),
-    /** Le tag le plus récent de la même série majeure, s'il dépasse le tag déployé. */
+    /** The most recent tag of the same major series, if it exceeds the deployed tag. */
     newerTag: text('newer_tag'),
-    /** La plus récente des majeures suivantes — une migration, pas un correctif. */
+    /** The most recent of the following majors — a migration, not a fix. */
     nextMajorTag: text('next_major_tag'),
-    /** Pourquoi le constat est `unknown` : image privée, registre injoignable… */
+    /** Why the finding is `unknown`: private image, unreachable registry… */
     error: text('error'),
     checkedAt: timestamp('checked_at', { withTimezone: true }).notNull().defaultNow(),
     /**
-     * Ce qui a déjà été annoncé (`updateNoticeKey()`) : un même constat ne
-     * notifie qu'une fois, si souvent qu'on vérifie.
+     * What was already announced (`updateNoticeKey()`): the same finding only
+     * notifies once, however often one checks.
      */
     notifiedKey: text('notified_key'),
   },

@@ -25,27 +25,27 @@ import { applications, targets } from './schema/infra.js';
 import { findings, scanRuns, vulnerabilityAcceptances } from './schema/security.js';
 
 /**
- * Persistance des scans.
+ * Persistence of scans.
  *
- * Deux écarts de nommage hérités du schéma d'origine, absorbés ici plutôt que par une
- * migration : `findings.version` porte l'`installedVersion` du rapport, et
- * `findings.reference` son `primaryUrl`. Le reste du projet ne voit que les
- * noms du rapport normalisé.
+ * Two naming gaps inherited from the original schema, absorbed here rather than
+ * by a migration: `findings.version` carries the report's `installedVersion`,
+ * and `findings.reference` its `primaryUrl`. The rest of the project only sees
+ * the normalized report's names.
  *
- * Le SBOM n'a pas de colonne dédiée : il *est* la sortie brute de l'outil qui
- * le produit, donc il vit dans `scan_runs.raw`. Une colonne supplémentaire
- * dupliquerait cette valeur octet pour octet, et il faudrait alors décider
- * laquelle fait foi. Le format se lit dans `SCANNERS[scanner].sbomFormat`,
- * une donnée, pas une branche.
+ * The SBOM has no dedicated column: it *is* the raw output of the tool that
+ * produces it, so it lives in `scan_runs.raw`. An extra column would duplicate
+ * that value byte for byte, and one would then have to decide which is
+ * authoritative. The format is read in `SCANNERS[scanner].sbomFormat`, data, not
+ * a branch.
  */
 
 export type ScanRun = typeof scanRuns.$inferSelect;
 export type FindingRow = typeof findings.$inferSelect;
 
 /**
- * Garde-fou de taille sur `raw`. Le rapport Trivy d'une image Debian ancienne
- * dépasse allègrement le mégaoctet ; au-delà de cette borne on garde la trace
- * de la troncature plutôt que d'engorger la base.
+ * Size guardrail on `raw`. The Trivy report of an old Debian image easily
+ * exceeds a megabyte; beyond this bound we keep a trace of the truncation rather
+ * than clog the database.
  */
 const RAW_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -61,14 +61,14 @@ function boundRaw(raw: unknown): unknown {
   };
 }
 
-// ─── écriture ─────────────────────────────────────────────────────────────────
+// ─── writing ──────────────────────────────────────────────────────────────────
 
 export async function createScanRun(
   input: {
     deploymentId: string;
     scanner: ScannerKey;
     failOn: FailOn;
-    /** Le seuil ne vaut-il que pour les failles corrigeables ? */
+    /** Does the threshold only hold for fixable vulnerabilities? */
     onlyFixable?: boolean;
     imageRef: string;
   },
@@ -88,13 +88,13 @@ export async function createScanRun(
     })
     .returning();
 
-  if (!row) throw new Error("createScanRun : l'insertion n'a rien retourné");
+  if (!row) throw new Error("createScanRun: the insert returned nothing");
   return row;
 }
 
 /**
- * Clôt une exécution et enregistre ses findings, dans une seule transaction :
- * un scan à moitié écrit donnerait un verdict faux.
+ * Closes a run and records its findings, in a single transaction: a half-written
+ * scan would give a false verdict.
  */
 export async function finishScanRun(
   id: string,
@@ -122,8 +122,8 @@ export async function finishScanRun(
     const rows = outcome.findings ?? [];
     if (rows.length === 0) return;
 
-    // Deux scanners peuvent voir la même CVE deux fois sur le même paquet
-    // (sources multiples) : on ne l'écrit qu'une fois par exécution.
+    // Two scanners can see the same CVE twice on the same package (multiple
+    // sources): we only write it once per run.
     const seen = new Set<string>();
     const values: Array<typeof findings.$inferInsert> = [];
     for (const finding of rows) {
@@ -142,7 +142,7 @@ export async function finishScanRun(
       });
     }
 
-    // Postgres plafonne à 65 535 paramètres liés par requête : on découpe.
+    // Postgres caps at 65,535 bound parameters per query: we split.
     const CHUNK = 500;
     for (let index = 0; index < values.length; index += CHUNK) {
       await tx.insert(findings).values(values.slice(index, index + CHUNK));
@@ -151,11 +151,10 @@ export async function finishScanRun(
 }
 
 /**
- * Efface les exécutions d'un déploiement.
+ * Erases a deployment's runs.
  *
- * Une relance rejoue l'étape `scan` : sans cela, la page de sécurité
- * cumulerait le rapport de l'exécution précédente et celui de la nouvelle,
- * sans moyen de les distinguer.
+ * A retry replays the `scan` step: without this, the security page would add up
+ * the previous run's report and the new one's, with no way to tell them apart.
  */
 export async function clearScanRuns(
   deploymentId: string,
@@ -168,7 +167,7 @@ export async function clearScanRuns(
   return rows.length;
 }
 
-/** Marque une exécution jamais lancée (scanner non sélectionné, ou étape sautée). */
+/** Marks a run never started (scanner not selected, or step skipped). */
 export async function skipScanRun(
   id: string,
   reason: string,
@@ -189,7 +188,7 @@ export type ScanRunSummary = {
   kind: ScanKind;
   status: ScanRunStatus;
   failOn: FailOn;
-  /** Le seuil ne valait que pour les failles corrigeables. */
+  /** The threshold only held for fixable vulnerabilities. */
   onlyFixable: boolean;
   verdict: ScanVerdict;
   imageRef: string | null;
@@ -199,11 +198,11 @@ export type ScanRunSummary = {
   finishedAt: Date | null;
   counts: SeverityCounts;
   total: number;
-  /** Failles corrigeables : une version qui les règle existe. */
+  /** Fixable vulnerabilities: a version that fixes them exists. */
   fixable: number;
-  /** Failles acceptées pour l'application, **aujourd'hui**. */
+  /** Vulnerabilities accepted for the application, **today**. */
   accepted: number;
-  /** Un SBOM est téléchargeable dès lors que l'exécution a réussi. */
+  /** An SBOM is downloadable as soon as the run succeeded. */
   hasSbom: boolean;
 };
 
@@ -243,14 +242,14 @@ function toSummary(
   };
 }
 
-/** Une faille corrigeable : le scanner connaît une version qui la règle. */
+/** A fixable vulnerability: the scanner knows a version that fixes it. */
 const FIXABLE = sql`coalesce(${findings.fixedVersion}, '') <> ''`;
 
 /**
- * Une faille couverte par une acceptation en cours de l'application dont
- * `applicationId` est l'expression SQL. Même règle que `matchingAcceptance`
- * dans `@pupitre/core` : CVE sans égard à la casse, paquet nommé ou tous,
- * échéance non passée.
+ * A vulnerability covered by an ongoing acceptance of the application whose
+ * `applicationId` is the SQL expression. The same rule as `matchingAcceptance`
+ * in `@pupitre/core`: CVE case-insensitive, named package or all, expiry not
+ * passed.
  */
 function acceptedFor(applicationId: SQL) {
   return sql`exists (
@@ -262,7 +261,7 @@ function acceptedFor(applicationId: SQL) {
   )`;
 }
 
-/** Par exécution : combien de failles corrigeables, combien d'acceptées. */
+/** Per run: how many fixable vulnerabilities, how many accepted. */
 async function fixableAndAcceptedFor(
   scanRunIds: readonly string[],
   db: Database,
@@ -286,7 +285,7 @@ async function fixableAndAcceptedFor(
   return map;
 }
 
-/** Compte par sévérité, pour un ensemble d'exécutions, en une requête. */
+/** Count per severity, for a set of runs, in one query. */
 async function countsFor(
   scanRunIds: readonly string[],
   db: Database,
@@ -368,7 +367,7 @@ export async function getScanRun(
   };
 }
 
-/** Sortie brute d'une exécution. Pour un scanner `sbom`, c'est le document. */
+/** A run's raw output. For an `sbom` scanner, it is the document. */
 export async function getScanRunRaw(
   id: string,
   db: Database = getDb(),
@@ -397,8 +396,8 @@ export type FindingView = {
 };
 
 /**
- * Tri par sévérité décroissante côté base : une page de 50 findings doit
- * commencer par les critiques, pas par ce que l'insertion a laissé en premier.
+ * Sorting by descending severity on the database side: a page of 50 findings
+ * must start with the critical ones, not with what the insert left first.
  */
 const SEVERITY_WEIGHT = sql`case ${findings.severity}
   when 'critical' then 5
@@ -423,8 +422,8 @@ function toFindingView(row: FindingRow): FindingView {
 }
 
 /**
- * Ce qu'on regarde dans la liste : tout, les failles corrigeables, celles
- * sans correctif, ou celles acceptées pour l'application.
+ * What is looked at in the list: everything, the fixable vulnerabilities, those
+ * without a fix, or those accepted for the application.
  */
 export const FINDING_VIEWS = ['all', 'fixable', 'unfixable', 'accepted'] as const;
 export type FindingViewFilter = (typeof FINDING_VIEWS)[number];
@@ -447,8 +446,8 @@ export type FindingPage<T> = {
 };
 
 /**
- * Le filtre porte sur l'échelle commune : demander `LOW` doit aussi ramener les
- * `negligible` de la base, qui sont des `LOW` du point de vue du rapport.
+ * The filter is on the common scale: asking for `LOW` must also bring the
+ * database's `negligible` ones, which are `LOW` from the report's point of view.
  */
 function severityFilter(column: typeof findings.severity, severity: Severity) {
   const values: DbSeverity[] =
@@ -461,7 +460,7 @@ export async function listFindings(
   query: FindingQuery,
   db: Database = getDb(),
 ): Promise<FindingPage<FindingView>> {
-  // L'application de l'exécution : c'est elle qui porte les acceptations.
+  // The run's application: it is the one carrying the acceptances.
   const applicationOfRun = sql`(select d.application_id from ${scanRuns} r
     join ${deployments} d on d.id = r.deployment_id where r.id = ${scanRunId})`;
   const viewFilter = {
@@ -585,16 +584,16 @@ export async function listAllFindings(
   };
 }
 
-// ─── historique des déploiements ──────────────────────────────────────────────
+// ─── deployments history ──────────────────────────────────────────────────────
 
 export type DeploymentScanDigest = {
   scanners: ScannerKey[];
-  /** `fail` dès qu'une exécution bloque, `unknown` si l'une a échoué. */
+  /** `fail` as soon as a run blocks, `unknown` if one failed. */
   verdict: ScanVerdict | null;
   counts: SeverityCounts;
 };
 
-/** Résumé par déploiement, pour la colonne « Scans » de l'historique. */
+/** Summary per deployment, for the history's "Scans" column. */
 export async function scanDigestForDeployments(
   deploymentIds: readonly string[],
   db: Database = getDb(),

@@ -131,7 +131,7 @@ test("the incident follows the outage: opened at the fall, closed at the recover
   assert.equal(up.state.incidentOpen, false);
 });
 
-// ─── changement de cible pendant une panne ────────────────────────────────────
+// ─── target change during an outage ───────────────────────────────────────────
 
 /** What `updateMonitor` leaves when the URL of a down probe is changed. */
 const RETARGETED: MonitorState = {

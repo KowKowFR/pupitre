@@ -115,7 +115,7 @@ test('a CDP endpoint that answers nonsense returns a verdict too', async () => {
   }
 });
 
-// ─── le mandataire de sortie ──────────────────────────────────────────────────
+// ─── the egress proxy ─────────────────────────────────────────────────────────
 
 /**
  * The proxy is tested **on a real socket**, not on a simulation: its reason for

@@ -5,8 +5,8 @@ import { imageUpdates, type ImageUpdateRow } from './schema/images.js';
 import { applications, targets } from './schema/infra.js';
 
 /**
- * Le dernier constat sur les images des applications déployées. Écrit par le
- * worker (`images:check`), lu par la fiche d'application et la liste.
+ * The last finding about the deployed applications' images. Written by the
+ * worker (`images:check`), read by the application record and the list.
  */
 
 export type ImageCheckRecord = {
@@ -24,11 +24,11 @@ export type ImageCheckRecord = {
 };
 
 /**
- * Remplace le constat d'un couple (application, cible), service par service,
- * et efface ceux des services qui n'existent plus dans l'AppSpec déployée.
+ * Replaces an (application, target) pair's finding, service by service, and
+ * erases those of the services that no longer exist in the deployed AppSpec.
  *
- * Rend, pour chaque service, la clé déjà annoncée : c'est l'appelant qui
- * décide s'il y a quelque chose de nouveau à dire.
+ * Returns, for each service, the key already announced: it is the caller that
+ * decides whether there is something new to say.
  */
 export async function recordImageCheck(
   applicationId: string,
@@ -74,7 +74,7 @@ export async function recordImageCheck(
   return notified;
 }
 
-/** Retient ce qui vient d'être annoncé, pour ne pas l'annoncer deux fois. */
+/** Remembers what was just announced, so as not to announce it twice. */
 export async function markImageNoticesSent(
   applicationId: string,
   targetId: string,
@@ -96,8 +96,8 @@ export async function markImageNoticesSent(
 }
 
 /**
- * Oublie les constats des couples qui ne tournent plus : une application
- * détruite sur une cible n'a plus d'image à mettre à jour là-bas.
+ * Forgets the findings of the pairs that no longer run: an application destroyed
+ * on a target no longer has an image to update there.
  */
 export async function pruneImageUpdates(
   live: Array<{ applicationId: string; targetId: string }>,
@@ -120,7 +120,7 @@ export async function pruneImageUpdates(
 
 export type ImageUpdateView = ImageUpdateRow & { targetName: string };
 
-/** Les constats d'une application, cible par cible. */
+/** An application's findings, target by target. */
 export async function listImageUpdates(
   applicationId: string,
   db: Database = getDb(),
@@ -138,15 +138,15 @@ export type ImageUpdateSummary = {
   applicationId: string;
   slug: string;
   name: string;
-  /** Services dont le tag a bougé depuis le déploiement. */
+  /** Services whose tag moved since the deployment. */
   outdated: number;
-  /** Services pour lesquels un tag plus récent de la même série existe. */
+  /** Services for which a more recent tag of the same series exists. */
   newerTags: number;
 };
 
 /**
- * Ce qu'il y a à mettre à jour, application par application — pour la liste
- * et le tableau de bord. Une application sans rien à signaler est absente.
+ * What there is to update, application by application — for the list and the
+ * dashboard. An application with nothing to report is absent.
  */
 export async function listImageUpdateSummaries(
   applicationIds?: string[],

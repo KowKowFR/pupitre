@@ -22,16 +22,16 @@ import { users } from './auth.js';
 import { applications, targets } from './infra.js';
 
 /**
- * Les reverse proxies que le panel pilote.
+ * The reverse proxies the panel drives.
  *
- * Un proxy « sur la cible » sert la machine où il tourne — un seul par
- * machine, tenu par un index unique partiel. `config` porte ce qui se montre
- * (mode, dossier, points d'entrée, résolveur, réglages ACME) ;
- * `encrypted_secrets`, ce qui ne se montre jamais — rien pour Traefik, des
- * identifiants d'API pour les proxies à venir —, chiffré sous `MASTER_KEY`.
+ * A proxy "on the target" serves the machine it runs on — only one per machine,
+ * held by a partial unique index. `config` carries what is shown (mode, folder,
+ * entry points, resolver, ACME settings); `encrypted_secrets`, what is never
+ * shown — nothing for Traefik, API credentials for upcoming proxies —, encrypted
+ * under `MASTER_KEY`.
  *
- * `managed` : Pupitre l'a installé (ou configuré), et peut donc le retirer. Un
- * proxy seulement trouvé sur la machine n'est jamais désinstallé par le panel.
+ * `managed`: Pupitre installed (or configured) it, and can therefore remove it.
+ * A proxy only found on the machine is never uninstalled by the panel.
  */
 export const proxies = pgTable(
   'proxies',
@@ -47,7 +47,7 @@ export const proxies = pgTable(
     status: proxyStatusEnum('status').notNull().default('unknown'),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
     lastCheckError: text('last_check_error'),
-    /** Le dernier « Tester », point par point. */
+    /** The last "Test", point by point. */
     lastCheck: jsonb('last_check').$type<Record<string, unknown> | null>(),
     createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -65,13 +65,13 @@ export const proxies = pgTable(
 );
 
 /**
- * Les domaines : un nom, une application, une cible.
+ * The domains: a name, an application, a target.
  *
- * **Unique par nom**, et c'est la base qui le tient : deux applications ne
- * peuvent pas réclamer le même domaine, même au même instant — le perdant
- * reçoit une violation 23505, comme pour les ports. La route survit aux
- * redéploiements ; elle disparaît avec l'application, avec la cible, ou à la
- * destruction du déploiement qu'elle sert.
+ * **Unique per name**, and it is the database that holds it: two applications
+ * cannot claim the same domain, even at the same instant — the loser gets a
+ * 23505 violation, as for ports. The route survives redeploys; it disappears
+ * with the application, with the target, or at the destruction of the
+ * deployment it serves.
  */
 export const routes = pgTable(
   'routes',
@@ -86,16 +86,16 @@ export const routes = pgTable(
     hostname: text('hostname').notNull().unique(),
     tls: boolean('tls').notNull().default(true),
     redirectHttps: boolean('redirect_https').notNull().default(true),
-    /** Pour un proxy qui est aussi un WAF : bloquer, seulement détecter, ou relayer. */
+    /** For a proxy that is also a WAF: block, only detect, or relay. */
     waf: wafModeEnum('waf').notNull().default('block'),
     status: routeStatusEnum('status').notNull().default('pending'),
     lastError: text('last_error'),
     lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
     certificate: jsonb('certificate').$type<RouteCertificate | null>(),
     /**
-     * L'échéance du certificat déjà signalé comme bientôt échu, ou `null`.
-     * Une alerte par certificat : la sonde suivante voit la même échéance et
-     * se tait ; un certificat renouvelé remet la colonne à `null`.
+     * The expiry of the certificate already reported as about to expire, or `null`.
+     * One alert per certificate: the next probe sees the same expiry and keeps
+     * quiet; a renewed certificate sets the column back to `null`.
      */
     certificateAlert: text('certificate_alert'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -105,16 +105,14 @@ export const routes = pgTable(
 );
 
 /**
- * Le proxy central : une machine servie par le reverse proxy d'une **autre**.
- * Une ligne par machine servie ainsi — une machine qui a son propre proxy n'en
- * a pas.
+ * The central proxy: a machine served by **another**'s reverse proxy. One row per
+ * machine served that way — a machine that has its own proxy has none.
  *
- * `address` : comment la machine du proxy joint celle-ci — de préférence une
- * adresse privée. `source_address` : l'adresse par laquelle elle arrive, vue
- * de celle-ci — à elle seule s'ouvre le port de l'application. `bindable` :
- * `address` est une adresse de cette machine, on peut y publier le port pour
- * qu'il ne soit joignable que par là. Les deux derniers sont relevés par le
- * test de la liaison.
+ * `address`: how the proxy's machine reaches this one — preferably a private
+ * address. `source_address`: the address it arrives from, seen from this one —
+ * the application's port is opened to it alone. `bindable`: `address` is an
+ * address of this machine, the port can be published there so that it is only
+ * reachable that way. The last two are noted by the link's test.
  */
 export const proxyLinks = pgTable('proxy_links', {
   targetId: uuid('target_id')

@@ -251,7 +251,7 @@ while (my $c = $s->accept) {
 const LISTENER_SH = `port=$2; token=$3
 to=''; command -v timeout >/dev/null 2>&1 && to='timeout ${LISTENER_LIFETIME_S}'
 reply() { printf 'HTTP/1.0 200 OK\\r\\nContent-Type: text/plain\\r\\nContent-Length: %s\\r\\nConnection: close\\r\\n\\r\\n%s\\n' "$((\${#token} + 1))" "$token"; }
-# \`nc -l -p\` : BusyBox et traditionnel ; \`nc -l <port>\` : OpenBSD.
+# \`nc -l -p\`: BusyBox and traditional; \`nc -l <port>\`: OpenBSD.
 reply | $to nc -l -p "$port" >/dev/null 2>&1 || reply | $to nc -l "$port" >/dev/null 2>&1
 `;
 

@@ -10,24 +10,24 @@ import { deployments } from './schema/deployments.js';
 import { sourceArchiveChunks, sourceArchives } from './schema/sources.js';
 
 /**
- * Archives de code téléversées : leurs métadonnées, et leurs octets rangés par
- * morceaux.
+ * Uploaded code archives: their metadata, and their bytes stored in chunks.
  *
- * Rien ici ne lit ni n'écrit une archive au sens du format : la route range
- * ce qu'elle reçoit, le worker juge et refait l'archive (`@pupitre/core/source-upload`)
- * puis la range à son tour. Ce module ne connaît que des morceaux d'octets.
+ * Nothing here reads or writes an archive in the format's sense: the route
+ * stores what it receives, the worker judges and remakes the archive
+ * (`@pupitre/core/source-upload`) then stores it in turn. This module only knows
+ * chunks of bytes.
  */
 
 export type SourceArchive = typeof sourceArchives.$inferSelect;
 export type SourceArchiveChunkKind = 'upload' | 'tree';
 
-/** Une archive telle que l'écran la montre : avec le nom de qui l'a envoyée. */
+/** An archive as the screen shows it: with the name of whoever uploaded it. */
 export type SourceArchiveView = SourceArchive & { uploadedByName: string | null };
 
-/** Les déploiements qui n'ont pas fini : une archive qu'ils construisent ne s'efface pas. */
+/** The deployments that have not finished: an archive they build is not erased. */
 const IN_FLIGHT = ['pending', 'running'] as const;
 
-/** Un envoi interrompu (panel arrêté en plein transfert) s'efface au bout de ce délai. */
+/** An interrupted upload (panel stopped mid-transfer) is erased after this delay. */
 const RECEIVING_STALE_MS = 60 * 60 * 1000;
 
 export async function createSourceArchive(
@@ -43,7 +43,7 @@ export async function createSourceArchive(
     .insert(sourceArchives)
     .values({ ...input, status: 'receiving' })
     .returning();
-  if (!row) throw new Error("createSourceArchive : l'insertion n'a rien retourné");
+  if (!row) throw new Error("createSourceArchive: the insert returned nothing");
   return row;
 }
 
@@ -57,7 +57,7 @@ export async function appendSourceArchiveChunk(
   await db.insert(sourceArchiveChunks).values({ archiveId, kind, seq, data });
 }
 
-/** L'envoi est complet : l'archive attend sa lecture par le worker. */
+/** The upload is complete: the archive waits to be read by the worker. */
 export async function finishSourceArchiveUpload(
   archiveId: string,
   result: { bytes: number; sha256: string },
@@ -72,7 +72,7 @@ export async function finishSourceArchiveUpload(
   return row;
 }
 
-/** Retire une archive et ses octets (cascade). */
+/** Removes an archive and its bytes (cascade). */
 export async function deleteSourceArchive(
   archiveId: string,
   db: Database = getDb(),
@@ -92,7 +92,7 @@ export async function getSourceArchive(
   return row ?? null;
 }
 
-/** Les archives d'une application, de la plus récente à la plus ancienne. */
+/** An application's archives, from newest to oldest. */
 export async function listSourceArchives(
   applicationId: string,
   db: Database = getDb(),
@@ -107,8 +107,8 @@ export async function listSourceArchives(
 }
 
 /**
- * Le code de l'application : la plus récente des archives reçues — prête, en
- * lecture ou refusée. Un envoi encore en cours ne compte pas.
+ * The application's code: the most recent of the received archives — ready,
+ * being read or refused. An upload still in progress does not count.
  */
 export async function getCurrentSourceArchive(
   applicationId: string,
@@ -141,8 +141,8 @@ export async function countSourceArchiveChunks(
 }
 
 /**
- * Les octets d'une archive, un morceau à la fois : jamais l'archive entière en
- * mémoire, ni dans le panel ni dans le worker.
+ * An archive's bytes, one chunk at a time: never the whole archive in memory,
+ * neither in the panel nor in the worker.
  */
 export async function* readSourceArchiveChunks(
   archiveId: string,
@@ -166,7 +166,7 @@ export async function* readSourceArchiveChunks(
   }
 }
 
-/** Efface les morceaux d'un type — avant de réécrire l'archive propre, par exemple. */
+/** Erases the chunks of one kind — before rewriting the clean archive, for example. */
 export async function clearSourceArchiveChunks(
   archiveId: string,
   kind: SourceArchiveChunkKind,
@@ -178,8 +178,8 @@ export async function clearSourceArchiveChunks(
 }
 
 /**
- * Lue et refaite : l'archive propre (`tree`) est rangée, les octets reçus ne
- * servent plus et s'effacent.
+ * Read and remade: the clean archive (`tree`) is stored, the received bytes are
+ * no longer needed and are erased.
  */
 export async function markSourceArchiveReady(
   archiveId: string,
@@ -208,7 +208,7 @@ export async function markSourceArchiveReady(
   });
 }
 
-/** Refusée : on garde la raison, pas les octets. */
+/** Refused: we keep the reason, not the bytes. */
 export async function markSourceArchiveRejected(
   archiveId: string,
   result: { rejection: SourceArchiveRejection; detail: string | null },
@@ -231,7 +231,7 @@ export async function markSourceArchiveRejected(
   });
 }
 
-/** Un déploiement en cours construit-il cette archive ? Alors elle ne s'efface pas. */
+/** Is a deployment in progress building this archive? Then it is not erased. */
 export async function sourceArchiveInFlight(
   archiveId: string,
   db: Database = getDb(),
@@ -246,9 +246,9 @@ export async function sourceArchiveInFlight(
 }
 
 /**
- * Ne garde que les `keep` archives les plus récentes d'une application, et
- * efface les envois restés en cours depuis plus d'une heure. Une archive qu'un
- * déploiement en cours construit est épargnée. Rend ce qui a été effacé.
+ * Only keeps an application's `keep` most recent archives, and erases the
+ * uploads left in progress for more than an hour. An archive a deployment in
+ * progress is building is spared. Returns what was erased.
  */
 export async function pruneSourceArchives(
   applicationId: string,

@@ -291,7 +291,7 @@ test('the expected code is checked before the keyword', async () => {
   assert.match(result.detail ?? '', /code 404/);
 });
 
-// ─── domaine : quels TLD ont un RDAP ──────────────────────────────────────────
+// ─── domain: which TLDs have an RDAP ──────────────────────────────────────────
 
 test('the knowledge of TLDs is dated, so that we know when it ages', () => {
   assert.match(RDAP_TLD_KNOWLEDGE_DATE, /^\d{4}-\d{2}-\d{2}$/);
@@ -400,7 +400,7 @@ test('a malformed response does not bring the reading down', () => {
   assert.equal(readRdapDomain('pas du JSON RDAP').registrar, null);
 });
 
-// ─── domaine : le jugement ────────────────────────────────────────────────────
+// ─── domain: the judgment ─────────────────────────────────────────────────────
 
 const NOW = new Date('2026-09-13T12:00:00Z');
 const baseConfig = (over: Partial<DomainConfig> = {}): DomainConfig =>

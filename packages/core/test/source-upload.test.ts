@@ -179,7 +179,7 @@ async function entries(
 
 const gz = (items: TarItem[]) => gzipSync(tarBytes(items));
 
-// ─── les tests ───────────────────────────────────────────────────────────────
+// ─── the tests ───────────────────────────────────────────────────────────────
 
 describe('uploaded archive — the format is read from the bytes', () => {
   it('recognizes tar.gz, zip and tar, and nothing else', () => {

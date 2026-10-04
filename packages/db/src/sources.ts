@@ -21,11 +21,11 @@ import {
 } from './schema/sources.js';
 
 /**
- * Dépôts liés : la connexion au fournisseur, les liaisons application ↔
- * branche, et les commits qui attendent une validation.
+ * Linked repositories: the connection to the provider, the application ↔ branch
+ * links, and the commits waiting for approval.
  *
- * Rien ici ne parle à GitHub : ce module range ce que le worker et le panel en
- * ont appris. Voir `@pupitre/core` → `sources/` pour le contrat.
+ * Nothing here talks to GitHub: this module stores what the worker and the panel
+ * learned from it. See `@pupitre/core` → `sources/` for the contract.
  */
 
 export type SourceConnection = typeof sourceConnections.$inferSelect;
@@ -47,15 +47,14 @@ export async function getSourceConnection(
 }
 
 /**
- * Les secrets d'une connexion, déchiffrés à l'instant : de quoi fabriquer son
- * client (`createSourceProvider`). Le résultat ne se range nulle part et ne
- * se journalise jamais.
+ * A connection's secrets, decrypted on the spot: enough to build its client
+ * (`createSourceProvider`). The result is stored nowhere and never logged.
  */
 export function sourceConnectionSecrets(connection: SourceConnection): SourceConnectionSecrets {
   switch (connection.provider) {
     case 'github':
       if (connection.appId === null || !connection.privateKeyEncrypted) {
-        throw new Error('connexion GitHub incomplète : App ou clé privée manquante');
+        throw new Error('incomplete GitHub connection: App or private key missing');
       }
       return {
         provider: 'github',
@@ -65,7 +64,7 @@ export function sourceConnectionSecrets(connection: SourceConnection): SourceCon
       };
     case 'gitea':
       if (!connection.tokenEncrypted)
-        throw new Error('connexion Gitea incomplète : jeton manquant');
+        throw new Error('incomplete Gitea connection: token missing');
       return {
         provider: 'gitea',
         baseUrl: connection.apiUrl ?? connection.htmlUrl,
@@ -73,7 +72,7 @@ export function sourceConnectionSecrets(connection: SourceConnection): SourceCon
       };
     case 'gitlab':
       if (!connection.tokenEncrypted)
-        throw new Error('connexion GitLab incomplète : jeton manquant');
+        throw new Error('incomplete GitLab connection: token missing');
       return {
         provider: 'gitlab',
         baseUrl: connection.apiUrl ?? connection.htmlUrl,
@@ -82,19 +81,22 @@ export function sourceConnectionSecrets(connection: SourceConnection): SourceCon
   }
 }
 
-/** L'adresse web de la forge d'une connexion : github.com, un GitHub Enterprise, une forge Gitea, une instance GitLab. */
+/**
+ * A connection's forge web address: github.com, a GitHub Enterprise, a Gitea
+ * forge, a GitLab instance.
+ */
 export function sourceConnectionWebUrl(connection: SourceConnection): string {
   return connection.provider === 'github'
     ? githubWebUrl(connection.apiUrl)
     : (connection.apiUrl ?? connection.htmlUrl);
 }
 
-/** L'adresse web d'un dépôt de cette connexion. */
+/** The web address of a repository of this connection. */
 export function sourceRepositoryUrl(connection: SourceConnection, fullName: string): string {
   return repositoryWebUrl(sourceConnectionWebUrl(connection), fullName);
 }
 
-/** Les connexions de l'instance, une par fournisseur. */
+/** The instance's connections, one per provider. */
 export async function listSourceConnections(db: Database = getDb()): Promise<SourceConnection[]> {
   return db.select().from(sourceConnections).orderBy(asc(sourceConnections.provider));
 }
@@ -108,9 +110,9 @@ export async function getSourceConnectionById(
 }
 
 /**
- * Ce qu'on enregistre d'une connexion. Les secrets arrivent **déjà chiffrés**
- * par l'appelant : ce module ne voit jamais une clé ni un jeton en clair. Les
- * champs d'un fournisseur restent vides pour l'autre.
+ * What is recorded of a connection. The secrets arrive **already encrypted** by
+ * the caller: this module never sees a key or a token in clear. One provider's
+ * fields stay empty for the other.
  */
 export type SourceConnectionInput = {
   provider: SourceConnection['provider'];
@@ -125,7 +127,7 @@ export type SourceConnectionInput = {
   createdBy: string | null;
 };
 
-/** Une connexion par fournisseur : en enregistrer une nouvelle remplace l'ancienne. */
+/** One connection per provider: saving a new one replaces the old one. */
 export async function saveSourceConnection(
   input: SourceConnectionInput,
   db: Database = getDb(),
@@ -138,11 +140,11 @@ export async function saveSourceConnection(
       set: { ...input, updatedAt: new Date() },
     })
     .returning();
-  if (!row) throw new Error("saveSourceConnection : l'écriture n'a rien retourné");
+  if (!row) throw new Error("saveSourceConnection: the write returned nothing");
   return row;
 }
 
-/** Retire la connexion ; ses liaisons partent avec elle (cascade). */
+/** Removes the connection; its links go with it (cascade). */
 export async function deleteSourceConnection(
   provider: SourceConnection['provider'] = 'github',
   db: Database = getDb(),
@@ -165,9 +167,9 @@ export async function deleteSourceConnection(
 // ─── liaisons ─────────────────────────────────────────────────────────────────
 
 /**
- * Un chemin relatif sans détour : ni `..`, ni racine absolue. Il sert à lire un
- * fichier du dépôt, jamais à toucher le disque — mais un chemin qui sort du
- * dépôt n'a de toute façon aucun sens.
+ * A straightforward relative path: neither `..` nor an absolute root. It is used
+ * to read a file of the repository, never to touch the disk — but a path that
+ * leaves the repository makes no sense anyway.
  */
 export const repoPathSchema = z
   .string()
@@ -192,16 +194,16 @@ const sourceTargetsSchema = z
   );
 
 /**
- * Les champs d'une liaison, **sans** valeurs par défaut : elles ne valent qu'à
- * la création. `.partial()` sur un champ porteur de `.default()` le remplit
- * quand il manque — un `PATCH { branch }` remettait le fichier de spec, le
- * mode, la destination, les cibles et l'activation à leurs valeurs d'origine.
+ * A link's fields, **without** default values: they only hold at creation.
+ * `.partial()` on a field carrying `.default()` fills it when it is missing — a
+ * `PATCH { branch }` reset the spec file, the mode, the destination, the targets
+ * and the activation to their original values.
  */
 const applicationSourceFields = z.object({
   repository: sourceRepositorySchema,
-  /** Le fournisseur du dépôt ; GitHub quand rien n'est dit, comme avant qu'il y en ait deux. */
+  /** The repository's provider; GitHub when nothing is said, as before there were two. */
   provider: z.enum(SOURCE_PROVIDER_KINDS),
-  /** GitHub : l'installation de l'App qui ouvre le dépôt. Rien chez Gitea ni GitLab. */
+  /** GitHub: the App installation that opens the repository. Nothing at Gitea or GitLab. */
   installationId: z.number().int().positive().nullable(),
   branch: z
     .string()
@@ -212,10 +214,10 @@ const applicationSourceFields = z.object({
   specPath: repoPathSchema,
   watchPaths: z.array(repoPathSchema).max(50),
   mode: sourceModeSchema,
-  /** Où part un nouveau commit : les cibles de la liaison, là où elle tourne, ou nulle part. */
+  /** Where a new commit goes: the link's targets, where it runs, or nowhere. */
   deployTo: sourceDeployToSchema,
   enabled: z.boolean(),
-  /** Les cibles de la liaison — exigées quand un commit part sur elles (`targets`). */
+  /** The link's targets — required when a commit goes to them (`targets`). */
   targets: sourceTargetsSchema,
 });
 
@@ -231,7 +233,7 @@ export const applicationSourceInputSchema = applicationSourceFields.extend({
 });
 export type ApplicationSourceInput = z.infer<typeof applicationSourceInputSchema>;
 
-/** Une liaison qui déploie « sur ses cibles » doit en avoir au moins une. */
+/** A link that deploys "on its targets" must have at least one. */
 export function sourceTargetsProblem(
   deployTo: SourceDeployTo,
   targets: readonly unknown[],
@@ -338,7 +340,7 @@ export async function getApplicationSource(
   return view ?? null;
 }
 
-/** Les liaisons actives, pour le polling. */
+/** The active links, for polling. */
 export async function listEnabledSources(db: Database = getDb()): Promise<ApplicationSourceView[]> {
   const rows = await db
     .select()
@@ -360,7 +362,7 @@ export async function createApplicationSource(
     applicationId: string;
     connectionId: string;
     createdBy: string | null;
-    /** Le commit dont l'application vient d'être créée, s'il y a lieu. */
+    /** The commit the application was just created from, if any. */
     syncedSha?: string | null;
   },
   db: Database = getDb(),
@@ -392,9 +394,9 @@ export async function createApplicationSource(
         deployTo: input.deployTo,
         enabled: input.enabled,
         createdBy: input.createdBy,
-        // Une application créée depuis le dépôt porte déjà l'AppSpec de ce
-        // commit : il est à la fois le point de départ du polling et celui
-        // dont un déploiement à la main construit le code.
+        // An application created from the repository already carries this commit's
+        // AppSpec: it is both the starting point of polling and the one whose code a
+        // manual deployment builds.
         ...(input.syncedSha
           ? {
               lastSeenSha: input.syncedSha,
@@ -405,7 +407,7 @@ export async function createApplicationSource(
           : {}),
       })
       .returning();
-    if (!row) throw new Error("createApplicationSource : l'insertion n'a rien retourné");
+    if (!row) throw new Error("createApplicationSource: the insert returned nothing");
     if (input.targets.length > 0) {
       await tx
         .insert(applicationSourceTargets)
@@ -427,8 +429,8 @@ export async function updateApplicationSource(
     const [current] = await tx.select().from(applicationSources).where(eq(applicationSources.id, id));
     if (!current) return null;
 
-    // Changer de branche, c'est repartir de zéro : le prochain passage relit
-    // la tête de la nouvelle branche sans rien déployer.
+    // Changing branch is starting from scratch: the next pass reads the new branch's
+    // head without deploying anything.
     const branchChanged = fields.branch !== undefined && fields.branch !== current.branch;
     const [row] = await tx
       .update(applicationSources)
@@ -462,11 +464,11 @@ export async function deleteApplicationSource(
   return row ?? null;
 }
 
-/** Ce qu'un passage de polling a appris d'une liaison. */
+/** What a polling pass learned about a link. */
 export async function recordSourceCheck(
   id: string,
   result: {
-    /** Le commit désormais traité, s'il a changé. */
+    /** The commit now handled, if it changed. */
     sha?: string;
     etag?: string | null;
     error: string | null;
@@ -486,10 +488,10 @@ export async function recordSourceCheck(
 }
 
 /**
- * Réserve un commit pour le traiter : ne réussit que si la liaison en est
- * toujours au commit `previous`. Deux passages de polling qui se chevauchent
- * lisent la même nouveauté ; un seul la réserve, un seul déploie. C'est une
- * écriture conditionnelle, pas un verrou : rien à libérer si le worker tombe.
+ * Reserves a commit to handle it: only succeeds if the link is still at the
+ * `previous` commit. Two overlapping polling passes read the same novelty; only
+ * one reserves it, only one deploys. It is a conditional write, not a lock:
+ * nothing to release if the worker goes down.
  */
 export async function claimSourceCommit(
   id: string,
@@ -528,9 +530,9 @@ export type SourceProposalInput = {
 };
 
 /**
- * Range un commit en attente. Un commit plus récent sur la même liaison rend
- * les précédents caducs : on ne valide pas une version qui n'est plus la tête
- * de la branche.
+ * Stores a pending commit. A more recent commit on the same link makes the
+ * previous ones moot: one does not approve a version that is no longer the
+ * branch's head.
  */
 export async function createSourceProposal(
   input: SourceProposalInput,
@@ -564,7 +566,7 @@ export async function getSourceProposal(
   return row ?? null;
 }
 
-/** Les commits en attente des liaisons d'une application, le plus récent d'abord. */
+/** The pending commits of an application's links, the most recent first. */
 export async function listPendingProposals(
   applicationId: string,
   db: Database = getDb(),
@@ -584,8 +586,8 @@ export async function listPendingProposals(
 }
 
 /**
- * Tranche un commit en attente. Ne touche qu'une proposition encore
- * `pending` : deux clics simultanés ne déploient pas deux fois.
+ * Decides a pending commit. Only touches a proposal still `pending`: two
+ * simultaneous clicks do not deploy twice.
  */
 export async function decideSourceProposal(
   id: string,
@@ -602,8 +604,8 @@ export async function decideSourceProposal(
 }
 
 /**
- * Rend caducs les commits en attente d'une liaison — quand un commit plus
- * récent vient d'être déployé, les précédents n'ont plus de sens.
+ * Makes a link's pending commits moot — when a more recent commit was just
+ * deployed, the previous ones no longer make sense.
  */
 export async function supersedePendingProposals(
   sourceId: string,
@@ -622,8 +624,8 @@ export async function supersedePendingProposals(
     );
 }
 
-/** Le nombre de liaisons, toutes applications confondues. */
-/** Les liaisons de l'instance — ou celles d'une connexion. */
+/** The number of links, all applications together. */
+/** The instance's links — or a connection's. */
 export async function countApplicationSources(
   connectionId?: string,
   db: Database = getDb(),
@@ -635,9 +637,9 @@ export async function countApplicationSources(
   return row?.value ?? 0;
 }
 
-// ─── le commit de l'application ──────────────────────────────────────────────
+// ─── the application's commit ────────────────────────────────────────────────
 
-/** L'application porte désormais l'AppSpec de ce commit de la liaison. */
+/** The application now carries the AppSpec of this commit of the link. */
 export async function markSourceSynced(
   id: string,
   sha: string,
@@ -650,9 +652,9 @@ export async function markSourceSynced(
 }
 
 /**
- * La liaison d'où vient la version actuelle de l'application : celle qui l'a
- * synchronisée en dernier. Un déploiement lancé à la main construit le code de
- * son commit. `null` : l'application ne vient d'aucun dépôt.
+ * The link the application's current version comes from: the one that synced it
+ * last. A manually started deployment builds its commit's code. `null`: the
+ * application comes from no repository.
  */
 export async function getSyncedSource(
   applicationId: string,

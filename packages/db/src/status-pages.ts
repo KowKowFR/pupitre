@@ -11,15 +11,15 @@ import { monitorChecks, monitorIncidents, monitors } from './schema/monitors.js'
 import { statusPages, type StatusPageRow } from './schema/status-pages.js';
 
 /**
- * Les pages de statut en base, et les lectures qu'une page publique demande :
- * l'historique par jour des sondes, leurs pannes récentes, les maintenances
- * qui les touchent. Ce qu'un visiteur en lit est décidé dans `@pupitre/core`
- * (`status-page.ts`) ; ici, seulement des lectures.
+ * Status pages in the database, and the reads a public page asks for: the
+ * probes' daily history, their recent outages, the maintenance windows that
+ * touch them. What a visitor reads of it is decided in `@pupitre/core`
+ * (`status-page.ts`); here, only reads.
  */
 
 export type { StatusPageRow };
 
-/** L'adresse est déjà prise par une autre page. */
+/** The address is already taken by another page. */
 export class StatusPageSlugTakenError extends Error {
   constructor(readonly slug: string) {
     super(`adresse de page de statut déjà prise : « ${slug} »`);
@@ -49,7 +49,7 @@ export async function getStatusPage(
   return row ?? null;
 }
 
-/** La page **publiée** à cette adresse, ou rien. */
+/** The page **published** at this address, or nothing. */
 export async function getPublishedStatusPage(
   slug: string,
   db: Database = getDb(),
@@ -71,7 +71,7 @@ export async function createStatusPage(
     .values({ ...input, createdBy })
     .returning()
     .catch(translateConflict(input.slug));
-  if (!row) throw new Error('page de statut non créée');
+  if (!row) throw new Error('status page not created');
   return row;
 }
 
@@ -97,12 +97,12 @@ export async function deleteStatusPage(id: string, db: Database = getDb()): Prom
   return rows.length > 0;
 }
 
-// ─── Les lectures d'une page publique ─────────────────────────────────────────
+// ─── A public page's reads ────────────────────────────────────────────────────
 
 /**
- * Par sonde et par jour (dans le fuseau de l'instance), les mesures et celles
- * qui étaient saines, sur les `days` derniers jours — bornés par la
- * rétention des mesures.
+ * Per probe and per day (in the instance's time zone), the measurements and
+ * those that were healthy, over the last `days` days — bounded by the
+ * measurements' retention.
  */
 export async function monitorDayTallies(
   monitorIds: string[],
@@ -127,8 +127,8 @@ export async function monitorDayTallies(
         sql`${monitorChecks.checkedAt} > now() - make_interval(days => ${days + 1})`,
       ),
     )
-    // Par position : le fuseau est un paramètre, et Postgres ne reconnaît pas
-    // `$1` du SELECT et `$4` du GROUP BY comme la même expression.
+    // By position: the time zone is a parameter, and Postgres does not recognize the
+    // SELECT's `$1` and the GROUP BY's `$4` as the same expression.
     .groupBy(sql`1`, sql`2`);
   for (const row of rows) {
     const list = tallies.get(row.monitorId) ?? [];
@@ -138,7 +138,7 @@ export async function monitorDayTallies(
   return tallies;
 }
 
-/** Les pannes des sondes qui ont duré pendant les `days` derniers jours, les plus récentes d'abord. */
+/** The probes' outages that lasted during the last `days` days, the most recent first. */
 export async function recentMonitorIncidents(
   monitorIds: string[],
   days: number,
@@ -168,7 +168,7 @@ export async function recentMonitorIncidents(
 
 export type MaintenanceTouching = {
   id: string;
-  /** Le titre interne : il ne sort jamais d'une page publique. */
+  /** The internal title: it never leaves a public page. */
   title: string;
   startsAt: Date;
   endsAt: Date;
@@ -176,10 +176,10 @@ export type MaintenanceTouching = {
 };
 
 /**
- * Les fenêtres qui finissent après `endsAfter` et commencent avant
- * `startsBefore`, avec les sondes de cette liste qu'elles touchent : nommées,
- * ou dont l'application tourne sur une cible nommée (`listLiveDeployments`).
- * Une fenêtre qui n'en touche aucune n'est pas rendue.
+ * The windows that end after `endsAfter` and start before `startsBefore`, with
+ * the probes of this list they touch: named, or whose application runs on a
+ * named target (`listLiveDeployments`). A window that touches none is not
+ * returned.
  */
 export async function maintenanceTouching(
   monitorIds: string[],

@@ -6,22 +6,20 @@ import { monitors } from './monitors.js';
 import { routes } from './proxies.js';
 
 /**
- * Les prévisions en cours : ce qui va casser, constaté par le balayage du
- * worker (`forecast:sweep`).
+ * The ongoing forecasts: what is going to break, observed by the worker's sweep
+ * (`forecast:sweep`).
  *
- * Une ligne par épisode, comme les dépassements de seuil : ouverte quand le
- * constat apparaît, tenue à jour tant qu'il dure, refermée (`resolved_at`)
- * quand il disparaît. C'est ce qui permet de prévenir **une fois** — à
- * l'ouverture — et non à chaque balayage.
+ * One row per episode, like threshold breaches: opened when the finding appears,
+ * kept up to date while it lasts, closed (`resolved_at`) when it disappears. That
+ * is what allows warning **once** — at opening — and not at each sweep.
  *
- * Le sujet est polymorphe (une cible, une sonde, une route, une application) :
- * `subject_type` + `subject_id`, ce qui se lit. Et pour que **la base**
- * garantisse qu'une prévision ne survit pas à son sujet, une colonne générée
- * par type, chacune clé étrangère `ON DELETE CASCADE` : supprimer une cible
- * emporte ses prévisions dans la même transaction, par n'importe quel chemin —
- * la route d'API, ou la cascade d'une application qui emporte ses domaines.
- * Postgres calcule ces colonnes : aucun code ne les écrit, elles ne peuvent
- * pas contredire le sujet.
+ * The subject is polymorphic (a target, a probe, a route, an application):
+ * `subject_type` + `subject_id`, which reads well. And so that **the database**
+ * guarantees a forecast does not outlive its subject, one generated column per
+ * type, each a foreign key `ON DELETE CASCADE`: deleting a target takes its
+ * forecasts in the same transaction, through any path — the API route, or the
+ * cascade of an application taking its domains. Postgres computes these
+ * columns: no code writes them, they cannot contradict the subject.
  */
 export const forecasts = pgTable(
   'forecasts',
@@ -30,12 +28,12 @@ export const forecasts = pgTable(
     kind: text('kind').$type<ForecastKind>().notNull(),
     subjectType: text('subject_type').$type<ForecastSubjectType>().notNull(),
     subjectId: text('subject_id').notNull(),
-    /** Le nom du sujet au dernier balayage : la ligne se lit sans jointure. */
+    /** The subject's name at the last sweep: the row reads without a join. */
     subjectName: text('subject_name').notNull(),
     severity: text('severity').$type<ForecastSeverity>().notNull(),
-    /** Quand le mur est atteint, pour les prévisions qui en ont un. */
+    /** When the wall is reached, for the forecasts that have one. */
     etaAt: timestamp('eta_at', { withTimezone: true }),
-    /** Les chiffres du constat (rythme, médianes, jours restants…). */
+    /** The finding's figures (rate, medians, days left…). */
     detail: jsonb('detail').$type<Record<string, number | string | null>>().notNull().default({}),
     openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),

@@ -4,9 +4,9 @@ import { apiTokens, type ApiTokenRow } from './schema/api-tokens.js';
 import { users } from './schema/auth.js';
 
 /**
- * Les jetons d'API en base. Ce module ne voit jamais un jeton en clair : il
- * range et retrouve des empreintes. La fabrication du jeton et sa lecture dans
- * l'en-tête `Authorization` appartiennent au panel.
+ * API tokens in the database. This module never sees a token in clear: it stores
+ * and finds hashes. Making the token and reading it in the `Authorization`
+ * header belong to the panel.
  */
 
 export type ApiTokenView = Omit<ApiTokenRow, 'tokenHash'> & {
@@ -43,11 +43,11 @@ export async function createApiToken(
   db: Database = getDb(),
 ): Promise<ApiTokenRow> {
   const [row] = await db.insert(apiTokens).values(input).returning();
-  if (!row) throw new Error("le jeton d'API n'a pas été enregistré");
+  if (!row) throw new Error("the API token was not saved");
   return row;
 }
 
-/** Les jetons d'une personne, ou de toute l'instance (`userId` absent) — révoqués compris. */
+/** A person's tokens, or the whole instance's (`userId` absent) — revoked ones included. */
 export async function listApiTokens(
   filter: { userId?: string } = {},
   db: Database = getDb(),
@@ -72,7 +72,7 @@ export async function getApiToken(
   return row ?? null;
 }
 
-/** Les jetons encore en service d'une personne : ni révoqués, ni échus. */
+/** A person's tokens still in service: neither revoked nor expired. */
 export async function countLiveApiTokens(userId: string, db: Database = getDb()): Promise<number> {
   const [row] = await db
     .select({ value: count() })
@@ -87,7 +87,7 @@ export async function countLiveApiTokens(userId: string, db: Database = getDb())
   return row?.value ?? 0;
 }
 
-/** Révoque un jeton. Rend `false` s'il l'était déjà, ou s'il n'existe pas. */
+/** Revokes a token. Returns `false` if it already was, or if it does not exist. */
 export async function revokeApiToken(id: string, db: Database = getDb()): Promise<boolean> {
   const rows = await db
     .update(apiTokens)
@@ -98,9 +98,9 @@ export async function revokeApiToken(id: string, db: Database = getDb()): Promis
 }
 
 /**
- * Le jeton qui porte cette empreinte, avec ce qu'il faut de son auteur pour
- * décider : son compte est-il encore actif ? Révoqué ou échu, il est rendu tel
- * quel — c'est l'appelant qui refuse, et qui le dit au journal.
+ * The token carrying this hash, with what is needed of its author to decide: is
+ * their account still active? Revoked or expired, it is returned as is — it is
+ * the caller that refuses, and says so in the log.
  */
 export async function findApiTokenByHash(
   tokenHash: string,
@@ -134,13 +134,12 @@ export async function findApiTokenByHash(
   return row ?? null;
 }
 
-/** Combien de temps une dernière utilisation reste « fraîche » : une écriture par minute au plus. */
+/** How long a last use stays "fresh": one write per minute at most. */
 const TOUCH_EVERY_MS = 60_000;
 
 /**
- * Note la dernière utilisation d'un jeton. Une CI qui appelle l'API dix fois
- * par déploiement ne doit pas coûter dix écritures : une par minute suffit à
- * dire « utilisé à l'instant ».
+ * Notes a token's last use. A CI calling the API ten times per deployment must
+ * not cost ten writes: one per minute is enough to say "used just now".
  */
 export async function touchApiToken(
   id: string,

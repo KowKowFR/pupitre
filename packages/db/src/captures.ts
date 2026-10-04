@@ -8,16 +8,16 @@ import { getDb, type Database } from './client.js';
 import { monitorCaptures } from './schema/monitors.js';
 
 /**
- * Persistance des captures d'écran d'incident.
+ * Persistence of incident screenshots.
  *
- * Un module à part de `monitors.ts`, et pas par goût du rangement : c'est ici
- * qu'est tenue la règle « les octets ne sortent que quand on les a demandés ».
- * Toutes les lectures d'écran nomment leurs colonnes et **omettent `image`** ;
- * une seule fonction la charge, celle qui sert la route de l'image. Un
- * `select *` sur cette table ferait transiter des mégaoctets par page.
+ * A module separate from `monitors.ts`, and not out of a taste for tidiness: it
+ * is here that the rule "bytes only go out when asked for" is held. Every screen
+ * read names its columns and **omits `image`**; a single function loads it, the
+ * one serving the image's route. A `select *` on this table would carry
+ * megabytes per page.
  */
 
-/** Ce que les écrans lisent : tout sauf les octets. */
+/** What the screens read: everything except the bytes. */
 export type CaptureMeta = {
   id: string;
   monitorId: string;
@@ -34,7 +34,7 @@ export type CaptureMeta = {
   bytes: number;
   truncated: boolean;
   elapsedMs: number | null;
-  /** `false` quand la rétention a repris les octets. La ligne, elle, reste. */
+  /** `false` when retention took the bytes back. The row stays. */
   hasImage: boolean;
   purgedAt: Date | null;
 };
@@ -59,7 +59,7 @@ const META_COLUMNS = {
   purgedAt: monitorCaptures.purgedAt,
 } as const;
 
-// ─── écriture ─────────────────────────────────────────────────────────────────
+// ─── writing ──────────────────────────────────────────────────────────────────
 
 export type SaveCaptureInput = {
   monitorId: string;
@@ -71,12 +71,12 @@ export type SaveCaptureInput = {
 };
 
 /**
- * Enregistre une capture.
+ * Records a capture.
  *
- * Une **référence** écrase la référence vivante de la sonde : c'est l'index
- * unique partiel qui l'impose, et `onConflictDoUpdate` qui l'exécute. La
- * rotation n'est donc pas une tâche de ménage qu'on pourrait oublier de lancer
- * — c'est la seule écriture que la base accepte.
+ * A **reference** overwrites the probe's live reference: it is the partial
+ * unique index that imposes it, and `onConflictDoUpdate` that carries it out.
+ * Rotation is therefore not a cleanup task one could forget to run — it is the
+ * only write the database accepts.
  */
 export async function saveCapture(
   input: SaveCaptureInput,
@@ -127,21 +127,20 @@ export async function saveCapture(
       : db.insert(monitorCaptures).values(values);
 
   const [row] = await query.returning(META_COLUMNS);
-  if (!row) throw new Error('insertion de la capture sans retour');
+  if (!row) throw new Error('capture insert returned nothing');
   return row as CaptureMeta;
 }
 
 /**
- * Épingle la référence vivante d'une sonde à un incident qui vient de s'ouvrir.
+ * Pins a probe's live reference to an incident that just opened.
  *
- * C'est le geste qui fige le « avant ». Sans lui, la référence continuerait de
- * tourner et l'incident se retrouverait comparé à une page prise *après* la
- * panne — une comparaison qui ment. L'épinglage la sort en même temps de
- * l'index unique, ce qui laisse la place à la référence suivante.
+ * It is the gesture that freezes the "before". Without it, the reference would
+ * keep rotating and the incident would end up compared with a page taken *after*
+ * the outage — a comparison that lies. Pinning takes it out of the unique index
+ * at the same time, which leaves room for the next reference.
  *
- * Rend `null` quand il n'y avait pas de référence à épingler : une sonde en
- * panne dès sa première mesure n'a jamais eu de « avant », et c'est un fait à
- * afficher, pas une erreur.
+ * Returns `null` when there was no reference to pin: a probe down from its first
+ * measurement never had a "before", and it is a fact to show, not an error.
  */
 export async function pinReferenceToIncident(
   monitorId: string,
@@ -164,7 +163,7 @@ export async function pinReferenceToIncident(
 
 // ─── lecture ──────────────────────────────────────────────────────────────────
 
-/** Les captures d'une sonde, les plus récentes d'abord. Sans les octets. */
+/** A probe's captures, the most recent first. Without the bytes. */
 export async function listCaptures(
   monitorId: string,
   limit = 200,
@@ -179,7 +178,7 @@ export async function listCaptures(
   return rows as CaptureMeta[];
 }
 
-/** Les captures de plusieurs incidents, pour la chronologie. Sans les octets. */
+/** The captures of several incidents, for the timeline. Without the bytes. */
 export async function listCapturesForIncidents(
   incidentIds: readonly string[],
   db: Database = getDb(),
@@ -193,7 +192,7 @@ export async function listCapturesForIncidents(
   return rows as CaptureMeta[];
 }
 
-/** La référence vivante d'une sonde — le « avant » du prochain incident. */
+/** A probe's live reference — the "before" of the next incident. */
 export async function liveReference(
   monitorId: string,
   db: Database = getDb(),
@@ -221,8 +220,8 @@ export type CaptureBytes = {
 };
 
 /**
- * **La seule fonction qui charge les octets.** Réservée à la route qui sert
- * l'image, et qui exige `monitor:read`.
+ * **The only function that loads the bytes.** Reserved to the route that serves
+ * the image, and which requires `monitor:read`.
  */
 export async function getCaptureBytes(
   captureId: string,
@@ -243,17 +242,16 @@ export async function getCaptureBytes(
   return { ...row, image: row.image };
 }
 
-// ─── rétention ────────────────────────────────────────────────────────────────
+// ─── retention ────────────────────────────────────────────────────────────────
 
 /**
- * Reprend les octets au-delà de la rétention, **sans supprimer la ligne**.
+ * Takes back the bytes beyond retention, **without deleting the row**.
  *
- * Les incidents ne sont jamais purgés — ce sont eux qui racontent l'histoire —
- * mais leurs images, si : au-delà de trois mois, une capture ne diagnostique
- * plus rien, elle documente. Ce qu'on purge est donc l'octet, pas le fait :
- * l'écran continue de dire « une image a été prise le …, 214 Ko, purgée le … ».
- * Une chronologie qui dit ce qu'elle a perdu ne ment pas ; une chronologie
- * amputée en silence, si.
+ * Incidents are never purged — they tell the story — but their images are:
+ * beyond three months, a capture no longer diagnoses anything, it documents.
+ * What is purged is therefore the byte, not the fact: the screen keeps saying
+ * "an image was taken on …, 214 KB, purged on …". A timeline that says what it
+ * lost does not lie; a silently truncated one does.
  */
 export async function pruneCaptureImages(
   days: number = MONITOR_CAPTURE_RETENTION_DAYS,
@@ -275,7 +273,7 @@ export async function pruneCaptureImages(
   return rows.length;
 }
 
-// ─── ce qui reste à capturer ──────────────────────────────────────────────────
+// ─── what remains to capture ──────────────────────────────────────────────────
 
 export type ReferenceCandidate = {
   monitorId: string;
@@ -285,16 +283,16 @@ export type ReferenceCandidate = {
 };
 
 /**
- * Les sondes **saines** dont la référence manque ou a vieilli.
+ * The **healthy** probes whose reference is missing or has aged.
  *
- * En SQL et non en TypeScript parce que la question — « qui n'a pas de ligne
- * dans cette table, ou une ligne plus vieille que N heures » — est exactement
- * une jointure externe, et que la poser en mémoire obligerait à charger toutes
- * les sondes et toutes leurs captures pour n'en garder que cinq.
+ * In SQL and not in TypeScript because the question — "who has no row in this
+ * table, or a row older than N hours" — is exactly an outer join, and asking it
+ * in memory would require loading every probe and all their captures to keep
+ * only five.
  *
- * Seulement les sondes **saines** : photographier « l'état normal » d'un site
- * qui est en panne produirait une référence qui montre la panne, et la
- * comparaison suivante ne montrerait rien.
+ * Only the **healthy** probes: photographing the "normal state" of a site that
+ * is down would produce a reference showing the outage, and the next comparison
+ * would show nothing.
  */
 export async function monitorsDueForReference(
   olderThanHours: number,

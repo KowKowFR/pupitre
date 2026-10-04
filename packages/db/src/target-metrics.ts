@@ -17,75 +17,75 @@ import {
 } from './schema/target-metrics.js';
 
 /**
- * Mémoire de la supervision des serveurs — écriture, lecture, seuils.
+ * Server monitoring's memory — writing, reading, thresholds.
  *
- * ── Où vit la décision ──────────────────────────────────────────────────────
- * Dans ce projet, ce qui décide vit dans `@pupitre/core` et ce module écrit
- * (voir l'en-tête de `monitors.ts`). Le catalogue et la règle de franchissement
- * ci-dessous devraient donc être dans `@pupitre/core/host-metrics.ts`, à côté
- * des types de relevé qu'ils commentent. Ils sont ici parce que `packages/core`
- * était hors périmètre pour ce chantier — quatre autres tournaient en parallèle.
- * **C'est une dette, elle est nommée** : le déplacement est un couper-coller,
- * ces fonctions sont pures et ne touchent ni à `getDb()` ni à Drizzle.
+ * ── Where the decision lives ────────────────────────────────────────────────
+ * In this project, what decides lives in `@pupitre/core` and this module writes
+ * (see the header of `monitors.ts`). The catalog and the crossing rule below
+ * should therefore be in `@pupitre/core/host-metrics.ts`, next to the reading
+ * types they comment on. They are here because `packages/core` was out of scope
+ * for this work — four others were running in parallel. **It is a debt, and it
+ * is named**: the move is a cut and paste, these functions are pure and touch
+ * neither `getDb()` nor Drizzle.
  */
 
-// ─── cadence et rétention ─────────────────────────────────────────────────────
+// ─── interval and retention ───────────────────────────────────────────────────
 
 /**
- * Un relevé toutes les 5 minutes et par machine.
+ * One reading every 5 minutes per machine.
  *
- * **Pourquoi pas la minute.** Une minute sur cinq machines pendant trente jours,
- * ce sont 216 000 lignes pour une information que personne ne lit à la seconde
- * près : un disque ne passe pas de 40 % à 90 % en soixante secondes, et une
- * mémoire non plus. Cinq minutes ramènent le volume à ~8 600 lignes par machine
- * et par mois — trois fois moins qu'une sonde de site à la minute, ce que ce
- * panel écrit déjà sans que personne s'en émeuve.
+ * **Why not every minute.** One minute on five machines for thirty days is
+ * 216,000 rows for information nobody reads to the second: a disk does not go
+ * from 40% to 90% in sixty seconds, and neither does memory. Five minutes bring
+ * the volume down to ~8,600 rows per machine per month — three times less than a
+ * site probe every minute, which this panel already writes without anybody
+ * worrying.
  *
- * **Pourquoi ce n'est pas aveugle pour autant.** La seule métrique qui bouge
- * vite est la charge. C'est exactement pour ça que le relevé enregistre les
- * *trois* moyennes : `load15` couvre les quinze dernières minutes, donc les
- * quatre minutes qu'on ne regarde pas. Un pic invisible sur `load1` reste
- * lisible sur `load15` du relevé suivant.
+ * **Why it is not blind for all that.** The only metric that moves fast is the
+ * load. That is exactly why the reading records the *three* averages: `load15`
+ * covers the last fifteen minutes, hence the four minutes we do not look at. A
+ * spike invisible on `load1` stays readable on the next reading's `load15`.
  *
- * **Pourquoi pas non plus une cadence réglable par machine.** Ce serait un
- * quatrième bouton à comprendre pour un gain nul : contrairement à une sonde de
- * site — dont la cadence coûte à un tiers et dépend de ce qu'elle observe — un
- * relevé SSH ne coûte qu'à nous, et toutes les machines observent la même chose.
+ * **Why not an adjustable interval per machine either.** It would be a fourth
+ * button to understand for zero gain: unlike a site probe — whose interval costs
+ * a third party and depends on what it observes — an SSH reading only costs us,
+ * and every machine observes the same thing.
  */
 export const HOST_SAMPLE_INTERVAL_SECONDS = 300;
 
 /**
- * Rétention de la série, en jours. **Exactement celle des sondes de site**, et
- * pas par hasard : deux rétentions différentes dans le même panel obligeraient
- * l'exploitant à retenir deux chiffres et à se demander lequel s'applique à ce
- * qu'il regarde. La constante est dérivée, pas recopiée — bouger l'une bouge
- * l'autre.
+ * Retention of the series, in days. **Exactly that of the site probes**, and not
+ * by chance: two different retentions in the same panel would force the
+ * operator to remember two figures and wonder which applies to what they look
+ * at. The constant is derived, not copied — moving one moves the other.
  */
 export const HOST_SAMPLE_RETENTION_DAYS = MONITOR_CHECK_RETENTION_DAYS;
 
-/** Taille d'un lot de purge. Même valeur, même raison : ne pas tenir la table. */
+/** Size of a purge batch. Same value, same reason: not to hold the table. */
 export const HOST_SAMPLE_PRUNE_BATCH = MONITOR_PRUNE_BATCH;
 
 /**
- * Machines relevées par un même balayage. Large : un relevé dure ~1 s sur une
- * machine qui répond, et le budget de temps du balayage borne déjà le reste.
+ * Machines read by one sweep. Generous: a reading takes ~1 s on a machine that
+ * answers, and the sweep's time budget already bounds the rest.
  */
 export const HOST_SWEEP_BATCH = 50;
 
-/** Relevés menés de front. Deux : la même prudence que l'écran, pour la même raison. */
+/** Readings run in parallel. Two: the same caution as the screen, for the same reason. */
 export const HOST_SWEEP_CONCURRENCY = 2;
 
 /**
- * Budget de temps d'un balayage. Sous la cadence d'installation (60 s) : ce qui
- * n'a pas été relevé reste dû et part au balayage suivant.
+ * Time budget of a sweep. Under the install interval (60 s): what was not read
+ * stays due and goes to the next sweep.
  */
 export const HOST_SWEEP_BUDGET_MS = 45_000;
 
-/** Cadence d'installation du balayage. Cinq fois plus fine que la cadence de
- *  relevé : c'est ce qui permet à une machine ajoutée d'être relevée vite. */
+/**
+ * Install interval of the sweep. Five times finer than the reading interval: it
+ * is what lets an added machine be read quickly.
+ */
 export const HOST_SWEEP_EVERY_MS = 60_000;
 
-// ─── le catalogue des métriques surveillées ───────────────────────────────────
+// ─── the catalog of monitored metrics ─────────────────────────────────────────
 
 export const HOST_METRIC_KEYS = ['disk', 'memory', 'load'] as const;
 export type HostMetricKey = (typeof HOST_METRIC_KEYS)[number];
@@ -97,21 +97,21 @@ export function isHostMetricKey(value: string): value is HostMetricKey {
 
 export type HostMetricDefinition = {
   key: HostMetricKey;
-  /** Le nom de la métrique, dans la langue demandée (français par défaut). */
+  /** The metric's name, in the requested language (French by default). */
   label: (language?: UiLanguage) => string;
   /**
-   * Seuil par défaut, en pourcentage. **Ce sont les valeurs que l'écran affiche
-   * déjà en rouge** (`host-readouts.tsx`, `saturationTone`) : le seuil d'alerte
-   * ne fabrique pas un second vocabulaire à côté de la couleur.
+   * Default threshold, as a percentage. **These are the values the screen already
+   * shows in red** (`host-readouts.tsx`, `saturationTone`): the alert threshold
+   * does not make up a second vocabulary next to the color.
    */
   defaultLimitPercent: number;
-  /** Relevés consécutifs au-dessus avant d'ouvrir. Propre à la métrique. */
+  /** Consecutive readings above before opening. Specific to the metric. */
   defaultBreachSamples: number;
-  /** Relevés consécutifs en dessous avant de refermer. */
+  /** Consecutive readings below before closing. */
   defaultClearSamples: number;
-  /** Extrait de la ligne la valeur comparable au seuil. `null` = non mesurée. */
+  /** Extracts from the row the value comparable to the threshold. `null` = not measured. */
   read: (sample: TargetMetricSample) => number | null;
-  /** Une phrase de dépassement, pour le journal et pour l'écran. */
+  /** A crossing sentence, for the log and for the screen. */
   describe: (value: number, sample: TargetMetricSample, language?: UiLanguage) => string;
 };
 
@@ -140,26 +140,26 @@ const metricSay = (language: UiLanguage = DEFAULT_UI_LANGUAGE) =>
   translator(hostMetricCopy, language);
 
 /**
- * Les trois dimensions surveillées, et le réglage qui va avec.
+ * The three monitored dimensions, and the setting that goes with them.
  *
- * **Le nombre de relevés consécutifs n'est pas le même partout, et c'est le
- * cœur du réglage.** Un disque est une quantité lente et monotone : un seul
- * relevé au-dessus de 90 % est déjà la vérité, exiger trois confirmations ne
- * ferait que retarder l'alerte d'un quart d'heure. Une charge, à l'inverse, est
- * du bruit : un pic isolé à 4 sur une machine à 11 cœurs ne veut rien dire, et
- * n'a aucune raison de réveiller qui que ce soit. Trois relevés d'affilée
- * au-dessus de la capacité, en revanche, c'est une machine en peine.
+ * **The number of consecutive readings is not the same everywhere, and it is
+ * the heart of the setting.** A disk is a slow and monotonic quantity: a single
+ * reading above 90% is already the truth, requiring three confirmations would
+ * only delay the alert by a quarter of an hour. A load, on the contrary, is
+ * noise: an isolated spike at 4 on an 11-core machine means nothing, and has no
+ * reason to wake anyone up. Three readings in a row above capacity, however, is
+ * a machine in trouble.
  *
- * Ajouter une dimension (I/O, nombre de processus, température) = une entrée
- * ici et une colonne dans la table. Rien d'autre à modifier : ni le balayage,
- * ni l'écran, ni les routes.
+ * Adding a dimension (I/O, number of processes, temperature) = one entry here
+ * and one column in the table. Nothing else to change: neither the sweep, nor
+ * the screen, nor the routes.
  */
 export const HOST_METRIC_CATALOG: Record<HostMetricKey, HostMetricDefinition> = {
   disk: {
     key: 'disk',
     label: (language) => metricSay(language)('disk.label'),
     defaultLimitPercent: 90,
-    // Un seul relevé suffit : le disque ne rebondit pas.
+    // A single reading is enough: the disk does not bounce.
     defaultBreachSamples: 1,
     defaultClearSamples: 2,
     read: (sample) => sample.diskPercent,
@@ -173,8 +173,8 @@ export const HOST_METRIC_CATALOG: Record<HostMetricKey, HostMetricDefinition> = 
     key: 'memory',
     label: (language) => metricSay(language)('memory.label'),
     defaultLimitPercent: 90,
-    // Deux : un pic de mémoire d'un instant est courant, deux relevés à cinq
-    // minutes d'écart ne le sont plus.
+    // Two: a momentary memory spike is common, two readings five minutes apart are
+    // not.
     defaultBreachSamples: 2,
     defaultClearSamples: 2,
     read: (sample) => sample.memoryPercent,
@@ -184,8 +184,8 @@ export const HOST_METRIC_CATALOG: Record<HostMetricKey, HostMetricDefinition> = 
   load: {
     key: 'load',
     label: (language) => metricSay(language)('load.label'),
-    // 100 % = un cœur plein par cœur. C'est la valeur au-delà de laquelle
-    // l'écran affiche déjà la charge en rouge.
+    // 100% = one full core per core. It is the value beyond which the screen already
+    // shows the load in red.
     defaultLimitPercent: 100,
     defaultBreachSamples: 3,
     defaultClearSamples: 3,
@@ -214,45 +214,45 @@ export type TargetMetricSample = typeof targetMetricSamples.$inferSelect;
 export type TargetMetricBreach = typeof targetMetricBreaches.$inferSelect;
 export type TargetMetricThresholdRow = typeof targetMetricThresholds.$inferSelect;
 
-/** D'où vient un relevé. Un « Relever » manuel vaut autant qu'un balayage. */
+/** Where a reading comes from. A manual "Read now" counts as much as a sweep. */
 export const sampleSourceSchema = z.enum(['sweep', 'manual']);
 export type SampleSource = z.infer<typeof sampleSourceSchema>;
 
-/** Un seuil effectif, et d'où il vient. L'écran doit pouvoir le dire. */
+/** An effective threshold, and where it comes from. The screen must be able to say it. */
 export type ResolvedThreshold = {
   metric: HostMetricKey;
   limitPercent: number;
   breachSamples: number;
   clearSamples: number;
   enabled: boolean;
-  /** `default` = le catalogue, `global` = la ligne d'instance, `target` = la machine. */
+  /** `default` = the catalog, `global` = the instance row, `target` = the machine. */
   origin: 'default' | 'global' | 'target';
 };
 
-/** Une bascule : le seul moment où quelque chose est dit à l'extérieur. */
+/** A flip: the only moment something is said to the outside. */
 export type BreachTransition = {
   kind: 'opened' | 'cleared';
   metric: HostMetricKey;
   breach: TargetMetricBreach;
   threshold: ResolvedThreshold;
   value: number;
-  /** Renseigné quand l'épisode se referme parce que le seuil a été désactivé. */
+  /** Filled in when the episode closes because the threshold was disabled. */
   reason: 'crossed' | 'threshold_disabled';
 };
 
-// ─── écriture d'un relevé ─────────────────────────────────────────────────────
+// ─── writing a reading ────────────────────────────────────────────────────────
 
 /**
- * Enregistre un relevé.
+ * Records a reading.
  *
- * **Tout relevé est enregistré, quel qu'en soit le déclencheur.** Le balayage
- * et le bouton « Relever » de l'écran écrivent la même ligne, avec `source` pour
- * seule différence. C'est ce qui fait qu'un clic n'est plus une dépense perdue :
- * la session SSH a été payée, la valeur reste.
+ * **Every reading is recorded, whatever triggered it.** The sweep and the
+ * screen's "Read now" button write the same row, with `source` as the only
+ * difference. That is what makes a click no longer a wasted expense: the SSH
+ * session was paid for, the value stays.
  *
- * Une machine injoignable produit une ligne aussi — `reachable = false`, la
- * raison, aucune métrique. Un trou dans une chronologie ne dit pas s'il y avait
- * une panne ou pas de superviseur.
+ * An unreachable machine produces a row too — `reachable = false`, the reason,
+ * no metric. A gap in a timeline does not say whether there was an outage or no
+ * monitor.
  */
 export async function recordTargetSample(
   metrics: HostMetrics,
@@ -276,7 +276,7 @@ export async function recordTargetSample(
       loadFive: load?.five ?? null,
       loadFifteen: load?.fifteen ?? null,
       cores: load?.cores ?? null,
-      // `perCore` est déjà `null` quand `nproc` manque : on ne suppose pas un cœur.
+      // `perCore` is already `null` when `nproc` is missing: we do not assume one core.
       loadPercent: load?.perCore === null || load?.perCore === undefined ? null : load.perCore * 100,
       memoryTotalKb: memory?.totalKb ?? null,
       memoryUsedKb: memory?.usedKb ?? null,
@@ -288,7 +288,7 @@ export async function recordTargetSample(
       uptimeSeconds: metrics.uptimeSeconds === null ? null : Math.round(metrics.uptimeSeconds),
     })
     .returning();
-  if (!row) throw new Error('insertion du relevé sans retour');
+  if (!row) throw new Error('reading insert returned nothing');
   return row;
 }
 
@@ -304,13 +304,13 @@ export const upsertThresholdSchema = z.object({
 export type UpsertThresholdInput = z.infer<typeof upsertThresholdSchema>;
 
 /**
- * Le seuil effectif d'une machine, métrique par métrique.
+ * A machine's effective threshold, metric by metric.
  *
- * Trois couches, de la plus faible à la plus forte : le catalogue (toujours
- * présent, donc une instance neuve alerte sans qu'on ait rien réglé), la ligne
- * globale (`target_id is null`), puis la ligne de la machine. La résolution est
- * faite **ici et nulle part ailleurs** — un `?? défaut` recopié dans l'écran et
- * dans le balayage serait deux vérités qui finiraient par diverger.
+ * Three layers, from weakest to strongest: the catalog (always present, so a new
+ * instance alerts without anything having been set), the global row
+ * (`target_id is null`), then the machine's row. The resolution is done **here
+ * and nowhere else** — a `?? default` copied into the screen and into the sweep
+ * would be two truths that would end up diverging.
  */
 export async function resolveThresholds(
   targetId: string,
@@ -335,7 +335,7 @@ export async function resolveThresholds(
     };
   }
 
-  // Le global d'abord, la machine ensuite : le second écrase le premier.
+  // Global first, machine next: the second overwrites the first.
   for (const scope of ['global', 'target'] as const) {
     for (const row of rows) {
       if (!isHostMetricKey(row.metric)) continue;
@@ -354,7 +354,7 @@ export async function resolveThresholds(
   return out;
 }
 
-/** Les seuils explicites en base, tels quels. Sert à l'écran de réglage. */
+/** The explicit thresholds in the database, as is. Used by the settings screen. */
 export async function listThresholdRows(
   db: Database = getDb(),
 ): Promise<TargetMetricThresholdRow[]> {
@@ -362,10 +362,10 @@ export async function listThresholdRows(
 }
 
 /**
- * Pose ou remplace un seuil. `targetId = null` règle le défaut de l'instance.
+ * Sets or replaces a threshold. `targetId = null` sets the instance's default.
  *
- * `onConflictDoUpdate` sur l'index unique partiel : deux réglages simultanés de
- * la même métrique ne peuvent pas créer deux lignes concurrentes.
+ * `onConflictDoUpdate` on the partial unique index: two simultaneous settings of
+ * the same metric cannot create two competing rows.
  */
 export async function upsertThreshold(
   targetId: string | null,
@@ -389,8 +389,8 @@ export async function upsertThreshold(
     .insert(targetMetricThresholds)
     .values(values)
     .onConflictDoUpdate({
-      // L'index visé dépend de la portée : les deux index sont partiels, et
-      // Postgres exige que le prédicat de l'index soit satisfait par la ligne.
+      // The targeted index depends on the scope: both indexes are partial, and
+      // Postgres requires the index's predicate to be satisfied by the row.
       target:
         targetId === null
           ? [targetMetricThresholds.metric]
@@ -409,11 +409,11 @@ export async function upsertThreshold(
       },
     })
     .returning();
-  if (!row) throw new Error('écriture du seuil sans retour');
+  if (!row) throw new Error('threshold write returned nothing');
   return row;
 }
 
-/** Retire un réglage : la couche du dessous reprend la main. */
+/** Removes a setting: the layer below takes over. */
 export async function deleteThreshold(
   targetId: string | null,
   metric: HostMetricKey,
@@ -433,39 +433,39 @@ export async function deleteThreshold(
   return row !== undefined;
 }
 
-// ─── la règle de franchissement ───────────────────────────────────────────────
+// ─── the crossing rule ────────────────────────────────────────────────────────
 
 /**
- * Combien de relevés il faut relire pour trancher, tous seuils confondus.
- * Borné par les contraintes de la table (`between 1 and 10`), et pris large :
- * un relevé injoignable ne compte pas, il faut donc de la marge.
+ * How many readings must be read back to decide, all thresholds together.
+ * Bounded by the table's constraints (`between 1 and 10`), and taken generously:
+ * an unreachable reading does not count, so margin is needed.
  */
 const RECENT_WINDOW = 40;
 
 /**
- * Décide, à partir des derniers relevés, si un seuil est franchi ou libéré.
+ * Decides, from the last readings, whether a threshold is crossed or released.
  *
- * ── Pourquoi les compteurs ne sont pas stockés ──────────────────────────────
- * La supervision de sites tient `consecutive_failures` sur la ligne de sonde.
- * Ici, ils sont **relus de la série** à chaque évaluation. Deux raisons :
+ * ── Why the counters are not stored ─────────────────────────────────────────
+ * Site monitoring keeps `consecutive_failures` on the probe's row. Here, they are
+ * **read back from the series** at each evaluation. Two reasons:
  *
- *   1. la série existe déjà et elle est indexée par `(target_id, sampled_at)` ;
- *      un compteur serait une seconde vérité, qu'un worker tué au mauvais
- *      moment ferait diverger de la première ;
- *   2. baisser un seuil doit produire l'alerte **tout de suite** si la machine
- *      est déjà au-dessus, pas dans quinze minutes. Un compteur stocké aurait
- *      été remis à zéro par le changement de réglage.
+ *   1. the series already exists and it is indexed by `(target_id, sampled_at)`;
+ *      a counter would be a second truth, which a worker killed at the wrong
+ *      moment would make diverge from the first;
+ *   2. lowering a threshold must produce the alert **right away** if the machine
+ *      is already above, not in fifteen minutes. A stored counter would have
+ *      been reset by the change of setting.
  *
- * L'objection de `monitor_incidents` — « un incident est une décision prise à
- * un instant, avec les réglages de cet instant, elle doit être immuable » —
- * porte sur l'**épisode**, pas sur les compteurs. Elle est tenue : l'épisode est
- * une ligne, et il recopie le seuil qui l'a ouvert.
+ * The `monitor_incidents` objection — "an incident is a decision taken at an
+ * instant, with that instant's settings, it must be immutable" — is about the
+ * **episode**, not the counters. It is honored: the episode is a row, and it
+ * copies the threshold that opened it.
  *
- * ── Un relevé qui n'a rien mesuré ne compte pas ─────────────────────────────
- * Machine éteinte, `df` absent : la valeur est `null`. Elle n'est comptée ni
- * comme un dépassement, ni comme un retour à la normale — elle est **sautée**.
- * La compter comme un retour à la normale refermerait tout seul l'épisode d'une
- * machine dont le disque plein est peut-être la cause de la panne.
+ * ── A reading that measured nothing does not count ──────────────────────────
+ * Machine off, `df` missing: the value is `null`. It counts neither as a
+ * crossing nor as a return to normal — it is **skipped**. Counting it as a
+ * return to normal would close by itself the episode of a machine whose full
+ * disk may be the cause of the outage.
  */
 export function decideBreach(
   values: readonly (number | null)[],
@@ -486,16 +486,16 @@ export function decideBreach(
 }
 
 /**
- * Applique la règle à un relevé qui vient d'être écrit, et rend les bascules.
+ * Applies the rule to a reading just written, and returns the flips.
  *
- * Tout tient dans une transaction : sans elle, un worker tué entre l'ouverture
- * de l'épisode et sa lecture laisserait un dépassement dont personne ne serait
- * prévenu — exactement l'argument de `applyCheck()` pour les sondes.
+ * Everything fits in a transaction: without it, a worker killed between opening
+ * the episode and reading it would leave a crossing nobody would be warned
+ * about — exactly `applyCheck()`'s argument for probes.
  *
- * **Cette fonction n'alerte pas et n'audite pas.** Elle constate. C'est
- * l'appelant (le worker) qui écrit l'entrée d'audit, comme
- * `notifyMonitorTransition()` le fait pour les sondes : un seul endroit dans le
- * projet où une transition devient un message.
+ * **This function neither alerts nor audits.** It observes. It is the caller
+ * (the worker) that writes the audit entry, as `notifyMonitorTransition()` does
+ * for probes: a single place in the project where a transition becomes a
+ * message.
  */
 export async function evaluateThresholds(
   targetId: string,
@@ -534,8 +534,8 @@ export async function evaluateThresholds(
       const values = recent.map((sample) => definition.read(sample));
       const value = values[0] ?? null;
 
-      // Seuil désactivé : on ne juge plus, mais on ne laisse pas un épisode
-      // ouvert pour l'éternité — il se referme, et le journal dit pourquoi.
+      // Threshold disabled: we no longer judge, but we do not leave an episode open
+      // forever — it closes, and the log says why.
       if (!threshold.enabled) {
         if (current) {
           const [closed] = await tx
@@ -557,8 +557,8 @@ export async function evaluateThresholds(
         continue;
       }
 
-      // L'épisode ouvert suit la métrique même sans bascule : c'est là qu'on
-      // apprend « 92 % au pire, depuis 3 h » — sans écrire une ligne d'audit.
+      // The open episode follows the metric even without a flip: that is where we
+      // learn "92% at worst, for 3 h" — without writing an audit line.
       if (current && value !== null) {
         await tx
           .update(targetMetricBreaches)
@@ -574,9 +574,9 @@ export async function evaluateThresholds(
       if (verdict === null) continue;
 
       if (verdict === 'open' && value !== null) {
-        // `onConflictDoNothing` s'appuie sur l'index unique partiel : même si le
-        // balayage et un « Relever » manuel concluaient en même temps, il n'y
-        // aurait qu'un épisode, donc qu'une entrée d'audit.
+        // `onConflictDoNothing` relies on the partial unique index: even if the sweep
+        // and a manual "Read now" concluded at the same time, there would be only one
+        // episode, hence only one audit entry.
         const [opened] = await tx
           .insert(targetMetricBreaches)
           .values({
@@ -627,12 +627,12 @@ export async function evaluateThresholds(
   });
 }
 
-// ─── joignabilité ─────────────────────────────────────────────────────────────
+// ─── reachability ─────────────────────────────────────────────────────────────
 
 /**
- * Relevés manqués de suite avant de déclarer une machine injoignable. Deux, et
- * non un : un redémarrage, une coupure de quelques secondes ne réveillent
- * personne. À la cadence du balayage, c'est cinq à dix minutes de silence.
+ * Readings missed in a row before declaring a machine unreachable. Two, and not
+ * one: a reboot, a cut of a few seconds wake nobody up. At the sweep's interval,
+ * it is five to ten minutes of silence.
  */
 export const UNREACHABLE_CONFIRM_SAMPLES = 2;
 
@@ -641,17 +641,17 @@ export type ReachabilityTransition =
   | { kind: 'reachable'; since: Date; at: Date };
 
 /**
- * Applique la règle de joignabilité au relevé qui vient d'être écrit, et rend
- * la bascule s'il y en a une.
+ * Applies the reachability rule to the reading just written, and returns the
+ * flip if there is one.
  *
- * L'épisode vit sur la machine (`targets.unreachable_since`) : il s'ouvre au
- * deuxième relevé manqué de suite, daté du premier, et se ferme au premier
- * relevé réussi. La ligne de la machine est verrouillée le temps de décider :
- * un balayage et un « Relever » qui concluraient à la même seconde ne font
- * qu'une bascule, donc qu'une alerte.
+ * The episode lives on the machine (`targets.unreachable_since`): it opens at
+ * the second reading missed in a row, dated from the first, and closes at the
+ * first successful reading. The machine's row is locked while deciding: a sweep
+ * and a "Read now" concluding in the same second only make one flip, hence one
+ * alert.
  *
- * Comme `evaluateThresholds()`, elle constate et n'audite pas : c'est le
- * worker qui fait de la bascule un message.
+ * Like `evaluateThresholds()`, it observes and does not audit: it is the worker
+ * that turns the flip into a message.
  */
 export async function evaluateReachability(
   targetId: string,
@@ -702,25 +702,26 @@ export async function evaluateReachability(
 // ─── balayage ─────────────────────────────────────────────────────────────────
 
 /**
- * Les machines dont le dernier relevé est plus vieux que la cadence.
+ * The machines whose last reading is older than the interval.
  *
- * **Pas de colonne d'échéance sur `targets`.** La supervision de sites en a une
- * (`next_check_at`) parce que plusieurs workers réclament les sondes en
- * concurrence et doivent avancer l'échéance *avant* de sonder. Ici, un verrou
- * Redis garantit un seul balayage à la fois, et la date du dernier relevé est
- * déjà dans la série : une colonne serait une seconde vérité, qui divergerait le
- * jour où un relevé est écrit sans passer par le balayage — ce qui est
- * précisément ce que fait le bouton « Relever ».
+ * **No due-date column on `targets`.** Site monitoring has one (`next_check_at`)
+ * because several workers claim probes concurrently and must move the due date
+ * *before* probing. Here, a Redis lock guarantees a single sweep at a time, and
+ * the last reading's date is already in the series: a column would be a second
+ * truth, which would diverge the day a reading is written without going through
+ * the sweep — which is precisely what the "Read now" button does.
  *
- * Effet de bord souhaitable : un clic manuel repousse naturellement le balayage
- * de cette machine. Deux relevés à trois secondes d'intervalle n'apprennent rien.
+ * A desirable side effect: a manual click naturally pushes back that machine's
+ * sweep. Two readings three seconds apart teach nothing.
  */
 export async function listDueTargets(
   options: {
     intervalSeconds?: number;
     limit?: number;
-    /** Restreint à une machine. Le filtre est **dans** la requête, pas après :
-     *  filtrer un lot de 50 laisserait passer à côté d'une machine due en 51ᵉ. */
+    /**
+     * Restricted to one machine. The filter is **in** the query, not after:
+     * filtering a batch of 50 would miss a machine due in 51st position.
+     */
     targetId?: string | null;
   } = {},
   db: Database = getDb(),
@@ -748,8 +749,8 @@ export async function listDueTargets(
         only === null ? undefined : eq(targets.id, only),
       ),
     )
-    // Les jamais relevées d'abord : une machine qu'on vient de déclarer doit
-    // apparaître à l'écran avec un passé, pas attendre son tour.
+    // Never-read ones first: a machine just declared must appear on screen with a
+    // past, not wait its turn.
     .orderBy(sql`${last.lastSampleAt} asc nulls first`)
     .limit(limit);
 
@@ -761,11 +762,10 @@ export async function listDueTargets(
 }
 
 /**
- * Purge la série au-delà de la rétention, par lots.
+ * Purges the series beyond retention, in batches.
  *
- * Les **dépassements ne sont jamais purgés** : ils sont rares, ce sont eux qui
- * racontent l'histoire, et une chronologie amputée ne vaut rien. Même arbitrage
- * que les incidents de sonde.
+ * **Crossings are never purged**: they are rare, they tell the story, and a
+ * truncated timeline is worth nothing. The same trade-off as probe incidents.
  */
 export async function pruneTargetSamples(
   days: number = HOST_SAMPLE_RETENTION_DAYS,
@@ -785,9 +785,9 @@ export async function pruneTargetSamples(
   return rows.length;
 }
 
-// ─── lectures d'écran ─────────────────────────────────────────────────────────
+// ─── screen reads ─────────────────────────────────────────────────────────────
 
-/** Un point de la courbe : un intervalle de temps, et le **pire** de ses relevés. */
+/** A point of the curve: a time interval, and the **worst** of its readings. */
 export type HistoryPoint = {
   at: string;
   samples: number;
@@ -798,11 +798,11 @@ export type HistoryPoint = {
 };
 
 export type MetricSummary = {
-  /** Dernière valeur connue de la fenêtre. */
+  /** Last known value of the window. */
   last: number | null;
-  /** Le pire relevé de la fenêtre — la question qu'on se pose vraiment. */
+  /** The worst reading of the window — the question one really asks. */
   worst: number | null;
-  /** Dernière valeur moins la première : le sens dans lequel ça va. */
+  /** Last value minus the first: the direction it is going. */
   trend: number | null;
 };
 
@@ -810,9 +810,9 @@ export type TargetHistory = {
   targetId: string;
   hours: number;
   bucketSeconds: number;
-  /** Nombre de relevés réellement pris dans la fenêtre. Un taux sans dénominateur ment. */
+  /** Number of readings really taken in the window. A rate without a denominator lies. */
   samples: number;
-  /** Relevés où la machine a répondu. */
+  /** Readings where the machine answered. */
   reachable: number;
   points: HistoryPoint[];
   summary: Record<HostMetricKey, MetricSummary>;
@@ -833,22 +833,22 @@ function summarise(points: readonly HistoryPoint[], key: HostMetricKey): MetricS
 }
 
 /**
- * L'historique de plusieurs machines, agrégé **à la lecture**.
+ * The history of several machines, aggregated **at read time**.
  *
- * ── Pourquoi pas de table de pré-agrégation ─────────────────────────────────
- * Sept jours à cinq minutes font 2 016 points par machine : illisible sur une
- * courbe de 120 pixels, et inutile à transporter. La réponse habituelle est une
- * table de rollups horaires. Elle n'est pas prise ici : elle demanderait une
- * seconde écriture, une seconde purge et une histoire de cohérence entre les
- * deux, pour faire tenir un `max()` sur quelques milliers de lignes déjà
- * indexées par `(target_id, sampled_at)`. Postgres agrège ça sans transpirer.
- * Le jour où le parc rendrait ce calcul cher, la table de rollups se pose
- * *au-dessus* de la série brute sans rien changer à ce qui l'écrit.
+ * ── Why no pre-aggregation table ────────────────────────────────────────────
+ * Seven days at five minutes make 2,016 points per machine: unreadable on a
+ * 120-pixel curve, and useless to carry. The usual answer is a table of hourly
+ * rollups. It is not taken here: it would require a second write, a second
+ * purge and a consistency story between the two, to fit a `max()` on a few
+ * thousand rows already indexed by `(target_id, sampled_at)`. Postgres
+ * aggregates that without breaking a sweat. The day the fleet makes this
+ * computation expensive, the rollups table goes *on top of* the raw series
+ * without changing anything to what writes it.
  *
- * ── Pourquoi `max()` et pas `avg()` ─────────────────────────────────────────
- * On regarde une saturation. Une moyenne sur trente minutes noie exactement le
- * moment qui intéresse — le pic à 100 % qui a fait tomber l'application. Le pire
- * relevé de l'intervalle est la seule agrégation honnête pour cette question.
+ * ── Why `max()` and not `avg()` ─────────────────────────────────────────────
+ * We are looking at saturation. An average over thirty minutes drowns exactly
+ * the moment of interest — the 100% spike that brought the application down. The
+ * interval's worst reading is the only honest aggregation for that question.
  */
 export async function targetHistories(
   targetIds: readonly string[],
@@ -872,16 +872,16 @@ export async function targetHistories(
   }
   if (targetIds.length === 0) return out;
 
-  // Le seau est exprimé en secondes d'époque : aucun fuseau n'entre dans le
-  // calcul, et deux machines partagent exactement les mêmes bornes.
+  // The bucket is expressed in epoch seconds: no time zone goes into the
+  // computation, and two machines share exactly the same bounds.
   //
-  // `sql.raw` et non un paramètre lié, et ce n'est pas un raccourci : la même
-  // expression apparaît dans le SELECT, dans le GROUP BY et dans le ORDER BY.
-  // Liée, elle produirait `$1`, `$5` et `$7` — trois placeholders que Postgres
-  // ne peut pas reconnaître comme une seule expression, et il refuse la requête
-  // (« column sampled_at must appear in the GROUP BY clause »). Le bug a existé.
-  // Aucune injection possible : `bucketSeconds` est le résultat d'un
-  // `Math.round` sur des entiers déjà validés par Zod, jamais une chaîne.
+  // `sql.raw` and not a bound parameter, and it is not a shortcut: the same
+  // expression appears in the SELECT, the GROUP BY and the ORDER BY. Bound, it
+  // would produce `$1`, `$5` and `$7` — three placeholders Postgres cannot
+  // recognize as a single expression, and it refuses the query ("column
+  // sampled_at must appear in the GROUP BY clause"). The bug existed. No
+  // injection possible: `bucketSeconds` is the result of a `Math.round` on
+  // integers already validated by Zod, never a string.
   const seconds = sql.raw(String(bucketSeconds));
   const bucket = sql<string>`to_timestamp(floor(extract(epoch from ${targetMetricSamples.sampledAt}) / ${seconds}) * ${seconds})`;
 
@@ -931,7 +931,7 @@ export async function targetHistories(
   return out;
 }
 
-/** Les dépassements en cours, toutes machines ou une seule. */
+/** The ongoing crossings, all machines or one. */
 export async function listOpenBreaches(
   targetIds?: readonly string[],
   db: Database = getDb(),
@@ -951,7 +951,7 @@ export async function listOpenBreaches(
     .orderBy(desc(targetMetricBreaches.startedAt));
 }
 
-/** La chronologie des dépassements d'une machine, ouverts et refermés. */
+/** The timeline of a machine's crossings, open and closed. */
 export async function listBreaches(
   targetId: string,
   limit = 50,
@@ -965,7 +965,7 @@ export async function listBreaches(
     .limit(limit);
 }
 
-/** Les derniers relevés bruts d'une machine. Sert au détail et à la preuve. */
+/** A machine's last raw readings. Used for the detail and as proof. */
 export async function listTargetSamples(
   targetId: string,
   limit = 100,

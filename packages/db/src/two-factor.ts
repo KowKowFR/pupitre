@@ -3,26 +3,26 @@ import { getDb, type Database } from './client.js';
 import { sessions, twoFactors, users, verifications } from './schema/auth.js';
 
 /**
- * Second facteur vu depuis l'administration.
+ * Second factor seen from the administration.
  *
- * Better Auth n'expose aucun chemin permettant à un tiers de retirer le second
- * facteur de quelqu'un : `/two-factor/disable` travaille sur la session de
- * l'appelant et exige SON mot de passe, et le plugin `admin` (ban, set-role,
- * set-user-password, revoke-user-sessions…) ne couvre pas le sujet. Un
- * administrateur n'a donc, par la bibliothèque, aucune porte de sortie pour un
- * utilisateur qui a perdu son téléphone ET ses codes de secours.
+ * Better Auth exposes no path letting a third party remove someone's second
+ * factor: `/two-factor/disable` works on the caller's session and requires THEIR
+ * password, and the `admin` plugin (ban, set-role, set-user-password,
+ * revoke-user-sessions…) does not cover the subject. An administrator therefore
+ * has, through the library, no way out for a user who lost their phone AND their
+ * backup codes.
  *
- * C'est la seule raison pour laquelle ce module écrit directement dans les
- * tables de Better Auth. Il reproduit exactement ce que fait
- * `disableTwoFactor` côté serveur — effacer la ligne `two_factors` et remettre
- * `users.two_factor_enabled` à false — mais dans UNE transaction : un compte
- * marqué « 2FA actif » sans ligne `two_factors` ne peut plus ni se connecter,
- * ni se réparer ; la ligne sans le drapeau bloque en silence toute nouvelle
- * activation (`enableTwoFactor` refuse tant qu'une ligne vérifiée existe).
- * Aucun de ces deux états ne doit pouvoir naître d'un crash à mi-chemin.
+ * It is the only reason this module writes directly into Better Auth's tables.
+ * It reproduces exactly what `disableTwoFactor` does on the server side — erase
+ * the `two_factors` row and set `users.two_factor_enabled` back to false — but in
+ * ONE transaction: an account marked "2FA active" without a `two_factors` row
+ * can neither sign in nor repair itself; the row without the flag silently
+ * blocks any new activation (`enableTwoFactor` refuses as long as a verified row
+ * exists). Neither of these two states must be able to arise from a crash
+ * halfway.
  */
 
-/** L'utilisateur visé n'existe pas — la route la traduit en 404. */
+/** The targeted user does not exist — the route translates it into a 404. */
 export class UserNotFoundError extends Error {
   constructor(readonly userId: string) {
     super(`Utilisateur « ${userId} » introuvable`);
@@ -31,18 +31,18 @@ export class UserNotFoundError extends Error {
 }
 
 export type TwoFactorState =
-  /** Aucun second facteur, ni armé ni en cours de configuration. */
+  /** No second factor, neither armed nor being configured. */
   | 'none'
-  /** Secret généré mais jamais confirmé par un code : la connexion n'en tient pas compte. */
+  /** Secret generated but never confirmed by a code: sign-in ignores it. */
   | 'pending'
-  /** Second facteur armé : la connexion réclame un code. */
+  /** Second factor armed: sign-in asks for a code. */
   | 'active';
 
 /**
- * État du second facteur de chaque utilisateur, indexé par id.
- * Croise le drapeau `users.two_factor_enabled` et la ligne `two_factors` :
- * les deux ensemble, parce qu'une incohérence entre eux est précisément ce
- * qu'un administrateur doit pouvoir voir puis réparer.
+ * The second factor state of each user, indexed by id. Crosses the
+ * `users.two_factor_enabled` flag and the `two_factors` row: both together,
+ * because an inconsistency between them is precisely what an administrator must
+ * be able to see then repair.
  */
 export async function getTwoFactorStates(
   db: Database = getDb(),
@@ -54,9 +54,9 @@ export async function getTwoFactorStates(
 
   const states = new Map<string, TwoFactorState>();
   for (const row of rows) {
-    // Le schéma n'impose pas l'unicité de `two_factors.user_id` : plusieurs
-    // lignes donneraient plusieurs tuples pour le même utilisateur, et c'est
-    // toujours la plus armée qui décrit l'état vécu à la connexion.
+    // The schema does not impose `two_factors.user_id` uniqueness: several rows
+    // would give several tuples for the same user, and it is always the most armed
+    // one that describes the state experienced at sign-in.
     if (states.get(row.id) === 'active') continue;
     states.set(
       row.id,
@@ -68,15 +68,15 @@ export async function getTwoFactorStates(
 
 export type TwoFactorResetOptions = {
   /**
-   * Session épargnée par la révocation. Sert au cas où un administrateur
-   * réinitialise son propre second facteur : le fermer sous ses pieds le
-   * renverrait à l'écran de connexion sans raison de sécurité.
+   * Session spared by the revocation. Used in case an administrator resets their
+   * own second factor: closing it under their feet would send them back to the
+   * sign-in screen without a security reason.
    */
   keepSessionId?: string | null;
 };
 
 export type TwoFactorResetOutcome = {
-  /** État observé avant l'opération. `none` ⇒ il n'y avait rien à retirer. */
+  /** State observed before the operation. `none` ⇒ there was nothing to remove. */
   stateBefore: TwoFactorState;
   removedFactors: number;
   revokedSessions: number;
@@ -84,10 +84,10 @@ export type TwoFactorResetOutcome = {
 };
 
 /**
- * Retire le second facteur d'un utilisateur, sans son mot de passe.
+ * Removes a user's second factor, without their password.
  *
- * Tout se joue dans une seule transaction : le facteur, le drapeau, les
- * sessions et les appareils de confiance tombent ensemble ou pas du tout.
+ * Everything happens in a single transaction: the factor, the flag, the
+ * sessions and the trusted devices fall together or not at all.
  */
 export async function resetUserTwoFactor(
   userId: string,
@@ -127,12 +127,11 @@ export async function resetUserTwoFactor(
       .set({ twoFactorEnabled: false, updatedAt: new Date() })
       .where(eq(users.id, userId));
 
-    // Un appareil « de confiance » saute le second facteur pendant trente
-    // jours. Le laisser en vie survivrait à la réinitialisation et rendrait un
-    // nouveau facteur inopérant sur le navigateur qui l'avait mémorisé — la
-    // preuve gardée serait celle du facteur qu'on vient justement de retirer.
-    // Better Auth stocke ces autorisations dans `verifications`, identifiant
-    // préfixé `trust-device-`, valeur = id de l'utilisateur.
+    // A "trusted" device skips the second factor for thirty days. Leaving it alive
+    // would survive the reset and make a new factor ineffective on the browser that
+    // had remembered it — the proof kept would be that of the factor just removed.
+    // Better Auth stores these authorizations in `verifications`, identifier
+    // prefixed `trust-device-`, value = the user's id.
     const trusted = await tx
       .delete(verifications)
       .where(

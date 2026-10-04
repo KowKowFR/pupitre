@@ -1,8 +1,8 @@
 import { pgEnum } from 'drizzle-orm/pg-core';
 
 /**
- * Tous les statuts sont des enums Postgres, jamais des varchar libres.
- * Ajouter une valeur = une nouvelle migration, jamais une édition de l'existante.
+ * Every status is a Postgres enum, never a free varchar.
+ * Adding a value = a new migration, never an edit of the existing one.
  */
 
 export const runtimeEnum = pgEnum('runtime', ['docker', 'k3s']);
@@ -12,10 +12,10 @@ export const proxyEnum = pgEnum('proxy', ['traefik', 'bunkerweb', 'npm']);
 export const sshAuthMethodEnum = pgEnum('ssh_auth_method', ['key', 'password']);
 
 /**
- * Statut d'une cible après preflight.
- *   ok          au moins un runtime exploitable
- *   degraded    la machine répond, mais rien n'y est déployable
- *   unreachable session SSH impossible
+ * A target's status after preflight.
+ *   ok          at least one usable runtime
+ *   degraded    the machine answers, but nothing can be deployed on it
+ *   unreachable SSH session impossible
  */
 export const targetStatusEnum = pgEnum('target_status', [
   'unknown',
@@ -24,7 +24,7 @@ export const targetStatusEnum = pgEnum('target_status', [
   'unreachable',
 ]);
 
-/** Comment le worker obtient les privilèges root sur la cible. */
+/** How the worker obtains root privileges on the target. */
 export const sudoMethodEnum = pgEnum('sudo_method', ['nopasswd', 'password']);
 
 export const deploymentStatusEnum = pgEnum('deployment_status', [
@@ -68,9 +68,9 @@ export const severityEnum = pgEnum('severity', [
 ]);
 
 /**
- * Santé d'un déploiement, telle que le healthcheck périodique la constate.
- * Reprend les trois issues de `HealthOutcome` côté driver, plus `unknown` tant
- * qu'aucune sonde n'est passée. Ce statut **informe**, il ne déclenche rien.
+ * A deployment's health, as the periodic healthcheck observes it. Takes the
+ * three outcomes of `HealthOutcome` on the driver side, plus `unknown` until a
+ * probe has passed. This status **informs**, it triggers nothing.
  */
 export const healthStatusEnum = pgEnum('health_status', [
   'unknown',
@@ -80,14 +80,14 @@ export const healthStatusEnum = pgEnum('health_status', [
 ]);
 
 /**
- * Nature d'une tâche planifiée.
+ * Nature of a scheduled task.
  *
- * L'enum date du schéma d'origine et n'a **pas** été migrée depuis : ses quatre
- * valeurs couvrent exactement les quatre tâches du brief. Le nom BullMQ
+ * The enum dates from the original schema and was **not** migrated since: its
+ * four values cover exactly the brief's four tasks. The BullMQ name
  * (`scan:periodic`, `health:periodic`, `cleanup:versions`, `target:preflight`)
- * vit dans `scheduled_jobs.key`, qui est justement la clé du repeatable job —
- * c'est sa raison d'être. La correspondance type → nom de tâche est une donnée,
- * dans `SCHEDULED_JOB_TYPES` (packages/core/src/schedule.ts), jamais un `if`.
+ * lives in `scheduled_jobs.key`, which is precisely the repeatable job's key —
+ * that is its reason for being. The type → task name mapping is data, in
+ * `SCHEDULED_JOB_TYPES` (packages/core/src/schedule.ts), never an `if`.
  */
 export const scheduledJobTypeEnum = pgEnum('scheduled_job_type', [
   'scan',
@@ -99,24 +99,23 @@ export const scheduledJobTypeEnum = pgEnum('scheduled_job_type', [
 ]);
 
 /**
- * D'où vient la valeur d'un secret d'application.
- *   generated  le panel l'a tirée au sort — personne ne l'a jamais lue
- *   provided   un opérateur l'a saisie : elle vient d'un tiers (clé d'API…)
+ * Where an application secret's value comes from.
+ *   generated  the panel drew it at random — nobody ever read it
+ *   provided   an operator entered it: it comes from a third party (API key…)
  *
- * La distinction n'est pas décorative : un secret `generated` n'a aucune raison
- * d'être affichable, alors qu'un secret `provided` doit pouvoir être remplacé.
+ * The distinction is not decorative: a `generated` secret has no reason to be
+ * displayable, whereas a `provided` secret must be replaceable.
  */
 export const secretOriginEnum = pgEnum('secret_origin', ['generated', 'provided']);
 
 /**
- * Moyen d'envoi d'une notification.
+ * A notification's sending means.
  *
- * Un enum Postgres et non un `text` libre, comme tout le reste : la liste des
- * canaux est une donnée du domaine, et une valeur inventée en SQL à la main ne
- * doit pas pouvoir atterrir en base pour n'échouer qu'au moment d'envoyer. Les
- * quatre valeurs suivent `NOTIFICATION_CHANNEL_KINDS` de `@pupitre/core` — ajouter
- * un canal coûte donc une migration, ce qui est le prix normal d'une valeur
- * d'enum dans ce projet.
+ * A Postgres enum and not a free `text`, like everything else: the list of
+ * channels is domain data, and a value made up in SQL by hand must not be able to
+ * land in the database only to fail at send time. The four values follow
+ * `@pupitre/core`'s `NOTIFICATION_CHANNEL_KINDS` — adding a channel therefore
+ * costs a migration, which is the normal price of an enum value in this project.
  */
 export const notificationChannelKindEnum = pgEnum('notification_channel_kind', [
   'smtp',
@@ -125,14 +124,13 @@ export const notificationChannelKindEnum = pgEnum('notification_channel_kind', [
   'webhook',
 ]);
 
-/** Fournisseur de code d'un dépôt lié. */
+/** Code provider of a linked repository. */
 export const sourceProviderEnum = pgEnum('source_provider', ['github', 'gitea', 'gitlab']);
 
 /**
- * Où en est une archive de code téléversée :
- * `receiving` ses octets arrivent ; `pending` reçue, en attente de lecture par
- * le worker ; `ready` lue et refaite propre, déployable ; `rejected` refusée —
- * la raison est à côté.
+ * Where an uploaded code archive stands: `receiving` its bytes are arriving;
+ * `pending` received, waiting to be read by the worker; `ready` read and remade
+ * clean, deployable; `rejected` refused — the reason is next to it.
  */
 export const sourceArchiveStatusEnum = pgEnum('source_archive_status', [
   'receiving',
@@ -142,22 +140,20 @@ export const sourceArchiveStatusEnum = pgEnum('source_archive_status', [
 ]);
 
 /**
- * Ce que fait un nouveau commit sur une branche liée :
- * `auto` le déploie ; `auto_unless_infra` le déploie sauf s'il touche à
- * l'infrastructure (port, domaine, volumes, secrets…) ; `manual` attend toujours
- * une validation.
+ * What a new commit on a linked branch does: `auto` deploys it;
+ * `auto_unless_infra` deploys it unless it touches the infrastructure (port,
+ * domain, volumes, secrets…); `manual` always waits for approval.
  */
 export const sourceModeEnum = pgEnum('source_mode', ['auto', 'auto_unless_infra', 'manual']);
 
 /**
- * Où va un nouveau commit d'une branche liée :
- * `targets` sur les cibles de la liaison ; `running` là où l'application tourne
- * à ce moment-là ; `none` nulle part — l'application prend la nouvelle version,
- * et on la déploie où l'on veut, quand on veut.
+ * Where a new commit of a linked branch goes: `targets` on the link's targets;
+ * `running` where the application runs at that moment; `none` nowhere — the
+ * application takes the new version, and one deploys it wherever, whenever.
  */
 export const sourceDeployToEnum = pgEnum('source_deploy_to', ['targets', 'running', 'none']);
 
-/** Un commit en attente de validation, et ce qu'il est devenu. */
+/** A commit waiting for approval, and what became of it. */
 export const sourceProposalStatusEnum = pgEnum('source_proposal_status', [
   'pending',
   'approved',
@@ -166,8 +162,8 @@ export const sourceProposalStatusEnum = pgEnum('source_proposal_status', [
 ]);
 
 /**
- * Le constat sur l'image d'un service déployé — même vocabulaire que
- * `imageUpdateStatusSchema` dans `@pupitre/core`.
+ * The finding about a deployed service's image — the same vocabulary as
+ * `imageUpdateStatusSchema` in `@pupitre/core`.
  */
 export const imageUpdateStatusEnum = pgEnum('image_update_status', [
   'current',
@@ -176,12 +172,12 @@ export const imageUpdateStatusEnum = pgEnum('image_update_status', [
   'pinned',
 ]);
 
-/** Où vont les sauvegardes — même vocabulaire que `BACKUP_DESTINATION_KINDS`. */
+/** Where backups go — the same vocabulary as `BACKUP_DESTINATION_KINDS`. */
 export const backupDestinationKindEnum = pgEnum('backup_destination_kind', ['s3', 'sftp', 'local']);
 
 export const backupKindEnum = pgEnum('backup_kind', ['application', 'panel']);
 
-/** `hot` : à chaud, export des bases reconnues ; `stop` : arrêt bref, volumes copiés. */
+/** `hot`: hot, export of the recognized databases; `stop`: brief stop, volumes copied. */
 export const backupModeEnum = pgEnum('backup_mode', ['hot', 'stop']);
 
 export const backupTriggerEnum = pgEnum('backup_trigger', [
@@ -195,7 +191,7 @@ export const backupStatusEnum = pgEnum('backup_status', ['running', 'success', '
 
 // ─── reverse proxies ─────────────────────────────────────────────────────────
 
-/** Où tourne un proxy : sur la machine qu'il sert, ou ailleurs. */
+/** Where a proxy runs: on the machine it serves, or elsewhere. */
 export const proxyPlacementEnum = pgEnum('proxy_placement', ['target', 'remote']);
 
 export const proxyStatusEnum = pgEnum('proxy_status', ['unknown', 'installing', 'ok', 'failed']);
@@ -203,15 +199,15 @@ export const proxyStatusEnum = pgEnum('proxy_status', ['unknown', 'installing', 
 export const routeStatusEnum = pgEnum('route_status', ['pending', 'active', 'failed']);
 
 /**
- * La protection d'un domaine par un proxy qui est aussi un pare-feu applicatif
- * (`WafMode` de `@pupitre/core`). Ignorée par un proxy qui n'en est pas un.
+ * A domain's protection by a proxy that is also a web application firewall
+ * (`@pupitre/core`'s `WafMode`). Ignored by a proxy that is not one.
  */
 export const wafModeEnum = pgEnum('waf_mode', ['block', 'detect', 'off']);
 
 /**
- * La phase d'une annonce de page de statut. Les quatre premières disent une
- * panne, les trois dernières une maintenance ; `@pupitre/core`
- * (`statusUpdatePhasesFor`) décide laquelle convient à quel sujet.
+ * A status page announcement's phase. The first four tell an outage, the last
+ * three a maintenance; `@pupitre/core` (`statusUpdatePhasesFor`) decides which
+ * suits which subject.
  */
 export const statusUpdatePhaseEnum = pgEnum('status_update_phase', [
   'investigating',

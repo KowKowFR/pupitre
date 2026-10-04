@@ -10,7 +10,7 @@ import { users } from './auth.js';
 import { deployments } from './deployments.js';
 import { applications } from './infra.js';
 
-/** Une exécution de scanner sur l'image d'un déploiement. */
+/** A scanner run on a deployment's image. */
 export const scanRuns = pgTable(
   'scan_runs',
   {
@@ -20,14 +20,14 @@ export const scanRuns = pgTable(
       .references(() => deployments.id, { onDelete: 'cascade' }),
     scanner: scannerEnum('scanner').notNull(),
     status: scanStatusEnum('status').notNull().default('pending'),
-    /** Seuil de blocage, stocké en donnée et non codé en dur. */
+    /** Blocking threshold, stored as data and not hard-coded. */
     failOn: failOnEnum('fail_on').notNull().default('none'),
-    /** Le seuil ne valait-il que pour les failles corrigeables ? Ce qui explique le verdict. */
+    /** Did the threshold only hold for fixable vulnerabilities? It explains the verdict. */
     onlyFixable: boolean('only_fixable').notNull().default(false),
     verdict: scanVerdictEnum('verdict').notNull().default('unknown'),
     imageRef: text('image_ref'),
     error: text('error'),
-    /** Sortie brute du scanner, conservée telle quelle. */
+    /** The scanner's raw output, kept as is. */
     raw: jsonb('raw'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     finishedAt: timestamp('finished_at', { withTimezone: true }),
@@ -39,7 +39,7 @@ export const scanRuns = pgTable(
   ],
 );
 
-/** Vulnérabilité normalisée, indépendante du scanner qui l'a produite. */
+/** Normalized vulnerability, independent of the scanner that produced it. */
 export const findings = pgTable(
   'findings',
   {
@@ -64,9 +64,9 @@ export const findings = pgTable(
 );
 
 /**
- * Une faille **acceptée** pour une application : lue, motivée, et qui ne
- * bloque plus ses mises en ligne. `package` à `null` : la CVE sur tous les
- * paquets. Une échéance la fait expirer ; supprimer l'application l'emporte.
+ * A vulnerability **accepted** for an application: read, justified, and no
+ * longer blocking its releases. `package` at `null`: the CVE on all packages. An
+ * expiry makes it lapse; deleting the application takes it away.
  */
 export const vulnerabilityAcceptances = pgTable(
   'vulnerability_acceptances',
@@ -83,7 +83,7 @@ export const vulnerabilityAcceptances = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    // Une seule acceptation par CVE et paquet — « tous les paquets » compris.
+    // A single acceptance per CVE and package — "all packages" included.
     unique('vulnerability_acceptances_subject')
       .on(t.applicationId, t.cveId, t.package)
       .nullsNotDistinct(),

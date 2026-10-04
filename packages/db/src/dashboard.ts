@@ -9,70 +9,70 @@ import { findings, scanRuns } from './schema/security.js';
 import type { HistoryPoint, TargetHistory } from './target-metrics.js';
 
 /**
- * Agrégations du tableau de bord — la dimension temporelle.
+ * Dashboard aggregations — the time dimension.
  *
- * ── Pourquoi un module à part ───────────────────────────────────────────────
- * Les lectures existantes répondent toutes à « quel est l'état de X *en ce
- * moment* ». Le tableau de bord pose l'autre question : « qu'est-ce qui s'est
- * passé depuis hier ». Ce sont des requêtes bucketisées, transverses à tous les
- * domaines, et qui n'appartiennent à aucun d'eux. Les poser dans `monitors.ts`
- * ou `deployments.ts` y ferait entrer une préoccupation d'écran.
+ * ── Why a separate module ───────────────────────────────────────────────────
+ * The existing reads all answer "what is X's state *right now*". The dashboard
+ * asks the other question: "what has happened since yesterday". These are
+ * bucketed queries, cutting across every domain, and belonging to none of them.
+ * Putting them in `monitors.ts` or `deployments.ts` would bring a screen concern
+ * into them.
  *
- * ── La règle qui gouverne tout ce fichier ───────────────────────────────────
- * **Aucune série ne sort d'ici sans son dénominateur.** Chaque seau porte son
- * nombre de relevés, et un seau sans relevé sort avec `samples: 0` et une
- * valeur `null` — jamais un zéro. Un tableau de bord qui dessine un zéro là où
- * il n'a rien mesuré affirme que tout allait bien à un moment qu'il n'a pas
- * regardé, et c'est exactement le mensonge qu'on veut rendre impossible.
+ * ── The rule that governs this whole file ───────────────────────────────────
+ * **No series leaves here without its denominator.** Each bucket carries its
+ * number of readings, and a bucket without a reading goes out with `samples: 0`
+ * and a `null` value — never a zero. A dashboard that draws a zero where it
+ * measured nothing asserts that all was well at a moment it did not look at, and
+ * that is exactly the lie we want to make impossible.
  *
- * La conséquence pour l'appelant : `Coverage` est fait pour être *affiché*, pas
- * seulement consulté. Un écran qui reçoit `covered: 2` sur `buckets: 24` doit
- * dire « deux heures de relevés sur vingt-quatre », pas tracer une courbe plate.
+ * The consequence for the caller: `Coverage` is made to be *shown*, not only
+ * consulted. A screen that receives `covered: 2` out of `buckets: 24` must say
+ * "two hours of readings out of twenty-four", not draw a flat curve.
  */
 
-// ─── le gabarit temporel ──────────────────────────────────────────────────────
+// ─── the time template ────────────────────────────────────────────────────────
 
 /**
- * La fenêtre et son découpage. Les bornes sont **alignées sur l'époque**, comme
- * le fait déjà `targetHistories` : deux séries calculées séparément tombent
- * ainsi sur exactement les mêmes seaux, et peuvent partager un axe. C'est la
- * seule raison pour laquelle le tableau de bord peut superposer des sondes, une
- * charge machine et des déploiements sans les décaler d'une demi-heure.
+ * The window and its split. The bounds are **aligned on the epoch**, as
+ * `targetHistories` already does: two series computed separately therefore fall
+ * on exactly the same buckets, and can share an axis. It is the only reason the
+ * dashboard can overlay probes, a machine load and deployments without shifting
+ * them by half an hour.
  */
 export type PulseWindow = {
   hours: number;
   buckets: number;
   bucketSeconds: number;
-  /** Début du premier seau, ISO. */
+  /** Start of the first bucket, ISO. */
   from: string;
-  /** Fin du dernier seau, ISO. */
+  /** End of the last bucket, ISO. */
   to: string;
 };
 
 /**
- * Ce que la fenêtre contient réellement — le contraire d'une promesse.
+ * What the window really contains — the opposite of a promise.
  *
- * `buckets` est ce qu'on a demandé, `covered` ce qu'on a mesuré. L'écart entre
- * les deux est l'information la plus importante d'un jeu de données maigre.
+ * `buckets` is what was asked for, `covered` what was measured. The gap between
+ * the two is the most important information of a thin data set.
  */
 export type Coverage = {
   buckets: number;
-  /** Seaux portant au moins un relevé. */
+  /** Buckets carrying at least one reading. */
   covered: number;
-  /** Relevés au total sur la fenêtre. */
+  /** Total readings over the window. */
   samples: number;
-  /** Premier et dernier relevé réels — les bornes de ce qu'on sait. */
+  /** First and last real reading — the bounds of what we know. */
   firstAt: string | null;
   lastAt: string | null;
 };
 
 /**
- * Fabrique le gabarit. `now` est injectable pour que le calcul reste
- * déterministe à l'essai ; en service c'est l'horloge du panel.
+ * Builds the template. `now` is injectable so that the computation stays
+ * deterministic in tests; in service it is the panel's clock.
  *
- * Le dernier seau est celui qui **contient** l'instant présent, pas celui qui
- * le précède : sinon la mesure prise il y a trente secondes n'aurait nulle part
- * où se poser, et le tableau de bord paraîtrait en retard d'une heure.
+ * The last bucket is the one that **contains** the present instant, not the one
+ * before it: otherwise the measurement taken thirty seconds ago would have
+ * nowhere to land, and the dashboard would seem an hour late.
  */
 export function pulseWindow(hours: number, buckets: number, now = new Date()): PulseWindow {
   const bucketSeconds = Math.max(60, Math.round((hours * 3600) / buckets));
@@ -88,19 +88,20 @@ export function pulseWindow(hours: number, buckets: number, now = new Date()): P
   };
 }
 
-/** Les débuts de seau, du plus ancien au plus récent. */
+/** The bucket starts, from oldest to newest. */
 function bucketStarts(window: PulseWindow): number[] {
   const first = Math.floor(Date.parse(window.from) / 1000);
   return Array.from({ length: window.buckets }, (_, i) => first + i * window.bucketSeconds);
 }
 
 /**
- * L'indice du seau qui accueille un instant, ou `null` s'il tombe hors gabarit.
+ * The index of the bucket that hosts an instant, or `null` if it falls outside
+ * the template.
  *
- * Le pincement final n'est pas de la superstition : le gabarit est calculé avec
- * l'horloge du panel et les lignes avec `now()` côté Postgres. À la bascule
- * d'un seau, quelques millisecondes d'écart suffiraient à faire disparaître la
- * mesure la plus récente — celle qu'on regarde en premier.
+ * The final clamp is not superstition: the template is computed with the
+ * panel's clock and the rows with Postgres's `now()`. At a bucket's switch, a
+ * few milliseconds of gap would be enough to make the most recent measurement
+ * disappear — the one looked at first.
  */
 function bucketIndex(window: PulseWindow, at: Date): number | null {
   const first = Math.floor(Date.parse(window.from) / 1000);
@@ -126,24 +127,24 @@ function coverageOf(
 }
 
 /**
- * L'expression de seau, en secondes d'époque.
+ * The bucket expression, in epoch seconds.
  *
- * `sql.raw` et non un paramètre lié, pour la raison déjà documentée dans
- * `targetHistories` : la même expression apparaît dans le SELECT et dans le
- * GROUP BY, et Postgres ne reconnaît pas deux placeholders comme une seule
- * expression. `bucketSeconds` sort d'un `Math.round` sur des entiers, jamais
- * d'une chaîne : aucune injection possible.
+ * `sql.raw` and not a bound parameter, for the reason already documented in
+ * `targetHistories`: the same expression appears in the SELECT and in the GROUP
+ * BY, and Postgres does not recognize two placeholders as a single expression.
+ * `bucketSeconds` comes out of a `Math.round` on integers, never out of a
+ * string: no injection possible.
  */
 function bucketExpression(column: unknown, bucketSeconds: number) {
   const seconds = sql.raw(String(bucketSeconds));
   return sql<string>`to_timestamp(floor(extract(epoch from ${column}) / ${seconds}) * ${seconds})`;
 }
 
-// ─── pouls des sondes ─────────────────────────────────────────────────────────
+// ─── probes pulse ─────────────────────────────────────────────────────────────
 
 export type MonitorPulsePoint = {
   at: string;
-  /** Mesures prises dans le seau. Zéro veut dire « on n'a pas regardé ». */
+  /** Measurements taken in the bucket. Zero means "we did not look". */
   samples: number;
   healthy: number;
   latencyAvgMs: number | null;
@@ -154,26 +155,25 @@ export type MonitorPulse = {
   window: PulseWindow;
   coverage: Coverage;
   points: MonitorPulsePoint[];
-  /** Sondes actives ayant produit au moins une mesure sur la fenêtre. */
+  /** Active probes that produced at least one measurement over the window. */
   monitorsSeen: number;
 };
 
 /**
- * La disponibilité mesurée, seau par seau, toutes sondes confondues.
+ * The measured availability, bucket by bucket, all probes together.
  *
- * ── Pourquoi le seau horaire, et pas plus fin ───────────────────────────────
- * La cadence réelle des sondes n'est pas régulière : elle dépend du planificateur,
- * qui peut avoir été arrêté. Sur les données de cette instance on observe une
- * mesure par heure pendant une demi-journée, puis cinquante par heure. Un seau
- * de dix minutes rendrait la première moitié presque entièrement vide et
- * donnerait à croire à une panne de sonde là où il n'y a qu'un rythme lent.
- * Le seau horaire est le plus fin qui garde une chance d'être peuplé — et le
- * compte de mesures qui l'accompagne dit le reste.
+ * ── Why the hourly bucket, and not finer ────────────────────────────────────
+ * The probes' real rate is not regular: it depends on the scheduler, which may
+ * have been stopped. On this instance's data one observes one measurement per
+ * hour for half a day, then fifty per hour. A ten-minute bucket would make the
+ * first half almost entirely empty and suggest a probe outage where there is
+ * only a slow rhythm. The hourly bucket is the finest that keeps a chance of
+ * being populated — and the measurement count that goes with it says the rest.
  *
- * Le taux n'est **pas** calculé ici. `healthy / samples` sur un seau à une seule
- * mesure vaut 0 % ou 100 % et rien d'autre ; c'est à l'écran de décider s'il
- * dessine ça comme une valeur ou comme une incertitude, et il ne peut le faire
- * que s'il voit le dénominateur.
+ * The rate is **not** computed here. `healthy / samples` on a bucket with a
+ * single measurement is 0% or 100% and nothing else; it is for the screen to
+ * decide whether it draws that as a value or as an uncertainty, and it can only
+ * do so if it sees the denominator.
  */
 export async function monitorPulse(
   hours = 24,
@@ -243,7 +243,7 @@ export async function monitorPulse(
   };
 }
 
-// ─── pouls de l'activité ──────────────────────────────────────────────────────
+// ─── activity pulse ───────────────────────────────────────────────────────────
 
 export type ActivityPoint = { at: string; samples: number; denied: number };
 
@@ -252,17 +252,17 @@ export type ActivityPulse = {
   coverage: Coverage;
   points: ActivityPoint[];
   total: number;
-  /** Refus de permission — la seule ligne d'audit qui appelle une décision. */
+  /** Permission refusals — the only audit line that calls for a decision. */
   denied: number;
 };
 
 /**
- * Le volume d'actions journalisées, seau par seau.
+ * The volume of logged actions, bucket by bucket.
  *
- * On isole `permission.denied` parce que c'est la seule action d'audit qui dit
- * quelque chose sans qu'on ouvre le journal : quelqu'un a demandé ce qu'il n'a
- * pas le droit de faire. Le reste du volume est une mesure d'agitation, utile
- * pour situer un incident dans le temps, jamais pour juger.
+ * We isolate `permission.denied` because it is the only audit action that says
+ * something without opening the log: someone asked for what they are not
+ * allowed to do. The rest of the volume is a measure of agitation, useful to
+ * place an incident in time, never to judge.
  */
 export async function activityPulse(
   hours = 24,
@@ -314,11 +314,11 @@ export async function activityPulse(
   return { window, coverage: coverageOf(points, window, firstAt, lastAt), points, total, denied };
 }
 
-// ─── chronique des déploiements ───────────────────────────────────────────────
+// ─── deployments chronicle ────────────────────────────────────────────────────
 
 export type DeploymentEvent = {
   id: string;
-  /** Numéro de run, global à l'instance. */
+  /** Run number, global to the instance. */
   number: number;
   at: string;
   finishedAt: string | null;
@@ -327,17 +327,17 @@ export type DeploymentEvent = {
   targetName: string;
   runtime: 'docker' | 'k3s';
   version: number;
-  /** Durée réelle du pipeline, ou `null` s'il n'est pas terminé. */
+  /** The pipeline's real duration, or `null` if it is not finished. */
   durationSeconds: number | null;
   failedStep: string | null;
 };
 
-/** Une étape du pipeline et la part de fois où elle casse. */
+/** A pipeline step and the share of times it breaks. */
 export type StepWeakness = {
   key: DeploymentStepKey | string;
   label: string;
   failed: number;
-  /** Exécutions de l'étape qui ont abouti à un verdict — `skipped` exclu. */
+  /** Runs of the step that reached a verdict — `skipped` excluded. */
   decided: number;
 };
 
@@ -352,9 +352,9 @@ export type DeploymentPulse = {
     destroyed: number;
     inFlight: number;
   };
-  /** Étapes ayant échoué au moins une fois, la plus fragile d'abord. */
+  /** Steps that failed at least once, the most fragile first. */
   weaknesses: StepWeakness[];
-  /** Durée médiane d'un pipeline terminé, en secondes. `null` sous trois mesures. */
+  /** Median duration of a finished pipeline, in seconds. `null` under three measurements. */
   medianDurationSeconds: number | null;
 };
 
@@ -363,24 +363,24 @@ const STEP_LABELS = new Map<string, string>(
 );
 
 /**
- * Les déploiements de la fenêtre, un par un, plus ce qu'on peut en dire.
+ * The window's deployments, one by one, plus what can be said about them.
  *
- * ── Pourquoi des événements et pas un taux ──────────────────────────────────
- * La tentation est de tracer « taux de réussite par jour ». Sur un parc qui
- * déploie huit fois en trente-six heures, ce taux vaut 100 % ou 50 % et bouge
- * d'un quart à chaque déploiement : c'est du bruit tracé comme une tendance.
- * Une chronique d'événements posés sur un axe de temps dit la même chose sans
- * rien inventer — et elle reste juste le jour où il y en aura mille.
+ * ── Why events and not a rate ───────────────────────────────────────────────
+ * The temptation is to draw "success rate per day". On a fleet that deploys
+ * eight times in thirty-six hours, that rate is 100% or 50% and moves by a
+ * quarter at each deployment: it is noise drawn as a trend. A chronicle of
+ * events placed on a time axis says the same thing without making anything up —
+ * and it stays right the day there are a thousand.
  *
- * `medianDurationSeconds` sort `null` sous trois pipelines terminés, pour la
- * même raison : une médiane sur deux valeurs est une des deux valeurs.
+ * `medianDurationSeconds` comes out `null` under three finished pipelines, for
+ * the same reason: a median over two values is one of the two values.
  *
- * ── Pourquoi `rolled_back` compte à part ────────────────────────────────────
- * Un retour arrière n'est ni une réussite ni un échec de déploiement : le
- * pipeline a fait exactement ce qu'on lui demandait — constater que la nouvelle
- * version ne répondait pas, et remettre l'ancienne. Le fondre dans les échecs
- * effacerait le fait que le garde-fou a fonctionné ; le fondre dans les
- * réussites effacerait le fait que la version livrée était mauvaise.
+ * ── Why `rolled_back` counts separately ─────────────────────────────────────
+ * A rollback is neither a deployment success nor a failure: the pipeline did
+ * exactly what it was asked — observe that the new version did not answer, and
+ * put the old one back. Merging it into failures would erase the fact that the
+ * safeguard worked; merging it into successes would erase the fact that the
+ * delivered version was bad.
  */
 export async function deploymentPulse(days = 7, db: Database = getDb()): Promise<DeploymentPulse> {
   const rows = await db
@@ -471,26 +471,26 @@ export async function deploymentPulse(days = 7, db: Database = getDb()): Promise
   };
 }
 
-// ─── posture de sécurité ──────────────────────────────────────────────────────
+// ─── security posture ─────────────────────────────────────────────────────────
 
 export type ScanPosture = {
   days: number;
   runs: number;
   lastAt: string | null;
   bySeverity: { critical: number; high: number; medium: number; low: number; other: number };
-  /** Parmi les critiques, celles qu'une version corrige : ce qu'on peut régler tout de suite. */
+  /** Among the critical ones, those a version fixes: what can be fixed right away. */
   fixableCritical: number;
   /**
-   * Exécutions déclarées « pass » qui portaient pourtant du critique ou du haut,
-   * parce que la porte (`fail_on`) était réglée sur `none`.
+   * Runs declared "pass" that nevertheless carried critical or high ones, because
+   * the gate (`fail_on`) was set to `none`.
    *
-   * Ce n'est pas une curiosité : c'est le seul endroit du produit où un chiffre
-   * rassurant recouvre un fait qui ne l'est pas. Le tableau de bord doit le dire.
+   * It is not a curiosity: it is the only place in the product where a reassuring
+   * figure covers a fact that is not. The dashboard must say it.
    */
   passedWithSevere: number;
 };
 
-/** L'état des analyses de la fenêtre, et si leur verdict veut dire quelque chose. */
+/** The state of the window's analyses, and whether their verdict means anything. */
 export async function scanPosture(days = 7, db: Database = getDb()): Promise<ScanPosture> {
   const within = sql`${scanRuns.createdAt} >= now() - make_interval(days => ${days})`;
 
@@ -524,8 +524,8 @@ export async function scanPosture(days = 7, db: Database = getDb()): Promise<Sca
     else bySeverity.other += row.value;
   }
 
-  // Un `count(distinct)` plutôt qu'un sous-select : une exécution portant trente
-  // failles critiques reste une exécution, pas trente.
+  // A `count(distinct)` rather than a sub-select: a run carrying thirty critical
+  // vulnerabilities stays one run, not thirty.
   const [gate] = await db
     .select({ value: sql<number>`count(distinct ${scanRuns.id})::int` })
     .from(scanRuns)
@@ -549,13 +549,13 @@ export async function scanPosture(days = 7, db: Database = getDb()): Promise<Sca
   };
 }
 
-// ─── repli du parc sur un seul axe ────────────────────────────────────────────
+// ─── folding the fleet onto a single axis ─────────────────────────────────────
 
 export type FleetPoint = {
   at: string;
-  /** Relevés pris sur l'ensemble du parc dans ce seau. */
+  /** Readings taken over the whole fleet in this bucket. */
   samples: number;
-  /** Machines ayant répondu au moins une fois dans ce seau. */
+  /** Machines that answered at least once in this bucket. */
   targets: number;
   loadPercent: number | null;
   memoryPercent: number | null;
@@ -565,16 +565,17 @@ export type FleetPoint = {
 export type FleetPulse = { window: PulseWindow; coverage: Coverage; points: FleetPoint[] };
 
 /**
- * Replie les historiques par machine en une seule série « pire du parc ».
+ * Folds the per-machine histories into a single "worst of the fleet" series.
  *
- * Une fonction pure, et volontairement pas une requête : `targetHistories` fait
- * déjà exactement le bon travail en une requête indexée, et le tableau de bord
- * a de toute façon besoin du détail par machine pour sa liste. Ajouter un second
- * SQL pour recalculer le maximum de ce qu'on tient déjà en mémoire coûterait un
- * aller-retour et une chance de plus de diverger.
+ * A pure function, and deliberately not a query: `targetHistories` already does
+ * exactly the right work in one indexed query, and the dashboard needs the
+ * per-machine detail for its list anyway. Adding a second SQL to recompute the
+ * maximum of what is already held in memory would cost a round trip and one
+ * more chance to diverge.
  *
- * `max` et non `avg`, pour la raison écrite dans `targetHistories` : on regarde
- * une saturation, et la moyenne du parc noie la machine qui étouffe.
+ * `max` and not `avg`, for the reason written in `targetHistories`: we are
+ * looking at saturation, and the fleet's average drowns the machine that
+ * chokes.
  */
 export function foldFleet(
   histories: Iterable<TargetHistory>,

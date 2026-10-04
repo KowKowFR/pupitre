@@ -12,26 +12,26 @@ import { getDb, type Database } from './client.js';
 import { appSettings } from './schema/settings.js';
 
 /**
- * Accès aux paramètres d'instance.
+ * Access to the instance settings.
  *
- * Règle absolue, calquée sur `targets.ts` : `ai_api_key_encrypted` ne sort d'ici
- * que par `getAiApiKey()`, `sso_client_secret_encrypted` que par
- * `getSsoClientSecret()`. Toutes les autres lectures rendent un
- * `AppSettingsRecord`, où la clé n'existe simplement pas — seulement le fait
- * qu'elle soit posée et ses quatre derniers caractères. Le secret ne peut donc
- * pas fuir par oubli de filtrage dans un handler.
+ * Absolute rule, modeled on `targets.ts`: `ai_api_key_encrypted` only leaves here
+ * through `getAiApiKey()`, `sso_client_secret_encrypted` only through
+ * `getSsoClientSecret()`. Every other read returns an `AppSettingsRecord`, where
+ * the key simply does not exist — only the fact that it is set and its last four
+ * characters. The secret therefore cannot leak by a forgotten filter in a
+ * handler.
  */
 
-/** Ligne unique. Le singleton est garanti par la base (`check (id = 1)`). */
+/** Single row. The singleton is guaranteed by the database (`check (id = 1)`). */
 const SINGLETON_ID = 1;
 
 export type AppSettingsRecord = {
   settings: AppSettings;
-  /** Une clé est-elle enregistrée ? Jamais la clé elle-même. */
+  /** Is a key saved? Never the key itself. */
   aiApiKeyConfigured: boolean;
-  /** Quatre derniers caractères, pour reconnaître la clé sans la révéler. */
+  /** Last four characters, to recognize the key without revealing it. */
   aiApiKeyLast4: string | null;
-  /** Un secret de client OpenID Connect est-il enregistré ? Jamais le secret. */
+  /** Is an OpenID Connect client secret saved? Never the secret. */
   ssoClientSecretConfigured: boolean;
   updatedAt: Date | null;
   updatedBy: string | null;
@@ -47,28 +47,27 @@ const EMPTY_RECORD: AppSettingsRecord = {
 };
 
 /**
- * Cache mémoire très court.
+ * Very short in-memory cache.
  *
- * Chaque rendu de page lit les paramètres — le nom de l'instance en haut à
- * gauche, le fuseau de chaque date. Une requête SQL par rendu serait du
- * gâchis pour une ligne qui change trois fois par an. Cinq secondes suffisent
- * à absorber la rafale d'un chargement de page sans qu'un réglage mette
- * visiblement du temps à apparaître.
+ * Each page render reads the settings — the instance's name at the top left, the
+ * time zone of each date. One SQL query per render would be a waste for a row
+ * that changes three times a year. Five seconds are enough to absorb a page
+ * load's burst without a setting visibly taking time to appear.
  *
- * Le cache est **par processus** : le panel et le worker ont chacun le leur.
- * Une écriture invalide celui du processus qui écrit ; l'autre rattrape au
- * plus tard au bout du TTL. C'est acceptable ici — aucun de ces réglages n'est
- * une décision de sécurité, et rien ne dépend d'une cohérence à la seconde.
+ * The cache is **per process**: the panel and the worker each have their own. A
+ * write invalidates the writing process's; the other catches up at the latest
+ * after the TTL. That is acceptable here — none of these settings is a security
+ * decision, and nothing depends on consistency to the second.
  *
- * En revanche il est porté par `globalThis`, et pas par une simple variable de
- * module. Next découpe le code serveur en chunks et peut charger **plusieurs
- * copies** de ce module — une pour un Route Handler, une pour un layout. Avec
- * une variable de module, chaque copie aurait son propre cache : une écriture
- * passée par l'API invaliderait le sien et laisserait le layout servir la
- * valeur d'avant pendant tout le TTL. Le symptôme observé était un « relancer
- * l'assistant » sans effet visible pendant cinq secondes. `globalThis` est
- * partagé par toutes les copies ; c'est le motif déjà retenu dans ce dépôt
- * pour les files BullMQ, et pour la même raison.
+ * It is, however, carried by `globalThis`, and not by a plain module variable.
+ * Next splits the server code into chunks and may load **several copies** of
+ * this module — one for a Route Handler, one for a layout. With a module
+ * variable, each copy would have its own cache: a write through the API would
+ * invalidate its own and leave the layout serving the old value for the whole
+ * TTL. The observed symptom was a "restart the wizard" with no visible effect
+ * for five seconds. `globalThis` is shared by all copies; it is the pattern
+ * already chosen in this repository for the BullMQ queues, and for the same
+ * reason.
  */
 const CACHE_TTL_MS = 5_000;
 
@@ -86,7 +85,7 @@ function writeCache(entry: CacheEntry): void {
   globalThis.__tpAppSettingsCache = entry;
 }
 
-/** Vide le cache. Appelée à chaque écriture, et par les tests. */
+/** Empties the cache. Called at each write, and by the tests. */
 export function invalidateAppSettingsCache(): void {
   globalThis.__tpAppSettingsCache = null;
 }
@@ -103,9 +102,9 @@ function toRecord(row: typeof appSettings.$inferSelect | undefined): AppSettings
     try {
       aiApiKeyLast4 = last4(decrypt(row.aiApiKeyEncrypted));
     } catch {
-      // Clé illisible (MASTER_KEY changée) : elle reste « configurée » — la
-      // colonne est pleine — mais on n'en montre rien. Le déchiffrement réel
-      // échouera au moment de s'en servir, avec un message explicite.
+      // Unreadable key (MASTER_KEY changed): it stays "configured" — the column is
+      // full — but we show nothing of it. The real decryption will fail when it is
+      // used, with an explicit message.
       aiApiKeyLast4 = null;
     }
   }
@@ -121,8 +120,8 @@ function toRecord(row: typeof appSettings.$inferSelect | undefined): AppSettings
 }
 
 /**
- * Lecture. Ne lève jamais parce que la ligne est absente ou incomplète : une
- * base vierge rend les défauts du schéma.
+ * Read. Never throws because the row is missing or incomplete: an empty
+ * database returns the schema's defaults.
  */
 export async function getAppSettings(db: Database = getDb()): Promise<AppSettingsRecord> {
   const now = Date.now();
@@ -135,15 +134,15 @@ export async function getAppSettings(db: Database = getDb()): Promise<AppSetting
   return record;
 }
 
-/** Raccourci : seulement les réglages, sans les métadonnées de la clé. */
+/** Shortcut: only the settings, without the key's metadata. */
 export async function getAppSettingsValue(db: Database = getDb()): Promise<AppSettings> {
   return (await getAppSettings(db)).settings;
 }
 
 /**
- * Clé d'API en clair. **Seul** point de déchiffrement.
- * Réservé au code serveur qui va réellement appeler le fournisseur ; le
- * résultat ne doit ni être journalisé, ni traverser une réponse HTTP.
+ * API key in clear. The **only** decryption point.
+ * Reserved to the server code that will really call the provider; the result
+ * must neither be logged nor go through an HTTP response.
  */
 export async function getAiApiKey(db: Database = getDb()): Promise<string | null> {
   const [row] = await db
@@ -156,14 +155,14 @@ export async function getAiApiKey(db: Database = getDb()): Promise<string | null
 }
 
 /**
- * Trois cas distincts pour la clé, et ils doivent le rester :
- *   champ absent  → inchangée
- *   `null`        → effacée
- *   chaîne        → remplacée
- * D'où le test d'existence de la propriété plutôt qu'une comparaison à
- * `undefined`, qui confondrait « absent » et « explicitement vide ».
+ * Three distinct cases for the key, and they must stay so:
+ *   field absent  → unchanged
+ *   `null`        → erased
+ *   string        → replaced
+ * Hence the property existence test rather than a comparison with `undefined`,
+ * which would confuse "absent" and "explicitly empty".
  */
-/** Le secret du client OpenID Connect, déchiffré — pour construire le fournisseur, rien d'autre. */
+/** The OpenID Connect client secret, decrypted — to build the provider, nothing else. */
 export async function getSsoClientSecret(db: Database = getDb()): Promise<string | null> {
   const [row] = await db
     .select({ encrypted: appSettings.ssoClientSecretEncrypted })
@@ -179,7 +178,7 @@ export type AppSettingsUpdate = AppSettingsPatch & {
   ssoClientSecret?: string | null;
 };
 
-/** Ce qu'une écriture a fait de la clé — de quoi rédiger l'entrée d'audit. */
+/** What a write did to the key — enough to write the audit entry. */
 export type AiApiKeyChange = 'unchanged' | 'set' | 'cleared';
 
 export type AppSettingsUpdateResult = {
@@ -190,9 +189,9 @@ export type AppSettingsUpdateResult = {
 };
 
 /**
- * Fusion superficielle, validation Zod, upsert sur la ligne unique.
- * La validation a lieu *avant* l'écriture : un fuseau inventé n'atteint jamais
- * la base, et l'erreur Zod remonte telle quelle à l'appelant (422 côté API).
+ * Shallow merge, Zod validation, upsert on the single row. Validation happens
+ * *before* the write: a made-up time zone never reaches the database, and the
+ * Zod error goes up as is to the caller (422 on the API side).
  */
 export async function updateAppSettings(
   patch: AppSettingsUpdate,
@@ -203,8 +202,8 @@ export async function updateAppSettings(
   const keyProvided = Object.hasOwn(patch, 'aiApiKey');
   const ssoSecretProvided = Object.hasOwn(patch, 'ssoClientSecret');
 
-  // Lecture directe, sans passer par le cache : une écriture doit partir de
-  // l'état réellement en base, pas d'un instantané vieux de cinq secondes.
+  // Direct read, bypassing the cache: a write must start from the state really in
+  // the database, not from a five-second-old snapshot.
   const [currentRow] = await db.select().from(appSettings).where(eq(appSettings.id, SINGLETON_ID));
   const before = toRecord(currentRow);
 
@@ -261,26 +260,25 @@ export async function updateAppSettings(
 }
 
 /**
- * Écriture réservée à l'avancement de l'assistant de démarrage.
+ * Write reserved to advancing the getting-started wizard.
  *
- * Séparée de `updateAppSettings()` pour deux raisons. D'abord la surface :
- * `appSettingsPatchSchema` ne porte pas `onboarding`, précisément pour que
- * l'écran des paramètres ne puisse pas déclarer un parcours terminé au détour
- * d'un changement de fuseau. Ensuite la clé d'API : la lecture-modification se
- * fait ici sur le seul JSONB, la colonne chiffrée n'est pas touchée — pas même
- * réécrite à l'identique, ce qui la mettrait à la merci d'un `MASTER_KEY`
- * absent.
+ * Separate from `updateAppSettings()` for two reasons. First the surface:
+ * `appSettingsPatchSchema` does not carry `onboarding`, precisely so that the
+ * settings screen cannot declare a journey finished in passing during a time
+ * zone change. Second the API key: the read-modify is done here on the JSONB
+ * alone, the encrypted column is not touched — not even rewritten identically,
+ * which would put it at the mercy of a missing `MASTER_KEY`.
  *
- * La transformation est passée en fonction plutôt qu'en valeur : la transition
- * vit dans `@pupitre/core` (`applyOnboardingAction`), et l'appelant ne peut pas
- * écrire un état qu'il aurait fabriqué à côté des règles.
+ * The transformation is passed as a function rather than a value: the
+ * transition lives in `@pupitre/core` (`applyOnboardingAction`), and the caller
+ * cannot write a state it would have made up beside the rules.
  */
 export async function updateOnboardingState(
   apply: (current: OnboardingState) => OnboardingState,
   actorId: string | null,
   db: Database = getDb(),
 ): Promise<{ before: OnboardingState; after: OnboardingState }> {
-  // Lecture directe : une écriture part de l'état réel, jamais du cache.
+  // Direct read: a write starts from the real state, never from the cache.
   const [currentRow] = await db.select().from(appSettings).where(eq(appSettings.id, SINGLETON_ID));
   const current = parseAppSettings(currentRow?.value);
   const after = apply(current.onboarding);
@@ -298,8 +296,8 @@ export async function updateOnboardingState(
     })
     .onConflictDoUpdate({
       target: appSettings.id,
-      // `aiApiKeyEncrypted` est absent du `set` : la clé enregistrée survit à
-      // chaque pas de l'assistant sans jamais transiter par ce chemin.
+      // `aiApiKeyEncrypted` is absent from the `set`: the saved key survives each step
+      // of the wizard without ever going through this path.
       set: { value, updatedAt: new Date(), updatedBy: actorId },
     });
 

@@ -21,13 +21,13 @@ function createPool(): Pool {
   return new Pool({ connectionString: env.DATABASE_URL, max: env.DATABASE_POOL_MAX });
 }
 
-/** Pool partagé. Créé à la première utilisation, jamais à l'import. */
+/** Shared pool. Created at first use, never at import. */
 export function getPool(): Pool {
   pool ??= createPool();
   return pool;
 }
 
-/** Client Drizzle partagé par `apps/web` et `apps/worker`. */
+/** Drizzle client shared by `apps/web` and `apps/worker`. */
 export function getDb(): Database {
   database ??= drizzle(getPool(), { schema });
   return database;
@@ -41,7 +41,7 @@ export async function closeDb(): Promise<void> {
   }
 }
 
-/** Sonde de vivacité utilisée par `/api/health`. */
+/** Liveness probe used by `/api/health`. */
 export async function pingDb(): Promise<void> {
   const client = await getPool().connect();
   try {

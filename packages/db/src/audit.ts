@@ -13,18 +13,18 @@ import { apiTokens } from './schema/api-tokens.js';
 import { users } from './schema/auth.js';
 
 /**
- * Point d'entrée UNIQUE du journal d'audit.
- * Aucun `insert into audit_logs` ne doit exister ailleurs dans le projet.
+ * SINGLE entry point of the audit log.
+ * No `insert into audit_logs` must exist anywhere else in the project.
  *
- * `logAudit()` ne throw jamais : un journal d'audit indisponible dégrade la
- * traçabilité, il ne doit pas casser la requête de l'utilisateur. L'échec est
- * remonté sur le canal d'erreur fourni par l'appelant.
+ * `logAudit()` never throws: an unavailable audit log degrades traceability, it
+ * must not break the user's request. The failure is reported on the error
+ * channel provided by the caller.
  */
 
 export const auditEntrySchema = z.object({
-  /** `null` pour une action système (worker, scheduler) ou un acteur anonyme. */
+  /** `null` for a system action (worker, scheduler) or an anonymous actor. */
   actorId: z.string().min(1).nullable().default(null),
-  /** Verbe métier, ex. `auth.login.succeeded`, `deployment.created`. */
+  /** Business verb, e.g. `auth.login.succeeded`, `deployment.created`. */
   action: z.string().min(1).max(120),
   resourceType: z.string().min(1).max(60),
   resourceId: z.string().min(1).max(200).nullable().default(null),
@@ -32,9 +32,9 @@ export const auditEntrySchema = z.object({
   after: z.unknown().nullable().default(null),
   ip: z.string().min(1).max(64).nullable().default(null),
   /**
-   * Absent : lu dans la requête en cours par le fournisseur de contexte (voir
-   * `setAuditContextProvider`). Coupé plutôt que refusé au-delà de 512
-   * caractères — un en-tête trop long ne doit pas coûter la ligne d'audit.
+   * Absent: read from the current request by the context provider (see
+   * `setAuditContextProvider`). Cut rather than refused beyond 512 characters — a
+   * header too long must not cost the audit line.
    */
   userAgent: z
     .string()
@@ -46,44 +46,43 @@ export const auditEntrySchema = z.object({
 export type AuditEntryInput = z.input<typeof auditEntrySchema>;
 export type AuditLogRow = typeof auditLogs.$inferSelect;
 
-/** Signale un échec d'écriture d'audit sans interrompre l'appelant. */
+/** Reports an audit write failure without interrupting the caller. */
 export type AuditFailureReporter = (error: unknown, entry: AuditEntryInput) => void;
 
 let reportFailure: AuditFailureReporter = (error, entry) => {
   // eslint-disable-next-line no-console
-  console.error('[audit] écriture impossible', { action: entry.action, error });
+  console.error('[audit] write failed', { action: entry.action, error });
 };
 
-/** Branche le logger de l'application (Pino) sur les échecs d'audit. */
+/** Plugs the application's logger (Pino) into audit failures. */
 export function setAuditFailureReporter(reporter: AuditFailureReporter): void {
   reportFailure = reporter;
 }
 
 /**
- * Observateur des entrées **réellement écrites**.
+ * Observer of the entries **really written**.
  *
- * Pourquoi se greffer ici plutôt que d'émettre les notifications depuis chaque
- * site d'action : `logAudit()` est déjà le point d'entrée unique par lequel
- * passent tous les événements qui méritent d'être notifiés — un déploiement en
- * échec, un rollback automatique, une réinitialisation de second facteur, un
- * changement de rôle. Les réémettre à la main obligerait à toucher le pipeline
- * de déploiement, deux routes d'administration et le worker, puis à recommencer
- * au prochain événement. Ici, la correspondance tient dans une seule table de
- * données (`@pupitre/core` → `notifiableEventFor`).
+ * Why hook in here rather than emit notifications from each action site:
+ * `logAudit()` is already the single entry point every event worth notifying
+ * goes through — a failed deployment, an automatic rollback, a second factor
+ * reset, a role change. Emitting them again by hand would require touching the
+ * deployment pipeline, two administration routes and the worker, then starting
+ * over at the next event. Here, the mapping fits in a single data table
+ * (`@pupitre/core` → `notifiableEventFor`).
  *
- * Trois précautions, parce que ce point d'entrée est fragile :
- *   1. l'observateur est appelé **après** l'écriture, jamais avant : on ne
- *      notifie pas un événement qui n'a pas été tracé ;
- *   2. il ne peut pas faire échouer `logAudit()` — son exception est attrapée
- *      et rapportée comme telle, distincte d'un échec d'écriture ;
- *   3. il est **synchrone et non attendu** : il doit se contenter d'enfiler une
- *      tâche. Tout travail réel appartient au worker.
+ * Three precautions, because this entry point is fragile:
+ *   1. the observer is called **after** the write, never before: we do not
+ *      notify an event that was not recorded;
+ *   2. it cannot fail `logAudit()` — its exception is caught and reported as
+ *      such, distinct from a write failure;
+ *   3. it is **synchronous and not awaited**: it must merely queue a job. All
+ *      real work belongs to the worker.
  *
- * L'état vit sur `globalThis` et non dans une variable de module : Next découpe
- * le code serveur en chunks et peut charger plusieurs copies de ce module. Avec
- * une variable de module, l'observateur installé au démarrage du panel serait
- * invisible depuis la copie chargée par un Route Handler. Même motif que le
- * cache des paramètres d'instance, et pour la même raison.
+ * The state lives on `globalThis` and not in a module variable: Next splits the
+ * server code into chunks and may load several copies of this module. With a
+ * module variable, the observer installed at the panel's startup would be
+ * invisible from the copy loaded by a Route Handler. The same pattern as the
+ * instance settings cache, and for the same reason.
  */
 export type AuditObserver = (row: AuditLogRow) => void;
 
@@ -93,17 +92,16 @@ declare global {
 }
 
 /**
- * Ce que la requête en cours dit d'elle-même, pour les entrées qui ne le
- * précisent pas : le `User-Agent`, et le jeton d'API par lequel elle s'est
- * authentifiée — c'est ce qui distingue, au journal, ce qu'une personne a fait
- * de ce que sa CI a fait en son nom.
+ * What the current request says about itself, for the entries that do not
+ * specify it: the `User-Agent`, and the API token it authenticated with — that
+ * is what tells apart, in the log, what a person did from what their CI did in
+ * their name.
  *
- * Un fournisseur plutôt qu'un champ ajouté à chaque appel : `logAudit()` est
- * appelé depuis une centaine d'endroits, et un navigateur oublié à l'un d'eux
- * serait un trou silencieux dans le journal. Le panel installe le sien au
- * démarrage (il lit les en-têtes de la requête) ; le worker n'en installe pas
- * — ses actions n'ont pas de requête derrière elles. Même rangement que
- * l'observateur, sur `globalThis`, et pour la même raison.
+ * A provider rather than a field added to each call: `logAudit()` is called from
+ * a hundred places, and a browser forgotten at one of them would be a silent
+ * hole in the log. The panel installs its own at startup (it reads the request's
+ * headers); the worker installs none — its actions have no request behind them.
+ * The same storage as the observer, on `globalThis`, and for the same reason.
  */
 export type AuditContextProvider = () => Promise<{
   userAgent: string | null;
@@ -134,10 +132,10 @@ export function setAuditObserver(observer: AuditObserver | null): void {
 }
 
 /**
- * Un observateur de plus, sous un nom — le temps réel, à côté des
- * notifications. Mêmes trois précautions : appelé après l'écriture, jamais
- * bloquant, jamais capable de faire échouer l'audit. Réinstaller sous le même
- * nom remplace (le HMR de `next dev` réexécute l'installation).
+ * One more observer, under a name — real time, next to notifications. The same
+ * three precautions: called after the write, never blocking, never able to fail
+ * the audit. Installing again under the same name replaces (`next dev`'s HMR
+ * reruns the installation).
  */
 export function setNamedAuditObserver(name: string, observer: AuditObserver | null): void {
   globalThis.__tpAuditObservers ??= new Map();
@@ -161,8 +159,8 @@ function notifyObserver(row: AuditLogRow): void {
 }
 
 /**
- * Écrit une ligne d'audit. Retourne `null` si l'écriture a échoué —
- * l'appelant n'a rien à gérer, l'échec est déjà journalisé en erreur.
+ * Writes an audit line. Returns `null` if the write failed — the caller has
+ * nothing to handle, the failure is already logged as an error.
  */
 export async function logAudit(
   entry: AuditEntryInput,
@@ -187,9 +185,9 @@ export async function logAudit(
         apiTokenId: context.apiTokenId,
       })
       .returning();
-    // `notifyObserver` n'échoue jamais : le placer ici plutôt qu'après le
-    // `try` évite de dupliquer le chemin de retour sans risquer de transformer
-    // un problème de notification en échec d'audit.
+    // `notifyObserver` never fails: placing it here rather than after the `try`
+    // avoids duplicating the return path without risking turning a notification
+    // problem into an audit failure.
     if (row) notifyObserver(row);
     return row ?? null;
   } catch (error) {
@@ -204,7 +202,7 @@ export const auditQuerySchema = z.object({
   actorId: z.string().min(1).max(200).optional(),
   action: z.string().min(1).max(120).optional(),
   resourceType: z.string().min(1).max(60).optional(),
-  /** `high,critical` : une ou plusieurs criticités ; vide, toutes. */
+  /** `high,critical`: one or several severities; empty, all of them. */
   severity: z
     .string()
     .max(60)
@@ -221,22 +219,22 @@ export const auditQuerySchema = z.object({
 
 export type AuditQuery = z.infer<typeof auditQuerySchema>;
 
-/** Les filtres seuls, sans pagination ni ordre : ce que l'export reprend de la liste. */
+/** The filters alone, without pagination or order: what the export takes from the list. */
 export type AuditFilter = Pick<
   AuditQuery,
   'actorId' | 'action' | 'resourceType' | 'from' | 'to' | 'q'
 > & { severity?: AuditSeverity[] };
 
 /**
- * La criticité d'une entrée, calculée en base depuis la table de
- * `@pupitre/core` — celle dont l'écran se sert : la liste filtrée et les
- * pastilles ne peuvent pas se contredire. Les motifs sont écrits en clair dans
- * la requête (ce sont nos constantes, vérifiées ci-dessous), pour que
- * l'expression soit identique partout où elle sert, `GROUP BY` compris.
+ * An entry's severity, computed in the database from `@pupitre/core`'s table —
+ * the one the screen uses: the filtered list and the badges cannot contradict
+ * each other. The patterns are written in clear in the query (they are our
+ * constants, checked below), so that the expression is identical wherever it is
+ * used, `GROUP BY` included.
  */
 const severityExpression: SQL<AuditSeverity> = (() => {
   const literal = (value: string) => {
-    if (!/^[a-z0-9_.%\\]+$/.test(value)) throw new Error(`motif de criticité invalide : ${value}`);
+    if (!/^[a-z0-9_.%\\]+$/.test(value)) throw new Error(`invalid severity pattern: ${value}`);
     return `'${value}'`;
   };
   const branches = AUDIT_SEVERITY_RULES.map(
@@ -246,7 +244,7 @@ const severityExpression: SQL<AuditSeverity> = (() => {
   return sql.raw(`(case ${branches.join(' ')} else 'low' end)`) as SQL<AuditSeverity>;
 })();
 
-/** `%terme%`, jokers de l'utilisateur échappés : on cherche ce qu'il a tapé. */
+/** `%term%`, the user's wildcards escaped: we search for what they typed. */
 function containing(term: string): string {
   return `%${term.replace(/[\\%_]/g, '\\$&')}%`;
 }
@@ -288,7 +286,7 @@ export type AuditLogPage = {
     AuditLogRow & {
       actorEmail: string | null;
       actorName: string | null;
-      /** Le nom du jeton d'API qui a porté l'action, s'il y en a eu un. */
+      /** The name of the API token that carried the action, if there was one. */
       apiTokenName: string | null;
     }
   >;
@@ -337,16 +335,16 @@ export async function listAuditLogs(
   };
 }
 
-/** Nombre d'entrées qui répondent aux filtres. */
+/** Number of entries matching the filters. */
 export async function countAuditLogs(filter: AuditFilter, db: Database = getDb()): Promise<number> {
   const [row] = await db.select({ value: count() }).from(auditLogs).where(auditWhere(filter));
   return row?.value ?? 0;
 }
 
 /**
- * Combien d'entrées par criticité, sous les autres filtres : ce que disent les
- * pastilles du filtre. La criticité choisie n'y entre pas — sinon les autres
- * tomberaient à zéro dès qu'on en coche une.
+ * How many entries per severity, under the other filters: what the filter's
+ * badges say. The chosen severity does not go into it — otherwise the others
+ * would drop to zero as soon as one is ticked.
  */
 export async function countAuditLogsBySeverity(
   filter: AuditFilter,
@@ -368,12 +366,12 @@ export type AuditExportRow = AuditLogRow & {
 };
 
 /**
- * Toutes les entrées qui répondent aux filtres, par lots, de la plus récente à
- * la plus ancienne : c'est la lecture de l'export.
+ * All the entries matching the filters, in batches, from newest to oldest: it is
+ * the export's read.
  *
- * Pagination par curseur `(created_at, id)` et non par décalage : le journal
- * grossit pendant qu'on le lit — l'export lui-même y écrit une ligne — et un
- * décalage ferait alors glisser les pages. `limit` borne le total.
+ * Cursor pagination `(created_at, id)` and not offset: the log grows while it is
+ * read — the export itself writes a line in it — and an offset would then make
+ * the pages slide. `limit` caps the total.
  */
 export async function* iterateAuditLogs(
   filter: AuditFilter,
@@ -423,11 +421,11 @@ export async function* iterateAuditLogs(
 }
 
 /**
- * Les personnes qui apparaissent au journal, pour le filtre « Acteur ».
+ * The people who appear in the log, for the "Actor" filter.
  *
- * Tirées du journal et non de la table des utilisateurs : proposer quelqu'un
- * qui n'a jamais rien fait donnerait une liste vide à chaque fois. Un compte
- * supprimé n'y figure plus — ses entrées ont perdu leur acteur (`set null`).
+ * Taken from the log and not from the users table: offering someone who never
+ * did anything would give an empty list each time. A deleted account no longer
+ * appears — its entries lost their actor (`set null`).
  */
 export async function listAuditActors(
   db: Database = getDb(),
@@ -440,19 +438,19 @@ export async function listAuditActors(
 }
 
 /**
- * Comment une connexion a été achevée : le mot de passe seul, un second
- * facteur, ou la connexion unique.
+ * How a sign-in was completed: password alone, a second factor, or single
+ * sign-on.
  */
 export type SignInMethod = 'password' | 'totp' | 'backup_code' | 'sso';
 
 /**
- * La dernière connexion réussie d'un utilisateur, lue dans le journal — le
- * seul endroit où la méthode est gardée : `auth.login.succeeded` porte
- * `method` quand un second facteur a conclu, rien quand le mot de passe a suffi ;
- * une connexion unique s'écrit `auth.sso.login.succeeded`.
+ * A user's last successful sign-in, read from the log — the only place where the
+ * method is kept: `auth.login.succeeded` carries `method` when a second factor
+ * concluded, nothing when the password was enough; a single sign-on is written
+ * `auth.sso.login.succeeded`.
  *
- * `before` écarte les connexions plus récentes : « Mon compte » y passe le
- * début de la session en cours pour obtenir la connexion **précédente**.
+ * `before` excludes more recent sign-ins: "My account" passes the start of the
+ * current session to get the **previous** sign-in.
  */
 export async function lastSignIn(
   userId: string,

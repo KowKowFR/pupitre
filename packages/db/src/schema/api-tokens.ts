@@ -2,17 +2,17 @@ import { index, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-cor
 import { users } from './auth.js';
 
 /**
- * Jetons d'API : ce qu'une CI présente à la place d'une session de navigateur,
- * dans `Authorization: Bearer pup_…`.
+ * API tokens: what a CI presents instead of a browser session, in
+ * `Authorization: Bearer pup_…`.
  *
- * Un jeton appartient à la personne qui l'a créé et n'agit qu'en son nom. Ses
- * permissions sont un sous-ensemble des siennes, **relues à chaque appel** :
- * un rôle retiré, un compte désactivé ou supprimé, et le jeton perd ce qu'il
- * perd. Il ne peut jamais en faire plus que son auteur.
+ * A token belongs to the person who created it and only acts in their name. Its
+ * permissions are a subset of theirs, **read again at each call**: a role
+ * removed, an account disabled or deleted, and the token loses what it loses. It
+ * can never do more than its author.
  *
- * Le jeton lui-même n'est jamais gardé : seulement son empreinte SHA-256, qui
- * suffit à le reconnaître (il porte 256 bits d'aléa, rien à deviner) et ne
- * permet pas de le reconstituer. Il n'est montré qu'une fois, à sa création.
+ * The token itself is never kept: only its SHA-256 hash, which is enough to
+ * recognize it (it carries 256 bits of randomness, nothing to guess) and does not
+ * allow rebuilding it. It is only shown once, at creation.
  */
 export const apiTokens = pgTable(
   'api_tokens',
@@ -22,23 +22,23 @@ export const apiTokens = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    /** Le début du jeton (`pup_` et huit caractères), pour le reconnaître sans le révéler. */
+    /** The token's start (`pup_` and eight characters), to recognize it without revealing it. */
     prefix: text('prefix').notNull(),
-    /** SHA-256 du jeton, en hexadécimal. */
+    /** The token's SHA-256, in hexadecimal. */
     tokenHash: text('token_hash').notNull().unique(),
-    /** Clés `ressource:action` demandées à la création. */
+    /** `resource:action` keys requested at creation. */
     permissions: jsonb('permissions').$type<string[]>().notNull(),
     /**
-     * Les applications auxquelles le jeton se limite, ou `null` pour toutes.
-     * Limité, il n'est accepté que par les routes qui vérifient l'application
-     * visée — toutes les autres le refusent.
+     * The applications the token is limited to, or `null` for all. Limited, it is
+     * only accepted by the routes that check the targeted application — all the
+     * others refuse it.
      */
     applicationIds: jsonb('application_ids').$type<string[] | null>(),
-    /** `null` : sans échéance. */
+    /** `null`: without expiry. */
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     lastUsedIp: text('last_used_ip'),
-    /** Un jeton révoqué reste en base : le journal continue de dire lequel a agi. */
+    /** A revoked token stays in the database: the log keeps saying which one acted. */
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

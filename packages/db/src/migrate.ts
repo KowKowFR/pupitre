@@ -20,12 +20,12 @@ if (isDirectRun) {
   runMigrations()
     .then(async () => {
       // eslint-disable-next-line no-console
-      console.log(`[db] migrations appliquées depuis ${migrationsFolder}`);
+      console.log(`[db] migrations applied from ${migrationsFolder}`);
       await closeDb();
     })
     .catch(async (error: unknown) => {
       // eslint-disable-next-line no-console
-      console.error('[db] échec des migrations', error);
+      console.error('[db] migrations failed', error);
       await closeDb();
       process.exit(1);
     });
