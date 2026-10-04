@@ -11,32 +11,30 @@ export const dynamic = 'force-dynamic';
 
 const SIGN_IN = '/api/auth/sign-in/email';
 /**
- * Les routes d'administration du plugin `admin` de Better Auth : lister, créer,
- * bannir, supprimer des comptes, changer un mot de passe, se faire passer pour
- * quelqu'un. Pupitre a sa propre API d'administration (`/api/admin/*`), qui
- * passe par `requirePermission()`, tient ses garde-fous et écrit au journal ;
- * celles-ci ne feraient rien de tout cela. Elles sont fermées. Le serveur
- * garde l'usage du plugin (`getAuth().api.createUser`…), qui ne passe pas par
- * HTTP.
+ * The administration routes of Better Auth's `admin` plugin: listing, creating,
+ * banning, deleting accounts, changing a password, impersonating someone.
+ * Pupitre has its own administration API (`/api/admin/*`), which goes through
+ * `requirePermission()`, holds its guardrails and writes to the log; these would
+ * do none of that. They are closed. The server keeps the use of the plugin
+ * (`getAuth().api.createUser`…), which does not go through HTTP.
  */
 const ADMIN_PREFIX = '/api/auth/admin/';
 const SIGN_UP = '/api/auth/sign-up/email';
 const SIGN_OUT = '/api/auth/sign-out';
-/** Second facteur : la connexion ne s'achève qu'ici quand le compte en porte un. */
+/** Second factor: sign-in only completes here when the account carries one. */
 const VERIFY_TOTP = '/api/auth/two-factor/verify-totp';
 const VERIFY_BACKUP_CODE = '/api/auth/two-factor/verify-backup-code';
 /**
- * Le reste du plugin `twoFactor` — activer, désactiver, régénérer les codes de
- * secours — passe par `/api/account/two-factor/*`, qui écrit au journal et
- * refuse de retirer un second facteur que le rôle exige. Ouvertes ici, ces
- * routes contourneraient l'un et l'autre : seules les deux vérifications de la
- * connexion restent joignables.
+ * The rest of the `twoFactor` plugin — enabling, disabling, regenerating the
+ * backup codes — goes through `/api/account/two-factor/*`, which writes to the
+ * log and refuses to remove a second factor the role requires. Open here, these
+ * routes would bypass both: only the sign-in's two verifications stay reachable.
  */
 const TWO_FACTOR_PREFIX = '/api/auth/two-factor/';
-/** Le retour du fournisseur d'identité. Une réussite est tracée par Better Auth (`afterSsoSignIn`). */
+/** The identity provider's return. A success is traced by Better Auth (`afterSsoSignIn`). */
 const SSO_CALLBACK = '/api/auth/callback/';
 
-/** Lit un corps JSON sans casser si ce n'en est pas un. */
+/** Reads a JSON body without breaking if it is not one. */
 async function safeJson(source: Request | Response): Promise<Record<string, unknown>> {
   try {
     const value: unknown = await source.json();
@@ -51,8 +49,8 @@ function asString(value: unknown): string | null {
 }
 
 /**
- * Toutes les requêtes Better Auth passent ici. Les événements sensibles
- * (connexion, déconnexion, inscription) sont tracés via `logAudit()`.
+ * All the Better Auth requests go through here. The sensitive events (sign-in,
+ * sign-out, sign-up) are traced through `logAudit()`.
  */
 async function handle(request: Request): Promise<Response> {
   const path = new URL(request.url).pathname;
@@ -82,7 +80,7 @@ async function handle(request: Request): Promise<Response> {
     return NextResponse.json({ error: { code: 'NOT_FOUND' } }, { status: 404 });
   }
 
-  // L'inscription publique est refusée avant même d'atteindre Better Auth.
+  // Public sign-up is refused before even reaching Better Auth.
   if (path === SIGN_UP && request.method === 'POST' && !(await isSignupOpen())) {
     const attempt = await safeJson(request.clone());
     await logAudit({
@@ -92,8 +90,8 @@ async function handle(request: Request): Promise<Response> {
       after: { reason: 'signup_disabled' },
       ip,
     });
-    // Ce refus ne passe pas par `apiRoute()` — il est écrit à la main pour
-    // garder la forme d'erreur de Better Auth. La langue se lit donc ici.
+    // This refusal does not go through `apiRoute()` — it is written by hand to keep
+    // Better Auth's error shape. So the language is read here.
     const t = await getT(messages);
     return NextResponse.json(
       {
@@ -103,8 +101,8 @@ async function handle(request: Request): Promise<Response> {
     );
   }
 
-  // Un retour du fournisseur qui échoue repart vers la connexion avec
-  // `?error=` : c'est là qu'on le lit, faute de compte à qui l'attribuer.
+  // A provider return that fails goes back to sign-in with `?error=`: it is read
+  // there, for lack of an account to attribute it to.
   if (path.startsWith(SSO_CALLBACK) && request.method === 'GET') {
     const response = await getAuth().handler(request);
     const location = response.headers.get('location');
@@ -125,7 +123,7 @@ async function handle(request: Request): Promise<Response> {
     return getAuth().handler(request);
   }
 
-  // La déconnexion efface la session : on identifie l'acteur avant l'appel.
+  // Sign-out erases the session: we identify the actor before the call.
   const before = path === SIGN_OUT ? await getSession(request.headers) : null;
   const probe = await safeJson(request.clone());
 
@@ -140,9 +138,9 @@ async function handle(request: Request): Promise<Response> {
   const attemptedEmail = asString(probe.email);
 
   if (path === SIGN_IN) {
-    // Un 200 ne vaut pas connexion : quand un second facteur est armé, Better
-    // Auth répond `twoFactorRedirect` sans poser de session. Tracer cela comme
-    // une connexion réussie mentirait au journal.
+    // A 200 is not a sign-in: when a second factor is armed, Better Auth answers
+    // `twoFactorRedirect` without setting a session. Tracing that as a successful
+    // sign-in would lie to the log.
     const pendingSecondFactor = succeeded && body.twoFactorRedirect === true;
     const action = pendingSecondFactor
       ? 'auth.login.two_factor_required'
@@ -162,10 +160,10 @@ async function handle(request: Request): Promise<Response> {
       ip,
     });
     if (!succeeded) {
-      logger.warn({ email: attemptedEmail, ip, status: response.status }, 'connexion refusée');
+      logger.warn({ email: attemptedEmail, ip, status: response.status }, 'sign-in refused');
     }
   } else if (isSecondFactor) {
-    // Le code lui-même n'entre jamais dans le journal, pas plus que le secret.
+    // The code itself never enters the log, any more than the secret.
     const method = path === VERIFY_TOTP ? 'totp' : 'backup_code';
     await logAudit({
       actorId: succeeded ? asString(user.id) : null,
@@ -176,11 +174,11 @@ async function handle(request: Request): Promise<Response> {
       ip,
     });
     if (!succeeded) {
-      logger.warn({ ip, method, status: response.status }, 'second facteur refusé');
+      logger.warn({ ip, method, status: response.status }, 'second factor refused');
     }
   } else if (path === SIGN_UP) {
-    // La ligne `user.created` est écrite par le hook Better Auth ; ici on trace
-    // l'inscription elle-même, avec le nouvel utilisateur pour acteur.
+    // The `user.created` line is written by the Better Auth hook; here we trace the
+    // sign-up itself, with the new user as actor.
     await logAudit({
       actorId: succeeded ? asString(user.id) : null,
       action: succeeded ? 'auth.signup.succeeded' : 'auth.signup.failed',

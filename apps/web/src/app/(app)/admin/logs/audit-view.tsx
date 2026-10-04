@@ -36,7 +36,7 @@ import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 import { describeUserAgent } from '@/lib/user-agent';
 
-/** Une entrée du journal, telle que la page la sérialise. */
+/** A log entry, as the page serializes it. */
 export type AuditEntry = {
   id: string;
   createdAt: string;
@@ -46,9 +46,9 @@ export type AuditEntry = {
   resourceType: string;
   resourceId: string | null;
   ip: string | null;
-  /** Le navigateur de la requête, tel qu'il s'annonce ; `null` pour le worker. */
+  /** The request's browser, as it announces itself; `null` for the worker. */
   userAgent: string | null;
-  /** Le jeton d'API par lequel l'acteur a agi ; `null` depuis le panel. */
+  /** The API token through which the actor acted; `null` from the panel. */
   apiTokenName: string | null;
   before: unknown;
   after: unknown;
@@ -66,31 +66,31 @@ type Filters = {
 
 const FILTER_KEYS = ['q', 'severity', 'action', 'resourceType', 'actorId', 'from', 'to'] as const;
 
-/** Les actions qui disent un refus : le tiroir le dit au mot, à côté de la criticité. */
+/** The actions that tell a refusal: the drawer says so in words, next to the severity. */
 const DENIAL_ACTIONS = new Set([
   'permission.denied',
   'auth.login.failed',
   'auth.signup.blocked',
-  // Une écriture venue d'une autre origine, une route de Better Auth fermée.
+  // A write from another origin, a closed Better Auth route.
   'request.cross_site.refused',
   'auth.admin_route.refused',
   'auth.two_factor_route.refused',
 ]);
 
-/** Les criticités de la requête, dans l'ordre de l'échelle. */
+/** The query's severities, in the scale's order. */
 function selectedSeverities(value: string): AuditSeverity[] {
   const wanted = new Set(value.split(','));
   return AUDIT_SEVERITIES.filter((severity) => wanted.has(severity));
 }
 
 /**
- * Le journal se lit, il ne se traduit pas.
+ * The log is read, it is not translated.
  *
- * Une entrée ne porte que des données : un nom d'action (`deployment.created`),
- * un type de ressource, un identifiant, une IP, une charge utile JSON. Aucune
- * n'est de la prose, et traduire à l'écriture aurait figé la langue de la trace
- * pour toujours. Ce qui se traduit ici, c'est le décor : en-têtes, filtres,
- * pagination, « système / anonyme », la note de fuseau.
+ * An entry only carries data: an action name (`deployment.created`), a resource
+ * type, an identifier, an IP, a JSON payload. None is prose, and translating at
+ * write time would have frozen the trace's language forever. What is translated
+ * here is the setting: headers, filters, pagination, "system / anonymous", the
+ * time zone note.
  */
 export function AuditView({
   items,
@@ -102,9 +102,9 @@ export function AuditView({
 }: {
   items: AuditEntry[];
   page: { page: number; totalPages: number; pageSize: number };
-  /** Combien d'entrées par criticité, sous les autres filtres. */
+  /** How many entries per severity, under the other filters. */
   severityCounts: Record<AuditSeverity, number>;
-  /** Les personnes présentes au journal, pour le filtre « Acteur ». */
+  /** The people present in the log, for the "Actor" filter. */
   actors: Array<{ id: string; email: string }>;
   filters: Filters;
   format: FormatSettings;
@@ -158,7 +158,7 @@ export function AuditView({
               name="q"
               type="search"
               className="input-sm pl-8"
-              // La clé remonte le champ quand l'URL change (réinitialiser, retour arrière).
+              // The key remounts the field when the URL changes (reset, going back).
               key={filters.q}
               defaultValue={filters.q}
               placeholder={t('logs.filter.search.placeholder')}
@@ -171,8 +171,8 @@ export function AuditView({
             id="actorId"
             name="actorId"
             className="input-sm"
-            // La clé remonte le champ quand l'URL change de filtre (lien
-            // « Filtrer sur cet acteur », retour arrière).
+            // The key remounts the field when the URL changes filter ("Filter on this
+            // actor" link, going back).
             key={filters.actorId}
             defaultValue={filters.actorId}
           >
@@ -183,8 +183,8 @@ export function AuditView({
               </option>
             ))}
             {filters.actorId && !actors.some((actor) => actor.id === filters.actorId) ? (
-              // Un identifiant passé à la main qui n'a rien au journal : on le
-              // montre tel quel plutôt que de faire croire à « Tous ».
+              // An identifier passed by hand that has nothing in the log: we show it as is
+              // rather than make it look like "All".
               <option value={filters.actorId}>{filters.actorId}</option>
             ) : null}
           </Select>
@@ -359,7 +359,7 @@ export function AuditView({
   );
 }
 
-/** Les quatre criticités, en puces : chacune s'ajoute ou se retire du filtre. */
+/** The four severities, as chips: each one is added to or removed from the filter. */
 function SeverityFilter({
   selected,
   counts,
@@ -368,13 +368,13 @@ function SeverityFilter({
 }: {
   selected: AuditSeverity[];
   counts: Record<AuditSeverity, number>;
-  /** Le lien qui applique cette liste de criticités (`''` : toutes). */
+  /** The link that applies this list of severities (`''`: all of them). */
   hrefFor: (severity: string) => string;
-  /** Les filtres venus d'un lien (action, type de ressource), à retirer d'un clic. */
+  /** The filters that came from a link (action, resource type), removable with a click. */
   extra: Array<{ key: string; label: string; href: string }>;
 }) {
   const t = useT(admin);
-  // De la plus grave à la plus anodine : l'œil cherche d'abord le rouge.
+  // From the most serious to the most harmless: the eye looks for red first.
   const scale = [...AUDIT_SEVERITIES].reverse();
 
   return (
@@ -420,7 +420,7 @@ const SEVERITY_DOT: Record<AuditSeverity, string> = {
   low: 'sev-l',
 };
 
-/** La criticité d'une entrée, en aplat de couleur, avec son explication au survol. */
+/** An entry's severity, as a color block, with its explanation on hover. */
 function SeverityTag({ severity }: { severity: AuditSeverity }) {
   const t = useT(admin);
   return (
@@ -432,13 +432,13 @@ function SeverityTag({ severity }: { severity: AuditSeverity }) {
   );
 }
 
-/** Une charge utile JSON, indentée : lisible sans outil, copiable telle quelle. */
+/** A JSON payload, indented: readable without a tool, copyable as is. */
 function payloadOf(entry: AuditEntry): string | null {
   const parts: Record<string, unknown> = {};
   if (entry.before !== null && entry.before !== undefined) parts.before = entry.before;
   if (entry.after !== null && entry.after !== undefined) parts.after = entry.after;
   if (Object.keys(parts).length === 0) return null;
-  // Une seule moitié présente : on la montre nue, sans l'enveloppe.
+  // Only one half present: we show it bare, without the envelope.
   const only = Object.keys(parts).length === 1 ? Object.values(parts)[0] : parts;
   return JSON.stringify(only, null, 2);
 }
@@ -512,8 +512,8 @@ function EntryDrawer({
               },
               {
                 term: t('logs.column.agent'),
-                // L'en-tête complet reste lisible au survol : le résumé suffit
-                // à reconnaître un appareil, pas à enquêter.
+                // The complete header stays readable on hover: the summary is enough to
+                // recognize a device, not to investigate.
                 value: entry.userAgent ? (
                   <span className="t-sm" title={entry.userAgent}>
                     {describeUserAgent(entry.userAgent)}

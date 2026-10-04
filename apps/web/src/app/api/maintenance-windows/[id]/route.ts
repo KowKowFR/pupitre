@@ -25,7 +25,7 @@ async function load(id: string) {
   return window;
 }
 
-/** Une fenêtre, avec les alertes qu'elle a retenues. */
+/** A window, with the alerts it held. */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'maintenance:read');
   const { id } = paramsSchema.parse(await context.params);
@@ -37,10 +37,9 @@ export const GET = apiRoute<Context>(async (request, context) => {
 });
 
 /**
- * Modifier une fenêtre — et la terminer : `{ "endsAt": maintenant }`. Une
- * fenêtre terminée ne se modifie plus : sa fin a été traitée, ce qui devait
- * partir est parti, et la rouvrir retiendrait des alertes que personne ne
- * libérerait.
+ * Editing a window — and ending it: `{ "endsAt": now }`. A finished window can no
+ * longer be edited: its end was handled, what had to go out went out, and
+ * reopening it would hold alerts nobody would release.
  */
 export const PATCH = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'maintenance:manage');
@@ -51,7 +50,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     throw new ConflictError(msg(messages, 'error.ended'));
   }
 
-  // Les règles s'appliquent à la fenêtre qui en résulte, pas au seul correctif.
+  // The rules apply to the resulting window, not to the patch alone.
   const merged = createMaintenanceSchema.parse({
     title: patch.title ?? current.title,
     note: patch.note !== undefined ? patch.note : current.note,
@@ -92,9 +91,9 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
 });
 
 /**
- * Supprimer une fenêtre à venir, ou l'historique d'une fenêtre terminée. Une
- * fenêtre **en cours** ne se supprime pas : ses alertes retenues disparaîtraient
- * avec elle. On la termine (`PATCH endsAt`), et sa fin libère ce qui doit partir.
+ * Deleting an upcoming window, or a finished window's history. An **ongoing**
+ * window is not deleted: its held alerts would disappear with it. It is ended
+ * (`PATCH endsAt`), and its end releases what must go out.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'maintenance:manage');

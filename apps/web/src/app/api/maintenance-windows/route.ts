@@ -9,8 +9,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les fenêtres de maintenance : en cours et à venir, puis les vingt dernières
- * terminées. Chaque sujet n'est rendu qu'à qui peut le lire.
+ * The maintenance windows: ongoing and upcoming, then the last twenty finished
+ * ones. Each subject is only returned to whoever can read it.
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'maintenance:read');

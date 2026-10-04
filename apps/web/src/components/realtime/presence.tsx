@@ -10,9 +10,9 @@ import { cn } from '@/lib/utils';
 import { useOptionalRealtime, useRealtime, type Member } from './realtime-provider';
 
 /**
- * Les pastilles de présence : vert en ligne, orange absent, rouge barré ne
- * pas déranger, cercle vide hors ligne. La forme double la couleur, et le mot
- * suit toujours — à côté, ou en nom accessible.
+ * The presence chips: green online, orange away, red barred do not disturb,
+ * empty circle offline. The shape doubles the color, and the word always follows
+ * — beside it, or as an accessible name.
  */
 
 const ORDER: Record<PresenceStatus, number> = { online: 0, busy: 1, away: 2, offline: 3 };
@@ -37,7 +37,7 @@ export function PresenceDot({
   );
 }
 
-/** L'avatar d'une personne, avec sa pastille. Hors du fournisseur, l'avatar seul. */
+/** A person's avatar, with their chip. Outside the provider, the avatar alone. */
 export function PresenceAvatar({
   userId,
   name,
@@ -58,7 +58,7 @@ export function PresenceAvatar({
   );
 }
 
-/** Les membres, triés : en ligne, occupés, absents, puis hors ligne ; à nom égal, par nom. */
+/** The members, sorted: online, busy, away, then offline; with equal status, by name. */
 export function sortByPresence(
   members: readonly Member[],
   statusOf: (userId: string) => PresenceStatus,
@@ -69,11 +69,10 @@ export function sortByPresence(
 }
 
 /**
- * La barre haute : qui d'autre est là (quelques avatars, puis « +3 »). Un clic
- * ouvre la liste complète de l'équipe, soi compris, et de là, la discussion.
- * Le compte « en ligne » inclut la personne qui regarde : seule, elle lit
- * « 1 en ligne », pas « 0 ». La discussion elle-même vit dans sa bulle, en bas
- * à droite de chaque écran.
+ * The top bar: who else is there (a few avatars, then "+3"). A click opens the
+ * team's complete list, oneself included, and from there, the chat. The "online"
+ * count includes the person looking: alone, they read "1 online", not "0". The
+ * chat itself lives in its bubble, at the bottom right of each screen.
  */
 export function TeamPresence() {
   const t = useT(messages);
@@ -153,7 +152,7 @@ function TeamMember({
 }: {
   member: Member;
   status: PresenceStatus;
-  /** « vous », pour la ligne de la personne qui regarde. */
+  /** "you", for the row of the person looking. */
   you?: string;
 }) {
   const t = useT(messages);

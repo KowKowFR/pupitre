@@ -13,11 +13,11 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Historique des versions déployées d'une application.
+ * The history of an application's deployed versions.
  *
- * Il n'y a pas de table « versions » : le déploiement *est* la version, et son
- * `app_spec` figée est ce qui rend un redéploiement possible longtemps après,
- * même si l'application a changé depuis.
+ * There is no "versions" table: the deployment *is* the version, and its frozen
+ * `app_spec` is what makes a redeployment possible long after, even if the
+ * application has changed since.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'application:read');

@@ -29,9 +29,9 @@ const ICON_COLOR: Record<ToastTone, string> = {
 };
 
 /**
- * La pile de toasts, en bas à droite. Rendue une fois, dans la coquille.
- * `aria-live="polite"` : un toast s'annonce sans couper la parole ; une
- * erreur passe en `role="alert"`.
+ * The toasts stack, at the bottom right. Rendered once, in the shell.
+ * `aria-live="polite"`: a toast announces itself without interrupting; an error
+ * goes `role="alert"`.
  */
 export function Toaster() {
   const t = useT(chrome);
@@ -57,8 +57,8 @@ function Toast({ item, dismissLabel }: { item: ToastItem; dismissLabel: string }
   const remaining = React.useRef(item.life);
   const startedAt = React.useRef(0);
 
-  // La minuterie suit la barre : elle s'arrête au survol et reprend là où elle
-  // en était, pour que la barre ne mente jamais sur le temps qui reste.
+  // The timer follows the bar: it stops on hover and resumes where it was, so that
+  // the bar never lies about the time left.
   React.useEffect(() => {
     if (item.life === null || item.closing) return;
     if (paused) {

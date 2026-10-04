@@ -15,14 +15,14 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * « Sonder maintenant ».
+ * "Probe now".
  *
- * La route **enfile et rend la main** : sonder, c'est du réseau avec un délai
- * qui peut aller à trente secondes, et une route HTTP n'est pas l'endroit pour
- * ça. Le résultat arrive par la sonde elle-même, et l'écran le relit.
+ * The route **queues and gives control back**: probing is network with a delay
+ * that can go up to thirty seconds, and an HTTP route is not the place for that.
+ * The result arrives through the probe itself, and the screen reads it again.
  *
- * `monitor:manage` et non `monitor:read` : déclencher une requête sortante est
- * un geste, pas une lecture.
+ * `monitor:manage` and not `monitor:read`: triggering an outgoing request is a
+ * gesture, not a read.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'monitor:manage');
@@ -31,16 +31,16 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const monitor = await getMonitor(id);
   if (!monitor) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id }));
 
-  // Avancer l'échéance sert au cas où le worker enfilerait la tâche après le
-  // prochain balayage : la sonde serait due de toute façon.
+  // Bringing the due time forward serves the case where the worker would queue the
+  // job after the next sweep: the probe would be due anyway.
   await markMonitorDue(id);
 
   const job = await getSupervisionQueue().add(
     MONITOR_SWEEP_JOB,
     monitorSweepJobDataSchema.parse({
       monitorId: id,
-      // Une sonde suspendue se sonde quand même à la demande : c'est justement
-      // comme ça qu'on vérifie qu'elle peut être reprise.
+      // A paused probe is probed on demand all the same: it is precisely how one
+      // checks that it can be resumed.
       force: true,
       actorId: auth.userId,
       ip: auth.ip,

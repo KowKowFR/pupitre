@@ -1,22 +1,22 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les serveurs supervisés : la liste par machine, les relevés instantanés,
- * l'historique des dernières 24 heures et le réglage des seuils.
+ * The monitored servers: the list per machine, the instant readings, the last 24
+ * hours' history and the thresholds setting.
  *
- * ── Deux sources, deux vocabulaires ─────────────────────────────────────────
- * Une **mesure** vient d'une sonde, un **relevé** vient d'un balayage de
- * machine. Le français les distingue déjà, l'anglais garde la distinction —
- * *sample* et *readout* — parce que les deux compteurs s'affichent parfois dans
- * la même phrase et qu'un seul mot les rendrait illisibles.
+ * ── Two sources, two vocabularies ───────────────────────────────────────────
+ * A **measurement** comes from a probe, a **reading** comes from a machine sweep.
+ * French already tells them apart, English keeps the distinction — *sample* and
+ * *readout* — because both counters sometimes show in the same sentence and a
+ * single word would make them unreadable.
  *
- * ── Ce qui reste littéral ───────────────────────────────────────────────────
- * `/proc/loadavg`, `MemAvailable`, `df`, `target:read` : ce sont des noms de
- * fichiers, de champs et de permissions. Les traduire enverrait le lecteur
- * chercher quelque chose qui n'existe pas sur sa machine.
+ * ── What stays literal ──────────────────────────────────────────────────────
+ * `/proc/loadavg`, `MemAvailable`, `df`, `target:read`: they are file, field and
+ * permission names. Translating them would send the reader looking for something
+ * that does not exist on their machine.
  */
 const fr = {
-  // ── En-tête de l'écran ──────────────────────────────────────────────────
+  // ── The screen's header ─────────────────────────────────────────────────
   'page.title': 'Supervision',
   'page.description':
     "Une carte par machine : comment elle se porte, et ce qu'elle porte. Les relevés se renouvellent toutes les 5 minutes, ou à la demande.",
@@ -87,14 +87,14 @@ const fr = {
   'action.logs': 'Logs',
   'action.restart': 'Redémarrer',
   'action.restart.busy': 'Envoi…',
-  /** Âge d'un état, en abrégé : ces unités tiennent dans une colonne étroite. */
+  /** A state's age, abbreviated: these units fit in a narrow column. */
   'since.none': '—',
   'since.seconds': '{count} s',
   'since.minutes': '{count} min',
   'since.hours': '{count} h',
   'since.days': '{count} j',
 
-  // ── Relevé instantané ───────────────────────────────────────────────────
+  // ── Instant reading ─────────────────────────────────────────────────────
   'readout.restricted':
     'Relevé indisponible — la permission « target:read » est requise pour interroger la machine.',
   'readout.pending': 'Relevé en cours…',
@@ -165,7 +165,7 @@ const fr = {
   'breach.since.hours': 'depuis {count} h',
   'breach.since.days': 'depuis {count} j',
 
-  // ── Réglage des seuils ──────────────────────────────────────────────────
+  // ── Thresholds setting ──────────────────────────────────────────────────
   'thresholds.button': 'Seuils',
   'thresholds.aria': 'Régler les seuils de {name}',
   'thresholds.title': 'Seuils de {name}',

@@ -18,9 +18,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * La destination des sauvegardes. Les identifiants ne sortent jamais : la
- * réponse dit **lesquels** sont renseignés (`secretFields`), pas leur valeur.
- * Un champ secret absent du corps est conservé ; une chaîne vide l'efface.
+ * The backups' destination. The credentials never come out: the response says
+ * **which** ones are filled in (`secretFields`), not their value. A secret field
+ * absent from the body is kept; an empty string clears it.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'settings:read');
@@ -39,8 +39,8 @@ export const PUT = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');
   const body = await readJsonBody(request, bodySchema);
   const input = { ...body, name: body.name ?? (await getT(messages))('destination.defaultName') };
-  // `saveBackupDestination` valide l'ensemble — réglages et secrets conservés
-  // compris — et lève une `ZodError` (422) sur une destination incomplète.
+  // `saveBackupDestination` validates the whole — settings and kept secrets
+  // included — and throws a `ZodError` (422) on an incomplete destination.
   const saved = await saveBackupDestination(input);
   await logAudit({
     actorId: auth.userId,
@@ -55,7 +55,7 @@ export const PUT = apiRoute(async (request) => {
     },
     ip: auth.ip,
   });
-  // Une destination qu'on vient de régler, on la teste tout de suite.
+  // A destination that was just set is tested right away.
   await getSupervisionQueue().add(BACKUP_DESTINATION_CHECK_JOB, {
     destinationId: saved.id,
     actorId: auth.userId,

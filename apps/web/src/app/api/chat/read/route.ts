@@ -8,10 +8,10 @@ import { requireTeamMember } from '@/lib/rbac';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Pas dans le futur : un marqueur en avance masquerait les messages suivants. */
+/** Not in the future: a marker ahead would hide the following messages. */
 const bodySchema = z.object({ at: z.coerce.date() });
 
-/** « J'ai lu jusqu'ici. » Le marqueur n'avance jamais en arrière. */
+/** "I have read up to here." The marker never moves backwards. */
 export const POST = apiRoute(async (request) => {
   const auth = await requireTeamMember(request);
   const { at } = await readJsonBody(request, bodySchema);

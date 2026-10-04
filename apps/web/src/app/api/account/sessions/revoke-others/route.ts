@@ -9,12 +9,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Ferme toutes les sessions de l'appelant **sauf** celle de la requête. Les
- * autres appareils reviennent à l'écran de connexion à leur prochain appel.
+ * Closes all the caller's sessions **except** the request's. The other devices
+ * go back to the sign-in screen at their next call.
  *
- * Le décompte est pris avant la fermeture : il dit au journal combien
- * d'appareils ont été déconnectés, et il permet de ne rien écrire quand il
- * n'y avait rien à fermer.
+ * The count is taken before closing: it tells the log how many devices were
+ * signed out, and it allows writing nothing when there was nothing to close.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requireSession(request);

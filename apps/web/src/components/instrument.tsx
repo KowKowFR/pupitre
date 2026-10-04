@@ -5,9 +5,9 @@ import { cn } from '@/lib/utils';
 export { Led, type Tone };
 
 /**
- * Relevé chiffré. L'étiquette est en casse de phrase, précédée de son voyant ;
- * le nombre est en chiffres tabulaires, suivi de son unité en gris : deux
- * relevés côte à côte s'alignent, même quand l'un passe de 9 à 10.
+ * A numeric readout. The label is in sentence case, preceded by its indicator;
+ * the number is in tabular figures, followed by its unit in gray: two readouts
+ * side by side line up, even when one goes from 9 to 10.
  */
 export function Readout({
   label,
@@ -24,7 +24,7 @@ export function Readout({
   tone?: Tone;
   pulse?: boolean;
   hint?: ReactNode;
-  /** Une méta à droite de l'étiquette : la tendance (« stable », « +6 pt »). */
+  /** A meta to the right of the label: the trend ("stable", "+6 pt"). */
   aside?: ReactNode;
 }) {
   return (
@@ -46,11 +46,11 @@ export function Readout({
 }
 
 /**
- * Bande de relevés : quatre colonnes séparées par des filets. Requête de
- * conteneur et non de fenêtre : c'est la largeur disponible pour la bande qui
- * décide du passage à deux colonnes, pas celle de l'écran.
+ * A readings band: four columns separated by rules. A container query and not a
+ * viewport one: it is the width available to the band that decides the switch to
+ * two columns, not the screen's.
  *
- * `bare` la pose sans carte, pour l'insérer dans une carte existante.
+ * `bare` sets it without a card, to insert it into an existing card.
  */
 export function ReadoutBar({
   children,
@@ -60,7 +60,7 @@ export function ReadoutBar({
 }: {
   children: ReactNode;
   bare?: boolean;
-  /** Cases resserrées et chiffres plus petits, pour une bande logée dans une carte. */
+  /** Tighter cells and smaller figures, for a band housed in a card. */
   compact?: boolean;
   className?: string;
 }) {

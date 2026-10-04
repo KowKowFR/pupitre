@@ -14,10 +14,10 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Une image de la discussion. Les mêmes portes que le fil : une session suffit.
- * Immuable — une image jointe ne change jamais —, donc gardée en cache, mais
- * `private` : elle n'a rien à faire dans un cache partagé. Celle d'un message
- * effacé n'existe plus (404) : ses octets sont partis avec lui.
+ * A chat image. The same doors as the thread: a session is enough. Immutable — an
+ * attached image never changes —, hence kept in cache, but `private`: it has no
+ * business in a shared cache. A deleted message's image no longer exists (404):
+ * its bytes went with it.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requireTeamMember(request);

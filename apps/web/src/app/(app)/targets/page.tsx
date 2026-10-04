@@ -29,15 +29,15 @@ function readFilters(params: Record<string, string | string[] | undefined>) {
 }
 
 /**
- * Les cibles : la liste, et la fiche de chacune dans un tiroir
- * (`?target=prod-1`) — son aperçu, puis ses charges, son reverse proxy, ses
- * ports, son preflight et sa configuration, rendus ici quand il est ouvert.
+ * The targets: the list, and each one's record in a drawer (`?target=prod-1`) —
+ * its overview, then its workloads, its reverse proxy, its ports, its preflight
+ * and its configuration, rendered here when it is open.
  *
- * Tout ce que le drawer affiche est lu ici, en une fois : un parc compte des
- * dizaines de machines, pas des milliers, et un aperçu qui s'ouvre sans
- * attendre vaut les quelques lectures de plus. Chaque lecture est celle d'un
- * écran existant — l'historique machine, les applications supervisées, le
- * rapport de ports, le décompte qui conditionne la suppression.
+ * Everything the drawer shows is read here, at once: a fleet counts dozens of
+ * machines, not thousands, and an overview that opens without waiting is worth
+ * the few extra reads. Each read is that of an existing screen — the machine
+ * history, the monitored applications, the ports report, the count that
+ * conditions deletion.
  */
 export default async function TargetsPage({
   searchParams,
@@ -117,8 +117,8 @@ export default async function TargetsPage({
     };
   });
 
-  // La fiche ouverte : par son nom, ou par son identifiant (un lien d'avant
-  // les tiroirs, `/targets/<uuid>`, arrive ici ainsi).
+  // The open record: by its name, or by its identifier (a link from before the
+  // drawers, `/targets/<uuid>`, arrives here that way).
   const wanted = params.target;
   const selected =
     typeof wanted === 'string'

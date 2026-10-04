@@ -47,7 +47,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     cronDescription: describeCron(row.cron, { locale: language, timeZone }),
     schedule: fromCron(row.cron),
     timeZone,
-    // Fuseau réellement mémorisé par BullMQ, pour rendre l'écart visible.
+    // The time zone really stored by BullMQ, to make the gap visible.
     schedulerTimeZone: states.get(row.key)?.timeZone ?? null,
     payload: row.payload,
     enabled: row.enabled,
@@ -80,9 +80,9 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const row = await updateScheduledJob(id, patch);
   if (!row) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  // Base d'abord, Redis ensuite : voir `lib/schedules.ts`. Un changement de
-  // fuseau passe par le même `upsertJobScheduler`, qui recalcule la prochaine
-  // occurrence : il n'y a rien à retirer puis réinstaller à la main.
+  // The database first, Redis next: see `lib/schedules.ts`. A time zone change goes
+  // through the same `upsertJobScheduler`, which recomputes the next occurrence:
+  // there is nothing to remove then reinstall by hand.
   await syncScheduler(row);
 
   await logAudit({

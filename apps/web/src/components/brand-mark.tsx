@@ -1,12 +1,12 @@
 import { cn } from '@/lib/utils';
 
 /**
- * La tuile Pupitre : un P dont la panse est le plateau incliné d'un lutrin,
- * avec deux lignes de partition.
+ * The Pupitre tile: a P whose bowl is a lectern's tilted board, with two staff
+ * lines.
  *
- * Les couleurs sont celles de la marque, pas des jetons : la tuile reste
- * outremer et le glyphe blanc dans les deux thèmes, comme sur les planches.
- * C'est un logo, pas un élément d'interface qui suivrait l'accent.
+ * The colors are the brand's, not the tokens': the tile stays ultramarine and the
+ * glyph white in both themes, as on the boards. It is a logo, not an interface
+ * element that would follow the accent.
  */
 const GLYPH =
   'M5 7.1 L17.3 4.7 Q20 4.2 20 6.9 L20 12.1 Q20 14.7 17.5 14.7 L9.5 14.7 L9.5 19.3 ' +
@@ -46,8 +46,8 @@ export function BrandMark({ size = 28, className }: { size?: number; className?:
 }
 
 /**
- * Le mot-symbole « pupitre » : minuscules, condensé à 90 %, interlettrage
- * serré. C'est un nom de produit, pas une phrase — il ne se traduit pas.
+ * The "pupitre" wordmark: lowercase, condensed to 90%, tight letter spacing. It
+ * is a product name, not a sentence — it is not translated.
  */
 export function Wordmark({ size = 22, className }: { size?: number; className?: string }) {
   return (

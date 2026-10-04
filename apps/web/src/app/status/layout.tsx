@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 
 /**
- * Le cadre des pages de statut publiques : ni rail, ni barre, ni session —
- * une colonne centrée sur le fond de l'application, dans son thème.
+ * The frame of the public status pages: no rail, no bar, no session — a column
+ * centered on the application's background, in its theme.
  */
 export default function StatusLayout({ children }: { children: ReactNode }) {
   return <main className="min-h-dvh bg-bg px-4 py-10 sm:py-16">{children}</main>;

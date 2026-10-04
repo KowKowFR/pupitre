@@ -3,10 +3,9 @@ import { cn } from '@/lib/utils';
 import { TableScroller } from './table-scroller';
 
 /**
- * Tableau du kit : en-tête de 36 px sur `surface-2`, lignes de 48 px (40 en
- * `dense`), texte à 13 px. Une ligne cliquable (`interactive`) prend le fond
- * `surface-2` au survol ; une ligne sélectionnée prend l'outremer doux et un
- * liseré gauche de 2 px.
+ * The kit's table: a 36 px header on `surface-2`, 48 px rows (40 in `dense`),
+ * 13 px text. A clickable row (`interactive`) takes the `surface-2` background on
+ * hover; a selected row takes the soft ultramarine and a 2 px left border.
  */
 function Table({
   className,
@@ -54,16 +53,16 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
 }
 
 /**
- * Cellule d'actions, épinglée au bord droit du conteneur défilant.
+ * An actions cell, pinned to the scrolling container's right edge.
  *
- * Une colonne d'actions est la seule dont on ne peut pas se passer : on peut
- * lire un tableau sans voir la date, on ne peut pas cliquer un bouton qu'on ne
- * voit pas. `position: sticky` est inerte tant que rien ne déborde.
+ * An actions column is the only one one cannot do without: one can read a table
+ * without seeing the date, one cannot click a button one does not see.
+ * `position: sticky` is inert as long as nothing overflows.
  *
- * Le fond est peint explicitement, sans quoi les colonnes défileraient
- * visiblement dessous ; il suit le survol et la sélection de sa ligne. Le
- * filet et l'ombre n'apparaissent que si quelque chose est réellement caché
- * dessous — d'où la lecture de `data-more-right`, posé par `TableScroller`.
+ * The background is painted explicitly, otherwise the columns would visibly
+ * scroll underneath; it follows its row's hover and selection. The rule and the
+ * shadow only appear if something is really hidden underneath — hence reading
+ * `data-more-right`, set by `TableScroller`.
  */
 function TableActions({ className, ...props }: React.ComponentProps<'td'>) {
   return (
@@ -84,7 +83,7 @@ function TableActions({ className, ...props }: React.ComponentProps<'td'>) {
   );
 }
 
-/** Son en-tête. Épinglé pour la même raison, et pour rester au-dessus de sa colonne. */
+/** Its header. Pinned for the same reason, and to stay above its column. */
 function TableActionsHead({ className, ...props }: React.ComponentProps<'th'>) {
   return (
     <th

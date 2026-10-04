@@ -24,17 +24,17 @@ type Context = { params: Promise<{ id: string }> };
 const HEARTBEAT_MS = 15_000;
 
 /**
- * Flux SSE des logs d'un déploiement.
+ * A deployment's logs SSE stream.
  *
- * L'ordre des opérations est ce qui garantit l'absence de trou :
+ * The order of operations is what guarantees there is no gap:
  *
- *   1. on s'abonne à Redis **avant** de lire l'historique ;
- *   2. les messages qui arrivent pendant la lecture sont mis de côté ;
- *   3. on envoie l'historique persisté ;
- *   4. on vide la file d'attente, puis on passe en direct.
+ *   1. we subscribe to Redis **before** reading the history;
+ *   2. the messages arriving during the read are set aside;
+ *   3. we send the persisted history;
+ *   4. we empty the waiting queue, then go live.
  *
- * S'abonner après la lecture perdrait tout ce qui se produit entre les deux.
- * Lire l'historique après avoir vidé la file le doublonnerait.
+ * Subscribing after the read would lose everything that happens in between.
+ * Reading the history after emptying the queue would duplicate it.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:read', { applicationScoped: true });
@@ -46,8 +46,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
   const channel = deployChannel(id);
   const encoder = new TextEncoder();
-  // Connexion dédiée : en mode `subscribe`, une connexion Redis n'accepte plus
-  // d'autres commandes. Elle est fermée à la déconnexion du client.
+  // A dedicated connection: in `subscribe` mode, a Redis connection no longer
+  // accepts other commands. It is closed when the client disconnects.
   const subscriber = new Redis(getEnv().REDIS_URL, { maxRetriesPerRequest: null });
 
   let heartbeat: NodeJS.Timeout | null = null;
@@ -60,7 +60,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     try {
       await subscriber.unsubscribe(channel);
     } catch {
-      // La connexion peut déjà être tombée : rien à sauver.
+      // The connection may already have dropped: nothing to save.
     }
     subscriber.disconnect();
   };
@@ -78,7 +78,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         }
       };
 
-      /** Empêche un doublon entre historique relu et message reçu en direct. */
+      /** Prevents a duplicate between the history read back and a message received live. */
       const seen = new Set<string>();
       const fingerprint = (message: DeployMessage): string =>
         message.kind === 'log'
@@ -95,8 +95,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
         send(parsed.data.kind, parsed.data.payload);
 
-        // Le déploiement est terminé : on ferme proprement plutôt que de
-        // laisser le client attendre indéfiniment.
+        // The deployment is finished: we close cleanly rather than let the client wait
+        // forever.
         if (
           parsed.data.kind === 'event' &&
           parsed.data.payload.type === 'deployment' &&
@@ -107,7 +107,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
             try {
               controller.close();
             } catch {
-              // Déjà fermé côté client.
+              // Already closed on the client side.
             }
           });
         }
@@ -134,7 +134,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         return;
       }
 
-      // 2. Historique persisté.
+      // 2. Persisted history.
       send('status', {
         id: deployment.id,
         status: deployment.status,
@@ -153,26 +153,26 @@ export const GET = apiRoute<Context>(async (request, context) => {
             });
             if (!parsed.success) continue;
 
-            // Même déduplication que le direct : les deux chemins doivent
-            // produire exactement la même suite de lignes, sans quoi un
-            // rafraîchissement afficherait autre chose que le flux initial.
+            // The same deduplication as live: both paths must produce exactly the same
+            // sequence of lines, otherwise a refresh would show something other than the
+            // initial stream.
             const key = fingerprint(parsed.data);
             if (seen.has(key)) continue;
             seen.add(key);
             send('log', parsed.data.payload);
           } catch {
-            // Ligne tronquée par un arrêt brutal : on la saute.
+            // A line truncated by an abrupt stop: we skip it.
           }
         }
       }
       send('replayed', { lines: seen.size });
 
-      // 3. On vide ce qui est arrivé pendant la relecture, puis direct.
+      // 3. We empty what arrived during the replay, then live.
       live = true;
       for (const raw of pending) forward(raw);
       pending.length = 0;
 
-      // Un déploiement déjà terminé n'émettra plus rien.
+      // An already finished deployment will emit nothing more.
       if (isTerminal(deployment.status)) {
         send('end', { status: deployment.status });
         await cleanup();
@@ -180,7 +180,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         return;
       }
 
-      // 4. Battement de cœur : un reverse proxy coupe une connexion muette.
+      // 4. Heartbeat: a reverse proxy cuts a silent connection.
       heartbeat = setInterval(() => {
         if (closed) return;
         try {
@@ -190,13 +190,13 @@ export const GET = apiRoute<Context>(async (request, context) => {
         }
       }, HEARTBEAT_MS);
 
-      // Déconnexion du client : on relâche la connexion Redis.
+      // The client disconnects: we release the Redis connection.
       request.signal.addEventListener('abort', () => {
         void cleanup().then(() => {
           try {
             controller.close();
           } catch {
-            // Déjà fermé.
+            // Already closed.
           }
         });
       });
@@ -212,7 +212,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-cache, no-transform',
       connection: 'keep-alive',
-      // Désactive la mise en tampon de nginx, qui retiendrait le flux.
+      // Disables nginx's buffering, which would hold the stream back.
       'x-accel-buffering': 'no',
     },
   });

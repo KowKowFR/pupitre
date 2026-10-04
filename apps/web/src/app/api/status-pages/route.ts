@@ -10,7 +10,7 @@ import { assertStatusMonitors, statusPageAuditSummary, statusPageJson } from '@/
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Les pages de statut, publiées ou non. Les composer est un droit d'administration. */
+/** The status pages, published or not. Composing them is an administration right. */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'status_page:manage');
   const pages = await listStatusPages();

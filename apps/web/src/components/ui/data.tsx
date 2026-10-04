@@ -3,12 +3,12 @@ import { avatarSrc } from '@pupitre/core';
 import { cn } from '@/lib/utils';
 
 /**
- * Petites formes de données du kit : liste terme/valeur, barre de progression,
- * mini-jauge, avatar. Toutes se lisent sans couleur — un pourcentage est
- * toujours écrit à côté de sa barre.
+ * The kit's small data shapes: term/value list, progress bar, mini gauge,
+ * avatar. All of them read without color — a percentage is always written next
+ * to its bar.
  */
 
-/** Liste terme/valeur : le terme en gris à gauche, la valeur alignée à droite. */
+/** A term/value list: the term in gray on the left, the value aligned on the right. */
 export function KeyValue({
   items,
   className,
@@ -28,7 +28,7 @@ export function KeyValue({
   );
 }
 
-/** Champ en lecture : légende grise au-dessus, valeur dessous. */
+/** A read-only field: gray caption above, value below. */
 export function FieldValue({
   label,
   children,
@@ -45,8 +45,8 @@ export function FieldValue({
 }
 
 /**
- * Barre de progression — outremer, parce qu'une progression est « en cours ».
- * Sans valeur, elle devient indéterminée.
+ * A progress bar — ultramarine, because a progress is "in progress". Without a
+ * value, it becomes indeterminate.
  */
 export function Progress({
   value,
@@ -54,7 +54,7 @@ export function Progress({
   className,
   height,
 }: {
-  /** 0 à 100 ; `null` pour une progression indéterminée. */
+  /** 0 to 100; `null` for an indeterminate progress. */
   value: number | null;
   label: string;
   className?: string;
@@ -77,8 +77,8 @@ export function Progress({
 }
 
 /**
- * Mini-jauge d'une ressource (« mém ▬ 62 % ») : graphite au repos, ambre ou
- * rouge au-delà d'un seuil. Le chiffre est toujours écrit.
+ * A resource's mini gauge ("mem ▬ 62%"): graphite at rest, amber or red beyond a
+ * threshold. The figure is always written.
  */
 export function MiniGauge({
   label,
@@ -107,9 +107,9 @@ export function MiniGauge({
 }
 
 /**
- * Une personne : sa photo de profil, ou ses initiales dans un disque graphite.
- * Seule une URL que le panel a écrite lui-même est affichée (`avatarSrc`) —
- * jamais une image hébergée ailleurs.
+ * A person: their profile picture, or their initials in a graphite disc. Only a
+ * URL the panel wrote itself is shown (`avatarSrc`) — never an image hosted
+ * elsewhere.
  */
 export function Avatar({
   name,
@@ -126,7 +126,7 @@ export function Avatar({
   return (
     <span aria-hidden className={cn('av', large && 'av-lg', image && 'has-img', className)}>
       {image ? (
-        // Une URL d'API authentifiée et versionnée : `next/image` n'y apporterait rien.
+        // An authenticated and versioned API URL: `next/image` would bring nothing.
         // eslint-disable-next-line @next/next/no-img-element
         <img src={image} alt="" loading="lazy" decoding="async" draggable={false} />
       ) : (

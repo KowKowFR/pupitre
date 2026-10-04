@@ -17,20 +17,20 @@ import { settings as messages } from '@/i18n/messages/settings';
 import { SectionForm } from '../section-form';
 import { useSettingsPatch } from '../use-settings-patch';
 
-/** Ce qu'une politique exigerait, évalué côté serveur sur les rôles et comptes réels. */
+/** What a policy would require, evaluated on the server side on the real roles and accounts. */
 export type PolicyReach = {
-  /** Les rôles soumis, par leur libellé. */
+  /** The roles subject to it, by their label. */
   roles: string[];
-  /** Les comptes soumis qui n'ont pas encore de second facteur. */
+  /** The accounts subject to it that do not have a second factor yet. */
   missing: number;
-  /** La personne qui règle en serait elle-même tenue, sans l'avoir. */
+  /** The person setting it would be bound by it themselves, without having one. */
   self: boolean;
 };
 
 /**
- * Le second facteur exigé et la durée des sessions. Le PATCH ne porte que
- * `accounts` ; le serveur refuse une politique qui exigerait de son auteur un
- * second facteur qu'il n'a pas (`two_factor_self`).
+ * The required second factor and the sessions' duration. The PATCH only carries
+ * `accounts`; the server refuses a policy that would require from its author a
+ * second factor they do not have (`two_factor_self`).
  */
 export function AccountsForm({
   settings,

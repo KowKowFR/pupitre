@@ -26,7 +26,7 @@ async function load(id: string) {
   return row;
 }
 
-/** Corriger une annonce : sa phase ou son texte. Son heure de publication ne change pas. */
+/** Correcting an announcement: its phase or its text. Its publication time does not change. */
 export const PATCH = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'status_page:announce');
   const { id } = paramsSchema.parse(await context.params);

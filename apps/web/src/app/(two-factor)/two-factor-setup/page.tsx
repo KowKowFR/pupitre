@@ -17,9 +17,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = 'force-dynamic';
 
 /**
- * Le seul écran d'un compte que la politique de l'instance tient au second
- * facteur, tant qu'il ne l'a pas : le panneau de « Mon compte », seul. Une
- * fois armé, le rafraîchissement qui suit l'activation renvoie au panel.
+ * The only screen of an account the instance's policy binds to the second factor,
+ * as long as it does not have it: the "My account" panel, alone. Once armed, the
+ * refresh that follows the activation sends back to the panel.
  */
 export default async function TwoFactorSetupPage() {
   const auth = await requirePageSession('/two-factor-setup');

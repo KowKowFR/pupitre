@@ -27,7 +27,7 @@ const querySchema = z.object({
   }),
 });
 
-/** Les annonces d'un sujet (`?subject=incident:<id>`), des plus anciennes aux plus récentes. */
+/** A subject's announcements (`?subject=incident:<id>`), from the oldest to the newest. */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'status_page:announce');
   const { subject } = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
@@ -37,7 +37,7 @@ export const GET = apiRoute(async (request) => {
   return NextResponse.json({ items: rows.map((row) => statusUpdateJson(row, row.authorName)) });
 });
 
-/** Publier une annonce : elle paraît aussitôt sur les pages qui montrent une sonde touchée. */
+/** Publishing an announcement: it appears right away on the pages that show an affected probe. */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'status_page:announce');
   const input = await readJsonBody(request, createStatusUpdateSchema);

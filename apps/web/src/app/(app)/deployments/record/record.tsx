@@ -13,9 +13,9 @@ import type { AuthContext } from '@/lib/rbac';
 import { DeploymentDetail, type StepView } from './deployment-view';
 
 export type RunRecord = {
-  /** L'identifiant du run : c'est la clé du tiroir. */
+  /** The run's identifier: it is the drawer's key. */
   key: string;
-  /** De quoi titrer le tiroir, même quand le run n'est pas sur la page affichée. */
+  /** What it takes to title the drawer, even when the run is not on the displayed page. */
   header: {
     applicationSlug: string;
     number: number;
@@ -29,10 +29,10 @@ export type RunRecord = {
 };
 
 /**
- * Le suivi d'un run, rendu au serveur pour son tiroir : le résumé et ses
- * gestes (rollback, arrêt, destruction), le pipeline, le flux de logs, les
- * scans et l'AppSpec figée. Le composant prend ensuite le relais en direct
- * (flux SSE) : l'état initial vient d'ici.
+ * A run's follow-up, rendered on the server for its drawer: the summary and its
+ * gestures (rollback, stop, destruction), the pipeline, the log stream, the scans
+ * and the frozen AppSpec. The component then takes over live (SSE stream): the
+ * initial state comes from here.
  */
 export async function runRecord(
   id: string,
@@ -43,15 +43,15 @@ export async function runRecord(
   const [deployment, steps, run, digest] = await Promise.all([
     getDeploymentSummary(id),
     listSteps(id),
-    // L'AppSpec figée du run : ce qui est réellement parti, pas la spec
-    // courante de l'application.
+    // The run's frozen AppSpec: what really went out, not the application's current
+    // spec.
     getDeploymentForRun(id),
     canReadScans ? scanDigestForDeployments([id]) : Promise.resolve(null),
   ]);
   if (!deployment) return null;
 
-  // Version restaurée : lue depuis l'AppSpec figée du déploiement précédent,
-  // seule source qui dise ce qui tourne vraiment après un rollback.
+  // The restored version: read from the previous deployment's frozen AppSpec, the
+  // only source that says what really runs after a rollback.
   const restored =
     deployment.status === 'rolled_back' && deployment.previousDeploymentId
       ? ((await getDeploymentForRun(deployment.previousDeploymentId))?.deployment ?? null)

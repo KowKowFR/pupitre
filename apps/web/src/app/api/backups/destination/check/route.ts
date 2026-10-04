@@ -11,9 +11,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * « Tester » : écrire, relire et effacer un fichier témoin, par le worker —
- * c'est lui qui joindra la destination, pas le panel. Le verdict revient sur
- * la destination elle-même (`lastCheckedAt`, `lastCheckError`).
+ * "Test": write, read back and erase a witness file, through the worker — it is
+ * the worker that will reach the destination, not the panel. The verdict comes
+ * back on the destination itself (`lastCheckedAt`, `lastCheckError`).
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');

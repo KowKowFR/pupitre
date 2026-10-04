@@ -15,9 +15,9 @@ import { chrome } from '@/i18n/messages/chrome';
 import { DOCS_URL } from '@/lib/links';
 
 /**
- * Le bloc d'instance en tête du rail : la tuile, le nom et le sous-titre de
- * l'instance, et un chevron vers son menu. Les paramètres n'y figurent que si
- * la session peut les ouvrir.
+ * The instance block at the top of the rail: the tile, the instance's name and
+ * subtitle, and a chevron to its menu. The settings only appear in it if the
+ * session can open them.
  */
 export function InstanceMenu({
   name,

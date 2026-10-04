@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(34),
-  /** Absente : l'App est créée sous le compte de la personne connectée à GitHub. */
+  /** Absent: the App is created under the account of the person signed in to GitHub. */
   organization: z
     .string()
     .trim()
@@ -21,11 +21,11 @@ const bodySchema = z.object({
 });
 
 /**
- * Prépare la création de l'App : le manifeste et l'adresse où le poster.
+ * Prepares the App's creation: the manifest and the address where to post it.
  *
- * Le navigateur poste lui-même le manifeste à GitHub : le panel n'a pas à être
- * joignable. Le `state` voyage aller-retour et se compare à un cookie posé
- * ici — un retour qui ne vient pas de ce navigateur est refusé.
+ * The browser posts the manifest to GitHub itself: the panel does not have to be
+ * reachable. The `state` travels there and back and is compared to a cookie set
+ * here — a return that does not come from this browser is refused.
  */
 export const POST = apiRoute(async (request) => {
   await requirePermission(request, 'settings:manage');

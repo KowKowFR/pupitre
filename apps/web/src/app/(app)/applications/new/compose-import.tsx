@@ -28,13 +28,13 @@ type ApiError = { error?: { message?: string } };
 const MAX_BYTES = 256 * 1024;
 
 /**
- * « Depuis un docker-compose » : coller ou choisir le fichier, le convertir,
- * lire ce qui n'est pas passé tel quel.
+ * "From a docker-compose": paste or choose the file, convert it, read what did
+ * not go through as is.
  *
- * La conversion propose une AppSpec qui part dans l'éditeur de la page — la
- * même relecture, la même validation, le même enregistrement que les autres
- * chemins. Ce composant ne crée rien ; il dit, niveau par niveau, ce que la
- * traduction a dû décider à la place de la personne.
+ * The conversion proposes an AppSpec that goes into the page's editor — the same
+ * review, the same validation, the same save as the other paths. This component
+ * creates nothing; it says, level by level, what the translation had to decide
+ * in the person's place.
  */
 export function ComposeImport({ onConverted }: { onConverted: (spec: unknown) => void }) {
   const t = useT(messages);

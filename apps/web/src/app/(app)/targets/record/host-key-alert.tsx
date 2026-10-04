@@ -11,9 +11,9 @@ import { targets as messages } from '@/i18n/messages/targets';
 import { toast } from '@/lib/toast';
 
 /**
- * La cible a présenté une autre clé d'hôte que celle retenue : Pupitre refuse
- * de s'y connecter tant que quelqu'un n'a pas tranché. Visible sur tous les
- * onglets — rien ne marche plus sur cette machine, il faut le voir.
+ * The target presented another host key than the kept one: Pupitre refuses to
+ * connect to it until someone has decided. Visible on every tab — nothing works
+ * on this machine any more, it must be seen.
  */
 export function HostKeyAlert({
   target,
@@ -25,7 +25,7 @@ export function HostKeyAlert({
   target: { id: string; name: string };
   expected: string | null;
   presented: string;
-  /** La date, déjà mise en forme. */
+  /** The date, already formatted. */
   since: string;
   canDecide: boolean;
 }) {

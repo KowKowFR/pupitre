@@ -1,10 +1,10 @@
 /**
- * Message d'erreur d'une réponse de l'API du panel, sans jamais lever.
+ * The error message of a panel API response, without ever throwing.
  *
- * Le repli est passé par l'appelant plutôt que fabriqué ici : cette fonction
- * n'est pas un composant, elle n'a donc ni contexte ni langue. Le composant qui
- * l'appelle a déjà son `t` — il lui coûte un argument, et cela évite un second
- * chemin par lequel la langue arriverait dans le panel.
+ * The fallback is passed by the caller rather than made here: this function is
+ * not a component, so it has neither context nor language. The component calling
+ * it already has its `t` — it costs it an argument, and it avoids a second path
+ * through which the language would reach the panel.
  */
 export async function readApiError(response: Response, fallback: string): Promise<string> {
   const payload: unknown = await response.json().catch(() => null);

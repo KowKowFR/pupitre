@@ -8,9 +8,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * L'aperçu de l'éditeur : la page telle qu'un visiteur la lirait, calculée
- * sur les blocs **non enregistrés**. Rien n'est écrit ; c'est le même calcul
- * que la page publique, donc le même filtre de ce qui sort.
+ * The editor's preview: the page as a visitor would read it, computed on the
+ * **unsaved** blocks. Nothing is written; it is the same computation as the
+ * public page, hence the same filter of what goes out.
  */
 export const POST = apiRoute(async (request) => {
   await requirePermission(request, 'status_page:manage');

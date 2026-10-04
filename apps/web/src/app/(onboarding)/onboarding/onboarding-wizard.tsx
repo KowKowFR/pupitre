@@ -44,20 +44,20 @@ import { OnboardingTopbar } from '../onboarding-topbar';
 import { IdentityStep, SecurityStep } from './settings-steps';
 
 /**
- * Assistant de démarrage — la coquille.
+ * The onboarding assistant — the shell.
  *
- * Règle qui gouverne tout ce fichier : **il ne crée rien lui-même**. Chaque
- * étape monte le formulaire de l'écran normal (`TargetForm`, `CreateRoleForm`,
- * `CreateUserForm`) ou appelle la route que cet écran appelle déjà
- * (`PATCH /api/settings`). Un formulaire « en plus simple » recopié ici aurait
- * commencé à diverger de l'original au premier champ ajouté, et sa validation,
- * son audit et son preflight avec lui.
+ * The rule that governs this whole file: **it creates nothing itself**. Each step
+ * mounts the normal screen's form (`TargetForm`, `CreateRoleForm`,
+ * `CreateUserForm`) or calls the route that screen already calls
+ * (`PATCH /api/settings`). A "simpler" form copied here would have started to
+ * diverge from the original at the first added field, and its validation, its
+ * audit and its preflight with it.
  *
- * Seul l'avancement passe par une route propre — `PATCH /api/onboarding` —
- * parce que se souvenir d'où l'on en est n'est le métier d'aucune des autres.
+ * Only the progress goes through a route of its own — `PATCH /api/onboarding` —
+ * because remembering where one stands is the business of none of the others.
  */
 
-/** Miroir client de `OnboardingEnvironment`, sans importer le module serveur. */
+/** A client mirror of `OnboardingEnvironment`, without importing the server module. */
 export type OnboardingEnvironmentView = {
   targets: number | null;
   applications: number | null;
@@ -79,17 +79,16 @@ type Props = {
   dateStyles: DateStyleName[];
   roleKeys: RoleKey[];
   canRunPreflight: boolean;
-  /** Les machines dont on peut régler le reverse proxy — l'étape `proxy`. */
+  /** The machines whose reverse proxy can be set — the `proxy` step. */
   proxyTargets: Array<{ id: string; name: string }>;
   format: FormatSettings;
-  /** Proposé pour Let's Encrypt : l'e-mail de la personne connectée. */
+  /** Offered for Let's Encrypt: the signed-in person's email. */
   userEmail: string;
   /**
-   * L'instance sait-elle envoyer un e-mail ? Sur une instance neuve — le cas
-   * de figure de cet assistant — la réponse est presque toujours « non », et
-   * l'étape propose alors un mot de passe. Le drapeau est tout de même
-   * transmis : quelqu'un qui a configuré le SMTP avant d'arriver ici doit
-   * pouvoir inviter, comme partout ailleurs.
+   * Can the instance send an email? On a new instance — this assistant's typical
+   * case — the answer is almost always "no", and the step then offers a password.
+   * The flag is passed on all the same: someone who configured SMTP before
+   * arriving here must be able to invite, as everywhere else.
    */
   canInvite: boolean;
 };
@@ -98,12 +97,12 @@ type PatchResponse = { state: OnboardingState; steps: OnboardingPresentedStep[] 
 type ApiError = { error?: { message?: string } };
 
 /**
- * Les quatre étapes qui portent un prix — exactement celles que `optional`
- * autorise à passer.
+ * The four steps that carry a cost — exactly those that `optional` allows
+ * skipping.
  *
- * Une table de clés littérales plutôt qu'un `` `step.${id}.cost` `` construit à
- * la volée : le compilateur refuse alors `step.welcome.cost`, qui n'existe pas
- * et ne doit pas exister. C'est la garde qui remplace l'ancien `cost: null`.
+ * A table of literal keys rather than a `` `step.${id}.cost` `` built on the fly:
+ * the compiler then refuses `step.welcome.cost`, which does not exist and must
+ * not exist. It is the guard that replaces the old `cost: null`.
  */
 const COST_KEYS = {
   target: 'step.target.cost',
@@ -116,14 +115,14 @@ const COST_KEYS = {
 const RICH_PART = /\{(\w+)\}/g;
 
 /**
- * Rend une phrase dont quelques fragments sont des nœuds — un mot en gras, un
- * lien, un identifiant en chasse fixe.
+ * Renders a sentence some fragments of which are nodes — a bold word, a link, a
+ * monospaced identifier.
  *
- * Le dictionnaire garde la phrase **entière**, avec un `{nom}` là où le nœud
- * s'insère. La couper en trois clés aurait laissé au traducteur des bouts sans
- * contexte et figé l'ordre des mots : l'anglais déplace la mise en avant.
- * `t()` laisse intacts les `{nom}` qu'on ne lui passe pas en variables, ce qui
- * suffit à les retrouver ici.
+ * The dictionary keeps the **whole** sentence, with a `{name}` where the node
+ * goes in. Cutting it into three keys would have left the translator pieces
+ * without context and frozen the word order: English moves the emphasis. `t()`
+ * leaves intact the `{name}`s it is not given as variables, which is enough to
+ * find them here.
  */
 function rich(sentence: string, parts: Readonly<Record<string, ReactNode>>): ReactNode {
   return sentence
@@ -144,9 +143,9 @@ export function OnboardingWizard(props: Props) {
   const [busy, setBusy] = useState(false);
 
   /**
-   * L'étape mémorisée est celle de l'*instance*, pas de la personne : si un
-   * administrateur s'est arrêté sur « un rôle » et qu'un opérateur reprend, on
-   * retombe sur la première étape qui le concerne plutôt que sur un écran vide.
+   * The remembered step is the *instance*'s, not the person's: if an administrator
+   * stopped on "a role" and an operator takes over, one lands on the first step
+   * that concerns them rather than on an empty screen.
    */
   const fallback = steps[0]?.id ?? 'welcome';
   const currentId: OnboardingStepId = steps.some((step) => step.id === state.currentStep)
@@ -183,18 +182,17 @@ export function OnboardingWizard(props: Props) {
   }
 
   /**
-   * Deux gestes seulement peuvent écourter le parcours, et tous deux passent
-   * par une confirmation qui nomme la conséquence. Un bouton qu'on presse par
-   * réflexe n'est pas un choix : une installation à moitié configurée qu'on
-   * redécouvre trois semaines plus tard coûte plus cher que le temps de lire
-   * deux phrases.
+   * Only two gestures can cut the journey short, and both go through a
+   * confirmation that names the consequence. A button pressed by reflex is not a
+   * choice: a half-configured installation rediscovered three weeks later costs
+   * more than the time to read two sentences.
    */
   const [confirming, setConfirming] = useState<'abandon' | 'skip' | null>(null);
 
   async function leave(action: 'finish' | 'dismiss') {
     if (!(await send({ action }))) return;
-    // Le bandeau de reprise vit dans le layout serveur : il faut le refaire
-    // rendre pour qu'il disparaisse, sans quoi il resterait à l'écran.
+    // The resume banner lives in the server layout: it must be rendered again for it
+    // to disappear, otherwise it would stay on screen.
     router.push('/');
     router.refresh();
   }
@@ -225,7 +223,7 @@ export function OnboardingWizard(props: Props) {
   const currentCost = costKey ? t(costKey) : null;
 
   const previous = index > 0 ? steps[index - 1] : null;
-  /** Ce qu'on laisse derrière soi — nommé, pas compté. */
+  /** What one leaves behind — named, not counted. */
   const remaining = actionable.filter((step) => step.outcome === 'todo');
   const noTarget = props.environment.targets === 0;
 
@@ -441,10 +439,10 @@ export function OnboardingWizard(props: Props) {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Les étapes, en échelle verticale : la pastille dit l'issue (coche, trait,
- * numéro), la ligne sous le titre la redit en mots, et l'étape courante est
- * posée sur une carte blanche. Un clic y mène : on saute librement de l'une à
- * l'autre, rien n'est perdu.
+ * The steps, as a vertical ladder: the dot says the outcome (check, dash,
+ * number), the line under the title says it again in words, and the current step
+ * sits on a white card. A click leads there: one jumps freely from one to the
+ * other, nothing is lost.
  */
 function Stepper({
   steps,
@@ -577,8 +575,8 @@ function Welcome() {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Le reverse proxy de la machine : la même carte que sur la page de la cible.
- * L'étape est faite quand un proxy est relié — trouvé ou installé.
+ * The machine's reverse proxy: the same card as on the target's page. The step is
+ * done when a proxy is linked — found or installed.
  */
 function ProxyStep({
   targets,
@@ -662,9 +660,9 @@ function TargetStep({
       return;
     }
     setPhase(t('target.running', { name: target.name }));
-    // Exactement le même enchaînement que le bouton « Tester la connexion » de
-    // la liste des cibles : POST /api/targets/{id}/preflight, puis suivi de la
-    // tâche BullMQ. Aucune session SSH n'est ouverte depuis une route HTTP.
+    // Exactly the same sequence as the targets list's "Test the connection" button:
+    // POST /api/targets/{id}/preflight, then following the BullMQ job. No SSH
+    // session is opened from an HTTP route.
     await preflight.run(target.id);
     setPhase(t('target.tested', { name: target.name }));
     onDone();
@@ -681,10 +679,10 @@ function TargetStep({
       {existing !== null && existing > 0 ? (
         <Alert variant="info">
           {/*
-            `count` choisit la forme, `{n}` porte le nombre en gras. Deux noms
-            pour une seule valeur : l'un est substitué par `t()`, l'autre reste
-            en place pour que `rich()` y pose le nœud.
-          */}
+            `count` chooses the form, `{n}` carries the number in bold. Two names
+            for a single value: one is substituted by `t()`, the other stays in
+            place so that `rich()` sets the node there.
+                     */}
           <span className="flex flex-wrap items-center gap-3">
             <span className="min-w-0 flex-1">
               {rich(t('target.existing', { count: existing }), {

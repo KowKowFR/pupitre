@@ -27,17 +27,16 @@ import { LatencyChart, OutcomeStrip } from '../monitor-charts';
 import { IncidentCaptures, type CaptureView } from './incident-captures';
 
 /**
- * Détail d'une sonde : sa courbe, sa chronologie d'incidents, et la table de
- * ses mesures.
+ * A probe's detail: its curve, its incidents timeline, and its measurements
+ * table.
  *
- * La table n'est pas un ornement : c'est l'équivalent lisible sans couleur de la
- * frise et de la courbe. Aucune valeur de cet écran n'est accessible seulement
- * au survol.
+ * The table is not an ornament: it is the equivalent of the strip and the curve
+ * readable without color. No value of this screen is only reachable on hover.
  *
- * Les mesures affichées viennent du **catalogue** du type, jamais d'une liste
- * écrite en dur : une sonde HTTP montre un code et des redirections, une sonde
- * TLS des jours restants et un émetteur, et un type qui arrivera plus tard
- * montrera les siennes sans qu'on repasse ici.
+ * The displayed measurements come from the type's **catalog**, never from a
+ * hard-coded list: an HTTP probe shows a code and redirects, a TLS probe days
+ * remaining and an issuer, and a type arriving later will show its own without
+ * coming back here.
  */
 
 export type CheckRow = {
@@ -66,13 +65,13 @@ export type IncidentRow = {
 type Messages = Translate<(typeof messages)['fr']>;
 
 /**
- * L'instant d'un relevé ou d'un incident, dans la locale de l'instance.
+ * A reading's or an incident's instant, in the instance's locale.
  *
- * Les composantes sont imposées par la chronologie — elle tient sur une ligne,
- * une date longue la ferait déborder. La locale, elle, vient de
- * `settings.locale` telle quelle : le raccourci d'avant servait `en-GB` à une
- * instance `en-US`. Le fuseau n'est pas imposé, pour ne pas déplacer l'heure
- * affichée dans ce commit — voir `lib/format.ts`.
+ * The components are imposed by the timeline — it fits on one line, a long date
+ * would make it overflow. The locale, for its part, comes from `settings.locale`
+ * as is: the shortcut of before served `en-GB` to an `en-US` instance. The time
+ * zone is not imposed, so as not to move the displayed time in this commit — see
+ * `lib/format.ts`.
  */
 function formatClock(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, {
@@ -85,7 +84,7 @@ function formatClock(iso: string, format: FormatSettings): string {
   });
 }
 
-/** Met une mesure en forme selon ce que le catalogue dit d'elle. */
+/** Formats a measurement according to what the catalog says about it. */
 function renderMetric(
   descriptor: MetricDescriptor,
   metrics: CheckMetrics,
@@ -102,7 +101,7 @@ function renderMetric(
         ? t('detail.metric.days', { count: Math.abs(value), value })
         : String(value);
     case 'text':
-      // Une date ISO se lit mieux à l'heure locale.
+      // An ISO date reads better in local time.
       if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
         return formatClock(value, format);
       }
@@ -112,7 +111,7 @@ function renderMetric(
   }
 }
 
-/** L'heure seule, pour la chronologie : le jour est déjà dit par la ligne. */
+/** The time alone, for the timeline: the day is already said by the row. */
 function shortClock(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, {
     day: '2-digit',
@@ -137,26 +136,26 @@ export function MonitorDetail({
   monitorId: string;
   checks: CheckRow[];
   incidents: IncidentRow[];
-  /** Les captures de chaque incident, indexées par incident. Vide = capture éteinte. */
+  /** Each incident's captures, indexed by incident. Empty = capture turned off. */
   captures: Record<string, CaptureView[]>;
   metrics: readonly MetricDescriptor[];
   lastMetrics: CheckMetrics;
   retentionDays: number;
   intervalSeconds: number;
-  /** Locale et fuseau de l'instance. Par props : ce composant est rendu sur le
-   *  serveur avant de l'être dans le navigateur, et les deux doivent lire la
-   *  même valeur — sinon l'hydratation diverge. */
+  /** The instance's locale and time zone. Through props: this component is rendered
+   *  on the server before being rendered in the browser, and both must read the
+   *  same value — otherwise hydration diverges. */
   format: FormatSettings;
   /**
-   * Les annonces publiées par incident, pour qui peut en publier : chaque
-   * incident y gagne un lien vers son annonce. `null` : pas de lien.
+   * The announcements published per incident, for whoever can publish them: each
+   * incident gains a link to its announcement. `null`: no link.
    */
   announcements?: Record<string, number> | null;
 }) {
   const t = useT(messages);
   const tc = useT(common);
-  // `formatSince` appartient à l'écran des applications et parle son
-  // vocabulaire : on lui passe son `t`, sinon il retombe sur le français.
+  // `formatSince` belongs to the applications screen and speaks its vocabulary:
+  // we pass it its `t`, otherwise it falls back on French.
   const tSince = useT(servers);
   const language = useLanguage();
   const points = React.useMemo(
@@ -308,8 +307,8 @@ export function MonitorDetail({
                     })}
                   </Alert>
                 ) : null}
-                {/* « Code 503 » ne dit pas si la page était blanche, en
-                    maintenance ou défigurée. L'image, si. */}
+                {/* "Code 503" does not say whether the page was blank, under
+                    maintenance or defaced. The image does. */}
                 <IncidentCaptures
                   monitorId={monitorId}
                   captures={captures[incident.id] ?? []}

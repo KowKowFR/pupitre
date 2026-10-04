@@ -8,16 +8,15 @@ import { CommandPalette } from './command-palette';
 import { ShortcutsDialog } from './shortcuts-dialog';
 
 /**
- * La coquille côté client : l'état de la palette ⌘K et de l'aide des
- * raccourcis, et l'écoute des raccourcis globaux.
+ * The shell, client side: the state of the ⌘K palette and of the shortcuts help,
+ * and listening to the global shortcuts.
  *
- * - ⌘K / Ctrl K : ouvrir ou fermer la palette, depuis n'importe où ;
- * - `G` puis une lettre : aller à une section (D, C, A, P, S) ;
- * - `?` : afficher la liste des raccourcis.
+ * - ⌘K / Ctrl K: open or close the palette, from anywhere;
+ * - `G` then a letter: go to a section (D, C, A, P, S);
+ * - `?`: show the list of shortcuts.
  *
- * Les raccourcis à une lettre se taisent pendant une saisie et quand une
- * couche (dialogue, drawer) est ouverte : ils ne doivent jamais voler une
- * frappe à l'opérateur.
+ * The single-letter shortcuts go quiet during an input and when a layer (dialog,
+ * drawer) is open: they must never steal a keystroke from the operator.
  */
 
 export type PaletteScope = 'deploy' | null;
@@ -25,7 +24,7 @@ export type PaletteScope = 'deploy' | null;
 type ShellValue = {
   openPalette: (scope?: PaletteScope) => void;
   openShortcuts: () => void;
-  /** Enregistre un raccourci d'une lettre propre à l'écran ; renvoie de quoi le retirer. */
+  /** Registers a single-letter shortcut specific to the screen; returns its remover. */
   registerHotkey: (key: string, handler: () => void) => () => void;
 };
 
@@ -36,9 +35,9 @@ const ShellContext = React.createContext<ShellValue>({
 });
 
 /**
- * Un raccourci d'une lettre pour l'action primaire d'un écran (« D » pour
- * Déployer sur la vue d'ensemble). Il cède toujours la place à la séquence
- * `G` puis une lettre, et se tait pendant une saisie comme les autres.
+ * A single-letter shortcut for a screen's primary action ("D" for Deploy on the
+ * overview). It always gives way to the `G` then a letter sequence, and goes
+ * quiet during an input like the others.
  */
 export function useHotkey(key: string, handler: () => void, enabled = true): void {
   const { registerHotkey } = React.useContext(ShellContext);
@@ -68,8 +67,8 @@ export function ShellProvider({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  // `session` change à chaque ouverture : la palette est remontée, et repart
-  // d'une saisie vide sans effet de remise à zéro.
+  // `session` changes at each opening: the palette is mounted again, and starts
+  // again from an empty input without a reset effect.
   const [palette, setPalette] = React.useState<{
     open: boolean;
     scope: PaletteScope;
@@ -173,7 +172,7 @@ export function ShellProvider({
   );
 }
 
-/** Un bouton qui ouvre la palette — le « Rechercher, lancer… » du rail, le « Déployer » de la vue d'ensemble. */
+/** A button that opens the palette — the rail's "Search, run…", the overview's "Deploy". */
 export function PaletteTrigger({
   scope = null,
   className,

@@ -4,7 +4,7 @@ import * as React from 'react';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { cn } from '@/lib/utils';
 
-/** Popover — 300 px, rayon 12, ombre `md`, entrée `pp-pop`. */
+/** A popover — 300 px, radius 12, `md` shadow, `pp-pop` entrance. */
 const Popover = PopoverPrimitive.Root;
 const PopoverTrigger = PopoverPrimitive.Trigger;
 const PopoverClose = PopoverPrimitive.Close;

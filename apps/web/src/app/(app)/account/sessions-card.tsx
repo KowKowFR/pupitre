@@ -17,21 +17,21 @@ export type SessionRow = {
   current: boolean;
   device: string | null;
   ipAddress: string | null;
-  /** « il y a 2 j », calculé au rendu serveur : l'horloge du client n'y entre pas. */
+  /** "2 d ago", computed at server rendering: the client's clock does not come into it. */
   lastActive: string | null;
 };
 
-/** Ce que la confirmation s'apprête à fermer : une session, ou toutes les autres. */
+/** What the confirmation is about to close: one session, or all the others. */
 type Target = { kind: 'one'; session: SessionRow } | { kind: 'others' };
 
 /**
- * « Sessions ouvertes » : les navigateurs connectés au compte, et de quoi
- * fermer ceux qu'on ne reconnaît pas.
+ * "Open sessions": the browsers signed in to the account, and what it takes to
+ * close those one does not recognize.
  *
- * La session courante est nommée (« celle-ci ») et ne propose aucune
- * fermeture : on la quitte par « Déconnexion », qui nettoie aussi le cookie.
+ * The current session is named ("this one") and offers no closing: one leaves
+ * it through "Sign out", which also cleans the cookie.
  */
-/** L'icône d'un appareil, devinée du nom que l'agent a donné. */
+/** A device's icon, guessed from the name the agent gave. */
 function DeviceIcon({ device }: { device: string | null }) {
   const Icon = /iPad/.test(device ?? '')
     ? Tablet
@@ -48,7 +48,7 @@ function DeviceIcon({ device }: { device: string | null }) {
   );
 }
 
-/** `description` : la durée des sessions, réglée pour l'instance, dite en clair par la page. */
+/** `description`: the sessions' duration, set for the instance, spelled out by the page. */
 export function SessionsCard({
   sessions,
   description,
@@ -65,7 +65,7 @@ export function SessionsCard({
   const others = sessions.filter((session) => !session.current);
   const deviceOf = (session: SessionRow) => session.device ?? t('sessions.unknownDevice');
 
-  /** « dernière activité il y a 2 j » : depuis quand la session a servi. */
+  /** "last active 2 d ago": since when the session was used. */
   function when(session: SessionRow): string | null {
     if (session.current) return t('sessions.activeNow');
     return session.lastActive ? t('sessions.lastActive', { when: session.lastActive }) : null;

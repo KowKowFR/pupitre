@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Micro-courbe sans échelle — elle ne montre que la forme (« ça monte »), le
- * chiffre lisible est à côté d'elle. Aire douce sous le trait.
+ * A micro-curve without a scale — it only shows the shape ("it goes up"), the
+ * readable figure is next to it. A soft area under the line.
  */
 export function MicroSpark({
   values,
@@ -18,7 +18,7 @@ export function MicroSpark({
   height?: number;
   tone?: string;
   max: number;
-  /** Un point sur la dernière mesure. */
+  /** A dot on the last measurement. */
   dot?: boolean;
   className?: string;
 }) {

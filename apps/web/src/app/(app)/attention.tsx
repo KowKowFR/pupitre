@@ -15,12 +15,12 @@ const TONE: Record<AttentionSeverity, Tone> = {
 };
 
 /**
- * Le bloc « Attention » : ce qui demande une intervention, et rien d'autre.
+ * The "Attention" block: what requires an intervention, and nothing else.
  *
- * Il ouvre l'écran parce que c'est la seule information pour laquelle on
- * ouvre un tableau de bord. Liseré gauche à la couleur du pire point ; une
- * ligne par point — voyant, sujet en mono, détail, puis le verbe qui y mène.
- * Les dangers passent devant les avertissements.
+ * It opens the screen because it is the only information one opens a dashboard
+ * for. A left border in the color of the worst point; one row per point —
+ * indicator, subject in mono, detail, then the verb that leads to it. Dangers
+ * come before warnings.
  */
 export async function AttentionPanel({ items }: { items: AttentionItem[] }) {
   if (items.length === 0) return <AllClear />;
@@ -62,7 +62,7 @@ export async function AttentionPanel({ items }: { items: AttentionItem[] }) {
             <span className="t-sm min-w-0 flex-1 text-text-2 max-sm:basis-full max-sm:pl-[26px]">
               {item.detail}
             </span>
-            {/* Le verbe porte le lien ; la ligne entière y mène au clic. */}
+            {/* The verb carries the link; the whole row leads to it on click. */}
             <Link
               href={item.href as never}
               className="btn btn-ghost btn-sm shrink-0 after:absolute after:inset-0 max-sm:ml-[26px]"
@@ -90,9 +90,9 @@ async function AllClear() {
 }
 
 /**
- * Carte de la vue d'ensemble : titre, sous-titre gris, et un lien à droite
- * (« Supervision », « Historique »). Les listes et tableaux se posent dedans
- * sans corps, pour que leurs lignes touchent les bords.
+ * An overview card: title, gray subtitle, and a link on the right
+ * ("Monitoring", "History"). Lists and tables sit inside without a body, so that
+ * their rows touch the edges.
  */
 export function Panel({
   title,
@@ -132,7 +132,7 @@ export function Panel({
   );
 }
 
-/** Ligne vide d'un bloc — une invitation, jamais un tiret. */
+/** A block's empty row — an invitation, never a dash. */
 export function PanelEmpty({ children }: { children: ReactNode }) {
   return <p className="t-sm px-4 py-6 text-text-3">{children}</p>;
 }

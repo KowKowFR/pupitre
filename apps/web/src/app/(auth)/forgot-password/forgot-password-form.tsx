@@ -12,23 +12,23 @@ import { Input } from '@/components/ui/input';
 import { AuthCard } from '../auth-card';
 
 /**
- * Demander un lien de réinitialisation.
+ * Asking for a reset link.
  *
- * ## La règle qui gouverne cet écran : il ne dit jamais qui a un compte
+ * ## The rule that governs this screen: it never says who has an account
  *
- * « Cette adresse n'existe pas » renseignerait un inconnu sur qui travaille
- * ici. L'écran affiche donc **le même message dans les deux cas**, et ce n'est
- * pas une politesse : c'est la seule réponse qu'il connaisse. Better Auth rend
- * lui aussi un `200` identique — il va jusqu'à simuler la génération d'un jeton
- * sur le chemin « inconnu » pour que les deux durent le même temps.
+ * "This address does not exist" would tell a stranger who works here. The screen
+ * therefore shows **the same message in both cases**, and it is not politeness:
+ * it is the only answer it knows. Better Auth also returns an identical `200` — it
+ * goes as far as simulating a token's generation on the "unknown" path so that
+ * both take the same time.
  *
- * Conséquence assumée : quelqu'un qui se trompe d'adresse attendra un e-mail
- * qui ne viendra pas. Le message le dit — « si un compte existe » — plutôt que
- * de laisser croire à une panne.
+ * An assumed consequence: someone who gets the address wrong will wait for an
+ * email that will not come. The message says so — "if an account exists" — rather
+ * than suggest an outage.
  *
- * L'écran de succès remplace le formulaire au lieu de le laisser à côté : le
- * relancer dix fois ne ferait qu'atteindre la limite de débit (trois demandes
- * par minute), et un bouton qu'on peut marteler invite à le marteler.
+ * The success screen replaces the form instead of leaving it beside: starting it
+ * ten times would only hit the rate limit (three requests per minute), and a
+ * button one can hammer invites hammering.
  */
 export function ForgotPasswordForm() {
   const t = useT(messages);
@@ -43,15 +43,15 @@ export function ForgotPasswordForm() {
     const form = new FormData(event.currentTarget);
     const result = await requestPasswordReset({
       email: String(form.get('email') ?? ''),
-      // Sert de destination de repli au lien. Le texte de l'e-mail, lui, ne
-      // dépend pas de ce paramètre : il est décidé côté serveur, à partir de
-      // l'état du compte. Voir `sendResetPassword` dans `lib/auth.ts`.
+      // Serves as the link's fallback destination. The email's text, for its part,
+      // does not depend on this parameter: it is decided on the server side, from the
+      // account's state. See `sendResetPassword` in `lib/auth.ts`.
       redirectTo: '/reset-password',
     });
 
-    // Le seul échec qu'on distingue est la limite de débit — parce qu'elle
-    // n'apprend rien sur l'existence du compte, et parce que se taire ferait
-    // croire que le message est parti.
+    // The only failure we tell apart is the rate limit — because it teaches nothing
+    // about the account's existence, and because staying silent would suggest the
+    // message went out.
     setThrottled(result.error?.status === 429);
     setSent(true);
     setPending(false);

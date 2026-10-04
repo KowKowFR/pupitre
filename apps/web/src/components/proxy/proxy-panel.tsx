@@ -39,19 +39,19 @@ import { toast } from '@/lib/toast';
 import { NpmConnectionDrawer } from './npm-connection-drawer';
 
 /**
- * Le reverse proxy d'une machine : le trouver, l'installer, le tester, le
- * retirer, et voir les domaines qui passent par lui. Ou bien relier la machine
- * au proxy d'une autre — le proxy central. Sur la page de la cible et dans
- * l'assistant de démarrage — le même composant aux deux endroits.
+ * A machine's reverse proxy: find it, install it, test it, remove it, and see the
+ * domains that go through it. Or link the machine to another's proxy — the
+ * central proxy. On the target's page and in the onboarding assistant — the same
+ * component in both places.
  *
- * La carte se lit elle-même et se relit tant qu'une installation ou un test
- * est en cours : ils prennent de quelques secondes à deux minutes.
+ * The card reads itself and reads itself again while an installation or a test
+ * is in progress: they take from a few seconds to two minutes.
  */
 
 type Data = {
   proxy: ProxyViewForUi | null;
   link: LinkViewForUi | null;
-  /** Les machines que le proxy de celle-ci sert par liaison. */
+  /** The machines this one's proxy serves through a link. */
   served: Array<{
     targetId: string;
     targetName: string;
@@ -59,8 +59,8 @@ type Data = {
     status: LinkViewForUi['status'];
   }>;
   /**
-   * Les proxies auxquels on peut relier celle-ci : ceux des autres machines,
-   * puis les proxies distants (`targetId` nul) — Nginx Proxy Manager.
+   * The proxies this one can be linked to: the other machines', then the remote
+   * proxies (`targetId` null) — Nginx Proxy Manager.
    */
   candidates: Array<{
     proxyId: string;
@@ -68,7 +68,7 @@ type Data = {
     targetName: string;
     description: string;
   }>;
-  /** L'adresse proposée pour la liaison : celle par laquelle Pupitre la joint. */
+  /** The address offered for the link: the one through which Pupitre reaches it. */
   suggestedAddress: string;
   routes: RouteViewForUi[];
 };
@@ -76,7 +76,7 @@ type Detected = { detections: ProxyDetection[]; installOptions: ProxyInstallOpti
 type ApiError = { error?: { message?: string } };
 type AcmeServer = ProxyInstallOption['acmeServers'][number];
 
-/** Une option d'installation, nommée avec son genre : deux proxies peuvent avoir la même clé. */
+/** An installation option, named with its kind: two proxies may have the same key. */
 const optionId = (candidate: Pick<ProxyInstallOption, 'kind' | 'key'>) =>
   `${candidate.kind}:${candidate.key}`;
 
@@ -100,9 +100,9 @@ export function ProxyPanel({
   targetName: string;
   canManage: boolean;
   format: FormatSettings;
-  /** L'e-mail proposé pour Let's Encrypt : celui de la personne connectée. */
+  /** The email offered for Let's Encrypt: the signed-in person's. */
   defaultEmail?: string;
-  /** Prévenu à chaque relecture : l'assistant sait ainsi quand l'étape est faite. */
+  /** Notified at each re-read: that is how the assistant knows when the step is done. */
   onProxyChange?: (proxy: ProxyViewForUi | null) => void;
 }) {
   const t = useT(messages);
@@ -118,9 +118,9 @@ export function ProxyPanel({
   const [caCertificate, setCaCertificate] = useState('');
   const [removing, setRemoving] = useState(false);
   const [uninstall, setUninstall] = useState(true);
-  // Un geste en cours : on relit jusqu'à ce que son test soit passé, c'est-à-dire
-  // jusqu'à ce que la date du dernier test change. `since` : celle d'avant ;
-  // `of` : le test d'un proxy distant, ou celui de la machine et de sa liaison.
+  // A gesture in progress: we read again until its test has passed, that is until
+  // the last test's date changes. `since`: the previous one; `of`: a remote proxy's
+  // test, or the machine's and its link's.
   const [watching, setWatching] = useState<{ since: string | null; of: CheckOf } | null>(null);
   const [npmDrawer, setNpmDrawer] = useState<{
     connection: RemoteProxyViewForUi | null;
@@ -153,8 +153,8 @@ export function ProxyPanel({
     };
   }, [load]);
 
-  // Pour l'assistant : le proxy qui sert la machine, le sien ou celui d'une
-  // autre — une liaison en échec ne compte pas comme faite.
+  // For the assistant: the proxy that serves the machine, its own or another's — a
+  // failed link does not count as done.
   useEffect(() => {
     if (!data) return;
     onProxyChange?.(
@@ -162,7 +162,7 @@ export function ProxyPanel({
     );
   }, [data, onProxyChange]);
 
-  // Une installation ou un test en cours : on relit jusqu'à leur issue.
+  // An installation or a test in progress: we read again until they end.
   const pending = data?.proxy?.status === 'installing' || watching !== null;
   useEffect(() => {
     if (!pending) return;
@@ -209,7 +209,7 @@ export function ProxyPanel({
     choose(first ?? null);
   }
 
-  /** Choisir une option, et une autorité qu'elle sait interroger. */
+  /** Choosing an option, and an authority it can query. */
   function choose(candidate: ProxyInstallOption | null) {
     setOption(candidate ? optionId(candidate) : null);
     if (candidate && !candidate.acmeServers.includes(server)) {
@@ -612,7 +612,7 @@ export function ProxyPanel({
                         <SegmentedControl
                           label={t('install.server')}
                           value={server}
-                          // Seulement les autorités que l'installation choisie sait interroger.
+                          // Only the authorities the chosen installation can query.
                           options={(
                             detected.installOptions.find(
                               (candidate) => optionId(candidate) === option,
@@ -816,7 +816,7 @@ export function ProxyPanel({
         onClose={() => setNpmDrawer(null)}
         connection={npmDrawer?.connection ?? null}
         onSaved={(proxyId) => {
-          // Une connexion neuve est proposée d'emblée pour relier la machine.
+          // A new connection is offered right away to link the machine.
           if (proxyId && !npmDrawer?.connection) setLinkProxyId(proxyId);
           void refresh();
         }}
@@ -825,7 +825,7 @@ export function ProxyPanel({
   );
 }
 
-/** Le test qu'on attend : celui de la machine (son proxy, ou sa liaison), ou celui d'un proxy distant. */
+/** The awaited test: the machine's (its proxy, or its link), or a remote proxy's. */
 type CheckOf = 'machine' | 'remote';
 
 function lastCheckedAt(data: Data, of: CheckOf = 'machine'): string | null {
@@ -833,7 +833,7 @@ function lastCheckedAt(data: Data, of: CheckOf = 'machine'): string | null {
   return data.proxy?.lastCheckedAt ?? data.link?.lastCheckedAt ?? null;
 }
 
-/** Les points d'un test, un par ligne. */
+/** A test's points, one per line. */
 function CheckList({ checks }: { checks: ProxyViewForUi['checks'] }) {
   return (
     <ul className="flex flex-col gap-1">
@@ -854,7 +854,7 @@ function CheckList({ checks }: { checks: ProxyViewForUi['checks'] }) {
   );
 }
 
-/** Le jour seul, dans le fuseau et la langue de l'instance : une échéance de certificat. */
+/** The day alone, in the instance's time zone and language: a certificate's expiry. */
 function formatDay(value: string, format: FormatSettings): string {
   return new Intl.DateTimeFormat(format.locale, {
     dateStyle: 'medium',
@@ -862,7 +862,7 @@ function formatDay(value: string, format: FormatSettings): string {
   }).format(new Date(value));
 }
 
-/** Les domaines, avec leur état et leur certificat — la carte du proxy et celle de l'application. */
+/** The domains, with their state and their certificate — the proxy's card and the application's. */
 export function RouteList({
   routes,
   format,
@@ -873,9 +873,9 @@ export function RouteList({
   routes: RouteViewForUi[];
   format: FormatSettings;
   showApplication?: boolean;
-  /** La machine du proxy : les domaines d'une autre machine qu'il sert disent laquelle. */
+  /** The proxy's machine: another machine's domains it serves say which one. */
   hostTargetId?: string;
-  /** Le proxy est aussi un WAF : chaque domaine dit sa protection. */
+  /** The proxy is also a WAF: each domain says its protection. */
   showWaf?: boolean;
 }) {
   const t = useT(messages);

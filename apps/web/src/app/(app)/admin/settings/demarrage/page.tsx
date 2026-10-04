@@ -5,10 +5,10 @@ import { OnboardingRestart } from './onboarding-restart';
 export const dynamic = 'force-dynamic';
 
 /**
- * L'assistant n'est pas un réglage : c'est un raccourci vers un parcours. Il a
- * sa propre adresse pour la même raison qu'il avait son propre bloc en bas de
- * l'ancienne page — on ne vient pas ici pour cocher une case, on vient
- * recommencer la prise en main.
+ * The assistant is not a setting: it is a shortcut to a journey. It has its own
+ * address for the same reason it had its own block at the bottom of the old
+ * page — one does not come here to tick a box, one comes to start the getting
+ * started over.
  */
 export default async function OnboardingSettingsPage() {
   const auth = await requirePagePermission('/admin/settings/demarrage', 'settings:read');

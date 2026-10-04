@@ -2,12 +2,12 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * En-tête de page. Le titre en 24/32, légèrement condensé ; une description
- * de 68 caractères au plus par ligne ; les actions à droite, à hauteur du
- * titre. Plus de surtitre : le fil d'Ariane de la barre haute situe la page.
+ * The page header. The title in 24/32, slightly condensed; a description of 68
+ * characters at most per line; the actions on the right, at the title's height.
+ * No more overline: the top bar's breadcrumb places the page.
  *
- * `status` se pose à côté du titre (l'état d'une cible, d'une sonde) ;
- * `children` accueille ce qui suit la description (méta, étiquettes).
+ * `status` sits next to the title (a target's, a probe's state); `children`
+ * hosts what follows the description (meta, labels).
  */
 export function PageHeader({
   title,

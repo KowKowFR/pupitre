@@ -19,9 +19,9 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Détail d'une exécution : findings paginés, filtrables par sévérité et par
- * vue (`view` : `all`, `fixable`, `unfixable`, `accepted`). Chaque finding dit
- * s'il est couvert, aujourd'hui, par une acceptation de l'application.
+ * A run's detail: paginated findings, filterable by severity and by view (`view`:
+ * `all`, `fixable`, `unfixable`, `accepted`). Each finding says whether it is
+ * covered, today, by an acceptance of the application.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'scan:read');

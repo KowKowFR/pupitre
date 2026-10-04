@@ -25,10 +25,10 @@ type ApiError = { error?: { message?: string } };
 type Entrypoint = { host: string; httpPort: number; httpsPort: number } | null;
 
 /**
- * Connecter un Nginx Proxy Manager, ou modifier sa connexion. Un proxy hors
- * des cibles : Pupitre lui parle par son API, avec un compte à lui. Le test
- * part à l'enregistrement — une connexion neuve qui n'entre pas n'est pas
- * gardée, et la raison est dite ici même.
+ * Connecting a Nginx Proxy Manager, or changing its connection. A proxy outside
+ * the targets: Pupitre talks to it through its API, with an account of its own.
+ * The test goes out on saving — a new connection that does not get in is not
+ * kept, and the reason is given right here.
  */
 export function NpmConnectionDrawer({
   open,
@@ -40,7 +40,7 @@ export function NpmConnectionDrawer({
   onClose: () => void;
   /** `null` : une nouvelle connexion. */
   connection: RemoteProxyViewForUi | null;
-  /** Après l'enregistrement — ou `null` après le retrait. */
+  /** After saving — or `null` after removal. */
   onSaved: (proxyId: string | null) => void;
 }) {
   const t = useT(messages);
@@ -130,7 +130,7 @@ function NpmForm({
             }
           : null,
       },
-      // En modification, un mot de passe vide garde celui enregistré.
+      // When editing, an empty password keeps the saved one.
       ...(password !== '' ? { secrets: { password } } : {}),
     };
     const response = await fetch(connection ? `/api/proxies/${connection.id}` : '/api/proxies', {
@@ -149,7 +149,7 @@ function NpmForm({
       check?: ProxyCheckResult | null;
     };
     if (saved.check && !saved.check.ok) {
-      // Enregistrée quand même : on reste ici, avec ce qui ne va pas.
+      // Saved anyway: we stay here, with what is wrong.
       setError(t('npm.checkFailed', { problems: problemsOf(saved.check) }));
       onSaved(saved.proxy?.id ?? connection?.id ?? null);
       return;
@@ -293,7 +293,7 @@ function NpmForm({
   );
 }
 
-/** L'hôte d'une adresse saisie, pour le proposer — sans casser sur une saisie en cours. */
+/** The host of a typed address, to suggest it — without breaking on an input in progress. */
 function safeHost(value: string): string {
   try {
     return new URL(value.trim()).hostname;

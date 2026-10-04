@@ -8,28 +8,28 @@ import { Tab, Tabs } from '@/components/ui/tabs';
 import { neighbour, selectionFrom } from '@/lib/drawer-url';
 
 /**
- * La fiche d'un objet — une application, une cible, une sonde — dans un
- * tiroir, par-dessus sa liste. Plus de page à part : on ouvre, on lit, on
- * agit, on referme, et la liste n'a pas bougé.
+ * An object's record — an application, a target, a probe — in a drawer, on top
+ * of its list. No more separate page: one opens, reads, acts, closes, and the
+ * list has not moved.
  *
- * Ce qui est déjà sur la ligne s'affiche tout de suite (l'onglet « Aperçu ») ;
- * le reste — historique, secrets, charges… — est rendu par le serveur, parce
- * que c'est lui qui lit la base. La sélection vit donc dans l'URL et s'ouvre
- * par une **navigation** (`router.push`), pas par un simple `pushState` : la
- * page se relit avec `?app=blog`, et rend la fiche avec elle. Pendant ce
- * temps, le tiroir est déjà ouvert sur ce qu'on sait.
+ * What is already on the row shows right away (the "Overview" tab); the rest —
+ * history, secrets, workloads… — is rendered by the server, because it is the
+ * one reading the database. The selection therefore lives in the URL and opens
+ * through a **navigation** (`router.push`), not through a mere `pushState`: the
+ * page reads itself again with `?app=blog`, and renders the record with it.
+ * Meanwhile, the drawer is already open on what we know.
  *
- * L'onglet courant (`tab`) et le mode modification (`edit`) suivent l'URL
- * sans relire la page : une fiche se partage, se recharge, au même endroit.
+ * The current tab (`tab`) and the edit mode (`edit`) follow the URL without
+ * reading the page again: a record can be shared, reloaded, at the same place.
  */
 
-/** Les paramètres propres à une fiche ouverte : ils tombent quand on en change. */
+/** The parameters specific to an open record: they drop when changing record. */
 const RECORD_PARAMS = ['tab', 'edit'];
 
 export function useRecordSelection(
   key: string,
   ids: readonly string[],
-  /** L'URL peut porter un autre identifiant (l'UUID d'un ancien lien) : on le ramène à la clé affichée. */
+  /** The URL may carry another identifier (an old link's UUID): brought back to the shown key. */
   resolve: (value: string) => string | null = (value) => value,
 ) {
   const router = useRouter();
@@ -39,8 +39,8 @@ export function useRecordSelection(
   const fromUrl = raw === null ? null : resolve(raw);
   const [isPending, startTransition] = React.useTransition();
   const [target, setTarget] = React.useState<string | null>(null);
-  // Pendant la navigation, le tiroir suit le geste, pas l'URL qui n'a pas
-  // encore changé : il s'ouvre, change de fiche ou se ferme tout de suite.
+  // During navigation, the drawer follows the gesture, not the URL that has not
+  // changed yet: it opens, changes record or closes right away.
   const selected = isPending ? (target === null ? null : (resolve(target) ?? target)) : fromUrl;
 
   const go = React.useCallback(
@@ -73,9 +73,9 @@ export function useRecordSelection(
 
   return {
     selected,
-    /** La fiche demandée n'est pas encore rendue par le serveur. */
+    /** The requested record is not rendered by the server yet. */
     loading: isPending && target !== null,
-    /** `extra` : ce que la fiche doit ouvrir d'emblée — `{ edit: '1' }`. */
+    /** `extra`: what the record must open right away — `{ edit: '1' }`. */
     open: (id: string, extra?: Record<string, string>) =>
       go(id, selected === null ? 'push' : 'replace', false, extra),
     close: () => go(null, 'replace'),
@@ -86,7 +86,7 @@ export function useRecordSelection(
   };
 }
 
-/** Un paramètre de la fiche ouverte, lu et posé sans relire la page. */
+/** A parameter of the open record, read and set without reading the page again. */
 export function useRecordParam(name: string): [string | null, (value: string | null) => void] {
   const params = useSearchParams();
   const value = selectionFrom(params, name);
@@ -111,11 +111,11 @@ export type RecordTab = {
   key: string;
   label: React.ReactNode;
   count?: React.ReactNode;
-  /** `undefined` : rendu par le serveur, pas encore arrivé. */
+  /** `undefined`: rendered by the server, not arrived yet. */
   content: React.ReactNode | undefined;
 };
 
-/** Ce qui tient la place d'un onglet que le serveur n'a pas encore rendu. */
+/** What holds the place of a tab the server has not rendered yet. */
 export function RecordSkeleton() {
   return (
     <div className="flex flex-col gap-3" aria-busy="true">
@@ -128,12 +128,12 @@ export function RecordSkeleton() {
 }
 
 /**
- * Le tiroir d'une fiche : son en-tête, ses onglets, l'onglet courant, son
- * pied. `override` remplace onglets et pied — c'est le mode modification, où
- * le formulaire apporte son propre corps et ses propres boutons.
+ * A record's drawer: its header, its tabs, the current tab, its footer.
+ * `override` replaces tabs and footer — it is the edit mode, where the form
+ * brings its own body and its own buttons.
  *
- * Un onglet n'est monté qu'une fois ouvert (une liste de charges interroge la
- * machine), puis reste monté, caché : on retrouve ce qu'on y avait saisi.
+ * A tab is only mounted once opened (a workloads list queries the machine), then
+ * stays mounted, hidden: one finds again what one had typed there.
  */
 export function RecordDrawer({
   open,
@@ -149,7 +149,7 @@ export function RecordDrawer({
   override,
 }: {
   open: boolean;
-  /** L'objet affiché : changer d'objet repart d'onglets neufs. */
+  /** The shown object: changing object starts again from new tabs. */
   recordKey: string | null;
   onClose: () => void;
   onPrevious?: () => void;
@@ -158,7 +158,7 @@ export function RecordDrawer({
   header: React.ReactNode;
   tabs: RecordTab[];
   tabsLabel: string;
-  /** Le pied de l'onglet courant — reçoit sa clé. */
+  /** The current tab's footer — receives its key. */
   footer?: (tab: string) => React.ReactNode;
   override?: React.ReactNode;
 }) {
@@ -212,7 +212,7 @@ function RecordPanes({
   return (
     <>
       {header}
-      {/* Une fiche d'un seul tenant (un run, une application en marche) n'a pas d'onglets. */}
+      {/* A record in one piece (a run, a running application) has no tabs. */}
       {tabs.length > 1 ? (
         <div className="dr-tabs">
           <Tabs label={tabsLabel}>

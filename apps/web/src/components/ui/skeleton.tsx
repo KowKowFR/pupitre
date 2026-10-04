@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils';
 
 /**
- * Gabarit d'attente, à la silhouette exacte de ce qu'il remplace. Un reflet
- * lent le traverse ; il disparaît sous `prefers-reduced-motion`, le gabarit
- * reste.
+ * A waiting template, with the exact silhouette of what it replaces. A slow
+ * shimmer crosses it; it disappears under `prefers-reduced-motion`, the template
+ * stays.
  */
 export function Skeleton({
   className,

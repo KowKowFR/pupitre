@@ -17,12 +17,12 @@ const section = settingsSection('/admin/settings/integrations');
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
- * Paramètres → Intégrations : les fournisseurs de code de l'instance — la
- * GitHub App, une instance GitLab et une forge Gitea / Forgejo.
+ * Settings → Integrations: the instance's code providers — the GitHub App, a
+ * GitLab instance and a Gitea / Forgejo forge.
  *
- * Les installations sont lues chez GitHub à chaque affichage (un appel
- * sortant) : c'est la seule source qui dise où l'App a été installée depuis
- * la dernière visite. Une panne de GitHub ne casse pas la page — elle le dit.
+ * The installations are read at GitHub at each display (an outgoing call): it is
+ * the only source that says where the App was installed since the last visit. A
+ * GitHub outage does not break the page — it says so.
  */
 export default async function IntegrationsSettingsPage({
   searchParams,

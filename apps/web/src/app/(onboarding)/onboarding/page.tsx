@@ -23,12 +23,12 @@ import { OnboardingWizard } from './onboarding-wizard';
 export const dynamic = 'force-dynamic';
 
 /**
- * Assistant de démarrage.
+ * The onboarding assistant.
  *
- * Aucune donnée n'est créée ici : chaque étape appelle la route d'API que
- * l'écran normal appelle déjà, avec le même formulaire quand il existe. Cette
- * page ne fait que rassembler le contexte dont ces formulaires ont besoin —
- * exactement comme le font `/targets/new`, `/admin/roles` et `/admin/settings`.
+ * No data is created here: each step calls the API route the normal screen
+ * already calls, with the same form when there is one. This page only gathers
+ * the context those forms need — exactly as `/targets/new`, `/admin/roles` and
+ * `/admin/settings` do.
  */
 export default async function OnboardingPage() {
   const auth = await requirePageSession('/onboarding');
@@ -36,8 +36,8 @@ export default async function OnboardingPage() {
   const gate = onboardingGate(auth, record.settings);
   const t = await getT(onboarding);
 
-  // Un observateur ne se voit proposer aucune étape : plutôt qu'un 403 sur un
-  // écran qui ne lui était pas destiné, on lui dit ce qu'il en est et où aller.
+  // A viewer is offered no step: rather than a 403 on a screen that was not meant
+  // for them, we tell them how things stand and where to go.
   if (!gate.applies) {
     return (
       <>
@@ -65,18 +65,18 @@ export default async function OnboardingPage() {
   }
 
   const environment = await onboardingEnvironment(auth);
-  // Les rôles attribuables viennent de la base, comme sur /admin/users : un
-  // rôle créé à l'étape précédente doit être proposé à la suivante.
+  // The assignable roles come from the database, as on /admin/users: a role
+  // created at the previous step must be offered at the next one.
   const roleKeys = auth.can('role:read')
     ? (await listRoles()).map((role) => role.key)
     : (['viewer'] as RoleKey[]);
 
   /**
-   * Même liste qu'à la section Régionalisation, et pour la même raison : le
-   * sélecteur n'offre que les langues que le panel parle réellement, mais il
-   * n'escamote jamais la valeur en place. Une instance restée sur `de-DE`
-   * verrait sinon une liste sans ce qu'elle affiche, et le premier
-   * enregistrement changerait sa locale sans que personne l'ait demandé.
+   * The same list as in the Regional settings section, and for the same reason:
+   * the selector only offers the languages the panel really speaks, but it never
+   * hides the value in place. An instance left on `de-DE` would otherwise see a
+   * list without what it shows, and the first save would change its locale
+   * without anybody asking for it.
    */
   const offered: SupportedLocale[] = [...TRANSLATED_LOCALES];
   const locales = offered.includes(record.settings.locale)

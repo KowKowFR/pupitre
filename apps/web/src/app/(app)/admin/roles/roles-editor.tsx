@@ -29,17 +29,17 @@ export type PermissionGroup = {
     key: Permission;
     action: string;
     description: string;
-    /** Exige un second facteur quand l'instance le veut pour les droits sensibles. */
+    /** Requires a second factor when the instance wants it for sensitive rights. */
     sensitive: boolean;
   }>;
 };
 
 /**
- * Les rôles, côte à côte : une colonne par rôle, une ligne par famille de
- * permissions. On compare deux rôles d'un coup d'œil, sans rien déplier. Un
- * clic sur un rôle ouvre son tiroir — c'est là qu'on le lit en détail et qu'on
- * le modifie. Le tiroir suit l'URL (`?role=operator`) : J/K passent d'un rôle
- * à l'autre, et le lien se partage.
+ * The roles, side by side: one column per role, one row per permission family.
+ * Two roles compare at a glance, without unfolding anything. A click on a role
+ * opens its drawer — that is where it is read in detail and changed. The drawer
+ * follows the URL (`?role=operator`): J/K move from one role to the next, and
+ * the link can be shared.
  */
 export function RolesEditor({
   roles,
@@ -51,7 +51,7 @@ export function RolesEditor({
   roles: RoleRow[];
   groups: PermissionGroup[];
   canManage: boolean;
-  /** La clé du rôle verrouillé, nommée dans la description de l'écran. */
+  /** The locked role's key, named in the screen's description. */
   lockedRole: string;
   twoFactorPolicy: TwoFactorPolicy;
 }) {

@@ -34,20 +34,19 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 const bodySchema = z.object({
-  /** Déploiement dont on rejoue l'AppSpec — c'est lui, la « version ». */
+  /** The deployment whose AppSpec is replayed — it is the "version". */
   versionId: z.string().uuid(),
   targetId: z.string().uuid(),
   autoRollback: z.boolean().default(true),
 });
 
 /**
- * Redéploie une version antérieure connue.
+ * Redeploys a known earlier version.
  *
- * Ce n'est **pas** un rollback : le rollback remet en service une release déjà
- * présente sur la cible, ici on refait un déploiement complet — nouveau numéro
- * de version, nouveau pipeline, nouveaux scans — à partir de l'AppSpec figée à
- * l'époque. C'est ce qui permet de rejouer une version sur une *autre* cible,
- * ou après un `destroy`.
+ * It is **not** a rollback: the rollback puts back in service a release already
+ * present on the target, here we redo a complete deployment — new version number,
+ * new pipeline, new scans — from the AppSpec frozen at the time. That is what
+ * allows replaying a version on *another* target, or after a `destroy`.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:create', { applicationScoped: true });
@@ -93,19 +92,20 @@ export const POST = apiRoute<Context>(async (request, context) => {
     );
   }
 
-  // La politique de scan est rejouée telle quelle : redéployer une version, ce
-  // n'est pas l'occasion de baisser la garde sans le dire. Elle reste donc
-  // soumise à la même permission qu'à la création.
+  // The scan policy is replayed as is: redeploying a version is not the occasion
+  // to lower one's guard without saying so. It therefore stays subject to the same
+  // permission as at creation.
   const requestedScan = source.deployment.scanConfig ?? { scanners: [], failOn: 'NONE' as const };
   const configuresScan = requestedScan.scanners.length > 0 || requestedScan.failOn !== 'NONE';
   if (configuresScan && !auth.can('scan:configure')) {
     throw new ForbiddenError('scan:configure');
   }
 
-  // Les réglages d'instance priment sur la politique héritée : une analyse
-  // désactivée ne doit pas revenir par la porte d'un redéploiement. Le
-  // réglage de l'application, lui, s'applique : c'est elle qui décide de ce
-  // qui la bloque, pas la version — et le régler demande `scan:configure`.
+  // The instance settings take precedence over the inherited policy: a disabled
+  // analysis must not come back through the door of a redeployment. The
+  // application's setting, on the other hand, applies: it is the application that
+  // decides what blocks it, not the version — and setting it requires
+  // `scan:configure`.
   const { settings } = await getAppSettings();
   const scanConfig = withApplicationScanPolicy(
     applySecuritySettings(requestedScan, settings.security),
@@ -114,8 +114,8 @@ export const POST = apiRoute<Context>(async (request, context) => {
 
   const appSpec = parseAppSpec(source.deployment.appSpec);
 
-  // Une version construite depuis une archive téléversée en a besoin : on ne
-  // garde que les dernières, et rien d'autre ne la remplacerait.
+  // A version built from an uploaded archive needs it: only the last ones are
+  // kept, and nothing else would replace it.
   const archive = source.deployment.sourceArchiveSha256
     ? {
         id: source.deployment.sourceArchiveId,
@@ -142,8 +142,8 @@ export const POST = apiRoute<Context>(async (request, context) => {
     autoRollback: input.autoRollback,
     appSpec,
     triggeredBy: auth.userId,
-    // Le commit suit l'AppSpec : un service qui se construit a besoin du code
-    // exact de la version rejouée, pas de la tête actuelle de la branche.
+    // The commit follows the AppSpec: a service that builds needs the exact code of
+    // the replayed version, not the branch's current head.
     ...(source.deployment.sourceRepository && source.deployment.sourceSha
       ? {
           source: {
@@ -193,7 +193,7 @@ export const POST = apiRoute<Context>(async (request, context) => {
 
   logger.info(
     { deploymentId: deployment.id, from: source.deployment.id, jobId: job.id },
-    'redéploiement enfilé',
+    'redeployment queued',
   );
 
   return NextResponse.json(

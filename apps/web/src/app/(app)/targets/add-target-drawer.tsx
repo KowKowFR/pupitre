@@ -8,12 +8,11 @@ import { targets as messages } from '@/i18n/messages/targets';
 import { TargetForm, type CreatedTarget } from './target-form';
 
 /**
- * « Ajouter une cible », dans un tiroir au-dessus de la liste.
+ * "Add a target", in a drawer above the list.
  *
- * Le formulaire est celui de l'assistant de démarrage et de la modification :
- * `POST /api/targets`, mêmes champs, même audit. Le tiroir ne change que le
- * cadre — la liste reste derrière, et la cible créée s'y ouvre aussitôt,
- * prête à être testée.
+ * The form is the onboarding assistant's and the edit's: `POST /api/targets`,
+ * same fields, same audit. The drawer only changes the frame — the list stays
+ * behind, and the created target opens there right away, ready to be tested.
  */
 export function AddTargetDrawer({
   open,
@@ -39,8 +38,8 @@ export function AddTargetDrawer({
             kind={t('drawer.kind')}
             title={t('page.add')}
             extra={
-              // Le formulaire demande une machine, un compte, une clé, une
-              // plage de ports : l'aide dit ce qu'il faut avoir préparé en face.
+              // The form asks for a machine, an account, a key, a port range: the help says
+              // what must have been prepared on the other side.
               <div className="flex flex-col items-start gap-2">
                 <p className="t-sm text-text-2">{t('new.description')}</p>
                 <p className="t-cap text-text-3">{t('new.card.description')}</p>

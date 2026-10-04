@@ -35,14 +35,15 @@ import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 
 const STATUS_VARIANT = { pending: 'idle', active: 'ok', failed: 'danger' } as const;
 
-/** Une ligne, avec « il y a 3 min » déjà calculé au serveur (pas d'écart à l'hydratation). */
+/** A row, with "3 min ago" already computed on the server (no hydration mismatch). */
 export type DomainViewRow = DomainRow & { checked: string };
 
 type ApiError = { error?: { message?: string } };
 
 /**
- * Le tableau des domaines et le tiroir d'un domaine. Le tiroir suit l'URL
- * (`?domaine=…`) : J/K passent d'un domaine à l'autre, et le lien se partage.
+ * The domains table and a domain's drawer. The drawer follows the URL
+ * (`?domaine=…`): J/K move from one domain to the next, and the link can be
+ * shared.
  */
 export function DomainsView({ rows, format }: { rows: DomainViewRow[]; format: FormatSettings }) {
   const t = useT(messages);
@@ -164,14 +165,14 @@ function ProxyCell({ row }: { row: DomainViewRow }) {
   );
 }
 
-/** L'échéance d'un certificat, et le temps qu'il lui reste — en couleur quand il presse. */
+/** A certificate's expiry, and the time it has left — in color when it is pressing. */
 function CertificateCell({ row, format }: { row: DomainViewRow; format: FormatSettings }) {
   const t = useT(messages);
   const tp = useT(proxyMessages);
   if (!row.tls) return <span className="t-cap text-text-3">{t('cert.http')}</span>;
   const certificate = row.certificate;
-  // Pas encore sondé : le certificat est peut-être en cours d'émission. Sondé
-  // sans certificat — un domaine qui ne répond pas —, il n'y a rien à en dire.
+  // Not probed yet: the certificate may be being issued. Probed without a
+  // certificate — a domain that does not answer —, there is nothing to say about it.
   if (!certificate || certificate.status === 'none') {
     return (
       <span className="t-cap text-text-3">
@@ -234,9 +235,9 @@ type Lookup =
   | { state: 'failed'; error: string };
 
 /**
- * Le relevé d'un domaine, demandé au panel. Fonction pure : elle rend l'état
- * à poser, et c'est l'appelant qui le pose — jamais dans le corps d'un effet.
- * `null` : la demande a été abandonnée (tiroir refermé).
+ * A domain's reading, asked of the panel. A pure function: it returns the state
+ * to set, and it is the caller that sets it — never in an effect's body. `null`:
+ * the request was abandoned (drawer closed).
  */
 async function fetchInspection(
   id: string,
@@ -263,9 +264,9 @@ async function fetchInspection(
 }
 
 /**
- * Un domaine en détail. Ce que la base sait s'affiche tout de suite ; le
- * relevé — DNS, adresses, registre, certificat — arrive du worker quelques
- * secondes plus tard, et se relance d'un bouton.
+ * A domain in detail. What the database knows shows right away; the reading —
+ * DNS, addresses, registry, certificate — arrives from the worker a few seconds
+ * later, and is started again with a button.
  */
 function DomainDrawer({ row, format }: { row: DomainViewRow; format: FormatSettings }) {
   const t = useT(messages);
@@ -435,7 +436,7 @@ function DomainDrawer({ row, format }: { row: DomainViewRow; format: FormatSetti
   );
 }
 
-/** Une liste de valeurs techniques, une par ligne. */
+/** A list of technical values, one per line. */
 function Values({ values, empty }: { values: string[]; empty?: string }) {
   const c = useT(common);
   if (values.length === 0) return <span className="text-text-3">{empty ?? c('none')}</span>;

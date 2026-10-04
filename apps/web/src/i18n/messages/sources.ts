@@ -1,16 +1,16 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les dépôts liés : la connexion de la GitHub App, celle d'une instance
- * GitLab et celle d'une forge Gitea ou Forgejo (Paramètres → Intégrations),
- * la liaison d'une application à une branche, les commits en attente de
- * validation, et les erreurs des routes qui les servent.
+ * Linked repositories: the GitHub App's connection, a GitLab instance's and a
+ * Gitea or Forgejo forge's (Settings → Integrations), linking an application to a
+ * branch, the commits awaiting approval, and the errors of the routes that serve
+ * them.
  *
- * `pupitre.json`, `contents: read` et `statuses: write` ne se traduisent pas :
- * ce sont des noms de fichier et de droits, tels que GitHub les affiche.
+ * `pupitre.json`, `contents: read` and `statuses: write` are not translated: they
+ * are file and permission names, as GitHub shows them.
  */
 const fr = {
-  // ── Paramètres → Intégrations ───────────────────────────────────────────
+  // ── Settings → Integrations ─────────────────────────────────────────────
   'integration.title': 'GitHub',
   'integration.state.on': 'connectée',
   'integration.state.off': 'non connectée',
@@ -67,7 +67,7 @@ const fr = {
   'integration.connect.invalid.name': "Donnez un nom à l'application.",
   'integration.manual.invalid': "Indiquez l'App ID et collez la clé privée.",
 
-  // ── Nouvelle application → depuis un dépôt ─────────────────────────────
+  // ── New application → from a repository ────────────────────────────────
   'import.section.source': 'Le dépôt',
   'import.section.spec': 'Le pupitre.json',
   'import.section.commits': 'À chaque nouveau commit',
@@ -159,7 +159,7 @@ const fr = {
   'proposal.kind.code': 'code',
   'proposal.received': 'reçu {when}',
 
-  // ── Paramètres → Intégrations : les forges à jeton, Gitea / Forgejo et GitLab ──
+  // ── Settings → Integrations: the token forges, Gitea / Forgejo and GitLab ──────
   'gitea.title': 'Gitea / Forgejo',
   'gitea.lead':
     'Gitea, Forgejo et Codeberg, par le jeton d’accès d’un compte de la forge — de préférence un compte de service. Comme pour GitHub, Pupitre interroge la forge : elle n’a jamais besoin de joindre le panel.',
@@ -250,7 +250,7 @@ const fr = {
   'drawer.invalid.branch': 'Indiquez une branche.',
   'drawer.invalid.targets': 'Choisissez au moins une cible.',
 
-  // ── Déploiements ────────────────────────────────────────────────────────
+  // ── Deployments ─────────────────────────────────────────────────────────
   'run.source': 'Commit',
 
   // ── Erreurs ─────────────────────────────────────────────────────────────

@@ -17,11 +17,11 @@ type DeployTarget = {
 };
 
 /**
- * « Nouvelle application », dans un tiroir large au-dessus de la liste.
+ * "New application", in a wide drawer above the list.
  *
- * Décrire, générer, revoir, enregistrer, déployer : le parcours et ses routes
- * ne changent pas. Le tiroir garde la liste derrière, et l'application créée
- * y apparaît dès la fermeture.
+ * Describe, generate, review, save, deploy: the journey and its routes do not
+ * change. The drawer keeps the list behind, and the created application shows up
+ * there as soon as it closes.
  */
 export function NewApplicationDrawer({
   open,

@@ -24,13 +24,14 @@ import { NotificationsManager } from './notifications-manager';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les canaux ne vivent pas dans le JSONB des paramètres mais dans leur propre
- * table : il y en a plusieurs, ils portent des secrets, et ils portent un état
- * d'exécution qui change tout seul. Le raisonnement complet est en tête de
+ * The channels do not live in the settings' JSONB but in their own table: there
+ * are several of them, they carry secrets, and they carry a run state that
+ * changes on its own. The complete reasoning is at the top of
  * `packages/db/src/schema/notifications.ts`.
  *
- * Le catalogue est lu ici, côté serveur, et passé tel quel : l'écran ne connaît
- * le nom d'aucun canal ni d'aucun champ — il rend ce que le catalogue décrit.
+ * The catalog is read here, on the server side, and passed as is: the screen
+ * knows the name of no channel nor of any field — it renders what the catalog
+ * describes.
  */
 export default async function NotificationSettingsPage() {
   const auth = await requirePagePermission('/admin/settings/notifications', 'settings:read');
@@ -40,9 +41,9 @@ export default async function NotificationSettingsPage() {
     listNotificationDigestStates(),
     getAppSettingsValue(),
   ]);
-  // Les deux catalogues portent leur propre prose — les événements comme les
-  // canaux et les libellés de leurs champs : on leur passe la langue de
-  // l'instance plutôt que de les laisser retomber sur leur défaut français.
+  // Both catalogs carry their own prose — the events as well as the channels and
+  // their fields' labels: they are given the instance's language rather than left
+  // to fall back on their French default.
   const language = await currentLanguage();
   const events = presentNotificationEvents(language);
   const t = await getT(notificationMessages);
@@ -64,11 +65,10 @@ export default async function NotificationSettingsPage() {
       />
 
       {/*
-        Le regroupement est une carte à part, et non un champ de plus dans le
-        formulaire d'un canal : il ne se règle pas par canal. Cinquante pannes
-        doivent tenir en un message, que l'astreinte lise ses alertes par e-mail
-        ou dans un salon.
-      */}
+        Grouping is a card of its own, and not one more field in a channel's
+        form: it is not set per channel. Fifty outages must fit in one message,
+        whether the on-call reads their alerts by email or in a chat room.
+             */}
       <Card>
         <CardHeader>
           <CardTitle>{t('digest.card.title')}</CardTitle>

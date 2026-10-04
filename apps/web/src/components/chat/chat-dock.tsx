@@ -21,11 +21,11 @@ import { Composer } from './composer';
 
 type ApiError = { error?: { message?: string } };
 
-/** Deux messages du même auteur à moins de cinq minutes se lisent comme un seul bloc. */
+/** Two messages from the same author less than five minutes apart read as a single block. */
 const GROUP_WITHIN_MS = 5 * 60_000;
-/** À moins de ce nombre de pixels du bas, on suit le fil. */
+/** Within this number of pixels from the bottom, we follow the thread. */
 const FOLLOW_THRESHOLD_PX = 80;
-/** Durée du « +1 » qui s'envole de la bulle. */
+/** The duration of the "+1" that flies off the bubble. */
 const POP_MS = 1_200;
 
 function dayKey(iso: string, timezone: string): string {
@@ -41,7 +41,7 @@ type ThreadLoad =
   | { ok: true; items: ThreadMessage[]; hasMore: boolean; directory: DirectoryEntry[] }
   | { ok: false; status: number; message: string | null };
 
-/** Le fil et l'annuaire des mentions, en une fois. Ne lève jamais. */
+/** The thread and the mentions directory, at once. Never throws. */
 async function fetchThread(): Promise<ThreadLoad> {
   try {
     const [thread, people] = await Promise.all([
@@ -56,19 +56,19 @@ async function fetchThread(): Promise<ThreadLoad> {
     const directory = people.ok ? ((await people.json()) as { items: DirectoryEntry[] }).items : [];
     return { ok: true, items: page.items, hasMore: page.hasMore, directory };
   } catch {
-    // Réseau coupé : rouvrir la bulle réessaie.
+    // Network cut: reopening the bubble tries again.
     return { ok: false, status: 0, message: null };
   }
 }
 
-/** Le premier des `unread` derniers messages des autres : là où commence le nouveau. */
+/** The first of the others' last `unread` messages: where the new part starts. */
 function firstUnreadId(items: readonly ThreadMessage[], me: string, unread: number): string | null {
   if (unread <= 0) return null;
   const fromOthers = items.filter((message) => message.authorId !== me);
   return fromOthers.at(-Math.min(unread, fromOthers.length))?.id ?? null;
 }
 
-/** L'heure, à la minute : « aujourd'hui » et « hier » basculent à minuit sans rechargement. */
+/** The time, to the minute: "today" and "yesterday" flip at midnight without a reload. */
 function useClock(): number {
   const [now, setNow] = React.useState(() => Date.now());
   React.useEffect(() => {
@@ -90,14 +90,14 @@ function quoteOf(message: ThreadMessage): ChatQuote {
 }
 
 /**
- * La discussion, toujours à portée : une bulle en bas à droite de chaque
- * écran, qui ouvre le fil par-dessus la page — on garde sous les yeux le
- * déploiement dont on parle.
+ * The chat, always within reach: a bubble at the bottom right of every screen,
+ * which opens the thread over the page — the deployment being talked about stays
+ * before one's eyes.
  *
- * La bulle porte les non-lus (rouge quand l'un d'eux s'adresse à vous) et
- * laisse s'envoler un « +1 » à chaque message qui arrive. Le fil se charge à
- * la première ouverture, puis reste à jour en direct, même fermé : le rouvrir
- * est instantané. Il vit dans le layout, il survit donc à la navigation.
+ * The bubble carries the unread count (red when one of them is addressed to you)
+ * and lets a "+1" fly off at each incoming message. The thread loads at the first
+ * opening, then stays up to date live, even closed: reopening it is instant. It
+ * lives in the layout, so it survives navigation.
  */
 export function ChatDock({
   canModerate,
@@ -151,8 +151,8 @@ export function ChatDock({
     unreadRef.current = unread;
   }, [unread]);
 
-  // À l'ouverture, le séparateur « Nouveaux » se pose devant le premier non-lu
-  // — tout de suite si le fil est déjà là, sinon au chargement (`load`).
+  // On opening, the "New" separator sits before the first unread — right away if
+  // the thread is already there, otherwise at load time (`load`).
   const [wasOpen, setWasOpen] = React.useState(chatOpen);
   if (chatOpen !== wasOpen) {
     setWasOpen(chatOpen);
@@ -171,8 +171,8 @@ export function ChatDock({
     [clearUnread],
   );
 
-  // ── Première ouverture : le fil et l'annuaire des mentions ─────────────
-  // Rien n'est écrit avant la réponse : le chargement se lit dans `loaded`.
+  // ── First opening: the thread and the mentions directory ───────────────
+  // Nothing is written before the answer: the loading reads in `loaded`.
   const load = React.useCallback(() => {
     if (fetching.current) return;
     fetching.current = true;
@@ -196,21 +196,21 @@ export function ChatDock({
   }, [chatOpen, loaded, load]);
   const loading = chatOpen && !loaded && error === null;
 
-  // Ouvert et chargé : on suit le bas, et tout est lu.
+  // Open and loaded: we follow the bottom, and everything is read.
   React.useEffect(() => {
     if (!chatOpen || !loaded) return;
     following.current = true;
     const last = items.at(-1);
     if (last) markRead(last.createdAt);
     else clearUnread();
-    // Une fois par ouverture, quand le fil est là.
+    // Once per opening, when the thread is there.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatOpen, loaded]);
 
-  // ── Le direct : messages, effacements, réactions ───────────────────────
+  // ── Live: messages, deletions, reactions ───────────────────────────────
   React.useEffect(() => {
     const offMessage = subscribe('chat.message', (event) => {
-      // Fermée : un « +1 » s'envole de la bulle.
+      // Closed: a "+1" flies off the bubble.
       if (!chatOpen && event.message.authorId !== me) {
         const pop = event.message.id;
         setPops((current) => [...current.slice(-2), pop]);
@@ -254,7 +254,7 @@ export function ChatDock({
     };
   }, [subscribe, markRead, chatOpen, me]);
 
-  // Suivre le bas quand on y est ; garder sa place quand on charge l'historique.
+  // Follow the bottom when there; keep one's place when loading the history.
   React.useLayoutEffect(() => {
     const node = scroller.current;
     if (!node) return;
@@ -319,7 +319,7 @@ export function ChatDock({
     setError(null);
     let request: RequestInit;
     if (images.length > 0) {
-      // Des images : un formulaire multipart, que le serveur relit octet par octet.
+      // Images: a multipart form, which the server reads again byte by byte.
       const form = new FormData();
       form.set('body', body);
       if (replyTo) form.set('replyToId', replyTo.id);
@@ -347,7 +347,7 @@ export function ChatDock({
     const message = (await response.json()) as ThreadMessage;
     following.current = true;
     setReplyTo(null);
-    // Écrire, c'est avoir lu : le serveur a avancé le marqueur, on suit.
+    // Writing is having read: the server moved the marker forward, we follow.
     clearUnread();
     setItems((current) =>
       current.some((known) => known.id === message.id) ? current : [...current, message],

@@ -17,7 +17,7 @@ import { requirePermission } from '@/lib/rbac';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Les sauvegardes de la base du panel, et la tâche qui les planifie. */
+/** The panel database's backups, and the task that schedules them. */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'settings:read');
   const [rows, schedule] = await Promise.all([
@@ -27,7 +27,7 @@ export const GET = apiRoute(async (request) => {
   return NextResponse.json({ items: rows.map(backupView), schedule });
 });
 
-/** « Sauvegarder maintenant ». */
+/** "Back up now". */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'settings:manage');
   const destination = await getActiveBackupDestination();

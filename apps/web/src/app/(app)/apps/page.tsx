@@ -23,33 +23,33 @@ import { ServersList, type ServerRow } from './servers-list';
 export const dynamic = 'force-dynamic';
 
 /**
- * Fenêtre rendue avec la page. 24 h en 48 intervalles de 30 minutes : assez fin
- * pour voir un pic du week-end, assez grossier pour tenir dans une frise de
- * cent pixels sans transporter 288 valeurs par machine. Les 7 jours sont
- * demandés à la route, à la demande — personne n'ouvre cet écran pour eux.
+ * The window rendered with the page. 24 h in 48 intervals of 30 minutes: fine
+ * enough to see a weekend peak, coarse enough to fit in a hundred-pixel strip
+ * without carrying 288 values per machine. The 7 days are asked of the route, on
+ * demand — nobody opens this screen for them.
  */
 const HISTORY_HOURS = 24;
 const HISTORY_BUCKETS = 48;
 
 /**
- * Supervision, vue par serveur.
+ * Monitoring, seen per server.
  *
- * Deux sources, jamais mélangées :
+ * Two sources, never mixed:
  *
- * - la **base** dit quelles machines sont déclarées et ce qui tourne dessus.
- *   Elle répond toujours, même quand toutes les machines sont éteintes ;
- * - la **machine** dit comment elle se porte *à l'instant*. Ce relevé est
- *   demandé par le navigateur, cible par cible, et son échec n'emporte rien
- *   d'autre que lui.
+ * - the **database** says which machines are declared and what runs on them. It
+ *   always answers, even when all the machines are off;
+ * - the **machine** says how it is doing *right now*. This reading is requested
+ *   by the browser, target by target, and its failure takes nothing else with
+ *   it.
  *
- * C'est ce cloisonnement qui fait qu'un serveur injoignable garde ses
- * applications à l'écran.
+ * It is this separation that makes an unreachable server keep its applications
+ * on screen.
  *
- * Depuis que les relevés sont conservés, la base a une troisième chose à dire :
- * **le passé de la machine**. Elle est rendue avec la page, côté serveur, et
- * pour une raison précise — c'est du SQL, pas du SSH. La courbe des dernières
- * 24 h s'affiche donc à l'identique que la machine réponde ou non, ce qui est
- * exactement le moment où on veut la lire.
+ * Since the readings are kept, the database has a third thing to say: **the
+ * machine's past**. It is rendered with the page, on the server side, and for a
+ * precise reason — it is SQL, not SSH. The curve of the last 24 h therefore
+ * shows identically whether the machine answers or not, which is exactly the
+ * moment one wants to read it.
  */
 export default async function AppsPage({
   searchParams,
@@ -60,22 +60,22 @@ export default async function AppsPage({
   const t = await getT(messages);
   const canReadTargets = auth.can('target:read');
 
-  // Sans `target:read`, on ne liste pas le parc : les seuls serveurs affichés
-  // sont ceux que les applications visibles citent déjà.
+  // Without `target:read`, the fleet is not listed: the only servers shown are
+  // those the visible applications already mention.
   const [apps, targets] = await Promise.all([
     listSupervisedApps(),
     canReadTargets ? listTargets() : Promise.resolve([]),
   ]);
 
-  // L'historique ne concerne que les cibles réellement enregistrées : une
-  // machine connue par le seul souvenir d'un déploiement n'a jamais été relevée.
+  // The history only concerns the targets really registered: a machine known only
+  // through a deployment's memory was never read.
   const targetIds = targets.map((target) => target.id);
   const [histories, openBreaches, thresholdsByTarget] = await Promise.all([
     targetHistories(targetIds, HISTORY_HOURS, HISTORY_BUCKETS),
     listOpenBreaches(targetIds),
-    // Une résolution par machine : les seuils sont trois couches, et c'est la
-    // base qui les empile (`resolveThresholds`). Recopier l'empilement ici en
-    // aurait fait une seconde vérité.
+    // One resolution per machine: the thresholds are three layers, and it is the
+    // database that stacks them (`resolveThresholds`). Copying the stacking here
+    // would have made a second truth.
     Promise.all(targetIds.map((id) => resolveThresholds(id))),
   ]);
 
@@ -94,9 +94,9 @@ export default async function AppsPage({
     publishedPort: app.publishedPort,
     services: app.services,
     startedAt: app.startedAt?.toISOString() ?? null,
-    // Préservé tel quel : une application dont la dernière mise à jour a échoué
-    // reste visible, avec la mention de l'échec. La faire disparaître était le
-    // défaut qu'on a corrigé, et le regroupement par serveur ne le réintroduit pas.
+    // Kept as is: an application whose last update failed stays visible, with the
+    // mention of the failure. Making it disappear was the bug that was fixed, and
+    // grouping by server does not reintroduce it.
     lastFailedUpdate: app.lastFailedUpdate
       ? {
           deploymentId: app.lastFailedUpdate.deploymentId,
@@ -124,10 +124,10 @@ export default async function AppsPage({
   }
 
   for (const app of items) {
-    // Une cible absente de la liste ci-dessus : soit le lecteur n'a pas
-    // `target:read`, soit la ligne a disparu de la table. Dans les deux cas
-    // l'application reste affichée sous le nom que son déploiement a gardé —
-    // mieux vaut un serveur sans fiche qu'une application orpheline.
+    // A target absent from the list above: either the reader does not have
+    // `target:read`, or the row disappeared from the table. In both cases the
+    // application stays shown under the name its deployment kept — better a server
+    // without a record than an orphan application.
     const existing = servers.get(app.targetId);
     if (existing) {
       existing.apps.push(app);
@@ -150,16 +150,16 @@ export default async function AppsPage({
 
   const { settings } = await getAppSettings();
 
-  // L'application ouverte (`?app=<id du déploiement>`) : sa console, dans le
-  // tiroir — même si elle ne tourne plus, la fiche le dit.
+  // The open application (`?app=<deployment id>`): its console, in the drawer —
+  // even if it no longer runs, the record says so.
   const wanted = (await searchParams).app;
   const record =
     typeof wanted === 'string' && z.string().uuid().safeParse(wanted).success
       ? await runningAppRecord(wanted, auth)
       : null;
 
-  // Les données d'historique, mises en forme pour le client : des chaînes ISO
-  // plutôt que des `Date`, et rien d'autre que ce que l'écran affiche.
+  // The history data, shaped for the client: ISO strings rather than `Date`s, and
+  // nothing other than what the screen shows.
   const history: Record<string, HostHistoryData> = {};
   targetIds.forEach((id, index) => {
     const window = histories.get(id);
@@ -196,8 +196,8 @@ export default async function AppsPage({
     };
   });
 
-  // L'en-tête vit dans la liste quand il y a des serveurs : son bouton « Tout
-  // relever » pilote les relevés, qui sont un état client.
+  // The header lives in the list when there are servers: its "Read all" button
+  // drives the readings, which are client state.
   if (rows.length === 0) {
     return (
       <>

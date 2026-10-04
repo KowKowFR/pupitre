@@ -2,14 +2,13 @@ import 'server-only';
 import type { PurgeReport } from '@pupitre/db';
 
 /**
- * Une seule entrée d'audit par appel de purge, jamais une par déploiement :
- * mille lignes « deployment.purged » noieraient le journal au lieu de le
- * renseigner.
+ * A single audit entry per purge call, never one per deployment: a thousand
+ * "deployment.purged" rows would drown the log instead of informing it.
  *
- * Elle porte la liste complète des identifiants tant qu'elle reste lisible —
- * au-delà, c'est le décompte et la ventilation par statut qui font foi. Ces
- * identifiants sont la **seule** trace restante de ce qui a disparu : les
- * rogner trop tôt reviendrait à purger l'historique de la purge.
+ * It carries the complete list of identifiers as long as it stays readable —
+ * beyond that, it is the count and the breakdown per status that count. These
+ * identifiers are the **only** remaining trace of what disappeared: trimming
+ * them too early would amount to purging the purge's history.
  */
 const AUDIT_ID_LIMIT = 200;
 

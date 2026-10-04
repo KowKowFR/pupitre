@@ -4,9 +4,9 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { AccessShell } from '@/components/access-shell';
 
 /**
- * Écran d'entrée. Fond quadrillé très faible — un plan de baie plutôt qu'un
- * dégradé —, marque au-dessus du panneau, mention d'instance en dessous.
- * Le quadrillage est purement décoratif et masqué aux technologies d'assistance.
+ * The entrance screen. A very faint grid background — a rack plan rather than a
+ * gradient —, the brand above the panel, the instance mention below. The grid is
+ * purely decorative and hidden from assistive technologies.
  */
 export default async function AuthLayout({ children }: { children: ReactNode }) {
   const t = await getT(messages);

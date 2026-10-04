@@ -1,6 +1,6 @@
 'use client';
 
-/* eslint-disable @next/next/no-img-element -- des aperçus locaux (blob:) et une URL d'API versionnée */
+/* eslint-disable @next/next/no-img-element -- local previews (blob:) and a versioned API URL */
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,13 +26,13 @@ import { toast } from '@/lib/toast';
 import { cn } from '@/lib/utils';
 
 /**
- * La photo de profil, sur « Mon compte ».
+ * The profile picture, on "My account".
  *
- * Un clic sur le visage ouvre le recadrage : l'image se déplace à la souris,
- * au doigt ou aux flèches, se zoome à la molette, au curseur ou avec + et −.
- * Le cercle montre ce qui restera ; deux aperçus le montrent à la taille où on
- * le verra vraiment. Le navigateur exporte un carré de 256 px — voir
- * `image-prep.ts` —, le serveur le relit et le range.
+ * A click on the face opens the cropping: the image moves with the mouse, a
+ * finger or the arrows, zooms with the wheel, the slider or + and −. The circle
+ * shows what will remain; two previews show it at the size it will really be
+ * seen. The browser exports a 256 px square — see `image-prep.ts` —, the server
+ * reads it again and stores it.
  */
 
 const VIEW = 280;
@@ -43,7 +43,7 @@ type View = { zoom: number; x: number; y: number };
 
 type ApiError = { error?: { message?: string } };
 
-/** Ce que montre la fenêtre de recadrage, dérivé de l'image et du cadrage. */
+/** What the cropping window shows, derived from the image and the framing. */
 function geometry(image: HTMLImageElement, view: View) {
   const scale = (VIEW / Math.min(image.naturalWidth, image.naturalHeight)) * view.zoom;
   const width = image.naturalWidth * scale;
@@ -53,7 +53,7 @@ function geometry(image: HTMLImageElement, view: View) {
   return { scale, width, height, left, top };
 }
 
-/** L'image couvre toujours le cercle : on ne la pousse pas au-delà de son bord. */
+/** The image always covers the circle: it is not pushed beyond its edge. */
 function clamp(image: HTMLImageElement, view: View): View {
   const zoom = Math.min(MAX_ZOOM, Math.max(1, view.zoom));
   const { width, height } = geometry(image, { ...view, zoom });
@@ -86,7 +86,7 @@ export function AvatarEditor({ name, image }: { name: string; image: string | nu
   const drag = React.useRef<{ px: number; py: number; x: number; y: number } | null>(null);
   const current = avatarSrc(image);
 
-  // L'aperçu local vit le temps du recadrage.
+  // The local preview lives for the duration of the cropping.
   React.useEffect(
     () => () => {
       if (source) URL.revokeObjectURL(source.url);
@@ -117,7 +117,7 @@ export function AvatarEditor({ name, image }: { name: string; image: string | nu
     (zoom: number) => {
       if (!source) return;
       setView((previous) => {
-        // Le point au centre du cercle reste au centre.
+        // The point at the center of the circle stays at the center.
         const ratio = Math.min(MAX_ZOOM, Math.max(1, zoom)) / previous.zoom;
         return clamp(source.image, { zoom, x: previous.x * ratio, y: previous.y * ratio });
       });
@@ -125,7 +125,7 @@ export function AvatarEditor({ name, image }: { name: string; image: string | nu
     [source],
   );
 
-  // La molette zoome : écouteur natif, non passif, pour retenir le défilement.
+  // The wheel zooms: a native, non-passive listener, to hold back scrolling.
   React.useEffect(() => {
     const node = frame.current;
     if (!node || !source) return;
@@ -329,7 +329,7 @@ export function AvatarEditor({ name, image }: { name: string; image: string | nu
                       top: shown.top,
                     }}
                   />
-                  {/* Ce qui restera : le cercle, le reste voilé. */}
+                  {/* What will remain: the circle, the rest veiled. */}
                   <span
                     aria-hidden
                     className="pointer-events-none absolute inset-0 rounded-full"

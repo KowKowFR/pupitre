@@ -48,7 +48,7 @@ import { DeploymentStatusBadge, formatDate, formatDuration } from './status-badg
 
 export type DeploymentRow = {
   id: string;
-  /** Numéro de run, global à l'instance. */
+  /** Run number, global to the instance. */
   number: number;
   status: DeploymentStatus;
   runtime: 'docker' | 'k3s';
@@ -57,18 +57,18 @@ export type DeploymentRow = {
   applicationSlug: string;
   targetName: string;
   triggeredByEmail: string | null;
-  /** Le commit déployé, quand le run vient d'un dépôt lié. */
+  /** The deployed commit, when the run comes from a linked repository. */
   source: CommitSource | null;
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
   /**
-   * Ce run est la version en service sur sa cible — ou il tourne encore.
-   * Dans les deux cas il ne se purge pas : c'est le serveur qui tranche, la
-   * case désactivée ne fait qu'éviter d'annoncer un geste qui sera refusé.
+   * This run is the version in service on its target — or it still runs. In both
+   * cases it is not purged: it is the server that decides, the disabled checkbox
+   * only avoids announcing a gesture that will be refused.
    */
   purgeBlocked: boolean;
-  /** Résumé des scans : quels outils ont tourné et avec quel verdict. */
+  /** Scans summary: which tools ran and with what verdict. */
   scan: {
     scanners: ScannerKey[];
     verdict: ScanVerdict | null;
@@ -110,8 +110,8 @@ const FILTERS: ReadonlyArray<{ value: StatusFilter; key: keyof typeof messages.f
 ];
 
 /**
- * Le journal des runs. Une ligne par run ; un clic ouvre son aperçu (étapes,
- * scans, contexte), la trace complète reste la page du run.
+ * The runs log. One row per run; a click opens its overview (steps, scans,
+ * context), the complete trace stays the run's page.
  */
 export function DeploymentsTable({
   items,
@@ -125,12 +125,12 @@ export function DeploymentsTable({
   items: DeploymentRow[];
   page: { page: number; totalPages: number; pageSize: number; total: number };
   filter: StatusFilter;
-  /** La recherche en cours, telle que l'URL la porte. */
+  /** The current search, as the URL carries it. */
   search: string;
   canPurge: boolean;
-  /** Le formatage descend par props : la table est cliente, la locale non. */
+  /** Formatting comes down through props: the table is a client one, the locale is not. */
   format: FormatSettings;
-  /** Le suivi du run ouvert, rendu au serveur. */
+  /** The open run's follow-up, rendered on the server. */
   record: RunRecordView | null;
 }) {
   const t = useT(messages);
@@ -170,7 +170,7 @@ export function DeploymentsTable({
     setSelected(checked ? new Set(selectable.map((item) => item.id)) : new Set());
   }
 
-  /** Le décompte montré dans la confirmation vient du serveur, pas du tableau. */
+  /** The count shown in the confirmation comes from the server, not from the table. */
   async function openConfirm() {
     setError(null);
     setPreview(null);
@@ -237,8 +237,8 @@ export function DeploymentsTable({
           <label className="affix w-full">
             <Search aria-hidden />
             <input
-              // Une nouvelle recherche venue de l'URL (lien, retour arrière)
-              // remplace la saisie : la clé remonte le champ.
+              // A new search coming from the URL (link, going back) replaces what was
+              // typed: the key remounts the field.
               key={search}
               type="search"
               name="q"
@@ -346,8 +346,8 @@ export function DeploymentsTable({
                 {canPurge ? (
                   <TableCell onClick={(event) => event.stopPropagation()}>
                     {item.purgeBlocked ? (
-                      // Une case désactivée dit pourquoi, au survol comme au
-                      // focus ; la barre de sélection le répète en clair.
+                      // A disabled checkbox says why, on hover as on focus; the selection bar
+                      // repeats it plainly.
                       <Tooltip content={t('row.purgeBlocked')}>
                         <span
                           tabIndex={0}
@@ -475,9 +475,9 @@ export function DeploymentsTable({
 }
 
 /**
- * Confirmation qui **nomme** ce qui disparaît : combien de runs, lesquels,
- * quels ports rendus, quelles applications perdent leur repli. « Êtes-vous
- * sûr ? » n'apprend rien à personne.
+ * A confirmation that **names** what disappears: how many runs, which ones,
+ * which ports released, which applications lose their fallback. "Are you sure?"
+ * teaches nobody anything.
  */
 function PurgeDialog({
   open,
@@ -587,9 +587,9 @@ function PurgeDialog({
 }
 
 /**
- * Le toast qui suit une purge. Les trois morceaux sont assemblés ici et non
- * dans une seule phrase du dictionnaire : deux d'entre eux sont facultatifs, et
- * une phrase à trous optionnels ne se traduit pas.
+ * The toast that follows a purge. The three pieces are assembled here and not in
+ * a single dictionary sentence: two of them are optional, and a sentence with
+ * optional holes does not translate.
  */
 function summarise(t: Translate<typeof messages.fr>, report: PurgeReport): string {
   const parts = [t('purge.summary.purged', { count: report.purgedCount })];
@@ -607,13 +607,13 @@ function summarise(t: Translate<typeof messages.fr>, report: PurgeReport): strin
   return parts.join(' · ');
 }
 
-/** La pire sévérité relevée, et combien : ce que la colonne Scans montre. */
+/** The worst severity found, and how many: what the Scans column shows. */
 export function worstOf(counts: SeverityCounts) {
   const worst = SEVERITY_ORDER.find((severity) => counts[severity] > 0) ?? null;
   return worst ? { severity: worst, count: counts[worst] } : null;
 }
 
-/** Colonne « Scans » : le verdict d'ensemble, et la pire sévérité relevée. */
+/** The "Scans" column: the overall verdict, and the worst severity found. */
 function ScanCell({ scan }: { scan: DeploymentRow['scan'] }) {
   const tc = useT(common);
 

@@ -8,9 +8,9 @@ import type { CoverageBrief } from '@/lib/maintenance';
 import { maintenanceWhen } from '@/lib/maintenance-format';
 
 /**
- * En tête de la fiche d'une cible ou d'une sonde : elle est en maintenance,
- * jusqu'à quand, et ce que cela change. Rien quand elle ne l'est pas.
- * `canRead` : le lien vers la fenêtre suit `maintenance:read`.
+ * At the top of a target's or a probe's record: it is under maintenance, until
+ * when, and what that changes. Nothing when it is not. `canRead`: the link to the
+ * window follows `maintenance:read`.
  */
 export async function MaintenanceMark({
   windows,
@@ -21,7 +21,7 @@ export async function MaintenanceMark({
   format: FormatSettings;
   canRead: boolean;
 }) {
-  // La fenêtre qui finit le plus tard dit quand les alertes reprennent.
+  // The window that ends the latest says when the alerts resume.
   const last = [...windows].sort((a, b) => b.endsAt.localeCompare(a.endsAt))[0];
   if (!last) return null;
   const t = await getT(messages);
@@ -41,7 +41,7 @@ export async function MaintenanceMark({
   );
 }
 
-/** « Mettre en maintenance » : le tiroir de planification, ce sujet déjà coché. */
+/** "Put under maintenance": the scheduling drawer, with this subject already checked. */
 export async function ScheduleMaintenanceLink({
   subject,
   id,

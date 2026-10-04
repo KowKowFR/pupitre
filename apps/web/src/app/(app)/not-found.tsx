@@ -5,12 +5,12 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { getT } from '@/i18n/server';
 
 /**
- * 404 **dans** le panel — celle que rend un `notFound()` appelé depuis une
- * page de section, typiquement un identifiant qui n'existe plus en base.
+ * A 404 **inside** the panel — the one a `notFound()` called from a section page
+ * renders, typically an identifier that no longer exists in the database.
  *
- * Elle existe séparément de `app/not-found.tsx` pour une seule raison : rendue
- * ici, elle garde le rail de navigation. Perdre la navigation parce qu'un
- * déploiement a été purgé serait une punition disproportionnée.
+ * It exists separately from `app/not-found.tsx` for a single reason: rendered
+ * here, it keeps the navigation rail. Losing the navigation because a deployment
+ * was purged would be a disproportionate punishment.
  */
 export default async function AppNotFound() {
   const t = await getT(messages);

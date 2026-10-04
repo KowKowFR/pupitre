@@ -4,9 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 /**
- * Relit la page au serveur toutes les `seconds` secondes, onglet visible
- * seulement. Une page de statut publique n'a pas de flux temps réel : le canal
- * `pupitre:realtime` est réservé aux sessions, et c'est voulu.
+ * Reads the page again from the server every `seconds` seconds, visible tab only.
+ * A public status page has no real-time stream: the `pupitre:realtime` channel is
+ * reserved for sessions, and that is on purpose.
  */
 export function AutoRefresh({ seconds }: { seconds: number }) {
   const router = useRouter();

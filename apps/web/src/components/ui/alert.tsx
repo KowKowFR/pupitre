@@ -4,9 +4,9 @@ import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /**
- * Encadré — une icône de ton, un texte, une action facultative à droite. Le
- * ton se lit à l'icône autant qu'à la couleur. Un encadré de danger est
- * annoncé (`role="alert"`), les autres sont des états (`role="status"`).
+ * A box — a tone icon, a text, an optional action on the right. The tone reads
+ * from the icon as much as from the color. A danger box is announced
+ * (`role="alert"`), the others are states (`role="status"`).
  */
 const alertVariants = cva('alert', {
   variants: {
@@ -33,11 +33,11 @@ const ICON: Record<Variant, React.ComponentType<{ 'aria-hidden'?: boolean }>> = 
 
 export type AlertProps = React.ComponentProps<'div'> &
   VariantProps<typeof alertVariants> & {
-    /** Titre en gras, en tête du texte. */
+    /** A bold title, at the top of the text. */
     title?: React.ReactNode;
-    /** Action à droite (un bouton, un lien). */
+    /** An action on the right (a button, a link). */
     action?: React.ReactNode;
-    /** `false` pour un encadré sans icône. */
+    /** `false` for a box without an icon. */
     icon?: boolean;
   };
 

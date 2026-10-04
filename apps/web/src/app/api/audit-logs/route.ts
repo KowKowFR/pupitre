@@ -9,19 +9,18 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Journal d'audit paginé.
- * Filtres : `q` (recherche libre), `severity` (`high,critical`), `actorId`,
- * `action`, `resourceType`, `from`, `to` — un instant ISO 8601, ou un jour
- * (`2026-09-30`) lu dans le fuseau de l'instance, `to` couvrant alors la
- * journée entière.
+ * The paginated audit log. Filters: `q` (free search), `severity`
+ * (`high,critical`), `actorId`, `action`, `resourceType`, `from`, `to` — an ISO
+ * 8601 instant, or a day (`2026-09-30`) read in the instance's time zone, `to`
+ * then covering the whole day.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'audit:read');
   const { settings } = await getAppSettings();
   const query = auditQuerySchema.parse(expandDayRange(searchParamsOf(request), settings.timezone));
   const page = await listAuditLogs(query);
-  // La criticité est une lecture de l'action, pas une colonne : elle se
-  // calcule ici, avec la même table que l'écran et le filtre.
+  // The severity is a reading of the action, not a column: it is computed here,
+  // with the same table as the screen and the filter.
   return NextResponse.json({
     ...page,
     items: page.items.map((item) => ({ ...item, severity: auditSeverityOf(item.action) })),

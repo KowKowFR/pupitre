@@ -4,9 +4,9 @@ import { currentAuth, redirectToLogin } from '@/lib/page-auth';
 export const dynamic = 'force-dynamic';
 
 /**
- * Coquille de l'activation exigée du second facteur — nue, comme celle de
- * l'assistant de démarrage, et pour la même raison de fond : hors du groupe
- * `(app)`, la redirection qu'y pose son layout ne peut pas boucler.
+ * The shell of the required second factor's activation — bare, like the
+ * onboarding assistant's, and for the same fundamental reason: outside the
+ * `(app)` group, the redirect its layout sets cannot loop.
  */
 export default async function TwoFactorLayout({ children }: { children: ReactNode }) {
   if (!(await currentAuth())) await redirectToLogin();

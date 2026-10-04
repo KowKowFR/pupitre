@@ -7,8 +7,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Vue transverse des vulnérabilités.
- * Filtres : `cveId`, `severity`, `applicationId`, `deploymentId`, `scanner`.
+ * A cross-cutting view of the vulnerabilities. Filters: `cveId`, `severity`,
+ * `applicationId`, `deploymentId`, `scanner`.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'scan:read');

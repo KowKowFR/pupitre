@@ -19,7 +19,7 @@ import { requirePermission } from '@/lib/rbac';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Les proxies distants — hors des cibles, joints par leur API. */
+/** The remote proxies — outside the targets, reached through their API. */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'target:read');
   const proxies = await listRemoteProxies();
@@ -34,9 +34,10 @@ const postSchema = z.object({
 });
 
 /**
- * Connecter un proxy distant — Nginx Proxy Manager. Les identifiants sont
- * chiffrés dès l'enregistrement ; le test part aussitôt et la route attend son
- * issue : une connexion qui n'entre pas n'est pas gardée, la raison est dite.
+ * Connecting a remote proxy — Nginx Proxy Manager. The credentials are encrypted
+ * as soon as they are saved; the test goes out right away and the route waits
+ * for its outcome: a connection that does not get in is not kept, the reason is
+ * given.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'target:update');
@@ -57,7 +58,7 @@ export const POST = apiRoute(async (request) => {
   const job = await getOpsQueue().add(PROXY_CHECK_JOB, { proxyId: created.id }, { attempts: 1 });
   const check = await waitForProxyCheck(job);
   if (check && !check.ok) {
-    // Rien à garder d'une connexion qui ne marche pas : on la retire, et on dit pourquoi.
+    // Nothing to keep from a connection that does not work: we remove it, and say why.
     await deleteProxy(created.id);
     throw new HttpError(
       422,
@@ -75,7 +76,7 @@ export const POST = apiRoute(async (request) => {
     action: 'proxy.connected',
     resourceType: 'proxy',
     resourceId: created.id,
-    // La configuration se montre ; les secrets n'entrent jamais au journal.
+    // The configuration shows; the secrets never enter the log.
     after: { kind: input.kind, name: created.name, config },
     ip: auth.ip,
   });

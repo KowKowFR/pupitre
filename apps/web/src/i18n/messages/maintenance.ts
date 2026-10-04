@@ -1,9 +1,8 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les fenêtres de maintenance : leur écran, leur tiroir, leur formulaire, la
- * bande de la vue d'ensemble et les marques posées sur les cibles et les
- * sondes couvertes.
+ * Maintenance windows: their screen, their drawer, their form, the overview's
+ * band and the marks set on the covered targets and probes.
  */
 const fr = {
   'meta.title': 'Maintenances',

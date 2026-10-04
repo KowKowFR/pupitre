@@ -1,12 +1,12 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Le code téléversé d'une application : la carte de sa fiche, et les erreurs
- * des routes qui reçoivent, listent et effacent les archives — et de celles
- * qui déploient, quand le code manque.
+ * An application's uploaded code: its record's card, and the errors of the routes
+ * that receive, list and erase the archives — and of those that deploy, when the
+ * code is missing.
  *
- * `.tar.gz`, `.git/`, `Dockerfile` et `SHA-256` ne se traduisent pas : ce sont
- * des noms de fichiers et de formats.
+ * `.tar.gz`, `.git/`, `Dockerfile` and `SHA-256` are not translated: they are file
+ * and format names.
  */
 const fr = {
   // ── La carte ────────────────────────────────────────────────────────────
@@ -56,7 +56,7 @@ const fr = {
   'delete.done': 'Archive supprimée',
   'delete.failed': 'Suppression impossible : {error}',
 
-  // ── Pourquoi une archive est refusée (codes du worker) ──────────────────
+  // ── Why an archive is refused (the worker's codes) ──────────────────────
   'reject.format': 'Format non reconnu : seuls .tar.gz, .tar et .zip sont acceptés.',
   'reject.corrupt': 'Archive illisible : {detail}',
   'reject.encrypted': 'Une entrée chiffrée : {detail}',

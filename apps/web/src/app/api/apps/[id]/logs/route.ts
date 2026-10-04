@@ -33,24 +33,24 @@ type Context = { params: Promise<{ id: string }> };
 const HEARTBEAT_MS = 15_000;
 
 /**
- * Logs applicatifs en direct.
+ * Live application logs.
  *
- * Contrairement aux logs de déploiement, ceux-ci n'ont pas d'historique à
- * rejouer : ce qui est passé est passé, et `docker compose logs` en redonne les
- * dernières lignes à l'ouverture. Il n'y a donc pas de couture à gérer.
+ * Unlike deployment logs, these have no history to replay: what is past is past,
+ * and `docker compose logs` gives back the last lines on opening. There is
+ * therefore no seam to handle.
  *
- * En revanche il y a une session SSH distante à maintenir en vie, et à couper
- * quand plus personne ne regarde. Cette route est le seul endroit qui sait
- * qu'un spectateur est présent : elle l'écrit dans une clé Redis à durée de vie
- * courte, qu'elle rafraîchit tant que la connexion tient. Le worker la relit et
- * s'arrête quand elle a disparu.
+ * On the other hand there is a remote SSH session to keep alive, and to cut when
+ * nobody is watching any more. This route is the only place that knows a viewer
+ * is present: it writes it into a short-lived Redis key, which it refreshes as
+ * long as the connection holds. The worker reads it again and stops when it has
+ * disappeared.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'deployment:read');
   const { id } = paramsSchema.parse(await context.params);
 
   const deployment = await getDeploymentSummary(id);
-  // Les messages du flux partent dans la langue de celui qui l'a ouvert.
+  // The stream's messages go out in the language of whoever opened it.
   const t = await getT(appConsole);
   if (!deployment) throw new NotFoundError(msg(deployments, 'error.notFound', { id }));
   if (!isSupervisable(deployment.status)) {
@@ -61,8 +61,8 @@ export const GET = apiRoute<Context>(async (request, context) => {
   const watchKey = appLogWatchKey(id);
   const encoder = new TextEncoder();
 
-  // Connexion dédiée : en mode `subscribe`, une connexion Redis n'accepte plus
-  // d'autre commande. Celle du panel sert à écrire la clé de présence.
+  // A dedicated connection: in `subscribe` mode, a Redis connection no longer
+  // accepts any other command. The panel's serves to write the presence key.
   const subscriber = new Redis(getEnv().REDIS_URL, { maxRetriesPerRequest: null });
   const control = getRedis();
 
@@ -78,11 +78,11 @@ export const GET = apiRoute<Context>(async (request, context) => {
     try {
       await subscriber.unsubscribe(channel);
     } catch {
-      // La connexion peut déjà être tombée.
+      // The connection may already have dropped.
     }
     subscriber.disconnect();
-    // On ne supprime PAS la clé de présence : un autre onglet regarde peut-être
-    // le même flux. Elle expirera d'elle-même si plus personne ne la rafraîchit.
+    // We do NOT delete the presence key: another tab may be watching the same
+    // stream. It will expire on its own if nobody refreshes it any more.
   };
 
   const stream = new ReadableStream<Uint8Array>({
@@ -101,7 +101,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
           const parsed = appLogMessageSchema.safeParse(JSON.parse(raw) as unknown);
           if (parsed.success) send(parsed.data.kind, parsed.data.payload);
         } catch {
-          // Message illisible : on le saute plutôt que de casser le flux.
+          // Unreadable message: we skip it rather than break the stream.
         }
       });
       subscriber.on('error', (error) => {
@@ -118,25 +118,24 @@ export const GET = apiRoute<Context>(async (request, context) => {
         return;
       }
 
-      // Déclarer la présence AVANT d'enfiler le job : celui-ci refuse de
-      // s'ouvrir s'il ne trouve personne à servir.
+      // Declare the presence BEFORE queuing the job: it refuses to open if it finds
+      // nobody to serve.
       await control.set(watchKey, '1', 'EX', WATCH_TTL_SECONDS);
 
       /**
-       * Le dernier état connu, servi avant même de réclamer un flux.
+       * The last known state, served even before asking for a stream.
        *
-       * Le flux est **partagé** : un seul job par déploiement, quel que soit le
-       * nombre de spectateurs. Celui qui arrive en second — deuxième onglet,
-       * rechargement de page, reconnexion après coupure — rejoint donc un flux
-       * dont l'instantané d'état est passé depuis longtemps, et Redis ne rejoue
-       * pas un `publish`. Sans ce rejeu, l'écran affichait des logs bien vivants
-       * à côté d'un « aucun conteneur rapporté par la cible » : il se
-       * contredisait parce que la route ne lui avait jamais rien donné.
+       * The stream is **shared**: a single job per deployment, whatever the number of
+       * viewers. Whoever arrives second — second tab, page reload, reconnection after a
+       * cut — therefore joins a stream whose state snapshot went by long ago, and Redis
+       * does not replay a `publish`. Without this replay, the screen showed very much
+       * alive logs next to a "no container reported by the target": it contradicted
+       * itself because the route had never given it anything.
        *
-       * Lu **avant** l'enfilage du job, pour ne pas risquer de recouvrir d'un
-       * état retenu le relevé frais que ce job publie aussitôt. Le relevé porte
-       * son `checkedAt` : c'est l'écran qui en dit l'âge. Aucun SSH ici — une
-       * route HTTP ne va pas sur la machine.
+       * Read **before** queuing the job, so as not to risk covering with a kept state
+       * the fresh reading this job publishes right away. The reading carries its
+       * `checkedAt`: it is the screen that says its age. No SSH here — an HTTP route
+       * does not go to the machine.
        */
       try {
         const retained = await control.get(appStatusKey(id));
@@ -145,29 +144,28 @@ export const GET = apiRoute<Context>(async (request, context) => {
           if (parsed.success) send('status', parsed.data);
         }
       } catch (error) {
-        // Un état retenu illisible ne vaut pas de refuser le flux.
-        logger.warn({ err: error, deploymentId: id }, 'dernier état applicatif illisible');
+        // An unreadable kept state is not worth refusing the stream.
+        logger.warn({ err: error, deploymentId: id }, 'last application state unreadable');
       }
 
       presence = setInterval(() => {
         control.set(watchKey, '1', 'EX', WATCH_TTL_SECONDS).catch((error: unknown) => {
-          logger.warn({ err: error }, 'rafraîchissement de la présence impossible');
+          logger.warn({ err: error }, 'presence could not be refreshed');
         });
       }, WATCH_REFRESH_MS);
 
       /**
-       * `jobId` fixe : plusieurs spectateurs du même déploiement partagent un
-       * seul flux, et rouvrir un onglet ne lance pas une seconde session SSH.
-       * BullMQ interdit les deux-points dans un identifiant de tâche — d'où le
-       * tiret plutôt que le nom de canal.
+       * A fixed `jobId`: several viewers of the same deployment share a single stream,
+       * and reopening a tab does not start a second SSH session. BullMQ forbids colons
+       * in a job identifier — hence the dash rather than the channel's name.
        *
-       * Quand un job du même identifiant existe déjà, BullMQ n'échoue pas : il
-       * retourne le job existant sans rien relancer. C'est exactement le
-       * comportement voulu pour un second spectateur — mais uniquement tant
-       * que le flux tourne. D'où `removeOnComplete`/`removeOnFail` : un flux
-       * terminé ne doit laisser aucune trace, sinon son identifiant bloquerait
-       * toute réouverture jusqu'à sa péremption. C'est le seul job de la file
-       * qui renonce à son historique, et c'est le prix d'un identifiant fixe.
+       * When a job with the same identifier already exists, BullMQ does not fail: it
+       * returns the existing job without starting anything again. It is exactly the
+       * behavior wanted for a second viewer — but only as long as the stream runs.
+       * Hence `removeOnComplete`/`removeOnFail`: a finished stream must leave no trace,
+       * otherwise its identifier would block any reopening until it expires. It is the
+       * only job of the queue that gives up its history, and it is the price of a
+       * fixed identifier.
        */
       try {
         await getSupervisionQueue().add(
@@ -176,7 +174,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
           { jobId: `app-logs-${id}`, removeOnComplete: true, removeOnFail: true },
         );
       } catch (error) {
-        // Taire cette erreur laisserait le spectateur devant un flux muet.
+        // Silencing this error would leave the viewer in front of a mute stream.
         logger.error({ err: error, deploymentId: id }, 'ouverture du flux impossible');
         send('error', { message: t('stream.openFailed') });
       }
@@ -197,7 +195,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
           try {
             controller.close();
           } catch {
-            // Déjà fermé.
+            // Already closed.
           }
         });
       });

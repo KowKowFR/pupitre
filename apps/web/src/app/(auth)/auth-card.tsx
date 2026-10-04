@@ -1,2 +1,2 @@
-/** La carte d'accès vit dans la coquille partagée ; ce nom reste pour les formulaires. */
+/** The access card lives in the shared shell; this name stays for the forms. */
 export { AccessCard as AuthCard } from '@/components/access-shell';

@@ -22,19 +22,18 @@ const paramsSchema = z.object({ id: z.string().uuid(), ref: z.string().min(3).ma
 type Context = { params: Promise<{ id: string; ref: string }> };
 
 /**
- * Supprime une charge de la cible.
+ * Deletes a workload from the target.
  *
- * Le garde-fou est ici, avant la file, et c'est ce qui lui donne son sens : une
- * charge déployée par le panel a déjà un cycle de vie — redémarrage,
- * destruction, rollback — et une ligne en base qui l'enregistre. L'effacer par
- * ce chemin laisserait la base persuadée que l'application tourne, son port
- * réservé pour rien, et le panel mentirait sur l'état du monde. Même
- * raisonnement que la purge d'un déploiement, qui refuse d'effacer la trace
- * d'une application encore en marche.
+ * The guardrail is here, before the queue, and that is what gives it its meaning:
+ * a workload deployed by the panel already has a life cycle — restart,
+ * destruction, rollback — and a database row that records it. Erasing it through
+ * this path would leave the database convinced that the application runs, its
+ * port reserved for nothing, and the panel would lie about the state of the
+ * world. The same reasoning as a deployment's purge, which refuses to erase the
+ * trace of an application still running.
  *
- * Le refus est un 409 dont le message dit quoi faire à la place. Le driver le
- * refuse une seconde fois de son côté : cette route n'est pas le seul appelant
- * possible.
+ * The refusal is a 409 whose message says what to do instead. The driver refuses
+ * it a second time on its side: this route is not the only possible caller.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'workload:manage');
@@ -48,8 +47,8 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     throw new HttpError(422, 'invalid_workload_ref', msg(messages, 'error.badWorkloadRef', { ref }));
   }
 
-  // L'inventaire fait autorité, pas ce que le client affirme : c'est la machine
-  // qui dit si cette charge est celle du panel, pas le formulaire qui l'appelle.
+  // The inventory is authoritative, not what the client claims: it is the machine
+  // that says whether this workload is the panel's, not the form that calls it.
   const list = await fetchWorkloads(id, auth.userId, auth.ip);
   const workload = findWorkload(list, ref);
   if (!workload) {
@@ -74,10 +73,10 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
       },
       ip: auth.ip,
     });
-    // Le refus est écrit une fois, dans `@pupitre/core`, parce que le driver le
-    // relève de son côté. On désigne sa clé plutôt que d'appeler la fonction :
-    // `apiRoute()` rend la phrase dans la langue de l'instance, et
-    // `error.message` reste en français pour les logs.
+    // The refusal is written once, in `@pupitre/core`, because the driver raises it
+    // on its side. We designate its key rather than call the function: `apiRoute()`
+    // renders the sentence in the instance's language, and `error.message` stays in
+    // the source language for the logs.
     throw new ConflictError(
       workload.managedApp
         ? msg(workloadCopy, 'managed.refusal.app', {
@@ -97,9 +96,8 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     ip: auth.ip,
   });
 
-  // Sans identifiant personnalisé : une référence contient un `:`, que BullMQ
-  // refuse dans un « Custom Id ». Et sans rejeu : rejouer une suppression n'a
-  // aucun sens.
+  // Without a custom identifier: a reference contains a `:`, which BullMQ refuses
+  // in a "Custom Id". And without replay: replaying a deletion makes no sense.
   const job = await getOpsQueue().add(WORKLOAD_REMOVE_JOB, data, { attempts: 1 });
   if (!job.id) {
     throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.jobNoId'));

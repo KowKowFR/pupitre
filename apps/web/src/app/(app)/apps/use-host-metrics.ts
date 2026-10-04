@@ -6,30 +6,29 @@ import { useT } from '@/i18n/client';
 import { servers } from '@/i18n/messages/servers';
 
 /**
- * Relevé des métriques d'hôte, côté navigateur.
+ * Reading host metrics, browser side.
  *
- * ### Quand le relevé part
+ * ### When the reading goes out
  *
- * **Au chargement de l'écran, pas à l'ouverture du dépliant.** Un écran de
- * supervision qui n'affiche rien tant qu'on n'a pas cliqué ne supervise pas :
- * la charge et le disque doivent être lisibles d'un coup d'œil, sans ouvrir
- * quoi que ce soit. Le dépliant, lui, ne contient que la liste des
- * applications — elle vient de la base, elle est déjà rendue, l'ouvrir ne coûte
- * donc aucune requête.
+ * **When the screen loads, not when the disclosure opens.** A monitoring screen
+ * that shows nothing until one clicks does not monitor: the load and the disk
+ * must be readable at a glance, without opening anything. The disclosure, for its
+ * part, only contains the list of applications — it comes from the database, it
+ * is already rendered, opening it therefore costs no request.
  *
- * ### Pourquoi dix machines ne font pas dix sessions SSH
+ * ### Why ten machines do not make ten SSH sessions
  *
- * Les relevés sont mis en file côté client et exécutés **deux à la fois**. Dix
- * cibles font cinq vagues d'environ une seconde, pas dix sessions simultanées
- * — et le worker garde ses slots de supervision pour les flux de logs.
+ * The readings are queued on the client side and run **two at a time**. Ten
+ * targets make five waves of about a second, not ten simultaneous sessions — and
+ * the worker keeps its monitoring slots for the log streams.
  *
- * ### Pourquoi aucun rafraîchissement automatique
+ * ### Why no automatic refresh
  *
- * Un intervalle transformerait un onglet oublié en sonde permanente : chaque
- * relevé ouvre une vraie session SSH sur une vraie machine. Le relevé affiche
- * donc son âge (« il y a 2 min »), qui vieillit sous les yeux du lecteur, et
- * se redemande d'un bouton — par serveur ou pour toute la liste. C'est le
- * lecteur qui décide de payer, jamais la page.
+ * An interval would turn a forgotten tab into a permanent probe: each reading
+ * opens a real SSH session on a real machine. The reading therefore shows its age
+ * ("2 min ago"), which grows older before the reader's eyes, and is requested
+ * again with a button — per server or for the whole list. It is the reader who
+ * decides to pay, never the page.
  */
 
 export type MetricsEntry =
@@ -39,17 +38,17 @@ export type MetricsEntry =
 
 type ApiError = { error?: { message?: string } };
 
-/** Relevés simultanés. Deux : assez pour que la liste se remplisse vite, assez peu
- *  pour qu'un écran ouvert ne devienne pas une rafale de connexions SSH. */
+/** Simultaneous readings. Two: enough for the list to fill quickly, few enough
+ *  that an open screen does not become a burst of SSH connections. */
 const CONCURRENCY = 2;
 
 /**
- * Interrogation nue. Hors du composant, donc stable : elle ne touche à aucun
- * état et peut être appelée depuis un effet sans provoquer de rendu.
+ * Bare query. Outside the component, hence stable: it touches no state and can be
+ * called from an effect without causing a render.
  *
- * Le `t` est passé en argument plutôt que lu ici : la fonction reste hors du
- * composant, et c'est ce qui lui permet d'être appelée depuis un effet sans
- * entrer dans ses dépendances.
+ * The `t` is passed as an argument rather than read here: the function stays
+ * outside the component, and that is what allows it to be called from an effect
+ * without entering its dependencies.
  */
 async function probeOnce(targetId: string, t: Translate<typeof servers.fr>): Promise<MetricsEntry> {
   try {
@@ -71,11 +70,11 @@ async function probeOnce(targetId: string, t: Translate<typeof servers.fr>): Pro
 export function useHostMetrics(targetIds: string[], enabled: boolean) {
   const t = useT(servers);
   const [entries, setEntries] = useState<Record<string, MetricsEntry>>({});
-  // Cibles déjà relevées au moins une fois : le premier relevé ne se rejoue pas
-  // à chaque `router.refresh()` déclenché par une action sur la page.
+  // Targets already read at least once: the first reading is not replayed at each
+  // `router.refresh()` triggered by an action on the page.
   const requested = useRef(new Set<string>());
 
-  // `targetIds` est un tableau neuf à chaque rendu : on dépend de son contenu.
+  // `targetIds` is a new array at each render: we depend on its content.
   const idsKey = targetIds.join(',');
 
   useEffect(() => {
@@ -90,8 +89,8 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
     const queue = [...pending];
     const landed = new Set<string>();
 
-    // Aucun `setState` avant le premier `await` : le premier rendu affiche
-    // « relevé en cours » par absence d'entrée, pas par un état posé ici.
+    // No `setState` before the first `await`: the first render shows "reading in
+    // progress" through the absence of an entry, not through a state set here.
     void Promise.all(
       Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
         for (;;) {
@@ -107,14 +106,14 @@ export function useHostMetrics(targetIds: string[], enabled: boolean) {
 
     return () => {
       cancelled = true;
-      // Un effet annulé rend les cibles dont le relevé n'est pas arrivé : sans
-      // cela, le double montage du mode strict les marquait « demandées » puis
-      // jetait leur réponse, et la bande restait « en cours » pour toujours.
+      // A cancelled effect gives back the targets whose reading has not arrived:
+      // without that, strict mode's double mount marked them "requested" then threw
+      // away their answer, and the band stayed "in progress" forever.
       for (const id of pending) if (!landed.has(id)) asked.delete(id);
     };
   }, [idsKey, enabled, t]);
 
-  /** Redemande un relevé. Appelé depuis un gestionnaire d'événement, jamais d'un effet. */
+  /** Requests a reading again. Called from an event handler, never from an effect. */
   const refresh = useCallback(
     async (targetId: string) => {
       requested.current.add(targetId);

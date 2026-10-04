@@ -18,10 +18,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = 'force-dynamic';
 
 /**
- * « Pages de statut » : les pages publiques que l'administrateur compose — la
- * liste ici, l'éditeur dans un tiroir (`?page=<id>`, `?page=nouvelle`) — et
- * les annonces qu'on y publie pendant une panne ou une maintenance
- * (`?annonce=incident:<id>`). Chacun voit la part que son rôle lui ouvre.
+ * "Status pages": the public pages the administrator composes — the list here,
+ * the editor in a drawer (`?page=<id>`, `?page=nouvelle`) — and the announcements
+ * published there during an outage or a maintenance window
+ * (`?annonce=incident:<id>`). Each one sees the part their role opens to them.
  */
 export default async function StatusPagesPage({
   searchParams,

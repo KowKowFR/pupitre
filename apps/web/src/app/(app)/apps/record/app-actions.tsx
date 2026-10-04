@@ -14,39 +14,40 @@ import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { toast } from '@/lib/toast';
 
 /**
- * Les gestes d'exploitation d'une application en marche.
+ * A running application's operating gestures.
  *
- * Quatre gestes, et ils ne se ressemblent pas :
+ * Four gestures, and they are not alike:
  *
- *   Arrêter / Démarrer   coupe et remet le service, sans rien démonter.
- *   Revenir à #n-1       remet en service la release précédente, déjà présente
- *                        sur la machine.
- *   Redéployer           rejoue un pipeline complet depuis la même AppSpec —
- *                        utile quand une image mutable a bougé ou qu'un secret
- *                        a changé.
- *   Détruire             retire l'application de la machine.
+ *   Stop / Start         cuts and restores the service, without dismantling
+ *                        anything.
+ *   Back to #n-1         puts the previous release back in service, already
+ *                        present on the machine.
+ *   Redeploy             replays a complete pipeline from the same AppSpec —
+ *                        useful when a mutable image moved or a secret
+ *                        changed.
+ *   Destroy              removes the application from the machine.
  *
- * ── Pourquoi ce composant appelle des routes qui existaient déjà ────────────
- * Rollback, redéploiement et destruction ont chacun leur route, leur
- * permission, leur tâche BullMQ et leur trace d'audit — elles servent l'écran
- * du *déploiement*. En ouvrir des jumelles sous `/api/apps/…` aurait donné deux
- * portes vers le même geste, donc deux endroits où une règle peut diverger. Ce
- * qui manquait n'était pas une route, c'était une porte d'entrée depuis l'écran
- * de l'application, et un dialogue qui dise ce que le geste va faire.
+ * ── Why this component calls routes that already existed ────────────────────
+ * Rollback, redeployment and destruction each have their route, their
+ * permission, their BullMQ job and their audit trace — they serve the
+ * *deployment* screen. Opening twins under `/api/apps/…` would have given two
+ * doors to the same gesture, hence two places where a rule can diverge. What was
+ * missing was not a route, it was an entrance from the application's screen, and
+ * a dialog that says what the gesture is going to do.
  *
- * ── L'état vient d'une lecture, pas des props ───────────────────────────────
- * Après un arrêt, le bouton doit devenir « Démarrer » sans recharger la page —
- * la console de logs voisine perdrait sa connexion SSE. D'où `GET
- * /api/apps/{id}/state`, relu après chaque geste jusqu'à ce que l'état bascule.
+ * ── The state comes from a read, not from the props ─────────────────────────
+ * After a stop, the button must become "Start" without reloading the page — the
+ * neighboring log console would lose its SSE connection. Hence `GET
+ * /api/apps/{id}/state`, read again after each gesture until the state flips.
  *
- * ── Les permissions ─────────────────────────────────────────────────────────
- * `canDestroy` correspond exactement à `deployment:destroy`. `canDeploy`
- * couvre les trois autres boutons, dont les routes exigent respectivement
- * `deployment:restart` (arrêt et démarrage), `deployment:rollback` et
- * `deployment:create`. Les rôles livrés ne les dissocient pas — un opérateur a
- * les trois, un observateur aucune — mais un rôle sur mesure le pourrait, et il
- * verrait alors un bouton dont la route le refusera. Le refus est propre et
- * nommé ; c'est le serveur qui fait autorité, jamais l'affichage.
+ * ── The permissions ─────────────────────────────────────────────────────────
+ * `canDestroy` corresponds exactly to `deployment:destroy`. `canDeploy` covers
+ * the three other buttons, whose routes respectively require
+ * `deployment:restart` (stop and start), `deployment:rollback` and
+ * `deployment:create`. The shipped roles do not separate them — an operator has
+ * all three, a viewer none — but a custom role could, and it would then see a
+ * button whose route will refuse it. The refusal is clean and named; it is the
+ * server that has authority, never the display.
  */
 
 export type AppActionsProps = {
@@ -55,20 +56,20 @@ export type AppActionsProps = {
   applicationSlug: string;
   targetName: string;
   runtime: 'docker' | 'k3s';
-  /** La version déclarée par la spec figée, quand elle en déclare une. */
+  /** The version declared by the frozen spec, when it declares one. */
   specVersion: string | null;
   format: FormatSettings;
   canDeploy: boolean;
   canDestroy: boolean;
 };
 
-/** Ce que rend `GET /api/apps/{id}/state`. */
+/** What `GET /api/apps/{id}/state` returns. */
 type AppState = {
   id: string;
   status: string;
   supervisable: boolean;
   stoppedAt: string | null;
-  /** Numéro de run en service, global à l'instance. */
+  /** Number of the run in service, global to the instance. */
   number: number;
   version: number;
   url: string | null;
@@ -77,7 +78,7 @@ type AppState = {
   targetId: string;
   targetName: string;
   runtime: 'docker' | 'k3s';
-  /** Projet Compose ou namespace, selon le runtime. */
+  /** Compose project or namespace, depending on the runtime. */
   workspace: string;
   previous: { id: string; number: number; version: number } | null;
 };
@@ -89,37 +90,37 @@ type GestureKey = 'stop' | 'start' | 'rollback' | 'redeploy' | 'destroy';
 type Gesture = {
   key: GestureKey;
   label: string;
-  /** Libellé pendant que la tâche tourne. */
+  /** Label while the job runs. */
   busyLabel: string;
   icon: ReactNode;
   variant: 'default' | 'secondary' | 'destructive';
-  /** Empêche le geste et dit pourquoi, sans le cacher. */
+  /** Prevents the gesture and says why, without hiding it. */
   disabledReason: string | null;
   request: { path: string; method: 'POST' | 'DELETE'; body?: unknown };
   confirm: {
     title: string;
     lead?: string;
-    /** Ce qui va se passer, nommément. */
+    /** What is going to happen, by name. */
     consequences: ReactNode[];
     action: string;
     level: 'reversible' | 'data';
     icon: ReactNode;
     tone?: DialogTone;
-    /** Le geste ne se débloque qu'en retapant ce nom. */
+    /** The gesture only unlocks by typing this name again. */
     retypeName?: string;
   } | null;
-  /** Ce que le toast dit une fois l'état basculé. */
+  /** What the toast says once the state has flipped. */
   done: { title: string; description?: string };
   /**
-   * Le geste quitte cet écran plutôt que d'y attendre : un redéploiement crée
-   * un nouveau déploiement, et c'est son pipeline qu'il faut regarder.
+   * The gesture leaves this screen rather than wait on it: a redeployment creates
+   * a new deployment, and it is its pipeline that must be watched.
    */
   navigateTo?: (response: { id?: string }) => string;
 };
 
 type T = Translate<typeof appConsole.fr>;
 
-/** Cadence et plafond de la relecture d'état après un geste. */
+/** Cadence and cap of the state re-reading after a gesture. */
 const POLL_MS = 2_000;
 const POLL_MAX_MS = 3 * 60_000;
 
@@ -177,13 +178,13 @@ export function AppActions({
   }, [read, t]);
 
   /**
-   * Attend que l'état bascule.
+   * Waits for the state to flip.
    *
-   * La route rend `202` : elle a enfilé, elle n'a rien exécuté. Le seul témoin
-   * fiable de la fin du travail est l'état lu en base, écrit par le worker une
-   * fois le geste passé sur la machine. On le relit donc jusqu'à ce qu'il
-   * change — et on s'arrête au bout de trois minutes en le disant, plutôt que
-   * de tourner en rond devant un worker arrêté.
+   * The route returns `202`: it queued, it executed nothing. The only reliable
+   * witness of the work's end is the state read in the database, written by the
+   * worker once the gesture went through on the machine. So we read it again until
+   * it changes — and stop after three minutes saying so, rather than going round in
+   * circles in front of a stopped worker.
    */
   const watch = useCallback(
     (before: string, done: Gesture['done']) => {
@@ -197,8 +198,8 @@ export function AppActions({
               setState(result);
               setBusy(null);
               toast({ ...done, tone: 'ok' });
-              // La page serveur porte le bandeau de santé et l'en-tête : ils
-              // doivent suivre le geste qu'on vient de passer.
+              // The server page carries the health banner and the header: they must follow
+              // the gesture that was just made.
               router.refresh();
               return;
             }
@@ -210,7 +211,7 @@ export function AppActions({
             timer.current = setTimeout(tick, POLL_MS);
           },
           () => {
-            // Une lecture ratée n'est pas un échec du geste : on retente.
+            // A failed read is not a failure of the gesture: we try again.
             if (alive.current) timer.current = setTimeout(tick, POLL_MS);
           },
         );
@@ -240,8 +241,8 @@ export function AppActions({
         const body = (await response.json().catch(() => ({}))) as ApiError;
         const message = body.error?.message ?? t('ops.failed', { status: response.status });
         setBusy(null);
-        // Le refus reste dans le dialogue quand il y en a un : c'est là qu'on
-        // regarde. Un geste sans dialogue le dit par un toast.
+        // The refusal stays in the dialog when there is one: that is where one looks. A
+        // gesture without a dialog says it through a toast.
         if (gesture.confirm) setError(message);
         else toast({ title: message, tone: 'danger' });
         return;
@@ -387,12 +388,12 @@ export function AppActions({
 }
 
 /**
- * La table des gestes, dérivée de l'état lu.
+ * The gestures table, derived from the read state.
  *
- * Elle est une fonction et non un tableau constant parce que chaque libellé
- * nomme quelque chose de concret — la version vers laquelle on revient, le port
- * qui sera rendu, le namespace qui disparaîtra. Un dialogue de confirmation qui
- * dit « êtes-vous sûr ? » ne fait rien confirmer du tout.
+ * It is a function and not a constant array because each label names something
+ * concrete — the version one goes back to, the port that will be released, the
+ * namespace that will disappear. A confirmation dialog that says "are you sure?"
+ * confirms nothing at all.
  */
 function buildGestures({
   state,
@@ -420,8 +421,8 @@ function buildGestures({
         variant: 'default',
         disabledReason: null,
         request: { path: `/api/apps/${state.id}/start`, method: 'POST' },
-        // Remettre en marche ne détruit rien et n'interrompt rien : demander
-        // confirmation pour ça, c'est apprendre à cliquer sans lire.
+        // Starting again destroys nothing and interrupts nothing: asking for a
+        // confirmation for that is learning to click without reading.
         confirm: null,
         done: { title: t('toast.start', { slug: applicationSlug }) },
       }
@@ -436,8 +437,8 @@ function buildGestures({
         confirm: {
           title: t('stop.title', { slug: applicationSlug, target: state.targetName }),
           consequences: [
-            // Le mot vient du dictionnaire, indexé par runtime : ce que chacun
-            // appelle arrêter n'est pas la même chose.
+            // The word comes from the dictionary, indexed by runtime: what each one calls
+            // stopping is not the same thing.
             t(`stop.containers.${runtime}`),
             port === null ? t('stop.kept.noPort') : t('stop.kept', { port }),
             t('stop.probe'),
@@ -553,7 +554,7 @@ function buildGestures({
 const SLOT_A = '\u0001';
 const SLOT_B = '\u0002';
 
-/** Une phrase traduite dont deux valeurs gardent leur mise en forme (mono). */
+/** A translated sentence two of whose values keep their formatting (mono). */
 function withMono(sentence: string, first: ReactNode, second: ReactNode): ReactNode {
   return sentence
     .split(/(\u0001|\u0002)/)

@@ -5,12 +5,12 @@ import { SETTINGS_GROUPS, SETTINGS_ROOT, groupSections } from './sections';
 export const dynamic = 'force-dynamic';
 
 /**
- * `/admin/settings` mène au premier onglet du premier groupe. Le sommaire qui
- * vivait ici — dix cartes, chacune avec ses valeurs — doublait les sections
- * sans rien y ajouter : les groupes et leurs onglets suffisent à s'y retrouver.
+ * `/admin/settings` leads to the first tab of the first group. The summary that
+ * lived here — ten cards, each with its values — duplicated the sections without
+ * adding anything: the groups and their tabs are enough to find one's way.
  *
- * La redirection HTTP est posée dans `next.config.ts` ; cette page ne sert
- * que si on l'atteint autrement (navigation côté client).
+ * The HTTP redirect is set in `next.config.ts`; this page only serves if it is
+ * reached otherwise (client-side navigation).
  */
 export default async function SettingsRootPage() {
   await requirePagePermission(SETTINGS_ROOT, 'settings:read');

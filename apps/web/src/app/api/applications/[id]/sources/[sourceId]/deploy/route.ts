@@ -12,9 +12,9 @@ const paramsSchema = z.object({ id: z.string().uuid(), sourceId: z.string().uuid
 type Context = { params: Promise<{ id: string; sourceId: string }> };
 
 /**
- * « Déployer le dernier commit » : une décision humaine, qui vaut validation.
- * Le worker lit la tête de la branche, valide son pupitre.json et déploie sur
- * les cibles de la liaison, quel que soit le mode.
+ * "Deploy the last commit": a human decision, which counts as approval. The
+ * worker reads the branch's head, validates its pupitre.json and deploys on the
+ * link's targets, whatever the mode.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:create');

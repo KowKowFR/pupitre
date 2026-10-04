@@ -35,7 +35,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
 const patchSchema = z.object({
   description: z.string().max(500).optional(),
   appSpec: appSpecSchema.optional(),
-  /** Une AppSpec régénérée remplace aussi la provenance conservée. */
+  /** A regenerated AppSpec also replaces the kept provenance. */
   generation: generationOriginSchema.optional(),
 });
 
@@ -50,9 +50,9 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   const after = await updateApplication(id, patch);
   if (!after) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  // Une AppSpec qui déclare un secret de plus le voit créé ici. Un secret
-  // qu'elle retire n'est PAS supprimé : sa valeur sert peut-être encore à un
-  // volume en service — voir `syncApplicationSecrets()`.
+  // An AppSpec that declares one more secret sees it created here. A secret it
+  // removes is NOT deleted: its value may still serve a volume in service — see
+  // `syncApplicationSecrets()`.
   const generated = await syncApplicationSecrets(id, after.appSpec);
 
   await logAudit({
@@ -88,13 +88,12 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const application = await getApplication(id);
   if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  // Ce qui bloque, ce n'est pas « porter des déploiements » — un déploiement
-  // `destroyed` est un enregistrement d'historique, il ne retient rien. C'est
-  // d'en porter un que le panel ne doit pas perdre de vue. La règle et son
-  // vocabulaire sont ceux de la purge : `listApplicationDeletionBlockers()`.
-  // La liste s'insère DANS la phrase : elle ne peut pas attendre la
-  // sérialisation comme le fait `msg()`. On lit donc la langue ici, et les
-  // deux morceaux tombent d'accord — le message de chaque bloqueur aussi.
+  // What blocks is not "carrying deployments" — a `destroyed` deployment is a
+  // history record, it holds nothing. It is carrying one the panel must not lose
+  // sight of. The rule and its vocabulary are the purge's:
+  // `listApplicationDeletionBlockers()`. The list goes INTO the sentence: it cannot
+  // wait for serialization as `msg()` does. So we read the language here, and the
+  // two pieces agree — each blocker's message too.
   const language = await currentLanguage();
   const blockers = await listApplicationDeletionBlockers(id, { language });
   if (blockers.length > 0) {
@@ -118,10 +117,10 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     );
   }
 
-  // Aucune poignée à perdre : l'historique restant n'est que de l'historique.
-  // `eraseApplication()` l'efface et **rend les ports** dans la même
-  // transaction, en disant lesquels — la cascade de clés étrangères le ferait
-  // aussi, mais en silence, et le journal n'aurait rien à raconter.
+  // No handle to lose: the remaining history is only history. `eraseApplication()`
+  // erases it and **releases the ports** in the same transaction, saying which ones
+  // — the foreign key cascade would do it too, but silently, and the log would have
+  // nothing to tell.
   const erasure = await eraseApplication(id);
   if (!erasure) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 

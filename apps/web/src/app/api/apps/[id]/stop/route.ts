@@ -4,8 +4,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Arrête une application en marche. Les processus s'arrêtent, les volumes, le
- * port réservé et l'entrée de proxy restent en place : c'est `start` qui remet
- * tout en marche, pas un redéploiement.
+ * Stops a running application. The processes stop, the volumes, the reserved
+ * port and the proxy entry stay in place: it is `start` that brings everything
+ * back up, not a redeployment.
  */
 export const POST = lifecycleRoute(STOP_GESTURE);

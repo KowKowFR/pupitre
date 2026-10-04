@@ -7,9 +7,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les sessions ouvertes de l'appelant. Aucune permission RBAC : on ne lit que
- * les siennes, comme pour le mot de passe et le second facteur. Le jeton de
- * session n'est jamais renvoyé.
+ * The caller's open sessions. No RBAC permission: one only reads one's own, as
+ * for the password and the second factor. The session token is never returned.
  */
 export const GET = apiRoute(async (request) => {
   await requireSession(request);

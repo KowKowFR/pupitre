@@ -13,11 +13,11 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Téléchargement du SBOM.
+ * Downloading the SBOM.
  *
- * Le document est la sortie brute de l'outil : il vit dans `scan_runs.raw`,
- * sans colonne dédiée qui le dupliquerait. Ce qui décide qu'un scan en produit
- * un, c'est son `kind` — une donnée de `SCANNERS`, pas un test sur son nom.
+ * The document is the tool's raw output: it lives in `scan_runs.raw`, without a
+ * dedicated column that would duplicate it. What decides that a scan produces
+ * one is its `kind` — data of `SCANNERS`, not a test on its name.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'scan:read');

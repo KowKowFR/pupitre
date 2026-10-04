@@ -8,7 +8,7 @@ import { requirePermission } from '@/lib/rbac';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Les filtres de la liste, sans pagination ni ordre : l'export prend tout, du plus récent au plus ancien. */
+/** The list's filters, without pagination or order: the export takes everything, newest first. */
 const querySchema = auditQuerySchema.pick({
   q: true,
   severity: true,
@@ -20,24 +20,24 @@ const querySchema = auditQuerySchema.pick({
 });
 
 /**
- * Plafond d'un export : aucune requête HTTP ne doit devenir une opération
- * longue (règle 2). Au-delà, on resserre les filtres — la date surtout. Le
- * plafond atteint est dit au journal (`truncated`).
+ * An export's cap: no HTTP request must become a long-running operation (rule 2).
+ * Beyond it, one narrows the filters — the date above all. The cap reached is
+ * said in the log (`truncated`).
  */
 const EXPORT_MAX_ROWS = 100_000;
 
 /**
- * Export du journal d'activité en JSON Lines : une entrée par ligne, telle
- * qu'elle est en base, charge utile comprise. Le format se lit avec `jq`, se
- * découpe avec `split`, et s'ingère tel quel dans un outil de SIEM.
+ * Exporting the activity log as JSON Lines: one entry per line, as it is in the
+ * database, payload included. The format reads with `jq`, splits with `split`,
+ * and is ingested as is by a SIEM tool.
  *
- * L'export lui-même est une entrée du journal (`audit.exported`), écrite une
- * fois le flux terminé ou interrompu : sortir la trace de qui a fait quoi est
- * précisément le genre de geste qu'elle doit garder.
+ * The export itself is a log entry (`audit.exported`), written once the stream
+ * has finished or been interrupted: taking out the trace of who did what is
+ * precisely the kind of gesture it must keep.
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'audit:read');
-  // Mêmes jours que la liste : lus dans le fuseau de l'instance, « Au » compris.
+  // The same days as the list: read in the instance's time zone, "To" included.
   const { settings } = await getAppSettings();
   const filter = querySchema.parse(expandDayRange(searchParamsOf(request), settings.timezone));
 

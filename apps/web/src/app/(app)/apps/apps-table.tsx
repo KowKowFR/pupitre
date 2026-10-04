@@ -26,12 +26,12 @@ import { toast } from '@/lib/toast';
 export type HealthStatus = 'unknown' | 'healthy' | 'unhealthy' | 'unreachable';
 
 /**
- * La dernière tentative de mise à jour, quand elle a échoué.
+ * The last update attempt, when it failed.
  *
- * Sa présence est ce qui distingue « cette application tourne » de « cette
- * application tourne, mais pas dans la version qu'on a voulu y mettre ». La
- * faire disparaître de l'écran était le défaut : une application vivante
- * devenait invisible dès qu'un déploiement ratait derrière elle.
+ * Its presence is what tells "this application runs" from "this application
+ * runs, but not in the version one wanted to put there". Making it disappear
+ * from the screen was the bug: a live application became invisible as soon as a
+ * deployment failed behind it.
  */
 export type LastFailedUpdateRow = {
   deploymentId: string;
@@ -77,12 +77,12 @@ const HEALTH_TONE: Record<HealthStatus, Tone> = {
 };
 
 /**
- * Voyant de lien : la forme porte l'information autant que la couleur.
+ * Link indicator: the shape carries the information as much as the color.
  *
- * `label` permet de réemployer le même voyant pour l'état d'une **machine**,
- * dont le vocabulaire n'est pas celui d'une application — « opérationnelle »
- * plutôt que « en marche ». Un seul voyant dans tout l'écran de supervision,
- * donc une seule convention de lecture à apprendre.
+ * `label` allows reusing the same indicator for a **machine**'s state, whose
+ * vocabulary is not an application's — "operational" rather than "running". A
+ * single indicator in the whole monitoring screen, hence a single reading
+ * convention to learn.
  */
 export function HealthDot({
   health,
@@ -102,10 +102,10 @@ export function HealthDot({
 }
 
 /**
- * Le français, figé, pour les appelants qui n'ont pas encore de `t` sous la
- * main — les écrans de supervision de sites importent cette fonction et sont
- * traduits à part. Ils obtiennent exactement la chaîne d'avant tant qu'ils ne
- * passent rien ; le jour où ils passent leur `t`, la fonction suit.
+ * French, frozen, for the callers that do not have a `t` at hand yet — the site
+ * monitoring screens import this function and are translated separately. They get
+ * exactly the former string as long as they pass nothing; the day they pass their
+ * `t`, the function follows.
  */
 const sinceInFrench = translator(servers, 'fr');
 
@@ -119,12 +119,12 @@ export function formatSince(iso: string | null, t: T = sinceInFrench): string {
 }
 
 /**
- * Les applications supervisées d'**un** serveur.
+ * The monitored applications of **one** server.
  *
- * La colonne « Cible » a disparu : elle répétait à chaque ligne ce que la carte
- * qui contient la table annonce déjà une fois. La table ne s'enveloppe plus
- * d'une carte non plus — c'est la carte du serveur qui porte la surface, sinon
- * on empile deux cadres pour une seule information.
+ * The "Target" column is gone: it repeated on each row what the card containing
+ * the table already announces once. The table no longer wraps itself in a card
+ * either — it is the server's card that carries the surface, otherwise two frames
+ * are stacked for a single piece of information.
  */
 export function AppsTable({
   items,
@@ -133,7 +133,7 @@ export function AppsTable({
 }: {
   items: SupervisedRow[];
   canRestart: boolean;
-  /** Ouvre l'application dans son tiroir. */
+  /** Opens the application in its drawer. */
   onOpen: (id: string) => void;
 }) {
   const t = useT(servers);
@@ -156,8 +156,8 @@ export function AppsTable({
 
     setRestarting(null);
     toast({ title: t('restart.toast', { app: app.applicationSlug }), tone: 'accent' });
-    // Le redémarrage publie sa progression sur le flux de l'application :
-    // on y emmène l'utilisateur plutôt que de le laisser deviner.
+    // The restart publishes its progress on the application's stream: we take the
+    // user there rather than leave them guessing.
     onOpen(app.id);
   }
 

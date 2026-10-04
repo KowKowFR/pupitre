@@ -43,20 +43,20 @@ export type SourceView = {
   id: string;
   provider: SourceProviderKind;
   repository: string;
-  /** L'adresse web du dépôt, et de la branche suivie, chez sa forge. */
+  /** The web address of the repository, and of the followed branch, at its forge. */
   repositoryUrl: string;
   branchUrl: string;
   branch: string;
   specPath: string;
   watchPaths: string[];
-  /** Ce que surveille une liaison sans chemin déclaré : le dossier du fichier de spec. */
+  /** What a link without a declared path watches: the spec file's folder. */
   defaultWatchPaths: string[];
   mode: SourceMode;
-  /** Où part un nouveau commit : cibles de la liaison, là où elle tourne, ou nulle part. */
+  /** Where a new commit goes: the link's targets, where it runs, or nowhere. */
   deployTo: 'targets' | 'running' | 'none';
   enabled: boolean;
   lastSeenSha: string | null;
-  /** Le commit dont l'application porte la version — celui qu'un déploiement construit. */
+  /** The commit whose version the application carries — the one a deployment builds. */
   syncedSha: string | null;
   syncedAgo: string | null;
   checkedAgo: string | null;
@@ -66,12 +66,12 @@ export type SourceView = {
 };
 
 /**
- * La carte « Dépôt » de la fiche : les branches que l'application suit, ce que
- * Pupitre en a vu, et les commits qui attendent qu'on les valide.
+ * The record's "Repository" card: the branches the application follows, what
+ * Pupitre saw of them, and the commits waiting to be approved.
  *
- * Tout ce qui touche au dépôt passe par le worker : « Vérifier maintenant » et
- * « Déployer le dernier commit » enfilent une tâche et rendent la main. Le
- * résultat revient au rafraîchissement suivant — comme le reste du panel.
+ * Everything that touches the repository goes through the worker: "Check now"
+ * and "Deploy the last commit" queue a job and give control back. The result
+ * comes back at the next refresh — like the rest of the panel.
  */
 export function ApplicationSources({
   applicationId,
@@ -84,7 +84,7 @@ export function ApplicationSources({
   applicationId: string;
   sources: SourceView[];
   targets: DeployTarget[];
-  /** Les fournisseurs connectés — aucun : rien à relier. */
+  /** The connected providers — none: nothing to link. */
   forges: Array<{ provider: SourceProviderKind; installUrl: string | null }>;
   canEdit: boolean;
   canDeploy: boolean;
@@ -405,8 +405,8 @@ function SourceBlock({
 }
 
 /**
- * Un commit en attente : ce qu'il change, sous les yeux, et les deux gestes
- * possibles. Valider déploie l'AppSpec telle qu'elle a été lue au commit.
+ * A pending commit: what it changes, before one's eyes, and the two possible
+ * gestures. Approving deploys the AppSpec as it was read at the commit.
  */
 function Proposal({
   proposal,

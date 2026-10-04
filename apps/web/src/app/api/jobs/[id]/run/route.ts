@@ -15,13 +15,13 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Déclenchement manuel.
+ * Manual trigger.
  *
- * La route enfile une occurrence et rend la main : le travail lui-même est
- * long — sessions SSH, scanners — et n'a rien à faire dans une requête HTTP.
- * L'occurrence est marquée `manual`, donc distinguable dans l'historique, et
- * elle s'exécute même si la tâche est désactivée : c'est précisément à quoi
- * sert un « lancer maintenant » sur une tâche que l'on est en train de régler.
+ * The route queues an occurrence and gives control back: the work itself is long
+ * — SSH sessions, scanners — and has no business in an HTTP request. The
+ * occurrence is marked `manual`, hence distinguishable in the history, and it
+ * runs even if the task is disabled: that is precisely what a "run now" is for on
+ * a task one is tuning.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'job:manage');

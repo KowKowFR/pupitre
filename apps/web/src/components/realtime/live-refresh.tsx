@@ -6,16 +6,16 @@ import type { LiveTopic } from '@pupitre/core';
 import { useOptionalRealtime } from './realtime-provider';
 
 /**
- * Un écran qui se relit tout seul quand ce qu'il montre a bougé.
+ * A screen that reads itself again when what it shows has moved.
  *
- * Il ne reçoit jamais les données par le flux : il apprend qu'un sujet a
- * changé et demande au serveur de rendre la page à nouveau — avec les
- * permissions de la session, comme au premier affichage. L'état des
- * composants (sélection, tiroir ouvert, saisie) survit au rafraîchissement.
+ * It never receives the data through the stream: it learns that a topic changed
+ * and asks the server to render the page again — with the session's
+ * permissions, as on the first display. The components' state (selection, open
+ * drawer, input) survives the refresh.
  *
- * Deux garde-fous : au plus un rafraîchissement toutes les quelques secondes,
- * quelle que soit la cadence des signaux ; et rien tant que l'onglet est caché
- * — il se rattrape en revenant au premier plan.
+ * Two guardrails: at most one refresh every few seconds, whatever the signals'
+ * pace; and nothing while the tab is hidden — it catches up when coming back to
+ * the foreground.
  */
 export function LiveRefresh({
   topics = 'all',
@@ -23,7 +23,7 @@ export function LiveRefresh({
   minIntervalMs = 4_000,
 }: {
   topics?: readonly LiveTopic[] | 'all' | 'none';
-  /** Se relire aussi à chaque ligne du journal (le journal lui-même). */
+  /** Also read again at each log line (the log itself). */
   activity?: boolean;
   minIntervalMs?: number;
 }) {

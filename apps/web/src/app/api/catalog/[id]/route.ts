@@ -28,17 +28,17 @@ const paramsSchema = z.object({ id: z.string().min(1).max(64) });
 type Context = { params: Promise<{ id: string }> };
 
 const bodySchema = catalogParamsSchema.omit({ email: true }).extend({
-  /** Les mots de passe que le modèle demande, et eux seuls. */
+  /** The passwords the template asks for, and only those. */
   secrets: z.record(z.string().regex(ENV_NAME_PATTERN), secretValueSchema).default({}),
 });
 
 /**
- * Installer un modèle du catalogue : il devient une application comme une
- * autre — une AppSpec en base, ses secrets dans le magasin chiffré.
+ * Installing a catalog template: it becomes an application like any other — an
+ * AppSpec in the database, its secrets in the encrypted store.
  *
- * Rien ne se déploie ici : l'installation s'arrête où s'arrête la création
- * d'une application. Le choix de la cible et du runtime reste un geste à
- * part, avec ses scans et son pipeline, comme pour le reste.
+ * Nothing is deployed here: the installation stops where an application's
+ * creation stops. Choosing the target and the runtime stays a separate gesture,
+ * with its scans and its pipeline, as for the rest.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:create');
@@ -77,9 +77,9 @@ export const POST = apiRoute<Context>(async (request, context) => {
     ownerId: auth.userId,
   });
 
-  // D'abord la valeur générée de chaque secret, comme pour toute création ;
-  // puis ceux que l'opérateur a choisis la remplacent. Aucune valeur n'est
-  // journalisée : le journal dit lesquels ont été choisis, pas ce qu'ils valent.
+  // First each secret's generated value, as for any creation; then those the
+  // operator chose replace them. No value is logged: the log says which ones were
+  // chosen, not what they are worth.
   await syncApplicationSecrets(application.id, appSpec);
   for (const name of template.askedSecrets) {
     await setApplicationSecret(application.id, name, input.secrets[name] ?? '', 'provided');

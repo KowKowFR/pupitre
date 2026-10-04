@@ -3,5 +3,5 @@ import { tokenForgeCheckRoute } from '@/lib/token-forges';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** « Tester » une adresse et un jeton Gitea, sans rien enregistrer. */
+/** "Test" a Gitea address and token, without saving anything. */
 export const POST = tokenForgeCheckRoute('gitea');

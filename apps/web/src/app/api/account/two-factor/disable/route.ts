@@ -11,16 +11,16 @@ import { assertBetterAuthOk, withAuthCookies } from '../../better-auth-call';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Le mot de passe est exigé : retirer un facteur est aussi sensible que l'ajouter. */
+/** The password is required: removing a factor is as sensitive as adding it. */
 const bodySchema = z.object({ password: z.string().min(1) });
 
 export const POST = apiRoute(async (request) => {
   const auth = await requireSession(request);
   const body = await readJsonBody(request, bodySchema);
 
-  // Le rôle l'exige : le retirer rouvrirait aussitôt l'obligation de le
-  // remettre. Un appareil perdu se règle par la réinitialisation, qu'un
-  // administrateur fait (`user:reset-2fa`).
+  // The role requires it: removing it would immediately reopen the obligation to
+  // set it again. A lost device is dealt with through the reset, which an
+  // administrator performs (`user:reset-2fa`).
   if (auth.twoFactor.required) {
     await logAudit({
       actorId: auth.userId,

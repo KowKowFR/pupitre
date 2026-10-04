@@ -17,27 +17,27 @@ import {
 import type { MetricsEntry } from './use-host-metrics';
 
 /**
- * Les métriques d'un serveur, lisibles d'un coup d'œil.
+ * A server's metrics, readable at a glance.
  *
- * Trois principes :
+ * Three principles:
  *
- * 1. **Rien en octets bruts seuls.** « 3,2 Gio libres » ne dit rien sans le
- *    total ; une charge de 4 ne dit rien sans le nombre de cœurs. Chaque relevé
- *    est donc rendu en proportion — un pourcentage — et le chiffre absolu vient
- *    en dessous, pour qui veut le détail.
- * 2. **Inconnu n'est pas zéro.** Une métrique absente affiche « inconnu ». Un
- *    zéro laisserait croire à un disque vide ou à une machine au repos, ce qui
- *    est exactement l'inverse d'une information.
- * 3. **L'état se lit à la forme.** Le voyant d'une case porte son ton par son
- *    halo, et la tendance est écrite en toutes lettres : la lecture survit au
- *    daltonisme et à une capture en niveaux de gris.
+ * 1. **Nothing in raw bytes alone.** "3.2 GiB free" says nothing without the
+ *    total; a load of 4 says nothing without the number of cores. Each reading is
+ *    therefore rendered as a proportion — a percentage — and the absolute figure
+ *    comes underneath, for whoever wants the detail.
+ * 2. **Unknown is not zero.** A missing metric shows "unknown". A zero would
+ *    suggest an empty disk or an idle machine, which is exactly the opposite of a
+ *    piece of information.
+ * 3. **The state reads from the shape.** A cell's indicator carries its tone
+ *    through its halo, and the trend is written out in full: the reading survives
+ *    color blindness and a grayscale screenshot.
  */
 
 type T = Translate<typeof servers.fr>;
 
 /**
- * Kio → Gio. Deux divisions par 1024, donc bien des **gibioctets** : l'anglais
- * dit `GiB`, pas `GB`. Une unité qui ment sur sa base fait douter du chiffre.
+ * KiB → GiB. Two divisions by 1024, so indeed **gibibytes**: English says `GiB`,
+ * not `GB`. A unit that lies about its base makes one doubt the figure.
  */
 function gib(kb: number): string {
   return (kb / 1024 / 1024).toFixed(kb / 1024 / 1024 < 10 ? 1 : 0);
@@ -54,10 +54,10 @@ function formatUptime(seconds: number | null, t: T): string {
 }
 
 /**
- * Seuils **par défaut** de l'affichage, quand aucun n'a encore été résolu pour
- * la machine — le tout premier rendu d'une cible qui n'a jamais été relevée.
- * Les vraies valeurs viennent de la base ; celles-ci sont les mêmes, en dur,
- * pour que l'écran ne change pas de couleur entre deux chargements.
+ * The display's **default** thresholds, when none has been resolved yet for the
+ * machine — the very first rendering of a target never read. The real values
+ * come from the database; these are the same, hard-coded, so that the screen does
+ * not change color between two loads.
  */
 const FALLBACK_THRESHOLDS: Record<HistoryMetric, ThresholdView> = {
   disk: { limitPercent: 90, enabled: true, origin: 'default' },
@@ -65,17 +65,17 @@ const FALLBACK_THRESHOLDS: Record<HistoryMetric, ThresholdView> = {
   load: { limitPercent: 100, enabled: true, origin: 'default' },
 };
 
-/** La bande, sur le fond en retrait de la carte, juste sous son en-tête. */
+/** The band, on the card's recessed background, right under its header. */
 function Band({ children }: { children: ReactNode }) {
   return <div className="bg-bg-subtle">{children}</div>;
 }
 
-/** Une valeur manquante : écrite, en gris — jamais un zéro. */
+/** A missing value: written, in gray — never a zero. */
 function Unknown({ t }: { t: T }) {
   return <span className="text-text-3">{t('unknown')}</span>;
 }
 
-/** Les quatre cases pendant le relevé : la silhouette exacte de ce qui arrive. */
+/** The four cells during the reading: the exact silhouette of what is coming. */
 function Pending({ t }: { t: T }) {
   const labels = [t('metric.load'), t('metric.memory'), t('metric.disk'), t('metric.uptime')];
   return (
@@ -108,12 +108,12 @@ export function HostReadouts({
   entry: MetricsEntry | undefined;
   enabled: boolean;
   /**
-   * Les seuils de **cette** machine. C'est eux qui décident du rouge, et ce sont
-   * exactement ceux qui décident de l'alerte : une seule valeur de référence
-   * pour la couleur et pour le journal, au lieu de deux qui pouvaient diverger.
+   * **This** machine's thresholds. They decide the red, and they are exactly those
+   * that decide the alert: a single reference value for the color and for the
+   * log, instead of two that could diverge.
    */
   thresholds?: Record<HistoryMetric, ThresholdView>;
-  /** La fenêtre d'historique, d'où vient la tendance affichée à droite de chaque case. */
+  /** The history window, where the trend shown to the right of each cell comes from. */
   summary?: Record<HistoryMetric, MetricSummaryView>;
 }) {
   const t = useT(servers);
@@ -170,8 +170,8 @@ export function HostReadouts({
   const tone = (metric: HistoryMetric, value: number | null): Tone =>
     toneFor(value, thresholds[metric].limitPercent, thresholds[metric].enabled);
 
-  // La charge n'a de sens que rapportée aux cœurs : sans `nproc`, on affiche le
-  // nombre brut et on dit franchement qu'on ne sait pas diviser.
+  // The load only makes sense relative to the cores: without `nproc`, we show the
+  // raw number and say frankly that we cannot divide.
   const perCore = load?.perCore === null || load?.perCore === undefined ? null : load.perCore * 100;
 
   return (

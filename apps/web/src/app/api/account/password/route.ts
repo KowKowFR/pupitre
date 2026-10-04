@@ -12,11 +12,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Changement de mot de passe par son propriétaire.
+ * A password change by its owner.
  *
- * Aucune permission RBAC : agir sur son propre compte n'est pas un privilège.
- * `requireSession()` suffit — et `currentPassword` est obligatoire, sinon un
- * cookie volé suffirait à s'emparer définitivement du compte.
+ * No RBAC permission: acting on one's own account is not a privilege.
+ * `requireSession()` is enough — and `currentPassword` is required, otherwise a
+ * stolen cookie would be enough to take over the account for good.
  */
 const bodySchema = z.object({
   currentPassword: z.string().min(1),
@@ -31,10 +31,10 @@ export const POST = apiRoute(async (request) => {
     body: {
       currentPassword: body.currentPassword,
       newPassword: body.newPassword,
-      // Toutes les autres sessions tombent. Un mot de passe qu'on change est
-      // un mot de passe qu'on suppose compromis : laisser ouvertes les sessions
-      // déjà volées viderait la manœuvre de son intérêt. Better Auth réémet un
-      // cookie pour l'appelant, relayé plus bas.
+      // All the other sessions go down. A password one changes is a password one
+      // assumes compromised: leaving the already stolen sessions open would empty the
+      // operation of its point. Better Auth issues a new cookie for the caller,
+      // relayed below.
       revokeOtherSessions: true,
     },
     headers: request.headers,
@@ -55,8 +55,8 @@ export const POST = apiRoute(async (request) => {
     throw error;
   }
 
-  // Aucun mot de passe dans le journal — ni l'ancien, ni le nouveau, ni leur
-  // longueur : seul le fait que l'opération a eu lieu est traçable.
+  // No password in the log — neither the old one, nor the new one, nor their
+  // length: only the fact that the operation took place is traceable.
   await logAudit({
     actorId: auth.userId,
     action: 'account.password.changed',

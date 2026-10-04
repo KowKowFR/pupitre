@@ -30,28 +30,27 @@ const KINDS = [
 type Kind = (typeof KINDS)[number];
 
 /**
- * Recherche d'objets pour la palette ⌘K : cibles, applications, applications
- * en marche, déploiements, sondes, domaines, rôles, modèles du catalogue.
+ * Object search for the ⌘K palette: targets, applications, running applications,
+ * deployments, probes, domains, roles, catalog templates.
  *
- * **Filtrée par permission, à la source.** Une famille d'objets n'est même
- * pas lue si la session n'a pas le droit de la consulter : ce qu'une
- * permission interdit disparaît de la palette comme du rail, et une réponse
- * JSON ne doit pas en dire plus que l'écran.
+ * **Filtered by permission, at the source.** A family of objects is not even read
+ * if the session does not have the right to consult it: what a permission forbids
+ * disappears from the palette as from the rail, and a JSON response must not say
+ * more than the screen.
  *
- * Les requêtes sont celles des écrans de liste, filtrées en mémoire par une
- * correspondance **tolérante** (`matchScore` : accents, débuts de mots,
- * lettres dans l'ordre, fautes de frappe) et rangées par pertinence : une
- * instance compte des dizaines d'objets, pas des millions. Les runs font
- * exception : eux se comptent par milliers, et la recherche passe par celle
- * de la liste des déploiements, en base — c'est elle qui retrouve `#127` même
- * s'il a six mois. Le texte affiché (« Cible · 10.0.0.11 ») est composé par le
- * client, dans sa langue : la route ne renvoie que des champs.
+ * The queries are the list screens', filtered in memory by a **tolerant** match
+ * (`matchScore`: accents, word starts, letters in order, typos) and sorted by
+ * relevance: an instance counts dozens of objects, not millions. The runs are the
+ * exception: they count in thousands, and the search goes through the
+ * deployments list's, in the database — it is what finds `#127` even if it is six
+ * months old. The displayed text ("Target · 10.0.0.11") is composed by the
+ * client, in its language: the route only returns fields.
  */
 const querySchema = z.object({
   q: z.string().trim().max(100).default(''),
-  /** Restreint à une famille ; avec une saisie vide, liste alors ses premiers objets. */
+  /** Restricted to one family; with an empty input, it then lists its first objects. */
   kind: z.enum(KINDS).optional(),
-  /** Plusieurs familles à la fois (`running,monitor`), même règle qu'avec `kind`. */
+  /** Several families at once (`running,monitor`), the same rule as with `kind`. */
   kinds: z
     .string()
     .max(200)
@@ -65,7 +64,7 @@ const querySchema = z.object({
     ),
 });
 
-/** Par famille dans la recherche libre ; davantage quand on n'en cherche qu'une. */
+/** Per family in the free search; more when only one is searched. */
 const FAMILY_LIMIT = 5;
 const SCOPED_LIMIT = 20;
 
@@ -73,7 +72,7 @@ export type SearchHit =
   | { kind: 'target'; id: string; title: string; host: string; status: string }
   | { kind: 'application'; id: string; title: string; slug: string; version: string | null }
   | {
-      /** Une application en service sur une cible : son dernier déploiement vivant. */
+      /** An application in service on a target: its last live deployment. */
       kind: 'running';
       id: string;
       title: string;
@@ -83,7 +82,7 @@ export type SearchHit =
   | {
       kind: 'deployment';
       id: string;
-      /** Numéro de run, global à l'instance. */
+      /** Run number, global to the instance. */
       number: number;
       title: string;
       version: number;
@@ -210,7 +209,7 @@ export const GET = apiRoute(async (request) => {
     items.push({ kind: 'role', id: role.key, title: role.label, key: role.key });
   }
 
-  // Le catalogue n'est lu par personne d'autre que qui peut créer une application.
+  // The catalog is read by nobody other than whoever can create an application.
   if (wants('template') && auth.can('application:create')) {
     for (const template of rankByMatch(
       needle,

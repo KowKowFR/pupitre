@@ -5,19 +5,18 @@ import { getT } from '@/i18n/server';
 import { settings as messages } from '@/i18n/messages/settings';
 
 /**
- * L'état réel de la génération par IA, en une pastille.
+ * The real state of AI generation, in one chip.
  *
- * Il y a deux « activé » dans ce système et ils ne veulent pas dire la même
- * chose : `settings.ai.enabled` est un interrupteur, `resolveAiConfig().enabled`
- * est une capacité — l'interrupteur **et** une clé, venue des paramètres ou de
- * l'environnement. La pastille affichait le premier ; elle annonçait donc
- * « activée » en vert pendant que l'écran « Nouvelle application » grisait
- * l'onglet de génération, faute de clé. Deux écrans, deux réponses contraires à
- * la même question.
+ * There are two "enabled" in this system and they do not mean the same thing:
+ * `settings.ai.enabled` is a switch, `resolveAiConfig().enabled` is a capability
+ * — the switch **and** a key, from the settings or from the environment. The
+ * chip used to show the former; it therefore announced "enabled" in green while
+ * the "New application" screen greyed out the generation tab, for lack of a key.
+ * Two screens, two opposite answers to the same question.
  *
- * Elle lit désormais exactement ce que lit « Nouvelle application », par le même
- * appel. Trois états, parce qu'il y a trois situations distinctes à distinguer
- * et qu'un booléen n'en couvre que deux.
+ * It now reads exactly what "New application" reads, through the same call.
+ * Three states, because there are three distinct situations to tell apart and a
+ * boolean only covers two.
  */
 function aiReadiness(settings: AppSettings, storedApiKey: string | null) {
   return resolveAiConfig({
@@ -41,8 +40,8 @@ export async function AiStatusBadge({
     return <Badge variant="secondary">{t('ai.badge.off')}</Badge>;
   }
   if (!config.enabled) {
-    // On nomme la variable attendue : « clé manquante » sans dire où la poser
-    // renvoie l'utilisateur chercher dans quatre écrans.
+    // We name the expected variable: "missing key" without saying where to put it
+    // sends the user looking through four screens.
     const envVar = aiProviderDescriptor(config.provider).envApiKeyVar;
     return (
       <Badge

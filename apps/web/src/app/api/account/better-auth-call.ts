@@ -4,28 +4,27 @@ import { account } from '@/i18n/messages/account';
 import { HttpError, msg, type MessageRef } from '@/lib/errors';
 
 /**
- * Colle entre les endpoints Better Auth et les conventions HTTP du panel.
+ * Glue between the Better Auth endpoints and the panel's HTTP conventions.
  *
- * Les routes de compte ne réimplémentent ni le hachage, ni la vérification
- * TOTP : elles appellent Better Auth avec `asResponse: true`, puis traduisent
- * sa réponse. Deux détails que rien d'autre ne fait à leur place :
+ * The account routes reimplement neither hashing nor TOTP verification: they
+ * call Better Auth with `asResponse: true`, then translate its response. Two
+ * details nothing else does in their place:
  *
- *  - les `Set-Cookie` doivent être relayés — Better Auth fait tourner le cookie
- *    de session à chaque opération sensible, et les perdre déconnecterait
- *    l'utilisateur qui vient précisément de sécuriser son compte ;
- *  - ses codes d'erreur doivent devenir les nôtres, sinon le client reçoit deux
- *    formats d'erreur selon la route qu'il a appelée.
+ *  - the `Set-Cookie`s must be relayed — Better Auth rotates the session cookie
+ *    at each sensitive operation, and losing them would sign out the user who
+ *    just secured their account;
+ *  - its error codes must become ours, otherwise the client receives two error
+ *    formats depending on the route it called.
  */
 
 type BetterAuthErrorBody = { code?: unknown; message?: unknown };
 
 /**
- * Correspondances explicites : tout le reste retombe sur un 400 générique.
+ * Explicit mappings: everything else falls back on a generic 400.
  *
- * Les phrases sont des **références** (`msg()`) et non des chaînes : ce module
- * est chargé au démarrage, bien avant qu'une requête existe, et il n'a donc
- * aucun moyen d'aller lire la langue de l'instance. `apiRoute()` la rendra au
- * moment de sérialiser.
+ * The sentences are **references** (`msg()`) and not strings: this module is
+ * loaded at startup, long before a request exists, so it has no way of reading
+ * the instance's language. `apiRoute()` will render it at serialization time.
  */
 const TRANSLATIONS: Record<string, { status: number; code: string; message: MessageRef }> = {
   INVALID_PASSWORD: {
@@ -75,7 +74,7 @@ const TRANSLATIONS: Record<string, { status: number; code: string; message: Mess
   },
 };
 
-/** Code d'erreur porté par la réponse, quand elle en porte un. */
+/** The error code carried by the response, when it carries one. */
 async function readErrorCode(response: Response): Promise<string | null> {
   const body: unknown = await response.clone().json().catch(() => null);
   if (typeof body !== 'object' || body === null) return null;
@@ -84,9 +83,9 @@ async function readErrorCode(response: Response): Promise<string | null> {
 }
 
 /**
- * Laisse passer une réponse Better Auth réussie, transforme l'échec en
- * `HttpError` — que `apiRoute()` rend au format d'erreur du panel.
- * Retourne le code d'erreur Better Auth pour l'audit de l'échec.
+ * Lets a successful Better Auth response through, turns the failure into an
+ * `HttpError` — which `apiRoute()` renders in the panel's error format. Returns
+ * the Better Auth error code for the failure's audit.
  */
 export async function assertBetterAuthOk(
   response: Response,
@@ -101,7 +100,7 @@ export async function assertBetterAuthOk(
   });
 }
 
-/** Réponse JSON du panel, augmentée des cookies posés par Better Auth. */
+/** The panel's JSON response, plus the cookies set by Better Auth. */
 export function withAuthCookies<T>(payload: T, source: Response): NextResponse<T> {
   const response = NextResponse.json(payload);
   for (const cookie of source.headers.getSetCookie()) {

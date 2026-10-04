@@ -15,36 +15,35 @@ import { requirePermission } from '@/lib/rbac';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
 /**
- * Arrêt et remise en marche, côté panel.
+ * Stopping and starting again, panel side.
  *
- * Les deux routes sont le même geste au signe près : même permission, mêmes
- * refus, même file, même forme de réponse. Ce module porte ce qu'elles ont en
- * commun, et chaque route se réduit à la ligne qui la distingue — c'est aussi
- * ce qui garantit qu'un refus ajouté demain vaudra pour les deux.
+ * The two routes are the same gesture but for the sign: same permission, same
+ * refusals, same queue, same response shape. This module carries what they have
+ * in common, and each route boils down to the line that sets it apart — that is
+ * also what guarantees that a refusal added tomorrow will hold for both.
  *
- * Rien d'autre n'est fait ici : la route enfile et rend l'identifiant de tâche.
- * Le travail — session SSH, driver, écriture en base — appartient au worker.
+ * Nothing else is done here: the route queues and returns the job identifier.
+ * The work — SSH session, driver, database write — belongs to the worker.
  *
- * ── La permission, et pourquoi ce n'est pas une nouvelle ────────────────────
- * `deployment:restart`. Un redémarrage *est* un arrêt suivi d'un démarrage :
- * même interruption de service, même absence de conséquence sur les données et
- * sur la version. Une permission `deployment:stop` distincte aurait produit un
- * rôle capable de couper le service par le bouton d'à côté mais pas par
- * celui-ci — une frontière que personne ne saurait expliquer, et un piège pour
- * qui compose un rôle.
+ * ── The permission, and why it is not a new one ─────────────────────────────
+ * `deployment:restart`. A restart *is* a stop followed by a start: the same
+ * service interruption, the same absence of consequence on the data and the
+ * version. A distinct `deployment:stop` permission would have produced a role
+ * able to cut the service through the next button but not through this one — a
+ * boundary nobody could explain, and a trap for whoever composes a role.
  */
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 type Gesture = {
-  /** `stop` arrête, `start` remet en marche. */
+  /** `stop` stops, `start` starts again. */
   key: 'stop' | 'start';
   jobName: typeof APP_STOP_JOB | typeof APP_START_JOB;
   auditAction: string;
   /**
-   * Refus quand l'application est déjà dans l'état visé. Rendre 202 sur un
-   * geste sans effet ferait croire à une action ; on préfère le dire.
+   * Refusal when the application is already in the targeted state. Returning 202
+   * on a gesture without effect would suggest an action; we prefer to say so.
    */
   refuseWhen: (stoppedAt: Date | null) => MessageRef | null;
 };
@@ -56,8 +55,8 @@ export const STOP_GESTURE: Gesture = {
   refuseWhen: (stoppedAt) =>
     stoppedAt === null
       ? null
-      : // Horodatage neutre : la phrase est rendue dans la langue du demandeur,
-        // pas la date — elle se lit en UTC, comme le journal d'activité.
+      : // A neutral timestamp: the sentence is rendered in the requester's language, not
+        // the date — it reads in UTC, like the activity log.
         msg(appConsole, 'error.alreadyStopped', {
           date: `${stoppedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC`,
         }),
@@ -78,8 +77,8 @@ export function lifecycleRoute(gesture: Gesture) {
     const deployment = await getDeploymentSummary(id);
     if (!deployment) throw new NotFoundError(msg(deployments, 'error.notFound', { id }));
 
-    // Même garde que le redémarrage et que le flux de logs : hors de ces deux
-    // statuts, il n'y a pas d'application en marche dont on puisse disposer.
+    // The same guard as the restart and the log stream: outside these two statuses,
+    // there is no running application one can act on.
     if (!isSupervisable(deployment.status)) {
       throw new ConflictError(
         msg(appConsole, `error.notSupervisable.${gesture.key}`, { status: deployment.status }),

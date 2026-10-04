@@ -14,9 +14,9 @@ import { common } from '@/i18n/messages/common';
 import { toast } from '@/lib/toast';
 
 /**
- * Un jeton tel que la liste l'affiche. Les dates arrivent déjà écrites : elles
- * sont formatées au rendu serveur, à la locale de l'instance, et l'horloge du
- * navigateur n'y entre pas.
+ * A token as the list shows it. The dates arrive already written: they are
+ * formatted at server rendering, in the instance's locale, and the browser's
+ * clock does not come into it.
  */
 export type TokenRow = {
   id: string;
@@ -24,13 +24,13 @@ export type TokenRow = {
   prefix: string;
   status: 'active' | 'revoked' | 'expired';
   permissions: number;
-  /** Les noms des applications couvertes, `null` pour toutes. */
+  /** The names of the covered applications, `null` for all of them. */
   applications: string[] | null;
   created: string;
   expires: string | null;
   lastUsed: string | null;
   lastUsedIp: string | null;
-  /** L'auteur, sur la liste de l'instance ; absent sur sa propre liste. */
+  /** The author, on the instance's list; absent on one's own list. */
   owner?: string;
 };
 
@@ -41,8 +41,8 @@ const STATUS_VARIANT: Record<TokenRow['status'], BadgeProps['variant']> = {
 };
 
 /**
- * La liste des jetons : ce que chacun peut, sur quoi, depuis quand et jusqu'à
- * quand, et sa dernière utilisation. Un jeton actif se révoque d'ici.
+ * The tokens list: what each one can do, on what, since when and until when, and
+ * its last use. An active token is revoked from here.
  */
 export function TokenList({ rows, emptyHint }: { rows: TokenRow[]; emptyHint: string }) {
   const t = useT(messages);
@@ -132,7 +132,7 @@ export function TokenList({ rows, emptyHint }: { rows: TokenRow[]; emptyHint: st
   );
 }
 
-/** « 3 permissions · toutes les applications · créé le … · utilisé il y a 2 min depuis … » */
+/** "3 permissions · all applications · created on … · used 2 min ago from …" */
 function describe(row: TokenRow, t: Translate<typeof messages.fr>): string {
   const parts = [
     row.owner ? t('row.owner', { name: row.owner }) : null,

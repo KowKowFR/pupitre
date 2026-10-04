@@ -1,17 +1,17 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les notifications — les canaux, leur essai, et le garde-fou de volume.
+ * Notifications — the channels, their test, and the volume guardrail.
  *
- * Un module à part plutôt qu'une famille de clés dans `settings.ts` : la
- * section pèse à elle seule autant que les cinq autres réunies, et son
- * vocabulaire — canal, secret enregistré, fenêtre de regroupement, résumé — ne
- * sert nulle part ailleurs. Le bundler ne charge donc ces cent lignes que sur
- * l'écran qui les affiche, et les routes `/api/notifications/**` puisent leurs
- * phrases d'échec au même endroit que l'écran qui les déclenche.
+ * A module of its own rather than a family of keys in `settings.ts`: the section
+ * alone weighs as much as the five others together, and its vocabulary —
+ * channel, saved secret, grouping window, digest — serves nowhere else. The
+ * bundler therefore only loads these hundred lines on the screen that shows them,
+ * and the `/api/notifications/**` routes draw their failure sentences from the
+ * same place as the screen that triggers them.
  *
- * Rappel de la règle : la colonne `fr` reproduit à l'identique les chaînes qui
- * existaient — apostrophes courbes comprises, elles étaient déjà là.
+ * A reminder of the rule: the `fr` column reproduces identically the strings that
+ * existed — curly apostrophes included, they were already there.
  */
 const fr = {
   // ── Canaux : la liste ───────────────────────────────────────────────────
@@ -73,10 +73,9 @@ const fr = {
   'digest.card.description':
     'Ce qui empêche cinquante pannes en dix minutes de produire cinquante messages — sans jamais retarder la première.',
   /**
-   * Les deux paragraphes de la règle sont coupés autour de leurs `<strong>` :
-   * une phrase entière dans une clé ne saurait pas où poser le gras, et un
-   * `dangerouslySetInnerHTML` sur du texte traduit serait payer une injection
-   * pour deux mots en gras.
+   * The rule's two paragraphs are cut around their `<strong>`: a whole sentence in
+   * a key would not know where to put the bold, and a `dangerouslySetInnerHTML` on
+   * translated text would be paying for an injection for two bold words.
    */
   'digest.rule.lead': 'La',
   'digest.rule.first': 'première',
@@ -102,7 +101,7 @@ const fr = {
   'digest.state.widened': '(élargie {times}×)',
   'digest.state.closesAt': '· se ferme à {time}',
 
-  // ── Échecs rendus par l'API ─────────────────────────────────────────────
+  // ── Failures returned by the API ────────────────────────────────────────
   'error.channelNotFound': 'Canal « {id} » introuvable',
   'error.nameTaken': 'Un canal nommé « {name} » existe déjà',
   'error.testTimeout':

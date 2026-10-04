@@ -1,25 +1,25 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * L'assistant de démarrage — sa coquille, ses sept étapes, son bandeau de
- * reprise et les deux erreurs de sa route.
+ * The onboarding assistant — its shell, its seven steps, its resume banner and
+ * its route's two errors.
  *
- * ── Pourquoi le catalogue d'étapes vit ici ──────────────────────────────────
- * `ONBOARDING_STEP_DEFINITIONS` portait jusqu'ici son titre, sa phrase de
- * résumé, son détail et le prix à payer pour la passer. Ces quatre champs sont
- * de l'affichage : rien dans `packages/core` ne les lit, seuls des écrans les
- * rendent. Les laisser là-bas aurait imposé au catalogue de connaître deux
- * langues — donc de porter un `Record<UiLanguage, string>` par champ, ou pire,
- * d'être dupliqué. Le catalogue garde ce qui est de la logique : `id`,
- * `requires`, `optional`. La prose est ici, sous `step.<id>.*`.
+ * ── Why the steps catalog lives here ────────────────────────────────────────
+ * `ONBOARDING_STEP_DEFINITIONS` used to carry its title, its summary sentence,
+ * its detail and the price to pay to skip it. These four fields are display:
+ * nothing in `packages/core` reads them, only screens render them. Leaving them
+ * there would have forced the catalog to know two languages — hence to carry a
+ * `Record<UiLanguage, string>` per field, or worse, to be duplicated. The catalog
+ * keeps what is logic: `id`, `requires`, `optional`. The prose is here, under
+ * `step.<id>.*`.
  *
- * `step.<id>.cost` n'existe que pour les quatre étapes facultatives. C'est
- * volontaire et vérifiable : `optional` dit qu'on peut passer l'étape, la clé
- * dit ce qu'on y perd. Une clé vide pour « bienvenue » aurait laissé croire
- * qu'il manque une phrase à écrire.
+ * `step.<id>.cost` only exists for the four optional steps. It is deliberate and
+ * checkable: `optional` says the step can be skipped, the key says what one loses
+ * there. An empty key for "welcome" would have suggested a sentence was left to
+ * write.
  *
- * Rappel de la règle : la colonne `fr` reproduit à l'identique les chaînes qui
- * existaient — apostrophes courbes comprises là où le source en avait.
+ * A reminder of the rule: the `fr` column reproduces identically the strings that
+ * existed — curly apostrophes included where the source had them.
  */
 const fr = {
   // ── Coquille ────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ const fr = {
   'page.description':
     "Ce qu'il faut poser une fois pour que ce panel serve à quelque chose : le nommer, lui donner une machine, décider qui y accède. Le parcours n'affiche que les étapes que vos permissions autorisent, et chacune appelle exactement la même API que l'écran correspondant — rien de ce que vous faites ici n'est un raccourci, ni ne sera à refaire.",
 
-  // ── L'assistant ne concerne pas cette personne ──────────────────────────
+  // ── The assistant does not concern this person ──────────────────────────
   'notApplicable.title': 'Rien à configurer ici',
   'notApplicable.description':
     "L'assistant de démarrage ne propose que des étapes qu'on peut réellement accomplir. Aucune ne relève de vos permissions actuelles.",
@@ -46,7 +46,7 @@ const fr = {
   'action.skipStep': 'Passer cette étape',
   'action.saveAndContinue': 'Enregistrer et continuer',
 
-  // ── Pastilles d'état ────────────────────────────────────────────────────
+  // ── State chips ─────────────────────────────────────────────────────────
   'badge.optional': 'facultative',
   'badge.done': 'déjà faite',
   'badge.skipped': 'passée',
@@ -57,10 +57,10 @@ const fr = {
   'stepper.current': 'en cours',
   'progress.label': '{done} étapes faites sur {total}',
 
-  // Le « : » et l'espace finale appartiennent à la phrase : le prix suit.
+  // The ":" and the trailing space belong to the sentence: the price follows.
   'cost.inlineLead': 'Si vous la passez : ',
 
-  // ── Les sept étapes ─────────────────────────────────────────────────────
+  // ── The seven steps ─────────────────────────────────────────────────────
   'step.welcome.title': 'Bienvenue',
   'step.welcome.summary': "Ce que ce panel fait, et ce qu'il ne fait pas.",
   'step.welcome.detail':
@@ -115,11 +115,11 @@ const fr = {
   'step.summary.detail':
     "Rien de ce qui a été passé n'est perdu : chaque étape correspond à un écran du panel, atteignable à tout moment. Vous pouvez aussi relancer cet assistant depuis les paramètres, autant de fois que vous voulez.",
 
-  // ── Étape « bienvenue » ─────────────────────────────────────────────────
-  // Les `{nom}` sont des fragments mis en forme — un mot en gras, un lien, un
-  // identifiant en chasse fixe. La phrase reste entière dans le dictionnaire :
-  // la découper en trois clés aurait donné des bouts sans contexte, et interdit
-  // à l'anglais de déplacer le fragment. Voir `rich()` dans l'assistant.
+  // ── "Welcome" step ──────────────────────────────────────────────────────
+  // The `{name}`s are formatted fragments — a bold word, a link, a monospaced
+  // identifier. The sentence stays whole in the dictionary: cutting it into three
+  // keys would have given pieces without context, and prevented English from
+  // moving the fragment. See `rich()` in the assistant.
   'welcome.p1':
     "Ce panel est un {controlPlane}. Il décide, trace, chiffre et ordonnance ; il n'héberge rien. Vos applications tournent sur {your} machines, jointes en SSH — leurs images sont même construites là-bas, il n'y a pas de registry entre les deux.",
   'welcome.p1.controlPlane': 'plan de contrôle',
@@ -136,13 +136,13 @@ const fr = {
   'welcome.doesNot.install': 'Installer Docker ou K3s sur une cible',
   'welcome.doesNot.firewall': 'Activer un pare-feu à votre place',
 
-  // ── Étape « première cible » ────────────────────────────────────────────
+  // ── "First target" step ─────────────────────────────────────────────────
   'target.intro':
     "Déclarer une cible n'installe rien : cela n'écrit qu'une ligne en base et un credential chiffré. La machine n'est touchée qu'au preflight, lancé automatiquement juste après — il découvre ce qui y est exécutable, Docker, K3s, ou ni l'un ni l'autre.",
   'target.help': 'Qu’est-ce qu’une cible, et que faut-il préparer sur la machine ?',
-  // `{n}` porte le nombre en gras : `count` sert au choix de la forme, `{n}` au
-  // rendu. Deux noms, parce que l'un est substitué et l'autre remplacé par un
-  // nœud.
+  // `{n}` carries the number in bold: `count` serves to choose the form, `{n}` for
+  // rendering. Two names, because one is substituted and the other replaced by a
+  // node.
   'target.existing': {
     one: "Ce panel connaît déjà {n} cible. Vous pouvez en déclarer une de plus, ou considérer l'étape faite.",
     other:
@@ -155,13 +155,13 @@ const fr = {
   'target.running': '« {name} » déclarée — preflight en cours…',
   'target.tested': '« {name} » déclarée et testée.',
 
-  // ── Étape « un rôle » ───────────────────────────────────────────────────
+  // ── "A role" step ───────────────────────────────────────────────────────
   'role.intro':
     'Un utilisateur porte un rôle ; le rôle porte les permissions. Cinq rôles sont déjà installés — {admin}, {operator}, {auditor}, {viewer} et {noAccess}, celui d’une inscription publique. Un rôle naît {noPermission} : on les coche ensuite, une par une, depuis {rolesLink}.',
   'role.intro.noPermission': 'sans aucune permission',
   'role.intro.link': 'Rôles',
 
-  // ── Étape « un utilisateur » ────────────────────────────────────────────
+  // ── "A user" step ───────────────────────────────────────────────────────
   'user.intro':
     "Chaque geste du panel est journalisé avec son auteur. Un compte par personne n'est pas une formalité : c'est ce qui rend les logs lisibles.",
   'user.existing': {
@@ -169,7 +169,7 @@ const fr = {
     other: 'Ce panel compte déjà {count} comptes.',
   },
 
-  // ── Étape « identité et régionalisation » ───────────────────────────────
+  // ── "Identity and regional settings" step ───────────────────────────────
   'identity.name.label': "Nom de l'instance",
   'identity.tagline.label': 'Sous-titre',
   'identity.tagline.placeholder': "Laisser vide pour n'afficher que le nom",
@@ -185,7 +185,7 @@ const fr = {
   'preview.title': 'Aperçu',
   'preview.help': 'Instant de référence : 2026-01-15 14:32:07 UTC',
 
-  // ── Étape « sécurité et IA » ────────────────────────────────────────────
+  // ── "Security and AI" step ──────────────────────────────────────────────
   'security.scan.label': 'Analyser les images avant déploiement',
   'security.scan.help':
     "Trivy et Grype cherchent les vulnérabilités connues des dépendances, Syft dresse le SBOM. Le réglage s'applique au moment où un déploiement est enfilé, et il est gelé avec lui.",
@@ -200,13 +200,13 @@ const fr = {
   'security.apiKey.placeholder.storedLast4':
     'Clé déjà enregistrée — …{last4}, laisser vide pour la conserver',
   'security.apiKey.placeholder.none': 'Laisser vide pour ne pas en poser',
-  // `MASTER_KEY` s'affiche en chasse fixe entre les deux moitiés : un nom de
-  // variable d'environnement ne se traduit pas, et ne se substitue pas non plus.
+  // `MASTER_KEY` shows monospaced between the two halves: an environment variable
+  // name is not translated, and not substituted either.
   'security.apiKey.help.before': 'Chiffrée en AES-256-GCM sous',
   'security.apiKey.help.after':
     ", comme les credentials SSH. Elle ne ressort jamais de la base : ni par l'API, ni dans les logs, ni ici. Pour en changer plus tard, on la remplace — on ne la relit pas.",
 
-  // ── Récapitulatif ───────────────────────────────────────────────────────
+  // ── Summary ─────────────────────────────────────────────────────────────
   'link.settings': 'Paramètres',
   'link.targets': 'Cibles',
   'link.roles': 'Rôles',
@@ -235,7 +235,7 @@ const fr = {
   'leave.stay': "Continuer l'assistant",
   'leave.confirm': 'Quitter quand même',
 
-  // ── Passer une étape ────────────────────────────────────────────────────
+  // ── Skipping a step ─────────────────────────────────────────────────────
   'skip.title': 'Passer « {step} » ?',
   'skip.note':
     "Vous restez dans l'assistant : seule cette étape est marquée comme passée, et elle se refait plus tard depuis l'écran correspondant.",

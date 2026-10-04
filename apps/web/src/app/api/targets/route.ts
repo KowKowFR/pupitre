@@ -34,7 +34,7 @@ export const POST = apiRoute(async (request) => {
     );
   }
 
-  // Le credential est chiffré ici et n'existe plus jamais en clair côté panel.
+  // The credential is encrypted here and never exists in clear again on the panel side.
   const { credential, ...rest } = input;
   const target = await createTarget({ ...rest, encryptedCredential: encrypt(credential) });
 

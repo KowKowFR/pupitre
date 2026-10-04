@@ -13,10 +13,10 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z.object({ issuer: z.string().trim().url().max(300) });
 
 /**
- * « Tester » : le fournisseur répond-il à cette adresse, et s'annonce-t-il bien
- * comme cet émetteur ? Rien n'est enregistré — c'est la question qu'on se pose
- * avant d'enregistrer. Réservé à qui règle l'instance : le panel appelle une
- * adresse saisie, derrière la garde de sortie.
+ * "Test": does the provider answer at this address, and does it announce itself
+ * as this issuer? Nothing is saved — it is the question one asks before saving.
+ * Reserved to whoever sets the instance: the panel calls a typed address, behind
+ * the egress guard.
  */
 export const POST = apiRoute(async (request) => {
   await requirePermission(request, 'settings:manage', { sessionOnly: true });

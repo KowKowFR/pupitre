@@ -9,7 +9,7 @@ import { requirePermission } from '@/lib/rbac';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Un docker-compose.yml raisonnable tient en quelques kilo-octets ; au-delà, c'est autre chose. */
+/** A reasonable docker-compose.yml fits in a few kilobytes; beyond that, it is something else. */
 const COMPOSE_MAX_BYTES = 256 * 1024;
 
 const bodySchema = z.object({
@@ -18,12 +18,12 @@ const bodySchema = z.object({
 });
 
 /**
- * Traduit un docker-compose.yml en AppSpec **proposée**. Rien n'est
- * enregistré ici : la spec revient à l'écran, avec la liste de ce qui n'a pas
- * pu passer tel quel, et c'est la création habituelle (`POST /api/applications`)
- * qui l'enregistre — validée, auditée, comme toutes les autres.
+ * Translates a docker-compose.yml into a **proposed** AppSpec. Nothing is saved
+ * here: the spec comes back to the screen, with the list of what could not go
+ * through as is, and it is the usual creation (`POST /api/applications`) that
+ * saves it — validated, audited, like all the others.
  *
- * Même permission que la création : convertir n'a de sens que pour créer.
+ * The same permission as creation: converting only makes sense to create.
  */
 export const POST = apiRoute(async (request) => {
   await requirePermission(request, 'application:create');

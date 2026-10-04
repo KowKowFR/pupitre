@@ -1,6 +1,6 @@
 import { commitHrefOf, type CommitSource } from '@/lib/commit';
 
-/** `atelier/blog@main · 3f2a9c1` — le dépôt, la branche, et le commit exact, cliquable chez sa forge. */
+/** `atelier/blog@main · 3f2a9c1` — repository, branch, exact commit, clickable at its forge. */
 export function CommitRef({ source }: { source: CommitSource }) {
   return (
     <span className="mono inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5">

@@ -23,10 +23,10 @@ import { ingressOf, serviceRows } from './rows';
 export const dynamic = 'force-dynamic';
 
 /**
- * Le catalogue des applications, et la fiche de chacune dans un tiroir
- * (`?app=blog`) : ce qui va tourner, où elle est en service, un déploiement
- * rapide — puis ses versions, son code, ses domaines, ses secrets, ses
- * sauvegardes et ses images, rendus ici quand le tiroir est ouvert.
+ * The applications catalog, and each one's record in a drawer (`?app=blog`):
+ * what will run, where it is in service, a quick deployment — then its versions,
+ * its code, its domains, its secrets, its backups and its images, rendered here
+ * when the drawer is open.
  */
 export default async function ApplicationsPage({
   searchParams,
@@ -57,8 +57,8 @@ export default async function ApplicationsPage({
     canDeploy ? listRoutes({}) : Promise.resolve([]),
   ]);
 
-  // La fiche ouverte : par son slug, ou par son identifiant (un lien d'avant
-  // les tiroirs, `/applications/<uuid>`, arrive ici ainsi).
+  // The open record: by its slug, or by its identifier (a link from before the
+  // drawers, `/applications/<uuid>`, arrives here that way).
   const wanted = (await searchParams).app;
   const selected =
     typeof wanted === 'string'
@@ -103,8 +103,8 @@ export default async function ApplicationsPage({
       }, {}),
   }));
 
-  // Une cible n'est déployable que si son preflight a montré un runtime : on
-  // ne propose que ceux-là, comme sur « Nouvelle application ».
+  // A target is only deployable if its preflight showed a runtime: only those are
+  // offered, as on "New application".
   const deployTargets: DeployTarget[] = targets
     .filter((target) => usableRuntimes(target.runtimesAvailable).length > 0)
     .map((target) => ({
@@ -119,7 +119,7 @@ export default async function ApplicationsPage({
         const serving = proxies.get(target.id);
         if (!serving || serving.proxy.status === 'installing') return null;
         const { proxy, link } = serving;
-        // Le proxy d'une autre machine, ou un proxy distant : on dit lequel.
+        // Another machine's proxy, or a remote proxy: we say which.
         const via = link
           ? (targets.find((candidate) => candidate.id === proxy.hostTargetId)?.name ?? proxy.name)
           : null;
@@ -130,8 +130,8 @@ export default async function ApplicationsPage({
         };
       })(),
     }))
-    // Les cibles opérationnelles d'abord : c'est parmi elles que se choisit la
-    // cible proposée par défaut.
+    // The operational targets first: the default offered target is chosen among
+    // them.
     .sort((a, b) => Number(b.healthy) - Number(a.healthy));
 
   return (

@@ -28,8 +28,8 @@ export default async function RolesPage() {
     userCount: role.userCount,
   }));
 
-  // Les libellés de permission sont rendus ici, au serveur : l'éditeur reçoit
-  // des phrases, pas des clés à traduire une deuxième fois côté client.
+  // The permission labels are rendered here, on the server: the editor receives
+  // sentences, not keys to translate a second time on the client side.
   const groups = permissionsByResource(translator(permissionDescriptions, language)).map(
     (group) => ({
       resource: group.resource,

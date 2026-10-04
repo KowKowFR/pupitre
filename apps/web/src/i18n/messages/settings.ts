@@ -1,26 +1,26 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les paramètres d'instance — le sommaire, le rail, les six sous-sections et
- * la plomberie d'enregistrement qu'elles partagent.
+ * The instance settings — the summary, the rail, the six subsections and the
+ * saving plumbing they share.
  *
- * Les notifications ont leur propre module (`messages/notifications.ts`) : la
- * section pèse à elle seule autant que les cinq autres réunies, et son
- * vocabulaire — canaux, secrets, résumés — ne sert nulle part ailleurs.
+ * Notifications have their own module (`messages/notifications.ts`): the section
+ * alone weighs as much as the five others together, and its vocabulary —
+ * channels, secrets, digests — serves nowhere else.
  *
- * Rappel de la règle : la colonne `fr` reproduit à l'identique les chaînes qui
- * existaient. `verify-settings.sh` cherche « Relancer l' » dans le HTML servi ;
- * une virgule déplacée le ferait échouer.
+ * A reminder of the rule: the `fr` column reproduces identically the strings that
+ * existed. `verify-settings.sh` looks for "Relancer l'" in the served HTML; a
+ * moved comma would make it fail.
  */
 const fr = {
   // ── Plomberie commune aux sous-sections ─────────────────────────────────
   'form.saved': 'Section enregistrée.',
 
   /**
-   * Le catalogue des sections ne porte plus que `href`, `id` et l'icône : la
-   * prose vit ici. Les clés sont indexées par l'`id` de la section, ce qui
-   * permet au rail, au sommaire et à chaque sous-page de composer la clé
-   * — `section.${id}.title` — sans table de correspondance.
+   * The sections catalog only carries `href`, `id` and the icon: the prose lives
+   * here. The keys are indexed by the section's `id`, which allows the rail, the
+   * summary and each subpage to compose the key — `section.${id}.title` — without a
+   * mapping table.
    */
 
   'section.identity.label': 'Identité',
@@ -105,7 +105,7 @@ const fr = {
   'group.integrations.label': 'Intégrations',
   'group.operations.label': 'Exploitation',
 
-  // ── Identité ────────────────────────────────────────────────────────────
+  // ── Identity ────────────────────────────────────────────────────────────
   'identity.name.label': "Nom de l'instance",
   'identity.name.help':
     'Quarante caractères au plus : il doit tenir sur une ligne du rail, à côté du logo.',
@@ -116,7 +116,7 @@ const fr = {
   'identity.preview.title': 'Aperçu du rail',
   'identity.preview.nameRequired': 'Nom requis',
 
-  // ── Régionalisation ─────────────────────────────────────────────────────
+  // ── Regional settings ───────────────────────────────────────────────────
   'regional.timezone.label': 'Fuseau horaire',
   'regional.timezone.help':
     "Toujours explicite, jamais celui du navigateur : c'est ce qui garantit que le serveur et le poste affichent la même heure pour le même événement. C'est aussi le fuseau proposé par défaut à la création d'une tâche planifiée — les tâches déjà installées gardent le leur.",
@@ -132,7 +132,7 @@ const fr = {
   'regional.preview.help':
     "Instant de référence : 2026-01-15 14:32:07 UTC. L'aperçu suit les champs ci-dessus avant même d'enregistrer.",
 
-  // ── Analyse de sécurité ─────────────────────────────────────────────────
+  // ── Security analysis ───────────────────────────────────────────────────
   'security.badge.on': 'active',
   'security.badge.off': 'désactivée',
   'security.enabled.label': 'Analyser les images avant déploiement',
@@ -190,7 +190,7 @@ const fr = {
   'ai.apiKey.help.after': ', la variable propre à {provider}.',
   'ai.apiKey.clear': 'Effacer la clé enregistrée',
 
-  // ── Assistant de démarrage ──────────────────────────────────────────────
+  // ── Onboarding assistant ────────────────────────────────────────────────
   'onboarding.status.pending': 'jamais lancé',
   'onboarding.status.inProgress': 'en cours',
   'onboarding.status.dismissed': 'abandonné',
@@ -211,9 +211,9 @@ const fr = {
   'onboarding.resume': "Reprendre où j'en étais",
 
   /**
-   * Les seuils de supervision se règlent depuis une cible, mais leur route est
-   * une route de réglage d'instance : ses deux phrases d'échec vivent donc ici,
-   * faute d'un dictionnaire de supervision.
+   * The monitoring thresholds are set from a target, but their route is an
+   * instance settings route: its two failure sentences therefore live here, for
+   * lack of a monitoring dictionary.
    */
   'threshold.error.targetNotFound': 'Cible « {id} » introuvable',
   'threshold.error.notSet': 'Aucun seuil posé à cette portée pour cette métrique',

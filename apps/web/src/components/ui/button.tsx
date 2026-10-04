@@ -3,14 +3,14 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 /**
- * Commande. Une seule action primaire par zone — en-tête de page, carte, pied
- * de drawer, dialogue : c'est elle qui dépense l'outremer plein.
+ * A command. A single primary action per zone — page header, card, drawer
+ * footer, dialog: it is the one that spends the full ultramarine.
  *
- * Le destructif est **au trait** (texte rouge, liseré rouge pâle) : on le
- * place à part, en dernier. Le rouge plein, `destructive-solid`, est réservé
- * à la confirmation finale d'une destruction, dans son dialogue.
+ * The destructive one is **outlined** (red text, pale red border): it is placed
+ * apart, last. The full red, `destructive-solid`, is reserved for the final
+ * confirmation of a destruction, in its dialog.
  *
- * `outline` reste accepté pour l'API shadcn : c'est `secondary`.
+ * `outline` stays accepted for the shadcn API: it is `secondary`.
  */
 const buttonVariants = cva('btn', {
   variants: {
@@ -39,19 +39,19 @@ const buttonVariants = cva('btn', {
 
 export type ButtonProps = React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
-    /** Applique le style du bouton à l'enfant direct (typiquement un `<Link>`). */
+    /** Applies the button's style to the direct child (typically a `<Link>`). */
     asChild?: boolean;
     /**
-     * Travail en cours : spinner, bouton inerte. Le libellé passé en enfant
-     * doit déjà porter son « … » (« Déploiement… ») — c'est une phrase, pas
-     * un suffixe à coller.
+     * Work in progress: spinner, inert button. The label passed as a child must
+     * already carry its "…" ("Deploying…") — it is a sentence, not a suffix to stick
+     * on.
      */
     loading?: boolean;
     /**
-     * Pourquoi ce bouton est désactivé, en clair. Le fournir **désactive** le
-     * bouton et affiche la raison sous lui, en légende : un bouton grisé sans
-     * explication visible est interdit par le système, et une info-bulle
-     * seule ne suffit pas.
+     * Why this button is disabled, spelled out. Providing it **disables** the button
+     * and shows the reason under it, as a caption: a greyed out button without a
+     * visible explanation is forbidden by the system, and a tooltip alone is not
+     * enough.
      */
     disabledReason?: React.ReactNode;
   };
@@ -72,8 +72,8 @@ function Button({
   const blocked = Boolean(disabled) || loading || Boolean(disabledReason);
 
   if (asChild) {
-    // Tout passe à l'enfant — libellé accessible, gestionnaires d'une
-    // info-bulle, `ref` — et non la seule classe.
+    // Everything goes to the child — accessible label, a tooltip's handlers, `ref` —
+    // and not the class alone.
     const child = React.Children.only(children) as React.ReactElement<{
       className?: string;
     }>;
@@ -110,8 +110,8 @@ function Button({
 }
 
 /**
- * Une rangée d'actions désactivées pour une même raison : la raison se dit
- * une fois, sous la rangée, comme sur la planche « Désactivé avec raison ».
+ * A row of actions disabled for the same reason: the reason is said once, under
+ * the row, as on the "Disabled with a reason" board.
  */
 function ActionRow({
   reason,

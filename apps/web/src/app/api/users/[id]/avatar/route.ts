@@ -14,11 +14,12 @@ const paramsSchema = z.object({ id: z.string().min(1).max(200) });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * La photo de profil d'une personne. Une session suffit : quiconque voit la
- * personne dans l'équipe voit son visage.
+ * A person's profile picture. A session is enough: whoever sees the person in the
+ * team sees their face.
  *
- * L'URL que le panel publie porte `?v=` — une version tirée du contenu. Avec
- * elle, la réponse est immuable et se garde un an ; sans, elle se revalide.
+ * The URL the panel publishes carries `?v=` — a version drawn from the content.
+ * With it, the response is immutable and kept for a year; without it, it is
+ * revalidated.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requireSession(request);

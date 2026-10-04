@@ -20,27 +20,25 @@ export type CreatedUser = {
   email: string;
   name: string;
   roles: RoleKey[];
-  /** Verdict de l'envoi, `null` quand le compte a été créé avec un mot de passe. */
+  /** The sending's verdict, `null` when the account was created with a password. */
   invitation: { sent: boolean; channel: string | null; error: string | null } | null;
 };
 
 /**
- * Un seul formulaire, deux régimes — et **jamais les deux à la fois**.
+ * A single form, two regimes — and **never both at once**.
  *
- * `canInvite` n'est pas une préférence d'affichage : c'est la capacité de
- * l'instance. Quand un canal SMTP actif existe, le champ « mot de passe »
- * disparaît purement et simplement, et l'administrateur ne peut plus fabriquer
- * un mot de passe qu'il devrait ensuite transmettre par un canal quelconque.
- * Quand il n'y en a pas — l'état d'une instance neuve —, c'est le seul chemin
- * possible, et l'écran le dit au lieu de proposer une invitation qui ne
- * partirait pas.
+ * `canInvite` is not a display preference: it is the instance's capability. When
+ * an active SMTP channel exists, the "password" field purely and simply
+ * disappears, and the administrator can no longer make up a password they would
+ * then have to pass on through some channel. When there is none — the state of
+ * a new instance —, it is the only possible path, and the screen says so instead
+ * of offering an invitation that would not go out.
  *
- * C'est la réponse à « garder le formulaire à côté de l'invitation laisse deux
- * façons de faire la même chose » : il n'y en a jamais deux devant les yeux
- * d'un opérateur.
+ * It is the answer to "keeping the form next to the invitation leaves two ways
+ * of doing the same thing": there are never two in front of an operator.
  *
- * `onCreated` est le point d'extension de l'assistant de démarrage : même
- * route, même audit. Absent, le formulaire se comporte comme sur `/admin/users`.
+ * `onCreated` is the onboarding assistant's extension point: same route, same
+ * audit. Absent, the form behaves as on `/admin/users`.
  */
 export function CreateUserForm({
   roles,
@@ -48,7 +46,7 @@ export function CreateUserForm({
   onCreated,
 }: {
   roles: readonly RoleKey[];
-  /** L'instance sait-elle envoyer un e-mail ? Décide du régime du formulaire. */
+  /** Can the instance send an email? Decides the form's regime. */
   canInvite: boolean;
   onCreated?: (user: CreatedUser) => void;
 }) {
@@ -76,9 +74,9 @@ export function CreateUserForm({
       body: JSON.stringify({
         name: String(form.get('name') ?? ''),
         email,
-        // Champ omis en régime invitation : c'est son absence qui dit à la
-        // route « invite au lieu de créer ». Envoyer une chaîne vide ferait
-        // échouer la validation au lieu de basculer de régime.
+        // Field omitted in the invitation regime: its absence is what tells the route
+        // "invite instead of creating". Sending an empty string would fail the
+        // validation instead of switching regime.
         ...(canInvite ? {} : { password: String(form.get('password') ?? '') }),
         role: String(form.get('role') ?? 'viewer'),
       }),
@@ -96,9 +94,9 @@ export function CreateUserForm({
     formElement.reset();
     setPending(false);
 
-    // Le compte existe dans tous les cas ; l'e-mail, lui, a pu ne pas partir.
-    // Dire « invitation envoyée » sans le savoir serait exactement le silence
-    // que ce parcours doit éviter.
+    // The account exists in every case; the email, on the other hand, may not have
+    // gone out. Saying "invitation sent" without knowing would be exactly the
+    // silence this journey must avoid.
     if (!canInvite) {
       setNotice(t('users.created.notice'));
     } else if (created?.invitation?.sent) {

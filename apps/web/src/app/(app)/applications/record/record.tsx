@@ -44,25 +44,25 @@ import { ApplicationSecurity } from './application-security';
 import { ApplicationSources, type SourceView } from './application-sources';
 import { VersionTimeline, type VersionRow } from './version-timeline';
 
-/** Les onglets de la fiche que seul le serveur sait remplir. */
+/** The record's tabs that only the server knows how to fill. */
 export type ApplicationRecordTab =
   'versions' | 'code' | 'domains' | 'secrets' | 'backups' | 'images' | 'security';
 
 export type ApplicationRecord = {
-  /** Le slug de l'application : c'est la clé du tiroir. */
+  /** The application's slug: it is the drawer's key. */
   key: string;
   tabs: Partial<Record<ApplicationRecordTab, ReactNode>>;
   counts: Partial<Record<ApplicationRecordTab, number>>;
-  /** Ce qui ouvre l'aperçu : les prévisions sur l'application (une sauvegarde en retard…). */
+  /** What opens the overview: the forecasts on the application (a late backup…). */
   alerts: ReactNode;
 };
 
 /**
- * La fiche d'une application, rendue au serveur pour son tiroir : l'historique
- * des versions, le code (dépôt lié ou archive), les domaines, les secrets, les
- * sauvegardes et les images. Ce que la ligne de la liste porte déjà — les
- * services, où elle tourne, le déploiement rapide — vit dans l'onglet
- * « Aperçu », côté client, et n'attend pas ce rendu.
+ * An application's record, rendered on the server for its drawer: the versions'
+ * history, the code (linked repository or archive), the domains, the secrets, the
+ * backups and the images. What the list's row already carries — the services,
+ * where it runs, the quick deployment — lives in the "Overview" tab, on the
+ * client side, and does not wait for this rendering.
  */
 export async function applicationRecord(
   application: Application,
@@ -123,9 +123,8 @@ export async function applicationRecord(
     }),
   );
 
-  // Une cible n'accueille un redéploiement que si son preflight a montré un
-  // runtime exploitable. C'est la route qui tranche ; l'interface évite juste
-  // de proposer l'impossible.
+  // A target only accepts a redeployment if its preflight showed a usable runtime.
+  // The route decides; the interface just avoids offering the impossible.
   const deployTargets = targets
     .filter((target) => usableRuntimes(target.runtimesAvailable).length > 0)
     .map((target) => ({
@@ -134,7 +133,7 @@ export async function applicationRecord(
       runtimes: usableRuntimes(target.runtimesAvailable),
     }));
 
-  // Chaque liaison s'ouvre chez sa forge : GitHub, ou la forge GitLab ou Gitea connectée.
+  // Each link opens at its forge: GitHub, or the connected GitLab or Gitea forge.
   const connectionOf = new Map(connections.map((connection) => [connection.id, connection]));
   const sourceViews: SourceView[] = sources.flatMap((source) => {
     const connection = connectionOf.get(source.connectionId);
@@ -179,8 +178,8 @@ export async function applicationRecord(
 
   const spec = application.appSpec;
 
-  // Le code téléversé : seulement sans dépôt lié, et quand il sert — un service
-  // qui se construit, ou des archives déjà envoyées.
+  // The uploaded code: only without a linked repository, and when it serves — a
+  // service that builds, or archives already sent.
   const builds = expectedDockerfiles(spec).length > 0;
   const archiveViews: ArchiveView[] = archives.map((archive) => ({
     id: archive.id,

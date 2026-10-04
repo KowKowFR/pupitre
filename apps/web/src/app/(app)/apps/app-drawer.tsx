@@ -9,14 +9,13 @@ import { appConsole } from '@/i18n/messages/console';
 import { HealthDot, type SupervisedRow } from './apps-table';
 import type { RunningAppRecord } from './record/record';
 
-/** La part de la fiche que rend le serveur, telle qu'elle traverse jusqu'ici. */
+/** The part of the record the server renders, as it travels all the way here. */
 export type RunningAppRecordView = Pick<RunningAppRecord, 'key' | 'header' | 'actions' | 'body'>;
 
 /**
- * Une application en marche, dans un tiroir : ce qui tourne, ce que ça dit
- * (le flux de logs), ce que ça consomme, et ses gestes — tout ce qu'était sa
- * page. L'en-tête se lit sur la ligne quand elle est affichée, sur la fiche
- * sinon.
+ * A running application, in a drawer: what runs, what it says (the log stream),
+ * what it consumes, and its gestures — everything its page used to be. The
+ * header reads from the row when it is shown, from the record otherwise.
  */
 export function AppDrawer({
   selected,
@@ -28,7 +27,7 @@ export function AppDrawer({
 }: {
   selected: string | null;
   row: SupervisedRow | null;
-  /** La fiche rendue au serveur, si c'est bien celle de `selected`. */
+  /** The record rendered on the server, if it is indeed `selected`'s. */
   record: RunningAppRecordView | null;
   onClose: () => void;
   onPrevious?: () => void;
@@ -61,8 +60,8 @@ export function AppDrawer({
         {
           key: 'app',
           label: t('drawer.kind'),
-          // Les gestes d'abord, sur toute la largeur : c'est un bloc qui
-          // explique ce qu'il permet, pas une rangée de boutons.
+          // The gestures first, across the whole width: it is a block that explains what
+          // it allows, not a row of buttons.
           content: ready ? (
             <>
               {record.actions}

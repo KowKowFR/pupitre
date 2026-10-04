@@ -15,14 +15,15 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** Plus large que l'écriture : on clique vite sur une réaction, et on se reprend. */
+/** Wider than writing: one clicks a reaction quickly, and changes one's mind. */
 const CHAT_REACT_RULE: RateLimitRule = { name: 'chat:react', limit: 60, windowSec: 30 };
 
 const bodySchema = z.object({ emoji: z.string().min(1).max(32) });
 
 /**
- * Réagir à un message, ou retirer sa réaction : le même geste. L'état complet
- * des réactions du message part en direct — le rejouer ne change rien.
+ * Reacting to a message, or removing one's reaction: the same gesture. The
+ * message's complete reactions state goes out live — replaying it changes
+ * nothing.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requireTeamMember(request);

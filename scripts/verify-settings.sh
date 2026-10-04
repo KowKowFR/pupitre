@@ -365,7 +365,7 @@ leaks=$(psql_q "select count(*) from audit_logs
 pass "grep en base sur audit_logs.before/after : aucune occurrence"
 
 jq -e '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey
-       | . == "(défini)" or . == "(effacé)"' "$BODY" >/dev/null \
+       | . == "(set)" or . == "(cleared)"' "$BODY" >/dev/null \
   || fail "le marqueur de clé attendu est absent : $(jq -c '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey' "$BODY")"
 pass "la clé est réduite à un marqueur : $(jq -r '[.items[] | select(.action == "settings.updated")][0].after.aiApiKey' "$BODY")"
 

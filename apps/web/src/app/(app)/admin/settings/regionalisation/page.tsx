@@ -15,10 +15,10 @@ export default async function RegionalSettingsPage() {
   const t = await getT(messages);
 
   /**
-   * On n'offre que les langues réellement écrites — mais jamais au prix de
-   * cacher la valeur en place. Une instance restée sur `de-DE` verrait sinon
-   * une liste qui ne contient pas ce qu'elle affiche, et le premier
-   * enregistrement changerait sa locale sans que personne l'ait demandé.
+   * Only the languages really written are offered — but never at the price of
+   * hiding the value in place. An instance left on `de-DE` would otherwise see a
+   * list that does not contain what it shows, and the first save would change its
+   * locale without anybody asking for it.
    */
   const offered: SupportedLocale[] = [...TRANSLATED_LOCALES];
   const locales = offered.includes(settings.locale) ? offered : [settings.locale, ...offered];

@@ -23,12 +23,12 @@ type Context = { params: Promise<{ id: string; ref: string }> };
 const bodySchema = z.object({ action: workloadControlActionSchema });
 
 /**
- * Démarrer, arrêter, redémarrer une charge. Par la file : un arrêt laisse
- * vingt secondes au processus, un `rollout status` attend des pods.
+ * Starting, stopping, restarting a workload. Through the queue: a stop gives the
+ * process twenty seconds, a `rollout status` waits for pods.
  *
- * Une charge du panel se redémarre ici, mais ne s'arrête ni ne démarre :
- * c'est l'arrêt de l'application qui tient son état en base. Le refus est
- * rendu ici, avant la file ; le driver le refait de son côté.
+ * A panel workload is restarted here, but neither stopped nor started: it is the
+ * application's stop that keeps its state in the database. The refusal is
+ * returned here, before the queue; the driver does it again on its side.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'workload:manage');

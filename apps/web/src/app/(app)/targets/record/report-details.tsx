@@ -11,9 +11,9 @@ function gib(kb: number, unit: string): string {
 }
 
 /**
- * Ce que le dernier preflight a lu de la machine, et le détail de ses
- * contrôles. Chaque contrôle est indépendant : un échec n'invalide pas les
- * autres, et la table le montre ligne par ligne.
+ * What the last preflight read from the machine, and the detail of its checks.
+ * Each check is independent: a failure does not invalidate the others, and the
+ * table shows it row by row.
  */
 export async function ReportDetails({ report }: { report: PreflightReport | null }) {
   const t = await getT(messages);

@@ -28,17 +28,17 @@ import { ComposeImport } from './compose-import';
 import { RepositoryImport } from './repository-import';
 
 /**
- * Création d'une application, par deux chemins qui aboutissent au même endroit.
+ * Creating an application, through two paths that end up in the same place.
  *
- * L'onglet « Depuis une description » ne fait qu'*alimenter* la revue et
- * l'éditeur JSON : la génération ne crée rien, ne déploie rien. C'est le même
- * bouton « Enregistrer » qui valide dans les deux cas, et la même route
- * `POST /api/applications`. L'IA propose ; l'opérateur dispose.
+ * The "From a description" tab only *feeds* the review and the JSON editor:
+ * generation creates nothing, deploys nothing. It is the same "Save" button that
+ * validates in both cases, and the same `POST /api/applications` route. The AI
+ * proposes; the operator decides.
  *
- * Le parcours complet — décrire, générer, **revoir**, créer, déployer — tient
- * sur cet écran, mais chaque étape reste un appel distinct à une route
- * existante. Rien n'enchaîne la génération au déploiement sans que la spec ait
- * été affichée : c'est précisément ce que la règle 4 protège.
+ * The complete journey — describe, generate, **review**, create, deploy — fits on
+ * this screen, but each step stays a distinct call to an existing route. Nothing
+ * chains generation to deployment without the spec having been shown: that is
+ * precisely what rule 4 protects.
  */
 
 const EXAMPLE = `{
@@ -75,22 +75,22 @@ type DeployTarget = {
 type Tab = 'prompt' | 'json' | 'compose' | 'repository';
 
 type Props = {
-  /** `false` quand aucune clé n'est configurée, ou que l'IA est coupée. */
+  /** `false` when no key is configured, or AI is turned off. */
   aiEnabled: boolean;
-  /** Libellé du fournisseur retenu — « OpenRouter », « OpenAI », « Anthropic ». */
+  /** The chosen provider's label — "OpenRouter", "OpenAI", "Anthropic". */
   provider: string;
   model: string;
-  /** Non nul quand le modèle ne ressemble pas à un identifiant du fournisseur. */
+  /** Not null when the model does not look like an identifier of the provider. */
   modelWarning: string | null;
-  /** Variable d'environnement de repli du fournisseur, à citer quand la clé manque. */
+  /** The provider's fallback environment variable, to quote when the key is missing. */
   missingKeyVar: string | null;
-  /** Cibles déployables. Vide si l'utilisateur n'a pas `deployment:create`. */
+  /** Deployable targets. Empty if the user does not have `deployment:create`. */
   targets: DeployTarget[];
-  /** Proposer d'activer la sauvegarde au premier déploiement — `null` sans `backup:manage`. */
+  /** Offer to enable the backup at the first deployment — `null` without `backup:manage`. */
   backupOptions?: { hasDestination: boolean } | null;
   /**
-   * Après un enregistrement **sans** déploiement. Avec déploiement, on part
-   * suivre le run.
+   * After a save **without** deployment. With a deployment, we go and follow the
+   * run.
    */
   onSaved: (application: { id: string; name: string }) => void;
   onCancel: () => void;
@@ -103,8 +103,8 @@ async function readError(
   const body = (await response.json().catch(() => ({}))) as ApiError;
   const message = body.error?.message ?? words.fallback;
 
-  // Deux formes d'erreur, une seule présentation : les reproches de Zod champ
-  // par champ (création), et ceux de la validation d'AppSpec (génération).
+  // Two error shapes, a single presentation: Zod's complaints field by field
+  // (creation), and the AppSpec validation's (generation).
   const fieldErrors = body.error?.details?.fieldErrors ?? {};
   const issues = [
     ...(body.error?.details?.issues ?? []),
@@ -115,15 +115,15 @@ async function readError(
   return { message, issues };
 }
 
-// ─── Lecture de la spec pour la revue ────────────────────────────────────────
+// ─── Reading the spec for the review ─────────────────────────────────────────
 
 /**
- * Relecture permissive du JSON de l'éditeur, pour l'afficher.
+ * A permissive reading of the editor's JSON, to show it.
  *
- * Volontairement séparée de la validation : ici on *montre* ce qui est écrit, y
- * compris pendant une retouche à moitié faite. La seule autorité reste
- * `appSpecSchema`, côté serveur, au moment de l'enregistrement — cette lecture
- * ne valide rien et ne doit jamais donner l'impression de le faire.
+ * Deliberately separate from validation: here we *show* what is written,
+ * including during a half-done edit. The only authority stays `appSpecSchema`,
+ * on the server side, at save time — this reading validates nothing and must
+ * never give the impression that it does.
  */
 type ReviewVolume = { name: string; mountPath: string; size: string | null };
 type ReviewService = {
@@ -162,8 +162,8 @@ function arr(value: unknown): unknown[] {
 }
 
 /**
- * Les mots dont la relecture a besoin. Passés en argument plutôt que lus par un
- * hook : ces fonctions sont pures, appelées hors composant, et le resteront.
+ * The words the review needs. Passed as arguments rather than read through a
+ * hook: these functions are pure, called outside a component, and will stay so.
  */
 type ReviewWords = {
   none: string;
@@ -196,11 +196,11 @@ function describeHealth(health: unknown, words: ReviewWords): string | null {
 }
 
 /**
- * Un secret, tel qu'il se relit avant déploiement.
+ * A secret, as it reads before deployment.
  *
- * Un nom peut reprendre la valeur d'un autre (`{ name, from }`) : la relecture
- * doit le montrer, sinon deux noms partageant un seul mot de passe se lisent
- * comme deux secrets indépendants — exactement le malentendu que `from` corrige.
+ * A name can take the value of another (`{ name, from }`): the review must show
+ * it, otherwise two names sharing a single password read as two independent
+ * secrets — exactly the misunderstanding `from` fixes.
  */
 function describeSecret(entry: unknown): string {
   if (typeof entry === 'string') return entry;
@@ -263,12 +263,12 @@ function parseReview(text: string, words: ReviewWords): ReviewSpec | null {
 }
 
 /**
- * Images publiées par un tiers — tout ce qui n'est pas la bibliothèque
- * officielle de Docker Hub. Le panel ne peut pas vérifier qu'un tag existe sans
- * contacter le registre depuis la machine cible, ce qui n'arrive qu'au
- * déploiement. Un modèle qui invente un `10.0.14` plausible fait donc échouer la
- * mise en ligne plusieurs minutes plus tard, au `pull`. Le dire à la relecture
- * coûte une ligne et fait gagner ce détour.
+ * Images published by a third party — everything that is not Docker Hub's
+ * official library. The panel cannot check that a tag exists without contacting
+ * the registry from the target machine, which only happens at deployment. A model
+ * that makes up a plausible `10.0.14` therefore fails the release several minutes
+ * later, at `pull` time. Saying so at review costs one line and saves that
+ * detour.
  */
 function thirdPartyImage(image: string): boolean {
   if (!image.includes(':') || image.startsWith('build ')) return false;
@@ -278,7 +278,7 @@ function thirdPartyImage(image: string): boolean {
   return path.includes('/') && !path.startsWith('library/');
 }
 
-/** Tag flottant : ce qui tourne aujourd'hui ne sera pas ce qui tournera demain. */
+/** Floating tag: what runs today will not be what runs tomorrow. */
 function floatingTag(image: string): boolean {
   return /:(latest|stable|main|edge)$/.test(image);
 }
@@ -401,18 +401,18 @@ export function NewApplicationForm({
   const [tab, setTab] = useState<Tab>(aiEnabled ? 'prompt' : 'json');
 
   const [prompt, setPrompt] = useState('');
-  // Indices facultatifs. Ils orientent le modèle sans jamais entrer dans
-  // l'AppSpec : `runtime` en particulier est transmis comme contexte de
-  // dimensionnement, et le prompt système lui interdit d'apparaître dans la spec.
+  // Optional hints. They steer the model without ever entering the AppSpec:
+  // `runtime` in particular is passed on as sizing context, and the system prompt
+  // forbids it from appearing in the spec.
   const [language, setLanguage] = useState('');
   const [database, setDatabase] = useState('');
   const [runtimeHint, setRuntimeHint] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generationInfo, setGenerationInfo] = useState<string | null>(null);
   const [origin, setOrigin] = useState<GenerationOrigin | null>(null);
-  /** L'AppSpec vient d'un docker-compose traduit : le journal le dira. */
+  /** The AppSpec comes from a translated docker-compose: the log will say so. */
   const [imported, setImported] = useState(false);
-  /** Valeurs choisies pour les secrets ; un champ vide laisse Pupitre générer. */
+  /** Values chosen for the secrets; an empty field lets Pupitre generate one. */
   const [secretValues, setSecretValues] = useState<Record<string, string>>({});
 
   const [value, setValue] = useState('');
@@ -420,8 +420,7 @@ export function NewApplicationForm({
   const [error, setError] = useState<string | null>(null);
   const [issues, setIssues] = useState<string[]>([]);
 
-  // Déploiement facultatif, dans la foulée de la création. Vide = on s'arrête à
-  // l'enregistrement.
+  // Optional deployment, right after creation. Empty = we stop at the save.
   const [targetId, setTargetId] = useState('');
   const selectedTarget = targets.find((target) => target.id === targetId) ?? null;
   const [deployRuntime, setDeployRuntime] = useState<'docker' | 'k3s'>('docker');
@@ -438,7 +437,7 @@ export function NewApplicationForm({
     healthInterval: (seconds) => t('review.health.interval', { seconds }),
     healthRetries: (retries) => t('review.health.retries', { retries }),
   };
-  /** `readError` est pure : elle reçoit ses mots, elle ne va pas les chercher. */
+  /** `readError` is pure: it receives its words, it does not go and fetch them. */
   const failureOf = (response: Response) =>
     readError(response, {
       fallback: tc('http.failure', { status: response.status }),
@@ -446,7 +445,7 @@ export function NewApplicationForm({
     });
 
   const review = parseReview(value, words);
-  // Les secrets qui portent une valeur : les alias la reprennent d'un autre.
+  // The secrets that carry a value: the aliases take it from another.
   const parsedSpec = (() => {
     try {
       const parsed = appSpecSchema.safeParse(JSON.parse(value));
@@ -456,9 +455,9 @@ export function NewApplicationForm({
     }
   })();
   const storable = parsedSpec ? storedSecretNames(parsedSpec) : [];
-  // Une application qui a des données, déployée tout de suite : on propose sa sauvegarde.
+  // An application that has data, deployed right away: we offer its backup.
   const offersBackup = backupOptions !== null && parsedSpec !== null && hasBackupData(parsedSpec);
-  // Les domaines : tant qu'on n'y a pas touché, celui de l'AppSpec.
+  // The domains: as long as they were not touched, the AppSpec's.
   const [domainDraft, setDomainDraft] = useState<DomainDraft[] | null>(null);
   const domains: DomainDraft[] =
     domainDraft ??
@@ -556,12 +555,12 @@ export function NewApplicationForm({
     const response = await fetch('/api/applications', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      // La provenance n'accompagne la création que si la spec vient bien d'une
-      // génération : une spec collée à la main n'a pas d'origine à inventer.
+      // The provenance only goes with the creation if the spec really comes from a
+      // generation: a spec pasted by hand has no origin to make up.
       body: JSON.stringify({
         appSpec,
         ...(origin ? { generation: origin } : imported ? { importedFrom: 'compose' } : {}),
-        // Seulement les valeurs saisies, et seulement pour les noms encore déclarés.
+        // Only the typed values, and only for the names still declared.
         secrets: Object.fromEntries(
           Object.entries(secretValues).filter(
             ([name, secret]) => secret.length > 0 && storable.includes(name),
@@ -581,9 +580,9 @@ export function NewApplicationForm({
     const application = (await response.json()) as { id: string };
 
     if (selectedTarget) {
-      // Deuxième appel, route existante. `scanConfig` est volontairement absent :
-      // sans demande explicite, c'est la politique de sécurité de l'instance qui
-      // s'applique — et la choisir ici exigerait `scan:configure`.
+      // Second call, existing route. `scanConfig` is deliberately absent: without an
+      // explicit request, it is the instance's security policy that applies — and
+      // choosing it here would require `scan:configure`.
       const deployment = await fetch('/api/deployments', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -884,10 +883,10 @@ export function NewApplicationForm({
     </>
   );
 
-  // ─── Tout empilé dans le tiroir, l'enregistrement dans son pied ────────────
+  // ─── Everything stacked in the drawer, the save in its footer ──────────────
 
-  // Depuis un dépôt : l'AppSpec vient du dépôt et ne s'édite pas ici — un
-  // parcours à part, avec son propre pied.
+  // From a repository: the AppSpec comes from the repository and is not edited
+  // here — a separate journey, with its own footer.
   if (tab === 'repository') {
     return <RepositoryImport tabs={tabs} onSaved={onSaved} onCancel={onCancel} />;
   }

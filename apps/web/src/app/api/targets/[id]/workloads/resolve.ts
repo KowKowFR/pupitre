@@ -6,9 +6,9 @@ import { HttpError, NotFoundError, msg } from '@/lib/errors';
 import { fetchWorkloads, findWorkload } from './inventory';
 
 /**
- * Ce que toutes les routes d'une charge vérifient avant d'enfiler quoi que ce
- * soit : la cible existe, la référence se lit, la charge tourne bien sur
- * cette cible — relue à l'inventaire, pas crue sur parole.
+ * What every workload route checks before queuing anything: the target exists,
+ * the reference reads, the workload does run on this target — read again in the
+ * inventory, not taken at its word.
  */
 export async function resolveWorkload(
   targetId: string,

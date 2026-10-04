@@ -29,8 +29,8 @@ export function PasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  // La vérification de longueur se lit sous le champ, pendant la saisie : un
-  // bandeau après coup ferait remonter l'œil loin de ce qu'il faut corriger.
+  // The length check reads under the field, while typing: a banner afterwards
+  // would draw the eye far from what needs fixing.
   const tooShort = newPassword.length > 0 && newPassword.length < PASSWORD_MIN_LENGTH;
   const mismatch = confirmation.length > 0 && confirmation !== newPassword;
 

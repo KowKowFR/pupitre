@@ -28,14 +28,14 @@ const STEP_CLASS: Record<StepStatus, string> = {
 };
 
 /**
- * Le pipeline d'un run, en échelle verticale : une pastille par étape, le
- * montant qui se colore jusqu'à l'étape courante, l'heure de départ à droite.
- * L'avancement se lit sur la colonne elle-même, sans compter les coches ; la
- * pastille porte l'état par sa forme (coche, croix, trait, anneau qui tourne).
+ * A run's pipeline, as a vertical ladder: one dot per step, the upright that
+ * colors up to the current step, the start time on the right. Progress reads on
+ * the column itself, without counting check marks; the dot carries the state
+ * through its shape (check, cross, dash, spinning ring).
  *
- * Le nom d'une étape se rend à partir de sa clé, pas du libellé que la base a
- * figé au moment d'enfiler le job : sans cela, un pipeline lancé en français
- * resterait français dans un panel passé à l'anglais.
+ * A step's name is rendered from its key, not from the label the database froze
+ * when queuing the job: without that, a pipeline started in French would stay
+ * French in a panel switched to English.
  */
 export function PipelineSteps({
   steps,
@@ -44,7 +44,7 @@ export function PipelineSteps({
 }: {
   steps: readonly StepView[];
   format: FormatSettings;
-  /** Une ligne de plus sous une étape (le verdict sous l'analyse de sécurité). */
+  /** One more line under a step (the verdict under the security analysis). */
   detail?: (step: StepView) => ReactNode;
 }) {
   const t = useT(messages);
@@ -84,7 +84,7 @@ export function PipelineSteps({
                     title={formatDuration(step.startedAt, step.finishedAt)}
                     suppressHydrationWarning
                   >
-                    {/* UTC, comme les dates du journal : elles se comparent aux logs du worker. */}
+                    {/* UTC, like the log's dates: they compare with the worker's logs. */}
                     {formatDateTimeWith(step.startedAt, format, {
                       hour: '2-digit',
                       minute: '2-digit',

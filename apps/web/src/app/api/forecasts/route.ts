@@ -7,10 +7,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les prévisions en cours — ce qui va casser si rien ne change —, mises en
- * phrases dans la langue de l'instance. Chacune n'est rendue qu'à qui peut
- * lire son sujet (`target:read`, `monitor:read`, `application:read`) : une
- * session qui ne voit pas les sondes ne voit pas leurs prévisions.
+ * The current forecasts — what will break if nothing changes —, put into
+ * sentences in the instance's language. Each one is only returned to whoever can
+ * read its subject (`target:read`, `monitor:read`, `application:read`): a session
+ * that does not see the probes does not see their forecasts.
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requireSession(request);

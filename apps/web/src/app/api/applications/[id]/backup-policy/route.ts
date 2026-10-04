@@ -15,8 +15,8 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Régler la sauvegarde d'une application. L'activer crée, au besoin, la tâche
- * planifiée « Sauvegardes des applications » — sans elle, rien ne tournerait.
+ * Setting an application's backup. Enabling it creates, if needed, the
+ * "Applications backups" scheduled task — without it, nothing would run.
  */
 export const PUT = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'backup:manage');

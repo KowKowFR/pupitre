@@ -19,8 +19,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Ses propres jetons d'API. Session de navigateur uniquement : un jeton ne
- * fabrique pas d'autres jetons.
+ * One's own API tokens. Browser session only: a token does not make other tokens.
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requireTeamMember(request);
@@ -41,17 +40,17 @@ const createSchema = z.object({
   permissions: z.array(z.string().min(1).max(60)).min(1).max(64),
   /** `null` : toutes les applications. */
   applicationIds: z.array(z.string().uuid()).min(1).max(100).nullable().default(null),
-  /** En jours ; `null` : sans échéance. */
+  /** In days; `null`: without expiry. */
   expiresInDays: expirySchema.nullable().default(90),
 });
 
 /**
- * Crée un jeton. Il n'est rendu **qu'ici**, une seule fois : la base n'en
- * garde que l'empreinte.
+ * Creates a token. It is returned **only here**, once: the database only keeps
+ * its fingerprint.
  *
- * Ses permissions sont prises parmi celles de son auteur : demander ce qu'on
- * n'a pas est refusé, plutôt que réduit en silence — un jeton qui ne peut pas
- * ce qu'on croit est une CI qui échoue plus tard, sans qu'on sache pourquoi.
+ * Its permissions are taken among its author's: asking for what one does not have
+ * is refused, rather than silently reduced — a token that cannot do what one
+ * believes is a CI that fails later, without anyone knowing why.
  */
 export const POST = apiRoute(async (request) => {
   const auth = await requireTeamMember(request);
@@ -95,7 +94,7 @@ export const POST = apiRoute(async (request) => {
     expiresAt,
   });
 
-  // Le préfixe, jamais le jeton : le journal se lit, s'exporte et se partage.
+  // The prefix, never the token: the log gets read, exported and shared.
   await logAudit({
     actorId: auth.userId,
     action: 'api_token.created',

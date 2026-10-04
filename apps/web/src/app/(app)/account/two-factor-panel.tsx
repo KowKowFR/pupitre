@@ -24,18 +24,18 @@ import { toast } from '@/lib/toast';
 import { readApiError } from './api-error';
 
 /**
- * Étape courante de l'activation. Le secret n'existe que dans cet état, en
- * mémoire de l'onglet : il n'est ni stocké, ni relu depuis le serveur après
- * l'activation, ni journalisé nulle part.
+ * The current step of the activation. The secret only exists in this state, in
+ * the tab's memory: it is neither stored, nor read back from the server after
+ * activation, nor logged anywhere.
  */
 type Setup = { totpURI: string; secret: string; backupCodes: string[] };
 
-/** Découpe le secret en blocs de quatre — une saisie manuelle sans faute de frappe. */
+/** Splits the secret into blocks of four — a manual entry without a typo. */
 function groupSecret(secret: string): string {
   return secret.replace(/(.{4})/g, '$1 ').trim();
 }
 
-/** Le secret voyage dans la query string de l'URI `otpauth://`. */
+/** The secret travels in the query string of the `otpauth://` URI. */
 function readSecret(totpURI: string): string {
   try {
     return new URL(totpURI).searchParams.get('secret') ?? '';
@@ -45,9 +45,9 @@ function readSecret(totpURI: string): string {
 }
 
 /**
- * `required` : la politique de l'instance l'exige pour ce compte. Absent, il
- * s'active ; présent, il ne se retire pas — la route le refuserait de toute
- * façon (`two_factor_locked`).
+ * `required`: the instance's policy requires it for this account. Absent, it is
+ * enabled; present, it cannot be removed — the route would refuse it anyway
+ * (`two_factor_locked`).
  */
 export function TwoFactorPanel({ enabled, required }: { enabled: boolean; required: boolean }) {
   const t = useT(messages);
@@ -201,8 +201,8 @@ export function TwoFactorPanel({ enabled, required }: { enabled: boolean; requir
         <form onSubmit={startSetup} className="contents">
           <CardContent className="flex flex-1 flex-col gap-4">
             {error ? <Alert variant="destructive">{error}</Alert> : null}
-            {/* Ce que le second facteur change, avant de demander le mot de passe : la
-                couleur dit la nature de chaque point, l'icône et le texte le disent aussi. */}
+            {/* What the second factor changes, before asking for the password: the color
+                says the nature of each point, the icon and the text say it too. */}
             <ul className="flex flex-col gap-2.5">
               {(
                 [
@@ -268,7 +268,7 @@ function SetupSteps({
       <CardContent className="flex flex-col gap-4">
         {error ? <Alert variant="destructive">{error}</Alert> : null}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
-          {/* Le QR est dessiné dans la page : il ne quitte jamais le navigateur. */}
+          {/* The QR code is drawn in the page: it never leaves the browser. */}
           <div className="w-fit shrink-0 rounded-lg border border-border bg-white p-2.5">
             <QRCodeSVG value={setup.totpURI} size={112} level="M" marginSize={0} />
           </div>

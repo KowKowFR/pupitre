@@ -8,15 +8,15 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Ce que la base croit en cours, confronté à la file.
+ * What the database believes in progress, confronted with the queue.
  *
- * Une lecture, donc `deployment:read` : constater qu'un déploiement est figé
- * n'engage rien. C'est le déblocage qui décide, et il demande davantage.
+ * A read, hence `deployment:read`: noting that a deployment is stuck commits to
+ * nothing. It is the unblocking that decides, and it requires more.
  *
- * Route dédiée plutôt qu'un champ ajouté à `GET /api/deployments/:id` : le
- * verdict coûte une lecture de la file `ops`, et la liste des déploiements est
- * l'écran le plus consulté du panel. On paie ce coût quand on pose la question,
- * pas à chaque affichage.
+ * A dedicated route rather than a field added to `GET /api/deployments/:id`: the
+ * verdict costs a read of the `ops` queue, and the deployments list is the
+ * panel's most consulted screen. We pay that cost when asking the question, not
+ * at each display.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'deployment:read');

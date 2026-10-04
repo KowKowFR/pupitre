@@ -1,8 +1,8 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les jetons d'API : la carte de « Mon compte », le tiroir de création, la
- * liste de l'instance sur « Utilisateurs », et les refus de leurs routes.
+ * API tokens: the "My account" card, the creation drawer, the instance's list on
+ * "Users", and their routes' refusals.
  */
 const fr = {
   'card.title': 'Jetons d’API',

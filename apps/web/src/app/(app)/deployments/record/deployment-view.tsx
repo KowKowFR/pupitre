@@ -55,23 +55,23 @@ export type DeploymentView = {
   targetName: string;
   targetHost: string;
   triggeredByEmail: string | null;
-  /** Le commit déployé, quand le run vient d'un dépôt lié. */
+  /** The deployed commit, when the run comes from a linked repository. */
   source: CommitSource | null;
   startedAt: string | null;
   finishedAt: string | null;
   canRollback: boolean;
   canDestroy: boolean;
-  /** Peut demander l'arrêt d'un déploiement figé — `deployment:purge`. */
+  /** Can ask to stop a stuck deployment — `deployment:purge`. */
   canUnblock: boolean;
-  /** `scan:read` : sans elle, l'onglet Sécurité n'existe pas. */
+  /** `scan:read`: without it, the Security tab does not exist. */
   canReadScans: boolean;
   hasPrevious: boolean;
   autoRollback: boolean;
-  /** Version applicative restaurée, quand le statut est `rolled_back`. */
+  /** The restored application version, when the status is `rolled_back`. */
   restoredVersion: string | null;
-  /** L'AppSpec figée du run, mise en forme. `null` si elle manque. */
+  /** The run's frozen AppSpec, formatted. `null` if it is missing. */
   spec: string | null;
-  /** Le résumé des scans, pour la ligne sous l'étape d'analyse. */
+  /** The scans summary, for the line under the analysis step. */
   scan: { scanners: string[]; verdict: ScanVerdict | null; counts: SeverityCounts } | null;
 };
 
@@ -84,12 +84,12 @@ type TabKey = 'pipeline' | 'security' | 'spec';
 const TERMINAL: readonly DeploymentStatus[] = ['success', 'failed', 'rolled_back', 'destroyed'];
 
 /**
- * Suivi d'un déploiement — le pipeline à gauche, le flux de logs à droite, à
- * la même hauteur.
+ * Following a deployment — the pipeline on the left, the log stream on the
+ * right, at the same height.
  *
- * L'état initial vient du serveur ; l'`EventSource` prend le relais. Si le flux
- * tombe, on se reconnecte : la route SSE rejoue l'historique persisté, donc une
- * reconnexion ne laisse pas de trou.
+ * The initial state comes from the server; the `EventSource` takes over. If the
+ * stream drops, we reconnect: the SSE route replays the persisted history, so a
+ * reconnection leaves no gap.
  */
 export function DeploymentDetail({
   deployment: initial,
@@ -119,9 +119,9 @@ export function DeploymentDetail({
   const retryRef = useRef<NodeJS.Timeout | null>(null);
   const attemptRef = useRef(0);
   /**
-   * La boucle de reconnexion doit rappeler `connect`, qui n'est pas encore
-   * déclaré à cet endroit. On passe par une ref plutôt que par la liaison
-   * elle-même : la fonction planifiée reste ainsi toujours la plus récente.
+   * The reconnection loop must call `connect` again, which is not declared yet at
+   * this point. We go through a ref rather than the binding itself: the scheduled
+   * function thus always stays the most recent one.
    */
   const connectRef = useRef<(() => void) | null>(null);
 
@@ -132,17 +132,17 @@ export function DeploymentDetail({
 
     const source = new EventSource(`/api/deployments/${deployment.id}/logs`);
     sourceRef.current = source;
-    // Aucun `setState` synchrone ici : `connect` est appelé depuis un effet, et
-    // tout changement d'état passe par les écouteurs de l'EventSource, qui sont
-    // des rappels asynchrones.
+    // No synchronous `setState` here: `connect` is called from an effect, and every
+    // state change goes through the EventSource's listeners, which are asynchronous
+    // callbacks.
 
     source.addEventListener('open', () => {
       attemptRef.current = 0;
       setConnection('live');
     });
 
-    // La route rejoue l'historique à chaque connexion : on repart d'une liste
-    // vide pour ne pas empiler les doublons après une reconnexion.
+    // The route replays the history at each connection: we start again from an empty
+    // list so as not to stack duplicates after a reconnection.
     source.addEventListener('replayed', () => setConnection('live'));
 
     source.addEventListener('status', (event) => {
@@ -197,13 +197,13 @@ export function DeploymentDetail({
       setConnection('closed');
       source.close();
       sourceRef.current = null;
-      // Recharge les données serveur : URL finale, durées, étapes définitives.
+      // Reloads the server data: final URL, durations, definitive steps.
       router.refresh();
     });
 
     source.addEventListener('error', () => {
-      // `EventSource` se reconnecte seul, mais sans borne ni recul. On reprend
-      // la main pour espacer les tentatives.
+      // `EventSource` reconnects on its own, but without a bound or a backoff. We take
+      // control back to space out the attempts.
       if (source.readyState === EventSource.CLOSED) {
         setConnection('error');
         source.close();
@@ -221,8 +221,8 @@ export function DeploymentDetail({
   }, [connect]);
 
   useEffect(() => {
-    // Même sur un déploiement déjà terminé : la route rejoue l'historique
-    // persisté puis ferme le flux d'elle-même.
+    // Even on an already finished deployment: the route replays the persisted
+    // history then closes the stream by itself.
     connect();
     return () => {
       if (retryRef.current) clearTimeout(retryRef.current);
@@ -249,8 +249,8 @@ export function DeploymentDetail({
 
   const scanStep = useMemo(() => steps.find((step) => step.key === 'scan') ?? null, [steps]);
   /**
-   * Recharge l'onglet Sécurité quand l'étape de scan bouge, ou quand le
-   * déploiement se termine. Pas de sondage : c'est le flux SSE qui déclenche.
+   * Reloads the Security tab when the scan step moves, or when the deployment
+   * ends. No polling: it is the SSE stream that triggers.
    */
   const securityKey = `${scanStep?.status ?? 'none'}:${deployment.status}`;
 
@@ -268,8 +268,8 @@ export function DeploymentDetail({
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as ApiError;
       const message = body.error?.message ?? tc('http.failure', { status: response.status });
-      // Un refus reste dans le dialogue quand il y en a un ouvert ; sinon, un
-      // encadré sous le résumé.
+      // A refusal stays in the dialog when one is open; otherwise, a box under the
+      // summary.
       setActionError(message);
       return;
     }
@@ -379,10 +379,10 @@ export function DeploymentDetail({
           </section>
 
           {/*
-            Le terminal est posé en absolu dans sa cellule : c'est le pipeline
-            qui donne la hauteur de la rangée, et le flux défile dedans au lieu
-            d'allonger la page.
-          */}
+            The terminal is positioned absolutely in its cell: it is the pipeline
+            that gives the row its height, and the stream scrolls inside instead
+            of lengthening the page.
+                     */}
           <div className="relative min-h-[30rem] min-w-0">
             <section className="term absolute inset-0" aria-label={t('logs.title')}>
               <div className="term-h">
@@ -420,11 +420,11 @@ export function DeploymentDetail({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-72">
                       {/*
-                        Des liens vers la route suffisent : elle répond en
-                        pièce jointe, et relit le journal en base — pas le
-                        tampon affiché, qui ne contient que ce que le flux a
-                        rejoué depuis l'ouverture de la page.
-                      */}
+                        Links to the route are enough: it answers with an
+                        attachment, and reads the log again in the database —
+                        not the displayed buffer, which only contains what the
+                        stream replayed since the page opened.
+                                             */}
                       <DropdownMenuItem asChild>
                         <a href={`/api/deployments/${deployment.id}/logs/export?format=text`}>
                           .log
@@ -540,10 +540,10 @@ export function DeploymentDetail({
 }
 
 /**
- * Le résumé d'un run. Tout ce qu'on veut savoir avant de lire les logs : l'état,
- * quoi sur quoi, depuis combien de temps, à quelle étape, où ça répond, qui l'a
- * lancé. La barre de 3 px au pied dit l'avancement ; elle balaye tant que le
- * worker travaille et se fige dès que le run est terminé.
+ * A run's summary. Everything one wants to know before reading the logs: the
+ * state, what on what, for how long, at which step, where it answers, who
+ * started it. The 3 px bar at the bottom tells the progress; it sweeps while the
+ * worker works and freezes as soon as the run is finished.
  */
 function Summary({
   deployment,
@@ -620,13 +620,13 @@ function Summary({
             </Button>
           ) : null}
           {/*
-            Le bouton est proposé sans condition sur un déploiement en cours :
-            l'écran n'a aucun moyen de savoir si la tâche vit encore, et le
-            découvrir coûterait une lecture de la file à chaque affichage. C'est
-            la route qui tranche, et son refus explique pourquoi — « votre tâche
-            est active depuis quatre minutes ». Un bouton qui pose une question
-            vaut mieux qu'un bouton qui devine.
-          */}
+            The button is offered unconditionally on a deployment in progress:
+            the screen has no way of knowing whether the job is still alive, and
+            finding out would cost a read of the queue at each display. It is the
+            route that decides, and its refusal explains why — "your job has been
+            active for four minutes". A button that asks a question is better
+            than a button that guesses.
+                     */}
           {running && deployment.canUnblock ? (
             <Button
               size="sm"

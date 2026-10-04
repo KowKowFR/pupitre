@@ -77,11 +77,11 @@ export type JobRow = {
   neverDoes: string;
   cron: string;
   cronDescription: string;
-  /** `null` quand l'expression n'a pas d'équivalent en mode simple. */
+  /** `null` when the expression has no equivalent in simple mode. */
   schedule: SimpleSchedule | null;
-  /** Fuseau de la tâche : celui dans lequel BullMQ interprète son cron. */
+  /** The task's time zone: the one in which BullMQ interprets its cron. */
   timeZone: string;
-  /** Fuseau réellement mémorisé par BullMQ. `null` = pas encore installé. */
+  /** The time zone really stored by BullMQ. `null` = not installed yet. */
   schedulerTimeZone: string | null;
   enabled: boolean;
   installed: boolean;
@@ -115,7 +115,7 @@ const STATUS_KEY: Record<string, keyof typeof messages.fr> = {
   pending: 'status.pending',
 };
 
-/** Le statut d'une exécution, en pastille : un mot traduit, jamais la valeur brute. */
+/** A run's status, as a chip: a translated word, never the raw value. */
 function RunStatus({ run }: { run: JobRunView }) {
   const t = useT(messages);
   const key = STATUS_KEY[run.status];
@@ -128,17 +128,16 @@ function RunStatus({ run }: { run: JobRunView }) {
 }
 
 /**
- * Une date de la table, dans la locale de l'instance.
+ * A table date, in the instance's locale.
  *
- * `dateStyle`/`timeStyle` courts sont imposés par la colonne : une date longue
- * casserait l'alignement des chiffres. La locale, elle, vient de
- * `settings.locale` telle quelle — `en-GB` et `en-US` n'écrivent pas la même
- * date, et le raccourci d'avant servait la britannique aux deux.
+ * Short `dateStyle`/`timeStyle` are imposed by the column: a long date would
+ * break the digits' alignment. The locale, for its part, comes from
+ * `settings.locale` as is — `en-GB` and `en-US` do not write the same date, and
+ * the shortcut of before served the British one to both.
  *
- * Le `timeZone` reste facultatif, et c'est délibéré : la colonne « prochaine
- * occurrence » l'épingle sur le fuseau **de la tâche**, tandis que la ligne
- * « à votre horloge » veut justement l'absence de fuseau. Ni l'un ni l'autre
- * n'est le fuseau d'instance.
+ * The `timeZone` stays optional, and that is deliberate: the "next occurrence"
+ * column pins it to **the task's** time zone, while the "at your clock" line
+ * precisely wants no time zone. Neither is the instance's time zone.
  */
 function formatDate(
   value: string | null,
@@ -173,12 +172,12 @@ export function JobsPanel({
   jobs: JobRow[];
   types: JobTypeOption[];
   canManage: boolean;
-  /** Fuseau des paramètres d'instance : le pré-réglage d'une tâche neuve. */
+  /** The instance settings' time zone: a new task's preset. */
   defaultTimeZone: string;
-  /** Fuseaux proposés, énumérés côté serveur. */
+  /** Offered time zones, listed on the server side. */
   timeZones: readonly string[];
-  /** Locale et fuseau de l'instance. Par props : cette table est rendue sur le
-   *  serveur avant de l'être ici, et les deux doivent écrire la même date. */
+  /** The instance's locale and time zone. Through props: this table is rendered on
+   *  the server before being rendered here, and both must write the same date. */
   format: FormatSettings;
 }) {
   const t = useT(messages);
@@ -194,8 +193,8 @@ export function JobsPanel({
   const [dialogError, setDialogError] = useState<string | null>(null);
 
   /**
-   * Un appel d'API. Le refus s'affiche là où l'on regarde : dans le dialogue
-   * ouvert s'il y en a un (`inDialog`), sinon en tête de page.
+   * An API call. The refusal shows where one is looking: in the open dialog if
+   * there is one (`inDialog`), otherwise at the top of the page.
    */
   async function call(
     path: string,
@@ -480,8 +479,8 @@ export function JobsPanel({
             {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
-              // `draftBody` envoie la périodicité ou l'expression : la
-              // conversion et la validation sont l'affaire du serveur.
+              // `draftBody` sends the schedule or the expression: conversion and validation
+              // are the server's business.
               body: JSON.stringify(body),
             },
             () => t('notice.created', { key }),
@@ -493,8 +492,8 @@ export function JobsPanel({
 
       {editing ? (
         <CadenceDialog
-          // Remonté à chaque ouverture : le brouillon repart de la cadence
-          // enregistrée, sans avoir à le resynchroniser dans un effet.
+          // Remounted at each opening: the draft starts again from the saved cadence,
+          // without having to resynchronize it in an effect.
           key={editing.id}
           job={editing}
           timeZones={timeZones}
@@ -544,9 +543,9 @@ export function JobsPanel({
 }
 
 /**
- * Planification d'une tâche neuve : son type, sa clé, sa cadence — dans un
- * tiroir, la liste des tâches reste visible derrière. Le formulaire n'est monté
- * qu'à l'ouverture : chaque fois, il repart des valeurs par défaut.
+ * Scheduling a new task: its type, its key, its cadence — in a drawer, the task
+ * list stays visible behind. The form is only mounted on opening: each time, it
+ * starts again from the default values.
  */
 function CreateDrawer({
   open,
@@ -623,8 +622,8 @@ function CreateForm({
                   setType(event.target.value);
                   if (next) {
                     setKey(next.defaultKey);
-                    // Le fuseau déjà choisi survit au changement de type :
-                    // c'est un réglage de l'opérateur, pas une propriété du type.
+                    // The time zone already chosen survives the change of type: it is a setting of
+                    // the operator, not a property of the type.
                     setDraft(draftFromCron(next.defaultCron, draft.timeZone));
                   }
                 }}
@@ -670,7 +669,7 @@ function CreateForm({
   );
 }
 
-/** Modification de la cadence d'une tâche existante. */
+/** Changing an existing task's cadence. */
 function CadenceDialog({
   job,
   timeZones,
@@ -745,7 +744,7 @@ function CadenceDialog({
   );
 }
 
-/** Résumé d'exécution en une ligne : les compteurs, pas le journal complet. */
+/** A one-line run summary: the counters, not the complete log. */
 function summarize(summary: unknown): string {
   if (summary === null || typeof summary !== 'object') return '';
   const entries = Object.entries(summary as Record<string, unknown>)

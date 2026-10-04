@@ -18,18 +18,18 @@ import {
 import { cn } from '@/lib/utils';
 
 /**
- * Drawer — l'aperçu qui s'ouvre depuis une ligne de liste, sans quitter la
- * page. Le travail long, lui, se fait sur la page de détail : le drawer ne la
- * remplace pas, il y mène (« Ouvrir la fiche »).
+ * A drawer — the overview that opens from a list row, without leaving the page.
+ * Long work, for its part, is done on the detail page: the drawer does not
+ * replace it, it leads there ("Open the record").
  *
- * Géométrie du kit : panneau à droite, inset de 8 px, 540 px (680 en `wide`),
- * rayon 14, ombre `lg`. Voile léger sur le contenu seulement, le rail reste
- * visible. Entrée en 320 ms (48 px et fondu), sortie en 200 ms ; les
- * sections du corps apparaissent en cascade. Sous `lg`, feuille montante.
+ * The kit's geometry: a panel on the right, 8 px inset, 540 px (680 in `wide`),
+ * radius 14, `lg` shadow. A light veil on the content only, the rail stays
+ * visible. Entrance in 320 ms (48 px and fade), exit in 200 ms; the body's
+ * sections appear in cascade. Under `lg`, a rising sheet.
  *
- * Clavier : Échap ferme, J et K passent à la ligne suivante et précédente,
- * Entrée ouvre la fiche. Au-dessus de Radix Dialog : piège du focus,
- * `aria-modal`, restitution du focus à la ligne d'origine.
+ * Keyboard: Escape closes, J and K move to the next and previous row, Enter opens
+ * the record. On top of Radix Dialog: focus trap, `aria-modal`, focus restored
+ * to the original row.
  */
 
 type DrawerNav = {
@@ -54,9 +54,9 @@ export function Drawer({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   wide?: boolean;
-  /** La fiche d'un objet, avec ses onglets : la largeur d'une page de lecture. */
+  /** An object's record, with its tabs: the width of a reading page. */
   xwide?: boolean;
-  /** Nom accessible, quand le titre visible ne suffit pas. */
+  /** Accessible name, when the visible title is not enough. */
   label?: string;
   children: React.ReactNode;
 }) {
@@ -104,9 +104,9 @@ export function Drawer({
             xwide && 'is-xwide',
           )}
           onKeyDown={onKeyDown}
-          // Le focus va au panneau, pas à son premier bouton : sinon l'info-bulle
-          // de « Précédent » s'ouvrirait à chaque aperçu, et un lecteur d'écran
-          // annoncerait un bouton au lieu de la cible.
+          // The focus goes to the panel, not to its first button: otherwise the
+          // "Previous" tooltip would open at each overview, and a screen reader would
+          // announce a button instead of the target.
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             (event.currentTarget as HTMLElement | null)?.focus();
@@ -120,9 +120,8 @@ export function Drawer({
 }
 
 /**
- * En-tête : la ligne de contexte (icône, type, route en mono) et ses boutons
- * — précédent, suivant, pleine page, fermer —, le titre en 20/28, puis une
- * ligne d'état.
+ * Header: the context line (icon, type, route in mono) and its buttons —
+ * previous, next, full page, close —, the title in 20/28, then a state line.
  */
 export function DrawerHeader({
   icon,
@@ -195,7 +194,7 @@ export function DrawerHeader({
   );
 }
 
-/** Le corps défile ; chaque enfant direct entre en cascade (40 ms d'écart). */
+/** The body scrolls; each direct child enters in cascade (40 ms apart). */
 export function DrawerBody({ className, ...props }: React.ComponentProps<'div'>) {
   return <div className={cn('dr-b', className)} {...props} />;
 }
@@ -223,8 +222,8 @@ export function DrawerSection({
 }
 
 /**
- * Zone sensible, en bas du corps : c'est là que vivent les suppressions. Le
- * bouton y est au trait, et il ouvre un dialogue — jamais une action directe.
+ * The sensitive zone, at the bottom of the body: that is where deletions live.
+ * The button there is outlined, and it opens a dialog — never a direct action.
  */
 export function DrawerDanger({ children }: { children: React.ReactNode }) {
   const t = useT(chrome);
@@ -237,9 +236,9 @@ export function DrawerDanger({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Pied : l'action primaire d'abord, la secondaire ensuite. À droite, le lien
- * « Ouvrir la fiche » — ou, quand la fiche est déjà une action du pied, ce que
- * l'appelant y pose (`end`, typiquement une suppression).
+ * Footer: the primary action first, the secondary next. On the right, the "Open
+ * the record" link — or, when the record is already a footer action, what the
+ * caller puts there (`end`, typically a deletion).
  */
 export function DrawerFooter({ children, end }: { children?: React.ReactNode; end?: React.ReactNode }) {
   const t = useT(chrome);
@@ -260,13 +259,13 @@ export function DrawerFooter({ children, end }: { children?: React.ReactNode; en
 }
 
 /**
- * La sélection d'un drawer, synchronisée avec l'URL sous `key`.
+ * A drawer's selection, synchronized with the URL under `key`.
  *
- * Ouvrir **ajoute** une entrée d'historique : le bouton Précédent referme.
- * Passer d'une ligne à l'autre (J/K) et fermer **remplacent** l'entrée, pour
- * ne pas remplir l'historique de chaque ligne survolée. L'API d'historique
- * native est intégrée au routeur de Next : `useSearchParams` suit, sans aller
- * rechercher la page au serveur.
+ * Opening **adds** a history entry: the Back button closes. Moving from one row
+ * to another (J/K) and closing **replace** the entry, so as not to fill the
+ * history with each hovered row. The native history API is integrated into
+ * Next's router: `useSearchParams` follows, without fetching the page from the
+ * server again.
  */
 export function useDrawerSelection(key: string, ids?: readonly string[]) {
   const pathname = usePathname();

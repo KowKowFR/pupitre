@@ -1,23 +1,22 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * La coquille du panel : le rail de navigation, la barre haute, et le
- * vocabulaire des figures partagées.
+ * The panel's shell: the navigation rail, the top bar, and the shared figures'
+ * vocabulary.
  *
- * ── Pourquoi les intitulés du rail vivent ici ───────────────────────────────
- * Ce sont les douze mots les plus lus du produit, et ils nomment des
- * *sections*, pas des objets. « Supervision » mène aux serveurs relevés,
- * « Sondes » à la supervision de sites : traduits mot à mot ils auraient donné
- * deux fois *monitoring* et personne n'aurait su lequel mène où. L'anglais
- * tranche donc par la destination — **Servers** et **Monitoring** — pendant que
- * le français garde ses mots.
+ * ── Why the rail's labels live here ─────────────────────────────────────────
+ * They are the product's twelve most read words, and they name *sections*, not
+ * objects. "Supervision" leads to the read servers, "Sondes" to site monitoring:
+ * translated word for word they would have given *monitoring* twice and nobody
+ * would have known which leads where. English therefore decides by the
+ * destination — **Servers** and **Monitoring** — while French keeps its words.
  *
- * ── Pourquoi le vocabulaire des figures aussi ───────────────────────────────
- * `components/chart.tsx` ne connaît aucun écran : il sait dessiner un taux, une
- * courbe, un rail d'événements. Ses phrases — « aucune mesure », « intervalles
- * mesurés sur 24 » — appartiennent donc à l'outil, pas au tableau de bord qui
- * s'en sert. Les *titres* des figures, eux, restent chez l'appelant : c'est lui
- * qui sait ce qu'il mesure.
+ * ── Why the figures' vocabulary too ─────────────────────────────────────────
+ * `components/chart.tsx` knows no screen: it knows how to draw a rate, a curve, an
+ * events rail. Its sentences — "no measurement", "intervals measured out of 24" —
+ * therefore belong to the tool, not to the dashboard that uses it. The figures'
+ * *titles*, for their part, stay with the caller: it is the one that knows what
+ * it measures.
  */
 const fr = {
   // ── Rail de navigation ──────────────────────────────────────────────────
@@ -39,7 +38,7 @@ const fr = {
   'nav.settings': 'Paramètres',
   'nav.group.operations': 'Exploitation',
   'nav.group.administration': 'Administration',
-  /** Le nom de la zone de navigation, pour les lecteurs d'écran. */
+  /** The navigation area's name, for screen readers. */
   'nav.landmark': 'Sections',
   'nav.account': 'Mon compte',
   'nav.signOut': 'Déconnexion',
@@ -202,20 +201,20 @@ const fr = {
   'palette.toast.paused': 'Sonde {name} suspendue',
   'palette.toast.resumed': 'Sonde {name} reprise',
 
-  // ── Conteneur défilant d'un tableau ─────────────────────────────────────
+  // ── A table's scrolling container ───────────────────────────────────────
   'table.scrollable': '{label} — défile horizontalement',
-  /** Repli quand l'appelant n'a pas dit ce que le tableau contient. */
+  /** The fallback when the caller did not say what the table contains. */
   'table.fallback': 'Tableau',
 
-  // ── Bouton de démonstration de la file ──────────────────────────────────
+  // ── The queue's demonstration button ────────────────────────────────────
   'ping.enqueue': 'Enfiler un ping',
   'ping.sending': 'Envoi…',
   'ping.failed': 'échec',
 
   // ── Figures ─────────────────────────────────────────────────────────────
   /**
-   * Les résumés vocaux. Ils restent au pluriel en français quel que soit le
-   * compte, comme avant : ce sont des libellés d'axe, pas des phrases.
+   * The spoken summaries. They stay plural in French whatever the count, as
+   * before: they are axis labels, not sentences.
    */
   'chart.bars.summary':
     '{label} — {covered} intervalles mesurés sur {total}, {samples} mesures au total',
@@ -248,7 +247,7 @@ const fr = {
   },
   'chart.history.oldest': ' — le plus ancien remonte à {when}.',
 
-  /** Deux compteurs, deux mots : une sonde prend des mesures, un balayage des relevés. */
+  /** Two counters, two words: a probe takes measurements, a sweep readings. */
   'chart.coverage.sample': {
     one: '{count} mesure sur {covered}/{buckets} intervalles',
     other: '{count} mesures sur {covered}/{buckets} intervalles',

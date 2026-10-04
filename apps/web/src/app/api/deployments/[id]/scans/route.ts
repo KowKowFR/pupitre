@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** Exécutions de scan d'un déploiement, avec leurs compteurs par sévérité. */
+/** A deployment's scan runs, with their counters per severity. */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'scan:read');
   const { id } = paramsSchema.parse(await context.params);

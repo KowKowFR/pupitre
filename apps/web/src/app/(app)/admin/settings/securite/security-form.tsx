@@ -20,11 +20,11 @@ import { SectionForm } from '../section-form';
 import { useSettingsPatch } from '../use-settings-patch';
 
 /**
- * Politique de scan de l'instance.
+ * The instance's scan policy.
  *
- * Le PATCH ne porte que `security` — et la fusion serveur est partielle sur un
- * niveau, donc `disabledScanners` remplace bien la liste au lieu de s'y
- * ajouter, sans que le nom de l'instance ou le modèle d'IA ne bougent.
+ * The PATCH only carries `security` — and the server-side merge is partial on
+ * one level, so `disabledScanners` does replace the list instead of adding to
+ * it, without the instance's name or the AI model moving.
  */
 export function SecurityForm({
   settings,

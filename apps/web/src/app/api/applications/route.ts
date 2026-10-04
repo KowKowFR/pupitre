@@ -16,25 +16,25 @@ export const GET = apiRoute(async (request) => {
 });
 
 /**
- * Le corps est une AppSpec. Le slug en est déduit — `appSpec.name` est la seule
- * source de vérité pour le nom, il n'y a pas de champ concurrent à réconcilier.
+ * The body is an AppSpec. The slug is derived from it — `appSpec.name` is the
+ * only source of truth for the name, there is no competing field to reconcile.
  */
 const bodySchema = z.object({
   description: z.string().max(500).optional(),
   appSpec: appSpecSchema,
   /**
-   * Provenance, quand l'AppSpec vient de `POST /api/applications/generate`.
-   * On enregistre le prompt et la spec **générée**, pas seulement la spec
-   * validée : c'est ce qui permet de relire ce qui a été corrigé à la main.
+   * Provenance, when the AppSpec comes from `POST /api/applications/generate`. We
+   * store the prompt and the **generated** spec, not only the validated spec: that
+   * is what allows reviewing what was corrected by hand.
    */
   generation: generationOriginSchema.optional(),
   /** L'AppSpec vient d'un docker-compose.yml traduit par `import-compose`. */
   importedFrom: z.literal('compose').optional(),
   /**
-   * Valeurs choisies dès la création, pour les secrets que la spec déclare :
-   * une clé d'API, un mot de passe déjà en service ailleurs. Les autres sont
-   * générées. Un nom absent de la spec — ou un alias, qui n'a pas de valeur à
-   * lui — est refusé : il n'y aurait rien à quoi l'attacher.
+   * Values chosen from creation, for the secrets the spec declares: an API key, a
+   * password already in service elsewhere. The others are generated. A name absent
+   * from the spec — or an alias, which has no value of its own — is refused: there
+   * would be nothing to attach it to.
    */
   secrets: z.record(z.string().regex(ENV_NAME_PATTERN), secretValueSchema.min(1)).default({}),
 });

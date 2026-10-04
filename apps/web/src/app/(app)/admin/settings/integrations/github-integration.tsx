@@ -22,13 +22,13 @@ import { toast } from '@/lib/toast';
 type ApiError = { error?: { message?: string } };
 
 /**
- * La GitHub App de l'instance : la créer, la connecter, voir où elle est
- * installée, la déconnecter.
+ * The instance's GitHub App: create it, connect it, see where it is installed,
+ * disconnect it.
  *
- * La création passe par un **manifeste** : le navigateur poste à GitHub la
- * description de l'App, GitHub la montre à l'opérateur, puis renvoie le
- * navigateur vers le panel avec un code. GitHub n'appelle jamais le panel —
- * c'est ce qui rend l'intégration possible sur une instance privée.
+ * Creation goes through a **manifest**: the browser posts the App's description
+ * to GitHub, GitHub shows it to the operator, then sends the browser back to the
+ * panel with a code. GitHub never calls the panel — that is what makes the
+ * integration possible on a private instance.
  */
 export function GitHubIntegration({
   connection,
@@ -241,7 +241,7 @@ function Connect({ instanceName }: { instanceName: string }) {
   const [privateKey, setPrivateKey] = useState('');
   const [manualPending, setManualPending] = useState(false);
 
-  /** Poste le manifeste à GitHub depuis le navigateur : une vraie soumission de formulaire. */
+  /** Posts the manifest to GitHub from the browser: a real form submission. */
   async function create() {
     setPending(true);
     setError(null);

@@ -9,9 +9,9 @@ import { withSlot } from '@/lib/rich';
 import { DeploymentStatusBadge } from '../../deployments/status-badge';
 
 /**
- * Les ports alloués d'une cible : la plage, sa jauge d'occupation, l'état du
- * pare-feu, puis un port par ligne. La jauge verdit, ambre à 70 %, rougit à
- * 90 % — une plage presque pleine bloque le prochain déploiement.
+ * A target's allocated ports: the range, its occupancy gauge, the firewall's
+ * state, then one port per row. The gauge is green, amber at 70%, red at 90% — an
+ * almost full range blocks the next deployment.
  */
 export async function PortsPanel({
   report,

@@ -21,11 +21,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = 'force-dynamic';
 
 /**
- * « Maintenances » : les fenêtres en cours, à venir et terminées. Planifier,
- * modifier, terminer et supprimer se font dans des tiroirs, sans sous-page.
+ * "Maintenance windows": the ongoing, upcoming and finished windows. Scheduling,
+ * editing, ending and deleting happen in drawers, without a sub-page.
  *
- * Le formulaire ne propose que ce que la session peut lire : une fenêtre ne
- * met pas en sourdine une sonde qu'on ne voit pas.
+ * The form only offers what the session can read: a window does not mute a
+ * probe one does not see.
  */
 export default async function MaintenancePage() {
   const auth = await requirePagePermission('/maintenance', 'maintenance:read');

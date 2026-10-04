@@ -7,10 +7,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Tous les domaines de l'instance : le proxy qui les sert, leur état, leur
- * certificat et le temps qu'il lui reste. `attention` dit ceux qui ne
- * répondent pas ou dont le certificat approche de son échéance — de quoi
- * brancher une vérification extérieure sans rien recalculer.
+ * All the instance's domains: the proxy that serves them, their state, their
+ * certificate and the time it has left. `attention` says those that do not answer
+ * or whose certificate is nearing its expiry — enough to plug in an external
+ * check without recomputing anything.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'application:read');

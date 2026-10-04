@@ -5,17 +5,16 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
 
 /**
- * Dialogue — 460 px (560 en `wide`), voile à 28 % flouté de 2 px, entrée
- * `pp-dialog` en 240 ms, sortie en 160 ms.
+ * A dialog — 460 px (560 in `wide`), 28% veil blurred by 2 px, `pp-dialog`
+ * entrance in 240 ms, exit in 160 ms.
  *
- * Radix porte ce qu'une modale ne peut pas faire à moitié : piège du focus,
- * `Escape`, restitution du focus au déclencheur, inertie du reste de la page.
- * Les animations passent par `data-state`, donc Radix attend la fin de la
- * sortie avant de démonter.
+ * Radix carries what a modal cannot do halfway: focus trap, `Escape`, focus
+ * restored to the trigger, inertness of the rest of the page. The animations go
+ * through `data-state`, so Radix waits for the exit to end before unmounting.
  *
- * Anatomie du kit : un en-tête (icône de ton facultative, titre qui est une
- * question), un corps qui seul défile, un pied sur `surface-2` avec
- * « Annuler » puis le verbe. Pas de croix : on sort par Annuler ou par Échap.
+ * The kit's anatomy: a header (optional tone icon, a title that is a question), a
+ * body that alone scrolls, a footer on `surface-2` with "Cancel" then the verb.
+ * No cross: one leaves through Cancel or Escape.
  */
 
 const Dialog = DialogPrimitive.Root;
@@ -49,8 +48,8 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        // Radix pose `aria-hidden` sur les frères de la modale ; `aria-modal`
-        // le dit en plus sur la boîte elle-même. Les deux sont attendus.
+        // Radix sets `aria-hidden` on the modal's siblings; `aria-modal` also says it on
+        // the box itself. Both are expected.
         aria-modal="true"
         className={cn(
           'dialog',
@@ -68,7 +67,7 @@ function DialogContent({
 
 export type DialogTone = 'danger' | 'warn' | 'accent';
 
-/** En-tête : cartouche d'icône facultatif, puis le titre et sa description. */
+/** Header: optional icon cartouche, then the title and its description. */
 function DialogHeader({
   className,
   icon,
@@ -91,7 +90,7 @@ function DialogHeader({
   );
 }
 
-/** Le corps est la seule zone qui défile. */
+/** The body is the only area that scrolls. */
 function DialogBody({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="dialog-body" className={cn('dlg-b', className)} {...props} />;
 }

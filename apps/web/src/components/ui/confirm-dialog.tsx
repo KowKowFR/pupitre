@@ -20,15 +20,15 @@ import { confirmMatches, confirmVariant, type ConfirmLevel } from '@/lib/confirm
 import { withSlot } from '@/lib/rich';
 
 /**
- * Dialogue de confirmation, en trois niveaux (voir `lib/confirm.ts`).
+ * A confirmation dialog, in three levels (see `lib/confirm.ts`).
  *
- * Le titre est une **question qui nomme l'objet et le lieu** (« Détruire blog
- * sur prod-1 ? »), le corps liste les conséquences à puces, le pied porte
- * « Annuler » puis le verbe. Pour une action destructive, le focus démarre
- * sur Annuler : Entrée par réflexe ne détruit rien.
+ * The title is a **question that names the object and the place** ("Destroy blog
+ * on prod-1?"), the body lists the consequences as bullets, the footer carries
+ * "Cancel" then the verb. For a destructive action, the focus starts on Cancel:
+ * Enter by reflex destroys nothing.
  *
- * Le dialogue ne ferme pas de lui-même quand `onConfirm` échoue : l'appelant
- * affiche l'erreur dans `error`, et l'opérateur peut réessayer ou annuler.
+ * The dialog does not close by itself when `onConfirm` fails: the caller shows
+ * the error in `error`, and the operator can try again or cancel.
  */
 export function ConfirmDialog({
   open,
@@ -55,16 +55,16 @@ export function ConfirmDialog({
   level: ConfirmLevel;
   title: React.ReactNode;
   description?: React.ReactNode;
-  /** Ce qui va se passer, une conséquence par puce. */
+  /** What is going to happen, one consequence per bullet. */
   consequences?: React.ReactNode[];
-  /** Contenu libre sous les conséquences (options, note de journal…). */
+  /** Free content under the consequences (options, log note…). */
   children?: React.ReactNode;
   confirmLabel: React.ReactNode;
   pendingLabel?: React.ReactNode;
   cancelLabel?: React.ReactNode;
-  /** Niveau 3 : le nom exact à retaper. */
+  /** Level 3: the exact name to type again. */
   retypeName?: string;
-  /** Intitulé du champ de saisie, quand la formule par défaut ne convient pas. */
+  /** The input field's label, when the default wording does not suit. */
   retypeLabel?: React.ReactNode;
   onConfirm: () => void | Promise<void>;
   pending?: boolean;
@@ -83,7 +83,7 @@ export function ConfirmDialog({
         role="alertdialog"
         size={size}
         onOpenAutoFocus={(event) => {
-          // Destructif : le focus démarre sur Annuler. Niveau 3 : dans le champ.
+          // Destructive: the focus starts on Cancel. Level 3: in the field.
           if (needsName) return;
           if (destructive) {
             event.preventDefault();
@@ -92,9 +92,9 @@ export function ConfirmDialog({
         }}
       >
         {/*
-          Le contenu est démonté à la fermeture : la saisie du nom repart donc
-          vide à chaque ouverture, sans effet de remise à zéro.
-        */}
+          The content is unmounted on closing: the name input therefore starts
+          empty again at each opening, without a reset effect.
+                 */}
         <ConfirmBody
           level={level}
           title={title}

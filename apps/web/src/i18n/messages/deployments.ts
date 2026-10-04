@@ -1,23 +1,23 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les déploiements — le journal des runs, le suivi d'un run, l'onglet
- * « Sécurité », la purge, et les refus de leurs routes.
+ * Deployments — the runs log, a run's follow-up, the "Security" tab, the purge,
+ * and their routes' refusals.
  *
- * ── Ce qui n'entre pas ici, et pourquoi ─────────────────────────────────────
- * Les **lignes de log** affichées dans le terminal de droite viennent du worker
- * et dorment en base. Elles décrivent ce qui s'est passé sur une machine, un
- * jour donné : les traduire à l'écriture figerait la langue de l'instance au
- * moment du run, et les traduire à la lecture demanderait au panel de
- * comprendre un texte dont il n'a que la chaîne. Le **décor** autour se
- * traduit — titres, boutons, états d'étape, filtres, « défilement auto ».
+ * ── What does not enter here, and why ───────────────────────────────────────
+ * The **log lines** shown in the right-hand terminal come from the worker and
+ * sleep in the database. They describe what happened on a machine, on a given
+ * day: translating them at write time would freeze the instance's language at the
+ * time of the run, and translating them at read time would ask the panel to
+ * understand a text of which it only has the string. The **setting** around them
+ * is translated — titles, buttons, step states, filters, "auto-scroll".
  *
- * Même partage pour les scans : la description d'une CVE vient de Trivy ou de
- * Grype et reste telle quelle, comme le nom du paquet et l'identifiant. Les
- * **sévérités** (`CRITICAL`, `HIGH`…) sont affichées brutes, en majuscules :
- * ce sont les valeurs de l'énumération, pas un libellé, et un script qui filtre
- * sur `severity=HIGH` lit la même chose à l'écran. Les **verdicts**, eux, sont
- * bien des libellés — « bloquant », « conforme » — et se traduisent.
+ * The same split for the scans: a CVE's description comes from Trivy or Grype
+ * and stays as is, like the package name and the identifier. The **severities**
+ * (`CRITICAL`, `HIGH`…) are shown raw, in uppercase: they are the enum's values,
+ * not a label, and a script filtering on `severity=HIGH` reads the same thing on
+ * screen. The **verdicts**, for their part, are indeed labels — "blocking",
+ * "compliant" — and are translated.
  */
 const fr = {
   // ── Journal des runs ────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ const fr = {
   'empty.hint':
     "Un run naît d'une application déclarée et d'une cible au preflight vert. Commencez par la page Applications.",
 
-  // ── Statuts. Libellés d'affichage, pas les valeurs de l'énumération. ────
+  // ── Statuses. Display labels, not the enum's values. ────────────────────
   'status.pending': 'en attente',
   'status.running': 'en cours',
   'status.success': 'réussi',
@@ -52,7 +52,7 @@ const fr = {
   'status.rolled_back': 'rollback effectué',
   'status.destroyed': 'détruit',
 
-  // ── Pastille d'étape : la forme porte le sens, le texte est pour l'ARIA.
+  // ── Step chip: the shape carries the meaning, the text is for ARIA.
   'step.pending': 'en attente',
   'step.running': 'en cours',
   'step.success': 'réussie',
@@ -187,7 +187,7 @@ const fr = {
   'banner.noFallback':
     'Rollback automatique demandé, mais aucune version antérieure sur cette cible.',
 
-  // ── Onglet Sécurité ─────────────────────────────────────────────────────
+  // ── Security tab ────────────────────────────────────────────────────────
   'scans.unavailable': 'Scans indisponibles (HTTP {status})',
   'scans.empty.title': 'Aucun scan',
   'scans.empty.noScanner':
@@ -234,9 +234,9 @@ const fr = {
   'error.neverPreflighted':
     "La cible « {target} » n'a jamais été testée. Lancez un preflight avant de déployer.",
   /**
-   * Deux clés plutôt qu'un « aucun » passé en variable : un mot injecté dans un
-   * gabarit n'est pas traduisible — il arriverait en français dans la phrase
-   * anglaise. Même arbitrage que `rate_limited.window` / `.period`.
+   * Two keys rather than a "none" passed as a variable: a word injected into a
+   * template is not translatable — it would arrive in French in the English
+   * sentence. The same trade-off as `rate_limited.window` / `.period`.
    */
   'error.runtimeUnavailable':
     "Le runtime « {runtime} » n'est pas disponible sur « {target} ». Runtimes exploitables : {available}.",
@@ -251,8 +251,8 @@ const fr = {
   'unblock.cause': 'file interrogée à la demande depuis le panel',
 
   /**
-   * Le refus de déblocage. Il **nomme** la tâche qui innocente le déploiement :
-   * « elle existe » ne serait pas une réponse.
+   * The unblocking refusal. It **names** the job that clears the deployment: "it
+   * exists" would not be an answer.
    */
   'unblock.refusal.job': {
     one: "Ce déploiement n'est pas figé : sa tâche « {name} » (#{id}) est toujours dans la file « ops », à l'état « {state} ». Un déploiement peut légitimement durer plusieurs minutes — un build, le téléchargement d'une grosse image, une application qui met du temps à répondre. Celui-ci en est à {count} minute. Attendez son verdict, ou détruisez-le une fois qu'il l'aura rendu.",

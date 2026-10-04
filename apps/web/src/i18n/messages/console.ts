@@ -1,19 +1,18 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * La console d'une application en marche : l'en-tête et ses gestes
- * d'exploitation, l'inventaire des services, le terminal de logs et le contexte
- * tiré de la base (mise en ligne, machine, sonde de site). Les refus des routes
- * `/api/apps/{id}/…` vivent ici aussi : ce sont les mêmes gestes, dits par le
- * serveur.
+ * A running application's console: the header and its operating gestures, the
+ * services inventory, the log terminal and the context drawn from the database
+ * (release, machine, site probe). The refusals of the `/api/apps/{id}/…` routes
+ * live here too: they are the same gestures, said by the server.
  *
- * ── Ce qui reste littéral ───────────────────────────────────────────────────
- * `scan:read`, `target:read`, `monitor:read`, `GET`, `mCPU` : ce sont des noms
- * de permissions, une méthode HTTP et une unité. Les traduire enverrait le
- * lecteur chercher quelque chose qui n'existe pas.
+ * ── What stays literal ──────────────────────────────────────────────────────
+ * `scan:read`, `target:read`, `monitor:read`, `GET`, `mCPU`: they are permission
+ * names, an HTTP method and a unit. Translating them would send the reader
+ * looking for something that does not exist.
  */
 const fr = {
-  // ── En-tête ─────────────────────────────────────────────────────────────
+  // ── Header ──────────────────────────────────────────────────────────────
   'page.description':
     "Ce que la machine dit d'elle-même, relu en direct. La colonne de gauche vient de la base du panel : elle répond même quand la machine se tait.",
   'page.restored': 'version restaurée',

@@ -13,10 +13,10 @@ import { CatalogView, type TemplateView } from './catalog-view';
 export const dynamic = 'force-dynamic';
 
 /**
- * Le catalogue : les modèles, rendus une fois ici en AppSpec d'aperçu pour
- * que l'écran montre exactement ce qui va tourner — les mêmes lignes que la
- * fiche d'une application. L'installation, elle, repasse par le serveur :
- * c'est lui qui rend la spec définitive, avec le nom et le domaine choisis.
+ * The catalog: the templates, rendered once here into a preview AppSpec so that
+ * the screen shows exactly what will run — the same rows as an application's
+ * record. The installation, for its part, goes through the server again: it is
+ * the server that renders the final spec, with the chosen name and domain.
  */
 export default async function CatalogPage() {
   const auth = await requirePagePermission('/catalog', 'application:create');

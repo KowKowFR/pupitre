@@ -27,7 +27,7 @@ async function archiveOf(id: string, archiveId: string) {
   return archive;
 }
 
-/** Une archive : son état, le rapport de sa lecture — ce qu'une CI interroge après l'envoi. */
+/** An archive: its state, its reading's report — what a CI queries after uploading. */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:read', { applicationScoped: true });
   const { id, archiveId } = paramsSchema.parse(await context.params);
@@ -36,9 +36,9 @@ export const GET = apiRoute<Context>(async (request, context) => {
 });
 
 /**
- * Efface une archive et ses octets. Les versions qui l'ont construite gardent
- * son nom et son empreinte, mais ne se redéploient plus. Refusé tant qu'un
- * déploiement en cours la construit.
+ * Erases an archive and its bytes. The versions that built it keep its name and
+ * its fingerprint, but can no longer be redeployed. Refused as long as a
+ * deployment in progress builds it.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:update', { applicationScoped: true });

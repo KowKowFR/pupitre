@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 /**
- * Contrôle segmenté à boutons — une fenêtre de temps (24 h / 7 j), un mode
- * (Simple / Expert). Le segment actif est `aria-pressed` ; pour un choix de
- * formulaire, préférer `RadioGroup`, qui porte la valeur dans le champ.
+ * A segmented control with buttons — a time window (24 h / 7 d), a mode (Simple /
+ * Expert). The active segment is `aria-pressed`; for a form choice, prefer
+ * `RadioGroup`, which carries the value in the field.
  */
 export function SegmentedControl<V extends string>({
   value,
@@ -38,7 +38,7 @@ export function SegmentedControl<V extends string>({
   );
 }
 
-/** La même chose quand chaque segment est une URL (fenêtre en paramètre de requête). */
+/** The same thing when each segment is a URL (window as a query parameter). */
 export function SegmentedLinks({
   options,
   label,

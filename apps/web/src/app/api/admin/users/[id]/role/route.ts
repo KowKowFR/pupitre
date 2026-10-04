@@ -12,8 +12,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const paramsSchema = z.object({ id: z.string().min(1).max(200) });
-// Les rôles sont des données : la liste valide se lit en base, pas dans une
-// union figée qui obligerait à recompiler le panel pour en créer un.
+// The roles are data: the valid list is read in the database, not in a frozen
+// union that would require recompiling the panel to create one.
 const bodySchema = z.object({ role: roleKeySchema });
 
 type Context = { params: Promise<{ id: string }> };
@@ -33,7 +33,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
 
   const before = await getUserGrants(id, db);
 
-  // Interdit de retirer le dernier administrateur actif de la plateforme.
+  // Removing the platform's last active administrator is forbidden.
   if (before.roles.includes(LOCKED_ROLE) && role !== LOCKED_ROLE) {
     if ((await countActiveAdmins(id)) === 0) {
       throw new ConflictError(msg(admin, 'error.user.lastAdmin.role'));

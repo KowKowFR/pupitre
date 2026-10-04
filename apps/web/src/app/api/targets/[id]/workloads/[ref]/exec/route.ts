@@ -22,22 +22,22 @@ const paramsSchema = z.object({ id: z.string().uuid(), ref: z.string().min(3).ma
 type Context = { params: Promise<{ id: string; ref: string }> };
 
 const bodySchema = z.object({
-  /** Tiré par le navigateur, qui a déjà ouvert le flux de cette exécution. */
+  /** Drawn by the browser, which already opened this run's stream. */
   run: z.string().uuid(),
   command: z.string().trim().min(1).max(WORKLOAD_EXEC_MAX_COMMAND),
 });
 
-/** Une console, pas un lanceur de rafales. */
+/** A console, not a burst launcher. */
 const EXEC_RULE: RateLimitRule = { name: 'workload:exec', limit: 30, windowSec: 60 };
 
 /**
- * Exécuter une commande dans une charge — non interactive, sous `sh -c`, deux
- * minutes au plus, deux mille lignes de sortie au plus.
+ * Running a command in a workload — non-interactive, under `sh -c`, two minutes
+ * at most, two thousand output lines at most.
  *
- * Sa propre permission, `workload:exec` : c'est la main dans le conteneur,
- * données comprises. Chaque commande est tracée au journal d'audit avec son
- * code de sortie (par le worker, une fois exécutée) ; sa sortie ne va qu'à
- * l'écran qui l'a lancée, jamais en base.
+ * Its own permission, `workload:exec`: it is the hand in the container, data
+ * included. Each command is traced in the audit log with its exit code (by the
+ * worker, once executed); its output only goes to the screen that started it,
+ * never to the database.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'workload:exec');

@@ -22,9 +22,9 @@ export type WorkerPill =
   { state: 'active'; idleSeconds: number } | { state: 'idle' } | { state: 'unknown' };
 
 /**
- * Barre haute — 52 px. À gauche, le fil d'Ariane : l'instance, la section,
- * l'objet. Il remplace les surtitres. À droite, l'état du worker, la
- * documentation et les raccourcis.
+ * The top bar — 52 px. On the left, the breadcrumb: the instance, the section,
+ * the object. It replaces the overlines. On the right, the worker's state, the
+ * documentation and the shortcuts.
  */
 export function Topbar({
   instanceName,
@@ -35,7 +35,7 @@ export function Topbar({
   instanceName: string;
   sections: ShellSection[];
   worker: WorkerPill;
-  /** Faux pour un compte sans accès : il n'est pas encore de l'équipe. */
+  /** False for an account without access: it is not part of the team yet. */
   team: boolean;
 }) {
   const t = useT(chrome);
@@ -117,8 +117,8 @@ function WorkerStatusPill({ worker }: { worker: WorkerPill }) {
 }
 
 /**
- * Sous `lg` : barre haute collante et floutée, avec la tuile, la recherche et
- * le compte, puis la navigation à plat qui défile horizontalement.
+ * Under `lg`: a sticky, blurred top bar, with the tile, the search and the
+ * account, then the flat navigation that scrolls horizontally.
  */
 export function MobileHeader({
   instanceName,

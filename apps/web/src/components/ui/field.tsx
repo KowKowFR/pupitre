@@ -8,9 +8,9 @@ import { cn } from '@/lib/utils';
 import { HelpTip } from './help-tip';
 
 /**
- * Où se lit l'aide d'un champ : sous le contrôle (`inline`, par défaut), ou
- * repliée dans une info-bulle à côté de l'intitulé (`tip`). Un écran dense —
- * les paramètres — choisit `tip` une fois pour tous ses champs.
+ * Where a field's help reads: under the control (`inline`, by default), or folded
+ * into a tooltip next to the label (`tip`). A dense screen — the settings —
+ * chooses `tip` once for all its fields.
  */
 const FieldHelpContext = React.createContext<'inline' | 'tip'>('inline');
 
@@ -24,19 +24,19 @@ export function FieldHelpMode({
   return <FieldHelpContext.Provider value={mode}>{children}</FieldHelpContext.Provider>;
 }
 
-/** Le mode d'aide en vigueur, pour les aides posées à la main hors d'un `Field`. */
+/** The help mode in force, for helps set by hand outside a `Field`. */
 export function useFieldHelpMode(): 'inline' | 'tip' {
   return React.useContext(FieldHelpContext);
 }
 
 /**
- * Champ complet : intitulé, contrôle, erreur, aide — dans cet ordre, comme
- * sur la planche des formulaires. L'erreur passe avant l'aide parce que c'est
- * elle qu'on doit lire en premier quand elle existe.
+ * A complete field: label, control, error, help — in this order, as on the
+ * forms board. The error comes before the help because it is the one to read
+ * first when it exists.
  *
- * Le contrôle passé en enfant reçoit son `id`, `aria-invalid` et
- * `aria-describedby` : l'appelant n'a pas à câbler l'accessibilité à la main,
- * et ne peut donc pas l'oublier.
+ * The control passed as a child receives its `id`, `aria-invalid` and
+ * `aria-describedby`: the caller does not have to wire accessibility by hand, and
+ * therefore cannot forget it.
  */
 export function Field({
   label,
@@ -92,8 +92,8 @@ export function Field({
         </span>
       ) : null}
       {help ? (
-        // Repliée en info-bulle, l'aide reste la description du contrôle pour
-        // un lecteur d'écran : elle est là, simplement hors de la vue.
+        // Folded into a tooltip, the help stays the control's description for a screen
+        // reader: it is there, simply out of view.
         <span id={helpId} className={helpMode === 'tip' ? 'sr-only' : 'help'}>
           {help}
         </span>
@@ -103,10 +103,9 @@ export function Field({
 }
 
 /**
- * Secret : toujours vide à l'édition — le panel ne renvoie jamais un secret
- * enregistré au navigateur. Quand une valeur existe déjà (`stored`), le
- * placeholder dit qu'un champ vide la conserve. Le bouton Afficher ne montre
- * que ce qu'on est en train de taper.
+ * A secret: always empty when editing — the panel never sends a saved secret back
+ * to the browser. When a value already exists (`stored`), the placeholder says
+ * that an empty field keeps it. The Show button only shows what is being typed.
  */
 export function SecretInput({
   stored = false,
@@ -142,9 +141,9 @@ export function SecretInput({
 }
 
 /**
- * Code à usage unique : six cases, un espace après la troisième. Le collage
- * d'un code entier se répartit ; Retour arrière recule d'une case. Un champ
- * caché porte la valeur complète pour les formulaires classiques (`name`).
+ * A one-time code: six cells, a space after the third. Pasting a whole code
+ * spreads it; Backspace moves back one cell. A hidden field carries the complete
+ * value for classic forms (`name`).
  */
 export function OtpInput({
   value,
@@ -199,7 +198,7 @@ export function OtpInput({
             onChange={(event) => {
               const typed = event.target.value.replace(/\D/g, '');
               if (typed.length > 1) {
-                // Saisie automatique du système ou collage : on répartit.
+                // The system's autofill or a paste: we spread it.
                 onChange(typed.slice(0, 6));
                 focus(typed.length);
                 return;

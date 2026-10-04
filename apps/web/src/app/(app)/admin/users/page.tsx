@@ -24,21 +24,21 @@ export default async function UsersPage() {
   const auth = await requirePagePermission('/admin/users', 'user:manage');
 
   const db = getDb();
-  // Les rôles proposés viennent de la base : un rôle créé depuis /admin/roles
-  // doit être attribuable ici sans recompilation.
+  // The roles offered come from the database: a role created from /admin/roles
+  // must be assignable here without recompiling.
   const roleRows = await listRoles(db);
   const rows = await db.select().from(users).orderBy(asc(users.createdAt));
   const grants = await Promise.all(rows.map((row) => getUserGrants(row.id, db)));
   const twoFactor = await getTwoFactorStates(db);
   const settings = await getAppSettingsValue(db);
   const states = await accountStates(db);
-  // Un compte sans mot de passe n'entre que par la connexion unique : jamais tenu (`rbac.ts`).
+  // An account without a password only comes in through single sign-on: never bound (`rbac.ts`).
   const withPassword = new Set(
     (await listTwoFactorExposure(db)).filter((entry) => entry.hasPassword).map((e) => e.userId),
   );
 
-  // Le nom du canal, pas seulement « oui / non » : l'écran peut alors dire *par
-  // quoi* l'invitation partira, ce qui vaut mieux qu'un « c'est configuré ».
+  // The channel's name, not only "yes / no": the screen can then say *through
+  // what* the invitation will go out, which is better than "it is configured".
   const channel = await mailChannelName();
 
   const items: AdminUserRow[] = rows.map((row, index) => {

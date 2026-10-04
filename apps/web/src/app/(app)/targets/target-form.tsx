@@ -16,10 +16,10 @@ import { targets as messages } from '@/i18n/messages/targets';
 import { cn } from '@/lib/utils';
 
 /**
- * Miroir de `TARGET_DESCRIPTION_MAX` (`@pupitre/db`) — un composant client ne
- * dépend pas de la base. La borne réelle est la contrainte
- * `targets_description_length_check` ; celle-ci ne fait qu'éviter à
- * l'utilisateur de découvrir le refus après coup.
+ * Mirror of `TARGET_DESCRIPTION_MAX` (`@pupitre/db`) — a client component does
+ * not depend on the database. The real bound is the
+ * `targets_description_length_check` constraint; this one only spares the user
+ * from discovering the refusal afterwards.
  */
 const DESCRIPTION_MAX = 280;
 
@@ -70,25 +70,25 @@ function textToLabels(text: string): Record<string, string> {
   return labels;
 }
 
-/** Ce que l'API rend après création. Seuls les champs dont l'appelant se sert. */
+/** What the API returns after creation. Only the fields the caller uses. */
 export type CreatedTarget = { id: string; name: string };
 
 export type TargetFormProps = {
   initial?: TargetFormValues;
   /**
-   * Point d'extension pour l'assistant de démarrage : la création reste
-   * exactement la même — `POST /api/targets`, mêmes champs, même 409, même
-   * audit — seule la suite change. Sans ce rappel, le formulaire quitte la
-   * page, ce qui n'a aucun sens au milieu d'un parcours guidé.
-   * Absent : comportement d'origine, inchangé.
+   * An extension point for the onboarding assistant: creation stays exactly the
+   * same — `POST /api/targets`, same fields, same 409, same audit — only what
+   * follows changes. Without this callback, the form leaves the page, which makes
+   * no sense in the middle of a guided journey. Absent: original behavior,
+   * unchanged.
    */
   onCreated?: (target: CreatedTarget) => void;
-  /** `null` retire le bouton « Annuler » — un parcours guidé a sa propre sortie. */
+  /** `null` removes the "Cancel" button — a guided journey has its own exit. */
   onCancel?: (() => void) | null;
   submitLabel?: string;
   /**
-   * `drawer` : les champs dans le corps défilant d'un tiroir, les boutons dans
-   * son pied — l'en-tête reste à l'appelant. `page` (défaut) : tout empilé.
+   * `drawer`: the fields in a drawer's scrolling body, the buttons in its footer —
+   * the header stays with the caller. `page` (default): everything stacked.
    */
   frame?: 'page' | 'drawer';
 };
@@ -107,9 +107,8 @@ export function TargetForm({
   const isEdit = Boolean(values.id);
 
   const [authMethod, setAuthMethod] = useState(values.authMethod);
-  // Deux champs tenus en état : l'un pour son compteur, l'autre pour montrer
-  // les pastilles telles qu'elles apparaîtront. Une étiquette colorée ne se
-  // choisit pas à l'aveugle dans un champ de texte.
+  // Two fields held in state: one for its counter, the other to show the chips as
+  // they will appear. A colored label is not chosen blindly in a text field.
   const [description, setDescription] = useState(values.description ?? '');
   const [labelsText, setLabelsText] = useState(labelsToText(values.labels));
   const [error, setError] = useState<string | null>(null);
@@ -136,8 +135,8 @@ export function TargetForm({
       labels: textToLabels(String(form.get('labels') ?? '')),
     };
 
-    // En édition, un champ laissé vide conserve le credential déjà en base :
-    // il n'est jamais pré-rempli, donc jamais réémis vers le navigateur.
+    // When editing, a field left empty keeps the credential already in the
+    // database: it is never prefilled, hence never sent back to the browser.
     if (credential) payload.credential = credential;
     else if (!isEdit) {
       setError(
@@ -235,9 +234,9 @@ export function TargetForm({
       </div>
 
       {/*
-        Sous l'identité de la machine et avant ses secrets : la description
-        répond à « qu'est-ce que c'est ? », pas à « comment s'y connecter ? ».
-      */}
+        Under the machine's identity and before its secrets: the description
+        answers "what is it?", not "how to connect to it?".
+             */}
       <div className="field">
         <Label htmlFor="description">{t('field.description')}</Label>
         <textarea
@@ -326,8 +325,8 @@ export function TargetForm({
           className="textarea mono"
         />
         <TargetLabelList labels={textToLabels(labelsText)} className="pt-0.5" />
-        {/* Coupée autour du `clé=valeur` que le JSX rend en chasse fixe : une clé
-            par fragment, dans l'ordre où la phrase les enchaîne. */}
+        {/* Cut around the `key=value` that the JSX renders monospaced: one key
+            per fragment, in the order the sentence chains them. */}
         <p className="help">
           {t('labels.help.before')} <code>{t('labels.help.pair')}</code> {t('labels.help.after')}
         </p>

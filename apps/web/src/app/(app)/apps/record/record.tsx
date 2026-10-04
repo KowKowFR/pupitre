@@ -39,20 +39,20 @@ import { AppActions } from './app-actions';
 import { AppConsole, type ConsoleApp, type ConsoleService } from './app-console';
 
 /**
- * Fenêtre des relevés machine rendue avec la fiche. Même cadrage que l'écran de
- * supervision par serveur — 24 h en 48 intervalles — pour qu'une frise lue ici
- * et une frise lue là-bas veuillent dire la même chose.
+ * The machine readings window rendered with the record. The same framing as the
+ * per-server monitoring screen — 24 h in 48 intervals — so that a strip read here
+ * and a strip read there mean the same thing.
  */
 const HISTORY_HOURS = 24;
 const HISTORY_BUCKETS = 48;
 
-/** Les derniers passages de la sonde, en bande : assez pour voir une panne qui dure. */
+/** The probe's last passes, as a band: enough to see an outage that lasts. */
 const MONITOR_STRIP = 36;
 
 type T = Translate<typeof appConsole.fr>;
 
 export type RunningAppRecord = {
-  /** L'identifiant du déploiement en service : c'est la clé du tiroir. */
+  /** The identifier of the deployment in service: it is the drawer's key. */
   key: string;
   header: {
     applicationSlug: string;
@@ -61,27 +61,26 @@ export type RunningAppRecord = {
     restored: boolean;
     health: HealthStatus | null;
   };
-  /** Les gestes sur l'application (redéployer, revenir, détruire…) ; `null` quand elle ne tourne plus. */
+  /** The gestures on the application (redeploy, go back, destroy…); `null` once it stopped. */
   actions: ReactNode;
   body: ReactNode;
 };
 
 /**
- * Une application en marche, rendue au serveur pour son tiroir.
+ * A running application, rendered on the server for its drawer.
  *
- * On l'ouvre quand quelque chose ne va pas, souvent à une heure indue, et elle
- * doit répondre à quatre questions dans cet ordre : **est-ce que ça tourne**,
- * **depuis quand et dans quel état**, **qu'est-ce que ça dit**, **qu'est-ce que
- * ça consomme**.
+ * It is opened when something goes wrong, often at an ungodly hour, and it must
+ * answer four questions in this order: **does it run**, **since when and in what
+ * state**, **what does it say**, **what does it consume**.
  *
- * Deux sources, jamais mélangées :
+ * Two sources, never mixed:
  *
- *   - la **base** dit ce qu'on a voulu poser (version, AppSpec, auteur, date,
- *     scan, seuils). Elle répond toujours, machine éteinte comprise, et elle
- *     est rendue ici ;
- *   - la **machine** dit ce qui tourne *à l'instant*. Cela n'arrive que par le
- *     flux, dans `AppConsole`, et son absence se dit — elle ne se déguise pas
- *     en « aucun conteneur ».
+ *   - the **database** says what one wanted to set (version, AppSpec, author,
+ *     date, scan, thresholds). It always answers, machine off included, and it is
+ *     rendered here;
+ *   - the **machine** says what runs *right now*. That only comes through the
+ *     stream, in `AppConsole`, and its absence is spelled out — it does not
+ *     disguise itself as "no container".
  */
 export async function runningAppRecord(
   id: string,
@@ -120,12 +119,12 @@ export async function runningAppRecord(
   const canReadScans = auth.can('scan:read');
   const canReadMonitors = auth.can('monitor:read');
 
-  // `listSupervisedApps` porte la santé et l'échec de mise à jour éventuel ; on
-  // y relit cette application plutôt que de recomposer l'information à la main.
+  // `listSupervisedApps` carries the health and the possible update failure; we
+  // read this application there rather than rebuild the information by hand.
   const [supervisedAll, run, { settings }, scanDigests, monitors, tCommon, tServers] =
     await Promise.all([
       listSupervisedApps(),
-      // Une seule requête pour l'AppSpec figée du déploiement *et* ses étapes.
+      // A single query for the deployment's frozen AppSpec *and* its steps.
       getDeploymentForRun(deployment.id),
       getAppSettings(),
       canReadScans ? scanDigestForDeployments([deployment.id]) : Promise.resolve(null),
@@ -139,21 +138,20 @@ export async function runningAppRecord(
   const formatDate = createDateFormatter(format);
 
   /**
-   * L'AppSpec **figée dans le déploiement**, pas celle de l'application.
+   * The AppSpec **frozen in the deployment**, not the application's.
    *
-   * C'est ce qui est réellement posé sur la machine. Lire la spec courante de
-   * l'application donnerait l'inventaire de la prochaine version, pas de celle
-   * qui tourne — exactement l'erreur qu'un écran de supervision ne doit pas
-   * faire.
+   * It is what is really set on the machine. Reading the application's current
+   * spec would give the next version's inventory, not the running one's — exactly
+   * the mistake a monitoring screen must not make.
    */
   const spec = run ? parseAppSpec(run.deployment.appSpec) : null;
   const specVersion = spec?.version ?? null;
 
   const services: ConsoleService[] = (spec?.services ?? []).map((service) => ({
     name: service.name,
-    // Pour une image tirée d'un registre, la spec la nomme. Pour une image
-    // construite sur la cible, seul le runtime connaît son nom final : on ne le
-    // devine pas ici, le relevé le dira.
+    // For an image pulled from a registry, the spec names it. For an image built on
+    // the target, only the runtime knows its final name: we do not guess it here,
+    // the reading will say it.
     image: service.source.type === 'image' ? service.source.ref : null,
     built: service.source.type === 'dockerfile',
     port: service.port,
@@ -167,9 +165,8 @@ export async function runningAppRecord(
     probeRetries: service.healthcheck.retries,
   }));
 
-  // La sonde de site de cette application, s'il y en a une. Le lien est porté
-  // par l'application, jamais par le déploiement : une sonde survit aux
-  // versions.
+  // This application's site probe, if there is one. The link is carried by the
+  // application, never by the deployment: a probe survives the versions.
   const monitor = monitors.find((row) => row.applicationId === deployment.applicationId) ?? null;
   const [uptime, checks, incident] = monitor
     ? await Promise.all([
@@ -179,9 +176,9 @@ export async function runningAppRecord(
       ])
     : [null, [], null];
 
-  // Le passé de la machine vient de la base, pas de la machine : il s'affiche
-  // même quand elle ne répond plus, ce qui est précisément le moment où on le
-  // regarde.
+  // The machine's past comes from the database, not from the machine: it shows
+  // even when the machine no longer answers, which is precisely when one looks at
+  // it.
   const [histories, thresholds] = canReadTargets
     ? await Promise.all([
         targetHistories([deployment.targetId], HISTORY_HOURS, HISTORY_BUCKETS),
@@ -234,7 +231,7 @@ export async function runningAppRecord(
     ),
     body: (
       <>
-        {/* La version affichée n'est pas forcément la dernière qu'on a voulu poser. */}
+        {/* The displayed version is not necessarily the last one that was meant to be set. */}
         {supervised?.lastFailedUpdate ? (
           <Alert variant="warn">
             {t('failedUpdate.text', {
@@ -257,9 +254,9 @@ export async function runningAppRecord(
           key={deployment.id}
           app={view}
           /*
-            Rendus côté serveur et glissés dans la colonne de gauche : ce sont des
-            lectures SQL, elles n'ont aucune raison de traverser le navigateur ni
-            d'attendre l'ouverture du flux.
+            Rendered on the server side and slipped into the left column: they are
+            SQL reads, they have no reason to cross the browser nor to wait for
+            the stream to open.
           */
           context={
             <>
@@ -300,11 +297,11 @@ export async function runningAppRecord(
                     </span>
                   </FieldValue>
                   {/*
-                  Le scan appartient à cette mise en ligne, pas à l'instant
-                  présent : il a tourné sur les images de cette version, une
-                  fois. Il est donc un champ de la mise en ligne, à côté de sa
-                  date, et non une surveillance à part.
-                */}
+                                     The scan belongs to this release, not to the present
+                                     instant: it ran on this version's images, once. It is
+                                     therefore a field of the release, next to its date, and
+                                     not a separate watch.
+                                   */}
                   <FieldValue label={t('rollout.scan')}>
                     <ScanSummary canRead={canReadScans} scan={scan} t={t} />
                   </FieldValue>
@@ -472,7 +469,7 @@ export async function runningAppRecord(
   };
 }
 
-/** La couleur d'un passage, dans la bande des derniers résultats. */
+/** A pass's color, in the band of the last results. */
 const STRIP_CLASS: Record<string, string> = {
   healthy: '',
   unhealthy: 'w',
@@ -521,7 +518,7 @@ function ScanSummary({
   );
 }
 
-/** Le temps qu'a pris la mise en ligne, quand les deux bornes sont connues. */
+/** The time the release took, when both bounds are known. */
 function deployDuration(startedAt: Date | null, finishedAt: Date | null, t: T): string {
   if (!startedAt || !finishedAt) return '—';
   const seconds = Math.max(0, Math.round((finishedAt.getTime() - startedAt.getTime()) / 1000));
@@ -532,7 +529,7 @@ function deployDuration(startedAt: Date | null, finishedAt: Date | null, t: T): 
   });
 }
 
-/** « 12 min », « 3 h » : l'âge d'un incident, dans les unités de la supervision. */
+/** "12 min", "3 h": an incident's age, in the monitoring units. */
 function shortAge(date: Date, t: Translate<typeof servers.fr>): string {
   const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
   if (seconds < 60) return t('since.seconds', { count: seconds });

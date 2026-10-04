@@ -35,7 +35,7 @@ function freeName(base: string, taken: readonly string[]): string {
   }
 }
 
-/** Un mot de passe tiré dans le navigateur : 20 caractères base64url. */
+/** A password drawn in the browser: 20 base64url characters. */
 function randomPassword(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(15));
   return btoa(String.fromCharCode(...bytes))
@@ -45,9 +45,9 @@ function randomPassword(): string {
 }
 
 /**
- * Le tiroir d'un modèle : ce qu'il fait, ce qui va tourner, ce qu'il faudra
- * faire au premier accès — puis l'installation, qui crée l'application sans
- * la déployer. Le déploiement suit, depuis l'aperçu de l'application.
+ * A template's drawer: what it does, what will run, what will have to be done at
+ * first access — then the installation, which creates the application without
+ * deploying it. The deployment follows, from the application's overview.
  */
 export function InstallDrawer({
   template,
@@ -143,13 +143,13 @@ function InstallForm({
   async function generate(secret: string) {
     const value = randomPassword();
     setSecrets((current) => ({ ...current, [secret]: value }));
-    // Le presse-papiers peut être refusé (contexte non sécurisé) : la valeur
-    // reste dans le champ, que le bouton Afficher révèle.
+    // The clipboard can be refused (insecure context): the value stays in the field,
+    // which the Show button reveals.
     try {
       await navigator.clipboard.writeText(value);
       toast({ title: t('field.secret.copied'), description: secret, tone: 'ok' });
     } catch {
-      /* rien à signaler : la valeur est dans le champ */
+      /* nothing to report: the value is in the field */
     }
   }
 
@@ -251,8 +251,8 @@ function InstallForm({
           {template.askedSecrets.map((secret) => (
             <Field
               key={secret}
-              // Le contrôle est enveloppé (champ + bouton) : l'identifiant est
-              // posé à la main pour que l'intitulé désigne bien le champ.
+              // The control is wrapped (field + button): the identifier is set by hand so that
+              // the label does designate the field.
               htmlFor={`secret-${secret}`}
               label={<span className="mono">{secret}</span>}
               help={t('field.secret.help')}

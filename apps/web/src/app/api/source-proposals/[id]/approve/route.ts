@@ -14,10 +14,9 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Valider un commit en attente : il part, exactement tel qu'il a été montré —
- * l'AppSpec gardée au moment de la proposition, pas une relecture du dépôt.
- * Seule une proposition encore en attente se valide : deux clics ne
- * déploient pas deux fois.
+ * Approving a pending commit: it goes out, exactly as it was shown — the AppSpec
+ * kept at the time of the proposal, not a new read of the repository. Only a
+ * proposal still pending can be approved: two clicks do not deploy twice.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:create');

@@ -8,8 +8,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Tous les jetons d'API de l'instance, avec leur auteur — pour savoir ce qui
- * peut agir sans navigateur, et le couper. Depuis le panel seulement.
+ * All the instance's API tokens, with their author — to know what can act
+ * without a browser, and cut it off. From the panel only.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'user:read', { sessionOnly: true });

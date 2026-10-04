@@ -1,9 +1,9 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les pages de statut : la page publique (ce que lit un visiteur) et l'écran
- * qui les compose. La page publique est dans la langue de l'instance, comme
- * tout le panel.
+ * Status pages: the public page (what a visitor reads) and the screen that
+ * composes them. The public page is in the instance's language, like the whole
+ * panel.
  */
 const fr = {
   // ── La page publique ────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ const fr = {
   'phase.completed': 'Terminée',
   'update.posted': 'Publié le {time}',
 
-  // ── L'écran qui les compose ─────────────────────────────────────────────
+  // ── The screen that composes them ───────────────────────────────────────
   'meta.title': 'Pages de statut',
   'page.title': 'Pages de statut',
   'page.description':

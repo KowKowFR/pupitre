@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ slug?: string[] }> };
 
-/** `/status` → page d'adresse vide ; `/status/clients` → « clients » ; plus profond : rien. */
+/** `/status` → page with an empty address; `/status/clients` → "clients"; deeper: nothing. */
 async function pageFor(params: Props['params']) {
   const { slug = [] } = await params;
   if (slug.length > 1) return null;
@@ -21,15 +21,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await pageFor(params);
   return {
     title: page?.title ?? null,
-    // Partagée par un lien, pas trouvée par un moteur de recherche.
+    // Shared through a link, not found through a search engine.
     robots: { index: false, follow: false },
   };
 }
 
 /**
- * Une page de statut publique. Sans session : `proxy.ts` laisse passer
- * `/status`, et rien ici ne lit la session. Une page absente **ou non
- * publiée** répond 404, la même réponse, pour ne rien dire de ce qui existe.
+ * A public status page. Without a session: `proxy.ts` lets `/status` through,
+ * and nothing here reads the session. An absent **or unpublished** page answers
+ * 404, the same answer, so as to say nothing of what exists.
  */
 export default async function PublicStatusPage({ params }: Props) {
   const page = await pageFor(params);

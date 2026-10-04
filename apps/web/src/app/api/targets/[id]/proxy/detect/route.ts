@@ -16,12 +16,12 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Regarder la machine : les proxies déjà là, et ce que Pupitre pourrait y
- * installer. Le panel n'ouvre aucune session SSH — la question passe par le
- * worker, et la route attend sa réponse, comme pour les métriques d'hôte.
+ * Looking at the machine: the proxies already there, and what Pupitre could
+ * install. The panel opens no SSH session — the question goes through the worker,
+ * and the route waits for its answer, as for the host metrics.
  *
- * 60 secondes : quelques commandes SSH (une par conteneur trouvé), plus
- * l'attente en file derrière un déploiement en cours. Au-delà, un 504 franc.
+ * 60 seconds: a few SSH commands (one per container found), plus waiting in the
+ * queue behind a deployment in progress. Beyond that, a plain 504.
  */
 const DETECT_TIMEOUT_MS = 60_000;
 

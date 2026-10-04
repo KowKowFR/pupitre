@@ -6,12 +6,12 @@ import { Button, type ButtonProps } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * Info-bulle — délai de 260 ms, fond graphite très sombre (clair en thème
- * sombre), 12/16, entrée en 120 ms. Elle peut porter un `Kbd`.
+ * A tooltip — 260 ms delay, very dark graphite background (light in the dark
+ * theme), 12/16, entrance in 120 ms. It can carry a `Kbd`.
  *
- * Une info-bulle n'est **jamais** seule porteuse d'une information
- * indispensable : ce qu'elle dit doit se trouver aussi ailleurs (libellé
- * accessible, texte de la ligne, raison écrite sous un bouton).
+ * A tooltip is **never** the only carrier of an indispensable piece of
+ * information: what it says must also be found elsewhere (accessible label, the
+ * row's text, a reason written under a button).
  */
 const TooltipProvider = ({ children }: { children: React.ReactNode }) => (
   <TooltipPrimitive.Provider delayDuration={260} skipDelayDuration={200}>
@@ -54,9 +54,9 @@ function Tooltip({
 }
 
 /**
- * Bouton icône : l'info-bulle et le `aria-label` sont **obligatoires** et
- * disent la même chose. Un bouton icône sans nom est un bouton que ni un
- * lecteur d'écran ni un nouveau venu ne sait lire.
+ * An icon button: the tooltip and the `aria-label` are **required** and say the
+ * same thing. An icon button without a name is a button neither a screen reader
+ * nor a newcomer can read.
  */
 function IconButton({
   label,

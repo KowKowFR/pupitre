@@ -19,11 +19,11 @@ export const dynamic = 'force-dynamic';
 const section = settingsSection('/admin/settings/comptes');
 
 /**
- * Comptes et sessions : le second facteur exigé, la durée des sessions.
+ * Accounts and sessions: the required second factor, the sessions' duration.
  *
- * Avant d'enregistrer une politique, on veut savoir qui elle tiendrait à
- * l'écart : chaque politique est donc évaluée ici, sur les rôles et les comptes
- * réels, et l'écran n'a plus qu'à montrer celle qui est choisie.
+ * Before saving a policy, one wants to know whom it would keep out: each policy
+ * is therefore evaluated here, on the real roles and accounts, and the screen
+ * only has to show the chosen one.
  */
 export default async function AccountsSettingsPage() {
   const auth = await requirePagePermission('/admin/settings/comptes', 'settings:read');
@@ -43,8 +43,8 @@ export default async function AccountsSettingsPage() {
         roles: roles
           .filter((role) => requiresTwoFactor(role.permissions, candidate))
           .map((role) => role.label),
-        // Un compte sans mot de passe n'entre que par la connexion unique : le
-        // second facteur y est l'affaire du fournisseur (`rbac.ts`).
+        // An account without a password only comes in through single sign-on: the
+        // second factor is the provider's business there (`rbac.ts`).
         missing: exposure.filter(
           (entry) =>
             entry.hasPassword &&

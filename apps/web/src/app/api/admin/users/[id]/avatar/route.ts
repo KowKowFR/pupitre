@@ -13,8 +13,8 @@ const paramsSchema = z.object({ id: z.string().min(1).max(200) });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Retirer la photo de quelqu'un d'autre — la modération d'une image
- * déplacée. `user:manage`, tracé au journal avec le nom de la personne.
+ * Removing someone else's picture — moderating an inappropriate image.
+ * `user:manage`, traced in the log with the person's name.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'user:manage');

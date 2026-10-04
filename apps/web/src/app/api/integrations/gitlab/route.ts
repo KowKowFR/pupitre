@@ -4,13 +4,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * L'instance GitLab de l'instance Pupitre — gitlab.com ou une auto-hébergée :
- * son adresse, le compte de son jeton (souvent le robot d'un jeton de projet
- * ou de groupe).
+ * The Pupitre instance's GitLab instance — gitlab.com or a self-hosted one: its
+ * address, its token's account (often the bot of a project or group token).
  *
- * Aucune route ne rend le jeton : il entre, il est vérifié auprès de GitLab
- * — portée `api` exigée —, il est chiffré, il ne ressort pas. Les mêmes
- * routes que Gitea — voir `lib/token-forges.ts`.
+ * No route returns the token: it comes in, it is checked with GitLab — `api`
+ * scope required —, it is encrypted, it does not come out. The same routes as
+ * Gitea — see `lib/token-forges.ts`.
  */
 const routes = tokenForgeRoutes('gitlab');
 

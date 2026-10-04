@@ -4,9 +4,8 @@ import { requirePagePermission } from '@/lib/page-auth';
 export const dynamic = 'force-dynamic';
 
 /**
- * La création d'une application se fait dans un tiroir, au-dessus de la liste.
- * Cette adresse reste valable pour les liens et favoris qui la connaissent :
- * elle ouvre ce tiroir.
+ * Creating an application happens in a drawer, above the list. This address
+ * stays valid for the links and bookmarks that know it: it opens that drawer.
  */
 export default async function NewApplicationPage() {
   await requirePagePermission('/applications/new', 'application:create');

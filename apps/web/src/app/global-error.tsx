@@ -6,21 +6,21 @@ import { auth as messages } from '@/i18n/messages/auth';
 import { common } from '@/i18n/messages/common';
 
 /**
- * Dernier filet : une erreur jetée par le layout racine lui-même.
+ * The last safety net: an error thrown by the root layout itself.
  *
- * À ce niveau, ni le layout ni les polices ni la feuille de style ne sont
- * garantis — Next impose donc de rendre `<html>` et `<body>`. Le style est
- * écrit en ligne pour la même raison : si `globals.css` fait partie de ce qui a
- * échoué, une classe utilitaire ne peindrait rien. Les couleurs sont donc
- * fixées en dur, dans les teintes sombres du panel, plutôt que d'hériter d'un
- * fond blanc de navigateur au milieu d'une interface sombre.
+ * At this level, neither the layout nor the fonts nor the style sheet are
+ * guaranteed — so Next requires rendering `<html>` and `<body>`. The style is
+ * written inline for the same reason: if `globals.css` is part of what failed, a
+ * utility class would paint nothing. The colors are therefore hard-coded, in the
+ * panel's dark tints, rather than inheriting a white browser background in the
+ * middle of a dark interface.
  *
- * La langue suit le même sort que le style : c'est le layout racine qui pose le
- * `LanguageProvider`, et c'est lui qui vient d'échouer. `useLanguage()` rend
- * donc la langue par défaut, et `useT()` la langue source. C'est exactement le
- * repli que `renderMessage()` applique partout ailleurs — du français lisible
- * plutôt qu'une clé nue —, et le `lang` du document le dit honnêtement au lieu
- * d'annoncer une langue que le texte ne parle pas.
+ * The language shares the style's fate: it is the root layout that sets the
+ * `LanguageProvider`, and it is the one that just failed. `useLanguage()`
+ * therefore returns the default language, and `useT()` the source language. It is
+ * exactly the fallback `renderMessage()` applies everywhere else — readable French
+ * rather than a bare key —, and the document's `lang` says so honestly instead of
+ * announcing a language the text does not speak.
  */
 export default function GlobalError({
   error,
@@ -37,8 +37,8 @@ export default function GlobalError({
     console.error('[panel] erreur fatale', error);
   }, [error]);
 
-  // Page minimale aux styles en ligne : à ce stade, aucune feuille de style
-  // n'est garantie. Les couleurs sont celles du thème clair, écrites en dur.
+  // A minimal page with inline styles: at this stage, no style sheet is guaranteed.
+  // The colors are the light theme's, hard-coded.
   return (
     <html lang={language}>
       <body

@@ -5,7 +5,7 @@ import { useT } from '@/i18n/client';
 import { apiTokens as messages } from '@/i18n/messages/api-tokens';
 import { TokenList, type TokenRow } from './token-list';
 
-/** Tous les jetons de l'instance, avec leur auteur : ce qui peut agir sans navigateur. */
+/** All the instance's tokens, with their author: what can act without a browser. */
 export function InstanceTokensCard({ rows }: { rows: TokenRow[] }) {
   const t = useT(messages);
   return (

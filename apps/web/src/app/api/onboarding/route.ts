@@ -21,20 +21,20 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Avancement de l'assistant de démarrage.
+ * The onboarding assistant's progress.
  *
- * L'assistant lui-même ne crée rien par ici : une cible passe par
- * `POST /api/targets`, un rôle par `POST /api/admin/roles`, les réglages par
- * `PATCH /api/settings`. Cette route ne fait qu'une chose — se souvenir d'où
- * l'on en est. C'est la raison pour laquelle elle existe : sans elle, l'écran
- * aurait été tenté de refaire les créations « en plus simple », et six mois
- * plus tard la validation, l'audit et le preflight auraient divergé.
+ * The assistant itself creates nothing through here: a target goes through
+ * `POST /api/targets`, a role through `POST /api/admin/roles`, the settings
+ * through `PATCH /api/settings`. This route only does one thing — remember where
+ * one stands. That is why it exists: without it, the screen would have been
+ * tempted to redo the creations "more simply", and six months later the
+ * validation, the audit and the preflight would have diverged.
  *
- * Il n'y a pas de permission `onboarding:*`, et il n'en faut pas : le
- * vocabulaire RBAC est fermé. Le droit d'écrire ici se déduit — on peut
- * enregistrer son avancement si et seulement si au moins une étape de
- * l'assistant nous concerne. Relancer le parcours, en revanche, rebat l'état
- * de toute l'instance : cela exige `settings:manage`.
+ * There is no `onboarding:*` permission, and none is needed: the RBAC vocabulary
+ * is closed. The right to write here is deduced — one can save one's progress if
+ * and only if at least one step of the assistant concerns one. Restarting the
+ * journey, on the other hand, resets the whole instance's state: it requires
+ * `settings:manage`.
  */
 
 const patchSchema = z.discriminatedUnion('action', [
@@ -46,7 +46,7 @@ const patchSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('restart') }),
 ]);
 
-/** 403 explicite : l'assistant ne concerne pas cette personne. */
+/** An explicit 403: the assistant does not concern this person. */
 function assertApplies(auth: AuthContext): void {
   if (onboardingApplies(auth.can)) return;
   throw new HttpError(403, 'onboarding_not_applicable', msg(onboarding, 'error.notApplicable'));
@@ -92,12 +92,12 @@ export const PATCH = apiRoute(async (request) => {
         msg(onboarding, 'error.stepForbidden', { step: input.step }),
       );
     }
-    // Passer n'a de sens que pour une étape qui se passe. Refuser ici plutôt
-    // que d'accepter un « skipped » sur « bienvenue », que le récapitulatif
-    // présenterait ensuite comme un renoncement.
+    // Skipping only makes sense for a step that can be skipped. Refuse here rather
+    // than accept a "skipped" on "welcome", which the summary would then present as a
+    // renunciation.
     if (input.action === 'skip' && !onboardingStep(input.step).optional) {
-      // Le titre de l'étape n'est plus dans le catalogue : il se rend ici, dans
-      // la langue de l'instance, puis voyage comme une simple variable.
+      // The step's title is no longer in the catalog: it is rendered here, in the
+      // instance's language, then travels as a mere variable.
       const t = await getT(onboarding);
       throw new HttpError(
         409,
@@ -125,8 +125,8 @@ export const PATCH = apiRoute(async (request) => {
     auth.userId,
   );
 
-  // `goto` est une navigation, pas un fait : l'auditer noierait les entrées qui
-  // comptent sous le va-et-vient de quelqu'un qui relit une étape.
+  // `goto` is a navigation, not a fact: auditing it would drown the entries that
+  // matter under the back and forth of someone rereading a step.
   const AUDITED: Partial<Record<typeof input.action, string>> = {
     complete: 'onboarding.step.completed',
     skip: 'onboarding.step.skipped',

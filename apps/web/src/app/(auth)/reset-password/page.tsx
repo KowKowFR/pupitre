@@ -10,13 +10,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = 'force-dynamic';
 
 /**
- * Atterrissage d'un lien de réinitialisation.
+ * Landing of a reset link.
  *
- * Le lien de l'e-mail vise `/api/auth/reset-password/{jeton}` : un GET de Better
- * Auth qui **vérifie le jeton sans le consommer**, puis redirige ici avec
- * `?token=` s'il est bon, ou `?error=INVALID_TOKEN` s'il est mort. On garde ce
- * détour : sans lui, un lien périmé laisserait quelqu'un composer un mot de
- * passe avant de lui dire que c'était pour rien.
+ * The email's link targets `/api/auth/reset-password/{token}`: a Better Auth GET
+ * that **checks the token without consuming it**, then redirects here with
+ * `?token=` if it is good, or `?error=INVALID_TOKEN` if it is dead. We keep this
+ * detour: without it, an expired link would let someone compose a password
+ * before telling them it was for nothing.
  */
 export default async function ResetPasswordPage({
   searchParams,

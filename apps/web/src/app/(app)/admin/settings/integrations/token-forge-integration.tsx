@@ -24,13 +24,12 @@ type Check =
   | null;
 
 /**
- * Une forge à jeton de l'instance — Gitea / Forgejo, ou GitLab : la connecter
- * par l'adresse et un jeton, voir à quel compte elle ouvre, remplacer le
- * jeton, la déconnecter.
+ * One of the instance's token forges — Gitea / Forgejo, or GitLab: connect it
+ * through the address and a token, see which account it opens to, replace the
+ * token, disconnect it.
  *
- * Pas de manifeste ici, contrairement à GitHub : ni Gitea ni GitLab n'ont
- * d'équivalent des Apps. Le jeton est essayé avant d'être enregistré, et ne
- * revient jamais.
+ * No manifest here, unlike GitHub: neither Gitea nor GitLab has an equivalent of
+ * Apps. The token is tried before being saved, and never comes back.
  */
 export function TokenForgeIntegration({
   kind,

@@ -7,9 +7,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les applications en marche — pas l'historique des déploiements.
- * Une par couple (application, cible) : c'est le dernier déploiement de chaque
- * couple qui tourne réellement.
+ * The running applications — not the deployments' history. One per
+ * (application, target) pair: it is each pair's last deployment that really
+ * runs.
  */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'deployment:read');

@@ -13,23 +13,22 @@ import { SettingsNav, SettingsTabs } from './settings-nav';
 export const dynamic = 'force-dynamic';
 
 /**
- * Coquille des paramètres.
+ * The settings' shell.
  *
- * Quatre groupes au rail, les sections d'un groupe en onglets. Chaque section
- * reste une page : une adresse, rendue sur le serveur, partageable dans un
- * ticket, et dont le code client ne charge que ce qu'elle affiche.
+ * Four groups in the rail, a group's sections as tabs. Each section stays a page:
+ * an address, rendered on the server, shareable in a ticket, and whose client
+ * code only loads what it shows.
  *
- * L'écran est dense : les aides des champs s'y replient en info-bulles
- * (`FieldHelpMode`), et la présentation de la page aussi.
+ * The screen is dense: the fields' help folds into tooltips there
+ * (`FieldHelpMode`), and so does the page's introduction.
  *
- * Le layout porte ce qui est commun à toutes les sections : le bandeau de
- * page, le rail, et la mention de lecture seule. La poser ici plutôt que dans
- * chaque formulaire évite de la répéter cinq fois et garantit qu'aucune
- * section ne l'oublie.
+ * The layout carries what is common to all the sections: the page banner, the
+ * rail, and the read-only notice. Putting it here rather than in each form
+ * avoids repeating it five times and guarantees that no section forgets it.
  *
- * La permission est vérifiée ici **et** dans chaque page. Ce n'est pas de la
- * redondance décorative : un layout n'est pas réexécuté quand on navigue entre
- * deux de ses enfants côté client, seule la page l'est.
+ * The permission is checked here **and** in each page. It is not decorative
+ * redundancy: a layout is not re-run when navigating between two of its children
+ * on the client side, only the page is.
  */
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
   const auth = await requirePagePermission('/admin/settings', 'settings:read');

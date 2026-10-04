@@ -31,9 +31,9 @@ export type VersionRow = {
   targetId: string;
   targetName: string;
   triggeredByEmail: string | null;
-  /** Le commit de cette version, quand elle vient d'un dépôt lié. */
+  /** This version's commit, when it comes from a linked repository. */
   source: CommitSource | null;
-  /** L'archive téléversée qu'elle a construite, quand le code venait de là. */
+  /** The uploaded archive it built, when the code came from there. */
   archive: { name: string; sha256: string } | null;
   createdAt: string;
   finishedAt: string | null;
@@ -54,9 +54,9 @@ const STEP_CLASS: Partial<Record<DeploymentStatus, string>> = {
 };
 
 /**
- * L'historique des versions, en pipeline vertical : chaque déploiement fige
- * son AppSpec au départ, et c'est ce qui le rend rejouable — sur la même cible
- * ou sur une autre qui sait le même runtime.
+ * The versions' history, as a vertical pipeline: each deployment freezes its
+ * AppSpec at the start, and that is what makes it replayable — on the same target
+ * or on another that knows the same runtime.
  */
 export function VersionTimeline({
   applicationId,
@@ -81,8 +81,9 @@ export function VersionTimeline({
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState<VersionRow | null>(null);
 
-  // La cible retenue : celle choisie dans la liste, sinon la cible d'origine —
-  // ramenée à la première cible éligible si celle-là ne sait pas le runtime.
+  // The chosen target: the one chosen in the list, otherwise the original target —
+  // brought back to the first eligible target if that one does not know the
+  // runtime.
   const targetOf = (version: VersionRow) => {
     const eligible = targets.filter((target) => target.runtimes.includes(version.runtime));
     const chosen = selection[version.deploymentId] ?? version.targetId;
@@ -127,7 +128,7 @@ export function VersionTimeline({
       <ol className="steps">
         {versions.map((version) => {
           const step = STEP_CLASS[version.status] ?? '';
-          // Une version ne se rejoue que sur une cible qui sait son runtime.
+          // A version is only replayed on a target that knows its runtime.
           const eligible = targets.filter((target) => target.runtimes.includes(version.runtime));
           return (
             <li key={version.deploymentId} className={cn('step', step)}>

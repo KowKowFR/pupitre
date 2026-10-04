@@ -4,12 +4,12 @@ import { cn } from '@/lib/utils';
 export type Tone = 'ok' | 'warn' | 'danger' | 'accent' | 'idle' | 'hollow';
 
 /**
- * Voyant — 8 px, cerclé d'un halo de 3 px de la même teinte à 20 %.
+ * An indicator — 8 px, ringed with a 3 px halo of the same tint at 20%.
  *
- * Un voyant ne se lit jamais seul : il a un libellé à côté (`State`), ou, dans
- * une liste très dense, un `label` qui en fait une image nommée pour les
- * lecteurs d'écran. `pulse` est réservé à ce qui est **en cours** ; il se fige
- * sous `prefers-reduced-motion`.
+ * An indicator is never read alone: it has a label next to it (`State`), or, in
+ * a very dense list, a `label` that makes it a named image for screen readers.
+ * `pulse` is reserved for what is **in progress**; it freezes under
+ * `prefers-reduced-motion`.
  */
 export function Led({
   tone,
@@ -19,7 +19,7 @@ export function Led({
 }: {
   tone: Tone;
   pulse?: boolean;
-  /** Nom accessible, quand aucun texte visible n'accompagne le voyant. */
+  /** Accessible name, when no visible text goes with the indicator. */
   label?: string;
   className?: string;
 }) {
@@ -31,7 +31,7 @@ export function Led({
   );
 }
 
-/** Voyant et son libellé, avec une méta facultative en gris. */
+/** An indicator and its label, with an optional meta in gray. */
 export function State({
   tone,
   pulse,

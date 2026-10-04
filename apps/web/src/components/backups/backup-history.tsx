@@ -23,13 +23,12 @@ import { formatDateTime, type FormatSettings } from '@/lib/format';
 import { relativeTime } from '@/lib/relative-time';
 
 /**
- * L'historique des sauvegardes d'une application, avec ce qu'on peut en faire :
- * restaurer, supprimer. Partagé par la carte de la fiche et par la vue
- * d'ensemble des paramètres — le même geste ne doit pas avoir deux écrans qui
- * divergent.
+ * An application's backups history, with what can be done with it: restore,
+ * delete. Shared by the record's card and by the settings' overview — the same
+ * gesture must not have two screens that diverge.
  *
- * Le composant ne parle pas lui-même à l'API : il reçoit `run`, qui appelle,
- * signale l'issue et relit l'écran à la manière de son hôte.
+ * The component does not talk to the API itself: it receives `run`, which calls,
+ * reports the outcome and reads the screen again in its host's way.
  */
 
 export type BackupHistoryItem = Pick<
@@ -80,16 +79,16 @@ export function BackupHistory({
   run,
 }: {
   applicationSlug: string;
-  /** `false` pour une application supprimée : plus rien où restaurer. */
+  /** `false` for a deleted application: nothing left to restore into. */
   restorable: boolean;
   items: BackupHistoryItem[];
-  /** Les cibles où l'application tourne : là où une restauration peut aller. */
+  /** The targets where the application runs: where a restore can go. */
   targets: LiveTargetView[];
-  /** Le nom de chaque cible citée par l'historique, qu'elle porte encore l'application ou non. */
+  /** The name of each target the history mentions, whether it still carries the application. */
   targetNames: Record<string, string>;
   canRestore: boolean;
   canManage: boolean;
-  /** Une sauvegarde ou une restauration est en cours : on n'en lance pas une autre. */
+  /** A backup or a restore is in progress: another one is not started. */
   busy: boolean;
   format: FormatSettings;
   run: BackupRun;
@@ -101,14 +100,14 @@ export function BackupHistory({
   const [safety, setSafety] = useState(true);
   const [deleting, setDeleting] = useState<BackupHistoryItem | null>(null);
 
-  // Une application arrêtée ne se restaure pas : la route le refuserait.
+  // A stopped application is not restored: the route would refuse it.
   const eligible = targets.filter((target) => !target.stopped);
   const nameOf = (id: string | null) =>
     (id ? (targetNames[id] ?? targets.find((target) => target.id === id)?.name) : null) ?? '—';
   const showTarget = targets.length > 1 || new Set(items.map((item) => item.targetId)).size > 1;
 
   function openRestore(item: BackupHistoryItem) {
-    // Par défaut, la cible d'où vient la sauvegarde — si elle porte encore l'application.
+    // By default, the target the backup comes from — if it still carries the application.
     const origin = eligible.find((target) => target.id === item.targetId);
     setRestoreTarget(origin?.id ?? eligible[0]?.id ?? null);
     setSafety(true);
@@ -133,7 +132,8 @@ export function BackupHistory({
                   ) : null}
                   {t(`status.${item.status}`)}
                 </Badge>
-                {/* « il y a 14 s » : le serveur et le navigateur ne lisent pas l'horloge à la même seconde. */}
+                {/* "14 s ago": the server and the browser do not read the clock at the same
+                    second. */}
                 <span className="t-cap text-text-3" suppressHydrationWarning>
                   {t(`trigger.${item.trigger}`)}
                   {item.mode ? ` · ${t(`mode.${item.mode}`)}` : ''}

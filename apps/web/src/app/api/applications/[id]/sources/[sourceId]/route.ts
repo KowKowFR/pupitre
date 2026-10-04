@@ -19,15 +19,15 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid(), sourceId: z.string().uuid() });
 type Context = { params: Promise<{ id: string; sourceId: string }> };
 
-/** Branche, fichier de spec, chemins surveillés, cibles, mode, pause. Jamais le dépôt. */
+/** Branch, spec file, watched paths, targets, mode, pause. Never the repository. */
 export const PATCH = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:update');
   const { id, sourceId } = paramsSchema.parse(await context.params);
   const patch = await readJsonBody(request, applicationSourcePatchSchema);
   const before = await sourceOf(id, sourceId);
   if (patch.targets) await assertTargets(patch.targets);
-  // La règle porte sur l'état d'arrivée : passer en « cibles de la liaison »
-  // sans en donner, ou retirer les dernières, est refusé.
+  // The rule applies to the end state: switching to "the link's targets" without
+  // giving any, or removing the last ones, is refused.
   const problem = sourceTargetsProblem(
     patch.deployTo ?? before.deployTo,
     patch.targets ?? before.targets,
@@ -58,7 +58,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
   return NextResponse.json(sourceJson(after));
 });
 
-/** Délier : Pupitre cesse de suivre la branche. Rien n'est détruit sur les cibles. */
+/** Unlinking: Pupitre stops following the branch. Nothing is destroyed on the targets. */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:update');
   const { id, sourceId } = paramsSchema.parse(await context.params);

@@ -13,8 +13,8 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Le dernier constat sur les images de l'application, cible par cible : ce qui
- * tourne, ce que le registre annonce, s'il existe un tag plus récent.
+ * The last finding on the application's images, target by target: what runs,
+ * what the registry announces, whether a more recent tag exists.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'application:read');

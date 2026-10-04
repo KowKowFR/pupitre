@@ -7,9 +7,9 @@ import { withSlot } from '@/lib/rich';
 import type { ApplicationRow } from './applications-view';
 
 /**
- * « Ce qui va tourner » : un service par ligne, relu depuis l'AppSpec — port,
- * santé, dépendances, volumes, secrets —, puis l'exposition. C'est ce qu'on
- * relit avant de déployer, dans le drawer comme sur la fiche.
+ * "What will run": one service per row, read from the AppSpec — port, health,
+ * dependencies, volumes, secrets —, then the exposure. It is what one reviews
+ * before deploying, in the drawer as on the record.
  */
 export function ServiceList({ application }: { application: Pick<ApplicationRow, 'services' | 'ingress'> }) {
   const t = useT(messages);

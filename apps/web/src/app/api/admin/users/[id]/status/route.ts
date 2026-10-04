@@ -21,7 +21,7 @@ const bodySchema = z.object({
 
 type Context = { params: Promise<{ id: string }> };
 
-/** Activation / désactivation d'un compte. */
+/** Enabling / disabling an account. */
 export const PATCH = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'user:manage');
   const { id } = paramsSchema.parse(await context.params);
@@ -53,12 +53,11 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
     })
     .where(eq(users.id, id));
 
-  // Un compte désactivé perd ses sessions en cours — et ses liens en cours.
-  // Une invitation qui survit à la désactivation, c'est une porte qu'on croit
-  // avoir fermée : elle ne rendrait pas l'accès (la connexion reste refusée),
-  // mais elle laisserait quelqu'un poser un mot de passe sur un compte qu'on
-  // vient de suspendre. Réactiver relance une invitation, ce qui est le geste
-  // explicite qu'on veut voir dans le journal.
+  // A disabled account loses its current sessions — and its current links. An
+  // invitation that survives the deactivation is a door one believes closed: it
+  // would not give access back (sign-in stays refused), but it would let someone
+  // set a password on an account that was just suspended. Re-enabling resends an
+  // invitation, which is the explicit gesture one wants to see in the log.
   let revokedLinks = 0;
   if (banned) {
     await db.delete(sessions).where(eq(sessions.userId, id));

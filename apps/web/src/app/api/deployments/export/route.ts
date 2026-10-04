@@ -12,20 +12,20 @@ import { requirePermission } from '@/lib/rbac';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Les filtres de la liste, sans sa pagination : l'export prend toutes les pages. */
+/** The list's filters, without its pagination: the export takes all the pages. */
 const querySchema = deploymentQuerySchema.omit({ page: true, pageSize: true });
 
 /**
- * Plafond d'un export. Une instance en est très loin ; la borne existe pour
- * qu'aucune requête HTTP ne puisse devenir une opération longue (règle 2).
- * Atteinte, elle est dite au journal d'activité (`truncated`).
+ * An export's cap. An instance is very far from it; the bound exists so that no
+ * HTTP request can become a long-running operation (rule 2). Reached, it is said
+ * in the activity log (`truncated`).
  */
 const EXPORT_MAX_ROWS = 50_000;
 
 /**
- * Colonnes du fichier. Des noms techniques, stables, et non des libellés
- * traduits : un export se relit par un script ou un tableur des mois plus tard,
- * quelle que soit la langue réglée entre-temps. Les dates sont en ISO 8601 UTC.
+ * The file's columns. Technical, stable names, and not translated labels: an
+ * export is read back by a script or a spreadsheet months later, whatever the
+ * language set in the meantime. The dates are ISO 8601 UTC.
  */
 const COLUMNS = [
   'run',
@@ -47,12 +47,12 @@ const COLUMNS = [
 ] as const;
 
 /**
- * Export CSV des runs, avec les filtres de la liste (`status`, `blocked`, `q`,
- * `applicationId`, `targetId`, `runtime`), du plus récent au plus ancien.
+ * CSV export of the runs, with the list's filters (`status`, `blocked`, `q`,
+ * `applicationId`, `targetId`, `runtime`), newest first.
  *
- * Même permission que la liste : l'export ne montre rien que l'écran ne
- * montrerait pas. Il est journalisé — il emporte les adresses e-mail de ceux
- * qui ont déclenché les runs.
+ * The same permission as the list: the export shows nothing the screen would not
+ * show. It is logged — it takes away the email addresses of those who triggered
+ * the runs.
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'deployment:read');
@@ -62,7 +62,7 @@ export const GET = apiRoute(async (request) => {
   async function* chunks(): AsyncGenerator<string, void, undefined> {
     yield csvRow(COLUMNS);
     for await (const batch of iterateDeployments(filter, { limit: EXPORT_MAX_ROWS })) {
-      // Une lecture par lot pour la colonne des scans, pas une par ligne.
+      // One batched read for the scans column, not one per row.
       const digest = await scanDigestForDeployments(batch.map((item) => item.id));
       let chunk = '';
       for (const item of batch) {

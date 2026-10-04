@@ -25,10 +25,10 @@ import { servers } from '@/i18n/messages/servers';
 import { cn } from '@/lib/utils';
 import { HealthDot, type HealthStatus } from '../apps-table';
 
-/** Un service tel que l'AppSpec figée du déploiement le déclare. */
+/** A service as the deployment's frozen AppSpec declares it. */
 export type ConsoleService = {
   name: string;
-  /** Nom de l'image, quand la spec le fixe. `null` si elle est construite. */
+  /** The image's name, when the spec sets it. `null` if it is built. */
   image: string | null;
   built: boolean;
   port: number;
@@ -54,20 +54,20 @@ export type ConsoleApp = {
   services: ConsoleService[];
 };
 
-/** Au-delà, les lignes les plus anciennes sont oubliées : un flux n'a pas de fin. */
+/** Beyond this, the oldest lines are forgotten: a stream has no end. */
 const MAX_LINES = 2_000;
 
 type Connection = 'connecting' | 'live' | 'closed' | 'error';
 
 type ExportFormat = 'text' | 'jsonl';
 
-/** Une ligne reçue, numérotée à l'arrivée. Voir `freeze` plus bas. */
+/** A received line, numbered on arrival. See `freeze` below. */
 type BufferedLine = AppLogLine & { seq: number };
 
 type T = Translate<typeof appConsole.fr>;
 type TSince = Translate<typeof servers.fr>;
 
-/** Le vocabulaire de l'écran des charges, à la lettre : un seul état, un seul mot. */
+/** The workloads screen's vocabulary, to the letter: a single state, a single word. */
 const STATE_KEY: Record<ServiceState, keyof typeof appConsole.fr> = {
   running: 'state.running',
   restarting: 'state.restarting',
@@ -92,14 +92,14 @@ const CONNECTION_KEY: Record<Connection, keyof typeof appConsole.fr> = {
 };
 
 /**
- * La console : l'inventaire des services à gauche, le terminal à droite, et le
- * contexte tiré de la base sous l'inventaire.
+ * The console: the services inventory on the left, the terminal on the right,
+ * and the context drawn from the database under the inventory.
  *
- * Deux colonnes, et le placement est explicite pour une raison : en dessous de
- * 1280 px la grille s'effondre en une seule colonne, et l'ordre du source
- * devient l'ordre de lecture. Il est donc écrit dans le bon ordre —
- * l'inventaire, puis les logs, puis le contexte — plutôt que de reléguer les
- * logs sous trois cartes de contexte sur un portable.
+ * Two columns, and the placement is explicit for a reason: below 1280 px the grid
+ * collapses into a single column, and the source order becomes the reading
+ * order. It is therefore written in the right order — the inventory, then the
+ * logs, then the context — rather than relegating the logs under three context
+ * cards on a laptop.
  */
 export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactNode }) {
   const t = useT(appConsole);
@@ -121,7 +121,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
   const attemptRef = useRef(0);
   const connectRef = useRef<(() => void) | null>(null);
   const seqRef = useRef(0);
-  /** Arrêts de flux rapprochés, pour espacer les réouvertures. Voir plus bas. */
+  /** Stream stops close together, to space out the reopenings. See below. */
   const stopsRef = useRef(0);
   const lastStopRef = useRef(0);
 
@@ -142,8 +142,8 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
 
     source.addEventListener('status', (event) => {
       const fresh = JSON.parse((event as MessageEvent<string>).data) as AppStatus;
-      // Le relevé retenu par la route et le relevé frais du worker peuvent se
-      // croiser à l'ouverture : on ne recule jamais dans le temps.
+      // The reading kept by the route and the worker's fresh reading can cross at
+      // opening: we never go back in time.
       setStatus((current) => (current && current.checkedAt > fresh.checkedAt ? current : fresh));
     });
 
@@ -166,28 +166,28 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
 
       if (payload.action === 'restart') {
         setNotice(payload.detail ?? '');
-        // Le redémarrage resonde la santé et l'écrit en base : ce qui a été
-        // rendu côté serveur — la santé, l'heure de la dernière sonde — vient
-        // de vieillir d'un coup. On le redemande plutôt que de l'afficher faux.
+        // The restart probes the health again and writes it to the database: what was
+        // rendered on the server side — the health, the time of the last probe — just
+        // aged all at once. We ask for it again rather than show it wrong.
         if (payload.done) router.refresh();
         return;
       }
 
       if (payload.action === 'stream.stopped') {
         /**
-         * Le worker a rendu la main — plafond de durée atteint, le plus
-         * souvent, après trente minutes de flux.
+         * The worker gave control back — duration cap reached, most often,
+         * after thirty minutes of streaming.
          *
-         * Il faut **refermer cette connexion-ci** pour en rouvrir une autre :
-         * la route n'enfile un job que lorsqu'un client se branche, et celle-ci
-         * reste techniquement ouverte alors que plus personne n'alimente le
-         * canal. Sans cela, un écran laissé ouvert la nuit se tait à la
-         * trentième minute, avec pour seul indice un discret « reconnexion… »
-         * qui ne mène nulle part.
+         * **This connection must be closed** to open another one: the route
+         * only queues a job when a client plugs in, and this one stays
+         * technically open while nobody feeds the channel any more. Without
+         * that, a screen left open overnight goes quiet at the thirtieth
+         * minute, with as its only clue a discreet "reconnecting…" that leads
+         * nowhere.
          *
-         * Le délai croît si les arrêts s'enchaînent : un flux qui se referme
-         * aussitôt ouvert ne doit pas faire ouvrir une session SSH par seconde
-         * sur la machine cible.
+         * The delay grows if the stops follow one another: a stream that
+         * closes as soon as it opens must not make the target machine open an
+         * SSH session per second.
          */
         setConnection('error');
         source.close();
@@ -235,14 +235,13 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
   }, [lines, autoScroll, freeze]);
 
   /**
-   * L'inventaire : ce que la spec déclare, croisé avec ce que la machine
-   * rapporte.
+   * The inventory: what the spec declares, crossed with what the machine reports.
    *
-   * Les deux listes sont nécessaires et ne disent pas la même chose. La spec
-   * seule ne saurait pas qu'un conteneur est sorti ; le relevé seul ne saurait
-   * pas qu'un service **manque**. C'est ce croisement qui rend visible le cas
-   * le plus grave — un service déclaré que le runtime ne rapporte pas — au lieu
-   * de le laisser s'effacer de la liste.
+   * Both lists are necessary and do not say the same thing. The spec alone would
+   * not know that a container exited; the reading alone would not know that a
+   * service is **missing**. It is this crossing that makes the most serious case
+   * visible — a declared service the runtime does not report — instead of letting
+   * it fade from the list.
    */
   const rows = useMemo(() => {
     const reported = new Map((status?.services ?? []).map((row) => [row.name, row]));
@@ -259,7 +258,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
 
   const running = rows.filter((row) => row.live?.state === 'running').length;
 
-  /** Les services proposés au filtre : déclarés ou rapportés, sans doublon. */
+  /** The services offered in the filter: declared or reported, without duplicates. */
   const services = rows.map((row) => row.name);
 
   const flagged = useMemo(() => lines.filter((line) => levelOf(line.line) !== null), [lines]);
@@ -281,8 +280,8 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
   const statusAge =
     status && now !== null ? t('age.ago', { age: age(now, status.checkedAt, tSince) }) : null;
 
-  // L'en-tête du terminal : combien, combien de signalées, et l'état du flux —
-  // ou, pendant une pause, combien de lignes attendent.
+  // The terminal's header: how many, how many flagged, and the stream's state —
+  // or, during a pause, how many lines are waiting.
   const headline = [
     filtering
       ? t('logs.countFiltered', { visible: visible.length, count: lines.length })
@@ -308,11 +307,11 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
 
         <section className="card overflow-hidden">
           {/*
-            Deux verdicts distincts, et il faut qu'ils le restent : en tête, ce
-            que **le panel** a conclu de sa dernière sonde ; en pied, l'âge du
-            relevé que **la machine** vient de donner. Les mélanger ferait
-            croire qu'une sonde vieille de dix minutes décrit l'instant.
-          */}
+            Two distinct verdicts, and they must stay so: at the top, what
+            **the panel** concluded from its last probe; at the bottom, the age
+            of the reading **the machine** just gave. Mixing them would suggest
+            that a ten-minute-old probe describes the instant.
+                     */}
           <div className="card-h">
             <h2>{t('services.title')}</h2>
             <span className="ml-auto">
@@ -330,11 +329,10 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
           </div>
 
           {/*
-            Trois situations, trois phrases — les confondre était le défaut de
-            cet écran : « pas encore de relevé » n'est pas « la cible ne
-            rapporte rien », et l'écran ne doit jamais affirmer le second quand
-            il est dans le premier.
-          */}
+            Three situations, three sentences — confusing them was this screen's
+            bug: "no reading yet" is not "the target reports nothing", and the
+            screen must never assert the latter when it is in the former.
+                     */}
           {rows.length === 0 ? (
             <p className="t-sm px-4 py-3 text-text-3">
               {status === null
@@ -376,10 +374,10 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
       </div>
 
       {/*
-        Le terminal est posé en absolu dans sa cellule : c'est la colonne de
-        gauche qui donne la hauteur de la rangée, et un tampon de deux mille
-        lignes défile dedans au lieu d'allonger la page.
-      */}
+        The terminal is positioned absolutely in its cell: it is the left
+        column that gives the row its height, and a two-thousand-line buffer
+        scrolls inside instead of lengthening the page.
+             */}
       <div className="relative min-h-[34rem] min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-stretch">
         <section className="term absolute inset-0" aria-label={t('logs.title')}>
           <div className="term-h">
@@ -564,12 +562,12 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
 }
 
 /**
- * Une ligne de service : ce qu'on a demandé, et ce que la machine en a fait.
+ * A service row: what was asked, and what the machine made of it.
  *
- * L'état vient du runtime ; la spec fournit ce que le runtime ne dit pas — les
- * dépendances, les ressources demandées, la sonde déclarée. Un service déclaré
- * mais absent du relevé n'est pas silencieux : c'est la ligne la plus rouge de
- * l'écran.
+ * The state comes from the runtime; the spec provides what the runtime does not
+ * say — the dependencies, the requested resources, the declared probe. A
+ * declared service absent from the reading is not silent: it is the screen's
+ * reddest row.
  */
 function ServiceRow({
   name,
@@ -625,11 +623,11 @@ function ServiceRow({
       </span>
 
       {/*
-        Rien n'est coupé ici : dans une colonne étroite, un `truncate` mangeait
-        « Up 44 hours (healthy) » — c'est-à-dire la réponse à « depuis quand ».
-        Le texte passe donc à la ligne, et seul le nom de l'image, qui peut être
-        arbitrairement long, casse au caractère près.
-      */}
+        Nothing is cut here: in a narrow column, a `truncate` ate
+        "Up 44 hours (healthy)" — that is, the answer to "since when".
+        The text therefore wraps, and only the image's name, which can be
+        arbitrarily long, breaks at any character.
+             */}
       <span className="mono text-[11px] break-all text-text-3">
         {[image, ports].filter(Boolean).join(' · ') || '—'}
       </span>
@@ -648,8 +646,8 @@ function ServiceRow({
                 memory: spec.memoryMi ?? '—',
               })
             : null,
-          // Ce que la sonde interroge, tel que la spec le déclare — c'est cette
-          // requête-là qu'on voit repasser dans les logs à intervalle régulier.
+          // What the probe queries, as the spec declares it — it is that request one sees
+          // pass again in the logs at regular intervals.
           spec
             ? t('service.probe', {
                 path: spec.probePath,
@@ -666,34 +664,34 @@ function ServiceRow({
 }
 
 /**
- * Niveau d'une ligne, **par heuristique assumée**.
+ * A line's level, **by an assumed heuristic**.
  *
- * Écrire un analyseur de format serait une promesse intenable : une même
- * application mêle du JSON, du texte libre et des logs d'accès, et chaque image
- * a ses conventions. On cherche donc un mot, rien de plus, et l'interface le
- * dit — « signalées », pas « erreurs ». Le mot doit être isolé : `errors` dans
- * une URL ne teinte pas la ligne, `ERROR` en début de ligne oui.
+ * Writing a format parser would be an untenable promise: the same application
+ * mixes JSON, free text and access logs, and each image has its conventions. So
+ * we look for a word, nothing more, and the interface says so — "flagged", not
+ * "errors". The word must be isolated: `errors` in a URL does not tint the line,
+ * `ERROR` at the start of the line does.
  */
 function levelOf(line: string): 'error' | 'warn' | null {
-  // i18n-ignore : des mots cherchés dans les logs, pas des libellés d'interface.
+  // i18n-ignore: words searched for in the logs, not interface labels.
   if (/\b(error|erreur|fatal|panic|critical|exception|failed|échec)\b/i.test(line)) return 'error';
   if (/\b(warn|warning|avertissement|deprecated)\b/i.test(line)) return 'warn';
   return null;
 }
 
 /**
- * Horloge de l'écran, réveillée une fois par seconde.
+ * The screen's clock, woken once per second.
  *
- * `null` avant le montage : un « il y a 12 s » calculé sur le serveur serait
- * faux à l'affichage et provoquerait une divergence d'hydratation. Le premier
- * rendu ne dit donc pas d'âge, le second le dit et le tient à jour.
+ * `null` before mounting: a "12 s ago" computed on the server would be wrong on
+ * display and would cause a hydration mismatch. The first render therefore says
+ * no age, the second says it and keeps it up to date.
  */
 function useNow(): number | null {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     const tick = () => setNow(Date.now());
-    // Le premier relevé passe par le planificateur plutôt que par le corps de
-    // l'effet : une écriture d'état synchrone y déclenche un rendu en cascade.
+    // The first reading goes through the scheduler rather than the effect's body: a
+    // synchronous state write there triggers a cascading render.
     const first = setTimeout(tick, 0);
     const timer = setInterval(tick, 1000);
     return () => {
@@ -704,7 +702,7 @@ function useNow(): number | null {
   return now;
 }
 
-/** Un âge court — « 12 s », « 3 min », « 4 j » — dans les unités de la supervision. */
+/** A short age — "12 s", "3 min", "4 d" — in the monitoring units. */
 function age(now: number, iso: string, t: TSince): string {
   const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
   if (seconds < 60) return t('since.seconds', { count: seconds });
@@ -714,18 +712,18 @@ function age(now: number, iso: string, t: TSince): string {
 }
 
 /**
- * Export du tampon affiché.
+ * Exporting the displayed buffer.
  *
- * Un flux applicatif n'a pas de fin et n'est pas persisté : « exporter les
- * logs » n'a de sens que pour ce que le navigateur a déjà reçu. Demander au
- * worker un `logs --tail N` donnerait un autre fichier — plus large, mais qui
- * ne correspondrait pas à ce que l'écran montre, et qui ouvrirait une seconde
- * session SSH depuis une requête HTTP. On exporte donc exactement ce qui est à
- * l'écran, filtres compris, et l'en-tête du fichier les énumère.
+ * An application stream has no end and is not persisted: "exporting the logs"
+ * only makes sense for what the browser already received. Asking the worker for
+ * a `logs --tail N` would give another file — wider, but which would not match
+ * what the screen shows, and which would open a second SSH session from an HTTP
+ * request. So we export exactly what is on screen, filters included, and the
+ * file's header lists them.
  *
- * Le `Blob` est ici le seul moyen : la donnée n'existe que dans cette page.
- * L'URL d'objet est révoquée juste après — sans quoi chaque export garderait le
- * contenu en mémoire jusqu'au rechargement de l'onglet.
+ * The `Blob` is the only way here: the data only exists in this page. The object
+ * URL is revoked right after — otherwise each export would keep the content in
+ * memory until the tab reloads.
  */
 function downloadBuffer(
   app: ConsoleApp,
@@ -736,8 +734,8 @@ function downloadBuffer(
 ): void {
   const content =
     format === 'jsonl'
-      ? // Le numéro d'ordre est un outil interne à la pause : il n'a rien à
-        // faire dans un fichier exporté.
+      ? // The sequence number is a tool internal to the pause: it has no business in an
+        // exported file.
         lines
           .map((line) => JSON.stringify({ ts: line.ts, service: line.service, line: line.line }))
           .join('\n') + '\n'
@@ -762,12 +760,12 @@ function downloadBuffer(
   anchor.click();
   anchor.remove();
 
-  // Différé d'un tour de boucle : révoquer dans la foulée du clic annule le
-  // téléchargement sur certains navigateurs.
+  // Deferred by one loop turn: revoking right after the click cancels the
+  // download on some browsers.
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-/** Dit au lecteur ce que le fichier contient — et surtout ce qu'il ne contient pas. */
+/** Tells the reader what the file contains — and above all what it does not. */
 function bufferHeader(
   app: ConsoleApp,
   count: number,

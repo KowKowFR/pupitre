@@ -56,20 +56,18 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   }
 
   /**
-   * Les liens d'invitation et de réinitialisation en cours meurent **avant** le
-   * compte.
+   * The current invitation and reset links die **before** the account.
    *
-   * `verifications` ne porte aucune clé étrangère vers `users` — Better Auth y
-   * range un identifiant d'utilisateur dans une colonne de texte —, donc rien
-   * ne les emporterait en cascade. Ils survivraient jusqu'à leur échéance, soit
-   * jusqu'à trois jours, en pointant sur un compte qui n'existe plus. Ce n'est
-   * pas exploitable (le compte visé a disparu), mais un lien qui traîne dans
-   * une boîte mail après la suppression du compte est exactement ce qu'on
-   * cherche à ne pas laisser derrière soi.
+   * `verifications` carries no foreign key to `users` — Better Auth stores a user
+   * identifier in a text column there —, so nothing would carry them off in a
+   * cascade. They would survive until their expiry, up to three days, pointing at
+   * an account that no longer exists. It is not exploitable (the targeted account
+   * is gone), but a link lingering in a mailbox after the account's deletion is
+   * exactly what we try not to leave behind.
    */
   const revokedLinks = await revokeResetTokens(id);
 
-  // `audit_logs.actor_id` est en ON DELETE SET NULL : les traces survivent.
+  // `audit_logs.actor_id` is ON DELETE SET NULL: the traces survive.
   await db.delete(users).where(eq(users.id, id));
 
   await logAudit({

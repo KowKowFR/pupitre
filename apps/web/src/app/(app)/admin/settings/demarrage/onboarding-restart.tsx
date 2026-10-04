@@ -15,20 +15,19 @@ import { onboarding } from '@/i18n/messages/onboarding';
 import { settings as messages } from '@/i18n/messages/settings';
 
 /**
- * Relance de l'assistant de démarrage depuis les paramètres.
+ * Restarting the onboarding assistant from the settings.
  *
- * L'assistant doit rester atteignable même quand il a été terminé ou abandonné :
- * quelqu'un qui a tout passé la première fois — parce qu'aucune machine
- * n'était prête — doit pouvoir y revenir sans qu'on lui demande de retoucher la
- * base. Le bouton remet le parcours à zéro (`PATCH /api/onboarding`,
- * `restart`), ce qui exige `settings:manage` : cet état est celui de
- * l'instance, pas celui de la personne connectée.
+ * The assistant must stay reachable even when it was finished or abandoned:
+ * someone who skipped everything the first time — because no machine was ready
+ * — must be able to come back to it without being asked to touch the database.
+ * The button resets the journey (`PATCH /api/onboarding`, `restart`), which
+ * requires `settings:manage`: this state is the instance's, not the signed-in
+ * person's.
  */
 
 /**
- * Les clés d'état, dans le dictionnaire des paramètres : le sommaire affiche
- * exactement les mêmes quatre mots, et deux tables séparées finiraient par
- * diverger.
+ * The state keys, in the settings dictionary: the summary shows exactly the
+ * same four words, and two separate tables would end up diverging.
  */
 const STATUS_KEY = {
   pending: 'onboarding.status.pending',
@@ -106,13 +105,13 @@ export function OnboardingRestart({
           <div className="flex justify-between gap-3 border-b border-border pb-1.5">
             <dt className="text-text-2">{t('onboarding.term.currentStep')}</dt>
             {/*
-              `state.currentStep` est une clé interne (`summary`, `identity`…).
-              L'afficher telle quelle laissait un identifiant en chasse fixe au
-              milieu d'un écran entièrement rédigé — et sans indiquer à quoi il
-              correspond. Le titre de l'étape dit la même chose, dans la langue
-              de l'instance : il se lit dans le dictionnaire de l'assistant, où
-              vit désormais toute sa prose.
-            */}
+              `state.currentStep` is an internal key (`summary`, `identity`…).
+              Showing it as is left a monospaced identifier in the middle of a
+              fully written screen — and without saying what it corresponds to.
+              The step's title says the same thing, in the instance's language:
+              it is read from the assistant's dictionary, where all its prose
+              now lives.
+                         */}
             <dd className="text-text">{to(`step.${state.currentStep}.title`)}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-border pb-1.5">

@@ -16,8 +16,8 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Redémarre une application en marche. Mêmes images, mêmes volumes, même port :
- * ce n'est ni un déploiement, ni un rollback. La route enfile et rend la main.
+ * Restarts a running application. Same images, same volumes, same port: it is
+ * neither a deployment nor a rollback. The route queues and gives control back.
  */
 export const POST = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'deployment:restart');
@@ -29,12 +29,12 @@ export const POST = apiRoute<Context>(async (request, context) => {
     throw new ConflictError(msg(appConsole, 'error.notRestartable', { status: deployment.status }));
   }
   /**
-   * Redémarrer une application arrêtée serait ambigu : `docker compose restart`
-   * relancerait bel et bien les conteneurs — la base la croirait toujours
-   * arrêtée et la sonde périodique continuerait de l'ignorer —, tandis qu'un
-   * `rollout restart` sur zéro réplique ne ferait rien du tout. Un même bouton
-   * pour deux effets opposés selon le runtime est exactement ce que
-   * l'architecture refuse. Le geste existe, il s'appelle « Démarrer ».
+   * Restarting a stopped application would be ambiguous: `docker compose restart`
+   * would indeed start the containers again — the database would still believe it
+   * stopped and the periodic probe would keep ignoring it —, while a `rollout
+   * restart` on zero replicas would do nothing at all. The same button for two
+   * opposite effects depending on the runtime is exactly what the architecture
+   * refuses. The gesture exists, it is called "Start".
    */
   if (deployment.stoppedAt !== null) {
     throw new ConflictError(msg(appConsole, 'error.stoppedRestart'));

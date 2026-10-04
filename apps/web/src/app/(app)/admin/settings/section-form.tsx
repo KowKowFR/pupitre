@@ -8,16 +8,16 @@ import { Button } from '@/components/ui/button';
 import type { SettingsPatch } from './use-settings-patch';
 
 /**
- * Enveloppe commune d'une sous-section modifiable : les deux bandeaux de
- * retour, et le couple Enregistrer / Annuler.
+ * The common envelope of an editable subsection: the two feedback banners, and
+ * the Save / Cancel pair.
  *
- * Un vrai `<form>`, pas une `<div>` avec un bouton : la touche Entrée dans un
- * champ enregistre, ce qu'on attend d'un formulaire de réglages, et le bouton
- * de soumission est annoncé comme tel.
+ * A real `<form>`, not a `<div>` with a button: the Enter key in a field saves,
+ * which is what one expects from a settings form, and the submit button is
+ * announced as such.
  *
- * Sans `settings:manage`, il n'y a pas de barre d'actions du tout. La mention
- * qui l'explique est posée une fois pour toutes par le layout de la section :
- * la répéter sur chaque panneau serait du bruit.
+ * Without `settings:manage`, there is no action bar at all. The notice that
+ * explains it is set once and for all by the section's layout: repeating it on
+ * each panel would be noise.
  */
 export function SectionForm({
   patch,

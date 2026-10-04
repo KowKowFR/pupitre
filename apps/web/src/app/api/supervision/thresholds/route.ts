@@ -20,28 +20,28 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Les seuils de la supervision de serveurs.
+ * The server monitoring's thresholds.
  *
- * ── Pourquoi une route et pas seulement une constante ───────────────────────
- * « Un seuil qu'on ne peut pas régler est un seuil qu'on désactive. » Un serveur
- * de build vit à 95 % de disque par construction ; sans réglage, l'exploitant
- * apprend en une semaine à ignorer les alertes — et ignorera aussi la vraie.
+ * ── Why a route and not only a constant ─────────────────────────────────────
+ * "A threshold that cannot be set is a threshold that gets turned off." A build
+ * server lives at 95% disk by design; without a setting, the operator learns in
+ * a week to ignore the alerts — and will ignore the real one too.
  *
- * ── Pourquoi trois couches ──────────────────────────────────────────────────
- *   catalogue → toujours présent, donc une instance neuve alerte sans réglage
- *   global    → `targetId: null`, le comportement de la boîte
- *   machine   → l'exception, là où elle se justifie
- * La résolution est faite en base (`resolveThresholds`), jamais recopiée ici.
+ * ── Why three layers ────────────────────────────────────────────────────────
+ *   catalog → always present, so a new instance alerts without any setting
+ *   global  → `targetId: null`, the house behavior
+ *   machine → the exception, where it is justified
+ * The resolution is done in the database (`resolveThresholds`), never copied here.
  *
- * ── Pourquoi `target:update` et pas `settings:manage` ───────────────────────
- * Régler à partir de quand une machine est en peine, c'est décrire cette
- * machine — pas configurer l'instance. Qui peut modifier une cible peut dire
- * comment on la surveille. Le défaut global suit la même permission : il n'ouvre
- * aucun pouvoir que le réglage machine par machine n'ouvrirait déjà.
+ * ── Why `target:update` and not `settings:manage` ───────────────────────────
+ * Setting from when a machine is struggling is describing that machine — not
+ * configuring the instance. Whoever can change a target can say how it is
+ * watched. The global default follows the same permission: it opens no power
+ * that the machine-by-machine setting would not already open.
  */
 
 const scopeSchema = z.object({
-  /** `null` — ou absent — désigne le défaut de l'instance. */
+  /** `null` — or absent — designates the instance's default. */
   targetId: z.string().uuid().nullable().default(null),
 });
 
@@ -52,15 +52,15 @@ const deleteQuerySchema = z.object({
   metric: hostMetricKeySchema,
 });
 
-/** Le catalogue et les réglages posés. L'écran en déduit ce qu'il affiche. */
+/** The catalog and the settings made. The screen deduces what it shows from them. */
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'target:read');
   const rows = await listThresholdRows();
   const language = await currentLanguage();
 
   return NextResponse.json({
-    // Les défauts sont rendus explicitement : un écran qui n'affiche que les
-    // exceptions ne dit pas ce qui s'applique quand il n'y en a aucune.
+    // The defaults are returned explicitly: a screen that only shows the exceptions
+    // does not say what applies when there are none.
     catalog: HOST_METRIC_LIST.map((definition) => ({
       metric: definition.key,
       label: definition.label(language),
@@ -97,8 +97,8 @@ export const PUT = apiRoute(async (request) => {
     auth.userId,
   );
 
-  // Changer un seuil, c'est changer ce qui réveillera quelqu'un à 3 h du matin.
-  // Ça se trace, comme tout ce qui modifie une cible.
+  // Changing a threshold is changing what will wake someone up at 3 a.m. It gets
+  // traced, like everything that changes a target.
   await logAudit({
     actorId: auth.userId,
     action: 'target.threshold.updated',
@@ -118,7 +118,7 @@ export const PUT = apiRoute(async (request) => {
   return NextResponse.json(row);
 });
 
-/** Retire un réglage : la couche du dessous — global, puis catalogue — reprend. */
+/** Removes a setting: the layer below — global, then catalog — takes over again. */
 export const DELETE = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'target:update');
   const query = readSearchParams(request, deleteQuerySchema);

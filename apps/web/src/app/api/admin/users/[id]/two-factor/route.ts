@@ -22,18 +22,18 @@ const paramsSchema = z.object({ id: z.string().min(1).max(200) });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Réinitialisation du second facteur d'un autre utilisateur — la porte de
- * sortie de quelqu'un qui a perdu son téléphone ET ses codes de secours.
+ * Resetting another user's second factor — the way out for someone who lost
+ * their phone AND their backup codes.
  *
- * `user:reset-2fa`, et pas `user:manage` : le geste lève une protection sur un
- * compte, il ne se donne pas en même temps que le droit de changer un rôle.
+ * `user:reset-2fa`, and not `user:manage`: the gesture lifts a protection on an
+ * account, it is not given together with the right to change a role.
  *
- * Sur les sessions, la règle est celle du changement de mot de passe
- * (`revokeOtherSessions`) : toutes celles de la cible tombent. La demande
- * arrive quand un appareil a été perdu ou volé ; laisser vivre la session
- * ouverte sur cet appareil viderait l'opération de son sens. Seule exception,
- * la session de l'appelant lorsqu'il se réinitialise lui-même : la fermer le
- * renverrait à l'écran de connexion sans rien protéger de plus.
+ * On sessions, the rule is the password change's (`revokeOtherSessions`): all of
+ * the target's go down. The request comes when a device was lost or stolen;
+ * letting the session open on that device live would empty the operation of its
+ * meaning. The only exception, the caller's session when they reset themselves:
+ * closing it would send them back to the sign-in screen without protecting
+ * anything more.
  */
 export const DELETE = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'user:reset-2fa');
@@ -43,10 +43,10 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
   const [target] = await db.select().from(users).where(eq(users.id, id));
   if (!target) throw new NotFoundError(msg(admin, 'error.user.notFound', { id }));
 
-  // Se réinitialiser soi-même est permis : un administrateur qui a perdu son
-  // téléphone mais tient encore une session est exactement celui qu'on ne veut
-  // pas obliger à ouvrir un client SQL. Il ne gagne aucun accès qu'il n'ait
-  // déjà, et l'audit garde la trace que l'acteur et la cible ne font qu'un.
+  // Resetting oneself is allowed: an administrator who lost their phone but still
+  // holds a session is exactly the one we do not want to force to open an SQL
+  // client. They gain no access they did not already have, and the audit keeps the
+  // trace that the actor and the target are one and the same.
   const isSelf = id === auth.userId;
   const session = isSelf ? await getSession(request.headers) : null;
 
@@ -65,9 +65,9 @@ export const DELETE = apiRoute<Context>(async (request, context) => {
     throw new ConflictError(msg(admin, 'error.user.no2fa', { email: target.email }));
   }
 
-  // Rien de secret ici : ni l'ancien secret TOTP, ni les codes de secours, qui
-  // n'ont de toute façon jamais quitté la base autrement que chiffrés. On trace
-  // qui a agi, sur qui, depuis quelle IP, et ce que l'opération a emporté.
+  // Nothing secret here: neither the old TOTP secret, nor the backup codes, which
+  // never left the database other than encrypted anyway. We trace who acted, on
+  // whom, from which IP, and what the operation took away.
   await logAudit({
     actorId: auth.userId,
     action: 'user.2fa.reset',

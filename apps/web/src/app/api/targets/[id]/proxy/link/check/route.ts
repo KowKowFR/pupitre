@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
-/** « Tester la liaison » : par la file ; le résultat se lit sur la liaison. */
+/** "Test the link": through the queue; the result is read on the link. */
 export const POST = apiRoute<Context>(async (request, context) => {
   await requirePermission(request, 'target:update');
   const { id } = paramsSchema.parse(await context.params);

@@ -33,13 +33,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export const dynamic = 'force-dynamic';
 
-/** Écart d'horloge toléré entre le panel et la base pour situer une connexion. */
+/** Clock drift tolerated between the panel and the database to place a sign-in. */
 const SIGN_IN_SKEW_MS = 5_000;
 
 /**
- * Écran « mon compte ». Aucune permission RBAC : changer son mot de passe et
- * gérer son second facteur sont des actions sur soi, pas des privilèges. Une
- * session suffit — et c'est exactement ce que vérifient les routes derrière.
+ * The "my account" screen. No RBAC permission: changing one's password and
+ * managing one's second factor are actions on oneself, not privileges. A
+ * session is enough — and that is exactly what the routes behind it check.
  */
 export default async function AccountPage() {
   const auth = await requirePageSession('/account');
@@ -52,9 +52,9 @@ export default async function AccountPage() {
       .from(users)
       .where(eq(users.id, auth.userId)),
     listAccountSessions(await headers()).then(async ({ sessions }) => {
-      // La connexion qui a ouvert cette session s'écrit au journal juste
-      // après elle : la précédente est celle d'avant son ouverture. La marge
-      // couvre un écart d'horloge entre le panel et la base.
+      // The sign-in that opened this session is written to the log right after it:
+      // the previous one is the one before it opened. The margin covers a clock
+      // drift between the panel and the database.
       const started = sessions.find((session) => session.current)?.createdAt;
       const before = started ? new Date(Date.parse(started) - SIGN_IN_SKEW_MS) : undefined;
       return { sessions, previous: await lastSignIn(auth.userId, { before }) };
@@ -74,7 +74,7 @@ export default async function AccountPage() {
     return formatDateTimeWith(date, format, day) === formatDateTimeWith(new Date(), format, day);
   };
   const twoFactorEnabled = row?.twoFactorEnabled ?? false;
-  // Un jeton ne délègue que des permissions : sans aucune, rien à déléguer.
+  // A token only delegates permissions: without any, nothing to delegate.
   const tokens = isTeamMember(auth)
     ? await Promise.all([
         apiTokenRows({ userId: auth.userId }, format),
@@ -125,8 +125,8 @@ export default async function AccountPage() {
         }}
         signIn={{
           label: t('overview.signIn'),
-          // « Connecté depuis 14:32 » : l'ouverture de cette session, pas un
-          // « il y a 5 min » figé au rendu de la page.
+          // "Signed in since 14:32": this session's opening, not a "5 min ago" frozen at
+          // the page's rendering.
           value: current
             ? t(today(current.createdAt) ? 'overview.signIn.since' : 'overview.signIn.sinceDay', {
                 time: formatDateTimeWith(current.createdAt, format, {
@@ -141,7 +141,7 @@ export default async function AccountPage() {
                 }),
               })
             : t('overview.signIn.connected'),
-          // « Précédente : 30/09/2026 08:30 · TOTP · 192.168.10.12 » : quand, comment, d'où.
+          // "Previous: 30/09/2026 08:30 · TOTP · 192.168.10.12": when, how, from where.
           hint: previous
             ? t('overview.signIn.previous', {
                 detail: [
@@ -156,7 +156,7 @@ export default async function AccountPage() {
         }}
       />
 
-      {/* Deux cartes de même hauteur : pas de vide sous la plus courte. */}
+      {/* Two cards of the same height: no gap under the shorter one. */}
       <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
         <PasswordForm />
         <TwoFactorPanel enabled={twoFactorEnabled} required={auth.twoFactor.required} />

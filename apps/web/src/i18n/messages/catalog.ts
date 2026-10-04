@@ -1,11 +1,11 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Le catalogue : des applications prêtes à l'emploi, installées en AppSpec.
+ * The catalog: ready-to-use applications, installed as AppSpecs.
  *
- * Les textes propres à chaque modèle (résumé, premier accès) vivent avec le
- * modèle, dans `@pupitre/core/catalog` : ajouter un modèle ne touche pas à ce
- * dictionnaire.
+ * The texts specific to each template (summary, first access) live with the
+ * template, in `@pupitre/core/catalog`: adding a template does not touch this
+ * dictionary.
  */
 const fr = {
   'page.title': 'Catalogue',

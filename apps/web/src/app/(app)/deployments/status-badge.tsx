@@ -7,12 +7,12 @@ import { deployments as messages } from '@/i18n/messages/deployments';
 import { formatDateTimeWith, type FormatSettings } from '@/lib/format';
 
 /**
- * Les six libellés de statut, dans la langue de l'instance.
+ * The six status labels, in the instance's language.
  *
- * Un hook remplace la table figée d'avant : celle-ci se construisait au
- * chargement du module, donc avant qu'aucun contexte de langue n'existe. C'est
- * aussi ce qui fait passer ce fichier côté client — le badge est déjà rendu
- * dans des composants clients, et le tableau de bord peut l'afficher tel quel.
+ * A hook replaces the frozen table of before: that one was built when the module
+ * loaded, hence before any language context existed. It is also what moves this
+ * file to the client side — the badge is already rendered in client components,
+ * and the dashboard can show it as is.
  */
 function useDeploymentLabels(): Record<DeploymentStatus, string> {
   const t = useT(messages);
@@ -27,12 +27,12 @@ function useDeploymentLabels(): Record<DeploymentStatus, string> {
 }
 
 /**
- * `rolled_back` n'est pas `failed`.
+ * `rolled_back` is not `failed`.
  *
- * Un déploiement rollbacké est un déploiement qui a raté **et dont on s'est
- * remis** : l'URL répond, la version précédente est en service. Le peindre en
- * rouge ferait croire à une panne là où le filet de sécurité a fonctionné.
- * D'où l'ambre : quelque chose s'est mal passé, rien n'est cassé.
+ * A rolled-back deployment is a deployment that failed **and was recovered
+ * from**: the URL answers, the previous version is in service. Painting it red
+ * would suggest an outage where the safety net worked. Hence amber: something
+ * went wrong, nothing is broken.
  */
 const DEPLOYMENT_VARIANT: Record<DeploymentStatus, BadgeProps['variant']> = {
   pending: 'idle',
@@ -44,8 +44,8 @@ const DEPLOYMENT_VARIANT: Record<DeploymentStatus, BadgeProps['variant']> = {
 };
 
 /**
- * Pastille de statut d'un run : un point et un mot, dans le ton de l'état.
- * « En cours » est en outremer — ce qui est en train de se faire.
+ * A run's status chip: a dot and a word, in the state's tone. "In progress" is
+ * ultramarine — what is being done.
  */
 export function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) {
   const label = useDeploymentLabels();
@@ -57,9 +57,9 @@ export function DeploymentStatusBadge({ status }: { status: DeploymentStatus }) 
 }
 
 /**
- * Durée d'un run. En cours, elle se compte jusqu'à maintenant — et le serveur
- * et le navigateur ne lisent pas l'horloge à la même seconde : là où elle
- * s'affiche, l'élément porte `suppressHydrationWarning`.
+ * A run's duration. In progress, it counts up to now — and the server and the
+ * browser do not read the clock at the same second: where it is shown, the
+ * element carries `suppressHydrationWarning`.
  */
 export function formatDuration(from: string | null, to: string | null): string {
   if (!from) return '—';
@@ -70,13 +70,13 @@ export function formatDuration(from: string | null, to: string | null): string {
 }
 
 /**
- * L'horodatage d'un déploiement.
+ * A deployment's timestamp.
  *
- * Le fuseau reste **UTC**, et délibérément : ces colonnes se comparent à des
- * logs de worker, qui sont en UTC. La locale, elle, n'avait aucune raison de
- * rester figée — `15/01/2026 14:32:07` sur un panel anglais était une date
- * qu'on lit de travers. Elle vient donc des paramètres d'instance, par props,
- * ce qui garantit aussi la même chaîne côté serveur et côté client.
+ * The time zone stays **UTC**, and deliberately: these columns compare with
+ * worker logs, which are in UTC. The locale, for its part, had no reason to stay
+ * frozen — `15/01/2026 14:32:07` on an English panel was a date read the wrong
+ * way. It therefore comes from the instance settings, through props, which also
+ * guarantees the same string on the server side and on the client side.
  */
 export function formatDate(iso: string | null, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, {

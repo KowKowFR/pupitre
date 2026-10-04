@@ -28,26 +28,26 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 type Context = { params: Promise<{ id: string }> };
 
 /**
- * Suppression en cascade d'une application, et sa porte de secours.
+ * An application's cascading deletion, and its emergency exit.
  *
- * Route à part de `DELETE /api/applications/:id`, qui reste le geste simple :
- * effacer une application qui ne retient plus rien. Ici c'est l'inverse — on
- * part du principe qu'elle tourne, et on va la démonter sur ses cibles avant de
- * l'effacer. Deux gestes, deux chemins, deux jeux de permissions.
+ * A route separate from `DELETE /api/applications/:id`, which stays the simple
+ * gesture: erasing an application that no longer holds anything. Here it is the
+ * reverse — we assume it runs, and we are going to dismantle it on its targets
+ * before erasing it. Two gestures, two paths, two sets of permissions.
  *
- * ── Les permissions exigées ───────────────────────────────────────────────────
- * L'opération fait trois choses, elle exige donc les trois permissions
- * correspondantes : `deployment:destroy` (elle démonte sur la machine),
- * `deployment:purge` (elle efface l'historique) et `application:delete` (elle
- * supprime l'application). Leur **union**, pas une permission de plus : qui sait
- * faire les trois séparément sait les enchaîner, et inventer un quatrième mot
- * aurait créé un pouvoir que personne n'a encore dans aucun rôle.
+ * ── The required permissions ──────────────────────────────────────────────────
+ * The operation does three things, so it requires the three corresponding
+ * permissions: `deployment:destroy` (it dismantles on the machine),
+ * `deployment:purge` (it erases the history) and `application:delete` (it deletes
+ * the application). Their **union**, not one more permission: whoever can do all
+ * three separately can chain them, and inventing a fourth word would have created
+ * a power nobody has yet in any role.
  *
- * Le forçage exige exactement les mêmes, et pas davantage — le vocabulaire RBAC
- * n'a rien de plus strict à offrir. Ce qu'il exige en plus n'est pas une
- * permission mais une **intention** : le slug de l'application, retapé à la
- * main, après avoir vu la liste de ce qu'on abandonne. Une case à cocher se
- * coche par réflexe ; un nom se recopie en regardant.
+ * Forcing requires exactly the same ones, and no more — the RBAC vocabulary has
+ * nothing stricter to offer. What it requires on top is not a permission but an
+ * **intention**: the application's slug, typed again by hand, after seeing the
+ * list of what is being abandoned. A checkbox is checked by reflex; a name is
+ * copied while looking.
  */
 const CASCADE_PERMISSIONS = [
   'deployment:destroy',
@@ -64,12 +64,12 @@ async function requireCascadePermissions(request: Request) {
 }
 
 /**
- * Ce qu'un forçage abandonnerait, **nommé**.
+ * What a forcing would abandon, **named**.
  *
- * Le nom du regroupement vient de la convention partagée (`workspaceNameFor`)
- * et non d'un driver : `@pupitre/core/drivers` est hors du graphe du panel. Le
- * journal d'activité, lui, est écrit par le worker, qui interroge le driver —
- * c'est là qu'est l'autorité.
+ * The grouping's name comes from the shared convention (`workspaceNameFor`) and
+ * not from a driver: `@pupitre/core/drivers` is outside the panel's graph. The
+ * activity log, for its part, is written by the worker, which queries the driver
+ * — that is where the authority is.
  */
 function describe(
   blockers: Awaited<ReturnType<typeof listApplicationDeletionBlockers>>,
@@ -92,21 +92,21 @@ function describe(
 
 const querySchema = z.object({
   /**
-   * Suit une cascade déjà lancée. Sur cette route et non sur
-   * `/api/queue/jobs/:id`, qui exige `job:read` : quelqu'un qui a le droit de
-   * lancer une suppression doit pouvoir en lire l'issue sans qu'on lui accorde
-   * la lecture de toute la file. Et l'application, elle, a pu disparaître
-   * entre-temps — c'est même le cas nominal.
+   * Follows a cascade already started. On this route and not on
+   * `/api/queue/jobs/:id`, which requires `job:read`: someone allowed to start a
+   * deletion must be able to read its outcome without being granted the reading of
+   * the whole queue. And the application may have disappeared in the meantime —
+   * it is even the nominal case.
    */
   jobId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
 });
 
 /**
- * Prévisualisation. Elle n'écrit rien et sert la modale de confirmation : elle
- * doit **nommer** — quelle cible, quel projet Compose, quel port —, pas
- * compter. Un décompte ne permet à personne d'aller finir le ménage à la main.
+ * Preview. It writes nothing and serves the confirmation modal: it must **name**
+ * — which target, which Compose project, which port —, not count. A count does
+ * not allow anyone to go and finish the cleanup by hand.
  *
- * Avec `?jobId=`, elle rend l'état d'une cascade en cours à la place.
+ * With `?jobId=`, it returns the state of a cascade in progress instead.
  */
 export const GET = apiRoute<Context>(async (request, context) => {
   const auth = await requirePermission(request, 'application:delete');
@@ -117,7 +117,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     const job = await getOpsQueue().getJob(jobId);
     if (!job) throw new NotFoundError(msg(messages, 'error.jobNotFound', { jobId }));
 
-    // Une tâche d'une autre application n'a rien à répondre sur ce chemin.
+    // Another application's job has nothing to answer on this path.
     const data = applicationDeleteJobDataSchema.safeParse(job.data);
     if (!data.success || data.data.applicationId !== id) {
       throw new NotFoundError(msg(messages, 'error.jobOtherApplication', { jobId }));
@@ -147,9 +147,9 @@ export const GET = apiRoute<Context>(async (request, context) => {
     applicationId: id,
     applicationSlug: application.slug,
     workspace: workspaceNameFor(application.slug),
-    /** Vide ⇒ `DELETE /api/applications/:id` suffit, sans cascade ni forçage. */
+    /** Empty ⇒ `DELETE /api/applications/:id` is enough, without cascade or forcing. */
     blockers: describe(blockers, application.slug),
-    /** Déploiements qui partiront de l'historique, `destroyed` compris. */
+    /** Deployments that will leave the history, `destroyed` included. */
     historyCount,
     reservedPorts,
     requiredPermissions: CASCADE_PERMISSIONS,
@@ -160,12 +160,12 @@ export const GET = apiRoute<Context>(async (request, context) => {
 
 const cascadeSchema = z.object({
   /**
-   * `false` : on détruit, et si une cible résiste on n'efface rien.
-   * `true`  : on détruit quand même d'abord, et ce qui résiste est abandonné —
-   *           nommé dans le journal d'activité, puis effacé de la base.
+   * `false`: we destroy, and if a target resists we erase nothing.
+   * `true`:  we still destroy first, and what resists is abandoned — named in the
+   *          activity log, then erased from the database.
    */
   force: z.boolean().default(false),
-  /** Slug de l'application, retapé. Exigé au forçage, ignoré sinon. */
+  /** The application's slug, typed again. Required when forcing, ignored otherwise. */
   confirm: z.string().max(200).optional(),
 });
 
@@ -177,16 +177,14 @@ export const POST = apiRoute<Context>(async (request, context) => {
   const application = await getApplication(id);
   if (!application) throw new NotFoundError(msg(messages, 'error.notFound', { id }));
 
-  // Les listes ci-dessous s'insèrent DANS la phrase : elles ne peuvent pas
-  // attendre la sérialisation comme `msg()`. On lit la langue ici pour que
-  // les morceaux tombent d'accord.
+  // The lists below go INTO the sentence: they cannot wait for serialization like
+  // `msg()`. We read the language here so that the pieces agree.
   const language = await currentLanguage();
   const blockers = await listApplicationDeletionBlockers(id, { language });
 
-  // Un déploiement en cours ne se détruit pas et ne s'efface pas, forçage
-  // compris : effacer la ligne sous le worker qui l'écrit laisserait la machine
-  // dans un état que plus personne ne saurait décrire. C'est transitoire —
-  // on attend.
+  // A deployment in progress is neither destroyed nor erased, forcing included:
+  // erasing the row under the worker writing it would leave the machine in a state
+  // nobody could describe any more. It is transient — we wait.
   const inProgress = blockers.filter((blocker) => blocker.reason === 'in_progress');
   if (inProgress.length > 0) {
     throw new ConflictError(
@@ -240,14 +238,14 @@ export const POST = apiRoute<Context>(async (request, context) => {
       actorId: auth.userId,
       ip: auth.ip,
     }),
-    // Jamais rejouée : une destruction rejouée n'a pas de sens, et un
-    // effacement rejoué porterait sur une application qui n'existe plus.
+    // Never replayed: a replayed destruction makes no sense, and a replayed erasure
+    // would concern an application that no longer exists.
     { attempts: 1 },
   );
   if (!job.id) throw new HttpError(500, 'enqueue_failed', msg(messages, 'error.enqueueFailed'));
 
-  // Tracée **avant** que quoi que ce soit disparaisse : si le worker s'écroule
-  // au milieu, le journal dit au moins ce qui avait été demandé, et sur quoi.
+  // Traced **before** anything disappears: if the worker collapses midway, the log
+  // at least says what had been asked, and on what.
   await logAudit({
     actorId: auth.userId,
     action: force ? 'application.delete.force.requested' : 'application.delete.requested',

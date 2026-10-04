@@ -8,9 +8,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Ce que la session peut mentionner : toutes les personnes, les machines si
- * elle lit les cibles, les applications si elle lit les applications. C'est
- * aussi ce qui donne leur nom actuel aux mentions affichées.
+ * What the session can mention: all the people, the machines if it reads the
+ * targets, the applications if it reads the applications. It is also what gives
+ * the displayed mentions their current name.
  */
 export const GET = apiRoute(async (request) => {
   const auth = await requireTeamMember(request);

@@ -31,36 +31,35 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Sondes de supervision.
+ * Monitoring probes.
  *
- * ── Le lien avec les déploiements ────────────────────────────────────────────
- * Le panel connaît déjà l'URL de tout ce qu'il déploie. Il **ne crée pourtant
- * pas la sonde tout seul**, et c'est un choix :
+ * ── The link with deployments ────────────────────────────────────────────────
+ * The panel already knows the URL of everything it deploys. It **still does not
+ * create the probe on its own**, and that is a choice:
  *
- *   - Créer automatiquement veut dire pouvoir annuler. Or une sonde auto-créée
- *     que l'opérateur supprime réapparaîtrait au déploiement suivant, à moins
- *     de tenir une table de pierres tombales — un troisième objet, pour une
- *     commodité.
- *   - Une sonde émet du trafic sortant depuis le worker, à la minute, vers une
- *     cible. Ce n'est pas un effet de bord qu'un `POST /api/deployments`
- *     devrait produire sans qu'on l'ait demandé.
- *   - Le geste de déploiement vit dans `apps/worker/src/deploy/`, hors du
- *     périmètre de ce chantier : l'y brancher aurait été un branchement en
- *     terrain occupé.
+ *   - Creating automatically means being able to cancel. Yet an auto-created
+ *     probe the operator deletes would reappear at the next deployment, unless a
+ *     table of tombstones is kept — a third object, for a convenience.
+ *   - A probe emits outgoing traffic from the worker, every minute, toward a
+ *     target. It is not a side effect a `POST /api/deployments` should produce
+ *     without being asked.
+ *   - The deployment gesture lives in `apps/worker/src/deploy/`, outside this
+ *     work's scope: plugging it there would have been building on occupied
+ *     ground.
  *
- * À la place : `GET` renvoie `adoptable`, la liste des applications déployées,
- * joignables et pas encore supervisées. L'écran en fait un bouton « Superviser »
- * qui pré-remplit tout. Un clic, et l'opérateur sait ce qu'il a créé.
+ * Instead: `GET` returns `adoptable`, the list of deployed applications,
+ * reachable and not monitored yet. The screen turns it into a "Monitor" button
+ * that prefills everything. One click, and the operator knows what they created.
  *
- * Dans l'autre sens, le lien est automatique : la sonde d'une application
- * détruite est **suspendue** par le balayage, avec son motif, plutôt que de
- * hurler à la panne. Elle se reprend d'un clic.
+ * In the other direction, the link is automatic: the probe of a destroyed
+ * application is **paused** by the sweep, with its reason, rather than crying
+ * outage. It is resumed with a click.
  */
 
 /**
- * Le refus de `resolveConfig()` arrive en donnée ; la phrase se fabrique dans
- * `lib/monitors`, où la langue de l'instance est lisible. Les deux routes de
- * sonde passent par là, donc disent la même chose.
+ * `resolveConfig()`'s refusal arrives as data; the sentence is made in
+ * `lib/monitors`, where the instance's language is readable. Both probe routes go
+ * through there, so they say the same thing.
  */
 async function translate(error: unknown): Promise<never> {
   if (error instanceof MonitorConfigError) throw await monitorConfigMessage(error);
@@ -77,9 +76,9 @@ export const GET = apiRoute(async (request) => {
     items,
     total: items.length,
     adoptable,
-    // Le catalogue est **envoyé au client** : c'est lui qui dit à l'écran quels
-    // champs afficher pour chaque type. Sans ça il faudrait un `if` par type
-    // dans le formulaire, et ajouter un type deviendrait une chirurgie.
+    // The catalog is **sent to the client**: it is what tells the screen which fields
+    // to show for each type. Without it there would have to be one `if` per type in
+    // the form, and adding a type would become surgery.
     types: await monitorTypeOptions(MONITOR_TYPES_LIST),
     defaults: {
       failureThreshold: MONITOR_FAILURE_THRESHOLD_DEFAULT,
@@ -93,8 +92,8 @@ export const POST = apiRoute(async (request) => {
   const auth = await requirePermission(request, 'monitor:manage');
   const input = await readJsonBody(request, createMonitorSchema);
 
-  // La garde SSRF, à la création. Le worker la refait à chaque saut : une garde
-  // qui ne tient qu'ici n'en serait pas une.
+  // The SSRF guard, at creation. The worker does it again at each hop: a guard that
+  // only holds here would not be one.
   await assertConfigAllowed(input.type, input.config);
   if (input.webhookUrl) await assertUrlAllowed(input.webhookUrl, 'webhookUrl');
 
@@ -122,7 +121,7 @@ export const POST = apiRoute(async (request) => {
       failureThreshold: row.failureThreshold,
       recoveryThreshold: row.recoveryThreshold,
       applicationId: row.applicationId,
-      // Jamais l'URL du webhook : c'est un secret, et un journal d'audit se lit.
+      // Never the webhook's URL: it is a secret, and an audit log gets read.
       hasWebhook: row.webhookUrlEncrypted !== null,
     },
     ip: auth.ip,

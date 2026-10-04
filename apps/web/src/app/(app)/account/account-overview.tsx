@@ -3,9 +3,9 @@ import { Badge } from '@/components/ui/badge';
 import { AvatarEditor } from './avatar-editor';
 
 /**
- * Le haut de « Mon compte » : qui l'on est, et où en est la protection du
- * compte — en trois relevés qu'on lit sans rien ouvrir. Tout est déjà mis en
- * mots par la page : ce composant ne fait que disposer.
+ * The top of "My account": who one is, and where the account's protection
+ * stands — in three readouts read without opening anything. Everything is
+ * already put into words by the page: this component only lays it out.
  */
 export function AccountOverview({
   name,

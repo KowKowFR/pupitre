@@ -2,9 +2,8 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Champ de saisie — 34 px, focus outremer avec anneau de 3 px, état
- * `aria-invalid` en rouge. Les identifiants (hôte, slug, image) prennent la
- * classe `mono`.
+ * An input field — 34 px, ultramarine focus with a 3 px ring, `aria-invalid` state
+ * in red. The identifiers (host, slug, image) take the `mono` class.
  */
 function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
   return <input type={type} data-slot="input" className={cn('input', className)} {...props} />;

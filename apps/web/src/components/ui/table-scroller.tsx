@@ -6,23 +6,22 @@ import { chrome } from '@/i18n/messages/chrome';
 import { cn } from '@/lib/utils';
 
 /**
- * Le conteneur défilant d'un tableau, avec les deux choses que
- * `overflow-x: auto` ne fournit pas tout seul.
+ * A table's scrolling container, with the two things `overflow-x: auto` does not
+ * provide on its own.
  *
- * **Un voile sur le bord qui cache quelque chose.** macOS masque les barres de
- * défilement tant qu'on ne défile pas : un tableau tronqué y est visuellement
- * indiscernable d'un tableau complet. On l'a constaté sur l'écran des cibles à
- * 1024 px de large — la colonne « Actions » disparaissait sans que rien
- * n'indique qu'elle existait encore.
+ * **A veil on the edge that hides something.** macOS hides the scrollbars as long
+ * as one does not scroll: a truncated table there is visually indistinguishable
+ * from a complete one. It was observed on the targets screen at 1024 px wide —
+ * the "Actions" column disappeared without anything showing it still existed.
  *
- * **Un accès au clavier.** Une zone qui défile et qu'aucun `Tab` n'atteint rend
- * son contenu caché inatteignable sans souris. Le `tabIndex` n'est posé que
- * lorsqu'il y a effectivement de quoi défiler : ajouter une étape de tabulation
- * devant chaque tableau qui tient déjà à l'écran serait une régression.
+ * **Keyboard access.** A scrolling area no `Tab` reaches makes its hidden content
+ * unreachable without a mouse. The `tabIndex` is only set when there actually is
+ * something to scroll: adding a tab stop before each table that already fits on
+ * screen would be a regression.
  *
- * Les attributs `data-more-left` / `data-more-right` sont aussi lus par les
- * cellules épinglées (`TableActions`), qui ne se détachent du fond que quand
- * elles recouvrent réellement quelque chose.
+ * The `data-more-left` / `data-more-right` attributes are also read by the pinned
+ * cells (`TableActions`), which only stand out from the background when they
+ * really cover something.
  */
 export function TableScroller({
   className,
@@ -30,7 +29,7 @@ export function TableScroller({
   children,
 }: {
   className?: string;
-  /** Ce que le tableau contient, pour l'annonce vocale de la zone défilante. */
+  /** What the table contains, for the scrolling area's spoken announcement. */
   label?: string;
   children: React.ReactNode;
 }) {
@@ -41,8 +40,8 @@ export function TableScroller({
   const measure = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    // Marge d'un pixel : les largeurs de colonnes sont fractionnaires et un
-    // écart de 0,5 px ferait clignoter le voile sur un tableau qui tient.
+    // A one-pixel margin: the columns' widths are fractional and a 0.5 px gap would
+    // make the veil flicker on a table that fits.
     const left = el.scrollLeft > 1;
     const right = Math.ceil(el.scrollLeft + el.clientWidth) < el.scrollWidth - 1;
     setMore((current) =>
@@ -55,9 +54,9 @@ export function TableScroller({
     if (!el) return;
     measure();
 
-    // On observe le conteneur **et** la table. La fenêtre n'est pas la seule
-    // chose qui change de taille : une ligne ajoutée par une réponse d'API
-    // élargit la table sans que le conteneur bouge d'un pixel.
+    // We observe the container **and** the table. The window is not the only thing
+    // that changes size: a row added by an API response widens the table without the
+    // container moving a pixel.
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     const table = el.firstElementChild;
@@ -75,8 +74,7 @@ export function TableScroller({
         data-slot="table-container"
         data-more-left={more.left ? '' : undefined}
         data-more-right={more.right ? '' : undefined}
-        // `focus-visible` seulement : cliquer dans le tableau ne doit pas
-        // entourer la zone entière d'un anneau.
+        // `focus-visible` only: clicking in the table must not ring the whole area.
         className={cn(
           'tbl-wrap rounded-[inherit] focus-visible:shadow-focus focus-visible:outline-none',
           className,
@@ -97,10 +95,10 @@ export function TableScroller({
 }
 
 /**
- * Le voile. Il ne masque pas le contenu, il annonce qu'il continue : une bande
- * étroite, dégradée depuis la couleur de la carte, qui s'efface quand on
- * atteint le bord. `pointer-events-none` pour ne rien intercepter — un bouton
- * placé sous le voile doit rester cliquable.
+ * The veil. It does not hide the content, it announces that it goes on: a narrow
+ * band, a gradient from the card's color, which fades when the edge is reached.
+ * `pointer-events-none` so as to intercept nothing — a button placed under the
+ * veil must stay clickable.
  */
 function Veil({ side, show }: { side: 'left' | 'right'; show: boolean }) {
   return (
@@ -108,9 +106,9 @@ function Veil({ side, show }: { side: 'left' | 'right'; show: boolean }) {
       aria-hidden
       className={cn(
         'pointer-events-none absolute inset-y-0 w-12 transition-opacity duration-150',
-        // La couleur de la carte tient sur les deux cinquièmes avant de
-        // s'effacer : un dégradé qui commence à disparaître dès le bord est
-        // trop timide pour se distinguer d'un simple texte qui se termine là.
+        // The card's color holds over two fifths before fading: a gradient that starts
+        // disappearing right at the edge is too timid to stand apart from a mere text
+        // ending there.
         side === 'left'
           ? 'left-0 bg-gradient-to-r from-card from-40% to-transparent'
           : 'right-0 bg-gradient-to-l from-card from-40% to-transparent',

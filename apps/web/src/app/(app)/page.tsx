@@ -64,20 +64,20 @@ import { DeploymentStatusBadge } from './deployments/status-badge';
 export const dynamic = 'force-dynamic';
 
 /**
- * La vue d'ensemble. Trois questions, dans cet ordre, et l'écran ne répond à
- * rien d'autre :
+ * The overview. Three questions, in this order, and the screen answers nothing
+ * else:
  *
- *   1. **Faut-il intervenir ?** — le bloc d'attention, en tête.
- *   2. **Que s'est-il passé ?** — la fenêtre (24 h ou 7 jours) : quatre
- *      relevés, puis quatre pistes sur un axe partagé.
- *   3. **Dans quel état est le parc ?** — les machines, ce qui tourne, les
- *      derniers déploiements, puis l'inventaire qui ferme l'écran.
+ *   1. **Must one intervene?** — the attention block, at the top.
+ *   2. **What happened?** — the window (24 h or 7 days): four readouts, then four
+ *      tracks on a shared axis.
+ *   3. **What state is the fleet in?** — the machines, what runs, the last
+ *      deployments, then the inventory that closes the screen.
  *
- * Tout ce qu'une permission interdit disparaît : une piste, une carte, un
- * bouton. Rien n'est grisé.
+ * Everything a permission forbids disappears: a track, a card, a button. Nothing
+ * is greyed out.
  */
 
-/** Les deux fenêtres d'observation : 24 seaux d'une heure, ou 28 de six heures. */
+/** The two observation windows: 24 one-hour buckets, or 28 six-hour ones. */
 const WINDOWS = {
   day: { hours: 24, buckets: 24 },
   week: { hours: 168, buckets: 28 },
@@ -85,7 +85,7 @@ const WINDOWS = {
 
 type WindowKey = keyof typeof WINDOWS;
 
-/** Plancher sous lequel un taux n'est qu'un décompte : 20 mesures. */
+/** The floor under which a rate is only a count: 20 measurements. */
 const RATE_FLOOR = 20;
 
 const HEALTH_TONE: Record<string, Tone> = {
@@ -135,7 +135,7 @@ function labelOf(catalog: Record<string, MessageKey | undefined>, status: string
   return key === undefined ? status : t(key);
 }
 
-/** « il y a 3 min ». Rend `null` plutôt qu'un tiret : l'appelant décide. */
+/** "3 min ago". Returns `null` rather than a dash: the caller decides. */
 function since(date: Date | null, t: T): string | null {
   if (!date) return null;
   const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
@@ -145,7 +145,7 @@ function since(date: Date | null, t: T): string | null {
   return t('since.days', { count: Math.floor(seconds / 86_400) });
 }
 
-/** « 74 s », « 1 min 52 s ». */
+/** "74 s", "1 min 52 s". */
 function duration(seconds: number, t: T): string {
   if (seconds < 90) return t('duration.seconds', { seconds });
   return t('duration.minutes', {
@@ -154,7 +154,7 @@ function duration(seconds: number, t: T): string {
   });
 }
 
-/** Médiane d'une série éparse. `null` sous trois valeurs — deux n'en ont pas. */
+/** The median of a sparse series. `null` under three values — two have none. */
 function median(values: readonly (number | null)[]): number | null {
   const clean = values.filter((value): value is number => value !== null).sort((a, b) => a - b);
   if (clean.length < 3) return null;
@@ -162,8 +162,8 @@ function median(values: readonly (number | null)[]): number | null {
 }
 
 /**
- * Les fenêtres de la bande : en cours, et à venir dans la journée —
- * seulement celles dont la session lit au moins un sujet.
+ * The band's windows: ongoing, and upcoming within the day — only those of which
+ * the session reads at least one subject.
  */
 function bannerWindows(
   windows: Awaited<ReturnType<typeof listMaintenanceWindows>>,
@@ -187,9 +187,9 @@ export default async function HomePage({
   const auth = await currentAuth('/');
   const t = await getT(dashboard);
 
-  // Un compte sans aucune permission attend qu'un administrateur lui choisisse
-  // un rôle. Le gabarit écoute le sujet `users` : un rôle attribué relit la
-  // page, qui s'ouvre alors d'elle-même.
+  // An account without any permission waits for an administrator to choose it a
+  // role. The template listens to the `users` topic: an assigned role reads the
+  // page again, which then opens by itself.
   if (auth && !isTeamMember(auth)) {
     return (
       <>
@@ -211,11 +211,11 @@ export default async function HomePage({
 
   const window = pulseWindow(hours, buckets);
 
-  // Les cibles d'abord : leurs identifiants conditionnent l'historique du parc.
+  // The targets first: their identifiers condition the fleet's history.
   const targets = canReadTargets ? await loadTargets() : ([] as PublicTarget[]);
 
-  // Le formatage descend par props jusqu'aux figures : la locale d'instance
-  // décide de « 00:33 » comme de « 12 345 », partout sur l'écran.
+  // Formatting comes down through props to the figures: the instance's locale
+  // decides "00:33" as well as "12,345", everywhere on the screen.
   const { settings } = await getAppSettings();
   const format = formatSettingsOf(settings);
 
@@ -252,9 +252,8 @@ export default async function HomePage({
   const recent: DeploymentSummary[] = deployments?.items ?? [];
   const inFlight = recent.filter((item) => item.status === 'running' || item.status === 'pending');
   const targetsUp = targets.filter((target) => target.status === 'ok').length;
-  // Une cible jamais testée n'est pas une cible en panne : c'est une
-  // installation qu'on n'a pas finie. Les confondre faisait dire deux choses
-  // contraires au même écran.
+  // A target never tested is not a broken target: it is an installation that was
+  // not finished. Confusing them made the same screen say two opposite things.
   const targetsUntested = targets.filter((target) => target.status === 'unknown').length;
   const targetsDown = targets.length - targetsUp - targetsUntested;
   const monitorsUp = monitors.filter((monitor) => monitor.status === 'healthy').length;
@@ -307,7 +306,7 @@ export default async function HomePage({
 
       <AttentionPanel items={attention} />
 
-      {/* Ce qui va casser si rien ne change : sous ce qui est cassé maintenant. */}
+      {/* What will break if nothing changes: under what is broken now. */}
       <ForecastPanel items={forecasts} />
 
       <PulseBand
@@ -335,10 +334,10 @@ export default async function HomePage({
       ) : null}
 
       {/*
-        `items-start` : ces deux blocs n'ont aucune raison d'avoir la même
-        hauteur. Étirés, une liste d'une ligne se retrouvait au milieu d'un
-        grand vide.
-      */}
+        `items-start`: these two blocks have no reason to have the same
+        height. Stretched, a one-row list ended up in the middle of a big
+        void.
+             */}
       {canReadDeployments ? (
         <div className="grid grid-cols-1 min-w-0 items-start gap-6 lg:grid-cols-[1fr_1.25fr]">
           <Panel
@@ -385,9 +384,9 @@ export default async function HomePage({
       ) : null}
 
       {/*
-        L'inventaire ferme l'écran au lieu de l'ouvrir : ces chiffres rassurent,
-        ils ne déclenchent rien.
-      */}
+        The inventory closes the screen instead of opening it: these figures
+        reassure, they trigger nothing.
+             */}
       <ReadoutBar>
         {canReadTargets ? (
           <Readout
@@ -442,15 +441,14 @@ export default async function HomePage({
   );
 }
 
-// ─── la fenêtre ───────────────────────────────────────────────────────────────
+// ─── the window ───────────────────────────────────────────────────────────────
 
 /**
- * La fenêtre d'observation, sur un axe unique.
+ * The observation window, on a single axis.
  *
- * Les pistes partagent exactement les mêmes bornes de seau — c'est garanti par
- * `pulseWindow`, dont l'alignement est le même que celui de `targetHistories`.
- * C'est ce qui permet de lire verticalement : le déploiement de 00 h 33 tombe
- * au-dessus du creux de charge de 00 h 33.
+ * The tracks share exactly the same bucket bounds — it is guaranteed by
+ * `pulseWindow`, whose alignment is the same as `targetHistories`'. That is what
+ * allows reading vertically: the 00:33 deployment falls above the 00:33 load dip.
  */
 async function PulseBand({
   windowKey,
@@ -526,9 +524,9 @@ async function PulseBand({
                   : '%'
             }
             /*
-              Vert seulement quand le vert veut dire quelque chose : sous le
-              plancher de mesures, le voyant reste éteint. L'ambre, lui, reste
-              dû dès qu'une mesure a échoué — un défaut constaté est un fait.
+              Green only when green means something: under the measurements floor,
+              the indicator stays off. Amber, for its part, is due as soon as a
+              measurement failed — an observed fault is a fact.
             */
             tone={
               monitorSamples === 0
@@ -648,9 +646,9 @@ async function PulseBand({
 }
 
 /**
- * Une piste : son nom (qui mène à l'écran détaillé) et ce qu'elle mesure, dans
- * une colonne de 190 px, puis la figure. Toutes les pistes partagent cette
- * colonne : c'est ce qui aligne les figures sur l'axe.
+ * A track: its name (which leads to the detailed screen) and what it measures, in
+ * a 190 px column, then the figure. All the tracks share this column: it is what
+ * aligns the figures on the axis.
  */
 function Track({
   title,
@@ -713,17 +711,17 @@ async function MonitorLane({ pulse, format }: { pulse: MonitorPulse; format: For
 }
 
 /**
- * La latence mesurée, seau par seau. Une sonde peut rester « saine » en
- * devenant deux fois plus lente : c'est la dégradation qu'un tableau de bord
- * de l'instant ne montre pas. Le plafond est arrondi au quart de seconde
- * supérieur, pour que l'échelle se compare d'un jour sur l'autre.
+ * The measured latency, bucket by bucket. A probe can stay "healthy" while
+ * becoming twice as slow: it is the degradation a dashboard of the instant does
+ * not show. The ceiling is rounded up to the next quarter second, so that the
+ * scale compares from one day to the next.
  */
 async function LatencyLane({ pulse, format }: { pulse: MonitorPulse; format: FormatSettings }) {
   const t = await getT(dashboard);
   const series = pulse.points.map((point) => ({
     at: point.at,
-    // Sans latence relevée, le seau est vide : une sonde injoignable n'a pas
-    // « mis 0 ms », elle n'a rien mesuré du tout.
+    // Without a recorded latency, the bucket is empty: an unreachable probe did not
+    // "take 0 ms", it measured nothing at all.
     samples: point.latencyAvgMs === null ? 0 : point.samples,
     value: point.latencyAvgMs,
   }));
@@ -797,7 +795,7 @@ async function FleetLane({
   );
 }
 
-/** « 7 runs dans la fenêtre · durée médiane 81 s ». */
+/** "7 runs in the window · median duration 81 s". */
 function chronicleAside(
   chronicle: DeploymentPulse,
   posture: ScanPosture | null,
@@ -818,10 +816,9 @@ function chronicleAside(
 }
 
 /**
- * Les événements de la fenêtre, posés à leur instant exact. Les plus anciens
- * de la chronique sont comptés dans le sous-titre de la piste, mais ne sont
- * pas dessinés hors de l'axe : un point tassé contre le bord gauche serait une
- * position inventée.
+ * The window's events, placed at their exact instant. The oldest ones of the
+ * chronicle are counted in the track's subtitle, but are not drawn off the axis:
+ * a point squeezed against the left edge would be a made-up position.
  */
 async function ChronicleLane({
   chronicle,
@@ -876,11 +873,11 @@ async function ChronicleLane({
 // ─── le parc ──────────────────────────────────────────────────────────────────
 
 /**
- * Une ligne par machine : son état, la forme de sa charge sur la fenêtre, ce
- * qu'elle porte, son runtime, sa mémoire et son disque. La micro-courbe ne
- * porte pas d'échelle — on ne lui demande que de montrer si ça monte. Une
- * machine sans relevé le dit en toutes lettres au lieu d'afficher une courbe
- * plate à zéro, qui se lirait « machine au repos ».
+ * One row per machine: its state, the shape of its load over the window, what it
+ * carries, its runtime, its memory and its disk. The micro-curve carries no scale
+ * — it is only asked to show whether things go up. A machine without a reading
+ * says so in words instead of showing a flat curve at zero, which would read
+ * "idle machine".
  */
 async function FleetPanel({
   targets,
@@ -993,12 +990,12 @@ async function FleetPanel({
   );
 }
 
-// ─── les déploiements ─────────────────────────────────────────────────────────
+// ─── the deployments ──────────────────────────────────────────────────────────
 
 /**
- * Les derniers déploiements, avec leur durée. La barre est relative au plus
- * long de la liste : ce qu'on cherche du coin de l'œil, c'est « celui-là a
- * pris trois fois plus de temps que les autres » ; le chiffre est à côté.
+ * The last deployments, with their duration. The bar is relative to the longest
+ * of the list: what one looks for out of the corner of the eye is "that one took
+ * three times longer than the others"; the figure is next to it.
  */
 async function DeploymentsPanel({
   recent,
@@ -1008,7 +1005,7 @@ async function DeploymentsPanel({
   chronicle: DeploymentPulse | null;
 }) {
   const t = await getT(dashboard);
-  // Le nom d'une étape se rend à partir de sa clé, dans la langue courante.
+  // A step's name is rendered from its key, in the current language.
   const language = await currentLanguage();
   const durations = new Map(
     (chronicle?.events ?? []).map((event) => [event.id, event.durationSeconds]),
@@ -1085,8 +1082,8 @@ async function DeploymentsPanel({
 }
 
 /**
- * La ligne sous le compteur de cibles — elle doit expliquer l'écart, pas le
- * commenter.
+ * The line under the targets counter — it must explain the gap, not comment on
+ * it.
  */
 function targetsHint(
   { targetsDown, targetsUntested }: { targetsDown: number; targetsUntested: number },

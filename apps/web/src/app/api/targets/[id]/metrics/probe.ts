@@ -13,28 +13,26 @@ import { getRedis } from '@/lib/redis';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
 /**
- * Relevé des métriques d'une cible, vu depuis le panel.
+ * Reading a target's metrics, seen from the panel.
  *
- * **Pourquoi une lecture passe par la file.** Même raison que l'inventaire des
- * charges, et le motif est repris tel quel : le panel Next n'ouvre aucune
- * session SSH et n'en ouvrira jamais — `ssh2` est délibérément tenu hors de son
- * graphe de dépendances (voir `packages/core/src/index.ts`). « Combien de cœurs
- * a cette machine ? » n'a donc pas de réponse locale : la question se pose au
- * worker.
+ * **Why a read goes through the queue.** The same reason as the workloads
+ * inventory, and the pattern is reused as is: the Next panel opens no SSH session
+ * and never will — `ssh2` is deliberately kept out of its dependency graph (see
+ * `packages/core/src/index.ts`). "How many cores does this machine have?"
+ * therefore has no local answer: the question is asked of the worker.
  *
- * **Pourquoi la route attend.** La règle est que le *travail* long n'a pas sa
- * place dans une route HTTP — pas que la route doive rendre la main avant de
- * savoir. Elle n'exécute rien : elle enfile, puis attend, comme elle attend une
- * requête SQL.
+ * **Why the route waits.** The rule is that long-running *work* has no place in
+ * an HTTP route — not that the route must give control back before knowing. It
+ * executes nothing: it queues, then waits, as it waits for an SQL query.
  *
- * **Pourquoi 20 secondes.** Le relevé, c'est une ouverture de session SSH
- * (garde de 8 s, une seule tentative — voir `collectHostMetrics`) puis six
- * lectures de `/proc` plafonnées à 5 s chacune et lancées ensemble : le pire
- * cas d'une machine qui répond mal tient sous 15 s. La marge restante couvre
- * l'attente en file. Au-delà, ce n'est plus la cible qui est lente, c'est le
- * worker qui ne consomme pas — et l'appelant mérite un 504 franc plutôt qu'une
- * connexion tenue ouverte. Une cible simplement éteinte, elle, ne consomme
- * jamais cette borne : elle rend en ~8 s un rapport `reachable:false`.
+ * **Why 20 seconds.** The reading is an SSH session opening (an 8 s guard, a
+ * single attempt — see `collectHostMetrics`) then six reads of `/proc` capped at
+ * 5 s each and started together: the worst case of a machine answering badly
+ * fits under 15 s. The remaining margin covers waiting in the queue. Beyond that,
+ * it is no longer the target that is slow, it is the worker that is not
+ * consuming — and the caller deserves a plain 504 rather than a connection held
+ * open. A target simply turned off, for its part, never uses this bound: it
+ * returns a `reachable:false` report in ~8 s.
  */
 const METRICS_TIMEOUT_MS = 20_000;
 
@@ -42,7 +40,7 @@ declare global {
   var __tpMetricsQueueEvents: QueueEvents | undefined;
 }
 
-/** Écoute des fins de tâches de la file de supervision. Partagée, comme la queue. */
+/** Listening to the monitoring queue's job ends. Shared, like the queue. */
 function queueEvents(): QueueEvents {
   globalThis.__tpMetricsQueueEvents ??= new QueueEvents(SUPERVISION_QUEUE, {
     connection: getRedis(),
@@ -57,8 +55,8 @@ export async function fetchHostMetrics(
 ): Promise<HostMetrics> {
   const data = targetMetricsJobDataSchema.parse({ targetId, actorId, ip });
 
-  // Aucun identifiant de tâche personnalisé : BullMQ refuse un « Custom Id »
-  // contenant un `:`, et le nom de cette tâche en contient un.
+  // No custom job identifier: BullMQ refuses a "Custom Id" containing a `:`, and
+  // this job's name contains one.
   const job = await getSupervisionQueue().add(TARGET_METRICS_JOB, data, { attempts: 1 });
 
   let raw: unknown;
@@ -66,8 +64,8 @@ export async function fetchHostMetrics(
     raw = await job.waitUntilFinished(queueEvents(), METRICS_TIMEOUT_MS);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    // `waitUntilFinished` ne distingue le dépassement du délai de l'échec de la
-    // tâche que par son message — deux situations, deux codes.
+    // `waitUntilFinished` only tells the timeout from the job's failure by its
+    // message — two situations, two codes.
     if (/timed out/i.test(message)) {
       throw new HttpError(504, 'host_metrics_timeout', msg(messages, 'error.metricsTimeout'));
     }

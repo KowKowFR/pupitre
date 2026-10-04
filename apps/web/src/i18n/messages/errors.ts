@@ -1,30 +1,29 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les messages d'erreur de l'API.
+ * The API's error messages.
  *
- * ── Pourquoi ils sont traduits, alors qu'un script les lit aussi ────────────
- * Une réponse d'erreur porte deux choses : un `code` — stable, machine, jamais
- * traduit — et un `message` — de la prose, écrite pour un humain. Le panel
- * affiche ce `message` tel quel dans ses bandeaux et ses toasts. Le laisser en
- * français produirait exactement le défaut qu'on refuse : un écran anglais où
- * l'échec parle français.
+ * ── Why they are translated, when a script reads them too ───────────────────
+ * An error response carries two things: a `code` — stable, for machines, never
+ * translated — and a `message` — prose, written for a human. The panel shows this
+ * `message` as is in its banners and toasts. Leaving it in French would produce
+ * exactly the bug we refuse: an English screen where the failure speaks French.
  *
- * Un script, lui, doit s'accrocher au `code`. C'est ce que dit le contrat, et
- * c'est ce que font déjà les vérifications qui comptent. Celles qui cherchent
- * de la prose continuent de passer tant que l'instance est en français, parce
- * que **la colonne `fr` reproduit mot pour mot les chaînes d'avant** — pas une
- * virgule déplacée. Cette règle vaut pour tout ce fichier.
+ * A script, for its part, must hang on to the `code`. That is what the contract
+ * says, and it is what the checks that matter already do. Those that look for
+ * prose keep passing as long as the instance is in French, because **the `fr`
+ * column reproduces word for word the strings from before** — not a comma moved.
+ * This rule holds for this whole file.
  *
- * ── Où la langue est décidée ────────────────────────────────────────────────
- * Dans `apiRoute()`, au moment de sérialiser, et nulle part ailleurs. Les
- * erreurs se lancent de partout, y compris de code synchrone : elles ne
- * peuvent pas aller lire les paramètres d'instance elles-mêmes. Elles
- * transportent donc une clé et ses variables (`msg()`), et le seul endroit qui
- * sait déjà être asynchrone rend la phrase.
+ * ── Where the language is decided ───────────────────────────────────────────
+ * In `apiRoute()`, at serialization time, and nowhere else. Errors are thrown
+ * from everywhere, including from synchronous code: they cannot go and read the
+ * instance settings themselves. So they carry a key and its variables (`msg()`),
+ * and the only place that already knows how to be asynchronous renders the
+ * sentence.
  *
- * `error.message`, lui, reste français : c'est ce que Pino journalise, et les
- * logs sont dans la langue du projet.
+ * `error.message`, for its part, stays in French, the dictionaries' source
+ * language: it is what Pino logs.
  */
 const fr = {
   'invalid_json': 'Corps de requête JSON invalide',
@@ -50,10 +49,9 @@ const fr = {
   'token.sessionOnly': 'Cette route n’accepte pas de jeton d’API : elle se fait depuis le panel',
   'not_found': 'Ressource introuvable',
   /**
-   * Deux clés plutôt qu'une variable : le français choisissait entre
-   * « fenêtre » et « période » par un ternaire au milieu du gabarit. Une
-   * variable de mot ne se traduit pas — elle impose au traducteur la syntaxe
-   * de la langue source.
+   * Two keys rather than a variable: French chose between "fenêtre" and "période"
+   * through a ternary in the middle of the template. A word variable does not
+   * translate — it imposes the source language's syntax on the translator.
    */
   'rate_limited.window': 'Trop de requêtes : {limit} par fenêtre. Réessayez dans {seconds} s.',
   'rate_limited.period': 'Trop de requêtes : {limit} par période. Réessayez dans {seconds} s.',
