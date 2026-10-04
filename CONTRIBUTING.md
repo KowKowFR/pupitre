@@ -6,8 +6,9 @@ vérification. Ce n'est pas un modèle générique, et suivre un modèle génér
 suffira pas à faire passer une revue ici.
 
 Le français est la langue du projet : code, commentaires, messages de commit,
-issues et documentation. Un système FR/EN pour l'interface est prévu ; il
-n'existe pas encore.
+issues et documentation. L'interface, elle, est bilingue : un texte d'écran va
+dans `apps/web/src/i18n/messages/`, en français **et** en anglais — une garde des
+tests refuse un texte français écrit en dur dans le code du panel.
 
 - [Avant d'écrire du code](#avant-décrire-du-code)
 - [Monter l'environnement](#monter-lenvironnement)
@@ -67,17 +68,18 @@ raisonnement complet est dans [`.github/ci-local.md`](.github/ci-local.md).
 
 ## Les règles qui font échouer une revue
 
-### 1. Les trois abstractions ne se contournent pas
+### 1. Les quatre abstractions ne se contournent pas
 
 | Interface | Fichier | Implémentations |
 |---|---|---|
 | `DeploymentDriver` | `packages/core/src/drivers/types.ts` | `DockerComposeDriver`, `K3sDriver` |
-| `ProxyProvider` | `packages/core/src/drivers/proxy.ts` | `TraefikProvider` |
+| `ProxyProvider` / `RemoteProxyProvider` | `packages/core/src/proxy/types.ts` | `TraefikProvider`, `BunkerWebProvider` / `NginxProxyManagerProvider` |
 | `Scanner` | `packages/core/src/scan.ts` | `TrivyScanner`, `GrypeScanner`, `SyftSBOM` |
+| `SourceProvider` | `packages/core/src/sources/types.ts` | `GitHubSourceProvider`, `GitLabSourceProvider`, `GiteaSourceProvider` |
 
-Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy
-ou un scanner doit se faire en ajoutant une classe, sans modifier une ligne
-ailleurs.** Si votre patch a besoin de changer le worker pour ajouter un scanner,
+Le critère de qualité est écrit dans `CLAUDE.md` : **ajouter un runtime, un proxy,
+un scanner ou un fournisseur de code doit se faire en ajoutant une classe, sans
+modifier une ligne ailleurs.** Si votre patch a besoin de changer le worker pour ajouter un scanner,
 c'est le patch qui est faux, pas l'abstraction.
 
 Corollaire vérifiable en une commande :
@@ -87,9 +89,8 @@ grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' \
   | grep -v /drivers/ | grep -v /dist/
 ```
 
-Elle rend **une ligne aujourd'hui**, et une seule :
-`packages/db/src/deployments.ts:1329`, qui choisit un mot dans un message destiné
-à un humain. Votre patch ne doit pas en ajouter une deuxième.
+Elle ne rend **aucune ligne** aujourd'hui. Votre patch ne doit pas en ajouter
+une.
 
 Une divergence entre runtimes se traite dans le driver : soit une méthode qui
 rend `null` (comme `allocatePort()` en K3s), soit une méthode optionnelle qu'un
@@ -132,10 +133,10 @@ renvoie le perdant au tirage suivant. Pas de « SELECT puis INSERT ». Pas de `i
 
 ### 6. Les permissions sont des chaînes `ressource:action`
 
-Trente-quatre aujourd'hui, dans `packages/core/src/permissions.ts` :
+Trente-huit aujourd'hui, dans `packages/core/src/permissions.ts` :
 
 ```bash
-grep -oE "'[a-z0-9-]+:[a-z0-9-]+'" packages/core/src/permissions.ts | sort -u | wc -l
+grep -oE "'[a-z0-9_-]+:[a-z0-9_-]+'" packages/core/src/permissions.ts | sort -u | wc -l
 ```
 
 Toute route protégée passe par `requirePermission()`. Une nouvelle capacité

@@ -376,7 +376,7 @@ son texte et son heure.
 
 ## Notifications
 
-Quatre canaux, treize événements, derrière un catalogue et une fabrique. Même
+Quatre canaux, vingt-quatre événements, derrière un catalogue et une fabrique. Même
 patron que `getDriver()`, `getScanner()` et `getAiProviderFactory()` — et le code
 le revendique.
 
