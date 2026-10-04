@@ -6,11 +6,11 @@ import { getDriver } from '../src/drivers/index.js';
 import { parseAppSpec, safeParseAppSpec } from '../src/spec/index.js';
 
 /**
- * Le code d'un dépôt lié ne se mêle jamais aux fichiers de pilotage de la
- * release. À la racine, un `compose.override.yml` du dépôt était fusionné par
- * Compose, un `.env` changeait le nom du projet, un dossier `k8s/` était
- * appliqué sur le cluster — et un contexte `../..` allait lire les autres
- * applications de la machine.
+ * A linked repository's code never mixes with the release's control files. At
+ * the root, a `compose.override.yml` from the repository was merged by Compose,
+ * a `.env` changed the project's name, a `k8s/` folder was applied to the
+ * cluster — and a `../..` context went and read the machine's other
+ * applications.
  */
 
 const built = (context: string, dockerfile = 'Dockerfile') => ({
@@ -26,18 +26,19 @@ const built = (context: string, dockerfile = 'Dockerfile') => ({
   ],
 });
 
-describe('le code d’un dépôt, à part dans la release', () => {
-  it('les contextes de l’AppSpec se résolvent sous source/, relatifs à la racine du dépôt', () => {
+describe('a repository’s code, apart in the release', () => {
+  it('the AppSpec’s contexts resolve under source/, relative to the repository’s root', () => {
     assert.equal(SOURCE_DIR, 'source');
     assert.equal(buildContextPath('examples/bonjour', true), 'source/examples/bonjour');
     assert.equal(buildContextPath('./app/', true), 'source/app');
     assert.equal(buildContextPath('.', true), 'source');
-    // Sans dépôt, rien ne change : le contexte est fourni à la racine de la release.
+    // Without a repository, nothing changes: the context is provided at the
+    // release's root.
     assert.equal(buildContextPath('examples/bonjour', false), 'examples/bonjour');
     assert.equal(buildContextPath('.', undefined), '.');
   });
 
-  it('Compose construit depuis source/ quand le déploiement vient d’un dépôt', () => {
+  it('Compose builds from source/ when the deployment comes from a repository', () => {
     const spec = parseAppSpec(built('examples/bonjour'));
     const fromRepo = renderComposeFile({
       spec,
@@ -54,12 +55,12 @@ describe('le code d’un dépôt, à part dans la release', () => {
     assert.equal(COMPOSE_FILE, 'compose.yml');
   });
 
-  it('le nettoyage manuel nomme son projet et son fichier, sans rien laisser deviner à Compose', () => {
+  it('the manual cleanup names its project and its file, leaving nothing for Compose to guess', () => {
     const [down] = getDriver('docker').manualCleanup('bonjour', '/opt/bootstrap');
     assert.match(down!, /docker compose -p app-bonjour -f compose\.yml down -v/);
   });
 
-  it('refuse un chemin de construction qui sort du code envoyé', () => {
+  it('refuses a build path that leaves the uploaded code', () => {
     for (const context of ['../autre-app', 'app/../../..', '/etc', 'a\\..\\..\\b']) {
       assert.equal(safeParseAppSpec(built(context)).success, false, context);
     }
@@ -71,17 +72,17 @@ describe('le code d’un dépôt, à part dans la release', () => {
   });
 });
 
-describe('une release par déploiement — le retour en arrière retrouve le bon code', () => {
-  it('nomme la release par la version et le numéro du déploiement, étiquette d’image comprise', async () => {
+describe('one release per deployment — going back finds the right code', () => {
+  it('names the release by the version and the deployment number, image tag included', async () => {
     const { releaseName, releaseCandidates } = await import('../src/drivers/release.js');
     assert.equal(releaseName({ version: '1.0.0', sequence: 12 }), '1.0.0-r12');
-    // Un `+` de version semver n'est pas permis dans une étiquette d'image.
+    // A semver version's `+` is not allowed in an image tag.
     assert.equal(releaseName({ version: '1.0.0+build.7', sequence: 3 }), '1.0.0-build.7-r3');
-    // Une release d'avant ce nommage se retrouve sous la seule version.
+    // A release from before this naming is found under the version alone.
     assert.deepEqual(releaseCandidates({ version: '1.0.0', sequence: 12 }), ['1.0.0-r12', '1.0.0']);
   });
 
-  it('deux déploiements de la même version : deux images, sur les deux runtimes', async () => {
+  it('two deployments of the same version: two images, on both runtimes', async () => {
     const { renderManifests } = await import('../src/drivers/k3s/render.js');
     const spec = parseAppSpec({
       name: 'bonjour',
@@ -115,8 +116,8 @@ describe('une release par déploiement — le retour en arrière retrouve le bon
   });
 });
 
-describe('K3s — la santé ne compte pas les pods qui s’en vont', () => {
-  it('un pod en cours de suppression n’empêche pas la nouvelle version d’être prête', async () => {
+describe('K3s — health does not count the pods that are leaving', () => {
+  it('a pod being deleted does not prevent the new version from being ready', async () => {
     const { parsePodReadiness } = await import('../src/drivers/k3s/driver.js');
     const ready = { type: 'Ready', status: 'True' };
     const output = JSON.stringify({

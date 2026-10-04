@@ -17,14 +17,14 @@ import {
 import { UnresolvedSecretError } from '../src/drivers/secrets.js';
 
 /**
- * Valeurs de complaisance pour tous les secrets déclarés par une fixture.
- * Depuis que le rendu échoue sur un secret non résolu, un test qui n'en fournit
- * aucun testerait l'échec et non le rendu.
+ * Placeholder values for every secret declared by a fixture. Since the render
+ * fails on an unresolved secret, a test that provides none would test the
+ * failure and not the render.
  */
 function stubSecrets(spec: AppSpec): Record<string, string> {
   const values: Record<string, string> = {};
-  // Les racines seulement : un alias n'a pas de valeur à fournir, il reprend
-  // celle d'un autre — c'est `completeSecretValues()` qui la lui donne.
+  // The roots only: an alias has no value to provide, it reuses another's — it is
+  // `completeSecretValues()` that gives it.
   for (const name of storedSecretNames(spec)) values[name] = `valeur-${name.toLowerCase()}`;
   return values;
 }
@@ -52,8 +52,8 @@ try {
 }
 
 /**
- * Fait valider le rendu par Docker lui-même. C'est la seule preuve qui compte :
- * un YAML syntaxiquement correct peut rester un Compose invalide.
+ * Has the render validated by Docker itself. It is the only proof that counts:
+ * a syntactically correct YAML can still be an invalid Compose file.
  */
 function validateWithDockerCompose(name: string, spec: AppSpec, publishedPort: number | null) {
   const dir = path.join(workdir, name);
@@ -68,7 +68,7 @@ function validateWithDockerCompose(name: string, spec: AppSpec, publishedPort: n
     writeFileSync(path.join(dir, file.path), file.content);
   }
 
-  // Les contextes de build doivent exister pour que `config` les résolve.
+  // The build contexts must exist for `config` to resolve them.
   for (const service of spec.services) {
     if (service.source.type !== 'dockerfile') continue;
     const context = path.join(dir, service.source.context);
@@ -87,19 +87,19 @@ describe('render() — AppSpec vers Compose', () => {
     const spec = fixture('simple');
     const file = renderComposeFile({ spec, appSlug: spec.name, publishedPort: 30001 });
 
-    it('nomme le projet app-{slug} et son réseau', () => {
+    it('names the app-{slug} project and its network', () => {
       assert.equal(file.name, 'app-demo-api');
       assert.equal(projectName('demo-api'), 'app-demo-api');
       assert.equal(file.networks?.appnet?.name, networkName('demo-api'));
       assert.equal(file.networks?.appnet?.driver, 'bridge');
     });
 
-    it('publie le port du service exposé', () => {
+    it('publishes the exposed service’s port', () => {
       assert.deepEqual(file.services.api?.ports, ['30001:80']);
       assert.deepEqual(file.services.api?.expose, ['80']);
     });
 
-    it('décide de la politique de redémarrage, absente de la spec', () => {
+    it('decides the restart policy, absent from the spec', () => {
       assert.equal(file.services.api?.restart, 'unless-stopped');
     });
 
@@ -108,7 +108,7 @@ describe('render() — AppSpec vers Compose', () => {
       assert.equal(file.services.api?.deploy?.resources?.limits?.memory, '256M');
     });
 
-    it('produit un compose.yml validé par Docker', { skip: !dockerAvailable }, () => {
+    it('produces a compose.yml validated by Docker', { skip: !dockerAvailable }, () => {
       const output = validateWithDockerCompose('simple', spec, 30001);
       const parsed = parseYaml(output) as { name?: string; services?: Record<string, unknown> };
       assert.equal(parsed.name, 'app-demo-api');
@@ -120,7 +120,7 @@ describe('render() — AppSpec vers Compose', () => {
     const spec = fixture('fullstack');
     const file = renderComposeFile({ spec, appSlug: spec.name, publishedPort: null });
 
-    it('range les services dans l’ordre des dépendances', () => {
+    it('puts the services in dependency order', () => {
       assert.deepEqual(Object.keys(file.services), ['postgres', 'api', 'front']);
     });
 
@@ -133,17 +133,17 @@ describe('render() — AppSpec vers Compose', () => {
       });
     });
 
-    it('construit les services à Dockerfile et taggue leur image', () => {
+    it('builds the Dockerfile services and tags their image', () => {
       assert.deepEqual(file.services.api?.build, {
         context: './api',
         dockerfile: 'docker/Dockerfile',
       });
       assert.equal(file.services.api?.image, 'app-boutique/api:2.3.1');
-      assert.equal(file.services.postgres?.image, 'postgres:16-alpine', 'image tirée telle quelle');
+      assert.equal(file.services.postgres?.image, 'postgres:16-alpine', 'image pulled as is');
       assert.equal(file.services.postgres?.build, undefined);
     });
 
-    it('préfixe les volumes nommés pour éviter les collisions', () => {
+    it('prefixes named volumes to avoid collisions', () => {
       assert.deepEqual(file.services.postgres?.volumes, [
         'app-boutique-postgres-data:/var/lib/postgresql/data',
       ]);
@@ -151,16 +151,16 @@ describe('render() — AppSpec vers Compose', () => {
       assert.ok(file.volumes?.['app-boutique-api-uploads']);
     });
 
-    it('n’inscrit jamais la valeur d’un secret dans le compose.yml', () => {
+    it('never writes a secret’s value into compose.yml', () => {
       const yaml = serializeComposeFile(file);
       for (const secret of ['DATABASE_PASSWORD', 'JWT_SECRET', 'POSTGRES_PASSWORD']) {
-        assert.ok(!yaml.includes(`${secret}:`), `${secret} ne doit pas être une clé du compose`);
+        assert.ok(!yaml.includes(`${secret}:`), `${secret} must not be a key of the compose file`);
       }
       assert.deepEqual(file.services.api?.env_file, ['./.env']);
-      assert.equal(file.services.front?.env_file, undefined, 'front ne déclare aucun secret');
+      assert.equal(file.services.front?.env_file, undefined, 'front declares no secret');
     });
 
-    it('génère un .env en 0600 avec les noms déclarés', () => {
+    it('generates a 0600 .env with the declared names', () => {
       const files = renderFiles({
         spec,
         appSlug: spec.name,
@@ -175,24 +175,24 @@ describe('render() — AppSpec vers Compose', () => {
       }
     });
 
-    it('ne publie aucun port quand le service exposé a plusieurs répliques', () => {
+    it('publishes no port when the exposed service has several replicas', () => {
       assert.equal(file.services.front?.ports, undefined);
       assert.equal(file.services.front?.deploy?.replicas, 2);
     });
 
-    it('sonde le service exposé en HTTP, les autres en TCP', () => {
+    it('probes the exposed service over HTTP, the others over TCP', () => {
       const front = file.services.front?.healthcheck?.test.join(' ') ?? '';
       assert.match(front, /wget --spider .*\/healthz/);
       const postgres = file.services.postgres?.healthcheck?.test.join(' ') ?? '';
       assert.match(postgres, /nc -z -w \d+ 127\.0\.0\.1 5432/);
-      // Ni `wget`, ni `curl` : un repli HTTP sur un service qui ne parle pas
-      // HTTP n'aboutit jamais, et masquait l'échec réel.
+      // Neither `wget` nor `curl`: an HTTP fallback on a service that does not speak
+      // HTTP never succeeds, and hid the real failure.
       assert.doesNotMatch(postgres, /wget|curl/);
     });
 
-    it('sonde en HTTP avec wget ou curl, et en TCP seulement si l’image n’a ni l’un ni l’autre', () => {
-      // `freshrss/freshrss` n'embarque ni wget ni curl : sans repli, le
-      // conteneur restait « unhealthy » et le déploiement échouait.
+    it('probes over HTTP with wget or curl, and over TCP only if the image has neither', () => {
+      // `freshrss/freshrss` ships neither wget nor curl: without a fallback, the
+      // container stayed "unhealthy" and the deployment failed.
       const front = file.services.front?.healthcheck?.test.join(' ') ?? '';
       assert.match(front, /^CMD-SHELL if command -v wget .* then wget --spider /);
       assert.match(front, /elif command -v curl .* then curl -fsS /);
@@ -202,15 +202,15 @@ describe('render() — AppSpec vers Compose', () => {
       );
     });
 
-    it('sonde en TCP sans dépendre de `nc`, absent des images Debian', () => {
-      // `postgres:16` et `mariadb:11` n'embarquent ni `nc`, ni `wget`, ni
-      // `curl` — seulement `bash`. Sans ce repli, leur sonde échouait à vie et
-      // le `depends_on: service_healthy` du service applicatif bloquait avec.
+    it('probes over TCP without depending on `nc`, absent from Debian images', () => {
+      // `postgres:16` and `mariadb:11` ship neither `nc`, nor `wget`, nor `curl` —
+      // only `bash`. Without this fallback, their probe failed forever and the
+      // application service's `depends_on: service_healthy` blocked with it.
       const postgres = file.services.postgres?.healthcheck?.test.join(' ') ?? '';
       assert.match(postgres, /bash -c 'exec 3<>\/dev\/tcp\/127\.0\.0\.1\/5432'/);
     });
 
-    it('refuse de rendre un secret déclaré sans valeur résolue, en le nommant', () => {
+    it('refuses to render a declared secret without a resolved value, naming it', () => {
       assert.throws(
         () => renderFiles({ spec, appSlug: spec.name, publishedPort: null }),
         (error: unknown) => {
@@ -225,7 +225,7 @@ describe('render() — AppSpec vers Compose', () => {
       );
     });
 
-    it('accepte un secret délibérément vide — absent n’est pas vide', () => {
+    it('accepts a deliberately empty secret — absent is not empty', () => {
       const values = { ...stubSecrets(spec), JWT_SECRET: '' };
       const files = renderFiles({
         spec,
@@ -238,15 +238,15 @@ describe('render() — AppSpec vers Compose', () => {
       assert.match(env.content, /^JWT_SECRET=$/m);
     });
 
-    it('produit un compose.yml validé par Docker', { skip: !dockerAvailable }, () => {
+    it('produces a compose.yml validated by Docker', { skip: !dockerAvailable }, () => {
       const output = validateWithDockerCompose('fullstack', spec, null);
       const parsed = parseYaml(output) as { services?: Record<string, unknown> };
       assert.deepEqual(Object.keys(parsed.services ?? {}).sort(), ['api', 'front', 'postgres']);
     });
   });
 
-  describe('sérialisation', () => {
-    it('échappe ce qu’une concaténation de chaînes casserait', () => {
+  describe('serialization', () => {
+    it('escapes what string concatenation would break', () => {
       const spec = parseAppSpec({
         name: 'echappement',
         version: '1.0.0',
@@ -277,7 +277,7 @@ describe('render() — AppSpec vers Compose', () => {
       assert.equal(parsed.services.web.environment.COLON, 'clé: valeur');
     });
 
-    it('reste déterministe', () => {
+    it('stays deterministic', () => {
       const spec = fixture('fullstack');
       const once = serializeComposeFile(renderComposeFile({ spec, appSlug: spec.name, publishedPort: 30003 }));
       const twice = serializeComposeFile(renderComposeFile({ spec, appSlug: spec.name, publishedPort: 30003 }));
@@ -287,13 +287,13 @@ describe('render() — AppSpec vers Compose', () => {
 });
 
 /**
- * Contexte de sécurité.
+ * Security context.
  *
- * Chaque cas fige une décision mesurée sur la cible de test, pas une intention :
- * ce qui est durci l'est parce qu'on a vu l'image démarrer avec, et ce qui ne
- * l'est pas l'est parce qu'on a vu l'image mourir sans.
+ * Each case freezes a decision measured on the test target, not an intention:
+ * what is hardened is because we saw the image start with it, and what is not is
+ * because we saw the image die without it.
  */
-describe('contexte de sécurité', () => {
+describe('security context', () => {
   const fullstack = fixture('fullstack');
   const file = renderComposeFile({
     spec: fullstack,
@@ -301,82 +301,82 @@ describe('contexte de sécurité', () => {
     publishedPort: null,
   });
 
-  // `front`   : image à nous, aucun volume  → identité imposée
-  // `api`     : image à nous, un volume     → identité laissée à l'image
-  // `postgres`: image tierce                → rien d'imposé du tout
+  // `front`   : our image, no volume    → identity imposed
+  // `api`     : our image, one volume   → identity left to the image
+  // `postgres`: third-party image       → nothing imposed at all
   const own = file.services.front;
   const ownWithVolume = file.services.api;
   const thirdParty = file.services.postgres;
 
-  it('interdit l’élévation de privilèges partout — Docker ne le fait pas seul', () => {
-    // Sans l'option, `NoNewPrivs` vaut 0 dans un conteneur Docker : c'est le
-    // seul de ces champs qui ne soit pas déjà couvert par un défaut du runtime.
+  it('forbids privilege escalation everywhere — Docker does not do it alone', () => {
+    // Without the option, `NoNewPrivs` is 0 in a Docker container: it is the only
+    // one of these fields not already covered by a runtime default.
     for (const service of [own, ownWithVolume, thirdParty]) {
       assert.deepEqual(service?.security_opt, ['no-new-privileges:true']);
     }
   });
 
-  it('part de zéro sur les capacités, sur tous les services', () => {
+  it('starts from zero on capabilities, on every service', () => {
     for (const service of [own, ownWithVolume, thirdParty]) {
       assert.deepEqual(service?.cap_drop, ['ALL']);
     }
   });
 
-  it('ne rend aucune capacité à une image dont on fixe l’uid', () => {
-    // Elle ne démarre jamais root : elle n'a rien à préparer avant de se
-    // dégrader, donc rien à réclamer.
+  it('gives no capability back to an image whose uid we pin', () => {
+    // It never starts as root: it has nothing to prepare before dropping
+    // privileges, so nothing to ask for.
     assert.equal(own?.cap_add, undefined);
   });
 
-  it('rend cinq capacités à toute image qui garde son identité', () => {
-    // Mesuré : `cap_drop: ALL` seul tue `nginx` sur chown(/var/cache/nginx) et
-    // `postgres` sur chmod(/var/run/postgresql). Cinq, et pas une de plus —
-    // `NET_BIND_SERVICE` notamment, inutile puisque Docker pose
-    // `net.ipv4.ip_unprivileged_port_start=0` dans le conteneur.
+  it('gives five capabilities back to any image that keeps its identity', () => {
+    // Measured: `cap_drop: ALL` alone kills `nginx` on chown(/var/cache/nginx) and
+    // `postgres` on chmod(/var/run/postgresql). Five, and not one more —
+    // `NET_BIND_SERVICE` notably, useless since Docker sets
+    // `net.ipv4.ip_unprivileged_port_start=0` in the container.
     for (const service of [ownWithVolume, thirdParty]) {
       assert.deepEqual(service?.cap_add, ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID']);
     }
   });
 
-  it('impose l’uid non privilégié à nos images sans volume', () => {
+  it('imposes the unprivileged uid on our images without a volume', () => {
     assert.equal(own?.user, '1000:1000');
   });
 
-  it('ne l’impose pas à nos images qui déclarent un volume — Compose n’a pas de fsGroup', () => {
-    // Un volume nommé neuf est `root:root 0755` et le reste : un conteneur en
-    // uid 1000 démarrerait puis échouerait à la première écriture. Le point
-    // d'entrée de l'image fait ce que `fsGroup` ferait côté K3s — avec les cinq
-    // capacités qu'on vient de lui rendre.
+  it('does not impose it on our images that declare a volume — Compose has no fsGroup', () => {
+    // A new named volume is `root:root 0755` and stays so: a container as uid 1000
+    // would start then fail at the first write. The image's entry point does what
+    // `fsGroup` would do on the K3s side — with the five capabilities just given
+    // back to it.
     assert.equal(ownWithVolume?.user, undefined);
   });
 
-  it('n’impose jamais d’uid à une image tierce', () => {
+  it('never imposes a uid on a third-party image', () => {
     assert.equal(thirdParty?.user, undefined);
   });
 
   it('met la racine en lecture seule sur nos images seulement', () => {
-    // Y compris celle qui porte un volume : le volume reste inscriptible.
+    // Including the one carrying a volume: the volume stays writable.
     assert.equal(own?.read_only, true);
     assert.equal(ownWithVolume?.read_only, true);
-    // Mesuré : `nginx` en lecture seule meurt sur
+    // Measured: a read-only `nginx` dies on
     // `mkdir() "/var/cache/nginx/client_temp" failed (30: Read-only file system)`.
     assert.equal(thirdParty?.read_only, undefined);
   });
 
-  it('ouvre un /tmp inscriptible et exécutable là où la racine est verrouillée', () => {
-    // `exec` est explicite : le tmpfs de Docker est `noexec` par défaut, pas
-    // l'`emptyDir` que le rendu K3s monte au même endroit. Sans lui, la même
-    // AppSpec se comporterait différemment sur les deux runtimes.
+  it('opens a writable and executable /tmp where the root is locked', () => {
+    // `exec` is explicit: Docker's tmpfs is `noexec` by default, the `emptyDir` the
+    // K3s render mounts at the same place is not. Without it, the same AppSpec
+    // would behave differently on the two runtimes.
     assert.deepEqual(own?.tmpfs, ['/tmp:exec,mode=1777']);
     assert.deepEqual(ownWithVolume?.tmpfs, ['/tmp:exec,mode=1777']);
-    assert.equal(thirdParty?.tmpfs, undefined, 'pas de racine verrouillée, pas de scratch');
+    assert.equal(thirdParty?.tmpfs, undefined, 'no locked root, no scratch');
   });
 
-  it('ne déclare aucun profil seccomp : celui de Docker est déjà appliqué', () => {
-    // `docker info` → `name=seccomp,profile=builtin`, et `/proc/1/status` rend
-    // `Seccomp: 2` sans qu'on demande rien. C'est le `RuntimeDefault` du rendu
-    // K3s sous un autre nom ; la seule chose que Compose saurait déclarer ici
-    // (`seccomp:unconfined`) l'affaiblirait.
+  it('declares no seccomp profile: Docker’s is already applied', () => {
+    // `docker info` → `name=seccomp,profile=builtin`, and `/proc/1/status` returns
+    // `Seccomp: 2` without asking anything. It is the K3s render's `RuntimeDefault`
+    // under another name; the only thing Compose could declare here
+    // (`seccomp:unconfined`) would weaken it.
     for (const service of [own, ownWithVolume, thirdParty]) {
       for (const option of service?.security_opt ?? []) {
         assert.doesNotMatch(option, /seccomp/);
@@ -384,7 +384,7 @@ describe('contexte de sécurité', () => {
     }
   });
 
-  it('ne monte pas de scratch quand la spec occupe déjà /tmp', () => {
+  it('does not mount a scratch when the spec already occupies /tmp', () => {
     const spec = parseAppSpec({
       name: 'scratch-occupe',
       version: '1.0.0',
@@ -401,17 +401,17 @@ describe('contexte de sécurité', () => {
     const rendered = renderComposeFile({ spec, appSlug: spec.name, publishedPort: null });
     assert.equal(rendered.services.app?.read_only, true);
     assert.equal(rendered.services.app?.tmpfs, undefined);
-    // Un volume est déclaré : l'uid reste celui de l'image.
+    // A volume is declared: the uid stays the image's.
     assert.equal(rendered.services.app?.user, undefined);
   });
 
-  it('produit un compose.yml que Docker accepte', { skip: !dockerAvailable }, () => {
+  it('produces a compose.yml Docker accepts', { skip: !dockerAvailable }, () => {
     const output = validateWithDockerCompose('securite', fullstack, null);
     const parsed = parseYaml(output) as {
       services: Record<string, Record<string, unknown>>;
     };
-    // C'est `docker compose config` qui parle ici : les champs survivent à la
-    // normalisation du schéma, `tmpfs` avec ses options comprise.
+    // It is `docker compose config` speaking here: the fields survive the schema's
+    // normalization, `tmpfs` with its options included.
     assert.equal(parsed.services.front?.user, '1000:1000');
     assert.equal(parsed.services.front?.read_only, true);
     assert.deepEqual(parsed.services.front?.tmpfs, ['/tmp:exec,mode=1777']);

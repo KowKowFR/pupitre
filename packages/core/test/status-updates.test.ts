@@ -21,31 +21,31 @@ const INCIDENT = { type: 'incident' as const, id: '6f1c2c1e-6c0a-4b8e-9d55-0d6d3
 const WINDOW = { type: 'maintenance' as const, id: '0b8e3f7a-2d4c-4a51-8f0e-7c2d1a9b6e33' };
 
 describe('annonces — les phases', () => {
-  it('une panne et une maintenance ne parlent pas avec les mêmes mots', () => {
+  it('an outage and a maintenance window do not speak with the same words', () => {
     for (const phase of INCIDENT_UPDATE_PHASES) {
       assert.ok(isStatusUpdatePhaseFor('incident', phase));
       assert.ok(
         !isStatusUpdatePhaseFor('maintenance', phase),
-        `${phase} n'est pas une phase de maintenance`,
+        `${phase} is not a maintenance phase`,
       );
     }
     for (const phase of MAINTENANCE_UPDATE_PHASES) {
       assert.ok(isStatusUpdatePhaseFor('maintenance', phase));
-      assert.ok(!isStatusUpdatePhaseFor('incident', phase), `on ne « ${phase} » pas une panne`);
+      assert.ok(!isStatusUpdatePhaseFor('incident', phase), `one does not “${phase}” an outage`);
     }
   });
 
-  it('le formulaire reprend la dernière phase publiée, ou la première du sujet', () => {
+  it('the form reuses the last published phase, or the subject’s first', () => {
     assert.equal(suggestedStatusUpdatePhase('incident', null), 'investigating');
     assert.equal(suggestedStatusUpdatePhase('maintenance', null), 'scheduled');
     assert.equal(suggestedStatusUpdatePhase('incident', 'identified'), 'identified');
-    // Une phase de l'autre sujet ne se reprend pas.
+    // A phase of the other subject is not reused.
     assert.equal(suggestedStatusUpdatePhase('incident', 'in_progress'), 'investigating');
   });
 });
 
-describe('annonces — ce qui se publie', () => {
-  it('accepte une phase qui convient au sujet, texte nettoyé', () => {
+describe('announcements — what gets published', () => {
+  it('accepts a phase that suits the subject, text cleaned up', () => {
     const input = createStatusUpdateSchema.parse({
       subject: INCIDENT,
       phase: 'identified',
@@ -54,7 +54,7 @@ describe('annonces — ce qui se publie', () => {
     assert.equal(input.message, 'La base est saturée ; un correctif part.');
   });
 
-  it('refuse une phase qui ne convient pas au sujet', () => {
+  it('refuses a phase that does not suit the subject', () => {
     const result = createStatusUpdateSchema.safeParse({
       subject: INCIDENT,
       phase: 'scheduled',
@@ -68,7 +68,7 @@ describe('annonces — ce qui se publie', () => {
     );
   });
 
-  it('refuse un texte vide ou trop long, et un sujet inconnu', () => {
+  it('refuses an empty or too long text, and an unknown subject', () => {
     const base = { subject: INCIDENT, phase: 'investigating' };
     assert.ok(!createStatusUpdateSchema.safeParse({ ...base, message: '   ' }).success);
     assert.ok(
@@ -86,20 +86,20 @@ describe('annonces — ce qui se publie', () => {
     );
   });
 
-  it('une correction porte au moins un champ', () => {
+  it('a correction carries at least one field', () => {
     assert.ok(!updateStatusUpdateSchema.safeParse({}).success);
     assert.ok(updateStatusUpdateSchema.safeParse({ message: 'Précision.' }).success);
   });
 });
 
-describe('annonces — la clé du sujet dans une adresse', () => {
+describe('announcements — the subject’s key in an address', () => {
   it('fait l’aller-retour', () => {
     for (const subject of [INCIDENT, WINDOW]) {
       assert.deepEqual(parseStatusUpdateSubjectKey(statusUpdateSubjectKey(subject)), subject);
     }
   });
 
-  it('rend null pour ce qui n’est pas un sujet', () => {
+  it('returns null for what is not a subject', () => {
     for (const key of [
       null,
       '',
@@ -113,7 +113,7 @@ describe('annonces — la clé du sujet dans une adresse', () => {
   });
 });
 
-describe('annonces — ce qu’un visiteur lit', () => {
+describe('announcements — what a visitor reads', () => {
   const at = (
     iso: string,
     phase: PublicStatusUpdate['phase'] = 'investigating',
@@ -123,7 +123,7 @@ describe('annonces — ce qu’un visiteur lit', () => {
     at: iso,
   });
 
-  it('la plus récente d’abord', () => {
+  it('the most recent first', () => {
     const sorted = latestFirst([
       at('2026-10-03T10:00:00Z'),
       at('2026-10-03T12:00:00Z'),
@@ -135,25 +135,25 @@ describe('annonces — ce qu’un visiteur lit', () => {
     );
   });
 
-  it('en tête de page : la dernière annonce de chaque sujet en cours, et rien d’autre', () => {
+  it('at the top of the page: the last announcement of each ongoing subject, and nothing else', () => {
     const notices = statusNotices([
-      // En cours, deux annonces : la dernière seulement.
+      // Ongoing, two announcements: only the last one.
       {
         kind: 'incident',
         services: ['Coffre-fort'],
         ongoing: true,
         updates: [at('2026-10-03T10:00:00Z'), at('2026-10-03T10:20:00Z', 'identified')],
       },
-      // Refermée : elle a sa place dans les incidents, pas en tête.
+      // Closed: it has its place in the incidents, not at the top.
       {
         kind: 'incident',
         services: ['Wiki'],
         ongoing: false,
         updates: [at('2026-10-03T11:00:00Z')],
       },
-      // En cours, mais muette : rien à dire.
+      // Ongoing, but silent: nothing to say.
       { kind: 'incident', services: ['Forge'], ongoing: true, updates: [] },
-      // En cours, mais sur une sonde que la page ne montre pas.
+      // Ongoing, but on a probe the page does not show.
       { kind: 'incident', services: [], ongoing: true, updates: [at('2026-10-03T11:30:00Z')] },
       {
         kind: 'maintenance',
@@ -172,8 +172,8 @@ describe('annonces — ce qu’un visiteur lit', () => {
   });
 });
 
-describe('annonces — qui publie, et qui l’apprend', () => {
-  it('annoncer revient à l’opérateur, pas aux rôles de lecture', () => {
+describe('announcements — who publishes, and who learns about it', () => {
+  it('announcing belongs to the operator, not to the read roles', () => {
     assert.ok(ROLE_DEFINITIONS.operator.permissions.includes('status_page:announce'));
     assert.ok(!ROLE_DEFINITIONS.operator.permissions.includes('status_page:manage'));
     assert.ok(!ROLE_DEFINITIONS.viewer.permissions.includes('status_page:announce'));
@@ -181,7 +181,7 @@ describe('annonces — qui publie, et qui l’apprend', () => {
     assert.ok(ROLE_DEFINITIONS.admin.permissions.includes('status_page:announce'));
   });
 
-  it('une annonce réveille les écrans de la supervision', () => {
+  it('an announcement wakes up the monitoring screens', () => {
     assert.equal(liveTopicOfResource('status_update'), 'monitors');
   });
 });

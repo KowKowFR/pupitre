@@ -21,14 +21,14 @@ import type { NpmCertificate } from '../src/proxy/npm/api.js';
 import { ProxyError, type ProxyRouteSet, type RemoteProxyContext } from '../src/proxy/types.js';
 
 /**
- * Nginx Proxy Manager, sans conteneur : sa configuration, le choix d'un
- * certificat, la sonde depuis le panel — et le provider entier contre un faux
- * NPM en mémoire, qui tient son API et son entrée des visiteurs. Le vrai est
- * éprouvé par `pnpm test:npm`.
+ * Nginx Proxy Manager, without a container: its configuration, choosing a
+ * certificate, the probe from the panel — and the whole provider against a fake
+ * in-memory NPM, which holds its API and its visitors' entrance. The real one is
+ * tested by `pnpm test:npm`.
  */
 
 describe('NPM — la connexion', () => {
-  it('ramène l’adresse de l’interface à elle-même, et sonde sa machine par défaut', () => {
+  it('brings the interface’s address back to itself, and probes its machine by default', () => {
     const config = npmConfigSchema.parse({
       url: ' http://10.0.0.5:81/api/ ',
       email: 'pupitre@exemple.fr',
@@ -39,22 +39,23 @@ describe('NPM — la connexion', () => {
     assert.throws(() => npmConfigSchema.parse({ url: 'ftp://npm', email: 'a@b.fr' }));
   });
 
-  it('est un proxy distant, avec un mot de passe pour secret', () => {
+  it('is a remote proxy, with a password as secret', () => {
     assert.equal(proxyPlacement('npm'), 'remote');
     assert.equal(proxyPlacement('traefik'), 'target');
     assert.deepEqual(remoteProxyKinds(), ['npm']);
     assert.deepEqual(parseProxySecrets('npm', { password: 's3cret' }), { password: 's3cret' });
     assert.throws(() => parseProxySecrets('npm', { password: '' }));
-    // Un proxy sur une cible n'a pas de secrets à ranger.
+    // A proxy on a target has no secrets to store.
     assert.throws(() => parseProxySecrets('traefik', { token: 'x' }));
   });
 
-  it('refuse un mot de passe en clair vers une adresse IP publique', () => {
+  it('refuses a clear-text password toward a public IP address', () => {
     assert.equal(plainOnPublicAddress('http://203.0.113.10:81'), true);
     assert.equal(plainOnPublicAddress('http://[2001:db8::1]:81'), true);
     assert.equal(plainOnPublicAddress('http://10.0.0.5:81'), false);
     assert.equal(plainOnPublicAddress('https://203.0.113.10'), false);
-    // Un nom ne se juge pas sans le résoudre — même fait de lettres a à f.
+    // A name cannot be judged without resolving it — even one made of letters a to
+    // f.
     assert.equal(plainOnPublicAddress('http://face.de:81'), false);
   });
 
@@ -66,7 +67,7 @@ describe('NPM — la connexion', () => {
   });
 });
 
-describe('NPM — le certificat à reprendre', () => {
+describe('NPM — the certificate to reuse', () => {
   const certificate = (id: number, names: string[], expires: string | null): NpmCertificate => ({
     id,
     provider: 'other',
@@ -76,7 +77,7 @@ describe('NPM — le certificat à reprendre', () => {
   });
   const now = Date.parse('2026-10-02T00:00:00Z');
 
-  it('couvre un nom exact, ou un joker d’un niveau seulement', () => {
+  it('covers an exact name, or a one-level wildcard only', () => {
     const joker = certificate(1, ['*.exemple.fr'], '2027-01-01 00:00:00');
     assert.equal(certificateCovers(joker, 'app.exemple.fr'), true);
     assert.equal(certificateCovers(joker, 'a.b.exemple.fr'), false);
@@ -87,7 +88,7 @@ describe('NPM — le certificat à reprendre', () => {
     );
   });
 
-  it('prend le plus lointain, jamais un expiré', () => {
+  it('takes the furthest-expiring, never an expired one', () => {
     const chosen = coveringCertificate(
       [
         certificate(1, ['*.exemple.fr'], '2026-09-01 00:00:00'),
@@ -130,16 +131,16 @@ type FakeHost = {
 
 const PASSWORD = 'bon-mot-de-passe';
 
-/** L'API et l'entrée d'un NPM, en mémoire : ce que Pupitre en emploie, pas plus. */
+/** An NPM's API and entrance, in memory: what Pupitre uses of it, no more. */
 class FakeNpm {
   hosts: FakeHost[] = [];
   certificates: NpmCertificate[] = [];
   next = 1;
-  /** Ce qui s'est passé, dans l'ordre : `host+ nom`, `cert+ nom`, `host- nom`… */
+  /** What happened, in order: `host+ name`, `cert+ name`, `host- name`… */
   events: string[] = [];
   certbotBusy = false;
   overlapping = false;
-  /** Le nombre de réponses du site par défaut avant qu'un hôte neuf ne soit servi. */
+  /** The number of default-site answers before a new host is served. */
   reloadLag = 0;
   permissions: Record<string, string> = {
     visibility: 'user',
@@ -245,7 +246,7 @@ class FakeNpm {
     }
     if (route === 'GET /api/nginx/certificates') return this.send(response, 200, this.certificates);
     if (route === 'POST /api/nginx/certificates') {
-      // Comme le vrai : un seul certbot à la fois, le second refusé aussitôt.
+      // Like the real one: a single certbot at a time, the second refused right away.
       if (this.certbotBusy) {
         this.overlapping = true;
         return this.send(response, 500, { error: { code: 500, message: 'Internal Error' } });
@@ -277,7 +278,7 @@ class FakeNpm {
     this.send(response, 404, { error: { code: 404, message: `Not Found - ${request.url}` } });
   }
 
-  /** L'entrée des visiteurs : le site par défaut, ou l'amont de l'hôte — ici, un écho. */
+  /** The visitors' entrance: the default site, or the host's upstream — here, an echo. */
   private handleEntry(request: http.IncomingMessage, response: http.ServerResponse) {
     const name = request.headers.host ?? '';
     const host = this.hosts.find((candidate) => candidate.domain_names.includes(name));
@@ -293,7 +294,7 @@ class FakeNpm {
       }
       return;
     }
-    // Le port 1 « refuse », le port 2 « ne répond pas » ; ailleurs, le chemin revient.
+    // Port 1 "refuses", port 2 "does not answer"; elsewhere, the path comes back.
     if (host.forward_port === 1) {
       response.writeHead(502);
       response.end('Bad Gateway');
@@ -309,7 +310,7 @@ class FakeNpm {
   }
 }
 
-describe('NPM — le provider, contre un faux NPM', () => {
+describe('NPM — the provider, against a fake NPM', () => {
   const npm = new FakeNpm();
   const provider = new NginxProxyManagerProvider();
   let ctx: RemoteProxyContext;
@@ -346,7 +347,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     npm.reloadLag = 0;
   });
 
-  it('« Tester » : un mauvais mot de passe, des droits trop courts — dits tels', async () => {
+  it('“Test”: a wrong password, insufficient rights — said as such', async () => {
     const good = await provider.check(ctx, noLog);
     assert.equal(good.checks.find((item) => item.key === 'rights')?.ok, true);
     assert.equal(good.checks.find((item) => item.key === 'api')?.detail?.includes('2.16.0'), true);
@@ -364,7 +365,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     npm.permissions = { visibility: 'user', proxy_hosts: 'manage', certificates: 'manage' };
   });
 
-  it('pose un hôte par domaine, marqué, le certificat demandé avant l’hôte', async () => {
+  it('sets one host per domain, marked, the certificate requested before the host', async () => {
     await provider.apply(ctx, set(['app.exemple.fr', 'http.exemple.fr']), noLog);
     assert.deepEqual(npm.events, [
       'cert+ app.exemple.fr',
@@ -385,9 +386,9 @@ describe('NPM — le provider, contre un faux NPM', () => {
     assert.equal(plain.ssl_forced, false);
   });
 
-  it('ne change rien quand rien ne change, et tient ses champs seulement', async () => {
+  it('changes nothing when nothing changes, and only holds its own fields', async () => {
     await provider.apply(ctx, set(['app.exemple.fr']), noLog);
-    // Un réglage fait dans NPM sur un hôte de Pupitre.
+    // A setting made in NPM on a Pupitre host.
     npm.hosts[0]!.block_exploits = true;
     npm.events = [];
     await provider.apply(ctx, set(['app.exemple.fr']), noLog);
@@ -398,7 +399,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     assert.equal(npm.hosts[0]!.block_exploits, true);
   });
 
-  it('retire ce qu’il a posé, son certificat avec — jamais ce qui n’est pas à lui', async () => {
+  it('removes what it set up, its certificate with it — never what is not its own', async () => {
     npm.hosts.push({
       id: 900,
       created_on: '2026-10-01 00:00:00',
@@ -425,7 +426,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     ]);
   });
 
-  it('une machine ne touche pas aux domaines d’une autre (scope)', async () => {
+  it('a machine does not touch another’s domains (scope)', async () => {
     await provider.apply(ctx, set(['un.exemple.fr'], { scope: 'tAAAA' }), noLog);
     await provider.apply(ctx, set(['deux.exemple.fr'], { scope: 'tBBBB' }), noLog);
     await provider.apply(ctx, set([], { scope: 'tAAAA' }), noLog);
@@ -435,7 +436,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     );
   });
 
-  it('reprend un joker déjà dans NPM, et ne le retire pas', async () => {
+  it('reuses a wildcard already in NPM, and does not remove it', async () => {
     npm.certificates.push({
       id: 500,
       provider: 'other',
@@ -450,7 +451,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     assert.ok(npm.certificates.some((certificate) => certificate.id === 500));
   });
 
-  it('refuse un domaine qu’un autre porte déjà, en le disant, et pose les autres', async () => {
+  it('refuses a domain another already carries, saying so, and sets the others', async () => {
     npm.hosts.push({
       id: 901,
       created_on: '2026-10-01 00:00:00',
@@ -472,7 +473,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     assert.ok(npm.hosts.some((host) => host.domain_names[0] === 'http.pris.exemple.fr'));
   });
 
-  it('fait passer les demandes de certificat l’une après l’autre', async () => {
+  it('puts certificate requests one after the other', async () => {
     await Promise.all([
       provider.apply(ctx, set(['un.exemple.fr'], { app: 'un' }), noLog),
       provider.apply(ctx, set(['deux.exemple.fr'], { app: 'deux' }), noLog),
@@ -482,7 +483,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     assert.equal(npm.certificates.length, 3);
   });
 
-  it('sans certificat obtenu, le domaine est servi en HTTP, et la sonde dit pourquoi', async () => {
+  it('without an obtained certificate, the domain is served over HTTP, and the probe says why', async () => {
     const lines: string[] = [];
     await provider.apply(ctx, set(['sans-dns.exemple.fr']), (line) => lines.push(line));
     assert.equal(npm.hosts[0]!.certificate_id, 0);
@@ -497,7 +498,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     assert.match(probe.detail, /pas encore de certificat/);
   });
 
-  it('sonde depuis le panel : un domaine inconnu est reconnu', async () => {
+  it('probe from the panel: an unknown domain is recognized', async () => {
     const unknown = await probeDirect(
       npm.entrypoint,
       { hostname: 'inconnu.exemple.fr', tls: false, redirectHttps: false, waf: 'off' },
@@ -517,7 +518,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     assert.equal(known.http, 200);
   });
 
-  it('éprouve un chemin à travers lui, attend que nginx ait rechargé, et ne laisse rien', async () => {
+  it('tests a path through it, waits for nginx to reload, and leaves nothing', async () => {
     npm.reloadLag = 3;
     const ok = await provider.reach(
       ctx,

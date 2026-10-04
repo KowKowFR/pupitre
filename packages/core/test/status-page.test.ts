@@ -16,7 +16,7 @@ const M1 = '11111111-1111-4111-8111-111111111111';
 const M2 = '22222222-2222-4222-8222-222222222222';
 
 describe('page de statut — la forme', () => {
-  it('une adresse vide mène à /status, une adresse choisie à /status/<adresse>', () => {
+  it('an empty address leads to /status, a chosen address to /status/<address>', () => {
     assert.equal(statusPagePath(''), '/status');
     assert.equal(statusPagePath('clients'), '/status/clients');
     for (const ok of ['', 'clients', 'atelier-nord', 'v2'])
@@ -26,7 +26,7 @@ describe('page de statut — la forme', () => {
     }
   });
 
-  it('valide les blocs et refuse deux blocs au même identifiant', () => {
+  it('validates the blocks and refuses two blocks with the same identifier', () => {
     const page = {
       slug: 'clients',
       title: 'État des services',
@@ -68,7 +68,7 @@ describe('page de statut — la forme', () => {
     );
   });
 
-  it('liste les sondes de la page dans l’ordre, sans doublon', () => {
+  it('lists the page’s probes in order, without duplicates', () => {
     assert.deepEqual(
       statusPageMonitorIds([
         {
@@ -97,8 +97,8 @@ describe('page de statut — la forme', () => {
   });
 });
 
-describe('page de statut — ce que lit un visiteur', () => {
-  it('une maintenance l’emporte, une sonde suspendue est inconnue', () => {
+describe('status page — what a visitor reads', () => {
+  it('a maintenance window wins, a paused probe is unknown', () => {
     assert.equal(
       publicStateOf({ status: 'unreachable', enabled: true, inMaintenance: true }),
       'maintenance',
@@ -121,7 +121,7 @@ describe('page de statut — ce que lit un visiteur', () => {
     );
   });
 
-  it('l’état général : panne partielle, majeure, maintenance', () => {
+  it('the overall state: partial outage, major, maintenance', () => {
     assert.equal(overallStateOf(['operational', 'operational']), 'operational');
     assert.equal(overallStateOf(['operational', 'operational', 'down']), 'partial_outage');
     assert.equal(overallStateOf(['operational', 'down']), 'partial_outage');
@@ -132,7 +132,7 @@ describe('page de statut — ce que lit un visiteur', () => {
     assert.equal(overallStateOf([]), 'unknown');
   });
 
-  it('une barre par jour ; un jour sans mesure reste vide', () => {
+  it('one bar per day; a day without measurements stays empty', () => {
     const bars = dayBars(
       [
         { day: '2026-10-01', total: 1000, healthy: 1000 },
@@ -158,13 +158,13 @@ describe('page de statut — ce que lit un visiteur', () => {
 });
 
 describe('page de statut — une modification', () => {
-  it('ne remplit pas ce qu’elle ne dit pas : un titre ne dépublie rien', () => {
+  it('does not fill in what it does not say: a title unpublishes nothing', () => {
     assert.deepEqual(updateStatusPageSchema.parse({ title: 'Nouveau titre' }), {
       title: 'Nouveau titre',
     });
   });
 
-  it('la création, elle, garde ses valeurs par défaut', () => {
+  it('creation keeps its default values', () => {
     const page = statusPageInputSchema.parse({ slug: '', title: 'État' });
     assert.equal(page.published, false);
     assert.equal(page.description, null);

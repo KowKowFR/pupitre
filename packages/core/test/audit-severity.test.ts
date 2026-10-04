@@ -8,7 +8,7 @@ import {
   type AuditSeverity,
 } from '../src/audit-severity.js';
 
-describe('criticité du journal', () => {
+describe('log severity', () => {
   const cases: Array<[string, AuditSeverity]> = [
     ['target.host_key.mismatch', 'critical'],
     ['deployment.rollback.failed', 'critical'],
@@ -52,19 +52,19 @@ describe('criticité du journal', () => {
     });
   }
 
-  it("un point du motif n'est pas un joker", () => {
-    // `*.down` ne doit pas répondre à `breakdown` : le point est littéral.
+  it("a dot in the pattern is not a wildcard", () => {
+    // `*.down` must not match `breakdown`: the dot is literal.
     assert.equal(auditSeverityOf('monitor.breakdown'), 'low');
   });
 
-  it('traduit un motif en LIKE, jokers SQL échappés', () => {
+  it('translates a pattern into LIKE, SQL wildcards escaped', () => {
     assert.equal(auditSeverityLikePattern('auth.two_factor.failed'), 'auth.two\\_factor.failed');
     assert.equal(auditSeverityLikePattern('*.rollback.failed'), '%.rollback.failed');
     assert.equal(auditSeverityLikePattern('100%'), '100\\%');
   });
 
-  it("chaque motif SQL répond aux mêmes actions que l'écran", () => {
-    // `LIKE` simulé : `%` vaut n'importe quoi, `\x` vaut `x`.
+  it("each SQL pattern matches the same actions as the screen", () => {
+    // Simulated `LIKE`: `%` matches anything, `\x` matches `x`.
     const like = (pattern: string, value: string) => {
       let source = '';
       for (let index = 0; index < pattern.length; index += 1) {
@@ -85,7 +85,7 @@ describe('criticité du journal', () => {
     }
   });
 
-  it('lit la liste de la requête', () => {
+  it('reads the query’s list', () => {
     assert.deepEqual(parseAuditSeverities('critical,HIGH, inconnu'), ['high', 'critical']);
     assert.deepEqual(parseAuditSeverities(''), []);
     assert.deepEqual(parseAuditSeverities(null), []);

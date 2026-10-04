@@ -1,23 +1,22 @@
 /**
- * Harnais d'exécution des sondes `tcp` et `dns`, **contre de vraies cibles**.
+ * Run harness for the `tcp` and `dns` probes, **against real targets**.
  *
  *     pnpm --filter @pupitre/core exec tsx test/probes-live.ts
  *
- * Ce n'est pas un test unitaire et ça ne tourne pas dans `pnpm test` : ça sort
- * du réseau, donc ça échoue dans un tunnel de train, et un test qui échoue pour
- * une raison qui n'est pas le code est un test qu'on finit par ignorer. C'est
- * un harnais : on le lance, on lit ce qu'il affiche, on juge.
+ * It is not a unit test and it does not run in `pnpm test`: it goes out on the
+ * network, so it fails in a train tunnel, and a test that fails for a reason
+ * that is not the code is a test one ends up ignoring. It is a harness: you run
+ * it, read what it prints, and judge.
  *
- * Il vérifie ce qu'aucun test hors-ligne ne peut vérifier : que la sonde parle
- * bien aux vraies piles réseau — un vrai résolveur, un vrai service qui
- * annonce une bannière, un vrai port fermé — et que la garde SSRF tient face à
- * de vraies adresses.
+ * It checks what no offline test can check: that the probe does talk to real
+ * network stacks — a real resolver, a real service announcing a banner, a real
+ * closed port — and that the SSRF guard holds against real addresses.
  *
- * Les cibles TCP sont les conteneurs de la pile de développement, joints depuis
- * le poste par les ports publiés sur le bouclage. La liste d'autorisation du
- * harnais ouvre donc `127.0.0.0/8` — exactement ce que `MONITOR_ALLOWED_CIDRS`
- * ferait en production pour un parc interne, et le harnais montre juste après
- * que sans cette ligne, tout est refusé.
+ * The TCP targets are the development stack's containers, reached from the
+ * workstation through the ports published on loopback. The harness's allow list
+ * therefore opens `127.0.0.0/8` — exactly what `MONITOR_ALLOWED_CIDRS` would do
+ * in production for an internal fleet, and the harness shows right after that
+ * without that line, everything is refused.
  */
 import { parseCidrList, type CheckResult } from '../src/monitoring.js';
 import { getMonitorProbe } from '../src/probe/index.js';
@@ -32,9 +31,9 @@ const DIM = '\u001b[2m';
 const OFF = '\u001b[0m';
 
 function badge(result: CheckResult): string {
-  if (result.outcome === 'healthy') return `${GREEN}sain       ${OFF}`;
-  if (result.outcome === 'unhealthy') return `${YELLOW}dégradé    ${OFF}`;
-  return `${RED}injoignable${OFF}`;
+  if (result.outcome === 'healthy') return `${GREEN}healthy    ${OFF}`;
+  if (result.outcome === 'unhealthy') return `${YELLOW}degraded   ${OFF}`;
+  return `${RED}unreachable${OFF}`;
 }
 
 function show(result: CheckResult): void {
@@ -57,7 +56,7 @@ async function probe(
   const started = performance.now();
   const result = await getMonitorProbe(type).run(config, { allowlist });
   show(result);
-  console.log(`   ${DIM}mesuré en ${Math.round(performance.now() - started)} ms${OFF}`);
+  console.log(`   ${DIM}measured in ${Math.round(performance.now() - started)} ms${OFF}`);
 }
 
 function section(title: string): void {
@@ -65,122 +64,122 @@ function section(title: string): void {
 }
 
 async function main(): Promise<void> {
-  section('TCP — la pile de développement, telle qu’elle tourne');
+  section('TCP — the development stack, as it runs');
 
-  await probe('PostgreSQL, port publié sur le bouclage', 'tcp', {
+  await probe('PostgreSQL, port published on loopback', 'tcp', {
     host: '127.0.0.1',
     port: 5433,
   });
   await probe(
-    'PostgreSQL avec une bannière attendue — le client parle en premier, rien ne vient',
+    'PostgreSQL with an expected banner — the client speaks first, nothing comes',
     'tcp',
     { host: '127.0.0.1', port: 5433, expectBanner: 'PostgreSQL', timeoutMs: 2_000 },
   );
-  await probe('Redis, port publié sur le bouclage', 'tcp', { host: '127.0.0.1', port: 6380 });
-  await probe('La cible SSH de test — un service qui, lui, s’annonce', 'tcp', {
+  await probe('Redis, port published on loopback', 'tcp', { host: '127.0.0.1', port: 6380 });
+  await probe('The SSH test target — a service that does announce itself', 'tcp', {
     host: '127.0.0.1',
     port: 2222,
     expectBanner: 'SSH-2.0',
   });
-  await probe('La même, avec la mauvaise bannière attendue', 'tcp', {
+  await probe('The same, with the wrong expected banner', 'tcp', {
     host: '127.0.0.1',
     port: 2222,
     expectBanner: '220 ESMTP',
   });
-  await probe('Un port fermé', 'tcp', { host: '127.0.0.1', port: 9 });
-  await probe('Une adresse publique qui filtre — le délai, pas le refus', 'tcp', {
+  await probe('A closed port', 'tcp', { host: '127.0.0.1', port: 9 });
+  await probe('A public address that filters — the timeout, not the refusal', 'tcp', {
     host: 'example.com',
     port: 9,
     timeoutMs: 3_000,
   }, NOTHING);
-  await probe('Un port public qui répond', 'tcp', { host: 'example.com', port: 443 }, NOTHING);
+  await probe('A public port that answers', 'tcp', { host: 'example.com', port: 443 }, NOTHING);
 
-  section('TCP — la garde SSRF, sur de vraies adresses');
+  section('TCP — the SSRF guard, on real addresses');
 
   await probe(
-    'Le service de métadonnées d’un cloud — refusé quelle que soit la liste',
+    'A cloud’s metadata service — refused whatever the list',
     'tcp',
     { host: '169.254.169.254', port: 80 },
     parseCidrList('0.0.0.0/0'),
   );
   await probe(
-    'Le même PostgreSQL, mais sans MONITOR_ALLOWED_CIDRS',
+    'The same PostgreSQL, but without MONITOR_ALLOWED_CIDRS',
     'tcp',
     { host: '127.0.0.1', port: 5433 },
     NOTHING,
   );
-  await probe('Une plage privée non listée', 'tcp', { host: '10.0.0.5', port: 22 }, NOTHING);
-  await probe('« localhost », refusé par son nom', 'tcp', { host: 'localhost', port: 5433 });
+  await probe('A private range not listed', 'tcp', { host: '10.0.0.5', port: 22 }, NOTHING);
+  await probe('“localhost”, refused by its name', 'tcp', { host: 'localhost', port: 5433 });
 
-  section('DNS — des noms publics stables');
+  section('DNS — stable public names');
 
-  await probe('Présence : le A de example.com existe-t-il', 'dns', {
+  await probe('Presence: does example.com’s A exist', 'dns', {
     name: 'example.com',
     recordType: 'A',
   });
-  await probe('Les NS de root-servers.net — la délégation la plus stable du monde', 'dns', {
+  await probe('The NS of root-servers.net — the most stable delegation in the world', 'dns', {
     name: 'iana.org',
     recordType: 'NS',
   });
-  await probe('Les MX de gmail.com, comparés dans le désordre', 'dns', {
+  await probe('gmail.com’s MX, compared out of order', 'dns', {
     name: 'gmail.com',
     recordType: 'MX',
     expected:
       '40 alt4.gmail-smtp-in.l.google.com, 5 gmail-smtp-in.l.google.com, 30 alt3.gmail-smtp-in.l.google.com, 10 alt1.gmail-smtp-in.l.google.com, 20 alt2.gmail-smtp-in.l.google.com',
   });
-  await probe('Le SPF de google.com, régime « au moins ces valeurs »', 'dns', {
+  await probe('google.com’s SPF, “at least these values” regime', 'dns', {
     name: 'google.com',
     recordType: 'TXT',
     expected: 'v=spf1 include:_spf.google.com ~all',
     match: 'contains',
   });
-  await probe('Le même SPF en régime « exactement » — tous les autres TXT sont en trop', 'dns', {
+  await probe('The same SPF in the “exactly” regime — every other TXT is extra', 'dns', {
     name: 'google.com',
     recordType: 'TXT',
     expected: 'v=spf1 include:_spf.google.com ~all',
     match: 'exact',
   });
-  await probe('Le CAA de google.com, avec la valeur attendue', 'dns', {
+  await probe('google.com’s CAA, with the expected value', 'dns', {
     name: 'google.com',
     recordType: 'CAA',
     expected: '0 ISSUE PKI.goog',
   });
-  await probe('Un AAAA écrit sous une autre forme que celle du résolveur', 'dns', {
+  await probe('An AAAA written in another form than the resolver’s', 'dns', {
     name: 'one.one.one.one',
     recordType: 'AAAA',
     expected: '2606:4700:4700:0000:0000:0000:0000:1111, 2606:4700:4700::1001',
   });
-  await probe('Une valeur attendue fausse — ce que voit l’exploitant en alerte', 'dns', {
+  await probe('A wrong expected value — what the operator sees in the alert', 'dns', {
     name: 'example.com',
     recordType: 'A',
     expected: '203.0.113.7',
   });
-  await probe('Un nom qui n’existe pas (NXDOMAIN garanti, TLD réservé)', 'dns', {
-    name: 'ceci-nexiste-vraiment-pas.invalid',
+  await probe('A name that does not exist (guaranteed NXDOMAIN, reserved TLD)', 'dns', {
+    name: 'this-really-does-not-exist.invalid',
     recordType: 'A',
   });
-  await probe('Un sous-domaine inexistant sous un domaine qui existe', 'dns', {
-    name: 'ceci-nexiste-vraiment-pas.example.com',
+  await probe('A nonexistent subdomain under a domain that exists', 'dns', {
+    name: 'this-really-does-not-exist.example.com',
     recordType: 'A',
   });
-  await probe('Un nom qui existe sans enregistrement du type demandé', 'dns', {
+  await probe('A name that exists without a record of the requested type', 'dns', {
     name: 'example.com',
     recordType: 'SRV',
   });
 
-  section('DNS — le résolveur, seul endpoint que la garde contrôle');
+  section('DNS — the resolver, the only endpoint the guard checks');
 
-  await probe('Résolveur du système (celui du conteneur, ou du poste)', 'dns', {
+  await probe('System resolver (the container’s, or the workstation’s)', 'dns', {
     name: 'example.com',
     recordType: 'A',
   });
-  await probe('Résolveur public déclaré — ce que voit le monde, sans le cache local', 'dns', {
+  await probe('Declared public resolver — what the world sees, without the local cache', 'dns', {
     name: 'example.com',
     recordType: 'A',
     resolver: '1.1.1.1',
   });
   await probe(
-    'Un résolveur interne non listé — refusé avant la moindre interrogation',
+    'An internal resolver not listed — refused before the slightest query',
     'dns',
     { name: 'example.com', recordType: 'A', resolver: '10.0.0.53' },
     NOTHING,

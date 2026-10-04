@@ -19,9 +19,9 @@ import {
 import { parseAppSpec } from '../src/spec/index.js';
 
 /**
- * Une archive téléversée ne passe que si rien n'en sort. Les archives piégées
- * sont fabriquées ici octet par octet : les outils `tar` et `zip` refusent
- * d'écrire la plupart de ces pièges, et c'est précisément ce qu'on veut tester.
+ * An uploaded archive only passes if nothing escapes from it. The booby-trapped
+ * archives are made here byte by byte: the `tar` and `zip` tools refuse to write
+ * most of these traps, and that is precisely what we want to test.
  */
 
 const work = mkdtempSync(join(tmpdir(), 'pupitre-upload-test-'));
@@ -32,7 +32,7 @@ let counter = 0;
 
 type TarItem = {
   name: string;
-  /** 0 fichier, 1 lien dur, 2 lien symbolique, 3 périphérique, 5 dossier, 6 tube. */
+  /** 0 file, 1 hard link, 2 symbolic link, 3 device, 5 folder, 6 pipe. */
   type?: '0' | '1' | '2' | '3' | '5' | '6';
   data?: string;
   link?: string;
@@ -83,7 +83,7 @@ function zipBytes(items: ZipItem[]): Buffer {
     const name = Buffer.from(item.name, 'utf8');
     const plain = Buffer.from(item.data ?? '');
     const crc = crc32(plain);
-    // Une entrée chiffrée (ZipCrypto) porte douze octets d'en-tête en plus.
+    // An encrypted entry (ZipCrypto) carries twelve more header bytes.
     const data = item.encrypted ? Buffer.concat([Buffer.alloc(12, 7), plain]) : plain;
     const flags = (item.encrypted ? 0x1 : 0) | 0x800;
     const local = Buffer.alloc(30);
@@ -158,7 +158,7 @@ async function rejected(
   });
 }
 
-/** Ce que contient l'archive rendue : chemin → type et droits. */
+/** What the returned archive contains: path → type and permissions. */
 async function entries(
   path: string,
 ): Promise<Map<string, { type: string; mode: number; link?: string }>> {
@@ -181,8 +181,8 @@ const gz = (items: TarItem[]) => gzipSync(tarBytes(items));
 
 // ─── les tests ───────────────────────────────────────────────────────────────
 
-describe('archive téléversée — le format se lit dans les octets', () => {
-  it('reconnaît tar.gz, zip et tar, et rien d’autre', () => {
+describe('uploaded archive — the format is read from the bytes', () => {
+  it('recognizes tar.gz, zip and tar, and nothing else', () => {
     assert.equal(sniffArchiveFormat(gz([{ name: 'a', data: 'x' }])), 'tar.gz');
     assert.equal(sniffArchiveFormat(zipBytes([{ name: 'a', data: 'x' }])), 'zip');
     assert.equal(sniffArchiveFormat(zipBytes([])), 'zip');
@@ -191,7 +191,7 @@ describe('archive téléversée — le format se lit dans les octets', () => {
     assert.equal(sniffArchiveFormat(Buffer.from([0x42, 0x5a, 0x68])), null);
   });
 
-  it('le nom n’est qu’une étiquette', () => {
+  it('the name is only a label', () => {
     assert.equal(sourceArchiveLabel('C:\\Users\\moi\\mon-app.zip'), 'mon-app.zip');
     assert.equal(sourceArchiveLabel('../../etc/passwd'), 'passwd');
     assert.equal(sourceArchiveLabel('a\u0000b\nc.tgz'), 'abc.tgz');
@@ -200,8 +200,8 @@ describe('archive téléversée — le format se lit dans les octets', () => {
   });
 });
 
-describe('archive téléversée — une archive saine devient une archive propre', () => {
-  it('retire le dossier de tête, garde le bit d’exécution, laisse .git de côté', async () => {
+describe('uploaded archive — a healthy archive becomes a clean archive', () => {
+  it('removes the leading folder, keeps the execute bit, leaves .git aside', async () => {
     const { report, output } = await inspect(
       gz([
         { name: 'mon-app/', type: '5' },
@@ -226,14 +226,14 @@ describe('archive téléversée — une archive saine devient une archive propre
     assert.ok(found.has('source/app/index.html'));
     assert.ok(![...found.keys()].some((path) => path.includes('.git')));
     assert.ok(![...found.keys()].some((path) => path.includes('mon-app')));
-    // setuid tombe, l'exécution reste.
+    // setuid drops, execute stays.
     assert.equal(found.get('source/entree.sh')?.mode, 0o755);
     assert.equal(found.get('source/Dockerfile')?.mode, 0o644);
     assert.equal(found.get('source/derniere')?.type, 'SymbolicLink');
     assert.equal(found.get('source/derniere')?.link, 'app');
   });
 
-  it('garde le dossier de tête quand les Dockerfiles attendus y sont déjà', async () => {
+  it('keeps the leading folder when the expected Dockerfiles are already there', async () => {
     const { report, output } = await inspect(
       gz([{ name: 'app/Dockerfile', data: 'FROM busybox\n' }]),
       'tar.gz',
@@ -243,13 +243,13 @@ describe('archive téléversée — une archive saine devient une archive propre
     assert.ok((await entries(output)).has('source/app/Dockerfile'));
   });
 
-  it('lit un tar sans compression', async () => {
+  it('reads an uncompressed tar', async () => {
     const { report } = await inspect(tarBytes([{ name: 'Dockerfile', data: 'FROM x\n' }]), 'tar');
     assert.equal(report.files, 1);
     assert.equal(report.strippedRoot, null);
   });
 
-  it('lit un zip : droits Unix, lien interne, __MACOSX ignoré', async () => {
+  it('reads a zip: Unix permissions, internal link, __MACOSX ignored', async () => {
     const { report, output } = await inspect(
       zipBytes([
         { name: 'site/', mode: 0o040755 },
@@ -268,10 +268,10 @@ describe('archive téléversée — une archive saine devient une archive propre
     assert.equal(found.get('source/courant')?.type, 'SymbolicLink');
   });
 
-  it('un tar fait sur un Mac : ses fichiers AppleDouble et .DS_Store n’empêchent pas de retirer le dossier de tête', async () => {
-    // Ce que produit `tar czf code.tar.gz site` sous macOS : un `._nom` à côté
-    // de chaque entrée qui porte des attributs étendus — y compris `._site`, à
-    // côté du dossier de tête, qui laissait croire à deux racines.
+  it('a tar made on a Mac: its AppleDouble files and .DS_Store do not prevent removing the leading folder', async () => {
+    // What `tar czf code.tar.gz site` produces under macOS: a `._name` next to each
+    // entry that carries extended attributes — including `._site`, next to the
+    // leading folder, which suggested two roots.
     const { report, output } = await inspect(
       gz([
         { name: '._site', data: 'Mac OS X        ATTR' },
@@ -295,7 +295,7 @@ describe('archive téléversée — une archive saine devient une archive propre
     assert.ok(!found.some((path) => /(^|\/)(\._|\.DS_Store$)/.test(path)), found.join(', '));
   });
 
-  it('un zip fait sous Windows : pas de droits Unix, des fichiers ordinaires', async () => {
+  it('a zip made under Windows: no Unix permissions, ordinary files', async () => {
     const { report } = await inspect(
       zipBytes([{ name: 'Dockerfile', data: 'FROM x\n', unix: false, mode: 0x20 }]),
       'zip',
@@ -304,8 +304,8 @@ describe('archive téléversée — une archive saine devient une archive propre
   });
 });
 
-describe('archive téléversée — rien n’en sort', () => {
-  it('chemins absolus et remontées', async () => {
+describe('uploaded archive — nothing escapes from it', () => {
+  it('absolute paths and climbing up', async () => {
     await rejected(gz([{ name: '/etc/cron.d/piege', data: 'x' }]), 'tar.gz', 'absolute_path');
     await rejected(gz([{ name: '../hors-release', data: 'x' }]), 'tar.gz', 'parent_path');
     await rejected(gz([{ name: 'app/../../evade', data: 'x' }]), 'tar.gz', 'parent_path');
@@ -313,7 +313,7 @@ describe('archive téléversée — rien n’en sort', () => {
     await rejected(zipBytes([{ name: '/evade', data: 'x' }]), 'zip', 'absolute_path');
   });
 
-  it('un lien qui pointe dehors', async () => {
+  it('a link pointing outside', async () => {
     await rejected(gz([{ name: 'l', type: '2', link: '/etc/shadow' }]), 'tar.gz', 'link_outside');
     await rejected(gz([{ name: 'a/l', type: '2', link: '../../..' }]), 'tar.gz', 'link_outside');
     await rejected(
@@ -323,9 +323,9 @@ describe('archive téléversée — rien n’en sort', () => {
     );
   });
 
-  it('un lien qui ne sort du code qu’une fois le dossier de tête retiré', async () => {
-    // `mon-app/l → ../compose.yml` reste dans l'archive, mais viserait les
-    // fichiers de pilotage de la release une fois déposé sous `source/`.
+  it('a link that only leaves the code once the leading folder is removed', async () => {
+    // `my-app/l → ../compose.yml` stays inside the archive, but would point at the
+    // release's control files once placed under `source/`.
     await rejected(
       gz([
         { name: 'mon-app/Dockerfile', data: 'FROM x\n' },
@@ -337,7 +337,7 @@ describe('archive téléversée — rien n’en sort', () => {
     );
   });
 
-  it('une entrée écrite à travers un lien de l’archive', async () => {
+  it('an entry written through a link of the archive', async () => {
     await rejected(
       gz([
         { name: 'cache', type: '2', link: 'vrai' },
@@ -348,13 +348,13 @@ describe('archive téléversée — rien n’en sort', () => {
     );
   });
 
-  it('liens durs, périphériques, tubes', async () => {
+  it('hard links, devices, pipes', async () => {
     await rejected(gz([{ name: 'l', type: '1', link: '/etc/passwd' }]), 'tar.gz', 'hardlink');
     await rejected(gz([{ name: 'disque', type: '3' }]), 'tar.gz', 'special_file');
     await rejected(gz([{ name: 'tube', type: '6' }]), 'tar.gz', 'special_file');
   });
 
-  it('deux entrées au même endroit', async () => {
+  it('two entries at the same place', async () => {
     await rejected(
       gz([
         { name: 'a', data: '1' },
@@ -373,7 +373,7 @@ describe('archive téléversée — rien n’en sort', () => {
     );
   });
 
-  it('les plafonds : nombre d’entrées, taille décompressée', async () => {
+  it('the caps: number of entries, decompressed size', async () => {
     const many = Array.from({ length: 5 }, (_, i) => ({ name: `f${i}`, data: 'x' }));
     await rejected(gz(many), 'tar.gz', 'too_many_entries', { maxEntries: 3 });
     await rejected(zipBytes(many), 'zip', 'too_many_entries', { maxEntries: 3 });
@@ -385,7 +385,7 @@ describe('archive téléversée — rien n’en sort', () => {
     });
   });
 
-  it('chiffrée, vide, illisible', async () => {
+  it('encrypted, empty, unreadable', async () => {
     await rejected(zipBytes([{ name: 'a', data: 'x', encrypted: true }]), 'zip', 'encrypted');
     await rejected(zipBytes([]), 'zip', 'empty');
     await rejected(gz([{ name: '.git/config', data: 'x' }]), 'tar.gz', 'empty');
@@ -399,7 +399,7 @@ describe('archive téléversée — rien n’en sort', () => {
   });
 });
 
-describe('archive téléversée — chaque service trouve son Dockerfile', () => {
+describe('uploaded archive — each service finds its Dockerfile', () => {
   const spec = parseAppSpec({
     name: 'boutique',
     version: '1.0.0',
@@ -419,14 +419,14 @@ describe('archive téléversée — chaque service trouve son Dockerfile', () =>
     ],
   });
 
-  it('les chemins attendus, relatifs à la racine du code', () => {
+  it('the expected paths, relative to the code’s root', () => {
     assert.deepEqual(expectedDockerfiles(spec), [
       { service: 'web', path: 'front/Dockerfile' },
       { service: 'api', path: 'api/build/prod.image' },
     ]);
   });
 
-  it('trouvé, absent, ou à vérifier sur la machine', () => {
+  it('found, missing, or to check on the machine', () => {
     assert.deepEqual(checkDockerfiles(spec, ['front/Dockerfile']), [
       { service: 'web', path: 'front/Dockerfile', status: 'found' },
       { service: 'api', path: 'api/build/prod.image', status: 'unknown' },
@@ -434,7 +434,7 @@ describe('archive téléversée — chaque service trouve son Dockerfile', () =>
     assert.equal(checkDockerfiles(spec, [])[0]?.status, 'missing');
   });
 
-  it('ce qui ressemble à un Dockerfile', () => {
+  it('what looks like a Dockerfile', () => {
     for (const name of ['Dockerfile', 'app/Dockerfile.prod', 'api.dockerfile', 'Containerfile']) {
       assert.ok(looksLikeDockerfile(name), name);
     }

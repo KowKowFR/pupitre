@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { isLocalHostname, registrableDomainOf } from '../src/domain-inspection.js';
 
-describe('relevé de domaine', () => {
-  it('trouve le domaine enregistré d’un nom', () => {
+describe('domain reading', () => {
+  it('finds a name’s registered domain', () => {
     assert.equal(registrableDomainOf('app.exemple.fr'), 'exemple.fr');
     assert.equal(registrableDomainOf('exemple.fr'), 'exemple.fr');
     assert.equal(registrableDomainOf('a.b.exemple.co.uk'), 'exemple.co.uk');
@@ -13,7 +13,7 @@ describe('relevé de domaine', () => {
     assert.equal(registrableDomainOf('co.uk'), null);
   });
 
-  it('reconnaît les noms qu’aucun registre ne connaît', () => {
+  it('recognizes the names no registry knows', () => {
     for (const name of ['localhost', 'bonjour.localhost', 'app.test', 'nas.home.arpa', 'srv.lan']) {
       assert.equal(isLocalHostname(name), true, name);
     }

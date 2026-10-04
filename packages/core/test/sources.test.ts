@@ -31,9 +31,9 @@ import {
 } from '../src/sources/index.js';
 
 /**
- * Les dépôts liés : ce qui décide qu'un commit part tout seul ou attend un
- * humain, qu'il concerne une application d'un monorepo, que sa spec est
- * valable — et le client GitHub, contre un faux `fetch`.
+ * Linked repositories: what decides that a commit goes out on its own or waits
+ * for a human, that it concerns an application of a monorepo, that its spec is
+ * valid — and the GitHub client, against a fake `fetch`.
  */
 
 const BASE: AppSpec = parseAppSpec({
@@ -57,7 +57,7 @@ function withChanges(change: (spec: AppSpec) => void): AppSpec {
 }
 
 describe('changement de code ou d’infrastructure', () => {
-  it('une nouvelle version et un nouveau tag d’image : du code, qui part tout seul', () => {
+  it('a new version and a new image tag: code, which goes out on its own', () => {
     const report = classifySpecChange(
       BASE,
       withChanges((spec) => {
@@ -72,7 +72,7 @@ describe('changement de code ou d’infrastructure', () => {
     );
   });
 
-  it('un port, un volume, un secret ou une variable : de l’infra, qui attend un humain', () => {
+  it('a port, a volume, a secret or a variable: infra, which waits for a human', () => {
     for (const change of [
       (spec: AppSpec) => void (spec.services[0]!.port = 8080),
       (spec: AppSpec) => void (spec.services[0]!.env = { NODE_ENV: 'staging' }),
@@ -84,7 +84,7 @@ describe('changement de code ou d’infrastructure', () => {
     }
   });
 
-  it('un service ajouté, un domaine posé : de l’infra', () => {
+  it('a service added, a domain set: infra', () => {
     const report = classifySpecChange(
       BASE,
       withChanges((spec) => {
@@ -95,7 +95,7 @@ describe('changement de code ou d’infrastructure', () => {
     assert.deepEqual(report.changes, [{ path: 'ingress', kind: 'infra', change: 'added' }]);
   });
 
-  it('passer d’une image à un build change la fabrication : de l’infra', () => {
+  it('going from an image to a build changes how it is made: infra', () => {
     const report = classifySpecChange(
       BASE,
       withChanges((spec) => {
@@ -105,51 +105,51 @@ describe('changement de code ou d’infrastructure', () => {
     assert.equal(report.infra, true);
   });
 
-  it('rien de changé : aucun changement, et l’ordre des clés ne compte pas', () => {
+  it('nothing changed: no change, and the order of keys does not count', () => {
     const reordered = parseAppSpec(JSON.parse(JSON.stringify(BASE)));
     assert.deepEqual(classifySpecChange(BASE, reordered), { infra: false, changes: [] });
   });
 
-  it('sans spec précédente, tout est nouveau', () => {
+  it('without a previous spec, everything is new', () => {
     assert.equal(classifySpecChange(null, BASE).infra, true);
   });
 });
 
-describe('chemins surveillés d’un monorepo', () => {
-  it('un dossier couvre tout ce qu’il contient, et seulement lui', () => {
+describe('watched paths of a monorepo', () => {
+  it('a folder covers everything it contains, and only that', () => {
     assert.ok(matchesWatchPath('apps/api/src/index.ts', 'apps/api/**'));
     assert.ok(matchesWatchPath('apps/api/src/index.ts', 'apps/api'));
     assert.ok(!matchesWatchPath('apps/api-v2/index.ts', 'apps/api'));
     assert.ok(!matchesWatchPath('apps/web/index.ts', 'apps/api/**'));
   });
 
-  it('`*` s’arrête à un segment, `**` les traverse', () => {
+  it('`*` stops at one segment, `**` crosses them', () => {
     assert.ok(matchesWatchPath('apps/api/Dockerfile', 'apps/*/Dockerfile'));
     assert.ok(!matchesWatchPath('apps/api/deep/Dockerfile', 'apps/*/Dockerfile'));
     assert.ok(matchesWatchPath('packages/shared/a/b.ts', 'packages/**/b.ts'));
     assert.ok(matchesWatchPath('README.md', '**'));
   });
 
-  it('un commit sur la doc ne redéploie pas l’API ; un commit sur sa spec, si', () => {
+  it('a commit on the docs does not redeploy the API; a commit on its spec does', () => {
     const watch = ['apps/api/**', 'packages/shared/**'];
     assert.equal(touchesWatchPaths(['docs/guide.md'], watch, 'apps/api/pupitre.json'), false);
     assert.equal(touchesWatchPaths(['packages/shared/x.ts'], watch, 'apps/api/pupitre.json'), true);
     assert.equal(touchesWatchPaths(['apps/api/pupitre.json'], [], 'apps/api/pupitre.json'), true);
   });
 
-  it('par défaut : le dossier de la spec, ou tout le dépôt si elle est à la racine', () => {
+  it('by default: the spec’s folder, or the whole repository if it is at the root', () => {
     assert.deepEqual(defaultWatchPaths('pupitre.json'), ['**']);
     assert.deepEqual(defaultWatchPaths('apps/api/pupitre.json'), ['apps/api/**']);
   });
 });
 
 describe('pupitre.json', () => {
-  it('accepte une AppSpec valide au nom de l’application', () => {
+  it('accepts a valid AppSpec under the application’s name', () => {
     const result = parseSourceSpec(JSON.stringify(BASE), 'demo-api');
     assert.equal(result.ok, true);
   });
 
-  it('refuse un JSON illisible, une spec invalide, un autre nom — et dit pourquoi', () => {
+  it('refuses unreadable JSON, an invalid spec, another name — and says why', () => {
     const broken = parseSourceSpec('{ "name": ', 'demo-api');
     assert.equal(broken.ok, false);
     assert.match(broken.ok ? '' : broken.issues[0]!, /JSON illisible/);
@@ -173,7 +173,7 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', {
 
 type Call = { url: string; method: string; headers: Record<string, string>; body: unknown };
 
-/** Un faux GitHub : une réponse par motif d'URL, et la trace des appels. */
+/** A fake GitHub: one response per URL pattern, and the trace of the calls. */
 function fakeGitHub(routes: Array<[RegExp, (call: Call) => Response]>) {
   const calls: Call[] = [];
   const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
@@ -201,7 +201,7 @@ const REPO = { fullName: 'acme/api', installationId: 42 };
 const SHA = 'a'.repeat(40);
 
 describe('client GitHub', () => {
-  it('signe un JWT d’App vérifiable, valable moins de dix minutes', () => {
+  it('signs a verifiable App JWT, valid for less than ten minutes', () => {
     const now = Date.parse('2026-09-30T12:00:00Z');
     const jwt = githubAppJwt(123, privateKey, now);
     const [header, payload, signature] = jwt.split('.');
@@ -213,7 +213,7 @@ describe('client GitHub', () => {
     assert.ok(claims.exp - claims.iat <= 600);
   });
 
-  it('« rien de neuf » répond 304 : on le dit sans lire de corps, et l’ETag part', async () => {
+  it('“nothing new” answers 304: we say so without reading a body, and the ETag goes out', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       TOKEN_ROUTE,
       [/\/commits\/main$/, () => new Response(null, { status: 304 })],
@@ -225,7 +225,7 @@ describe('client GitHub', () => {
     assert.equal(head.headers.authorization, 'token ghs_installation');
   });
 
-  it('un nouveau commit : son empreinte et le nouvel ETag', async () => {
+  it('a new commit: its hash and the new ETag', async () => {
     const { fetchImpl } = fakeGitHub([
       TOKEN_ROUTE,
       [/\/commits\/main$/, () => new Response(`${SHA}\n`, { headers: { etag: '"etag-2"' } })],
@@ -238,7 +238,7 @@ describe('client GitHub', () => {
     });
   });
 
-  it('garde le jeton d’installation tant qu’il vit : un seul échange pour deux appels', async () => {
+  it('keeps the installation token while it lives: a single exchange for two calls', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       TOKEN_ROUTE,
       [/\/commits\/main$/, () => new Response(SHA)],
@@ -249,7 +249,7 @@ describe('client GitHub', () => {
     assert.equal(calls.filter((call) => call.url.includes('access_tokens')).length, 1);
   });
 
-  it('une comparaison réécrite (force-push) ou trop longue ne se croit pas', async () => {
+  it('a rewritten (force-push) or too long comparison is not trusted', async () => {
     const { fetchImpl } = fakeGitHub([
       TOKEN_ROUTE,
       [/\/compare\/b{40}\.\.\.a{40}$/, () => Response.json({ status: 'diverged', files: [] })],
@@ -268,11 +268,11 @@ describe('client GitHub', () => {
       kind: 'files',
       files: ['apps/api/new.ts', 'apps/api/old.ts'],
     });
-    // Commit de base introuvable : on ne sait pas, donc tout a changé.
+    // Base commit not found: we do not know, so everything changed.
     assert.equal((await github.compare(REPO, 'd'.repeat(40), SHA)).kind, 'unknown');
   });
 
-  it('trouve les pupitre.json de l’arbre du commit, et seulement eux', async () => {
+  it('finds the pupitre.json files of the commit’s tree, and only them', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       TOKEN_ROUTE,
       [
@@ -297,13 +297,13 @@ describe('client GitHub', () => {
     assert.ok(calls.some((call) => call.url.includes('/repos/acme/api/git/trees/')));
   });
 
-  it('un fichier absent au commit vaut `null`, pas une erreur', async () => {
+  it('a file absent at the commit is `null`, not an error', async () => {
     const { fetchImpl } = fakeGitHub([TOKEN_ROUTE]);
     const github = new GitHubSourceProvider({ appId: 1, privateKey }, fetchImpl);
     assert.equal(await github.readFile(REPO, SHA, 'pupitre.json'), null);
   });
 
-  it('le statut de commit : description coupée à 140 caractères, lien vers le run', async () => {
+  it('the commit status: description cut at 140 characters, link to the run', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       TOKEN_ROUTE,
       [/\/statuses\/a{40}$/, () => Response.json({}, { status: 201 })],
@@ -321,7 +321,7 @@ describe('client GitHub', () => {
     assert.equal((status.body as { target_url: string }).target_url, 'http://pupitre.lan/deployments/1');
   });
 
-  it('le manifeste ne demande que lire le code et écrire les statuts, sans webhook', () => {
+  it('the manifest only asks to read the code and write statuses, without a webhook', () => {
     const manifest = githubAppManifest({
       name: 'Pupitre — atelier',
       panelUrl: 'http://pupitre.lan',
@@ -333,8 +333,8 @@ describe('client GitHub', () => {
       metadata: 'read',
       statuses: 'write',
     });
-    // Un bloc webhook, même éteint, fait refuser le manifeste d'un panel privé :
-    // GitHub veut que son URL soit joignable depuis Internet.
+    // A webhook block, even disabled, makes a private panel's manifest be refused:
+    // GitHub wants its URL to be reachable from the Internet.
     assert.equal('hook_attributes' in manifest, false);
     assert.deepEqual(manifest.default_events, []);
     assert.equal(manifest.public, false);
@@ -346,17 +346,17 @@ describe('client GitHub', () => {
 const GITEA = { baseUrl: 'https://forge.exemple.fr/', token: 'jeton-gitea' };
 const GITEA_REPO = { fullName: 'atelier/vitrine', installationId: null };
 const BASE_SHA = 'b'.repeat(40);
-/** La garde des sorties réseau, sans DNS : tout passe. */
+/** The network egress guard, without DNS: everything passes. */
 const open = async () => undefined;
 
 describe('client Gitea', () => {
-  it('l’adresse de la forge est nettoyée, et seul http(s) passe', () => {
+  it('the forge’s address is cleaned up, and only http(s) passes', () => {
     assert.equal(giteaBaseUrl(' https://codeberg.org/ '), 'https://codeberg.org');
     assert.equal(giteaBaseUrl('http://10.0.0.5:3000/git/'), 'http://10.0.0.5:3000/git');
     assert.throws(() => giteaBaseUrl('ftp://forge'), SourceProviderError);
   });
 
-  it('la tête d’une branche : son empreinte, sans ETag, par le jeton', async () => {
+  it('a branch’s head: its hash, without an ETag, through the token', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       [
         /\/api\/v1\/repos\/atelier\/vitrine\/branches\/main$/,
@@ -376,7 +376,7 @@ describe('client Gitea', () => {
     assert.equal(calls[0]!.headers.authorization, 'token jeton-gitea');
   });
 
-  it('une comparaison : les fichiers des commits, et rien qu’on ne puisse croire de travers', async () => {
+  it('a comparison: the commits’ files, and nothing that could be believed wrongly', async () => {
     const commit = (
       sha: string,
       parent: string,
@@ -428,7 +428,7 @@ describe('client Gitea', () => {
     }
   });
 
-  it('les pupitre.json de l’arbre, page après page', async () => {
+  it('the tree’s pupitre.json files, page after page', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       [
         /\/git\/trees\/a{40}\?recursive=true&per_page=1000&page=1$/,
@@ -459,7 +459,7 @@ describe('client Gitea', () => {
     assert.equal(calls.length, 2);
   });
 
-  it('un fichier absent vaut `null` ; le statut part avec son contexte et son lien', async () => {
+  it('an absent file is `null`; the status goes out with its context and its link', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       [/\/statuses\/a{40}$/, () => Response.json({ id: 1 }, { status: 201 })],
     ]);
@@ -477,7 +477,7 @@ describe('client Gitea', () => {
     assert.equal(status.body.description.length, 255);
   });
 
-  it('les dépôts du compte, page après page — jamais la recherche publique de l’instance', async () => {
+  it('the account’s repositories, page after page — never the instance’s public search', async () => {
     const page = (n: number, count: number) =>
       Array.from({ length: count }, (_, i) => ({
         full_name: `atelier/depot-${n}-${i}`,
@@ -499,7 +499,7 @@ describe('client Gitea', () => {
     assert.ok(calls.every((call) => !call.url.includes('/repos/search')));
   });
 
-  it('la garde des sorties réseau : une forge sur une adresse lien-local est refusée', async () => {
+  it('the network egress guard: a forge on a link-local address is refused', async () => {
     const { fetchImpl, calls } = fakeGitHub([]);
     const gitea = new GiteaSourceProvider(
       { baseUrl: 'http://169.254.169.254', token: 't' },
@@ -509,7 +509,7 @@ describe('client Gitea', () => {
     assert.equal(calls.length, 0);
   });
 
-  it('« Tester » dit à quel compte ouvre le jeton, et refuse un jeton invalide', async () => {
+  it('“Test” says which account the token opens, and refuses an invalid token', async () => {
     const ok = fakeGitHub([
       [/\/api\/v1\/version$/, () => Response.json({ version: '11.0.3+gitea-1.22.0' })],
       [/\/api\/v1\/user$/, () => Response.json({ login: 'pupitre-bot' })],
@@ -534,18 +534,18 @@ describe('client Gitea', () => {
 // ─── GitLab ───────────────────────────────────────────────────────────────────
 
 const GITLAB = { baseUrl: 'https://gitlab.exemple.fr/', token: 'glpat-jeton' };
-/** Un projet de sous-groupe : son chemin entier est son nom. */
+/** A subgroup project: its whole path is its name. */
 const GITLAB_REPO = { fullName: 'atelier/web/vitrine', installationId: null };
 const GITLAB_PROJECT = 'https://gitlab.exemple.fr/api/v4/projects/atelier%2Fweb%2Fvitrine';
 
 describe('client GitLab', () => {
-  it('l’adresse de l’instance est nettoyée, et seul http(s) passe', () => {
+  it('the instance’s address is cleaned up, and only http(s) passes', () => {
     assert.equal(gitlabBaseUrl(' https://gitlab.com/ '), 'https://gitlab.com');
     assert.equal(gitlabBaseUrl('http://10.0.0.5:8929/gitlab/'), 'http://10.0.0.5:8929/gitlab');
     assert.throws(() => gitlabBaseUrl('ssh://gitlab.com'), SourceProviderError);
   });
 
-  it('la tête d’une branche : le projet encodé d’un bloc, la branche aussi, le jeton en en-tête', async () => {
+  it('a branch’s head: the project encoded in one block, the branch too, the token in a header', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       [/\/repository\/branches\/feature%2Fx$/, () => Response.json({ commit: { id: SHA } })],
     ]);
@@ -560,7 +560,7 @@ describe('client GitLab', () => {
     assert.equal(calls[0]!.headers.authorization, undefined);
   });
 
-  it('une comparaison : les chemins des diffs, les deux d’un renommage, et rien qu’on ne puisse croire de travers', async () => {
+  it('a comparison: the diffs’ paths, both of a rename, and nothing that could be believed wrongly', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       [
         /\/compare\?from=b{40}&to=a{40}$/,
@@ -620,7 +620,7 @@ describe('client GitLab', () => {
     }
   });
 
-  it('un fichier se lit par son chemin encodé d’un bloc ; absent, il vaut `null`', async () => {
+  it('a file is read by its path encoded in one block; absent, it is `null`', async () => {
     const { fetchImpl, calls } = fakeGitHub([
       [
         /\/repository\/files\/apps%2Fapi%2Fpupitre\.json\/raw\?ref=a{40}$/,
@@ -636,7 +636,7 @@ describe('client GitLab', () => {
     assert.equal(calls.length, 2);
   });
 
-  it('les pupitre.json de l’arbre, page après page, tant que GitLab en annonce une suivante', async () => {
+  it('the tree’s pupitre.json files, page after page, as long as GitLab announces a next one', async () => {
     const tree = (count: number, extra: Array<{ path: string; type: string }>) => [
       ...extra,
       ...Array.from({ length: count - extra.length }, (_, i) => ({
@@ -673,7 +673,7 @@ describe('client GitLab', () => {
     assert.equal(calls.length, 2);
   });
 
-  it('le statut : l’état dans les mots de GitLab, le contexte en nom, et « déjà en attente » n’est pas une erreur', async () => {
+  it('the status: the state in GitLab’s words, the context as name, and “already pending” is not an error', async () => {
     let refused = false;
     const { fetchImpl, calls } = fakeGitHub([
       [
@@ -716,7 +716,7 @@ describe('client GitLab', () => {
       ).reportStatus(GITLAB_REPO, SHA, status),
       SourceProviderError,
     );
-    // Un jeton Developer sur une branche protégée : le refus dit pourquoi.
+    // A Developer token on a protected branch: the refusal says why.
     await assert.rejects(
       new GitLabSourceProvider(
         GITLAB,
@@ -734,7 +734,7 @@ describe('client GitLab', () => {
     );
   });
 
-  it('les projets dont le jeton est membre, page après page — ni la liste publique, ni les dépôts vides', async () => {
+  it('the projects the token is a member of, page after page — neither the public list nor empty repositories', async () => {
     const page = (n: number, count: number) =>
       Array.from({ length: count }, (_, i) => ({
         path_with_namespace: `atelier/web/depot-${n}-${i}`,
@@ -748,7 +748,7 @@ describe('client GitLab', () => {
     ]);
     const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
     const repos = await gitlab.listRepositories();
-    assert.equal(repos.length, 102, 'le dépôt vide est écarté');
+    assert.equal(repos.length, 102, 'the empty repository is left out');
     assert.deepEqual(
       { provider: repos[0]!.provider, installationId: repos[0]!.installationId },
       { provider: 'gitlab', installationId: null },
@@ -757,7 +757,7 @@ describe('client GitLab', () => {
     assert.ok(calls.every((call) => call.url.includes('membership=true')));
   });
 
-  it('l’archive part sans `sec-fetch-mode` — GitLab la refuse à une requête « cors » — et reste plafonnée', async () => {
+  it('the archive goes out without `sec-fetch-mode` — GitLab refuses it to a “cors” request — and stays capped', async () => {
     let seen: IncomingHttpHeaders = {};
     let url = '';
     const server = createServer((request, response) => {
@@ -798,7 +798,7 @@ describe('client GitLab', () => {
     }
   });
 
-  it('la garde des sorties réseau : une instance sur une adresse lien-local est refusée', async () => {
+  it('the network egress guard: an instance on a link-local address is refused', async () => {
     const { fetchImpl, calls } = fakeGitHub([]);
     const gitlab = new GitLabSourceProvider(
       { baseUrl: 'http://169.254.169.254', token: 't' },
@@ -808,7 +808,7 @@ describe('client GitLab', () => {
     assert.equal(calls.length, 0);
   });
 
-  it('« Tester » nomme le compte du jeton et son échéance, et refuse un jeton sans la portée api', async () => {
+  it('“Test” names the token’s account and its expiry, and refuses a token without the api scope', async () => {
     const answer = (scopes: string[]) =>
       fakeGitHub([
         [/\/api\/v4\/user$/, () => Response.json({ username: 'project_7_bot_3f2a' })],
@@ -845,7 +845,7 @@ describe('client GitLab', () => {
 });
 
 describe('fournisseurs et liens', () => {
-  it('la fabrique rend le client de la connexion', () => {
+  it('the factory returns the connection’s client', () => {
     assert.equal(createSourceProvider({ provider: 'gitea', ...GITEA }).kind, 'gitea');
     assert.equal(createSourceProvider({ provider: 'gitlab', ...GITLAB }).kind, 'gitlab');
     assert.equal(
@@ -854,7 +854,7 @@ describe('fournisseurs et liens', () => {
     );
   });
 
-  it('une branche ne s’ouvre pas à la même adresse chez GitHub, Gitea et GitLab', () => {
+  it('a branch does not open at the same address at GitHub, Gitea and GitLab', () => {
     assert.equal(
       branchWebUrl('github', 'https://github.com/acme/api', 'feature/x'),
       'https://github.com/acme/api/tree/feature%2Fx',
@@ -881,14 +881,14 @@ describe('fournisseurs et liens', () => {
   });
 });
 
-describe('nom d’un dépôt', () => {
-  it('propriétaire/nom partout, et le chemin des sous-groupes chez GitLab', () => {
+describe('repository name', () => {
+  it('owner/name everywhere, and the subgroups’ path at GitLab', () => {
     for (const name of ['acme/api', 'atelier/web/vitrine', ' a.b/c-d_e ', 'a/b/c/d/e']) {
       assert.ok(sourceRepositorySchema.safeParse(name).success, name);
     }
   });
 
-  it('ni nom seul, ni segment vide, ni `.` ou `..` qui remonterait dans l’API', () => {
+  it('no bare name, no empty segment, no `.` or `..` that would climb up in the API', () => {
     for (const name of [
       'api',
       '/acme/api',

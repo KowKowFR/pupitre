@@ -11,9 +11,9 @@ import {
 import { exposedService, secretNamesOf, SERVICE_NAME_PATTERN } from '../src/spec/index.js';
 
 /**
- * Le catalogue : chaque modèle doit rendre une AppSpec valable, avec et sans
- * domaine — sinon l'installation échoue devant l'opérateur, ou pire, le
- * déploiement échoue sur une cible.
+ * The catalog: each template must return a valid AppSpec, with and without a
+ * domain — otherwise installing fails in front of the operator, or worse, the
+ * deployment fails on a target.
  */
 
 const WITH_HOST: CatalogParams = {
@@ -25,13 +25,13 @@ const WITH_HOST: CatalogParams = {
 const WITHOUT_HOST: CatalogParams = { ...WITH_HOST, host: null };
 
 describe('catalogue', () => {
-  it('donne à chaque modèle un identifiant unique, en kebab-case', () => {
+  it('gives each template a unique identifier, in kebab-case', () => {
     const ids = CATALOG_TEMPLATES.map((template) => template.id);
     assert.equal(new Set(ids).size, ids.length);
     for (const id of ids) assert.match(id, SERVICE_NAME_PATTERN);
   });
 
-  it('range chaque modèle dans une catégorie connue, avec ses textes dans les deux langues', () => {
+  it('puts each template in a known category, with its texts in both languages', () => {
     for (const template of CATALOG_TEMPLATES) {
       assert.ok(CATALOG_CATEGORIES.includes(template.category), template.id);
       for (const text of [template.summary, template.firstRun]) {
@@ -44,7 +44,7 @@ describe('catalogue', () => {
 
   for (const template of CATALOG_TEMPLATES) {
     describe(template.id, () => {
-      it('rend une AppSpec valable avec un domaine, et l’ingress qui va avec', () => {
+      it('returns a valid AppSpec with a domain, and the ingress that goes with it', () => {
         const spec = instantiateCatalogTemplate(template, WITH_HOST);
         assert.equal(spec.name, 'outil');
         assert.deepEqual(spec.ingress, {
@@ -54,10 +54,10 @@ describe('catalogue', () => {
         });
       });
 
-      it('rend une AppSpec valable sans domaine, sans ingress', () => {
+      it('returns a valid AppSpec without a domain, without an ingress', () => {
         const spec = instantiateCatalogTemplate(template, WITHOUT_HOST);
         assert.equal(spec.ingress, undefined);
-        // Aucune variable ne doit porter une URL inventée quand il n'y a pas de domaine.
+        // No variable must carry a made-up URL when there is no domain.
         for (const service of spec.services) {
           for (const [name, value] of Object.entries(service.env)) {
             assert.doesNotMatch(value, /exemple\.net/, `${template.id} ${name}`);
@@ -65,14 +65,14 @@ describe('catalogue', () => {
         }
       });
 
-      it('ne demande que des secrets que la spec déclare vraiment', () => {
+      it('only asks for secrets the spec really declares', () => {
         const declared = new Set(secretNamesOf(instantiateCatalogTemplate(template, WITH_HOST)));
         for (const name of template.askedSecrets) {
-          assert.ok(declared.has(name), `${template.id} demande ${name}, jamais déclaré`);
+          assert.ok(declared.has(name), `${template.id} asks for ${name}, never declared`);
         }
       });
 
-      it('référence des images étiquetées', () => {
+      it('references tagged images', () => {
         const spec = instantiateCatalogTemplate(template, WITH_HOST);
         for (const service of spec.services) {
           if (service.source.type !== 'image') continue;
@@ -82,12 +82,12 @@ describe('catalogue', () => {
     });
   }
 
-  it('retrouve un modèle par son identifiant', () => {
+  it('finds a template by its identifier', () => {
     assert.equal(findCatalogTemplate('uptime-kuma')?.name, 'Uptime Kuma');
     assert.equal(findCatalogTemplate('inconnu'), null);
   });
 
-  it('valide les paramètres d’installation', () => {
+  it('validates the install parameters', () => {
     assert.deepEqual(
       catalogParamsSchema.parse({
         name: 'kuma',
@@ -104,15 +104,16 @@ describe('catalogue', () => {
     assert.equal(catalogParamsSchema.safeParse({ name: 'Kuma', email: 'a@b.fr' }).success, false);
   });
 
-  it('laisse pgAdmin démarrer avec une adresse d’entreprise en .local', () => {
-    // Vu sur une vraie cible : sans ce réglage, pgAdmin refuse l'adresse et s'arrête.
+  it('lets pgAdmin start with a company address in .local', () => {
+    // Seen on a real target: without this setting, pgAdmin refuses the address and
+    // stops.
     const pgadmin = findCatalogTemplate('pgadmin');
     assert.ok(pgadmin);
     const spec = instantiateCatalogTemplate(pgadmin, { ...WITH_HOST, email: 'admin@corp.local' });
     assert.match(spec.services[0]?.env.PGADMIN_CONFIG_ALLOW_SPECIAL_EMAIL_DOMAINS ?? '', /'local'/);
   });
 
-  it('coupe TLS quand il n’y a pas de domaine : il n’y aurait rien à certifier', () => {
+  it('turns TLS off when there is no domain: there would be nothing to certify', () => {
     const n8n = findCatalogTemplate('n8n');
     assert.ok(n8n);
     const spec = instantiateCatalogTemplate(n8n, { ...WITHOUT_HOST, tls: true });

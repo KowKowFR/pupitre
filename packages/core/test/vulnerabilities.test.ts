@@ -37,7 +37,7 @@ const policy = (overrides: Partial<ScanPolicy> = {}): ScanPolicy => ({
 });
 
 describe('failles — corrigeable', () => {
-  it('corrigeable quand une version la règle, et seulement alors', () => {
+  it('fixable when a version fixes it, and only then', () => {
     assert.equal(isFixable(curl('8.14.1-r0')), true);
     assert.equal(isFixable(curl(null)), false);
     assert.equal(isFixable(curl('  ')), false);
@@ -53,22 +53,22 @@ describe('failles — accepter', () => {
     ...overrides,
   });
 
-  it('couvre la CVE sur son paquet, sans égard à la casse', () => {
+  it('covers the CVE on its package, case-insensitively', () => {
     assert.ok(matchingAcceptance(curl(null), [accept({ cveId: 'cve-2026-10536' })], NOW));
     assert.equal(
       matchingAcceptance({ ...curl(null), package: 'libcurl' }, [accept()], NOW),
       null,
-      'un autre paquet n’est pas couvert',
+      'another package is not covered',
     );
   });
 
-  it('« tous les paquets » couvre la CVE partout', () => {
+  it('“all packages” covers the CVE everywhere', () => {
     assert.ok(
       matchingAcceptance({ ...curl(null), package: 'libcurl' }, [accept({ package: null })], NOW),
     );
   });
 
-  it('une acceptation échue ne couvre plus rien', () => {
+  it('an expired acceptance no longer covers anything', () => {
     assert.equal(
       matchingAcceptance(curl(null), [accept({ expiresAt: '2026-10-01T00:00:00Z' })], NOW),
       null,
@@ -76,7 +76,7 @@ describe('failles — accepter', () => {
     assert.ok(matchingAcceptance(curl(null), [accept({ expiresAt: '2026-12-01T00:00:00Z' })], NOW));
   });
 
-  it('exige un motif, et une échéance raisonnable ou aucune', () => {
+  it('requires a reason, and a reasonable expiry or none', () => {
     const base = { cveId: 'CVE-1', package: 'curl', reason: 'jamais appelé', expiresInDays: 90 };
     assert.ok(createVulnerabilityAcceptanceSchema.safeParse(base).success);
     assert.ok(
@@ -89,36 +89,36 @@ describe('failles — accepter', () => {
   });
 });
 
-describe('failles — ce qui bloque', () => {
-  it('le seuil seul : une CRITICAL bloque, corrigeable ou non', () => {
+describe('vulnerabilities — what blocks', () => {
+  it('the threshold alone: a CRITICAL blocks, fixable or not', () => {
     assert.ok(findingBlocks(curl(null), policy()));
     assert.ok(findingBlocks(curl('8.14.1-r0'), policy()));
   });
 
-  it('seulement les corrigeables : la faille sans correctif ne bloque plus', () => {
+  it('only the fixable ones: the vulnerability without a fix no longer blocks', () => {
     assert.ok(!findingBlocks(curl(null), policy({ onlyFixable: true })));
     assert.ok(findingBlocks(curl('8.14.1-r0'), policy({ onlyFixable: true })));
   });
 
-  it('une faille acceptée ne bloque plus, même corrigeable', () => {
+  it('an accepted vulnerability no longer blocks, even fixable', () => {
     const accepted = policy({
       acceptances: [{ cveId: 'CVE-2026-10536', package: 'curl', expiresAt: null }],
     });
     assert.ok(!findingBlocks(curl('8.14.1-r0'), accepted));
   });
 
-  it('sous le seuil, rien ne bloque', () => {
+  it('under the threshold, nothing blocks', () => {
     assert.ok(!findingBlocks({ ...curl('1.0'), severity: 'HIGH' }, policy()));
   });
 
-  it('le verdict suit la politique entière ; un seuil seul reste compris', () => {
+  it('the verdict follows the whole policy; a threshold alone is still understood', () => {
     const findings = [curl(null), { ...curl('1.0'), cveId: 'CVE-2', severity: 'HIGH' as const }];
     assert.equal(verdictFor('vulnerability', findings, 'CRITICAL'), 'fail');
     assert.equal(verdictFor('vulnerability', findings, policy({ onlyFixable: true })), 'pass');
     assert.equal(verdictFor('sbom', findings, policy()), 'pass');
   });
 
-  it('le résumé compte corrigeables, acceptées et bloquantes', () => {
+  it('the summary counts fixable, accepted and blocking', () => {
     const findings = [
       curl('8.14.1-r0'),
       { ...curl(null), cveId: 'CVE-2' },
@@ -134,10 +134,10 @@ describe('failles — ce qui bloque', () => {
   });
 });
 
-describe('failles — le réglage de l’application', () => {
+describe('vulnerabilities — the application’s setting', () => {
   const config = { scanners: ['trivy' as const], failOn: 'NONE' as const, onlyFixable: false };
 
-  it('ce qui est réglé l’emporte, ce qui ne l’est pas suit l’instance', () => {
+  it('what is set wins, what is not follows the instance', () => {
     assert.deepEqual(
       withApplicationScanPolicy(config, { failOn: null, onlyFixable: null }),
       config,
@@ -152,27 +152,27 @@ describe('failles — le réglage de l’application', () => {
     });
   });
 
-  it('sans scanner, un seuil n’a rien pour l’évaluer : rien ne change', () => {
+  it('without a scanner, a threshold has nothing to evaluate it: nothing changes', () => {
     const none = { scanners: [], failOn: 'NONE' as const, disabledBy: 'settings' as const };
     assert.deepEqual(withApplicationScanPolicy(none, { failOn: 'HIGH', onlyFixable: true }), none);
   });
 });
 
-describe('failles — le réglage de l’instance', () => {
-  it('par défaut, toutes les failles comptent', () => {
+describe('vulnerabilities — the instance’s setting', () => {
+  it('by default, every vulnerability counts', () => {
     assert.equal(securitySettingsSchema.parse({}).onlyFixable, false);
   });
 
-  it('un patch qui n’en parle pas n’y touche pas', () => {
+  it('a patch that does not mention it does not touch it', () => {
     assert.deepEqual(securitySettingsPatchSchema.parse({ failOn: 'HIGH' }), { failOn: 'HIGH' });
   });
 
-  it('la politique de l’instance porte la règle des corrigeables', () => {
+  it('the instance’s policy carries the fixable rule', () => {
     const security = securitySettingsSchema.parse({ failOn: 'CRITICAL', onlyFixable: true });
     assert.equal(scanConfigFromSettings(security).onlyFixable, true);
   });
 
-  it('une demande explicite qui la tait suit l’instance ; dite, elle compte', () => {
+  it('an explicit request that leaves it out follows the instance; stated, it counts', () => {
     const security = securitySettingsSchema.parse({ failOn: 'CRITICAL', onlyFixable: true });
     const asked = { scanners: ['grype' as const], failOn: 'HIGH' as const };
     assert.equal(applySecuritySettings(asked, security).onlyFixable, true);
@@ -183,14 +183,14 @@ describe('failles — le réglage de l’instance', () => {
   });
 });
 
-describe('failles — le journal et le temps réel', () => {
-  it('accepter une faille est un contournement : gravité élevée', () => {
+describe('vulnerabilities — the log and real time', () => {
+  it('accepting a vulnerability is a bypass: high severity', () => {
     assert.equal(auditSeverityOf('vulnerability.accepted'), 'high');
     assert.equal(auditSeverityOf('vulnerability.acceptance.removed'), 'medium');
     assert.equal(auditSeverityOf('application.scan_policy.changed'), 'medium');
   });
 
-  it('une acceptation se lit dans la fiche de l’application', () => {
+  it('an acceptance is read in the application’s record', () => {
     assert.equal(liveTopicOfResource('vulnerability_acceptance'), 'applications');
   });
 });

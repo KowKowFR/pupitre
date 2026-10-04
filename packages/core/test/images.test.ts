@@ -26,16 +26,15 @@ import {
 } from '../src/index.js';
 
 /**
- * Les mises à jour d'images : lire une référence comme Docker la lit, demander
- * au registre ce que le tag désigne, comparer avec ce qui tourne, et ne
- * l'annoncer qu'une fois.
+ * Image updates: read a reference as Docker reads it, ask the registry what the
+ * tag designates, compare with what runs, and only announce it once.
  */
 
 const A = `sha256:${'a'.repeat(64)}`;
 const B = `sha256:${'b'.repeat(64)}`;
 
-describe('références d’image', () => {
-  it('se lisent comme Docker les lit', () => {
+describe('image references', () => {
+  it('read as Docker reads them', () => {
     assert.deepEqual(parseImageReference('nginx'), {
       registry: 'registry-1.docker.io',
       repository: 'library/nginx',
@@ -67,7 +66,7 @@ describe('références d’image', () => {
     );
   });
 
-  it('refuse ce qui n’en est pas une', () => {
+  it('refuses what is not one', () => {
     for (const raw of [
       '',
       'Nginx',
@@ -80,7 +79,7 @@ describe('références d’image', () => {
     }
   });
 
-  it('se réécrit, et les digests se lisent sous toutes leurs formes', () => {
+  it('are rewritten, and digests are read in all their forms', () => {
     assert.equal(formatImageReference(parseImageReference('nginx:1.27')!), 'nginx:1.27');
     assert.equal(
       formatImageReference(parseImageReference('ghcr.io/acme/api')!),
@@ -95,17 +94,17 @@ describe('références d’image', () => {
 });
 
 describe('verdict et versions', () => {
-  it('à jour seulement si tout ce qui tourne est le contenu actuel du tag', () => {
+  it('up to date only if everything running is the tag’s current content', () => {
     assert.equal(judgeImage({ pinned: false, running: [A], latest: A }), 'current');
     assert.equal(judgeImage({ pinned: false, running: [B], latest: A }), 'outdated');
-    // Un rollout à moitié fait n'est pas à jour.
+    // A half-done rollout is not up to date.
     assert.equal(judgeImage({ pinned: false, running: [A, B], latest: A }), 'outdated');
     assert.equal(judgeImage({ pinned: false, running: [], latest: A }), 'unknown');
     assert.equal(judgeImage({ pinned: false, running: [A], latest: null }), 'unknown');
     assert.equal(judgeImage({ pinned: true, running: [A], latest: null }), 'pinned');
   });
 
-  it('propose un tag plus récent de même forme, série et majeure à part', () => {
+  it('offers a more recent tag of the same shape, series and major apart', () => {
     const tags = [
       '16.4',
       '16.6',
@@ -122,7 +121,7 @@ describe('verdict et versions', () => {
       sameSeries: '16.6-alpine',
       nextMajor: '17.1-alpine',
     });
-    // Une seule composante : il n'y a pas de « même série », seulement des majeures.
+    // A single component: there is no "same series", only majors.
     assert.deepEqual(newerTags('16', tags), { sameSeries: null, nextMajor: null });
     assert.deepEqual(newerTags('16', ['17', '18', '16.9']), { sameSeries: null, nextMajor: '18' });
     assert.deepEqual(newerTags('v1.2.3', ['v1.2.4', '1.2.9', 'v2.0.0']), {
@@ -133,7 +132,7 @@ describe('verdict et versions', () => {
     assert.deepEqual(newerTags('16.10', tags), { sameSeries: null, nextMajor: '17.2' });
   });
 
-  it('n’annonce une nouveauté qu’une fois', () => {
+  it('only announces something new once', () => {
     const first = updateNoticeKey({ status: 'outdated', latestDigest: A, sameSeries: null });
     assert.equal(first, A);
     assert.equal(updateNoticeKey({ status: 'outdated', latestDigest: A, sameSeries: null }), first);
@@ -144,7 +143,7 @@ describe('verdict et versions', () => {
     );
   });
 
-  it('ne vérifie que les images venues d’un registre', () => {
+  it('only checks the images coming from a registry', () => {
     const spec = parseAppSpec({
       name: 'mix',
       version: '1.0.0',
@@ -165,7 +164,7 @@ describe('verdict et versions', () => {
 });
 
 describe('registre', () => {
-  it('lit le défi d’authentification et la pagination', () => {
+  it('reads the authentication challenge and the pagination', () => {
     assert.deepEqual(
       parseBearerChallenge(
         'Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/nginx:pull"',
@@ -206,7 +205,7 @@ describe('registre', () => {
       'Bearer realm="https://auth.example.test/token",service="reg",scope="repository:library/nginx:pull"',
   };
 
-  it('obtient un jeton anonyme puis le digest, sans rien télécharger', async () => {
+  it('gets an anonymous token then the digest, without downloading anything', async () => {
     const { seen, client } = fakeRegistry((url, init) => {
       if (url.host === 'auth.example.test') return Response.json({ token: 'jeton' });
       const headers = init.headers as Record<string, string>;
@@ -215,14 +214,14 @@ describe('registre', () => {
     });
     const ref = parseImageReference('nginx:alpine')!;
     assert.equal(await client.manifestDigest(ref), A);
-    // Le jeton est réutilisé : un seul aller-retour vers le serveur de jetons.
+    // The token is reused: a single round trip to the token server.
     assert.equal(await client.manifestDigest(ref), A);
     assert.equal(seen.filter((call) => call.url.startsWith('https://auth.example.test')).length, 1);
     assert.ok(seen.every((call) => call.method !== 'GET' || call.url.includes('/token')));
     assert.equal(seen.at(-1)?.auth, 'Bearer jeton');
   });
 
-  it('calcule le digest quand le registre ne l’annonce pas', async () => {
+  it('computes the digest when the registry does not announce it', async () => {
     const manifest = Buffer.from('{"schemaVersion":2}');
     const { client } = fakeRegistry((_url, init) =>
       init.method === 'HEAD' ? new Response(null, { status: 200 }) : new Response(manifest),
@@ -231,7 +230,7 @@ describe('registre', () => {
     assert.equal(await client.manifestDigest(parseImageReference('ghcr.io/acme/api:1')!), expected);
   });
 
-  it('dit pourquoi il ne sait pas', async () => {
+  it('says why it does not know', async () => {
     const cases: Array<[Response, string]> = [
       [new Response(null, { status: 404 }), 'not_found'],
       [new Response(null, { status: 429 }), 'rate_limited'],
@@ -245,7 +244,7 @@ describe('registre', () => {
         (error: unknown) => error instanceof RegistryError && error.code === code,
       );
     }
-    // Un serveur de jetons en clair n'est pas suivi.
+    // A clear-text token server is not followed.
     const { client } = fakeRegistry(
       () =>
         new Response(null, {
@@ -256,7 +255,7 @@ describe('registre', () => {
     await assert.rejects(client.manifestDigest(parseImageReference('nginx')!), RegistryError);
   });
 
-  it('suit la pagination des tags, bornée, sans quitter le registre', async () => {
+  it('follows the tags pagination, bounded, without leaving the registry', async () => {
     let page = 0;
     const { client, seen } = fakeRegistry(() => {
       page += 1;
@@ -277,7 +276,7 @@ describe('registre', () => {
   });
 });
 
-describe('ce qui tourne, vu par chaque runtime', () => {
+describe('what runs, as seen by each runtime', () => {
   it('Docker : RepoDigests par identifiant d’image', () => {
     const digests = parseRepoDigests(
       [
@@ -309,7 +308,7 @@ describe('ce qui tourne, vu par chaque runtime', () => {
     assert.deepEqual(parsePodImages(pods), [{ service: 'web', digests: [A, B] }]);
   });
 
-  it('K3s : le digest tiré, pour le dépôt demandé', () => {
+  it('K3s: the pulled digest, for the requested repository', () => {
     const inspect = JSON.stringify({
       status: { repoDigests: [`docker.io/other/mirror@${B}`, `docker.io/library/nginx@${A}`] },
     });
@@ -318,7 +317,7 @@ describe('ce qui tourne, vu par chaque runtime', () => {
   });
 });
 
-describe('notification « image.update.available »', () => {
+describe('“image.update.available” notification', () => {
   const entry = {
     action: 'image.update.available',
     resourceType: 'application',
@@ -337,13 +336,13 @@ describe('notification « image.update.available »', () => {
     },
   };
 
-  it('part de l’audit, et se distingue par sa nouveauté', () => {
+  it('goes out from the audit log, and stands out by its novelty', () => {
     assert.equal(notifiableEventFor(entry), 'image.update.available');
     assert.equal(notificationDedupDiscriminator('image.update.available', entry), `${A},tag:16.6`);
   });
 
   for (const language of ['fr', 'en'] as const) {
-    it(`se rend en ${language}, sans motif oublié`, () => {
+    it(`renders in ${language}, without a forgotten reason`, () => {
       const message = buildNotificationMessage('image.update.available', entry, {
         language,
         instance: 'Recette',
@@ -368,8 +367,8 @@ describe('notification « image.update.available »', () => {
   }
 });
 
-describe('canonicalImageReference — le nom que containerd enregistre', () => {
-  it('complète Docker Hub, garde les autres registres, épingle le digest', () => {
+describe('canonicalImageReference — the name containerd records', () => {
+  it('completes Docker Hub, keeps the other registries, pins the digest', () => {
     assert.equal(canonicalImageReference('nginx:1.27'), 'docker.io/library/nginx:1.27');
     assert.equal(canonicalImageReference('nginx'), 'docker.io/library/nginx:latest');
     assert.equal(

@@ -13,17 +13,17 @@ import {
 
 const T = (iso: string) => new Date(iso).getTime();
 
-describe('maintenance — la fenêtre', () => {
+describe('maintenance — the window', () => {
   const window = { startsAt: '2026-10-03T20:00:00Z', endsAt: '2026-10-03T21:00:00Z' };
 
-  it('à venir, en cours, terminée — début inclus, fin exclue', () => {
+  it('upcoming, ongoing, finished — start included, end excluded', () => {
     assert.equal(maintenancePhase(window, T('2026-10-03T19:59:59Z')), 'upcoming');
     assert.equal(maintenancePhase(window, T('2026-10-03T20:00:00Z')), 'active');
     assert.equal(maintenancePhase(window, T('2026-10-03T20:59:59Z')), 'active');
     assert.equal(maintenancePhase(window, T('2026-10-03T21:00:00Z')), 'ended');
   });
 
-  it('refuse une fin avant le début, une fenêtre de plus d’un mois, une fenêtre vide', () => {
+  it('refuses an end before the start, a window longer than a month, an empty window', () => {
     const base = { title: 'Mise à jour du noyau', ...window, targetIds: [crypto.randomUUID()] };
     assert.ok(createMaintenanceSchema.safeParse(base).success);
     const reversed = createMaintenanceSchema.safeParse({ ...base, endsAt: base.startsAt });
@@ -34,7 +34,7 @@ describe('maintenance — la fenêtre', () => {
     assert.ok(!empty.success && empty.error.issues[0]?.path[0] === 'targetIds');
   });
 
-  it('la saisie parle le fuseau de l’instance, heure d’été comprise', () => {
+  it('input speaks the instance’s time zone, daylight saving time included', () => {
     assert.equal(
       fromWallClockInput('2026-10-03T22:00', 'Europe/Paris'),
       '2026-10-03T20:00:00.000Z',
@@ -57,7 +57,7 @@ describe('maintenance — les alertes retenues', () => {
     heldAt: at(minute),
   });
 
-  it('une panne réparée pendant la fenêtre ne part pas ; une panne toujours là, si', () => {
+  it('an outage repaired during the window does not go out; an outage still there does', () => {
     const released = alertsToRelease([
       held('a', 'monitor:api', true, 5),
       held('b', 'monitor:api', false, 12),
@@ -72,13 +72,13 @@ describe('maintenance — les alertes retenues', () => {
     );
   });
 
-  it('un rétablissement seul ne part pas', () => {
+  it('a recovery alone does not go out', () => {
     assert.deepEqual(alertsToRelease([held('a', 'reach:prod-1', false, 5)]), []);
   });
 });
 
 describe('maintenance — le catalogue', () => {
-  it('les alertes de supervision ont une règle ; la sécurité et les déploiements, jamais', () => {
+  it('monitoring alerts have a rule; security and deployments, never', () => {
     const down = maintenanceRuleOf('monitor.down');
     assert.deepEqual(down?.subject({ resourceId: 'm-1', after: {} }), {
       type: 'monitor',
@@ -99,7 +99,7 @@ describe('maintenance — le catalogue', () => {
       type: 'route',
       id: 'r-1',
     });
-    // Une entrée écrite avant que la route y figure : jamais retenue.
+    // An entry written before the route was in it: never held.
     assert.equal(route?.subject({ resourceId: 'app', after: {} }), null);
     for (const key of [
       'security.host_key_changed',
@@ -111,7 +111,7 @@ describe('maintenance — le catalogue', () => {
     }
   });
 
-  it('la fin d’une maintenance dit ce qui reste en panne', () => {
+  it('the end of a maintenance window says what stays down', () => {
     const entry = {
       action: 'maintenance.ended',
       resourceType: 'maintenance_window',

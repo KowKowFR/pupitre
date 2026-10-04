@@ -24,9 +24,9 @@ import { resolveGuarded } from '../src/probe/net.js';
 const NOTHING_ALLOWED = parseCidrList(undefined);
 const LOOPBACK_ALLOWED = parseCidrList('127.0.0.0/8');
 
-// ─── tcp : le schéma ──────────────────────────────────────────────────────────
+// ─── tcp: the schema ──────────────────────────────────────────────────────────
 
-test('une sonde TCP se configure avec un hôte et un port', () => {
+test('a TCP probe is configured with a host and a port', () => {
   const parsed = safeParseMonitorConfig('tcp', { host: 'exemple.fr', port: 25 });
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.ok ? parsed.config : null, {
@@ -37,22 +37,22 @@ test('une sonde TCP se configure avec un hôte et un port', () => {
   });
 });
 
-test('un port hors bornes est refusé', () => {
+test('an out-of-range port is refused', () => {
   assert.equal(safeParseMonitorConfig('tcp', { host: 'exemple.fr', port: 0 }).ok, false);
   assert.equal(safeParseMonitorConfig('tcp', { host: 'exemple.fr', port: 70_000 }).ok, false);
   assert.equal(safeParseMonitorConfig('tcp', { host: 'exemple.fr', port: 25.5 }).ok, false);
 });
 
-test("une configuration TCP n'est pas une configuration HTTP", () => {
+test("a TCP configuration is not an HTTP configuration", () => {
   assert.equal(safeParseMonitorConfig('tcp', { url: 'https://exemple.fr/' }).ok, false);
   assert.equal(safeParseMonitorConfig('tcp', { host: 'exemple.fr:25' }).ok, false);
 });
 
-// ─── tcp : la garde SSRF, à la création ───────────────────────────────────────
+// ─── tcp: the SSRF guard, at creation ─────────────────────────────────────────
 
-test('une sonde TCP vers un service de métadonnées est refusée par le schéma', () => {
-  // Le lien-local n'est débloqué par aucune liste : le refus peut donc tomber
-  // dans le schéma, sans lire l'environnement et sans résoudre quoi que ce soit.
+test('a TCP probe to a metadata service is refused by the schema', () => {
+  // Link-local is unlocked by no list: the refusal can therefore fall in the
+  // schema, without reading the environment and without resolving anything.
   const parsed = safeParseMonitorConfig('tcp', { host: '169.254.169.254', port: 80 });
   assert.equal(parsed.ok, false);
   assert.match(
@@ -61,28 +61,28 @@ test('une sonde TCP vers un service de métadonnées est refusée par le schéma
   );
 });
 
-test('le refus du lien-local vaut pour tous les types, pas seulement TCP', () => {
+test('the link-local refusal holds for every type, not only TCP', () => {
   assert.equal(safeParseMonitorConfig('tls', { host: '169.254.169.254' }).ok, false);
   assert.equal(safeParseMonitorConfig('http', { url: 'http://169.254.169.254/latest/' }).ok, false);
   assert.equal(checkHostname('169.254.169.254').allowed, false);
-  assert.equal(checkHostname('::ffff:169.254.169.254').allowed, false, 'forme encapsulée');
+  assert.equal(checkHostname('::ffff:169.254.169.254').allowed, false, 'wrapped form');
   assert.equal(checkHostname('exemple.fr').allowed, true);
 });
 
-test('une sonde TCP vers le bouclage ou une plage privée est refusée à la création', () => {
+test('a TCP probe to loopback or a private range is refused at creation', () => {
   for (const host of ['127.0.0.1', '10.0.0.5', '192.168.1.20', '172.16.3.4', '100.64.0.1']) {
     const verdict = checkMonitorTargetLiterals('tcp', { host, port: 5432 }, NOTHING_ALLOWED);
-    assert.equal(verdict.allowed, false, `${host} aurait dû être refusé`);
+    assert.equal(verdict.allowed, false, `${host} should have been refused`);
     assert.equal(verdict.allowed ? '' : verdict.field, 'host');
   }
 });
 
-test("une cible IPv6 littérale ne se saisit pas du tout dans un champ « hôte »", () => {
-  // `monitorHostSchema` refuse tout ce qui contient « : », forme entre crochets
-  // comprise. Limitation antérieure à ce chantier, et conservatrice : aucune
-  // cible IPv6 littérale ne peut être créée, donc aucune ne contourne la garde.
-  // Un résolveur DNS, lui, n'est pas un nom d'hôte et accepte l'IPv6 — il est
-  // contrôlé comme les autres.
+test("a literal IPv6 target cannot be entered at all in a “host” field", () => {
+  // `monitorHostSchema` refuses anything containing ":", bracketed form
+  // included. A limitation that predates this work, and a conservative one: no
+  // literal IPv6 target can be created, so none bypasses the guard. A DNS
+  // resolver, on the other hand, is not a host name and accepts IPv6 — it is
+  // checked like the others.
   assert.equal(safeParseMonitorConfig('tcp', { host: '::1', port: 5432 }).ok, false);
   assert.equal(safeParseMonitorConfig('tcp', { host: '[::1]', port: 5432 }).ok, false);
   const verdict = checkMonitorTargetLiterals(
@@ -94,19 +94,19 @@ test("une cible IPv6 littérale ne se saisit pas du tout dans un champ « hôte 
   assert.equal(verdict.allowed ? '' : verdict.field, 'resolver');
 });
 
-test("la même cible passe si l'exploitant a ouvert la plage", () => {
+test("the same target passes if the operator opened the range", () => {
   const verdict = checkMonitorTargetLiterals(
     'tcp',
     { host: '127.0.0.1', port: 5432 },
     LOOPBACK_ALLOWED,
   );
-  assert.equal(verdict.allowed, true, 'MONITOR_ALLOWED_CIDRS est là pour ça');
+  assert.equal(verdict.allowed, true, 'MONITOR_ALLOWED_CIDRS is there for that');
 });
 
-test('le contrôle de création se déduit des champs déclarés, sans switch sur le type', () => {
-  // Aucun `if (type === …)` : ce sont les `kind: 'host' | 'url'` du catalogue
-  // qui disent quels champs sont des cibles de connexion. Les types existants
-  // en profitent donc aussi.
+test('the creation check is derived from the declared fields, without a switch on the type', () => {
+  // No `if (type === …)`: it is the catalog's `kind: 'host' | 'url'` that say
+  // which fields are connection targets. The existing types therefore benefit
+  // too.
   assert.equal(
     checkMonitorTargetLiterals('tls', { host: '10.0.0.5' }, NOTHING_ALLOWED).allowed,
     false,
@@ -115,16 +115,16 @@ test('le contrôle de création se déduit des champs déclarés, sans switch su
     checkMonitorTargetLiterals('http', { url: 'http://10.0.0.5:8080/' }, NOTHING_ALLOWED).allowed,
     false,
   );
-  // Un nom ne se juge pas ici : il n'est contrôlé qu'une fois résolu.
+  // A name is not judged here: it is only checked once resolved.
   assert.equal(
     checkMonitorTargetLiterals('tcp', { host: 'exemple.fr', port: 25 }, NOTHING_ALLOWED).allowed,
     true,
   );
 });
 
-test("le nom interrogé d'une sonde DNS n'est pas une cible de connexion", () => {
-  // On ne s'y connecte jamais : le contrôler reviendrait à interdire de
-  // superviser « le A de db.interne vaut bien 10.0.0.5 », qui ne joint rien.
+test("a DNS probe's queried name is not a connection target", () => {
+  // We never connect to it: checking it would amount to forbidding monitoring
+  // "the A of db.internal is indeed 10.0.0.5", which reaches nothing.
   const verdict = checkMonitorTargetLiterals(
     'dns',
     { name: 'db.interne', recordType: 'A', expected: '10.0.0.5' },
@@ -133,7 +133,7 @@ test("le nom interrogé d'une sonde DNS n'est pas une cible de connexion", () =>
   assert.equal(verdict.allowed, true);
 });
 
-test('le résolveur déclaré, lui, est bien une cible de connexion', () => {
+test('the declared resolver, on the other hand, is a connection target', () => {
   const verdict = checkMonitorTargetLiterals(
     'dns',
     { name: 'exemple.fr', recordType: 'A', resolver: '10.0.0.53' },
@@ -151,9 +151,9 @@ test('le résolveur déclaré, lui, est bien une cible de connexion', () => {
   );
 });
 
-// ─── tcp : la garde SSRF, à l'exécution ───────────────────────────────────────
+// ─── tcp: the SSRF guard, at run time ─────────────────────────────────────────
 
-test("une sonde TCP vers le bouclage est refusée à l'exécution, liste vide", async () => {
+test("a TCP probe to loopback is refused at run time, empty list", async () => {
   const result = await getMonitorProbe('tcp').run(
     { host: '127.0.0.1', port: 5432 },
     { allowlist: NOTHING_ALLOWED, language: 'fr' },
@@ -163,7 +163,7 @@ test("une sonde TCP vers le bouclage est refusée à l'exécution, liste vide", 
   assert.match(result.detail ?? '', /MONITOR_ALLOWED_CIDRS/);
 });
 
-test("une sonde TCP vers une plage privée est refusée à l'exécution", async () => {
+test("a TCP probe to a private range is refused at run time", async () => {
   const result = await getMonitorProbe('tcp').run(
     { host: '10.0.0.5', port: 22 },
     { allowlist: NOTHING_ALLOWED, language: 'fr' },
@@ -172,9 +172,9 @@ test("une sonde TCP vers une plage privée est refusée à l'exécution", async 
   assert.match(result.detail ?? '', /privée/);
 });
 
-test("une sonde TCP vers le service de métadonnées est refusée à l'exécution aussi", async () => {
-  // Le schéma la refuse déjà, mais une sonde peut avoir été créée avant que la
-  // garde n'existe : la seconde ligne de défense doit tenir seule.
+test("a TCP probe to the metadata service is refused at run time too", async () => {
+  // The schema already refuses it, but a probe may have been created before the
+  // guard existed: the second line of defense must hold on its own.
   const viaProbe = await getMonitorProbe('tcp').run(
     { host: '169.254.169.254', port: 80 },
     { allowlist: parseCidrList('0.0.0.0/0'), language: 'fr' },
@@ -184,13 +184,13 @@ test("une sonde TCP vers le service de métadonnées est refusée à l'exécutio
   await assert.rejects(
     () => resolveGuarded('169.254.169.254', parseCidrList('0.0.0.0/0')),
     /aucune liste/,
-    'même une liste tout-ouvert ne débloque pas le lien-local',
+    'even a fully open list does not unlock link-local',
   );
 });
 
-test('la garde ne se contourne pas par un nom qui pointe sur le bouclage', async () => {
-  // `localhost` est refusé par son nom ; toute autre entrée pointant sur
-  // 127.0.0.1 tombe au contrôle des adresses résolues.
+test('the guard is not bypassed by a name pointing to loopback', async () => {
+  // `localhost` is refused by its name; any other entry pointing to 127.0.0.1
+  // falls at the check of resolved addresses.
   const result = await getMonitorProbe('tcp').run(
     { host: 'localhost', port: 5432 },
     { allowlist: parseCidrList('127.0.0.0/8'), language: 'fr' },
@@ -199,7 +199,7 @@ test('la garde ne se contourne pas par un nom qui pointe sur le bouclage', async
   assert.match(result.detail ?? '', /localhost/);
 });
 
-// ─── tcp : la mesure, contre une vraie socket ─────────────────────────────────
+// ─── tcp: the measurement, against a real socket ──────────────────────────────
 
 function listen(handler: (socket: import('node:net').Socket) => void): Promise<Server> {
   const server = createServer(handler);
@@ -212,7 +212,7 @@ function portOf(server: Server): number {
   return address.port;
 }
 
-test('un port qui écoute est sain, un port fermé est injoignable', async () => {
+test('a listening port is healthy, a closed port is unreachable', async () => {
   const server = await listen(() => {});
   const port = portOf(server);
   try {
@@ -235,7 +235,7 @@ test('un port qui écoute est sain, un port fermé est injoignable', async () =>
   assert.match(down.detail ?? '', /ECONNREFUSED/);
 });
 
-test('la bannière distingue « ça écoute » de « le bon service écoute »', async () => {
+test('the banner tells “something listens” from “the right service listens”', async () => {
   const server = await listen((socket) => socket.write('220 mail.exemple.fr ESMTP Postfix\r\n'));
   const port = portOf(server);
   try {
@@ -250,22 +250,22 @@ test('la bannière distingue « ça écoute » de « le bon service écoute »',
       { host: '127.0.0.1', port, expectBanner: 'esmtp postfix' },
       { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
-    assert.equal(insensitive.outcome, 'healthy', 'la casse de la bannière est fixée par le protocole');
+    assert.equal(insensitive.outcome, 'healthy', 'the banner’s case is set by the protocol');
 
     const wrong = await getMonitorProbe('tcp').run(
       { host: '127.0.0.1', port, expectBanner: 'SSH-2.0' },
       { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
     );
-    assert.equal(wrong.outcome, 'unhealthy', 'le port répond, mais pas le bon service');
+    assert.equal(wrong.outcome, 'unhealthy', 'the port answers, but not the right service');
     assert.match(wrong.detail ?? '', /SSH-2\.0/);
   } finally {
     server.close();
   }
 });
 
-test("un service muet est sain sans bannière attendue, en échec avec", async () => {
-  // PostgreSQL, MySQL, HTTP : le client parle en premier. Le port accepte, rien
-  // n'est annoncé. Les deux verdicts sont justes, et ils diffèrent.
+test("a silent service is healthy without an expected banner, failing with one", async () => {
+  // PostgreSQL, MySQL, HTTP: the client speaks first. The port accepts, nothing
+  // is announced. Both verdicts are right, and they differ.
   const server = await listen(() => {});
   const port = portOf(server);
   try {
@@ -281,15 +281,15 @@ test("un service muet est sain sans bannière attendue, en échec avec", async (
     );
     assert.equal(expecting.outcome, 'unhealthy');
     assert.match(expecting.detail ?? '', /rien annoncé/);
-    assert.equal(typeof expecting.metrics.connectMs, 'number', 'la connexion, elle, a réussi');
+    assert.equal(typeof expecting.metrics.connectMs, 'number', 'the connection, though, succeeded');
   } finally {
     server.close();
   }
 });
 
-// ─── dns : le schéma ──────────────────────────────────────────────────────────
+// ─── dns: the schema ──────────────────────────────────────────────────────────
 
-test('une sonde DNS se configure avec un nom et un type', () => {
+test('a DNS probe is configured with a name and a type', () => {
   const parsed = safeParseMonitorConfig('dns', { name: 'exemple.fr' });
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.ok ? parsed.config : null, {
@@ -302,7 +302,7 @@ test('une sonde DNS se configure avec un nom et un type', () => {
   });
 });
 
-test("une valeur attendue mal écrite est refusée à la saisie, pas tous les quarts d'heure", () => {
+test("a badly written expected value is refused at input, not every quarter of an hour", () => {
   const bad = safeParseMonitorConfig('dns', {
     name: 'exemple.fr',
     recordType: 'A',
@@ -316,7 +316,7 @@ test("une valeur attendue mal écrite est refusée à la saisie, pas tous les qu
     recordType: 'MX',
     expected: 'mail.exemple.fr',
   });
-  assert.equal(mx.ok, false, 'un MX sans priorité ne se compare pas');
+  assert.equal(mx.ok, false, 'an MX without a priority does not compare');
   assert.match(mx.ok ? '' : mx.error.issues[0]?.message ?? '', /priorité/);
 
   const good = safeParseMonitorConfig('dns', {
@@ -327,7 +327,7 @@ test("une valeur attendue mal écrite est refusée à la saisie, pas tous les qu
   assert.equal(good.ok, true);
 });
 
-test('un résolveur se déclare par son adresse, jamais par son nom', () => {
+test('a resolver is declared by its address, never by its name', () => {
   assert.equal(
     safeParseMonitorConfig('dns', { name: 'exemple.fr', resolver: 'dns.google' }).ok,
     false,
@@ -336,35 +336,35 @@ test('un résolveur se déclare par son adresse, jamais par son nom', () => {
   assert.equal(
     safeParseMonitorConfig('dns', { name: 'exemple.fr', resolver: '169.254.53.53' }).ok,
     false,
-    'un résolveur en lien-local est refusé comme toute autre cible de connexion',
+    'a link-local resolver is refused like any other connection target',
   );
 });
 
-test('les types utiles sont proposés, SOA et PTR sont écartés', () => {
+test('the useful types are offered, SOA and PTR are left out', () => {
   const definition = monitorTypeDefinition('dns');
   const field = definition.fields.find((entry) => entry.key === 'recordType');
   assert.ok(field && field.kind === 'select');
   const offered = field.kind === 'select' ? field.options.map((option) => option.value) : [];
   assert.deepEqual(offered, ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'CAA', 'SRV']);
-  assert.equal(offered.includes('SOA'), false, 'le numéro de série bouge à chaque édition');
+  assert.equal(offered.includes('SOA'), false, 'the serial number moves at each edit');
   assert.equal(safeParseMonitorConfig('dns', { name: 'exemple.fr', recordType: 'SOA' }).ok, false);
 });
 
-// ─── dns : la comparaison, là où tout se joue ─────────────────────────────────
+// ─── dns: the comparison, where everything happens ────────────────────────────
 
-test("l'ordre n'est pas du signal — un résolveur permute ses réponses", () => {
+test("order is not signal — a resolver permutes its answers", () => {
   const comparison = compareDnsRecords({
     type: 'MX',
     expected: ['10 mail1.exemple.fr', '20 mail2.exemple.fr'],
     actual: ['20 mail2.exemple.fr', '10 mail1.exemple.fr'],
     match: 'exact',
   });
-  assert.equal(comparison.ok, true, 'un comparateur naïf alerterait à chaque mesure');
+  assert.equal(comparison.ok, true, 'a naive comparator would alert at each measurement');
   assert.deepEqual(comparison.missing, []);
   assert.deepEqual(comparison.unexpected, []);
 });
 
-test("la casse d'un nom n'est pas du signal, ni le point final", () => {
+test("a name's case is not signal, nor is the trailing dot", () => {
   assert.equal(
     compareDnsRecords({
       type: 'CNAME',
@@ -377,7 +377,7 @@ test("la casse d'un nom n'est pas du signal, ni le point final", () => {
   assert.equal(
     compareDnsRecords({
       type: 'NS',
-      // Certains résolveurs mélangent la casse à dessein (0x20 encoding).
+      // Some resolvers mix the case on purpose (0x20 encoding).
       expected: ['ns1.exemple.fr', 'ns2.exemple.fr'],
       actual: ['NS2.ExEmPlE.fr.', 'nS1.exemple.FR.'],
       match: 'exact',
@@ -386,17 +386,17 @@ test("la casse d'un nom n'est pas du signal, ni le point final", () => {
   );
 });
 
-test("la casse d'un TXT est du signal — une clé DKIM distingue aB de Ab", () => {
+test("a TXT's case is signal — a DKIM key tells aB from Ab", () => {
   const comparison = compareDnsRecords({
     type: 'TXT',
     expected: ['v=DKIM1; p=MIGfMA0GCSqAb'],
     actual: ['v=DKIM1; p=MIGfMA0GCSqaB'],
     match: 'exact',
   });
-  assert.equal(comparison.ok, false, 'replier la casse ici créerait une fausse égalité');
+  assert.equal(comparison.ok, false, 'folding the case here would create a false equality');
 });
 
-test("la forme d'écriture d'une adresse n'est pas du signal", () => {
+test("how an address is written is not signal", () => {
   assert.equal(
     compareDnsRecords({
       type: 'AAAA',
@@ -408,7 +408,7 @@ test("la forme d'écriture d'une adresse n'est pas du signal", () => {
   );
 });
 
-test('une valeur absente est signalée, et nommée', () => {
+test('a missing value is reported, and named', () => {
   const comparison = compareDnsRecords({
     type: 'A',
     expected: ['203.0.113.7', '203.0.113.8'],
@@ -420,14 +420,14 @@ test('une valeur absente est signalée, et nommée', () => {
   assert.deepEqual(comparison.matched, ['203.0.113.7']);
 });
 
-test("un enregistrement ajouté est une anomalie en « exact », toléré en « au moins »", () => {
+test("an added record is an anomaly in “exact”, tolerated in “at least”", () => {
   const input = {
     type: 'A' as const,
     expected: ['203.0.113.7'],
     actual: ['203.0.113.7', '198.51.100.9'],
   };
   const strict = compareDnsRecords({ ...input, match: 'exact' });
-  assert.equal(strict.ok, false, "l'ajout est la signature d'un détournement");
+  assert.equal(strict.ok, false, "the addition is the signature of a hijack");
   assert.deepEqual(strict.unexpected, ['198.51.100.9']);
 
   const loose = compareDnsRecords({ ...input, match: 'contains' });
@@ -435,17 +435,17 @@ test("un enregistrement ajouté est une anomalie en « exact », toléré en « 
   assert.deepEqual(loose.unexpected, []);
 });
 
-test('la priorité fait partie du MX — le secours devenu principal est un incident', () => {
+test('the priority is part of the MX — the backup turned primary is an incident', () => {
   const comparison = compareDnsRecords({
     type: 'MX',
     expected: ['10 mail1.exemple.fr', '20 mail2.exemple.fr'],
     actual: ['20 mail1.exemple.fr', '10 mail2.exemple.fr'],
     match: 'exact',
   });
-  assert.equal(comparison.ok, false, 'les hôtes sont les mêmes, la configuration non');
+  assert.equal(comparison.ok, false, 'the hosts are the same, the configuration is not');
 });
 
-test("l'étiquette d'un CAA est insensible à la casse, comme le nom de l'autorité", () => {
+test("a CAA's tag is case-insensitive, like the authority's name", () => {
   assert.equal(
     compareDnsRecords({
       type: 'CAA',
@@ -457,7 +457,7 @@ test("l'étiquette d'un CAA est insensible à la casse, comme le nom de l'autori
   );
 });
 
-test('un SRV se compare sur ses quatre champs', () => {
+test('an SRV compares on its four fields', () => {
   assert.equal(dnsComparisonKey('SRV', '10 5 5269 XMPP.exemple.fr.'), '10 5 5269 xmpp.exemple.fr');
   assert.equal(
     compareDnsRecords({
@@ -467,11 +467,11 @@ test('un SRV se compare sur ses quatre champs', () => {
       match: 'exact',
     }).ok,
     false,
-    'le port change où va le trafic',
+    'the port changes where the traffic goes',
   );
 });
 
-test('les morceaux entre guillemets de dig se recollent', () => {
+test('dig’s quoted chunks are glued back together', () => {
   assert.equal(joinTxtChunks('"v=spf1 include:_spf" ".exemple.fr ~all"'), 'v=spf1 include:_spf.exemple.fr ~all');
   assert.equal(joinTxtChunks('v=spf1 ~all'), 'v=spf1 ~all');
   assert.equal(
@@ -485,7 +485,7 @@ test('les morceaux entre guillemets de dig se recollent', () => {
   );
 });
 
-test('la virgule sépare les valeurs, sauf pour TXT où elle est de la donnée', () => {
+test('the comma separates values, except for TXT where it is data', () => {
   assert.deepEqual(parseExpectedRecords('A', '203.0.113.7, 203.0.113.8'), [
     '203.0.113.7',
     '203.0.113.8',
@@ -494,23 +494,23 @@ test('la virgule sépare les valeurs, sauf pour TXT où elle est de la donnée',
     'v=spf1 ip4:a,ip4:b ~all',
   ]);
   assert.deepEqual(parseExpectedRecords('TXT', 'un\ndeux'), ['un', 'deux']);
-  // Deux écritures de la même valeur ne comptent qu'une fois, sinon un
-  // « exactement ces valeurs » deviendrait insatisfiable.
+  // Two spellings of the same value only count once, otherwise an "exactly these
+  // values" would become unsatisfiable.
   assert.deepEqual(parseExpectedRecords('NS', 'ns1.exemple.fr, NS1.exemple.fr.'), [
     'ns1.exemple.fr',
   ]);
 });
 
-test('la forme des valeurs attendues est contrôlée par type', () => {
+test('the shape of expected values is checked per type', () => {
   assert.equal(validateDnsRecordValue('A', '203.0.113.7'), null);
-  assert.ok(validateDnsRecordValue('A', '2001:db8::1'), 'une IPv6 dans un A');
+  assert.ok(validateDnsRecordValue('A', '2001:db8::1'), 'an IPv6 in an A');
   assert.equal(validateDnsRecordValue('AAAA', '2001:db8::1'), null);
   assert.equal(validateDnsRecordValue('CAA', '0 issue letsencrypt.org'), null);
   assert.ok(validateDnsRecordValue('CAA', 'issue letsencrypt.org'), 'drapeaux manquants');
   assert.equal(validateDnsRecordValue('TXT', 'v=spf1 ~all'), null);
 });
 
-test('un domaine qui porte dix-sept TXT ne produit pas une alerte de deux kilooctets', () => {
+test('a domain carrying seventeen TXT records does not produce a two-kilobyte alert', () => {
   const actual = Array.from({ length: 17 }, (_, index) => `verification-${index}=${'x'.repeat(60)}`);
   const comparison = compareDnsRecords({
     type: 'TXT',
@@ -520,15 +520,15 @@ test('un domaine qui porte dix-sept TXT ne produit pas une alerte de deux kilooc
   });
   const message = describeDnsComparison(comparison);
   assert.equal(comparison.unexpected.length, 17);
-  assert.ok(message.length < 600, `message de ${message.length} caractères`);
+  assert.ok(message.length < 600, `message of ${message.length} characters`);
   assert.match(message, /17 au total/);
 });
 
-// ─── dns : le verdict d'une interrogation ─────────────────────────────────────
+// ─── dns: a query's verdict ───────────────────────────────────────────────────
 
-test('un nom qui ne résout pas est « unhealthy », pas « unreachable »', async () => {
-  // Le résolveur a répondu : on a bien regardé, et la réponse n'est pas celle
-  // attendue. `unreachable` voudrait dire « je n'ai pas pu regarder ».
+test('a name that does not resolve is “unhealthy”, not “unreachable”', async () => {
+  // The resolver answered: we did look, and the answer is not the expected one.
+  // `unreachable` would mean "I could not look".
   const result = await getMonitorProbe('dns').run(
     { name: 'nexistepas.pupitre-test.invalid', recordType: 'A', timeoutMs: 3_000 },
     { allowlist: NOTHING_ALLOWED, language: 'fr' },
@@ -537,7 +537,7 @@ test('un nom qui ne résout pas est « unhealthy », pas « unreachable »', asy
   assert.equal(result.metrics.recordCount, 0);
 });
 
-test('un résolveur interne non autorisé est refusé, sans interroger quoi que ce soit', async () => {
+test('an internal resolver not allowed is refused, without querying anything', async () => {
   const result = await getMonitorProbe('dns').run(
     { name: 'exemple.fr', recordType: 'A', resolver: '10.0.0.53' },
     { allowlist: NOTHING_ALLOWED, language: 'fr' },
@@ -549,37 +549,37 @@ test('un résolveur interne non autorisé est refusé, sans interroger quoi que 
 
 // ─── cadence ──────────────────────────────────────────────────────────────────
 
-test('la cadence de chaque type dit ce qu’il coûte à l’autre bout', () => {
-  // Un port TCP tombe aussi vite qu'un site : même plancher que HTTP.
+test('each type’s interval says what it costs at the other end', () => {
+  // A TCP port goes down as fast as a site: the same floor as HTTP.
   assert.equal(MONITOR_TYPES.tcp.minIntervalSeconds, MONITOR_TYPES.http.minIntervalSeconds);
-  // Le DNS, non : sous le TTL on interroge son propre cache, et un résolveur
-  // public est une ressource partagée qu'on ne paie pas.
+  // DNS does not: under the TTL one queries one's own cache, and a public resolver
+  // is a shared resource we do not pay for.
   assert.equal(MONITOR_TYPES.dns.minIntervalSeconds, 300);
   assert.ok(MONITOR_TYPES.dns.minIntervalSeconds > MONITOR_TYPES.tcp.minIntervalSeconds);
 });
 
-test("les cadences retenues existent dans le sélecteur de l'écran", () => {
-  // `apps/web` propose une liste figée d'intervalles ; un type dont le défaut
-  // n'y figure pas afficherait une valeur que l'utilisateur ne voit pas.
+test("the chosen intervals exist in the screen's selector", () => {
+  // `apps/web` offers a fixed list of intervals; a type whose default is not in it
+  // would show a value the user does not see.
   const offered = new Set([30, 60, 300, 900, 3_600, 6 * 3_600, 12 * 3_600, 86_400]);
   for (const type of ['tcp', 'dns'] as const) {
     assert.ok(offered.has(MONITOR_TYPES[type].minIntervalSeconds), `${type} : minimum absent`);
-    assert.ok(offered.has(MONITOR_TYPES[type].defaultIntervalSeconds), `${type} : défaut absent`);
+    assert.ok(offered.has(MONITOR_TYPES[type].defaultIntervalSeconds), `${type}: default missing`);
   }
 });
 
-test("les deux types n'utilisent que des formes de champ déjà rendues par l'écran", () => {
-  // La preuve que « ajouter un type ne touche pas apps/web » : aucun `kind`
-  // inédit, donc rien à ajouter au rendu des formulaires.
+test("both types only use field shapes the screen already renders", () => {
+  // The proof that "adding a type does not touch apps/web": no new `kind`, so
+  // nothing to add to the forms' rendering.
   const known = new Set(['url', 'host', 'text', 'number', 'select']);
   for (const type of ['tcp', 'dns'] as const) {
     for (const field of monitorTypeDefinition(type).fields) {
-      assert.ok(known.has(field.kind), `${type}.${field.key} : forme de champ inédite`);
+      assert.ok(known.has(field.kind), `${type}.${field.key}: new field shape`);
     }
   }
 });
 
-// ─── machine à états, sur des séquences réalistes ─────────────────────────────
+// ─── state machine, on realistic sequences ────────────────────────────────────
 
 const THRESHOLDS = { failureThreshold: 3, recoveryThreshold: 2 };
 
@@ -604,9 +604,9 @@ function play(outcomes: MonitorOutcome[], thresholds = THRESHOLDS) {
   return { state, transitions };
 }
 
-test('un délai DNS isolé ne réveille personne', () => {
-  // Une interrogation qui expire de temps en temps est la vie normale d'un
-  // résolveur, pas un incident.
+test('an isolated DNS timeout wakes nobody up', () => {
+  // A query that times out now and then is a resolver's normal life, not an
+  // incident.
   const { state, transitions } = play([
     'healthy',
     'healthy',
@@ -620,9 +620,9 @@ test('un délai DNS isolé ne réveille personne', () => {
   assert.deepEqual(transitions, []);
 });
 
-test('une propagation DNS se lit en une panne puis un rétablissement', () => {
-  // Le A change, la sonde le voit `unhealthy` le temps que la zone se propage,
-  // puis quelqu'un met la valeur attendue à jour.
+test('a DNS propagation reads as one outage then one recovery', () => {
+  // The A changes, the probe sees it `unhealthy` while the zone propagates, then
+  // someone updates the expected value.
   const { state, transitions } = play([
     'healthy',
     'unhealthy',
@@ -634,10 +634,10 @@ test('une propagation DNS se lit en une panne puis un rétablissement', () => {
     'healthy',
   ]);
   assert.equal(state.status, 'healthy');
-  assert.deepEqual(transitions, ['down', 'up'], 'une panne, une alerte, un rétablissement');
+  assert.deepEqual(transitions, ['down', 'up'], 'one outage, one alert, one recovery');
 });
 
-test('un détournement de NS confirmé ouvre un incident unique', () => {
+test('a confirmed NS hijack opens a single incident', () => {
   const { state, transitions } = play(
     ['healthy', ...Array.from({ length: 20 }, () => 'unhealthy' as MonitorOutcome)],
   );
@@ -646,9 +646,9 @@ test('un détournement de NS confirmé ouvre un incident unique', () => {
   assert.equal(state.consecutiveFailures, 20);
 });
 
-test('un service TCP qui redémarre : injoignable, puis muet, puis sain', () => {
-  // Séquence réelle d'un redémarrage de conteneur avec bannière attendue : le
-  // port refuse, puis il accepte sans être prêt à s'annoncer, puis tout va bien.
+test('a restarting TCP service: unreachable, then silent, then healthy', () => {
+  // A real container restart sequence with an expected banner: the port refuses,
+  // then it accepts without being ready to announce itself, then all is well.
   const { state, transitions } = play([
     'healthy',
     'unreachable',
@@ -662,7 +662,7 @@ test('un service TCP qui redémarre : injoignable, puis muet, puis sain', () => 
   assert.deepEqual(transitions, ['down', 'up']);
 });
 
-test("la nature de l'échec se met à jour sans rouvrir d'incident", () => {
+test("the failure's nature updates without reopening an incident", () => {
   const { state, transitions } = play([
     'healthy',
     'unreachable',
@@ -672,5 +672,5 @@ test("la nature de l'échec se met à jour sans rouvrir d'incident", () => {
     'unreachable',
   ]);
   assert.equal(state.status, 'unreachable');
-  assert.deepEqual(transitions, ['down'], 'le port passe de fermé à muet : toujours la même panne');
+  assert.deepEqual(transitions, ['down'], 'the port goes from closed to silent: same outage');
 });

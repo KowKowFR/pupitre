@@ -53,16 +53,16 @@ const FIXTURES = path.join(
   '__fixtures__',
 );
 
-/** Les MÊMES fixtures que le rendu Compose, sans un champ de plus. */
+/** The SAME fixtures as the Compose render, without one more field. */
 function fixture(name: string): AppSpec {
   return parseAppSpec(JSON.parse(readFileSync(path.join(FIXTURES, `${name}.json`), 'utf8')));
 }
 
 /**
- * `kubectl apply --dry-run=client` a besoin de joindre un serveur pour
- * découvrir les groupes d'API : sans cluster, il ne sait pas ce qu'est un
- * `Deployment`. On teste donc l'outil *et* son accès avant de s'en servir,
- * comme `render.test.ts` teste la présence de Docker.
+ * `kubectl apply --dry-run=client` needs to reach a server to discover the API
+ * groups: without a cluster, it does not know what a `Deployment` is. We
+ * therefore test the tool *and* its access before using it, as `render.test.ts`
+ * tests that Docker is present.
  */
 function probeKubectl(): boolean {
   try {
@@ -79,8 +79,8 @@ function probeKubectl(): boolean {
 const kubectlAvailable = probeKubectl();
 
 /**
- * Fait valider le rendu par Kubernetes lui-même. C'est la seule preuve qui
- * compte : un YAML syntaxiquement correct peut rester un manifest invalide.
+ * Has the render validated by Kubernetes itself. It is the only proof that
+ * counts: a syntactically correct YAML can still be an invalid manifest.
  */
 function validateWithKubectl(spec: AppSpec): string {
   const document = renderFiles({ spec, appSlug: spec.name })
@@ -111,27 +111,27 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
     const spec = fixture('simple');
     const manifests = renderManifests({ spec, appSlug: spec.name });
 
-    it('crée le namespace app-{slug} en premier', () => {
+    it('creates the app-{slug} namespace first', () => {
       assert.equal(namespaceName('demo-api'), 'app-demo-api');
       assert.equal(manifests[0]?.kind, 'Namespace');
       assert.equal(manifests[0]?.metadata.name, 'app-demo-api');
     });
 
-    it('ne rend que ce que la spec déclare', () => {
+    it('renders only what the spec declares', () => {
       assert.deepEqual(
         manifests.map((manifest) => manifest.kind),
         ['Namespace', 'ConfigMap', 'Deployment', 'Service'],
-        'ni Secret ni PVC ni Ingress : la spec n’en déclare aucun',
+        'no Secret, PVC or Ingress: the spec declares none',
       );
     });
 
-    it('range chaque ressource dans le namespace de l’application', () => {
+    it('puts each resource in the application’s namespace', () => {
       for (const manifest of manifests.slice(1)) {
         assert.equal(manifest.metadata.namespace, 'app-demo-api', manifest.kind);
       }
     });
 
-    it('pose les labels standard sur toutes les ressources', () => {
+    it('sets the standard labels on every resource', () => {
       for (const manifest of manifests) {
         const labels = manifest.metadata.labels ?? {};
         assert.equal(labels['app.kubernetes.io/managed-by'], MANAGED_BY, manifest.kind);
@@ -140,7 +140,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       }
     });
 
-    it('garde la version hors du sélecteur, qui est immuable', () => {
+    it('keeps the version out of the selector, which is immutable', () => {
       const deployment = deploymentOf(manifests, 'api');
       assert.deepEqual(deployment.spec.selector.matchLabels, {
         'app.kubernetes.io/name': 'api',
@@ -149,7 +149,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(
         deployment.spec.template.metadata.labels['app.kubernetes.io/version'],
         '1.0.0',
-        'la version reste sur le pod, où elle peut changer',
+        'the version stays on the pod, where it can change',
       );
     });
 
@@ -164,11 +164,11 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(
         container.livenessProbe.initialDelaySeconds,
         10,
-        'la sonde de vivacité laisse au service le temps de démarrer',
+        'the liveness probe gives the service time to start',
       );
     });
 
-    it('traduit les ressources en requests et limits', () => {
+    it('translates resources into requests and limits', () => {
       const container = deploymentOf(manifests, 'api').spec.template.spec.containers[0];
       assert.deepEqual(container?.resources, {
         requests: { cpu: '500m', memory: '256Mi' },
@@ -177,10 +177,10 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
     });
 
     /**
-     * `simple.json` tire `nginx` d'un registry : c'est précisément l'image que
-     * l'ancien contexte, uniforme, empêchait de démarrer.
+     * `simple.json` pulls `nginx` from a registry: it is precisely the image the
+     * old, uniform context prevented from starting.
      */
-    it('durcit sans imposer d’identité — l’image est tierce', () => {
+    it('hardens without imposing an identity — the image is third-party', () => {
       const pod = deploymentOf(manifests, 'api').spec.template.spec;
       assert.deepEqual(pod.securityContext, {
         fsGroup: 1000,
@@ -199,7 +199,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       ]);
     });
 
-    it('expose en ClusterIP : aucun port hôte, c’est le proxy du cluster qui le joint', () => {
+    it('exposes as ClusterIP: no host port, the cluster’s proxy reaches it', () => {
       const service = byKind<ServiceManifest>(manifests, 'Service')[0];
       assert.equal(service?.spec.type, 'ClusterIP');
       assert.deepEqual(service?.spec.ports, [
@@ -211,7 +211,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       });
     });
 
-    it('produit des manifests validés par kubectl', { skip: !kubectlAvailable }, () => {
+    it('produces manifests validated by kubectl', { skip: !kubectlAvailable }, () => {
       const output = validateWithKubectl(spec);
       assert.match(output, /namespace\/app-demo-api/);
       assert.match(output, /deployment\.apps\/api/);
@@ -228,7 +228,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
     };
     const manifests = renderManifests({ spec, appSlug: spec.name, secretValues });
 
-    it('rend une ressource par objet, dans l’ordre d’application', () => {
+    it('renders one resource per object, in apply order', () => {
       assert.deepEqual(
         manifests.map((manifest) => `${manifest.kind}/${manifest.metadata.name}`),
         [
@@ -247,14 +247,14 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
           'Service/api',
           'Service/front',
         ],
-        'services dans l’ordre des dépendances, ressources dans l’ordre d’application',
+        'services in dependency order, resources in apply order',
       );
     });
 
-    it('nomme les fichiers pour que kubectl apply -f . respecte l’ordre des types', () => {
+    it('names the files so that kubectl apply -f . respects the order of kinds', () => {
       const files = renderFiles({ spec, appSlug: spec.name, secretValues });
-      // `kubectl apply -f <dir>` lit les fichiers dans l'ordre lexicographique :
-      // c'est le préfixe numérique qui porte l'ordre d'application.
+      // `kubectl apply -f <dir>` reads files in lexicographic order: it is the
+      // numeric prefix that carries the apply order.
       const sorted = [...files].map((file) => file.path).sort();
       const ranks = sorted.map((file) =>
         Number.parseInt(file.slice(file.indexOf('/') + 1), 10),
@@ -262,13 +262,13 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
 
       assert.ok(
         ranks.every((rank, index) => index === 0 || rank >= (ranks[index - 1] ?? 0)),
-        `les types doivent rester ordonnés : ${sorted.join(', ')}`,
+        `kinds must stay ordered: ${sorted.join(', ')}`,
       );
       assert.equal(sorted[0], namespaceFilePath('boutique'), 'le namespace vient en premier');
       assert.equal(files[0]?.path, namespaceFilePath('boutique'));
     });
 
-    it('construit les services à Dockerfile et taggue leur image', () => {
+    it('builds the Dockerfile services and tags their image', () => {
       assert.equal(
         deploymentOf(manifests, 'api').spec.template.spec.containers[0]?.image,
         'app-boutique/api:2.3.1',
@@ -277,11 +277,11 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(
         deploymentOf(manifests, 'postgres').spec.template.spec.containers[0]?.image,
         'postgres:16-alpine',
-        'image tirée telle quelle',
+        'image pulled as is',
       );
     });
 
-    it('ne va jamais chercher sur un registry une image construite sur le node', () => {
+    it('never looks on a registry for an image built on the node', () => {
       for (const deployment of byKind<DeploymentManifest>(manifests, 'Deployment')) {
         assert.equal(
           deployment.spec.template.spec.containers[0]?.imagePullPolicy,
@@ -291,7 +291,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       }
     });
 
-    it('crée un PVC local-path par volume déclaré', () => {
+    it('creates a local-path PVC per declared volume', () => {
       const claims = byKind<PersistentVolumeClaimManifest>(manifests, 'PersistentVolumeClaim');
       assert.deepEqual(
         claims.map((claim) => [claim.metadata.name, claim.spec.resources.requests.storage]),
@@ -306,7 +306,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       }
     });
 
-    it('monte le PVC là où la spec le demande', () => {
+    it('mounts the PVC where the spec asks', () => {
       const postgres = deploymentOf(manifests, 'postgres');
       assert.deepEqual(postgres.spec.template.spec.containers[0]?.volumeMounts, [
         { name: 'data', mountPath: '/var/lib/postgresql/data' },
@@ -316,17 +316,17 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       ]);
     });
 
-    it('passe à Recreate quand un volume ReadWriteOnce est en jeu', () => {
+    it('switches to Recreate when a ReadWriteOnce volume is involved', () => {
       assert.equal(deploymentOf(manifests, 'postgres').spec.strategy.type, 'Recreate');
       assert.equal(deploymentOf(manifests, 'front').spec.strategy.type, 'RollingUpdate');
     });
 
-    it('reporte les répliques de la spec', () => {
+    it('carries over the spec’s replicas', () => {
       assert.equal(deploymentOf(manifests, 'front').spec.replicas, 2);
       assert.equal(deploymentOf(manifests, 'api').spec.replicas, 1);
     });
 
-    it('sépare env (ConfigMap) et secrets (Secret)', () => {
+    it('separates env (ConfigMap) and secrets (Secret)', () => {
       const container = deploymentOf(manifests, 'api').spec.template.spec.containers[0];
       assert.deepEqual(container?.envFrom, [
         { configMapRef: { name: 'api-env' } },
@@ -336,11 +336,11 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.deepEqual(
         front?.envFrom,
         [{ configMapRef: { name: 'front-env' } }],
-        'front ne déclare aucun secret',
+        'front declares no secret',
       );
     });
 
-    it('n’inscrit jamais la valeur d’un secret hors du manifest Secret', () => {
+    it('never writes a secret’s value outside the Secret manifest', () => {
       for (const manifest of manifests) {
         if (manifest.kind === 'Secret') continue;
         const yaml = serializeManifest(manifest);
@@ -353,7 +353,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       }
     });
 
-    it('rend les Secret en 0600, comme le .env côté Docker', () => {
+    it('renders the Secrets as 0600, like the .env on the Docker side', () => {
       const files = renderFiles({ spec, appSlug: spec.name, secretValues });
       for (const file of files) {
         assert.equal(
@@ -364,7 +364,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       }
     });
 
-    it('déclare chaque secret déclaré par le service', () => {
+    it('declares each secret declared by the service', () => {
       const [secret] = byKind<SecretManifest>(manifests, 'Secret').filter(
         (manifest) => manifest.metadata.name === 'api-secrets',
       );
@@ -375,14 +375,14 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(secret?.type, 'Opaque');
     });
 
-    it('refuse de rendre un secret déclaré sans valeur résolue, comme le rendu Docker', () => {
+    it('refuses to render a declared secret with no resolved value, like the Docker render', () => {
       assert.throws(
         () => renderManifests({ spec, appSlug: spec.name }),
         /DATABASE_PASSWORD/,
       );
     });
 
-    it('sonde la porte d’entrée en HTTP, les autres en TCP', () => {
+    it('probes the entry point over HTTP, the others over TCP', () => {
       const front = deploymentOf(manifests, 'front').spec.template.spec.containers[0];
       assert.deepEqual(front?.readinessProbe.httpGet, {
         path: '/healthz',
@@ -394,30 +394,30 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(postgres?.readinessProbe.httpGet, undefined);
     });
 
-    it('verrouille la racine des images que nous construisons, pas des images tierces', () => {
+    it('locks the root of the images we build, not of third-party images', () => {
       const api = deploymentOf(manifests, 'api').spec.template.spec;
       assert.equal(api.containers[0]?.securityContext.readOnlyRootFilesystem, true);
       assert.ok(
         api.volumes?.some((volume) => volume.name === 'tmp-scratch'),
-        'une racine en lecture seule exige un /tmp inscriptible',
+        'a read-only root requires a writable /tmp',
       );
 
       const postgres = deploymentOf(manifests, 'postgres').spec.template.spec;
       assert.equal(
         postgres.containers[0]?.securityContext.readOnlyRootFilesystem,
         false,
-        'on ignore ce qu’une image tierce écrit à la racine',
+        'we do not know what a third-party image writes at the root',
       );
       assert.ok(!postgres.volumes?.some((volume) => volume.name === 'tmp-scratch'));
     });
 
-    it('ne rend aucun Ingress : un domaine est une route du reverse proxy', () => {
-      // La spec déclare pourtant un `ingress.host` : il devient une route, posée
-      // par le proxy de la cible vers le Service — voir test/proxy.test.ts.
+    it('renders no Ingress: a domain is a route of the reverse proxy', () => {
+      // The spec does declare an `ingress.host`: it becomes a route, set by the
+      // target's proxy toward the Service — see test/proxy.test.ts.
       assert.equal(byKind(manifests, 'Ingress').length, 0);
     });
 
-    it('produit des manifests validés par kubectl', { skip: !kubectlAvailable }, () => {
+    it('produces manifests validated by kubectl', { skip: !kubectlAvailable }, () => {
       const output = validateWithKubectl(spec);
       for (const expected of [
         'namespace/app-boutique',
@@ -426,21 +426,21 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
         'deployment.apps/postgres',
         'persistentvolumeclaim/api-uploads',
       ]) {
-        assert.ok(output.includes(expected), `${expected} attendu dans la sortie de kubectl`);
+        assert.ok(output.includes(expected), `${expected} expected in kubectl’s output`);
       }
     });
   });
 
   describe('invalid.json', () => {
-    it('n’atteint jamais le rendu : la spec est rejetée avant', () => {
+    it('never reaches the render: the spec is rejected before', () => {
       const raw: unknown = JSON.parse(readFileSync(path.join(FIXTURES, 'invalid.json'), 'utf8'));
       const parsed = safeParseAppSpec(raw);
       assert.equal(parsed.success, false);
     });
   });
 
-  describe('sérialisation', () => {
-    it('échappe ce qu’une concaténation de chaînes casserait', () => {
+  describe('serialization', () => {
+    it('escapes what string concatenation would break', () => {
       const spec = parseAppSpec({
         name: 'echappement',
         version: '1.0.0',
@@ -473,10 +473,10 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(parsed.data.COLON, 'clé: valeur');
     });
 
-    it('résiste aux pièges de l’analyseur YAML 1.1 de Kubernetes', () => {
-      // L'API Kubernetes lit le YAML en 1.1 : `y`, `no`, `on`, `off` y sont des
-      // booléens et `12:30` un sexagésimal. Un `stringData` non protégé se fait
-      // alors rejeter — « cannot unmarshal bool into Go struct field ».
+    it('withstands the traps of Kubernetes’ YAML 1.1 parser', () => {
+      // The Kubernetes API reads YAML as 1.1: `y`, `no`, `on`, `off` are booleans
+      // there and `12:30` a sexagesimal. An unprotected `stringData` then gets
+      // rejected — "cannot unmarshal bool into Go struct field".
       const traps = {
         YES_SHORT: 'y',
         NO_WORD: 'no',
@@ -513,7 +513,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       const secret = manifests.find((manifest) => manifest.kind === 'Secret');
       assert.ok(configMap && secret);
 
-      // On relit comme Kubernetes le ferait, pas comme YAML 1.2 le ferait.
+      // We read back as Kubernetes would, not as YAML 1.2 would.
       const readAsKubernetes = (manifest: KubeManifest) =>
         parseYaml(serializeManifest(manifest), { version: '1.1' }) as {
           data?: Record<string, unknown>;
@@ -527,13 +527,13 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.equal(readAsKubernetes(secret).stringData?.MOT_DE_PASSE, 'y');
     });
 
-    it('assainit une version que Kubernetes refuserait comme label', () => {
+    it('sanitizes a version Kubernetes would refuse as a label', () => {
       assert.equal(labelSafe('2.3.1'), '2.3.1');
       assert.equal(labelSafe('1.0.0+build.5'), '1.0.0_build.5');
       assert.equal(labelSafe('1.0.0-rc.1+exp.sha.5114f85'), '1.0.0-rc.1_exp.sha.5114f85');
     });
 
-    it('reste déterministe', () => {
+    it('stays deterministic', () => {
       const spec = fixture('fullstack');
       const values = {
         DATABASE_PASSWORD: 'p4ss',
@@ -551,13 +551,13 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
   });
 
   /**
-   * Le test qui garantit la règle 1 de CLAUDE.md sur les alias : la résolution
-   * a lieu dans le code neutre, donc les deux rendus reçoivent **la même carte
-   * complète**. Compose aurait su interpoler `${MARIADB_PASSWORD}` depuis le
-   * `.env` ; Kubernetes n'interpole rien. Écrire l'alias côté runtime aurait
-   * fait marcher la même AppSpec d'un côté seulement.
+   * The test that guarantees CLAUDE.md's rule 1 on aliases: resolution happens in
+   * the neutral code, so both renders receive **the same complete map**. Compose
+   * could have interpolated `${MARIADB_PASSWORD}` from the `.env`; Kubernetes
+   * interpolates nothing. Writing the alias on the runtime side would have made
+   * the same AppSpec work on one side only.
    */
-  describe('alias de secret — parité Docker / K3s', () => {
+  describe('secret aliases — Docker / K3s parity', () => {
     const spec = parseAppSpec({
       name: 'boutique',
       version: '1.0.0',
@@ -580,7 +580,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
     });
     const secretValues = { MARIADB_PASSWORD: 'valeur-partagee', MARIADB_ROOT_PASSWORD: 'root' };
 
-    it('le Secret K8s du service applicatif porte le nom aliasé et la valeur de la racine', () => {
+    it('the application service’s K8s Secret carries the aliased name and the root’s value', () => {
       const manifests = renderManifests({ spec, appSlug: spec.name, secretValues });
       const secret = manifests.find(
         (manifest): manifest is SecretManifest =>
@@ -590,7 +590,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.deepEqual(secret.stringData, { WORDPRESS_DB_PASSWORD: 'valeur-partagee' });
     });
 
-    it('le `.env` Docker porte les deux noms avec la même valeur', () => {
+    it('the Docker `.env` carries both names with the same value', () => {
       const files = renderComposeFiles({ spec, appSlug: spec.name, publishedPort: null, secretValues });
       const env = files.find((file) => file.path === '.env');
       assert.ok(env);
@@ -598,7 +598,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       assert.match(env.content, /^MARIADB_PASSWORD=valeur-partagee$/m);
     });
 
-    it('les deux rendus partent de la même carte, alias compris', () => {
+    it('both renders start from the same map, aliases included', () => {
       const complete = completeSecretValues(spec, secretValues);
       assert.deepEqual(complete, {
         WORDPRESS_DB_PASSWORD: 'valeur-partagee',
@@ -609,13 +609,13 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
   });
 
   /**
-   * Le durcissement se décide sur ce que l'on connaît de l'image, pas sur une
-   * règle uniforme. Ces cas figent la décision champ par champ : c'est du rendu
-   * pur, donc vérifiable sans cluster — alors que la panne qu'ils préviennent,
-   * elle, ne se voyait qu'au démarrage d'un pod.
+   * Hardening is decided on what we know of the image, not on a uniform rule.
+   * These cases freeze the decision field by field: it is pure rendering, hence
+   * checkable without a cluster — whereas the failure they prevent only showed
+   * when a pod started.
    */
   describe('securityContext selon le type de source', () => {
-    /** Une AppSpec minimale portant les deux régimes côte à côte. */
+    /** A minimal AppSpec carrying both regimes side by side. */
     const spec = parseAppSpec({
       name: 'mixte',
       version: '1.0.0',
@@ -639,7 +639,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
     const own = deploymentOf(manifests, 'web').spec.template.spec;
     const third = deploymentOf(manifests, 'db').spec.template.spec;
 
-    it('impose l’identité d’exécution à une image que nous construisons', () => {
+    it('imposes the run identity on an image we build', () => {
       assert.deepEqual(own.securityContext, {
         runAsNonRoot: true,
         runAsUser: 1000,
@@ -649,69 +649,69 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       });
     });
 
-    it('ne l’impose pas à une image tierce : on ignore sous quel compte elle tourne', () => {
+    it('does not impose it on a third-party image: we do not know which account it runs as', () => {
       assert.equal(third.securityContext.runAsNonRoot, undefined);
       assert.equal(third.securityContext.runAsUser, undefined);
       assert.equal(third.securityContext.runAsGroup, undefined);
     });
 
-    it('garde `fsGroup` dans les deux cas : il possède le volume, pas le processus', () => {
+    it('keeps `fsGroup` in both cases: it owns the volume, not the process', () => {
       assert.equal(own.securityContext.fsGroup, 1000);
       assert.equal(
         third.securityContext.fsGroup,
         1000,
-        'le retirer rendrait un PVC neuf (root:root 0755) illisible en non-root',
+        'removing it would make a new PVC (root:root 0755) unreadable as non-root',
       );
     });
 
-    it('garde `seccompProfile` dans les deux cas : il ne dépend d’aucune identité', () => {
+    it('keeps `seccompProfile` in both cases: it depends on no identity', () => {
       assert.deepEqual(own.securityContext.seccompProfile, { type: 'RuntimeDefault' });
       assert.deepEqual(third.securityContext.seccompProfile, { type: 'RuntimeDefault' });
     });
 
-    it('interdit privilège et élévation dans les deux cas', () => {
+    it('forbids privilege and escalation in both cases', () => {
       for (const pod of [own, third]) {
         assert.equal(pod.containers[0]?.securityContext.privileged, false);
         assert.equal(pod.containers[0]?.securityContext.allowPrivilegeEscalation, false);
       }
     });
 
-    it('retire toutes les capacités à nos images, et rend le strict nécessaire aux autres', () => {
+    it('drops every capability from our images, and gives the others the bare minimum', () => {
       assert.deepEqual(own.containers[0]?.securityContext.capabilities, { drop: ['ALL'] });
-      // Mesuré : sans ces cinq-là, `nginx` échoue sur `chown` et `postgres` sur
-      // `chmod` — leur point d'entrée démarre root puis abandonne ses privilèges.
+      // Measured: without these five, `nginx` fails on `chown` and `postgres` on
+      // `chmod` — their entry point starts as root then drops its privileges.
       assert.deepEqual(third.containers[0]?.securityContext.capabilities, {
         drop: ['ALL'],
         add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'],
       });
     });
 
-    it('n’accorde jamais les capacités que Docker donne pourtant par défaut', () => {
+    it('never grants the capabilities Docker does give by default', () => {
       const granted = third.containers[0]?.securityContext.capabilities.add ?? [];
       for (const forbidden of ['NET_RAW', 'MKNOD', 'SYS_CHROOT', 'SETPCAP', 'SETFCAP', 'KILL']) {
-        assert.ok(!granted.includes(forbidden), `${forbidden} ne doit pas être accordée`);
+        assert.ok(!granted.includes(forbidden), `${forbidden} must not be granted`);
       }
     });
 
-    it('ne verrouille la racine que sur nos images', () => {
+    it('only locks the root on our images', () => {
       assert.equal(own.containers[0]?.securityContext.readOnlyRootFilesystem, true);
       assert.equal(third.containers[0]?.securityContext.readOnlyRootFilesystem, false);
     });
 
-    it('ne sérialise aucun champ d’identité vide pour une image tierce', () => {
+    it('serializes no empty identity field for a third-party image', () => {
       const deployment = manifests.find(
         (manifest) => manifest.kind === 'Deployment' && manifest.metadata.name === 'db',
       );
       assert.ok(deployment);
       const yaml = serializeManifest(deployment);
-      // `runAsUser: null` serait refusé par l'API : le champ doit être absent.
+      // `runAsUser: null` would be refused by the API: the field must be absent.
       assert.ok(!yaml.includes('runAsUser'), yaml);
       assert.ok(!yaml.includes('runAsNonRoot'), yaml);
       assert.ok(!yaml.includes('runAsGroup'), yaml);
       assert.match(yaml, /fsGroup: 1000/);
     });
 
-    it('les manifests restent valides pour Kubernetes', { skip: !kubectlAvailable }, () => {
+    it('the manifests stay valid for Kubernetes', { skip: !kubectlAvailable }, () => {
       const output = validateWithKubectl(spec);
       assert.match(output, /deployment\.apps\/db/);
       assert.match(output, /deployment\.apps\/web/);
@@ -720,14 +720,14 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
 });
 
 /**
- * Le constructeur d'images.
+ * The image builder.
  *
- * Ce qui est vérifié ici n'est pas « BuildKit fonctionne » — cela se prouve sur
- * un vrai cluster, par `pnpm test:parity` — mais que les quelques décisions dont
- * dépend le fonctionnement sont bien celles qu'on croit, et qu'un refactor ne
- * les défera pas en silence.
+ * What is checked here is not "BuildKit works" — that is proven on a real
+ * cluster, by `pnpm test:parity` — but that the few decisions its working
+ * depends on are indeed the ones we think, and that a refactor will not undo
+ * them silently.
  */
-/** Le build qui pose ou retrouve le constructeur, dans les manifestes ci-dessous. */
+/** The build that sets up or finds the builder, in the manifests below. */
 const LAST_BUILD = new Date('2026-10-04T08:00:00Z');
 
 describe('constructeur d’images K3s', () => {
@@ -749,64 +749,63 @@ describe('constructeur d’images K3s', () => {
   const container = deploymentManifest.spec.template.spec.containers[0];
   assert.ok(container);
 
-  it('exécute runc dans le pod, pas via le containerd du nœud', () => {
-    // Le worker containerd exigerait `mountPropagation: Bidirectional` et donc
-    // une racine de nœud en montage partagé — ce qu'on ne peut pas supposer.
+  it('runs runc in the pod, not through the node’s containerd', () => {
+    // The containerd worker would require `mountPropagation: Bidirectional` and
+    // hence a node root as a shared mount — which cannot be assumed.
     assert.ok(container.args.includes('--oci-worker=true'));
     assert.ok(container.args.includes('--containerd-worker=false'));
   });
 
-  it('n’a aucun volume hôte : le nœud ne lui prête ni socket ni chemin', () => {
+  it('has no host volume: the node lends it neither socket nor path', () => {
     assert.ok(
       !builderDeploymentManifest(LAST_BUILD).includes('hostPath'),
-      'un hostPath rendrait le constructeur dépendant de la topologie du nœud',
+      'a hostPath would make the builder depend on the node’s topology',
     );
   });
 
-  it('reste supprimable depuis l’écran des charges', () => {
-    // Voir `builder.ts` : le label `managed-by` ferait refuser sa suppression
-    // en renvoyant vers un déploiement qui n'existe pas.
+  it('stays deletable from the workloads screen', () => {
+    // See `builder.ts`: the `managed-by` label would make its deletion be refused,
+    // pointing to a deployment that does not exist.
     assert.equal(deploymentManifest.metadata.labels['app.kubernetes.io/managed-by'], undefined);
   });
 
-  it('se remplace sans se chevaucher : deux buildkitd se disputeraient le verrou', () => {
+  it('is replaced without overlapping: two buildkitd would fight over the lock', () => {
     assert.equal(deploymentManifest.spec.strategy.type, 'Recreate');
   });
 
-  it('épingle la version du constructeur', () => {
+  it('pins the builder’s version', () => {
     assert.equal(container.image, BUILDKIT_IMAGE);
     assert.match(container.image, /:v\d+\.\d+\.\d+$/);
   });
 
-  it('assume le privilège, que le preflight fait valider par l’admission', () => {
+  it('accepts the privilege, which the preflight has validated by admission', () => {
     assert.equal(container.securityContext.privileged, true);
   });
 
-  it('importe dans l’espace de noms k8s.io, seul visible du kubelet', () => {
+  it('imports into the k8s.io namespace, the only one the kubelet sees', () => {
     assert.match(importCommand(), /k3s ctr -n k8s\.io images import -/);
   });
 
-  it('n’expose au constructeur que le contexte du service construit', () => {
+  it('only exposes the built service’s context to the builder', () => {
     const command = pushContextCommand('/opt/bootstrap/apps/boutique/2.3.1/api');
     assert.match(command, /^tar -C '\/opt\/bootstrap\/apps\/boutique\/2\.3\.1\/api' -cf - \./);
     assert.ok(!command.includes('hostPath'));
   });
 
-  it('porte un Dockerfile en sous-répertoire jusqu’à buildctl', () => {
+  it('carries a Dockerfile in a subdirectory all the way to buildctl', () => {
     assert.match(buildCommand('app-boutique/api:2.3.1', 'docker/Dockerfile'), /filename='docker\/Dockerfile'/);
   });
 
-  it('nomme l’image dans le tar OCI : c’est ce nom que containerd reprend', () => {
+  it('names the image in the OCI tar: it is that name containerd takes over', () => {
     assert.match(
       buildCommand('app-boutique/api:2.3.1', 'Dockerfile'),
       /type=oci,name=app-boutique\/api:2\.3\.1,dest=/,
     );
   });
 
-  it('soumet à l’admission un Pod, pas un contrôleur', () => {
-    // PodSecurity ne refuse qu'un Pod ; sur un Deployment il se contente d'un
-    // avertissement et laisse le code de sortie à 0. Le contrôle porterait
-    // alors sur rien.
+  it('submits a Pod to admission, not a controller', () => {
+    // PodSecurity only refuses a Pod; on a Deployment it settles for a warning and
+    // leaves the exit code at 0. The check would then be about nothing.
     const probe = parseYaml(builderAdmissionProbeManifest()) as {
       kind: string;
       spec: { containers: Array<{ securityContext: { privileged: boolean } }> };
@@ -815,13 +814,13 @@ describe('constructeur d’images K3s', () => {
     assert.equal(probe.spec.containers[0]?.securityContext.privileged, true);
   });
 
-  it('soumet exactement le pod qu’il déploiera, sinon il ne prouve rien', () => {
+  it('submits exactly the pod it will deploy, otherwise it proves nothing', () => {
     const probe = parseYaml(builderAdmissionProbeManifest()) as { spec: unknown };
     assert.deepEqual(probe.spec, deploymentManifest.spec.template.spec);
   });
 
   it(
-    'produit un manifest que Kubernetes accepte',
+    'produces a manifest Kubernetes accepts',
     { skip: !kubectlAvailable },
     () => {
       const output = execFileSync('kubectl', ['apply', '--dry-run=client', '-f', '-'], {
@@ -833,7 +832,7 @@ describe('constructeur d’images K3s', () => {
   );
 });
 
-/** Une session SSH qui répond commande par commande, et garde la trace de ce qu'on lui a demandé. */
+/** An SSH session that answers command by command, and records what it was asked. */
 function fakeTarget(
   answers: Array<(command: string) => { code: number; stdout?: string; stderr?: string }>,
 ) {
@@ -866,7 +865,7 @@ describe('constructeur d’images K3s — expiration', () => {
   const lines: string[] = [];
   const onLog = (line: string) => lines.push(line);
 
-  it('date chaque build sur le Deployment, pas sur le pod : le dater ne redémarre rien', () => {
+  it('stamps each build on the Deployment, not on the pod: stamping restarts nothing', () => {
     const manifest = parseYaml(builderDeploymentManifest(LAST_BUILD)) as {
       metadata: { annotations: Record<string, string> };
       spec: { template: { metadata: Record<string, unknown> } };
@@ -878,7 +877,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.equal(manifest.spec.template.metadata.annotations, undefined);
   });
 
-  it('lit la date du dernier build, à défaut la création — et rien quand il n’existe pas', () => {
+  it('reads the last build date, else the creation — and nothing when it does not exist', () => {
     assert.match(builderStateCommand(), /--ignore-not-found/);
     assert.match(builderStateCommand(), /annotations\.pupitre\\\.io\/last-build/);
     assert.deepEqual(parseBuilderState(`${recent}|2026-09-01T00:00:00Z|812\n`), {
@@ -894,7 +893,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.equal(parseBuilderState('pas-une-date|toujours-pas|7'), null);
   });
 
-  it('supprime sous condition de la version lue, ses pods avec lui', () => {
+  it('deletes conditionally on the version read, its pods with it', () => {
     const command = deleteIdleBuilderCommand('812');
     assert.match(
       command,
@@ -908,7 +907,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.equal(body.propagationPolicy, 'Background');
   });
 
-  it('absent : rien à faire, une seule lecture', async () => {
+  it('absent: nothing to do, a single read', async () => {
     const { ctx, commands } = fakeTarget([() => ({ code: 0, stdout: '' })]);
     assert.deepEqual(await new K3sDriver().pruneIdleBuilder(ctx, onLog, NOW), {
       outcome: 'absent',
@@ -917,7 +916,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.equal(commands.length, 1);
   });
 
-  it('servi il y a une heure : il reste, sans tentative de suppression', async () => {
+  it('served an hour ago: it stays, with no deletion attempt', async () => {
     const { ctx, commands } = fakeTarget([() => ({ code: 0, stdout: `${recent}|x|812` })]);
     assert.deepEqual(await new K3sDriver().pruneIdleBuilder(ctx, onLog, NOW), {
       outcome: 'kept',
@@ -926,7 +925,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.equal(commands.length, 1);
   });
 
-  it('sans build depuis plus de 24 h : retiré, à la version lue', async () => {
+  it('no build for more than 24 h: removed, at the version read', async () => {
     const { ctx, commands } = fakeTarget([
       () => ({ code: 0, stdout: `${idle}|x|812` }),
       () => ({ code: 0, stdout: '{"kind":"Status","status":"Success"}' }),
@@ -938,7 +937,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.match(commands[1] ?? '', /"resourceVersion":"812"/);
   });
 
-  it('réclamé par un build entre la lecture et la suppression : l’API refuse, il reste', async () => {
+  it('claimed by a build between read and deletion: the API refuses, it stays', async () => {
     const { ctx } = fakeTarget([
       () => ({ code: 0, stdout: `${idle}|x|812` }),
       () => ({
@@ -950,7 +949,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.equal((await new K3sDriver().pruneIdleBuilder(ctx, onLog, NOW)).outcome, 'kept');
   });
 
-  it('Docker construit sans rien poser : il n’a rien à expirer, et ne le prétend pas', () => {
+  it('Docker builds without setting anything up: nothing to expire, and it does not pretend to', () => {
     assert.equal(getDriver('docker').pruneIdleBuilder, undefined);
     assert.equal(typeof getDriver('k3s').pruneIdleBuilder, 'function');
   });

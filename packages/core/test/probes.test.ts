@@ -26,55 +26,53 @@ import {
 } from '../src/probe/index.js';
 
 /**
- * Les deux sondes ajoutées avec la supervision de sites : mot-clé et expiration de
- * domaine.
+ * The two probes added with site monitoring: keyword and domain expiry.
  *
- * Deux familles d'épreuves, et la séparation est volontaire :
+ * Two families of tests, and the separation is deliberate:
  *
- *   • **Sans réseau** — la recherche de mot-clé, la lecture d'une réponse RDAP
- *     réelle figée en fixture, le jugement. Ce sont des fonctions pures, elles
- *     doivent passer sur une machine débranchée et ne jamais dépendre d'un
- *     registre tiers.
- *   • **Sur un serveur local** — la garde SSRF de la sonde de mot-clé, y compris
- *     à chaque saut de redirection. C'est la seule façon de *vérifier* qu'elle
- *     hérite de la garde plutôt que de l'affirmer.
+ *   • **Without network** — the keyword search, reading a real RDAP response
+ *     frozen as a fixture, the judgment. They are pure functions, they must pass
+ *     on an unplugged machine and never depend on a third-party registry.
+ *   • **On a local server** — the keyword probe's SSRF guard, including at each
+ *     redirect hop. It is the only way to *check* that it inherits the guard
+ *     rather than claim it.
  */
 
 const fixture = (name: string): unknown =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8'));
 
-// ─── mot-clé : la recherche ───────────────────────────────────────────────────
+// ─── keyword: the search ──────────────────────────────────────────────────────
 
-test('le mode souple ignore la casse, les accents et les espaces', () => {
+test('lenient mode ignores case, accents and spaces', () => {
   const page = 'Bienvenue, veuillez vous  CONNECTER à votre espace';
   assert.equal(containsKeyword(page, 'connecter', 'lenient'), true);
-  assert.equal(containsKeyword(page, 'vous connecter', 'lenient'), true, 'double espace écrasé');
-  assert.equal(containsKeyword('Déjà inscrit ?', 'deja inscrit', 'lenient'), true, 'accents pliés');
-  assert.equal(containsKeyword('Deja inscrit ?', 'déjà inscrit', 'lenient'), true, 'et dans l’autre sens');
+  assert.equal(containsKeyword(page, 'vous connecter', 'lenient'), true, 'double space squashed');
+  assert.equal(containsKeyword('Déjà inscrit ?', 'deja inscrit', 'lenient'), true, 'accents folded');
+  assert.equal(containsKeyword('Deja inscrit ?', 'déjà inscrit', 'lenient'), true, 'and the other way round');
 });
 
-test("l'espace insécable ne réveille personne à trois heures du matin", () => {
-  // Le cas qui motive le mode souple : un `&nbsp;` avant un « : » à la française
-  // n'est pas une panne, et une sonde qui le prend pour une panne finit ignorée.
+test("the no-break space wakes nobody up at three in the morning", () => {
+  // The case that motivates lenient mode: a `&nbsp;` before a French-style ":" is
+  // not an outage, and a probe that takes it for one ends up ignored.
   const page = 'Statut : en ligne';
   assert.equal(containsKeyword(page, 'Statut : en ligne', 'lenient'), true);
   assert.equal(containsKeyword(page, 'Statut : en ligne', 'strict'), false);
-  // L'espace fine insécable, celle des unités, se plie aussi.
+  // The narrow no-break space, the one of units, is folded too.
   assert.equal(containsKeyword('12 345 comptes', '12 345 comptes', 'lenient'), true);
 });
 
-test('le mode strict compare au caractère près', () => {
+test('strict mode compares character for character', () => {
   assert.equal(containsKeyword('{"status":"ok"}', '"status":"ok"', 'strict'), true);
   assert.equal(containsKeyword('{"status":"OK"}', '"status":"ok"', 'strict'), false);
   assert.equal(containsKeyword('{"status":"OK"}', '"status":"ok"', 'lenient'), true);
 });
 
-test('le pliage est symétrique et idempotent', () => {
+test('folding is symmetric and idempotent', () => {
   assert.equal(foldForSearch('  ÉTÉ  2026 '), 'ete 2026');
   assert.equal(foldForSearch(foldForSearch('ÉTÉ')), foldForSearch('ÉTÉ'));
 });
 
-test('le dépouillement retire ce qu’un visiteur ne lit pas', () => {
+test('stripping removes what a visitor does not read', () => {
   const html =
     '<!-- TODO: Erreur 500 à corriger -->' +
     '<script>var msg = "Erreur 500";</script>' +
@@ -83,19 +81,19 @@ test('le dépouillement retire ce qu’un visiteur ne lit pas', () => {
   const text = stripMarkup(html);
   assert.equal(containsKeyword(text, 'Erreur 500', 'lenient'), false, 'aucune occurrence visible');
   assert.equal(containsKeyword(text, 'Tout va bien', 'lenient'), true);
-  // Sur le brut, les quatre occurrences invisibles feraient sonner à tort.
+  // On the raw response, the four invisible occurrences would wrongly trigger.
   assert.equal(containsKeyword(html, 'Erreur 500', 'lenient'), true);
 });
 
-test('le dépouillement rend les entités et ne colle pas les mots', () => {
+test('stripping renders entities and does not glue words together', () => {
   assert.equal(foldForSearch(stripMarkup('<b>Se</b><i>connecter</i>')), 'se connecter');
   assert.equal(stripMarkup('<p>Caf&eacute; &amp; th&#233;</p>').includes('&'), true);
   assert.equal(containsKeyword(stripMarkup('<p>Caf&#233; &amp; th&#233;</p>'), 'café & thé', 'lenient'), true);
 });
 
-// ─── mot-clé : la configuration ───────────────────────────────────────────────
+// ─── keyword: the configuration ───────────────────────────────────────────────
 
-test('une sonde de mot-clé sans mot-clé est refusée', () => {
+test('a keyword probe without a keyword is refused', () => {
   const empty = keywordConfigSchema.safeParse({ url: 'https://exemple.fr/' });
   assert.equal(empty.success, false);
   assert.match(
@@ -105,7 +103,7 @@ test('une sonde de mot-clé sans mot-clé est refusée', () => {
   );
 });
 
-test('présence seule, absence seule, ou les deux', () => {
+test('presence only, absence only, or both', () => {
   assert.equal(
     keywordConfigSchema.safeParse({ url: 'https://exemple.fr/', mustContain: 'Se connecter' })
       .success,
@@ -122,12 +120,12 @@ test('présence seule, absence seule, ou les deux', () => {
     mustNotContain: 'Erreur 500',
   });
   assert.equal(both.success, true);
-  assert.equal(both.success && both.data.matching, 'lenient', 'souple par défaut');
-  assert.equal(both.success && both.data.scope, 'raw', 'brut par défaut');
+  assert.equal(both.success && both.data.matching, 'lenient', 'lenient by default');
+  assert.equal(both.success && both.data.scope, 'raw', 'raw by default');
   assert.equal(both.success && both.data.maxKib, 512);
 });
 
-test('la borne de lecture est bornée des deux côtés', () => {
+test('the read cap is bounded on both sides', () => {
   const base = { url: 'https://exemple.fr/', mustContain: 'x' };
   assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 8 }).success, false, 'trop bas');
   assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 4096 }).success, false, 'trop haut');
@@ -135,7 +133,7 @@ test('la borne de lecture est bornée des deux côtés', () => {
   assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 2048 }).success, true);
 });
 
-test('la garde SSRF s’applique à la configuration du mot-clé comme aux autres', () => {
+test('the SSRF guard applies to the keyword configuration as to the others', () => {
   assert.equal(safeParseMonitorConfig('keyword', { url: 'http://localhost:3000/', mustContain: 'x' }).ok, false);
   assert.equal(safeParseMonitorConfig('keyword', { url: 'file:///etc/passwd', mustContain: 'x' }).ok, false);
   assert.equal(
@@ -144,12 +142,12 @@ test('la garde SSRF s’applique à la configuration du mot-clé comme aux autre
   );
 });
 
-// ─── mot-clé : la sonde, contre un serveur local ──────────────────────────────
+// ─── keyword: the probe, against a local server ───────────────────────────────
 
 /**
- * Le serveur d'épreuve est sur 127.0.0.1, et la sonde ne l'atteint que parce
- * que le test ouvre explicitement `127.0.0.0/8` dans la liste d'autorisation —
- * ce qui est déjà une démonstration : sans cette ligne, rien ne passe.
+ * The test server is on 127.0.0.1, and the probe only reaches it because the
+ * test explicitly opens `127.0.0.0/8` in the allow list — which is already a
+ * demonstration: without that line, nothing gets through.
  */
 const LOOPBACK = parseCidrList('127.0.0.0/8');
 const servers: Server[] = [];
@@ -166,9 +164,9 @@ after(() => {
   for (const server of servers) server.close();
 });
 
-test('la sonde trouve un mot-clé accentué sur une page servie en windows-1252', async () => {
-  // Supposer UTF-8 partout ferait échouer « Connecté » sur un site français
-  // encore servi en latin-1 — une fausse panne pour un accent.
+test('the probe finds an accented keyword on a page served as windows-1252', async () => {
+  // Assuming UTF-8 everywhere would fail "Connecté" on a French site still served
+  // as latin-1 — a false outage over an accent.
   const body = Buffer.from('<p>Utilisateur Connect\xe9</p>', 'latin1');
   const url = await serve((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=windows-1252' });
@@ -184,7 +182,7 @@ test('la sonde trouve un mot-clé accentué sur une page servie en windows-1252'
   assert.equal(result.metrics.truncated, 'non');
 });
 
-test('un texte interdit présent fait échouer la sonde, et le dit', async () => {
+test('a forbidden text present fails the probe, and says so', async () => {
   const url = await serve((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     res.end('<h1>Erreur 500</h1><p>Une erreur est survenue</p>');
@@ -196,12 +194,12 @@ test('un texte interdit présent fait échouer la sonde, et le dit', async () =>
   );
   assert.equal(result.outcome, 'unhealthy');
   assert.match(result.detail ?? '', /texte interdit/);
-  assert.equal(result.metrics.httpStatus, 200, 'un 200 : c’est bien le mot-clé qui a tranché');
+  assert.equal(result.metrics.httpStatus, 200, 'a 200: it is indeed the keyword that decided');
 });
 
-test('une coupure ne se fait jamais passer pour une absence', async () => {
-  // Le mot-clé est au-delà du plafond de lecture : la sonde échoue — elle ne
-  // peut pas prouver la présence — mais la phrase dit qu'elle a coupé.
+test('a truncation never passes itself off as an absence', async () => {
+  // The keyword is beyond the read cap: the probe fails — it cannot prove
+  // presence — but the sentence says it cut.
   const url = await serve((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end(`${'a'.repeat(64 * 1024)}Se connecter`);
@@ -217,7 +215,7 @@ test('une coupure ne se fait jamais passer pour une absence', async () => {
   assert.equal(result.metrics.bytesRead, 16 * 1024);
 });
 
-test('un « sain » sur réponse coupée dit ce qu’il n’a pas pu vérifier', async () => {
+test('a “healthy” on a cut response says what it could not check', async () => {
   const url = await serve((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('Se connecter'.padEnd(64 * 1024, ' '));
@@ -231,10 +229,10 @@ test('un « sain » sur réponse coupée dit ce qu’il n’a pas pu vérifier',
   assert.match(result.detail ?? '', /16 premiers kio seulement/);
 });
 
-test('la sonde de mot-clé hérite de la garde SSRF à chaque redirection', async () => {
-  // Le point qui compte : contrôler l'adresse de départ ne suffit pas. Une URL
-  // autorisée qui renvoie un 302 vers le service de métadonnées doit s'arrêter
-  // au deuxième saut, pas au premier.
+test('the keyword probe inherits the SSRF guard at each redirect', async () => {
+  // The point that matters: checking the starting address is not enough. An
+  // allowed URL that returns a 302 to the metadata service must stop at the
+  // second hop, not the first.
   const url = await serve((_req, res) => {
     res.writeHead(302, { location: 'http://169.254.169.254/latest/meta-data/' });
     res.end();
@@ -246,10 +244,10 @@ test('la sonde de mot-clé hérite de la garde SSRF à chaque redirection', asyn
   );
   assert.equal(result.outcome, 'unreachable');
   assert.match(result.detail ?? '', /redirection refusée/);
-  assert.match(result.detail ?? '', /aucune liste/, 'le lien-local ne s’autorise jamais');
+  assert.match(result.detail ?? '', /aucune liste/, 'link-local is never allowed');
 });
 
-test('une redirection vers une plage non autorisée est refusée aussi', async () => {
+test('a redirect to a range not allowed is refused too', async () => {
   const url = await serve((_req, res) => {
     res.writeHead(301, { location: 'http://10.11.12.13/interne' });
     res.end();
@@ -264,7 +262,7 @@ test('une redirection vers une plage non autorisée est refusée aussi', async (
   assert.match(result.detail ?? '', /MONITOR_ALLOWED_CIDRS/);
 });
 
-test('sans plage autorisée, la sonde n’atteint même pas le serveur local', async () => {
+test('without an allowed range, the probe does not even reach the local server', async () => {
   const url = await serve((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('Se connecter');
@@ -278,8 +276,8 @@ test('sans plage autorisée, la sonde n’atteint même pas le serveur local', a
   assert.match(result.detail ?? '', /bouclage|de bouclage/);
 });
 
-test('le code attendu est vérifié avant le mot-clé', async () => {
-  // Une page 404 peut très bien contenir le mot attendu.
+test('the expected code is checked before the keyword', async () => {
+  // A 404 page may very well contain the expected word.
   const url = await serve((_req, res) => {
     res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
     res.end('<p>Se connecter</p>');
@@ -295,40 +293,40 @@ test('le code attendu est vérifié avant le mot-clé', async () => {
 
 // ─── domaine : quels TLD ont un RDAP ──────────────────────────────────────────
 
-test('la connaissance des TLD est datée, pour qu’on sache quand elle vieillit', () => {
+test('the knowledge of TLDs is dated, so that we know when it ages', () => {
   assert.match(RDAP_TLD_KNOWLEDGE_DATE, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test('les TLD sans RDAP sont connus comme tels', () => {
-  // Mesuré sur les fichiers de l'IANA : 1 200 TLD sur 1 438 publient un RDAP.
+test('TLDs without RDAP are known as such', () => {
+  // Measured on IANA's files: 1,200 TLDs out of 1,438 publish an RDAP.
   for (const tld of ['io', 'de', 'co', 'eu', 'ch', 'it', 'es', 'be', 'us', 'jp']) {
     assert.equal(tldPublishesRdap(tld), false, `.${tld} n'a pas de RDAP`);
   }
   for (const tld of ['arpa', 'edu', 'mil']) {
-    assert.equal(tldPublishesRdap(tld), false, `.${tld} est un TLD de rôle`);
+    assert.equal(tldPublishesRdap(tld), false, `.${tld} is a role TLD`);
   }
 });
 
-test('les gTLD et les ccTLD listés en ont un, les IDN ne sont pas tranchés', () => {
+test('the listed gTLDs and ccTLDs have one, IDNs are not decided', () => {
   for (const tld of ['com', 'net', 'org', 'dev', 'app', 'solutions', 'fr', 'nl', 'uk', 'ca']) {
     assert.equal(tldPublishesRdap(tld), true, `.${tld} publie un RDAP`);
   }
-  assert.equal(tldPublishesRdap('xn--p1ai'), null, 'on ne bloque jamais sur une ignorance');
+  assert.equal(tldPublishesRdap('xn--p1ai'), null, 'we never block on ignorance');
 });
 
-test('un domaine sur un TLD sans RDAP est refusé à la création, avec le motif', () => {
+test('a domain on a TLD without RDAP is refused at creation, with the reason', () => {
   const refused = domainConfigSchema.safeParse({ domain: 'exemple.io' });
   assert.equal(refused.success, false);
   const message = refused.success ? '' : (refused.error.issues[0]?.message ?? '');
   assert.match(message, /\.io/);
-  assert.match(message, /RDAP/, 'le motif doit être lisible sans lire le code');
-  // Refuser tout de suite vaut mieux qu'un voyant rouge permanent : l'absence
-  // de service RDAP n'est pas une panne du domaine.
+  assert.match(message, /RDAP/, 'the reason must be readable without reading the code');
+  // Refusing right away is better than a permanent red light: the absence of an
+  // RDAP service is not an outage of the domain.
   assert.equal(domainConfigSchema.safeParse({ domain: 'exemple.fr' }).success, true);
   assert.equal(domainConfigSchema.safeParse({ domain: 'exemple.com' }).success, true);
 });
 
-test('la sonde de domaine veut un nom de domaine, pas une URL', () => {
+test('the domain probe wants a domain name, not a URL', () => {
   for (const bad of [
     'https://exemple.fr',
     'exemple.fr/chemin',
@@ -339,22 +337,22 @@ test('la sonde de domaine veut un nom de domaine, pas une URL', () => {
     'exemple..fr',
     '-exemple.fr',
   ]) {
-    assert.equal(domainConfigSchema.safeParse({ domain: bad }).success, false, `« ${bad} » accepté`);
+    assert.equal(domainConfigSchema.safeParse({ domain: bad }).success, false, `“${bad}” accepted`);
   }
 });
 
-test('le nom est normalisé sans être réécrit', () => {
+test('the name is normalized without being rewritten', () => {
   const parsed = domainConfigSchema.parse({ domain: '  Exemple.FR.  ' });
-  assert.equal(parsed.domain, 'exemple.fr', 'casse et point final normalisés');
-  // `www.` n'est pas retiré : deviner le domaine enregistrable demanderait la
-  // Public Suffix List, et une correction invisible cache une erreur de saisie.
+  assert.equal(parsed.domain, 'exemple.fr', 'case and trailing dot normalized');
+  // `www.` is not removed: guessing the registrable domain would require the
+  // Public Suffix List, and an invisible correction hides an input error.
   assert.equal(domainConfigSchema.parse({ domain: 'www.exemple.fr' }).domain, 'www.exemple.fr');
   assert.equal(tldOf('sous.exemple.fr'), 'fr');
 });
 
-// ─── domaine : la liste d'amorçage ────────────────────────────────────────────
+// ─── domain: the bootstrap list ───────────────────────────────────────────────
 
-test('la liste d’amorçage de l’IANA se lit telle qu’elle est publiée', () => {
+test('IANA’s bootstrap list reads as it is published', () => {
   const map = readBootstrap(fixture('iana-rdap-bootstrap-slice.json'));
   assert.equal(map.get('com'), 'https://rdap.verisign.com/com/v1/');
   assert.equal(map.get('fr'), 'https://rdap.nic.fr/');
@@ -362,40 +360,40 @@ test('la liste d’amorçage de l’IANA se lit telle qu’elle est publiée', (
   assert.equal(map.get('io'), undefined);
 });
 
-test('une liste d’amorçage illisible rend une table vide, pas une exception', () => {
+test('an unreadable bootstrap list returns an empty table, not an exception', () => {
   assert.equal(readBootstrap({ services: 'pas un tableau' }).size, 0);
   assert.equal(readBootstrap(null).size, 0);
-  // Une entrée servie en clair est ignorée : une réponse RDAP altérée en
-  // transit dirait n'importe quoi sur une date d'expiration.
+  // An entry served in clear is ignored: an RDAP response altered in transit
+  // would say anything about an expiry date.
   assert.equal(readBootstrap({ services: [[['zz'], ['http://rdap.example/']]] }).size, 0);
 });
 
-// ─── domaine : lire une vraie réponse RDAP ────────────────────────────────────
+// ─── domain: reading a real RDAP response ─────────────────────────────────────
 
-test('une réponse RDAP réelle de Verisign se lit entièrement', () => {
+test('a real RDAP response from Verisign reads entirely', () => {
   const facts = readRdapDomain(fixture('rdap-example-com.json'));
-  assert.equal(facts.ldhName, 'example.com', 'le .com majuscule son nom, on le normalise');
+  assert.equal(facts.ldhName, 'example.com', '.com uppercases its name, we normalize it');
   assert.equal(facts.expiresOn, '2027-08-13T04:00:00.000Z');
   assert.equal(facts.registeredOn, '1995-08-14T04:00:00.000Z');
   assert.equal(facts.registrar, 'RESERVED-Internet Assigned Numbers Authority');
   assert.deepEqual(facts.nameservers, ['elliott.ns.cloudflare.com', 'hera.ns.cloudflare.com']);
-  // « client transfer prohibited » et « clientTransferProhibited » désignent la
-  // même chose : on aplatit les deux formes.
+  // "client transfer prohibited" and "clientTransferProhibited" mean the same
+  // thing: we flatten both forms.
   assert.ok(facts.statuses.includes('clienttransferprohibited'));
 });
 
-test('une réponse RDAP réelle de l’AFNIC se lit aussi, avec ses particularités', () => {
+test('a real RDAP response from AFNIC reads too, with its particularities', () => {
   const facts = readRdapDomain(fixture('rdap-afnic-fr.json'));
   assert.equal(facts.ldhName, 'afnic.fr');
   assert.equal(facts.expiresOn, '2029-07-18T08:26:59.000Z');
   assert.equal(facts.registrar, 'Registry Operations');
   assert.deepEqual(facts.nameservers, ['g.ext.nic.fr', 'ns1.nic.fr', 'ns2.nic.fr', 'ns3.nic.fr']);
-  // La particularité qui compte : l'AFNIC n'annonce qu'« active ». Exiger le
-  // verrou de transfert sur un .fr échouerait donc, d'où le défaut à « off ».
+  // The particularity that matters: AFNIC only announces "active". Requiring the
+  // transfer lock on a .fr would therefore fail, hence the "off" default.
   assert.deepEqual(facts.statuses, ['active']);
 });
 
-test('une réponse hors-forme ne fait pas tomber la lecture', () => {
+test('a malformed response does not bring the reading down', () => {
   const facts = readRdapDomain({ objectClassName: 'domain' });
   assert.equal(facts.expiresOn, null);
   assert.deepEqual(facts.nameservers, []);
@@ -408,7 +406,7 @@ const NOW = new Date('2026-09-13T12:00:00Z');
 const baseConfig = (over: Partial<DomainConfig> = {}): DomainConfig =>
   domainConfigSchema.parse({ domain: 'exemple.fr', ...over });
 
-test('un domaine loin de son échéance est sain et muet', () => {
+test('a domain far from its expiry is healthy and silent', () => {
   const facts = readRdapDomain(fixture('rdap-afnic-fr.json'));
   const verdict = judgeDomain(facts, baseConfig(), NOW);
   assert.equal(verdict.outcome, 'healthy');
@@ -416,7 +414,7 @@ test('un domaine loin de son échéance est sain et muet', () => {
   assert.equal(verdict.daysRemaining, 1038);
 });
 
-test('sous le préavis, la sonde échoue — et la phrase dit « en danger », pas « en panne »', () => {
+test('within the notice period, the probe fails — and the sentence says “at risk”, not “down”', () => {
   const facts = readRdapDomain({
     events: [{ eventAction: 'expiration', eventDate: '2026-09-25T00:00:00Z' }],
   });
@@ -425,12 +423,12 @@ test('sous le préavis, la sonde échoue — et la phrase dit « en danger », p
   assert.equal(verdict.daysRemaining, 11);
   assert.match(verdict.detail ?? '', /expire dans 11 jours \(le 25\/09\/2026\)/);
   assert.match(verdict.detail ?? '', /préavis de 30 jours/);
-  // Un préavis plus court laisse le même domaine sain : c'est un réglage, pas
-  // une propriété du domaine.
+  // A shorter notice period leaves the same domain healthy: it is a setting, not
+  // a property of the domain.
   assert.equal(judgeDomain(facts, baseConfig({ warnDays: 7 }), NOW).outcome, 'healthy');
 });
 
-test('un domaine expiré se compte en jours écoulés', () => {
+test('an expired domain is counted in elapsed days', () => {
   const facts = readRdapDomain({
     events: [{ eventAction: 'expiration', eventDate: '2026-09-01T00:00:00Z' }],
   });
@@ -439,20 +437,20 @@ test('un domaine expiré se compte en jours écoulés', () => {
   assert.match(verdict.detail ?? '', /expiré depuis 13 jours/);
 });
 
-test('un registre sans date d’expiration ne rend pas la sonde malade', () => {
-  // Le registre a répondu et connaît le domaine : il *est* enregistré. Ne pas
-  // publier de date est une limite de ce registre, pas une panne — mais on le
-  // dit, sinon on laisse croire qu'on surveille l'expiration.
+test('a registry without an expiry date does not make the probe sick', () => {
+  // The registry answered and knows the domain: it *is* registered. Not
+  // publishing a date is a limit of that registry, not an outage — but we say
+  // so, otherwise we would suggest we monitor the expiry.
   const verdict = judgeDomain(readRdapDomain({ status: ['active'] }), baseConfig(), NOW);
   assert.equal(verdict.outcome, 'healthy');
   assert.equal(verdict.daysRemaining, null);
   assert.match(verdict.detail ?? '', /ne publie pas de date d’expiration/);
 });
 
-test('un changement de registrar fait échouer la sonde — c’est à ça qu’il sert', () => {
+test('a registrar change fails the probe — that is what it is for', () => {
   const facts = readRdapDomain(fixture('rdap-example-com.json'));
   assert.equal(judgeDomain(facts, baseConfig({ expectedRegistrar: 'Internet Assigned' }), NOW).outcome, 'healthy');
-  // Comparaison tolérante : « OVH » doit reconnaître « OVH SAS ».
+  // Tolerant comparison: "OVH" must recognize "OVH SAS".
   assert.equal(
     judgeDomain(
       readRdapDomain({ entities: [{ roles: ['registrar'], vcardArray: ['vcard', [['fn', {}, 'text', 'OVH SAS']]] }] }),
@@ -466,7 +464,7 @@ test('un changement de registrar fait échouer la sonde — c’est à ça qu’
   assert.match(hijacked.detail ?? '', /transfert de domaine/);
 });
 
-test('un déplacement des serveurs de noms se voit', () => {
+test('a move of the name servers shows', () => {
   const facts = readRdapDomain(fixture('rdap-example-com.json'));
   assert.equal(
     judgeDomain(facts, baseConfig({ expectedNameserverSuffix: 'cloudflare.com' }), NOW).outcome,
@@ -477,20 +475,21 @@ test('un déplacement des serveurs de noms se voit', () => {
   assert.match(moved.detail ?? '', /délégation actuelle : elliott\.ns\.cloudflare\.com/);
 });
 
-test('le verrou de transfert n’est exigé que si on le demande', () => {
+test('the transfer lock is only required if asked for', () => {
   const afnic = readRdapDomain(fixture('rdap-afnic-fr.json'));
-  assert.equal(judgeDomain(afnic, baseConfig(), NOW).outcome, 'healthy', 'off par défaut');
+  assert.equal(judgeDomain(afnic, baseConfig(), NOW).outcome, 'healthy', 'off by default');
   const required = judgeDomain(afnic, baseConfig({ transferLock: 'required' }), NOW);
-  assert.equal(required.outcome, 'unhealthy', '.fr n’annonce qu’« active »');
+  assert.equal(required.outcome, 'unhealthy', '.fr only announces “active”');
   assert.match(required.detail ?? '', /statuts : active/);
 
   const verisign = readRdapDomain(fixture('rdap-example-com.json'));
   assert.equal(judgeDomain(verisign, baseConfig({ transferLock: 'required' }), NOW).outcome, 'healthy');
 });
 
-test('plusieurs constats se disent ensemble, pas un seul', () => {
-  // Une expiration proche *et* un registrar changé : n'en rendre qu'un ferait
-  // disparaître l'autre du message d'alerte, et le second est le plus grave.
+test('several findings are told together, not just one', () => {
+  // An expiry close by *and* a changed registrar: returning only one would make
+  // the other disappear from the alert message, and the second is the more
+  // serious.
   const facts = readRdapDomain({
     events: [{ eventAction: 'expiration', eventDate: '2026-09-20T00:00:00Z' }],
     entities: [{ roles: ['registrar'], vcardArray: ['vcard', [['fn', {}, 'text', 'Registrar Inconnu']]] }],
@@ -501,15 +500,15 @@ test('plusieurs constats se disent ensemble, pas un seul', () => {
   assert.match(verdict.detail ?? '', /Registrar Inconnu/);
 });
 
-// ─── la sonde HTTP, après l'extraction de la boucle gardée ────────────────────
+// ─── the HTTP probe, after extracting the guarded loop ────────────────────────
 
 /**
- * La boucle de requête a déménagé dans `probe/fetch.ts`, partagée par HTTP, le
- * mot-clé et RDAP. Ces trois épreuves fixent le comportement de la sonde HTTP
- * pour que l'extraction reste une extraction, et pas un changement déguisé.
+ * The request loop moved to `probe/fetch.ts`, shared by HTTP, keyword and RDAP.
+ * These three tests freeze the HTTP probe's behavior so that the extraction
+ * stays an extraction, and not a disguised change.
  */
 
-test('la sonde HTTP rend toujours code, latence et adresse', async () => {
+test('the HTTP probe still returns code, latency and address', async () => {
   const url = await serve((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end('bonjour');
@@ -521,24 +520,24 @@ test('la sonde HTTP rend toujours code, latence et adresse', async () => {
   assert.equal(result.metrics.address, '127.0.0.1');
 });
 
-test('une boucle de redirection est un « répond mal », pas un « injoignable »', async () => {
+test('a redirect loop is “answers badly”, not “unreachable”', async () => {
   const url = await serve((_req, res) => {
     res.writeHead(302, { location: '/encore' });
     res.end();
   });
   const result = await httpProbe.run({ url: `${url}/` }, { allowlist: LOOPBACK, language: 'fr' });
-  assert.equal(result.outcome, 'unhealthy', 'la cible a répondu — mal');
+  assert.equal(result.outcome, 'unhealthy', 'the target answered — badly');
   assert.match(result.detail ?? '', /plus de 5 redirections/);
   assert.equal(result.metrics.httpStatus, 302);
   assert.equal(result.metrics.redirects, 5);
 });
 
-test("l'option mot-clé de la sonde HTTP reste une sous-chaîne exacte", async () => {
+test("the HTTP probe's keyword option stays an exact substring", async () => {
   const url = await serve((_req, res) => {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     res.end('<p>Se Connecter</p>');
   });
-  // Volontairement intolérante : c'est le type `keyword` qui plie la casse.
+  // Deliberately intolerant: it is the `keyword` type that folds case.
   const strict = await httpProbe.run(
     { url: `${url}/`, keyword: 'se connecter' },
     { allowlist: LOOPBACK, language: 'fr' },
@@ -553,18 +552,18 @@ test("l'option mot-clé de la sonde HTTP reste une sous-chaîne exacte", async (
 
 // ─── cadence ──────────────────────────────────────────────────────────────────
 
-test('on n’interroge pas un registre plus d’une fois par six heures', () => {
-  // Un registre est un service public gratuit, et un domaine n'expire pas entre
-  // deux minutes : la cadence minimale est une propriété du type.
+test('a registry is not queried more than once every six hours', () => {
+  // A registry is a free public service, and a domain does not expire between two
+  // minutes: the minimum interval is a property of the type.
   assert.equal(MONITOR_TYPES.domain.minIntervalSeconds, 6 * 3_600);
   assert.equal(MONITOR_TYPES.domain.defaultIntervalSeconds, 86_400);
-  // Le mot-clé, lui, c'est la même requête que HTTP avec un peu de lecture.
+  // The keyword is the same request as HTTP with a bit of reading.
   assert.equal(MONITOR_TYPES.keyword.minIntervalSeconds, MONITOR_TYPES.http.minIntervalSeconds);
 });
 
-// ─── certificat vu par les sondes HTTP ────────────────────────────────────────
+// ─── certificate as seen by the HTTP probes ───────────────────────────────────
 
-test('certificat : jours restants arrondis vers le bas, et rien pour une page en clair', async () => {
+test('certificate: days left rounded down, and nothing for a page in clear', async () => {
   const { certificateMetrics } = await import('../src/probe/fetch.js');
   const now = Date.parse('2026-09-30T12:00:00Z');
   assert.deepEqual(certificateMetrics({ validTo: '2026-12-01T11:00:00.000Z' }, now), {
@@ -578,7 +577,7 @@ test('certificat : jours restants arrondis vers le bas, et rien pour une page en
   assert.deepEqual(certificateMetrics(null, now), {});
 });
 
-test('certificat : les sondes HTTP et mot-clé déclarent ses deux mesures', () => {
+test('certificate: the HTTP and keyword probes declare its two measurements', () => {
   for (const type of ['http', 'keyword'] as const) {
     const keys = MONITOR_TYPES[type].metrics.map((metric) => metric.key);
     assert.ok(keys.includes('certDaysRemaining'), `${type} : jours restants absents`);

@@ -11,17 +11,17 @@ import { parseAppSpec } from '../src/spec/index.js';
 import type { SshSession } from '../src/ssh/client.js';
 
 /**
- * Une version qui prend la place de la précédente sans devenir saine doit être
- * signalée comme telle : c'est ce qui déclenche le rollback automatique. Compose
- * remplace les conteneurs avant d'attendre leur santé, Kubernetes applique le
- * Deployment avant d'attendre le rollout — dans les deux cas, l'échec survient
- * pendant `deploy()`, alors que l'ancienne version n'est déjà plus celle que
- * le runtime fait tourner.
+ * A version that takes the previous one's place without becoming healthy must
+ * be reported as such: it is what triggers the automatic rollback. Compose
+ * replaces the containers before waiting for their health, Kubernetes applies
+ * the Deployment before waiting for the rollout — in both cases, the failure
+ * happens during `deploy()`, while the old version is already no longer the one
+ * the runtime runs.
  */
 
 type Answer = { code: number; stdout?: string; stderr?: string };
 
-/** Une session qui répond selon la commande ; tout le reste réussit, sans rien dire. */
+/** A session that answers depending on the command; everything else succeeds, silently. */
 function fakeSession(rules: Array<[RegExp, Answer]>) {
   const commands: string[] = [];
   const session = {
@@ -75,8 +75,8 @@ function contextFor(session: SshSession): DriverContext {
 
 const RELEASE = '/opt/pupitre/apps/site/1.0.1-r2';
 
-describe('Docker — une version malsaine après `up --wait`', () => {
-  it('a remplacé l’ancienne : UnhealthyReleaseError, diagnostic capturé', async () => {
+describe('Docker — an unhealthy version after `up --wait`', () => {
+  it('replaced the old one: UnhealthyReleaseError, diagnosis captured', async () => {
     const { session, commands } = fakeSession([
       [/up -d --remove-orphans --wait/, { code: 1, stderr: 'Container app-site-web-1 Recreate' }],
       [/^docker ps -aq /, { code: 0, stdout: 'c0ffee' }],
@@ -102,15 +102,15 @@ describe('Docker — une version malsaine après `up --wait`', () => {
       },
     );
 
-    // La preuve du remplacement : un conteneur du projet qui porte CETTE release.
+    // The proof of replacement: a container of the project carrying THIS release.
     const probe = commands.find((command) => command.startsWith('docker ps -aq '));
     assert.ok(probe?.includes(`label=com.docker.compose.project=app-site`));
     assert.ok(probe?.includes(`label=com.docker.compose.project.working_dir=${RELEASE}`));
-    // Rien ne marque la release comme courante : `current` désigne toujours l'ancienne.
+    // Nothing marks the release as current: `current` still designates the old one.
     assert.ok(!commands.some((command) => command.startsWith('ln -sfn')));
   });
 
-  it('n’a rien remplacé : l’erreur de `up` reste la sienne', async () => {
+  it('replaced nothing: `up`’s error stays its own', async () => {
     const { session } = fakeSession([
       [/up -d --remove-orphans --wait/, { code: 1, stderr: 'no such image: nginx:1.27' }],
       [/^docker ps -aq /, { code: 0, stdout: '' }],
@@ -128,8 +128,8 @@ describe('Docker — une version malsaine après `up --wait`', () => {
   });
 });
 
-describe('K3s — un rollout qui n’aboutit pas', () => {
-  it('le Deployment porte déjà la nouvelle version : UnhealthyReleaseError', async () => {
+describe('K3s — a rollout that does not complete', () => {
+  it('the Deployment already carries the new version: UnhealthyReleaseError', async () => {
     const { session, commands } = fakeSession([
       [
         /rollout status deployment\/web/,
@@ -157,7 +157,7 @@ describe('K3s — un rollout qui n’aboutit pas', () => {
       },
     );
 
-    // Le pod prêt — l'ancien — n'est pas examiné : c'est le nouveau qui est en cause.
+    // The ready pod — the old one — is not examined: it is the new one at fault.
     const described = commands.filter((command) => command.includes('describe pod'));
     assert.equal(described.length, 1);
     assert.ok(described[0]?.includes('web-new-1'));

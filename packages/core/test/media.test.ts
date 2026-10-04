@@ -9,8 +9,8 @@ import {
 } from '../src/index.js';
 
 /**
- * Les images déposées dans le panel : le format et les dimensions se lisent
- * dans les octets, et rien d'autre ne passe.
+ * The images uploaded into the panel: the format and the dimensions are read
+ * from the bytes, and nothing else gets through.
  */
 
 function bytes(...parts: Array<number[] | string>): Uint8Array {
@@ -54,7 +54,7 @@ describe('formats reconnus', () => {
     });
   });
 
-  it('JPEG, en sautant les segments qui précèdent les dimensions', () => {
+  it('JPEG, skipping the segments that precede the dimensions', () => {
     const app0 = [
       0xff,
       0xe0,
@@ -77,7 +77,7 @@ describe('formats reconnus', () => {
       width: 1920,
       height: 1080,
     });
-    // DHT (0xC4) est dans la plage des SOF sans en être un.
+    // DHT (0xC4) is in the SOF range without being one.
     const dht = [0xff, 0xc4, ...u16be(4), 0, 0];
     assert.equal(sniffImage(bytes([0xff, 0xd8], dht, sof0))?.width, 1920);
   });
@@ -93,14 +93,14 @@ describe('formats reconnus', () => {
         height: 768,
       },
     );
-    // VP8 avec perte : code de démarrage 9d 01 2a, dimensions sur 14 bits.
+    // Lossy VP8: start code 9d 01 2a, dimensions on 14 bits.
     assert.deepEqual(
       sniffImage(
         riff('VP8 ', [0, 0, 0, 0, 0, 0, 0, 0x9d, 0x01, 0x2a, ...u16le(800), ...u16le(600)]),
       ),
       { contentType: 'image/webp', width: 800, height: 600 },
     );
-    // VP8L sans perte : (largeur-1, hauteur-1) sur 14 bits chacune, à la suite.
+    // Lossless VP8L: (width-1, height-1) on 14 bits each, one after the other.
     const packed = (256 - 1) | ((128 - 1) << 14);
     assert.deepEqual(
       sniffImage(
@@ -121,8 +121,8 @@ describe('formats reconnus', () => {
   });
 });
 
-describe('ce qui ne passe pas', () => {
-  it('ni SVG, ni HTML, ni un fichier tronqué', () => {
+describe('what does not get through', () => {
+  it('no SVG, no HTML, no truncated file', () => {
     const svg = new TextEncoder().encode(
       '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
     );
@@ -135,7 +135,7 @@ describe('ce qui ne passe pas', () => {
     assert.equal(sniffImage(new Uint8Array(0)), null);
   });
 
-  it('ni des dimensions nulles ou absurdes — une bombe de décompression', () => {
+  it('no zero or absurd dimensions — a decompression bomb', () => {
     const png = (width: number, height: number) =>
       bytes(
         [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
@@ -149,14 +149,14 @@ describe('ce qui ne passe pas', () => {
     assert.equal(sniffImage(png(12_000, 12_000))?.width, 12_000);
   });
 
-  it('un JPEG dont les segments mentent', () => {
+  it('a JPEG whose segments lie', () => {
     assert.equal(sniffImage(bytes([0xff, 0xd8, 0xff, 0xe0, 0, 1])), null);
     assert.equal(sniffImage(bytes([0xff, 0xd8, 0x00, 0x00])), null);
   });
 });
 
 describe('photos de profil', () => {
-  it('seule une URL écrite par le panel est affichée', () => {
+  it('only a URL written by the panel is shown', () => {
     const ours = '/api/users/aB3_x-9/avatar?v=0123456789ab';
     assert.equal(avatarSrc(ours), ours);
     for (const other of [
@@ -177,7 +177,7 @@ describe('photos de profil', () => {
 });
 
 describe('servir une image', () => {
-  it('rendue, jamais interprétée', () => {
+  it('rendered, never interpreted', () => {
     const headers = imageResponseHeaders({
       contentType: 'image/webp',
       bytes: 42,
@@ -200,7 +200,7 @@ describe('servir une image', () => {
     );
   });
 
-  it('un message d’avant les images se relit sans pièce jointe', () => {
+  it('a message from before images reads back without an attachment', () => {
     const parsed = chatMessageSchema.parse({
       id: '0b6b8f2c-3a55-4d7e-9a0e-2f4d6c8e1a3b',
       channel: 'general',
