@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 #
-# Scanners de sécurité : la politique de blocage décide, pas le scanner choisi.
+# Security scanners: the blocking policy decides, not the scanner chosen.
 #
-#   1. Trivy coché, failOn=CRITICAL   → le déploiement est bloqué à l'étape « scan »
-#   2. Trivy DÉCOCHÉ, Grype coché     → même verdict de blocage
-#   3. failOn=NONE                    → le déploiement passe, les findings restent visibles
-#   4. Syft seul                      → aucun blocage possible, SBOM téléchargeable
+#   1. Trivy checked, failOn=CRITICAL   → the deployment is blocked at the "scan" step
+#   2. Trivy UNCHECKED, Grype checked   → same blocking verdict
+#   3. failOn=NONE                      → the deployment goes through, the findings stay visible
+#   4. Syft alone                       → no blocking possible, downloadable SBOM
 #
-# L'image `nginx:1.20.0` est volontairement ancienne : quarante et quelques
-# vulnérabilités critiques, et un serveur qui répond en HTTP — il faut les deux,
-# sinon le point 3 échouerait au healthcheck pour une raison sans rapport.
+# The `nginx:1.20.0` image is deliberately old: forty-odd critical
+# vulnerabilities, and a server that answers over HTTP — both are needed,
+# otherwise point 3 would fail at the healthcheck for an unrelated reason.
 #
-# Le script emprunte exactement les mêmes routes que l'UI. Prérequis :
-# une cible Docker déployable — `./scripts/setup-test-target.sh` en provisionne une.
+# The script takes exactly the same routes as the UI. Prerequisite: a
+# deployable Docker target — `./scripts/setup-test-target.sh` provisions one.
 #
-# Usage :
+# Usage:
 #   ./scripts/verify-scanners.sh
-#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-scanners.sh
+#   BASE_URL=http://localhost:3100 TARGET_NAME=my-vm ./scripts/verify-scanners.sh
 #
 set -euo pipefail
 
@@ -26,8 +26,8 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
 SPEC="${SPEC:-scripts/fixtures/vulnerable.json}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
-# Le premier scan d'une cible neuve télécharge les binaires puis les bases de
-# vulnérabilités : plusieurs minutes, une seule fois.
+# A new target's first scan downloads the binaries then the vulnerability
+# databases: several minutes, only once.
 DEPLOY_TIMEOUT="${DEPLOY_TIMEOUT:-900}"
 
 WORK="$(mktemp -d)"
@@ -38,8 +38,8 @@ trap 'rm -rf "$WORK"' EXIT
 command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
-# Sur stderr : `deploy()` est appelée en substitution de commande, et un message
-# d'échec écrit sur stdout finirait capturé dans une variable au lieu d'être lu.
+# On stderr: `deploy()` is called in a command substitution, and a failure
+# message written on stdout would end up captured in a variable instead of read.
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1" >&2; exit 1; }
 step() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 info() { printf '    \033[2m%s\033[0m\n' "$1"; }
@@ -84,17 +84,17 @@ assert_admin() {
   [ "$role" = "admin" ] && return 0
 
   printf '  \033[31m✗\033[0m %s\n' "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\"."
-  printf '    Le premier compte créé sur une base vierge devient administrateur ;\n'
-  printf '    les suivants sont de simples viewers.\n\n'
-  printf '    Deux issues :\n'
-  printf '      1. relancez avec VOTRE compte admin :\n'
-  printf '         ADMIN_EMAIL=vous@exemple.fr ADMIN_PASSWORD=... %s\n' "$0"
-  printf '      2. ou promouvez ce compte depuis %s/admin/users\n' "$BASE_URL"
+  printf '    The first account created on a blank database becomes administrator;\n'
+  printf '    the following ones are mere viewers.\n\n'
+  printf '    Two ways out:\n'
+  printf '      1. rerun with YOUR admin account:\n'
+  printf '         ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=... %s\n' "$0"
+  printf '      2. or promote this account from %s/admin/users\n' "$BASE_URL"
   exit 1
 }
 
-# Enfile un déploiement avec la politique de scan demandée, puis attend son
-# état terminal. Écrit l'identifiant sur stdout, les traces sur stderr.
+# Queues a deployment with the requested scan policy, then waits for its
+# terminal state. Writes the identifier on stdout, the traces on stderr.
 deploy() {
   local scanners="$1" fail_on="$2" code deploy_id status waited=0
 
@@ -103,10 +103,10 @@ deploy() {
     --argjson scanners "$scanners" --arg failOn "$fail_on" \
     '{applicationId:$app, targetId:$target, runtime:"docker", proxy:"traefik",
       scanConfig:{scanners:$scanners, failOn:$failOn}}')")
-  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
 
   deploy_id=$(jq -r .id "$BODY")
-  info "déploiement $deploy_id — scanners $scanners, failOn $fail_on" >&2
+  info "deployment $deploy_id — scanners $scanners, failOn $fail_on" >&2
 
   while [ "$waited" -lt "$DEPLOY_TIMEOUT" ]; do
     sleep 5
@@ -118,10 +118,10 @@ deploy() {
     esac
   done
 
-  fail "le déploiement $deploy_id n'a pas abouti en ${DEPLOY_TIMEOUT}s (état « $status »)"
+  fail "deployment $deploy_id did not complete in ${DEPLOY_TIMEOUT}s (state \"$status\")"
 }
 
-# Recharge $BODY avec le déploiement complet.
+# Reloads $BODY with the complete deployment.
 fetch_deployment() {
   local code
   code=$(req GET "/api/deployments/$1")
@@ -136,83 +136,83 @@ step "1. Sign-in"
 login
 pass "signed in as $ADMIN_EMAIL"
 
-step "2. Application volontairement vulnérable ($SPEC)"
+step "2. Deliberately vulnerable application ($SPEC)"
 SLUG=$(jq -r .name "$SPEC")
 IMAGE=$(jq -r '.services[0].source.ref' "$SPEC")
 req GET /api/applications >/dev/null
 APP_ID=$(jq -r --arg s "$SLUG" '.items[] | select(.slug == $s) | .id' "$BODY")
 
 if [ -n "$APP_ID" ]; then
-  pass "application « $SLUG » déjà présente"
+  pass "application \"$SLUG\" already present"
 else
   jq '{appSpec: .}' "$SPEC" > "$WORK/app.json"
   code=$(req POST /api/applications "@$WORK/app.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   APP_ID=$(jq -r .id "$BODY")
-  pass "application créée : $SLUG"
+  pass "application created: $SLUG"
 fi
-info "image analysée : $IMAGE"
+info "image analyzed: $IMAGE"
 
-step "3. Cible Docker"
+step "3. Docker target"
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
 [ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 jq -e --arg n "$TARGET_NAME" \
   '.items[] | select(.name == $n) | .runtimesAvailable.docker.available == true' "$BODY" >/dev/null \
   || fail "the target \"$TARGET_NAME\" has no Docker runtime — run a preflight"
-pass "$TARGET_NAME prête"
+pass "$TARGET_NAME ready"
 
 # ─── 1. Trivy + failOn CRITICAL ───────────────────────────────────────────────
 
-step "4. Trivy coché, seuil CRITICAL — le déploiement doit être bloqué"
+step "4. Trivy checked, CRITICAL threshold — the deployment must be blocked"
 D1=$(deploy '["trivy"]' CRITICAL)
 fetch_deployment "$D1"
 
 [ "$(jq -r .status "$BODY")" = "failed" ] \
-  || fail "attendu « failed », reçu « $(jq -r .status "$BODY") »"
+  || fail "expected \"failed\", got \"$(jq -r .status "$BODY")\""
 [ "$(jq -r .failedStep "$BODY")" = "scan" ] \
-  || fail "le pipeline devait s'arrêter sur « scan », il s'est arrêté sur « $(jq -r .failedStep "$BODY") »"
-pass "déploiement bloqué à l'étape « scan »"
+  || fail "the pipeline was supposed to stop at \"scan\", it stopped at \"$(jq -r .failedStep "$BODY")\""
+pass "deployment blocked at the \"scan\" step"
 
-[ "$(step_status "$BODY" scan)" = "failed" ] || fail "l'étape « scan » n'est pas en échec"
+[ "$(step_status "$BODY" scan)" = "failed" ] || fail "the \"scan\" step did not fail"
 [ "$(step_status "$BODY" deploy)" = "skipped" ] \
-  || fail "l'étape « deploy » aurait dû être sautée : $(step_status "$BODY" deploy)"
-pass "le déploiement n'a pas eu lieu — « deploy » est skipped"
+  || fail "the \"deploy\" step should have been skipped: $(step_status "$BODY" deploy)"
+pass "the deployment did not take place — \"deploy\" is skipped"
 info "$(jq -r '.error' "$BODY" | head -c 160)"
 
 code=$(req GET "/api/deployments/$D1/scans")
 [ "$code" = "200" ] || fail "GET /api/deployments/$D1/scans → HTTP $code"
 jq -e '[.items[] | select(.scanner == "trivy")] | length == 1' "$BODY" >/dev/null \
-  || fail "un seul scan Trivy attendu : $(jq -c '[.items[].scanner]' "$BODY")"
+  || fail "a single Trivy scan expected: $(jq -c '[.items[].scanner]' "$BODY")"
 jq -e '.items[0].verdict == "fail"' "$BODY" >/dev/null \
-  || fail "verdict attendu « fail », reçu « $(jq -r .items[0].verdict "$BODY") »"
+  || fail "expected verdict \"fail\", got \"$(jq -r .items[0].verdict "$BODY")\""
 CRIT1=$(jq -r '.items[0].counts.CRITICAL' "$BODY")
-[ "$CRIT1" -gt 0 ] || fail "aucune vulnérabilité CRITICAL rapportée par Trivy"
+[ "$CRIT1" -gt 0 ] || fail "no CRITICAL vulnerability reported by Trivy"
 SCAN1=$(jq -r '.items[0].id' "$BODY")
-pass "Trivy : verdict « fail », $CRIT1 CRITICAL"
+pass "Trivy: verdict \"fail\", $CRIT1 CRITICAL"
 info "$(jq -rc '.items[0].counts' "$BODY")"
 
-# ─── 2. Trivy décoché, Grype coché ────────────────────────────────────────────
+# ─── 2. Trivy unchecked, Grype checked ────────────────────────────────────────
 
-step "5. Trivy DÉCOCHÉ, Grype coché — même verdict de blocage"
+step "5. Trivy UNCHECKED, Grype checked — same blocking verdict"
 D2=$(deploy '["grype"]' CRITICAL)
 fetch_deployment "$D2"
 
 [ "$(jq -r .failedStep "$BODY")" = "scan" ] \
-  || fail "le pipeline devait s'arrêter sur « scan » : $(jq -c '[.steps[]|{key,status}]' "$BODY")"
-pass "déploiement bloqué à l'étape « scan », sans Trivy"
+  || fail "the pipeline was supposed to stop at \"scan\": $(jq -c '[.steps[]|{key,status}]' "$BODY")"
+pass "deployment blocked at the \"scan\" step, without Trivy"
 
 req GET "/api/deployments/$D2/scans" >/dev/null
 jq -e '[.items[].scanner] == ["grype"]' "$BODY" >/dev/null \
-  || fail "Trivy ne devait pas tourner : $(jq -c '[.items[].scanner]' "$BODY")"
-jq -e '.items[0].verdict == "fail"' "$BODY" >/dev/null || fail "Grype n'a pas bloqué"
+  || fail "Trivy was not supposed to run: $(jq -c '[.items[].scanner]' "$BODY")"
+jq -e '.items[0].verdict == "fail"' "$BODY" >/dev/null || fail "Grype did not block"
 SCAN2=$(jq -r '.items[0].id' "$BODY")
 CRIT2=$(jq -r '.items[0].counts.CRITICAL' "$BODY")
-[ "$CRIT2" -gt 0 ] || fail "aucune vulnérabilité CRITICAL rapportée par Grype"
-pass "Grype seul : verdict « fail », $CRIT2 CRITICAL"
+[ "$CRIT2" -gt 0 ] || fail "no CRITICAL vulnerability reported by Grype"
+pass "Grype alone: verdict \"fail\", $CRIT2 CRITICAL"
 
-# Les deux scanners parlent la même langue : la CVE la plus grave vue par l'un
-# doit se retrouver chez l'autre, avec la même sévérité et le même paquet.
+# The two scanners speak the same language: the most severe CVE seen by one
+# must be found at the other's, with the same severity and the same package.
 req GET "/api/scans/$SCAN1?severity=CRITICAL&pageSize=200" >/dev/null
 jq -r '.findings.items[] | "\(.cveId)|\(.package)|\(.severity)"' "$BODY" | sort > "$WORK/trivy.txt"
 req GET "/api/scans/$SCAN2?severity=CRITICAL&pageSize=200" >/dev/null
@@ -220,22 +220,22 @@ jq -r '.findings.items[] | "\(.cveId)|\(.package)|\(.severity)"' "$BODY" | sort 
 
 COMMON=$(comm -12 "$WORK/trivy.txt" "$WORK/grype.txt" | wc -l | tr -d ' ')
 [ "$COMMON" -gt 0 ] || {
-  info "Trivy : $(head -3 "$WORK/trivy.txt" | tr '\n' ' ')"
-  info "Grype : $(head -3 "$WORK/grype.txt" | tr '\n' ' ')"
-  fail "aucune CVE critique décrite à l'identique par les deux scanners"
+  info "Trivy: $(head -3 "$WORK/trivy.txt" | tr '\n' ' ')"
+  info "Grype: $(head -3 "$WORK/grype.txt" | tr '\n' ' ')"
+  fail "no critical CVE described identically by both scanners"
 }
-pass "$COMMON CVE critique(s) décrites à l'identique — CVE, paquet et sévérité"
+pass "$COMMON critical CVE(s) described identically — CVE, package and severity"
 
 # ─── 3. failOn NONE ───────────────────────────────────────────────────────────
 
-step "6. Mêmes scanners, seuil NONE — le déploiement doit passer"
+step "6. Same scanners, NONE threshold — the deployment must go through"
 D3=$(deploy '["trivy","grype"]' NONE)
 fetch_deployment "$D3"
 
 [ "$(jq -r .status "$BODY")" = "success" ] \
-  || fail "attendu « success », reçu « $(jq -r .status "$BODY") » ($(jq -r '.error // ""' "$BODY" | head -c 200))"
-[ "$(step_status "$BODY" scan)" = "success" ] || fail "l'étape « scan » aurait dû réussir"
-pass "déploiement réussi malgré les vulnérabilités"
+  || fail "expected \"success\", got \"$(jq -r .status "$BODY")\" ($(jq -r '.error // ""' "$BODY" | head -c 200))"
+[ "$(step_status "$BODY" scan)" = "success" ] || fail "the \"scan\" step should have succeeded"
+pass "deployment succeeded despite the vulnerabilities"
 
 URL=$(jq -r '.url // empty' "$BODY")
 PORT=$(jq -r '.publishedPort // empty' "$BODY")
@@ -246,49 +246,49 @@ pass "$PROBE → HTTP 200 ($URL)"
 
 req GET "/api/deployments/$D3/scans" >/dev/null
 jq -e '[.items[] | select(.verdict != "pass")] | length == 0' "$BODY" >/dev/null \
-  || fail "avec NONE, aucun verdict ne doit être « fail » : $(jq -c '[.items[]|{scanner,verdict}]' "$BODY")"
+  || fail "with NONE, no verdict must be \"fail\": $(jq -c '[.items[]|{scanner,verdict}]' "$BODY")"
 TOTAL3=$(jq '[.items[].total] | add' "$BODY")
-[ "$TOTAL3" -gt 0 ] || fail "les findings devraient rester visibles même sans blocage"
-pass "verdict informatif, $TOTAL3 finding(s) tout de même enregistrés"
+[ "$TOTAL3" -gt 0 ] || fail "the findings should stay visible even without blocking"
+pass "informative verdict, $TOTAL3 finding(s) recorded all the same"
 
-# La vue transverse voit ce déploiement.
+# The cross-cutting view sees this deployment.
 code=$(req GET "/api/findings?deploymentId=$D3&severity=CRITICAL&pageSize=5")
 [ "$code" = "200" ] || fail "GET /api/findings → HTTP $code"
-jq -e '.total > 0' "$BODY" >/dev/null || fail "GET /api/findings ne remonte rien pour ce déploiement"
-pass "GET /api/findings : $(jq -r .total "$BODY") CVE critique(s), filtre par déploiement et sévérité"
+jq -e '.total > 0' "$BODY" >/dev/null || fail "GET /api/findings brings nothing up for this deployment"
+pass "GET /api/findings: $(jq -r .total "$BODY") critical CVE(s), filter by deployment and severity"
 info "$(jq -rc '.items[0] | {cveId, severity, package, fixedVersion}' "$BODY")"
 
-# ─── 4. Syft seul ─────────────────────────────────────────────────────────────
+# ─── 4. Syft alone ────────────────────────────────────────────────────────────
 
-step "7. Syft seul, seuil CRITICAL — aucun blocage possible, SBOM téléchargeable"
+step "7. Syft alone, CRITICAL threshold — no blocking possible, downloadable SBOM"
 D4=$(deploy '["syft"]' CRITICAL)
 fetch_deployment "$D4"
 
 [ "$(jq -r .status "$BODY")" = "success" ] \
-  || fail "un SBOM ne doit jamais bloquer : reçu « $(jq -r .status "$BODY") » ($(jq -r '.error // ""' "$BODY" | head -c 200))"
-pass "déploiement réussi — un inventaire ne prononce aucun verdict de blocage"
+  || fail "an SBOM must never block: got \"$(jq -r .status "$BODY")\" ($(jq -r '.error // ""' "$BODY" | head -c 200))"
+pass "deployment succeeded — an inventory pronounces no blocking verdict"
 
 req GET "/api/deployments/$D4/scans" >/dev/null
 jq -e '[.items[].scanner] == ["syft"]' "$BODY" >/dev/null \
-  || fail "seul Syft devait tourner : $(jq -c '[.items[].scanner]' "$BODY")"
+  || fail "only Syft was supposed to run: $(jq -c '[.items[].scanner]' "$BODY")"
 jq -e '.items[0].kind == "sbom" and .items[0].verdict == "pass" and .items[0].total == 0' "$BODY" >/dev/null \
-  || fail "un SBOM ne produit aucun finding : $(jq -c '.items[0]' "$BODY")"
+  || fail "an SBOM produces no finding: $(jq -c '.items[0]' "$BODY")"
 SBOM_ID=$(jq -r '.items[0].id' "$BODY")
-jq -e '.items[0].hasSbom == true' "$BODY" >/dev/null || fail "le SBOM n'est pas signalé téléchargeable"
-pass "Syft : kind « sbom », aucun finding, verdict « pass »"
+jq -e '.items[0].hasSbom == true' "$BODY" >/dev/null || fail "the SBOM is not flagged as downloadable"
+pass "Syft: kind \"sbom\", no finding, verdict \"pass\""
 
 code=$(curl -s -o "$WORK/sbom.json" -w '%{http_code}' -b "$JAR" "$BASE_URL/api/scans/$SBOM_ID/sbom")
 [ "$code" = "200" ] || fail "GET /api/scans/$SBOM_ID/sbom → HTTP $code"
 jq -e '.bomFormat == "CycloneDX" and (.components | length) > 0' "$WORK/sbom.json" >/dev/null \
-  || fail "le document téléchargé n'est pas un CycloneDX exploitable"
-pass "SBOM téléchargé — $(jq -r '.components | length' "$WORK/sbom.json") composants, $(wc -c < "$WORK/sbom.json" | tr -d ' ') octets"
+  || fail "the downloaded document is not a usable CycloneDX"
+pass "SBOM downloaded — $(jq -r '.components | length' "$WORK/sbom.json") components, $(wc -c < "$WORK/sbom.json" | tr -d ' ') bytes"
 
-# Un scanner de vulnérabilités n'a pas de SBOM à offrir : la route doit le dire.
+# A vulnerability scanner has no SBOM to offer: the route must say so.
 code=$(req GET "/api/scans/$SCAN1/sbom")
-[ "$code" = "409" ] || fail "un scan Trivy ne doit pas servir de SBOM (HTTP $code)"
-pass "GET /api/scans/<scan Trivy>/sbom → 409, comme attendu"
+[ "$code" = "409" ] || fail "a Trivy scan must not serve as an SBOM (HTTP $code)"
+pass "GET /api/scans/<Trivy scan>/sbom → 409, as expected"
 
-# ─── 5. Traçabilité ───────────────────────────────────────────────────────────
+# ─── 5. Traceability ──────────────────────────────────────────────────────────
 
 step "8. Traceability"
 code=$(req GET "/api/audit-logs?resourceType=deployment&pageSize=100")
@@ -296,23 +296,23 @@ code=$(req GET "/api/audit-logs?resourceType=deployment&pageSize=100")
 
 jq -e --arg id "$D1" \
   '[.items[] | select(.action == "deployment.scan.blocked" and .resourceId == $id)] | length > 0' \
-  "$BODY" >/dev/null || fail "« deployment.scan.blocked » absent du journal pour $D1"
-pass "audit : deployment.scan.blocked (Trivy, CRITICAL)"
+  "$BODY" >/dev/null || fail "\"deployment.scan.blocked\" missing from the log for $D1"
+pass "audit: deployment.scan.blocked (Trivy, CRITICAL)"
 
 jq -e --arg id "$D3" \
   '[.items[] | select(.action == "deployment.scan.passed" and .resourceId == $id)] | length > 0' \
-  "$BODY" >/dev/null || fail "« deployment.scan.passed » absent du journal pour $D3"
-pass "audit : deployment.scan.passed (seuil NONE)"
+  "$BODY" >/dev/null || fail "\"deployment.scan.passed\" missing from the log for $D3"
+pass "audit: deployment.scan.passed (seuil NONE)"
 
 jq -e --arg id "$D1" \
   '[.items[] | select(.action == "deployment.scan.blocked" and .resourceId == $id)][0].after.blocking | length > 0' \
-  "$BODY" >/dev/null || fail "le journal ne retient aucun finding bloquant"
-pass "audit : les CVE qui ont bloqué sont nommées"
+  "$BODY" >/dev/null || fail "the log keeps no blocking finding"
+pass "audit: the CVEs that blocked are named"
 info "$(jq -rc --arg id "$D1" '[.items[] | select(.action == "deployment.scan.blocked" and .resourceId == $id)][0].after | {scanners, failOn, blockingTotal}' "$BODY")"
 
-printf '\n\033[32m✓ Scanners et politique de blocage vérifiés.\033[0m\n'
-printf '\033[2m  Bloqué par Trivy : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D1"
-printf '\033[2m  Bloqué par Grype : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D2"
-printf '\033[2m  Passé (NONE)     : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D3"
+printf '\n\033[32m✓ Scanners and blocking policy verified.\033[0m\n'
+printf '\033[2m  Blocked by Trivy: %s/deployments/%s\033[0m\n' "$BASE_URL" "$D1"
+printf '\033[2m  Blocked by Grype: %s/deployments/%s\033[0m\n' "$BASE_URL" "$D2"
+printf '\033[2m  Passed (NONE)   : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D3"
 printf '\033[2m  SBOM (Syft)      : %s/deployments/%s\033[0m\n' "$BASE_URL" "$D4"
 printf '\n'
