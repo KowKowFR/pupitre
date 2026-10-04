@@ -30,22 +30,21 @@ import { openDeploymentContext } from '../deploy/context.js';
 import { logger } from '../logger.js';
 
 /**
- * Les images des applications déployées, comparées à leurs registres.
+ * The deployed applications' images, compared with their registries.
  *
- * Pour chaque application en service, sur chaque cible :
+ * For each application in service, on each target:
  *
- *   1. le driver dit ce qui tourne (`runningImages()`, des digests) ;
- *   2. le registre dit ce que le tag désigne aujourd'hui, et quels tags
- *      existent ;
- *   3. le constat est écrit, et ce qui est **nouveau** — un contenu de tag
- *      jamais annoncé, un tag de la série jamais annoncé — part au journal
- *      d'audit sous `image.update.available`. C'est cette entrée, et elle
- *      seule, qui fait partir les mails et webhooks configurés : la
- *      notification passe par `logAudit()`, comme toutes les autres.
+ *   1. the driver says what runs (`runningImages()`, digests);
+ *   2. the registry says what the tag designates today, and which tags exist;
+ *   3. the finding is written, and what is **new** — a tag content never
+ *      announced, a series tag never announced — goes to the audit log as
+ *      `image.update.available`. It is that entry, and it alone, that makes the
+ *      configured emails and webhooks go out: the notification goes through
+ *      `logAudit()`, like all the others.
  *
- * Un même registre est interrogé une fois par tag et par passage, quel que soit
- * le nombre d'applications qui l'utilisent. Une application arrêtée n'est pas
- * vérifiée : son dernier constat reste affiché jusqu'à ce qu'elle reparte.
+ * A given registry is queried once per tag and per pass, whatever the number of
+ * applications using it. A stopped application is not checked: its last finding
+ * stays shown until it starts again.
  */
 
 type RegistryAnswer = { digest: string | null; error: string | null };
@@ -83,8 +82,8 @@ export async function handleImageCheck(
     });
   const tags = (ref: ImageReference) =>
     cached(tagLists, `${ref.registry}/${ref.repository}`, () =>
-      // Une liste de tags qui échoue ne rend pas le constat inconnu : on saura
-      // seulement moins de choses.
+      // A tags list that fails does not make the finding unknown: we will only know
+      // fewer things.
       registry.listTags(ref).catch(() => []),
     );
 
@@ -102,18 +101,18 @@ export async function handleImageCheck(
       outdated += result.outdated;
       announced += result.announced ? 1 : 0;
     } catch (error) {
-      // Une application en échec ne prive pas les suivantes de leur constat.
-      log.warn({ err: error, deploymentId: deployment.id }, 'vérification des images impossible');
+      // A failing application does not deprive the following ones of their finding.
+      log.warn({ err: error, deploymentId: deployment.id }, 'images check failed');
     }
   }
 
   if (!data.applicationId) {
     const live = await listLiveDeployments();
     const pruned = await pruneImageUpdates(live);
-    if (pruned > 0) log.info({ pruned }, 'constats d’images oubliés');
+    if (pruned > 0) log.info({ pruned }, 'image findings forgotten');
   }
 
-  log.info({ checked: deployments.length, outdated, announced }, 'images vérifiées');
+  log.info({ checked: deployments.length, outdated, announced }, 'images checked');
   return { checked: deployments.length, outdated, announced };
 }
 
@@ -130,11 +129,11 @@ async function checkDeployment(
     return { outdated: 0, announced: false };
   }
 
-  // Le nom vient de la base : une cible injoignable a toujours un nom, et
-  // c'est précisément celle qu'on voudra lire dans l'annonce.
+  // The name comes from the database: an unreachable target always has a name, and
+  // it is precisely the one we will want to read in the announcement.
   const targetName = (await getTarget(deployment.targetId))?.name ?? deployment.targetId;
 
-  // Ce qui tourne, d'abord : sans la cible, pas de comparaison possible.
+  // What runs, first: without the target, no comparison is possible.
   let running: RunningImage[] | null = null;
   try {
     const opened = await openDeploymentContext(deployment.id, { connect: { retries: 1 } });
@@ -178,7 +177,7 @@ async function checkDeployment(
 
   const notified = await recordImageCheck(deployment.applicationId, deployment.targetId, records);
 
-  // Ce qui n'a jamais été annoncé, et seulement cela.
+  // What was never announced, and only that.
   const fresh = new Map<string, string>();
   for (const record of records) {
     const key = updateNoticeKey({

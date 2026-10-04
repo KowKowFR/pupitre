@@ -33,34 +33,32 @@ import { notifyMonitorTransition } from './notify.js';
 import { allowedCidrs } from './policy.js';
 
 /**
- * Le balayage des sondes.
+ * The probes sweep.
  *
- * ── Ce qu'il fait, et ce qu'il ne fait pas ──────────────────────────────────
- * Il constate et alerte. Il ne redéploie rien, ne redémarre rien, ne rollback
- * rien — même règle que les tâches planifiées.
+ * ── What it does, and what it does not ──────────────────────────────────────
+ * It observes and alerts. It redeploys nothing, restarts nothing, rolls back
+ * nothing — the same rule as the scheduled tasks.
  *
- * ── Le problème de temps, qui est le vrai sujet ─────────────────────────────
- * Cinquante sondes à trente secondes de délai, c'est vingt-cinq minutes si on
- * les enchaîne — soit cinquante balayages qui se marchent dessus. Trois gardes,
- * chacune nécessaire :
+ * ── The time problem, which is the real subject ─────────────────────────────
+ * Fifty probes with a thirty-second timeout make twenty-five minutes if chained
+ * — that is fifty sweeps stepping on each other. Three guards, each necessary:
  *
- *   1. **Un verrou Redis.** Un seul balayage à la fois, tous workers confondus.
- *      Une occurrence qui arrive alors qu'une autre travaille rend la main
- *      immédiatement plutôt que de doubler la charge.
- *   2. **La réclamation avance l'échéance avant de sonder** (`claimDueMonitors`).
- *      Une sonde lente n'est donc pas reprise par le balayage suivant : il n'y a
- *      jamais deux requêtes en vol vers le même site.
- *   3. **Un budget de temps et un parallélisme bornés.** Dix sondes de front,
- *      vingt-deux secondes de travail. Ce qui n'a pas été fait reste dû et part
- *      au balayage suivant — une sonde en retard est un moindre mal devant un
- *      worker saturé.
+ *   1. **A Redis lock.** A single sweep at a time, all workers together. An
+ *      occurrence that arrives while another works returns immediately rather
+ *      than doubling the load.
+ *   2. **The claim moves the due date before probing** (`claimDueMonitors`). A
+ *      slow probe is therefore not picked up again by the next sweep: there are
+ *      never two requests in flight toward the same site.
+ *   3. **A bounded time budget and parallelism.** Ten probes in parallel,
+ *      twenty-two seconds of work. What was not done stays due and goes to the
+ *      next sweep — a late probe is a lesser evil than a saturated worker.
  */
 
 const SWEEP_LOCK_KEY = 'monitor:sweep:lock';
 const PRUNE_MARK_KEY = 'monitor:prune:last';
 const CAPTURE_REFERENCE_MARK_KEY = 'monitor:capture:references:last';
 
-/** La purge ne tourne qu'une fois par heure : elle balaie toutes sondes confondues. */
+/** The purge only runs once an hour: it sweeps all probes together. */
 const PRUNE_EVERY_SECONDS = 3600;
 
 type SweepCounters = {
@@ -74,23 +72,22 @@ type SweepCounters = {
 };
 
 /**
- * Sonde une sonde, enregistre, et alerte si — et seulement si — l'état bascule.
+ * Probes a probe, records, and alerts if — and only if — the state flips.
  *
- * Aucun `if (type === 'http')` ici : le balayage demande sa sonde à la fabrique
- * et lui parle par l'interface, exactement comme les tâches planifiées parlent
- * aux drivers. C'est ce qui fait qu'ajouter un type de surveillance ne touche
- * pas ce fichier.
+ * No `if (type === 'http')` here: the sweep asks the factory for its probe and
+ * talks to it through the interface, exactly as the scheduled tasks talk to the
+ * drivers. That is what makes adding a kind of monitoring not touch this file.
  */
 async function runOne(monitor: Monitor, counters: SweepCounters): Promise<void> {
   const before = monitor.status;
 
   if (!isMonitorType(monitor.type)) {
-    // Retour arrière du code, ou ligne écrite à la main : on suspend avec le
-    // motif plutôt que de faire tomber le balayage des quarante-neuf autres.
-    // Le motif est une clé — la colonne survit à la suspension, une phrase y
-    // aurait figé la langue du jour du balayage.
+    // Code rolled back, or a row written by hand: we pause with the reason rather
+    // than bring down the sweep of the forty-nine others. The reason is a key — the
+    // column outlives the pause, a sentence would have frozen the language of the
+    // sweep's day in it.
     await suspendMonitor(monitor.id, monitorPauseUnknownType(monitor.type));
-    logger.warn({ monitorId: monitor.id, type: monitor.type }, 'type de sonde inconnu — suspendue');
+    logger.warn({ monitorId: monitor.id, type: monitor.type }, 'unknown probe type — paused');
     return;
   }
 
@@ -109,11 +106,11 @@ async function runOne(monitor: Monitor, counters: SweepCounters): Promise<void> 
   if (applied.transition === 'up') counters.resolved += 1;
 
   if (!applied.incident) {
-    // L'index unique partiel a refusé un second incident ouvert, ou il n'y en
-    // avait aucun à refermer. Dans les deux cas il n'y a rien à annoncer.
+    // The partial unique index refused a second open incident, or there was none to
+    // close. In both cases there is nothing to announce.
     logger.warn(
       { monitorId: monitor.id, transition: applied.transition },
-      'transition sans incident : rien à alerter',
+      'transition without incident: nothing to alert',
     );
     return;
   }
@@ -126,18 +123,18 @@ async function runOne(monitor: Monitor, counters: SweepCounters): Promise<void> 
   );
   if (sent) counters.alerts += 1;
 
-  // **Après** l'alerte, jamais avant : la capture est un supplément, l'alerte
-  // est l'essentiel. Et enfilée, pas exécutée — voir `requestIncidentCapture()`.
+  // **After** the alert, never before: the capture is an extra, the alert is the
+  // essential. And queued, not run — see `requestIncidentCapture()`.
   requestIncidentCapture(applied.monitor.id, applied.incident, applied.transition);
 }
 
 /**
- * Demande la capture de la page pour un incident qui vient de basculer.
+ * Asks for the page's capture for an incident that just flipped.
  *
- * `void` et non `await` : le balayage a fini son travail, l'incident est écrit,
- * l'alerte est partie. Attendre l'accusé de réception de Redis pour une image
- * reviendrait à faire dépendre le chemin critique du confort. Un échec d'enfilage
- * est journalisé et rien de plus — une capture manquante n'est pas un incident.
+ * `void` and not `await`: the sweep has finished its work, the incident is
+ * written, the alert has gone out. Waiting for Redis's acknowledgment for an
+ * image would make the critical path depend on comfort. A queuing failure is
+ * logged and nothing more — a missing capture is not an incident.
  */
 function requestIncidentCapture(
   monitorId: string,
@@ -154,18 +151,17 @@ function requestIncidentCapture(
   void getSupervisionQueue()
     .add(MONITOR_CAPTURE_JOB, data, { attempts: 1 })
     .catch((error: unknown) => {
-      logger.warn({ err: error, monitorId, incidentId: incident.id }, 'capture non enfilée');
+      logger.warn({ err: error, monitorId, incidentId: incident.id }, 'capture not queued');
     });
 }
 
 /**
- * Enfile le rafraîchissement des références, au plus une fois toutes les cinq
- * minutes.
+ * Queues the references refresh, at most once every five minutes.
  *
- * Le marqueur est dans Redis, comme celui de la purge : c'est une cadence, pas
- * une donnée du domaine, et le perdre ne coûte qu'un passage de trop. La tâche
- * elle-même choisit *quelles* sondes en ont besoin — cinq au plus — parce que
- * cette question est une requête SQL, pas une décision du balayage.
+ * The marker is in Redis, like the purge's: it is a rate, not domain data, and
+ * losing it only costs one pass too many. The job itself chooses *which* probes
+ * need it — five at most — because that question is an SQL query, not a
+ * decision of the sweep.
  */
 async function requestReferenceRefresh(): Promise<void> {
   if (!captureEnabled()) return;
@@ -185,7 +181,7 @@ async function requestReferenceRefresh(): Promise<void> {
   );
 }
 
-/** Exécute `tasks` par paquets de `concurrency`, en respectant une échéance. */
+/** Runs `tasks` in batches of `concurrency`, respecting a deadline. */
 async function pool<T>(
   items: readonly T[],
   concurrency: number,
@@ -216,10 +212,10 @@ async function pool<T>(
 }
 
 /**
- * Purge la rétention, au plus une fois par heure.
+ * Purges retention, at most once an hour.
  *
- * Le marqueur est dans Redis et non en base : c'est un détail de cadence, pas
- * une donnée du domaine, et le perdre ne coûte qu'une purge de trop.
+ * The marker is in Redis and not in the database: it is a rate detail, not
+ * domain data, and losing it only costs one purge too many.
  */
 async function pruneIfDue(): Promise<number> {
   const redis = getRedis();
@@ -227,8 +223,8 @@ async function pruneIfDue(): Promise<number> {
   if (claimed !== 'OK') return 0;
 
   let total = 0;
-  // Plusieurs lots d'affilée au premier passage : une instance laissée sans
-  // purge pendant un mois ne doit pas mettre un mois à se rattraper.
+  // Several batches in a row at the first pass: an instance left without a purge
+  // for a month must not take a month to catch up.
   for (let pass = 0; pass < 10; pass += 1) {
     const removed = await pruneMonitorChecks(MONITOR_CHECK_RETENTION_DAYS, MONITOR_PRUNE_BATCH);
     total += removed;
@@ -237,15 +233,15 @@ async function pruneIfDue(): Promise<number> {
   if (total > 0) {
     logger.info(
       { removed: total, retentionDays: MONITOR_CHECK_RETENTION_DAYS },
-      'mesures de supervision purgées',
+      'monitoring measurements purged',
     );
   }
 
   /**
-   * Même créneau horaire pour les octets des captures — mais on **reprend les
-   * octets sans supprimer la ligne** : les incidents ne sont jamais purgés, et
-   * une chronologie qui dit « image purgée le … » vaut mieux qu'une chronologie
-   * amputée en silence. Compté à part de `pruned`, qui compte des mesures.
+   * Same time slot for the captures' bytes — but we **take the bytes back without
+   * deleting the row**: incidents are never purged, and a timeline that says
+   * "image purged on …" is better than a silently truncated one. Counted apart from
+   * `pruned`, which counts measurements.
    */
   let images = 0;
   for (let pass = 0; pass < 10; pass += 1) {
@@ -256,7 +252,7 @@ async function pruneIfDue(): Promise<number> {
   if (images > 0) {
     logger.info(
       { purged: images, retentionDays: MONITOR_CAPTURE_RETENTION_DAYS },
-      'octets de captures repris par la rétention',
+      'capture bytes taken back by retention',
     );
   }
 
@@ -264,9 +260,9 @@ async function pruneIfDue(): Promise<number> {
 }
 
 export type SweepOptions = {
-  /** Restreint le balayage à une sonde. */
+  /** Restricts the sweep to one probe. */
   monitorId?: string | null;
-  /** Passe outre l'échéance : « sonder maintenant ». */
+  /** Overrides the due date: "probe now". */
   force?: boolean;
 };
 
@@ -288,9 +284,9 @@ export async function sweepMonitors(options: SweepOptions = {}): Promise<Monitor
   const single = options.monitorId ?? null;
   const redis = getRedis();
 
-  // Le verrou ne couvre que le balayage général. Une demande « sonder
-  // maintenant » sur une sonde précise doit aboutir tout de suite, même si un
-  // balayage tourne : elle ne touche qu'une ligne, déjà réclamée.
+  // The lock only covers the general sweep. A "probe now" request on a precise
+  // probe must succeed right away, even if a sweep is running: it only touches one
+  // row, already claimed.
   if (single === null) {
     const lock = await redis.set(
       SWEEP_LOCK_KEY,
@@ -300,7 +296,7 @@ export async function sweepMonitors(options: SweepOptions = {}): Promise<Monitor
       'NX',
     );
     if (lock !== 'OK') {
-      logger.debug('un balayage de supervision est déjà en cours — occurrence ignorée');
+      logger.debug('a monitoring sweep is already running — occurrence ignored');
       return EMPTY;
     }
   }
@@ -316,8 +312,8 @@ export async function sweepMonitors(options: SweepOptions = {}): Promise<Monitor
   };
 
   try {
-    // Une application détruite ne doit pas déclencher une alerte de panne : le
-    // pire faux positif, celui qui apprend à ignorer les alertes.
+    // A destroyed application must not trigger an outage alert: the worst false
+    // positive, the one that teaches ignoring alerts.
     const suspended = single === null ? await suspendOrphanedMonitors() : 0;
 
     let due: Monitor[];
@@ -333,19 +329,19 @@ export async function sweepMonitors(options: SweepOptions = {}): Promise<Monitor
       try {
         await runOne(monitor, counters);
       } catch (error) {
-        // Une sonde en erreur ne fait pas tomber le balayage : les quarante-neuf
-        // autres doivent passer.
-        logger.error({ err: error, monitorId: monitor.id }, 'sonde de supervision en erreur');
+        // A probe in error does not bring the sweep down: the forty-nine others must go
+        // through.
+        logger.error({ err: error, monitorId: monitor.id }, 'monitoring probe failed');
       }
     });
 
     const pruned = single === null ? await pruneIfDue() : 0;
 
     if (single === null) {
-      // Les références « avant » : enfilées, jamais prises ici. Un échec
-      // d'enfilage ne doit pas faire échouer un balayage qui a fait son travail.
+      // The "before" references: queued, never taken here. A queuing failure must not
+      // fail a sweep that did its work.
       await requestReferenceRefresh().catch((error: unknown) => {
-        logger.warn({ err: error }, 'rafraîchissement des références non enfilé');
+        logger.warn({ err: error }, 'references refresh not queued');
       });
     }
 

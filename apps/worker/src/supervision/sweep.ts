@@ -16,61 +16,59 @@ import { judgeAndAnnounce } from './judge.js';
 import { judgeReachability } from './reachability.js';
 
 /**
- * Le balayage des serveurs — l'horloge qui donne une mémoire à la supervision.
+ * The servers sweep — the clock that gives monitoring a memory.
  *
- * ── Qui déclenche le relevé, et pourquoi ce n'est plus l'écran ──────────────
- * L'écran déclenchait, et c'était le défaut : un historique qui ne se remplit
- * que quand quelqu'un regarde n'est pas un historique, c'est un reflet. Pire, il
- * est vide exactement quand on en a besoin — le lundi matin, pour comprendre ce
- * qui s'est passé pendant le week-end où personne n'avait l'onglet ouvert.
+ * ── Who triggers the reading, and why it is no longer the screen ────────────
+ * The screen triggered it, and that was the flaw: a history that only fills up
+ * when someone looks is not a history, it is a reflection. Worse, it is empty
+ * exactly when it is needed — on Monday morning, to understand what happened
+ * during the weekend when nobody had the tab open.
  *
- * ── Une tâche répétable unique, pas une par machine ─────────────────────────
- * Exactement l'arbitrage — et les mêmes raisons — que le balayage des sondes de
- * site, dont ce fichier est le jumeau : un repeatable job par cible, ce serait
- * une réconciliation Redis ↔ base à chaque cible créée ou supprimée, et autant
- * de tâches qui se battraient pour les slots de la file. Le parallélisme et le
- * budget de temps se décident **à un seul endroit**, et un balayage est cet
- * endroit.
+ * ── A single repeatable job, not one per machine ────────────────────────────
+ * Exactly the trade-off — and the same reasons — as the site probes sweep, of
+ * which this file is the twin: a repeatable job per target would be a Redis ↔
+ * database reconciliation at each target created or deleted, and as many jobs
+ * fighting for the queue's slots. Parallelism and time budget are decided **in a
+ * single place**, and a sweep is that place.
  *
- * ── Pas de cron Linux ───────────────────────────────────────────────────────
- * Décision déjà tranchée du projet. BullMQ est la seule horloge.
+ * ── No Linux cron ───────────────────────────────────────────────────────────
+ * A decision the project already settled. BullMQ is the only clock.
  *
- * ── Trois gardes, chacune nécessaire ────────────────────────────────────────
- *   1. **Un verrou Redis** : un seul balayage à la fois, tous workers
- *      confondus. C'est aussi lui qui remplace la colonne `next_check_at` des
- *      sondes — voir `listDueTargets()`.
- *   2. **Un budget de temps et un parallélisme bornés.** Deux relevés de front,
- *      45 secondes de travail. Une machine éteinte coûte 8 secondes de garde
- *      SSH : cinq machines mortes ne doivent pas monopoliser la file.
- *   3. **L'échéance est la donnée elle-même** : une machine relevée à la main
- *      il y a une minute n'est pas due. Le clic ne se paie pas deux fois.
+ * ── Three guards, each necessary ────────────────────────────────────────────
+ *   1. **A Redis lock**: a single sweep at a time, all workers together. It is
+ *      also what replaces the probes' `next_check_at` column — see
+ *      `listDueTargets()`.
+ *   2. **A bounded time budget and parallelism.** Two readings in parallel, 45
+ *      seconds of work. A machine turned off costs 8 seconds of SSH guard: five
+ *      dead machines must not monopolize the queue.
+ *   3. **The due date is the data itself**: a machine read by hand a minute ago
+ *      is not due. The click is not paid for twice.
  */
 
 /**
- * Nom de la tâche de balayage.
+ * Name of the sweep job.
  *
- * Volontairement **pas** dans `@pupitre/core/queue.ts`, contrairement à
- * `target:metrics`. Ce contrat-là est partagé parce que le panel enfile la
- * tâche et que le worker la consomme. Celui-ci n'a qu'un producteur et qu'un
- * consommateur, tous deux dans ce processus : le panel ne l'enfile jamais, il
- * lit l'historique en SQL. Le sortir dans le paquet partagé serait du
- * vocabulaire exporté que personne n'importe.
+ * Deliberately **not** in `@pupitre/core/queue.ts`, unlike `target:metrics`.
+ * That contract is shared because the panel queues the job and the worker
+ * consumes it. This one has only one producer and one consumer, both in this
+ * process: the panel never queues it, it reads the history in SQL. Moving it to
+ * the shared package would be exported vocabulary that nobody imports.
  */
 export const HOST_SWEEP_JOB = 'target:metrics_sweep' as const;
 
-/** Clé du scheduler BullMQ. Sans deux-points : c'est une clé, pas un nom de tâche. */
+/** BullMQ scheduler key. Without a colon: it is a key, not a job name. */
 export const HOST_SWEEP_SCHEDULER_KEY = 'target-metrics-sweep';
 
 const SWEEP_LOCK_KEY = 'target:metrics:sweep:lock';
 const PRUNE_MARK_KEY = 'target:metrics:prune:last';
 
-/** La purge ne tourne qu'une fois par heure : elle balaie toutes machines confondues. */
+/** The purge only runs once an hour: it sweeps all machines together. */
 const PRUNE_EVERY_SECONDS = 3600;
 
 export const hostSweepJobDataSchema = z.object({
-  /** Restreint le balayage à une machine. Sert au déclenchement de vérification. */
+  /** Restricts the sweep to one machine. Used to trigger checks. */
   targetId: z.string().uuid().nullable().default(null),
-  /** Passe outre la cadence : « relever maintenant, quoi qu'il en soit ». */
+  /** Overrides the interval: "read now, whatever happens". */
   force: z.boolean().default(false),
 });
 
@@ -82,9 +80,9 @@ export const hostSweepJobResultSchema = z.object({
   breached: z.number().int().nonnegative(),
   cleared: z.number().int().nonnegative(),
   pruned: z.number().int().nonnegative(),
-  /** Le balayage a rendu la main sur son budget ; le suivant reprendra. */
+  /** The sweep returned on its budget; the next one will take over. */
   budgetExhausted: z.boolean(),
-  /** Un balayage tournait déjà : cette occurrence n'a rien fait, et c'est normal. */
+  /** A sweep was already running: this occurrence did nothing, and that is normal. */
   skipped: z.boolean(),
 });
 
@@ -111,12 +109,11 @@ type Counters = {
 };
 
 /**
- * Relève une machine, écrit, juge, et n'annonce que les bascules.
+ * Reads a machine, writes, judges, and only announces the flips.
  *
- * L'ordre compte : le relevé est **écrit avant d'être jugé**, parce que la règle
- * de franchissement relit la série — les compteurs de relevés consécutifs ne
- * sont pas stockés, ils sont dérivés. Le raisonnement est dans
- * `evaluateThresholds()`.
+ * Order matters: the reading is **written before being judged**, because the
+ * crossing rule reads the series again — the consecutive readings counters are
+ * not stored, they are derived. The reasoning is in `evaluateThresholds()`.
  */
 async function sampleOne(target: { id: string; name: string }, counters: Counters): Promise<void> {
   const { metrics, recorded } = await collectAndRecord(target.id, 'sweep');
@@ -132,7 +129,7 @@ async function sampleOne(target: { id: string; name: string }, counters: Counter
   counters.cleared += verdict.cleared;
 }
 
-/** Exécute par paquets de `concurrency`, en respectant une échéance. */
+/** Runs in batches of `concurrency`, respecting a deadline. */
 async function pool<T>(
   items: readonly T[],
   concurrency: number,
@@ -161,12 +158,12 @@ async function pool<T>(
 }
 
 /**
- * Purge la rétention, au plus une fois par heure.
+ * Purges retention, at most once an hour.
  *
- * Le marqueur est dans Redis et non en base : c'est un détail de cadence, pas
- * une donnée du domaine, et le perdre ne coûte qu'une purge de trop. Copié sur
- * la purge des sondes, jusqu'au rattrapage en dix lots — une instance laissée
- * un mois sans purge ne doit pas mettre un mois à se remettre à jour.
+ * The marker is in Redis and not in the database: it is a rate detail, not
+ * domain data, and losing it only costs one purge too many. Copied from the
+ * probes' purge, down to catching up in ten batches — an instance left a month
+ * without a purge must not take a month to get back up to date.
  */
 async function pruneIfDue(): Promise<number> {
   const redis = getRedis();
@@ -188,7 +185,7 @@ async function pruneIfDue(): Promise<number> {
   if (total > 0) {
     logger.info(
       { removed: total, retentionDays: HOST_SAMPLE_RETENTION_DAYS },
-      "relevés d'hôte purgés",
+      'host readings purged',
     );
   }
   return total;
@@ -203,9 +200,9 @@ export async function sweepHosts(options: HostSweepOptions = {}): Promise<HostSw
   const single = options.targetId ?? null;
   const redis = getRedis();
 
-  // Le verrou ne couvre que le balayage général : une demande ciblée doit
-  // aboutir tout de suite, même pendant un balayage. Elle ne touche qu'une
-  // machine, et l'index unique partiel protège de toute façon les épisodes.
+  // The lock only covers the general sweep: a targeted request must succeed right
+  // away, even during a sweep. It only touches one machine, and the partial unique
+  // index protects the episodes anyway.
   if (single === null) {
     const lock = await redis.set(
       SWEEP_LOCK_KEY,
@@ -215,7 +212,7 @@ export async function sweepHosts(options: HostSweepOptions = {}): Promise<HostSw
       'NX',
     );
     if (lock !== 'OK') {
-      logger.debug('un balayage de serveurs est déjà en cours — occurrence ignorée');
+      logger.debug('a servers sweep is already running — occurrence ignored');
       return { ...EMPTY, skipped: true };
     }
   }
@@ -229,8 +226,8 @@ export async function sweepHosts(options: HostSweepOptions = {}): Promise<HostSw
   };
 
   try {
-    // `force` ramène la cadence à zéro seconde : tout est dû. C'est le seul
-    // usage, et il sert aux vérifications — jamais au fonctionnement normal.
+    // `force` brings the interval down to zero seconds: everything is due. It is the
+    // only use, and it serves the checks — never normal operation.
     const interval = options.force === true ? 0 : HOST_SAMPLE_INTERVAL_SECONDS;
     const due = await listDueTargets({
       intervalSeconds: interval,
@@ -243,8 +240,8 @@ export async function sweepHosts(options: HostSweepOptions = {}): Promise<HostSw
       try {
         await sampleOne(target, counters);
       } catch (error) {
-        // Une machine en erreur ne fait pas tomber le balayage des autres.
-        logger.error({ err: error, targetId: target.id }, "relevé d'hôte en erreur");
+        // A machine in error does not bring down the others' sweep.
+        logger.error({ err: error, targetId: target.id }, 'host reading failed');
       }
     });
 

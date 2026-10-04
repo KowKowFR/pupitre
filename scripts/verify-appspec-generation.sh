@@ -475,9 +475,9 @@ docker compose restart "$WORKER_SERVICE" >/dev/null 2>&1 \
   || fail "impossible de redémarrer le service « $WORKER_SERVICE »"
 for _ in $(seq 1 40); do
   sleep 2
-  docker compose logs "$WORKER_SERVICE" --tail 40 2>/dev/null | grep -q 'worker prêt' && break
+  docker compose logs "$WORKER_SERVICE" --tail 40 2>/dev/null | grep -q 'worker ready' && break
 done
-docker compose logs "$WORKER_SERVICE" --tail 40 2>/dev/null | grep -q 'réconciliées avec BullMQ' \
+docker compose logs "$WORKER_SERVICE" --tail 40 2>/dev/null | grep -q 'reconciled with BullMQ' \
   || fail "le worker n'a pas réconcilié les tâches planifiées au démarrage"
 pass "worker redémarré — réconciliation base ↔ BullMQ effectuée"
 

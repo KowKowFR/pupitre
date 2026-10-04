@@ -1,11 +1,11 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '@pupitre/core';
 
 /**
- * Ce que le worker écrit pour quelqu'un, dans la langue de l'instance
- * (`instanceLanguage()`) : le journal et les erreurs d'un déploiement, le
- * compte rendu d'une suppression en cascade, le fil d'un arrêt ou d'un
- * redémarrage. Les journaux du worker lui-même (`logger.*`) ne sont pas ici :
- * ils sont pour qui l'exploite, pas pour qui se sert du panel.
+ * What the worker writes for someone, in the instance's language
+ * (`instanceLanguage()`): a deployment's log and errors, a cascading deletion's
+ * report, the course of a stop or a restart. The worker's own logs
+ * (`logger.*`) are not here: they are for whoever operates it, not for whoever
+ * uses the panel.
  */
 const fr = {
   'notFound.deployment': 'Déploiement « {id} » introuvable',
@@ -149,6 +149,12 @@ const fr = {
   'proxy.stillServing': 'des domaines passent encore par ce proxy : retirez-les d’abord',
   'proxy.notFound': 'connexion de proxy introuvable',
   'proxy.noHost': 'ce proxy ne tourne sur aucune machine connue',
+  'proxy.remoteNeedsPort':
+    'l’application ne publie aucun port que le proxy distant puisse joindre — redéployez-la pour qu’elle en publie un',
+  'proxy.seeded': 'domaine de l’AppSpec retenu : {hostname}',
+  'proxy.seedTaken': '⚠ le domaine « {hostname} » est déjà routé — il n’est pas repris',
+  'proxy.seedTakenBy':
+    '⚠ le domaine « {hostname} » est déjà routé vers « {application} » — il n’est pas repris',
   'link.gone': 'le proxy de cette liaison a disparu',
   'link.none': 'aucune liaison pour cette cible',
   'link.unreachable':
@@ -364,6 +370,12 @@ const en: Translated<typeof fr> = {
   'proxy.stillServing': 'domains still go through this proxy: remove them first',
   'proxy.notFound': 'proxy connection not found',
   'proxy.noHost': 'this proxy runs on no known machine',
+  'proxy.remoteNeedsPort':
+    'the application publishes no port the remote proxy can reach — redeploy it so that it publishes one',
+  'proxy.seeded': 'AppSpec domain kept: {hostname}',
+  'proxy.seedTaken': '⚠ the domain “{hostname}” is already routed — it is not taken over',
+  'proxy.seedTakenBy':
+    '⚠ the domain “{hostname}” is already routed to “{application}” — it is not taken over',
   'link.gone': 'the proxy of this link has disappeared',
   'link.none': 'no link for this target',
   'link.unreachable':
@@ -445,7 +457,7 @@ export function workerSay(language: UiLanguage): WorkerSay {
   return translator(workerCopy, language);
 }
 
-/** Une taille lisible, dans les unités de la langue : « 1,4 Mio », « 1.4 MiB ». */
+/** A readable size, in the language's units: "1,4 Mio", "1.4 MiB". */
 export function formatBytes(bytes: number, language: UiLanguage): string {
   const say = workerSay(language);
   if (bytes < 1024) return `${bytes} ${say('bytes.unit')}`;

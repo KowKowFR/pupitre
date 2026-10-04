@@ -711,7 +711,7 @@ pass "$HALF événements retenus, fenêtre ouverte"
 
 docker compose restart worker >/dev/null 2>&1 || fail "redémarrage du worker impossible"
 for _ in $(seq 1 60); do
-  docker compose logs worker --since 2m 2>/dev/null | grep -q 'balayage des fenêtres de regroupement installé' && break
+  docker compose logs worker --since 2m 2>/dev/null | grep -q 'digest windows sweep installed' && break
   sleep 1
 done
 pass "worker redémarré au milieu de la rafale"

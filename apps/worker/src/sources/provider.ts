@@ -7,13 +7,13 @@ import {
 import { instanceLanguage } from '../language.js';
 
 /**
- * Le client du fournisseur d'une liaison — GitHub, GitLab, Gitea —, fabriqué depuis sa
- * connexion. `null` si la connexion n'existe plus.
+ * A link's provider client — GitHub, GitLab, Gitea —, built from its
+ * connection. `null` if the connection no longer exists.
  *
- * Les secrets sont déchiffrés à la construction et ne vivent qu'en mémoire,
- * dans le client. Chaque client est gardé tant que sa connexion n'a pas changé :
- * les jetons d'installation d'une GitHub App (une heure de vie) servent alors
- * d'un passage de polling à l'autre, au lieu d'être réclamés chaque minute.
+ * The secrets are decrypted at construction and only live in memory, in the
+ * client. Each client is kept as long as its connection has not changed: a
+ * GitHub App's installation tokens (one hour of life) then serve from one
+ * polling pass to the next, instead of being claimed every minute.
  */
 const cache = new Map<string, { key: string; provider: SourceProvider }>();
 
@@ -26,7 +26,7 @@ export async function providerForConnection(connectionId: string): Promise<{
     cache.delete(connectionId);
     return null;
   }
-  // La langue fait partie de la clé : changer celle de l'instance renouvelle le client.
+  // The language is part of the key: changing the instance's renews the client.
   const language = await instanceLanguage();
   const key = `${connection.provider}:${connection.updatedAt.getTime()}:${language}`;
   const cached = cache.get(connectionId);

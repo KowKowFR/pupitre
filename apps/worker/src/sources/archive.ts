@@ -10,18 +10,17 @@ import { providerForConnection } from './provider.js';
 import { exportArchiveChunks } from './stored-archive.js';
 
 /**
- * L'archive du commit d'un run, téléchargée juste avant l'étape `upload`.
+ * A run's commit archive, downloaded just before the `upload` step.
  *
- * Seulement si un service se construit : une spec qui ne référence que des
- * images n'a pas besoin du code — c'est le cas d'un dépôt dont la CI publie
- * déjà les images. L'archive vit dans un dossier temporaire du worker, effacé
- * dès le dépôt terminé ; elle ne reste nulle part.
+ * Only if a service is built: a spec that only references images does not need
+ * the code — the case of a repository whose CI already publishes the images.
+ * The archive lives in a temporary folder of the worker, erased as soon as the
+ * upload is done; it stays nowhere.
  */
 /**
- * Ce run apporte-t-il du code — celui d'un commit, ou une archive téléversée ?
- * La même réponse décide du téléchargement ci-dessous et, dès le rendu, de
- * l'endroit où les contextes de construction se résolvent
- * (`DriverContext.sourceInRelease`).
+ * Does this run bring code — a commit's, or an uploaded archive? The same answer
+ * decides the download below and, from the render on, where the build contexts
+ * resolve (`DriverContext.sourceInRelease`).
  */
 export function carriesSourceCode(deployment: Deployment, spec: AppSpec): boolean {
   const code =
@@ -31,8 +30,8 @@ export function carriesSourceCode(deployment: Deployment, spec: AppSpec): boolea
 }
 
 /**
- * L'archive téléversée d'un run, relue depuis la base : l'archive propre que
- * le worker a refaite à la réception, jamais les octets envoyés.
+ * A run's uploaded archive, read back from the database: the clean archive the
+ * worker remade on reception, never the uploaded bytes.
  */
 async function storedArchive(
   deployment: Deployment,

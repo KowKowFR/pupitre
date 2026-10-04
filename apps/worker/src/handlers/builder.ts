@@ -7,16 +7,15 @@ import { openTargetContext } from '../deploy/target-context.js';
 import { logger } from '../logger.js';
 
 /**
- * Le ménage des constructeurs d'images, une fois par heure.
+ * Cleaning up image builders, once an hour.
  *
- * Chaque cible est interrogée pour les runtimes qu'elle fait tourner et dont
- * le driver sait expirer un constructeur — K3s y pose un BuildKit, Docker
- * construit sans rien poser. Ce qui n'a pas servi depuis longtemps est retiré
- * par le driver ; la durée est la sienne. Aucune session n'est ouverte vers
- * une cible qui n'a rien à expirer.
+ * Each target is queried for the runtimes it runs and whose driver can expire a
+ * builder — K3s sets up a BuildKit there, Docker builds without setting anything
+ * up. What has not been used for a long time is removed by the driver; the
+ * duration is its own. No session is opened to a target with nothing to expire.
  *
- * Une cible injoignable ne bloque pas les autres : elle est nommée dans le
- * rapport, et le prochain passage réessaie.
+ * An unreachable target does not block the others: it is named in the report,
+ * and the next pass retries.
  */
 export type BuilderPruneJobResult = {
   targets: number;
@@ -41,10 +40,7 @@ export async function handleBuilderPrune(job: Job): Promise<BuilderPruneJobResul
       opened = await openTargetContext(target.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      log.warn(
-        { targetId: target.id, err: error },
-        'cible injoignable pour le ménage du constructeur',
-      );
+      log.warn({ targetId: target.id, err: error }, 'target unreachable for the builder cleanup');
       result.failures.push({ target: target.name, runtime: null, error: message });
       continue;
     }
@@ -58,10 +54,7 @@ export async function handleBuilderPrune(job: Job): Promise<BuilderPruneJobResul
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          log.warn(
-            { targetId: target.id, runtime, err: error },
-            'ménage du constructeur impossible',
-          );
+          log.warn({ targetId: target.id, runtime, err: error }, 'builder cleanup failed');
           result.failures.push({ target: target.name, runtime, error: message });
           continue;
         }
@@ -84,7 +77,7 @@ export async function handleBuilderPrune(job: Job): Promise<BuilderPruneJobResul
 
   log.info(
     { targets: result.targets, removed: result.removed.length, failures: result.failures.length },
-    'ménage des constructeurs terminé',
+    'builders cleanup completed',
   );
   return result;
 }

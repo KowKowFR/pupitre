@@ -8,45 +8,42 @@ import { logger } from '../logger.js';
 import { instanceLanguage } from '../language.js';
 
 /**
- * ⟵ **LA COUTURE** ⟶
+ * ⟵ **THE SEAM** ⟶
  *
- * Le seul endroit du chantier où un franchissement de seuil devient un
- * message. Le balayage constate, la règle décide, cette fonction raconte.
+ * The only place in this work where a threshold crossing becomes a message. The
+ * sweep observes, the rule decides, this function tells.
  *
- * ── Pourquoi ça passe par `logAudit()` et rien d'autre ──────────────────────
- * Règle 6 du projet : point d'entrée unique. Et ce n'est pas qu'une question de
- * discipline — `logAudit()` porte l'observateur qui reconnaît une action au
- * catalogue d'événements et enfile la distribution vers les canaux abonnés
- * (SMTP, Telegram, Discord, webhook). Écrire l'audit **est** donc l'émission :
- * il n'y a aucun appel à la fabrique de canaux ici, aucun import de
- * `@pupitre/core/notifications`, exactement comme la supervision de sites
- * (`monitors/notify.ts`). Le raccord au catalogue tient dans deux entrées de
- * table, côté `packages/core/src/notifications/events.ts` — hors périmètre de ce
- * chantier, et volontairement laissé à faire.
+ * ── Why it goes through `logAudit()` and nothing else ───────────────────────
+ * Rule 6 of the project: a single entry point. And it is not only a matter of
+ * discipline — `logAudit()` carries the observer that recognizes an action in the
+ * events catalog and queues the delivery to the subscribed channels (SMTP,
+ * Telegram, Discord, webhook). Writing the audit **is** therefore the emission:
+ * there is no call to the channels factory here, no import of
+ * `@pupitre/core/notifications`, exactly like site monitoring
+ * (`monitors/notify.ts`). The connection to the catalog fits in two table
+ * entries, on the `packages/core/src/notifications/events.ts` side — out of this
+ * work's scope, and deliberately left to do.
  *
- * ── Ce que cette charge utile doit contenir ─────────────────────────────────
- * Ce qui n'y figure pas ne pourra pas être dit à l'opérateur. D'où :
- *   — `metric`, `value`, `limitPercent` : de quoi écrire « disque à 92 %,
- *     au-dessus de 90 % » sans aller relire la base ;
- *   — `peakValue` et `durationSeconds` au rétablissement : un résumé qui dit
- *     « rentré dans l'ordre après 3 h, 97 % au pire » vaut cent fois un
- *     compteur ;
- *   — `targetName` : un identifiant UUID dans un message Telegram n'aide
- *     personne.
+ * ── What this payload must contain ──────────────────────────────────────────
+ * What is not in it cannot be told to the operator. Hence:
+ *   — `metric`, `value`, `limitPercent`: enough to write "disk at 92%, above
+ *     90%" without reading the database again;
+ *   — `peakValue` and `durationSeconds` at recovery: a digest saying "back to
+ *     normal after 3 h, 97% at worst" is worth a hundred times a counter;
+ *   — `targetName`: a UUID in a Telegram message helps nobody.
  *
- * ── Les deux règles anti-déluge, et où elles vivent ─────────────────────────
- *   1. **Le franchissement est l'événement, pas l'état.** Cette fonction n'est
- *      appelée qu'aux bascules — `evaluateThresholds()` ne rend rien tant que
- *      rien ne bascule. Une machine à 92 % de disque pendant trois jours produit
- *      une entrée, pas 864.
- *   2. **Une seule fois, structurellement.** Garanti en amont par l'index unique
- *      partiel sur les dépassements ouverts : pas deux épisodes ouverts sur la
- *      même machine et la même métrique, donc pas deux messages — même si le
- *      balayage et un « Relever » manuel concluaient à la même seconde.
+ * ── The two anti-flood rules, and where they live ───────────────────────────
+ *   1. **The crossing is the event, not the state.** This function is only
+ *      called at flips — `evaluateThresholds()` returns nothing as long as
+ *      nothing flips. A machine at 92% disk for three days produces one entry,
+ *      not 864.
+ *   2. **Only once, structurally.** Guaranteed upstream by the partial unique
+ *      index on open breaches: no two open episodes on the same machine and the
+ *      same metric, hence no two messages — even if the sweep and a manual "Read
+ *      now" concluded in the same second.
  *
- * On annonce **aussi le retour à la normale**. Une alerte sans son pendant
- * oblige à aller vérifier à la main, ce qui est exactement ce qu'on voulait
- * éviter.
+ * We announce **the return to normal too**. An alert without its counterpart
+ * forces a manual check, which is exactly what we wanted to avoid.
  */
 export async function notifyBreachTransition(
   target: { id: string; name: string },
@@ -55,7 +52,7 @@ export async function notifyBreachTransition(
 ): Promise<void> {
   const definition = HOST_METRIC_CATALOG[transition.metric];
   const breach = transition.breach;
-  // L'alerte est composée ici, une fois : dans la langue de l'instance.
+  // The alert is composed here, once: in the instance's language.
   const language = await instanceLanguage();
 
   const durationSeconds = breach.resolvedAt
@@ -74,8 +71,8 @@ export async function notifyBreachTransition(
       targetName: target.name,
       metric: transition.metric,
       metricLabel: definition.label(language),
-      // La phrase toute faite : « disque /opt/bootstrap à 92.4 % ». Le catalogue
-      // la compose, parce qu'il est le seul à savoir ce que la valeur signifie.
+      // The ready-made sentence: "disk /opt/bootstrap at 92.4%". The catalog composes
+      // it, because it is the only one that knows what the value means.
       detail: definition.describe(transition.value, sample, language),
       value: transition.value,
       limitPercent: breach.limitPercent,
@@ -85,8 +82,8 @@ export async function notifyBreachTransition(
       startedAt: breach.startedAt.toISOString(),
       resolvedAt: breach.resolvedAt?.toISOString() ?? null,
       durationSeconds,
-      // `threshold_disabled` : l'épisode s'est refermé parce qu'on a coupé le
-      // seuil, pas parce que la machine va mieux. Le dire évite un faux soulagement.
+      // `threshold_disabled`: the episode closed because the threshold was turned off,
+      // not because the machine is better. Saying so avoids false relief.
       reason: transition.reason,
       thresholdOrigin: transition.threshold.origin,
     },
@@ -101,6 +98,6 @@ export async function notifyBreachTransition(
       limitPercent: breach.limitPercent,
       reason: transition.reason,
     },
-    transition.kind === 'opened' ? 'seuil franchi' : 'seuil de nouveau respecté',
+    transition.kind === 'opened' ? 'threshold crossed' : 'threshold met again',
   );
 }

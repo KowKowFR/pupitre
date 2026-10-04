@@ -25,18 +25,18 @@ import { workerSay } from '../messages.js';
 import { applyRetention, openStore, storePiece } from './shared.js';
 
 /**
- * Sauvegarder la base du panel : `pg_dump` au format personnalisé (compressé,
- * restaurable table par table), chiffré, déposé.
+ * Backing up the panel's database: `pg_dump` in custom format (compressed,
+ * restorable table by table), encrypted, placed.
  *
- * Ce qu'elle contient : tout ce que Pupitre sait — applications et versions,
- * cibles et leurs clés SSH (chiffrées), secrets (chiffrés), comptes, journal,
- * supervision, discussion. Ce qu'elle ne contient pas : `MASTER_KEY`, sans
- * laquelle ni ces secrets ni les sauvegardes elles-mêmes ne se relisent.
+ * What it contains: everything Pupitre knows — applications and versions,
+ * targets and their SSH keys (encrypted), secrets (encrypted), accounts, log,
+ * monitoring, chat. What it does not contain: `MASTER_KEY`, without which
+ * neither these secrets nor the backups themselves can be read.
  */
 
 export const PANEL_DUMP_FILE = 'panel.dump.pupb';
 
-/** Les variables `PG*` tirées de `DATABASE_URL` : le mot de passe ne passe pas par `ps`. */
+/** The `PG*` variables drawn from `DATABASE_URL`: the password does not go through `ps`. */
 function pgEnvironment(databaseUrl: string): NodeJS.ProcessEnv {
   const url = new URL(databaseUrl);
   return {
@@ -52,7 +52,7 @@ function pgEnvironment(databaseUrl: string): NodeJS.ProcessEnv {
   };
 }
 
-/** Lance un outil PostgreSQL et branche sa sortie ; échoue avec la fin de stderr. */
+/** Runs a PostgreSQL tool and plugs its output; fails with the end of stderr. */
 export function runPgTool(
   command: string,
   args: string[],
@@ -71,9 +71,9 @@ export function runPgTool(
     const flows: Promise<void>[] = [];
     if (streams.stdout && child.stdout) flows.push(pipeline(child.stdout, streams.stdout));
     if (streams.stdin && child.stdin) flows.push(pipeline(streams.stdin, child.stdin));
-    // L'échec d'un tube est lu à la fin du processus (`close`). Sans processus
-    // — un binaire absent —, cette fin peut ne jamais venir : un rejet resté
-    // sans lecteur ferait alors tomber le worker entier.
+    // A pipe's failure is read at the process's end (`close`). Without a process — a
+    // missing binary —, that end may never come: a rejection left without a reader
+    // would then bring the whole worker down.
     for (const flow of flows) flow.catch(() => undefined);
     child.on('error', (error) =>
       reject(
@@ -144,10 +144,10 @@ export async function backupPanel(request: {
       backupId = id;
     }
     const record = await getBackup(backupId);
-    if (!record) throw new Error('la ligne de sauvegarde a disparu');
+    if (!record) throw new Error('the backup row has disappeared');
 
-    // Format personnalisé : déjà compressé, et pg_restore sait en extraire une
-    // seule table — de quoi rattraper une ligne effacée sans tout remplacer.
+    // Custom format: already compressed, and pg_restore can extract a single table
+    // from it — enough to recover an erased row without replacing everything.
     const dump = await storePiece(
       opened.store,
       `${record.location}/${PANEL_DUMP_FILE}`,
@@ -178,7 +178,7 @@ export async function backupPanel(request: {
       Readable.from([await encryptBuffer(Buffer.from(JSON.stringify(manifest)))]),
     );
     await finishBackupRecord(backupId, { status: 'success', manifest, bytes: dump.bytes });
-    log.info({ bytes: dump.bytes }, 'base du panel sauvegardée');
+    log.info({ bytes: dump.bytes }, 'panel database backed up');
     await applyRetention(
       opened.store,
       { kind: 'panel' },
@@ -189,7 +189,7 @@ export async function backupPanel(request: {
     return { status: 'success', backupId, bytes: dump.bytes, error: null };
   } catch (error) {
     const message = errorMessage(error);
-    log.error({ err: error }, 'sauvegarde du panel en échec');
+    log.error({ err: error }, 'panel backup failed');
     if (backupId) {
       await finishBackupRecord(backupId, { status: 'failed', error: message });
       const record = await getBackup(backupId);

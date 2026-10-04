@@ -5,36 +5,35 @@ import { captureEnabled } from './capture.js';
 import { allowedCidrs } from './policy.js';
 
 /**
- * Le mandataire par lequel le navigateur de capture sort — cycle de vie.
+ * The proxy through which the capture browser goes out — life cycle.
  *
- * Ouvert **seulement** quand la capture est configurée : une instance qui n'en
- * veut pas n'ouvre aucun port supplémentaire. Sa raison d'être et la mesure qui
- * l'a rendu nécessaire sont dans `packages/core/src/capture/egress.ts` — en
- * deux lignes : deux réseaux Docker distincts ne sont **pas** isolés l'un de
- * l'autre, seul `internal: true` l'est, et un réseau interne coupe aussi
- * l'Internet. Le mandataire est la porte, et la garde SSRF en est le portier.
+ * Opened **only** when capture is configured: an instance that wants none opens
+ * no extra port. Its reason for being and the measurement that made it necessary
+ * are in `packages/core/src/capture/egress.ts` — in two lines: two distinct
+ * Docker networks are **not** isolated from each other, only `internal: true`
+ * is, and an internal network also cuts the Internet. The proxy is the door, and
+ * the SSRF guard is its doorkeeper.
  */
 
 let egress: CaptureEgress | null = null;
 
 export async function startCaptureEgress(): Promise<void> {
   if (!captureEnabled()) {
-    logger.debug('capture désactivée — aucun mandataire de sortie ouvert');
+    logger.debug('capture disabled — no egress proxy opened');
     return;
   }
   egress = await createCaptureEgress({
     allowlist: allowedCidrs(),
     port: env.MONITOR_CAPTURE_EGRESS_PORT,
     onBlocked: (target, reason) => {
-      // Le refus est **la** trace qui compte : c'est une page supervisée qui a
-      // tenté d'atteindre autre chose que sa propre origine publique. Jamais en
-      // silence.
-      logger.warn({ target, reason }, 'sortie du navigateur de capture refusée');
+      // The refusal is **the** trace that matters: a monitored page tried to reach
+      // something other than its own public origin. Never silently.
+      logger.warn({ target, reason }, 'capture browser egress refused');
     },
   });
   logger.info(
     { port: egress.port, cdp: env.MONITOR_CAPTURE_CDP_URL },
-    'mandataire de sortie du navigateur de capture ouvert',
+    'capture browser egress proxy open',
   );
 }
 

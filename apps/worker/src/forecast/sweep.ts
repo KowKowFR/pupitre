@@ -28,24 +28,24 @@ import { logger } from '../logger.js';
 import { getRedis } from '../redis.js';
 
 /**
- * Le balayage des prévisions : toutes les 30 minutes, il relit les séries que
- * la base garde déjà et en tire ce qui va casser — un disque qui se remplit,
- * une mémoire qui fuit, une charge qui monte, une sonde qui ralentit ou qui
- * bascule, un certificat que personne n'a renouvelé, une sauvegarde qui ne
- * tourne plus, des déploiements qui échouent en série.
+ * The forecasts sweep: every 30 minutes, it reads again the series the database
+ * already keeps and draws from them what is going to break — a disk filling up,
+ * a leaking memory, a rising load, a probe slowing down or flipping, a
+ * certificate nobody renewed, a backup that no longer runs, deployments failing
+ * one after the other.
  *
- * Le calcul est dans `@pupitre/core/forecast` (pur, testé). Ici : lire,
- * appeler, accorder les épisodes. **Seuls l'ouverture et la fermeture d'un
- * épisode s'écrivent au journal** (`forecast.raised`, `forecast.cleared`) —
- * c'est l'ouverture qui part en notification, une fois, pas à chaque balayage.
+ * The computation is in `@pupitre/core/forecast` (pure, tested). Here: read,
+ * call, match the episodes. **Only an episode's opening and closing are written
+ * to the log** (`forecast.raised`, `forecast.cleared`) — it is the opening that
+ * goes out as a notification, once, not at each sweep.
  *
- * Comme les autres balayages : pas de ligne en base pour l'horloge, un verrou
- * Redis pour qu'un seul tourne à la fois.
+ * Like the other sweeps: no database row for the clock, a Redis lock so that
+ * only one runs at a time.
  */
 
-/** Nom de la tâche. Un seul producteur et un seul consommateur, ici : il reste local. */
+/** Job name. A single producer and a single consumer, here: it stays local. */
 export const FORECAST_SWEEP_JOB = 'forecast:sweep' as const;
-/** Clé du scheduler BullMQ — sans deux-points. */
+/** BullMQ scheduler key — without a colon. */
 export const FORECAST_SWEEP_SCHEDULER_KEY = 'forecast-sweep';
 export const FORECAST_SWEEP_EVERY_MS = 30 * 60_000;
 
@@ -61,7 +61,10 @@ export type ForecastSweepResult = {
   cleared: number;
 };
 
-/** Des moyennes horaires aux moyennes journalières : la charge respire chaque jour, la tendance se lit d'un jour à l'autre. */
+/**
+ * From hourly averages to daily averages: the load breathes every day, the trend
+ * reads from one day to the next.
+ */
 function dailyMeans(points: readonly SeriesPoint[]): SeriesPoint[] {
   const days = new Map<number, { sum: number; count: number }>();
   for (const point of points) {
@@ -73,13 +76,13 @@ function dailyMeans(points: readonly SeriesPoint[]): SeriesPoint[] {
   }
   return (
     [...days.entries()]
-      // Un jour mesuré à peine ne dit pas sa moyenne.
+      // A barely measured day does not tell its average.
       .filter(([, entry]) => entry.count >= 6)
       .map(([t, entry]) => ({ t: t + DAY_MS / 2, v: entry.sum / entry.count }))
   );
 }
 
-/** Tout ce que le balayage constate à l'instant `now`. */
+/** Everything the sweep observes at instant `now`. */
 export async function collectForecasts(now: number = Date.now()): Promise<Forecast[]> {
   const [targets, monitors, routes, windows, freshness, deploys] = await Promise.all([
     listTargets(),
@@ -102,8 +105,8 @@ export async function collectForecasts(now: number = Date.now()): Promise<Foreca
     ]);
     const sizeGib = series.diskSizeKb === null ? null : series.diskSizeKb / 1024 / 1024;
     push(forecastDisk(subject, series.disk, now, sizeGib));
-    // La mémoire : les trois derniers jours seulement — une fuite se voit vite,
-    // et un redémarrage d'il y a une semaine n'a rien à dire de la pente d'aujourd'hui.
+    // Memory: the last three days only — a leak shows quickly, and a restart a week
+    // ago has nothing to say about today's slope.
     push(
       forecastMemory(
         subject,
@@ -125,7 +128,8 @@ export async function collectForecasts(now: number = Date.now()): Promise<Foreca
   }
 
   for (const monitor of monitors) {
-    // Une sonde suspendue ne mesure plus rien : elle ne prévoit plus rien non plus.
+    // A paused probe no longer measures anything: it no longer forecasts anything
+    // either.
     if (!monitor.enabled) continue;
     const window = windows.get(monitor.id);
     if (!window) continue;
@@ -204,9 +208,9 @@ export async function sweepForecasts(now: number = Date.now()): Promise<Forecast
 
 export async function handleForecastSweep(job: Job): Promise<ForecastSweepResult> {
   const result = await sweepForecasts();
-  // Un balayage sans changement est le cas normal : il ne s'écrit pas.
+  // A sweep without a change is the normal case: it is not written.
   if (result.opened > 0 || result.cleared > 0) {
-    logger.info({ jobId: job.id, ...result }, 'balayage des prévisions terminé');
+    logger.info({ jobId: job.id, ...result }, 'forecasts sweep completed');
   }
   return result;
 }

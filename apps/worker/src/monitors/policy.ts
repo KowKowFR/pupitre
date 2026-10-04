@@ -3,12 +3,12 @@ import { env } from '../env.js';
 import { logger } from '../logger.js';
 
 /**
- * La liste d'autorisation SSRF du worker, lue une fois.
+ * The worker's SSRF allow list, read once.
  *
- * Elle vient de l'environnement, pas des paramètres d'instance ni d'une
- * permission — le raisonnement complet est dans `packages/core/src/monitoring.ts`.
- * En résumé : ouvrir une plage interne à la supervision est une décision de
- * déploiement, prise par qui tient le `.env`, pas par qui clique dans l'écran.
+ * It comes from the environment, not from the instance settings or a permission
+ * — the complete reasoning is in `packages/core/src/monitoring.ts`. In short:
+ * opening an internal range to monitoring is a deployment decision, made by
+ * whoever holds the `.env`, not by whoever clicks on the screen.
  */
 let cached: Cidr[] | null = null;
 
@@ -18,7 +18,7 @@ export function allowedCidrs(): readonly Cidr[] {
     if (cached.length > 0) {
       logger.info(
         { cidrs: cached.map((cidr) => cidr.text) },
-        'plages internes autorisées à la supervision',
+        'internal ranges allowed to monitoring',
       );
     }
   }

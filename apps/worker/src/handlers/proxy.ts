@@ -42,15 +42,15 @@ import { verifyTargetLink } from '../proxy/link.js';
 import { applyCoupleRoutes, probeCoupleRoutes } from '../proxy/routes.js';
 
 /**
- * Les reverse proxies, côté worker : regarder ce qu'une machine a déjà,
- * installer, tester, retirer, et poser les domaines d'une application sans la
- * redéployer. Plus la sonde périodique des domaines.
+ * Reverse proxies, worker side: look at what a machine already has, install,
+ * test, remove, and set an application's domains without redeploying it. Plus
+ * the domains' periodic probe.
  *
- * Aucune de ces tâches ne sait quel proxy elle pilote : elle demande au
- * provider du genre enregistré, comme le pipeline demande au driver.
+ * None of these jobs knows which proxy it drives: it asks the provider of the
+ * registered kind, as the pipeline asks the driver.
  */
 
-/** Ce que la machine porte déjà, et ce que Pupitre pourrait y installer. */
+/** What the machine already carries, and what Pupitre could install there. */
 export async function handleProxyDetect(job: Job): Promise<{
   detections: ProxyDetection[];
   installOptions: ProxyInstallOption[];
@@ -60,8 +60,8 @@ export async function handleProxyDetect(job: Job): Promise<{
   const opened = await openTargetContext(data.targetId);
   const lines: string[] = [];
   try {
-    // Chaque proxy que Pupitre sait piloter regarde à son tour : ce qui est
-    // déjà là, et ce qu'il pourrait installer.
+    // Each proxy Pupitre can drive looks in turn: what is already there, and what it
+    // could install.
     const detections: ProxyDetection[] = [];
     const installOptions: ProxyInstallOption[] = [];
     for (const kind of implementedProxyKinds()) {
@@ -112,9 +112,9 @@ export async function handleProxyCheck(job: Job): Promise<ProxyCheck | null> {
 }
 
 /**
- * Installer (ou régler) le proxy. La ligne de la connexion existe déjà, en
- * `installing` : l'écran la voit avancer. Elle finit `ok`, testée, ou
- * `failed`, avec la raison.
+ * Install (or configure) the proxy. The connection's row already exists, as
+ * `installing`: the screen sees it progress. It ends `ok`, tested, or `failed`,
+ * with the reason.
  */
 export async function handleProxyInstall(job: Job): Promise<{ ok: boolean; error: string | null }> {
   const data = proxyInstallJobDataSchema.parse(job.data);
@@ -132,7 +132,7 @@ export async function handleProxyInstall(job: Job): Promise<{ ok: boolean; error
       error: null,
       config: config as Record<string, unknown>,
       managed: true,
-      // Le nom tel que la configuration installée le dit : « Traefik du cluster »…
+      // The name as the installed configuration says it: "cluster Traefik"…
       name: describeProxy(proxy.kind, config).split(' · ')[0] ?? proxy.name,
     });
     await logAudit({
@@ -197,9 +197,9 @@ export async function handleProxyRemove(job: Job): Promise<{ removed: boolean }>
 }
 
 /**
- * « Appliquer » : les domaines changés d'une application, posés sur le proxy
- * sans redéploiement. Rien ne tourne sur la cible : ils attendront le prochain
- * déploiement, qui les posera de lui-même.
+ * "Apply": an application's changed domains, set on the proxy without a
+ * redeploy. Nothing runs on the target: they will wait for the next deployment,
+ * which will set them by itself.
  */
 export async function handleProxyApply(job: Job): Promise<{
   skipped: string | null;
@@ -234,9 +234,9 @@ export async function handleProxyApply(job: Job): Promise<{
 }
 
 /**
- * La sonde périodique : chaque domaine, à travers son proxy. Un proxy ouvert
- * une fois pour tous les domaines qu'il sert — une session vers sa machine, ou
- * une entrée dans son API.
+ * The periodic probe: each domain, through its proxy. A proxy opened once for
+ * all the domains it serves — a session to its machine, or an entry into its
+ * API.
  */
 export async function handleRoutesCheck(job: Job): Promise<{ checked: number; failing: number }> {
   const scope = routesCheckJobDataSchema.parse(job.data ?? {});
@@ -245,7 +245,7 @@ export async function handleRoutesCheck(job: Job): Promise<{ checked: number; fa
       (!scope.applicationId || couple.applicationId === scope.applicationId) &&
       (!scope.targetId || couple.targetId === scope.targetId),
   );
-  // Les couples, par proxy qui les sert — le leur, ou celui d'une liaison.
+  // The pairs, per proxy serving them — their own, or a link's.
   const byProxy = new Map<
     string,
     { proxy: ProxyView; couples: Array<{ applicationId: string; targetId: string }> }
@@ -276,8 +276,8 @@ export async function handleRoutesCheck(job: Job): Promise<{ checked: number; fa
         failing += result.failing;
       }
     } catch (error) {
-      // Un proxy injoignable n'arrête pas la tournée : les autres sont sondés.
-      logger.warn({ proxyId: proxy.id, err: error }, 'sonde des domaines impossible par ce proxy');
+      // An unreachable proxy does not stop the round: the others are probed.
+      logger.warn({ proxyId: proxy.id, err: error }, 'domains probe failed through this proxy');
     } finally {
       if (open) await open.close();
     }
@@ -286,9 +286,9 @@ export async function handleRoutesCheck(job: Job): Promise<{ checked: number; fa
 }
 
 /**
- * « Tester la liaison » : la machine du proxy ouvre-t-elle vraiment une
- * connexion vers celle-ci, sur un port de la plage des applications ? Voir
- * `checkReach()` — le résultat est retenu sur la liaison.
+ * "Test the link": does the proxy's machine really open a connection to this
+ * one, on a port of the applications' range? See `checkReach()` — the result is
+ * kept on the link.
  */
 export async function handleProxyLinkCheck(job: Job): Promise<{
   ok: boolean | null;

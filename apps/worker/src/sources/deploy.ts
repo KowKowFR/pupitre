@@ -36,17 +36,17 @@ import {
 } from './status.js';
 
 /**
- * Déployer un commit d'un dépôt lié sur les cibles de la liaison.
+ * Deploying a linked repository's commit on the link's targets.
  *
- * Un seul chemin, que la décision vienne du polling (`auto`), d'un clic sur
- * « Déployer ce commit » (`manual`) ou de la validation d'un commit en attente
- * (`proposal`). Il fait ce que fait `POST /api/deployments`, pour chaque cible :
- * la politique de scan de l'instance s'applique, le preflight fait foi sur le
- * runtime, le run part en file et s'écrit au journal — avec, en plus, le
- * dépôt, la branche et le commit exact.
+ * A single path, whether the decision comes from polling (`auto`), a click on
+ * "Deploy this commit" (`manual`) or the approval of a pending commit
+ * (`proposal`). It does what `POST /api/deployments` does, for each target: the
+ * instance's scan policy applies, the preflight is authoritative on the runtime,
+ * the run goes into the queue and is written to the log — with, in addition, the
+ * repository, the branch and the exact commit.
  *
- * Le catalogue suit le dépôt : l'AppSpec de l'application devient celle du
- * commit. C'est elle que la fiche montre et qu'un prochain commit comparera.
+ * The catalog follows the repository: the application's AppSpec becomes the
+ * commit's. It is the one the record shows and a next commit will compare.
  */
 export type SourceDeployResult = {
   created: Array<{ id: string; number: number; targetName: string }>;
@@ -54,11 +54,11 @@ export type SourceDeployResult = {
 };
 
 /**
- * Où part un commit de cette liaison, à cet instant :
- *   targets  les cibles de la liaison ;
- *   running  là où l'application est en service — redéployer ce qui tourne,
- *            ne rien installer ailleurs ;
- *   none     nulle part : on la déploie à la main, où l'on veut.
+ * Where a commit of this link goes, at this instant:
+ *   targets  the link's targets;
+ *   running  where the application is in service — redeploy what runs, install
+ *            nothing elsewhere;
+ *   none     nowhere: one deploys it by hand, wherever one wants.
  */
 export async function bindingsFor(source: ApplicationSourceView): Promise<SourceTarget[]> {
   if (source.deployTo === 'targets') return source.targets;
@@ -79,16 +79,16 @@ export async function bindingsFor(source: ApplicationSourceView): Promise<Source
 }
 
 /**
- * L'application prend la version d'un commit, sans être déployée : son AppSpec
- * devient celle du commit, et c'est son code qu'un déploiement à la main
- * construira. Le commit le dit sur GitHub.
+ * The application takes a commit's version, without being deployed: its AppSpec
+ * becomes the commit's, and it is its code a manual deployment will build. The
+ * commit says so on GitHub.
  */
 export async function syncFromSource(input: {
   source: ApplicationSourceView;
   sha: string;
   spec: AppSpec;
   trigger: 'auto' | 'manual' | 'proposal';
-  /** L'application devait être redéployée là où elle tourne, mais ne tourne nulle part. */
+  /** The application was to be redeployed where it runs, but runs nowhere. */
   idle?: boolean;
   proposalId?: string | null;
   actorId: string | null;
@@ -96,7 +96,7 @@ export async function syncFromSource(input: {
 }): Promise<void> {
   const { source, sha, spec } = input;
   const application = await getApplication(source.applicationId);
-  if (!application) throw new Error(`application « ${source.applicationId} » introuvable`);
+  if (!application) throw new Error(`application "${source.applicationId}" not found`);
   await updateApplication(application.id, { appSpec: spec });
   await markSourceSynced(source.id, sha);
   await supersedePendingProposals(source.id, input.proposalId ?? null);
@@ -125,7 +125,7 @@ export async function syncFromSource(input: {
   });
   logger.info(
     { repository: source.repository, sha },
-    'version prise depuis un dépôt, sans déploiement',
+    'version taken from a repository, without deployment',
   );
 }
 
@@ -135,29 +135,29 @@ export async function deployFromSource(input: {
   spec: AppSpec;
   commit: SourceCommit | null;
   trigger: 'auto' | 'manual' | 'proposal';
-  /** Où déployer : `bindingsFor(source)` au moment de la décision. */
+  /** Where to deploy: `bindingsFor(source)` at decision time. */
   bindings: SourceTarget[];
-  /** La proposition validée, qui ne doit pas être rendue caduque par ce déploiement. */
+  /** The approved proposal, which must not be made moot by this deployment. */
   proposalId?: string | null;
   actorId: string | null;
   ip: string | null;
 }): Promise<SourceDeployResult> {
   const { source, sha, spec, commit } = input;
   const application = await getApplication(source.applicationId);
-  if (!application) throw new Error(`application « ${source.applicationId} » introuvable`);
+  if (!application) throw new Error(`application "${source.applicationId}" not found`);
 
   await updateApplication(application.id, { appSpec: spec });
   await markSourceSynced(source.id, sha);
 
   const settings = await getAppSettingsValue();
-  // La politique de l'instance, puis le réglage propre à l'application.
+  // The instance's policy, then the application's own setting.
   const scanConfig = withApplicationScanPolicy(
     scanConfigFromSettings(settings.security),
     applicationScanPolicyOf(application),
   );
   const result: SourceDeployResult = { created: [], skipped: [] };
-  // L'adresse du dépôt chez sa forge : le déploiement la garde, et le lien
-  // vers son commit en découle — même si la liaison disparaît ensuite.
+  // The repository's address at its forge: the deployment keeps it, and the link
+  // to its commit follows from it — even if the link disappears afterwards.
   const connection = await getSourceConnectionById(source.connectionId);
   const repositoryUrl = connection ? sourceRepositoryUrl(connection, source.repository) : null;
   const say = workerSay(await instanceLanguage());
@@ -171,7 +171,7 @@ export async function deployFromSource(input: {
       });
       continue;
     }
-    // Le preflight fait foi, comme pour un déploiement lancé à la main.
+    // The preflight is authoritative, as for a manually started deployment.
     if (!usableRuntimes(target.runtimesAvailable).includes(binding.runtime)) {
       result.skipped.push({
         targetName: target.name,
@@ -239,17 +239,17 @@ export async function deployFromSource(input: {
     result.created.push({ id: deployment.id, number: deployment.number, targetName: target.name });
     logger.info(
       { deploymentId: deployment.id, repository: source.repository, sha, trigger: input.trigger },
-      'déploiement enfilé depuis un dépôt',
+      'deployment queued from a repository',
     );
   }
 
-  // Un commit plus récent vient de partir : les précédents en attente n'ont
-  // plus d'objet.
+  // A more recent commit just went out: the previous pending ones no longer have a
+  // purpose.
   await supersedePendingProposals(source.id, input.proposalId ?? null);
   return result;
 }
 
-/** Les cibles écartées, en une phrase pour la liaison. `null` s'il n'y en a pas. */
+/** The discarded targets, in one sentence for the link. `null` if there are none. */
 export function skippedSummary(result: SourceDeployResult): string | null {
   if (result.skipped.length === 0) return null;
   return result.skipped.map((entry) => `${entry.targetName} : ${entry.reason}`).join(' · ');

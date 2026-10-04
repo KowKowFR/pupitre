@@ -37,22 +37,21 @@ import { providerForConnection } from '../sources/provider.js';
 import { panelUrl, reportCommitStatus, statusLanguage, statusText } from '../sources/status.js';
 
 /**
- * Les dépôts liés, côté worker.
+ * Linked repositories, worker side.
  *
- * `source:poll` pose chaque minute la même question à chaque liaison active :
- * « le dernier commit de la branche a-t-il changé ? ». La réponse coûte un
- * appel HTTP, et presque rien quand elle est « non » (ETag → 304). Quand elle
- * est « oui », dans l'ordre :
+ * `source:poll` asks each active link the same question every minute: "has the
+ * branch's last commit changed?". The answer costs one HTTP call, and almost
+ * nothing when it is "no" (ETag → 304). When it is "yes", in order:
  *
- *   1. le commit concerne-t-il l'application ? (chemins surveillés, monorepo)
- *   2. son `pupitre.json` est-il valable ?
- *   3. le commit est **réservé** — une écriture conditionnelle en base : deux
- *      passages qui se chevauchent ne déploient pas deux fois ;
- *   4. selon le mode de la liaison, il part, ou il attend une validation.
+ *   1. does the commit concern the application? (watched paths, monorepo)
+ *   2. is its `pupitre.json` valid?
+ *   3. the commit is **reserved** — a conditional write in the database: two
+ *      overlapping passes do not deploy twice;
+ *   4. depending on the link's mode, it goes out, or it waits for approval.
  *
- * La toute première vérification d'une liaison ne déploie rien : elle note le
- * commit en tête. Lier un dépôt ne doit pas redéployer ce qui tourne déjà —
- * « Déployer ce commit » est là pour ça.
+ * A link's very first check deploys nothing: it notes the head commit. Linking a
+ * repository must not redeploy what already runs — "Deploy this commit" is there
+ * for that.
  */
 
 function repoOf(source: ApplicationSourceView): RepositoryRef {
@@ -63,7 +62,7 @@ type ReadSpec =
   | { ok: true; spec: AppSpec }
   | { ok: false; issues: string[] };
 
-/** Le `pupitre.json` du commit, validé, au nom de l'application liée. */
+/** The commit's `pupitre.json`, validated, under the linked application's name. */
 async function readSpec(
   provider: SourceProvider,
   source: ApplicationSourceView,
@@ -81,7 +80,7 @@ async function readSpec(
   return parseSourceSpec(content, applicationSlug, language);
 }
 
-/** Un `pupitre.json` refusé : écrit sur la liaison, au journal, et sur le commit. */
+/** A refused `pupitre.json`: written on the link, in the log, and on the commit. */
 async function rejectCommit(
   source: ApplicationSourceView,
   sha: string,
@@ -110,8 +109,8 @@ async function rejectCommit(
 }
 
 /**
- * Un commit neuf et pertinent : l'application le prend sans être déployée, il
- * part sur ses cibles, ou il attend un humain.
+ * A new and relevant commit: the application takes it without being deployed, it
+ * goes to its targets, or it waits for a human.
  */
 async function takeCommit(
   provider: SourceProvider,
@@ -120,7 +119,7 @@ async function takeCommit(
   spec: AppSpec,
   current: AppSpec | null,
 ): Promise<'synced' | 'deployed' | 'proposed'> {
-  // « Mettre à jour seulement » : rien ne part, on déploie où l'on veut.
+  // "Update only": nothing goes out, one deploys wherever one wants.
   if (source.deployTo === 'none') {
     await syncFromSource({ source, sha, spec, trigger: 'auto', actorId: null, ip: null });
     await recordSourceCheck(source.id, { error: null });
@@ -170,8 +169,8 @@ async function takeCommit(
 
   const bindings = await bindingsFor(source);
   if (bindings.length === 0) {
-    // « Là où elle tourne », et elle ne tourne nulle part : la version est
-    // prise, le prochain déploiement à la main l'emportera.
+    // "Where it runs", and it runs nowhere: the version is taken, the next manual
+    // deployment will carry it.
     await syncFromSource({
       source,
       sha,
@@ -205,9 +204,9 @@ async function pollSource(
 ): Promise<string> {
   const head = await provider.resolveHead(repoOf(source), source.branch, force ? null : source.lastEtag);
   if (!head.changed || head.sha === source.lastSeenSha) {
-    // GitHub a répondu : une erreur de connexion d'avant est levée. Un
-    // pupitre.json refusé, lui, le reste tant que la tête n'a pas changé.
-    // Dans l'une ou l'autre langue : l'instance a pu en changer depuis.
+    // GitHub answered: an earlier connection error is lifted. A refused
+    // pupitre.json stays so as long as the head has not changed. In either language:
+    // the instance may have changed it since.
     const rejected = UI_LANGUAGES.some(
       (language) =>
         source.lastError?.startsWith(
@@ -221,7 +220,7 @@ async function pollSource(
     return 'unchanged';
   }
 
-  // Première vérification : on note la tête, on ne déploie rien.
+  // First check: we note the head, we deploy nothing.
   if (source.lastSeenSha === null) {
     await claimSourceCommit(source.id, null, head.sha, head.etag);
     await recordSourceCheck(source.id, { error: null });
@@ -243,7 +242,7 @@ async function pollSource(
   if (!application) return 'unchanged';
   const read = await readSpec(provider, source, head.sha, application.slug);
 
-  // Réservé avant d'agir : si un autre passage l'a déjà pris, on s'arrête là.
+  // Reserved before acting: if another pass already took it, we stop there.
   if (!(await claimSourceCommit(source.id, source.lastSeenSha, head.sha, head.etag))) {
     return 'claimed-elsewhere';
   }
@@ -261,7 +260,7 @@ async function pollSource(
   return takeCommit(provider, source, head.sha, read.spec, current);
 }
 
-/** `source:poll` — toutes les liaisons actives, ou une seule (« Vérifier maintenant »). */
+/** `source:poll` — every active link, or a single one ("Check now"). */
 export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
   const data = sourcePollJobDataSchema.parse(job.data);
 
@@ -275,17 +274,17 @@ export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
   for (const source of sources) {
     const log = logger.child({ sourceId: source.id, repository: source.repository });
     try {
-      // Chaque liaison passe par le fournisseur de sa connexion : GitHub, GitLab, Gitea.
+      // Each link goes through its connection's provider: GitHub, GitLab, Gitea.
       const access = await providerForConnection(source.connectionId);
       if (!access) {
         throw new Error(workerSay(await instanceLanguage())('source.connectionRemoved'));
       }
       const outcome = await pollSource(access.provider, source, data.force);
-      if (outcome !== 'unchanged') log.info({ outcome }, 'dépôt lié vérifié');
+      if (outcome !== 'unchanged') log.info({ outcome }, 'linked repository checked');
     } catch (error) {
-      // Une liaison en panne n'arrête pas les autres : l'erreur est écrite sur
-      // elle, en clair, et la minute suivante réessaie.
-      log.warn({ err: error }, 'vérification du dépôt impossible');
+      // A failing link does not stop the others: the error is written on it, in clear,
+      // and the next minute retries.
+      log.warn({ err: error }, 'repository check failed');
       await recordSourceCheck(source.id, { error: errorMessage(error) });
     }
     checked += 1;
@@ -294,8 +293,8 @@ export async function handleSourcePoll(job: Job): Promise<{ checked: number }> {
 }
 
 /**
- * `source:deploy` — un humain a décidé : déployer la tête de la branche, ou
- * un commit en attente qu'il vient de valider.
+ * `source:deploy` — a human decided: deploy the branch's head, or a pending
+ * commit they just approved.
  */
 export async function handleSourceDeploy(job: Job): Promise<{ created: number }> {
   const data = sourceDeployJobDataSchema.parse(job.data);
@@ -305,8 +304,8 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
     if (!proposal || proposal.status !== 'approved') return { created: 0 };
     const source = await getApplicationSource(proposal.sourceId);
     if (!source) return { created: 0 };
-    // Où part un commit validé se décide maintenant : là où l'application
-    // tourne au moment de la validation, pas au moment de sa réception.
+    // Where an approved commit goes is decided now: where the application runs at
+    // approval time, not when it was received.
     const bindings = await bindingsFor(source);
     if (bindings.length === 0) {
       await syncFromSource({
@@ -358,8 +357,8 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
     }
     const bindings = await bindingsFor(source);
     if (bindings.length === 0) {
-      // « Mettre à jour depuis le dépôt » : la tête devient la version de
-      // l'application, sans déploiement.
+      // "Update from the repository": the head becomes the application's version,
+      // without a deployment.
       await syncFromSource({
         source,
         sha: head.sha,
@@ -384,7 +383,7 @@ export async function handleSourceDeploy(job: Job): Promise<{ created: number }>
       actorId: data.actorId,
       ip: data.ip,
     });
-    // La tête déployée devient le point de départ du polling.
+    // The deployed head becomes polling's starting point.
     await claimSourceCommit(source.id, source.lastSeenSha, head.sha, head.etag);
     await recordSourceCheck(source.id, { error: skippedSummary(result) });
     return { created: result.created.length };

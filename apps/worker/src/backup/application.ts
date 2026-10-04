@@ -35,22 +35,21 @@ import { formatBytes, workerSay } from '../messages.js';
 import { BackupError, applyRetention, openStore, storePiece } from './shared.js';
 
 /**
- * Sauvegarder une application sur une cible.
+ * Backing up an application on a target.
  *
- * Une seule fonction, quatre appelants : la tâche planifiée (une par
- * application dont la sauvegarde est activée), « Sauvegarder maintenant », la
- * sauvegarde avant déploiement (une étape du pipeline) et la sauvegarde de
- * sûreté qui précède une restauration. Le plan, le chiffrement, la rétention
- * et le compte rendu sont donc les mêmes partout.
+ * A single function, four callers: the scheduled task (one per application whose
+ * backup is enabled), "Back up now", the pre-deployment backup (a pipeline step)
+ * and the safety backup that precedes a restore. The plan, encryption,
+ * retention and report are therefore the same everywhere.
  */
 
 export type ApplicationBackupRequest = {
   applicationId: string;
   targetId: string;
   trigger: BackupTrigger;
-  /** Le mode de la politique si absent. */
+  /** The policy's mode if absent. */
   mode?: BackupMode;
-  /** Une ligne déjà créée par la route — l'écran la montre avant même que la tâche parte. */
+  /** A row already created by the route — the screen shows it even before the job starts. */
   backupId?: string;
   actorId: string | null;
   ip: string | null;
@@ -96,8 +95,8 @@ export async function backupApplication(
   }
 
   const spec = parseAppSpec(deployment.appSpec);
-  // Arrêtée, l'application n'a plus de base qui réponde : ses volumes sont
-  // copiés tels quels — ils sont cohérents, rien n'écrit.
+  // Stopped, the application no longer has a database that answers: its volumes
+  // are copied as is — they are consistent, nothing writes.
   const stopped = deployment.stoppedAt !== null;
   const mode: BackupMode = stopped ? 'stop' : (request.mode ?? policy.mode);
   const pieces = planBackup(spec, mode);
@@ -223,9 +222,9 @@ export async function backupApplication(
     await finishBackupRecord(backupId, { status: 'success', manifest, bytes });
     onLog(say('backup.done', { size: formatBytes(bytes, language) }));
 
-    // Une sauvegarde de sûreté reste hors de la rotation : elle précède une
-    // restauration, et la rétention pourrait retirer la sauvegarde même qu'on
-    // s'apprête à restaurer. La prochaine sauvegarde ordinaire fera le tri.
+    // A safety backup stays out of the rotation: it precedes a restore, and
+    // retention could remove the very backup about to be restored. The next ordinary
+    // backup will sort things out.
     if (request.trigger !== 'pre_restore') {
       await applyRetention(
         store,
@@ -241,7 +240,7 @@ export async function backupApplication(
     onLog(`✗ ${message}`);
     if (backupId) {
       await finishBackupRecord(backupId, { status: 'failed', error: message });
-      // Un morceau à moitié déposé n'est pas une sauvegarde : il part.
+      // A half-placed piece is not a backup: it goes.
       const record = await getBackup(backupId);
       if (record && opened) {
         await opened.store.removePrefix(`${record.location}/`).catch(() => undefined);

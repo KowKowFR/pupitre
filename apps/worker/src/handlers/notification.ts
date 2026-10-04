@@ -53,34 +53,33 @@ import { logger } from '../logger.js';
 import { createRedisConnection } from '../redis.js';
 
 /**
- * Envoi des notifications.
+ * Sending notifications.
  *
- * ── Pourquoi la file ────────────────────────────────────────────────────────
- * Un serveur SMTP injoignable met une trentaine de secondes à expirer, et un
- * webhook d'astreinte peut en prendre autant. Règle 2 du projet : ce travail
- * n'a rien à faire dans le chemin d'une requête HTTP — ni dans celui de
- * `logAudit()`, qui est appelé au beau milieu d'une action utilisateur.
- * L'observateur du journal d'audit se contente donc d'enfiler.
+ * ── Why the queue ───────────────────────────────────────────────────────────
+ * An unreachable SMTP server takes about thirty seconds to time out, and an
+ * on-call webhook can take as long. Rule 2 of the project: this work has no
+ * business in an HTTP request's path — nor in `logAudit()`'s, which is called in
+ * the middle of a user action. The audit log's observer therefore merely
+ * queues.
  *
- * ── Trois tâches, trois responsabilités ─────────────────────────────────────
- *   `notification:dispatch`      décide : ce message part-il maintenant, ou
- *                                est-il retenu pour être résumé ?
- *   `notification:deliver`       délivre à **un** canal, et se rejoue seule
- *   `notification:digest_sweep`  ferme les fenêtres échues et compose les résumés
+ * ── Three jobs, three responsibilities ──────────────────────────────────────
+ *   `notification:dispatch`      decides: does this message go out now, or is
+ *                                it held to be summarized?
+ *   `notification:deliver`       delivers to **one** channel, and retries by itself
+ *   `notification:digest_sweep`  closes the due windows and composes the digests
  *
- * Le découpage entre décider et délivrer est ce qui rend le rejeu correct :
- * l'objection de la première version — « rejouer une distribution partiellement
- * réussie renverrait le message aux canaux qui l'ont déjà reçu » — ne tient
- * plus dès lors qu'une tâche ne concerne qu'un destinataire.
+ * The split between deciding and delivering is what makes retrying correct: the
+ * first version's objection — "replaying a partially successful delivery would
+ * send the message again to the channels that already received it" — no longer
+ * holds once a job only concerns one recipient.
  *
- * ── L'essai, lui, est attendu ───────────────────────────────────────────────
- * Le bouton « envoyer un message d'essai » veut un verdict, pas un accusé de
- * réception. Le motif retenu est celui déjà tranché pour le relevé de métriques
- * d'une cible (`/api/targets/[id]/metrics`) : la route **enfile puis attend**,
- * avec une borne franche. Elle n'exécute rien elle-même — elle attend, comme
- * elle attend une requête SQL. Et elle ne peut pas faire autrement : le panel
- * Next n'a aucun transport SMTP, `nodemailer` étant délibérément tenu hors de
- * son graphe, exactement comme `ssh2`.
+ * ── The test, though, is awaited ────────────────────────────────────────────
+ * The "send a test message" button wants a verdict, not an acknowledgment. The
+ * pattern chosen is the one already settled for a target's metrics reading
+ * (`/api/targets/[id]/metrics`): the route **queues then waits**, with a firm
+ * bound. It runs nothing itself — it waits, as it waits for an SQL query. And it
+ * cannot do otherwise: the Next panel has no SMTP transport, `nodemailer` being
+ * deliberately kept out of its graph, exactly like `ssh2`.
  */
 
 // ─── producteur ───────────────────────────────────────────────────────────────
@@ -88,19 +87,19 @@ import { createRedisConnection } from '../redis.js';
 let notificationsQueue: Queue | null = null;
 
 /**
- * File des notifications, côté producteur. Le worker est ici son propre
- * producteur : c'est lui qui trace les déploiements en échec, donc lui qui
- * enfile les distributions correspondantes.
+ * Notifications queue, producer side. The worker is its own producer here: it
+ * is the one recording failed deployments, hence the one queuing the matching
+ * deliveries.
  */
 function getNotificationsQueue(): Queue {
   notificationsQueue ??= new Queue(NOTIFICATIONS_QUEUE, {
     connection: createRedisConnection(),
     defaultJobOptions: {
       /**
-       * **Une seule tentative par défaut.** Elle vaut pour la décision
-       * (`dispatch`) et pour le balayage : les rejouer ne réparerait rien et
-       * pourrait dédoubler un résumé. Les tâches de *remise*, elles, demandent
-       * explicitement leurs trois tentatives — voir `enqueueDeliveries()`.
+       * **A single attempt by default.** It holds for the decision (`dispatch`) and for
+       * the sweep: replaying them would repair nothing and could duplicate a digest.
+       * The *delivery* jobs explicitly ask for their three attempts — see
+       * `enqueueDeliveries()`.
        */
       attempts: 1,
       removeOnComplete: { age: 24 * 3600, count: 500 },
@@ -118,11 +117,11 @@ export async function closeNotificationsQueue(): Promise<void> {
 }
 
 /**
- * Branche le journal d'audit sur la file des notifications.
+ * Plugs the audit log into the notifications queue.
  *
- * À appeler une fois au démarrage du processus. Le panel fait la même chose de
- * son côté, depuis son `instrumentation.ts` : les deux écrivent dans
- * `audit_logs`, les deux doivent donc savoir enfiler.
+ * To call once at process startup. The panel does the same on its side, from its
+ * `instrumentation.ts`: both write into `audit_logs`, so both must know how to
+ * queue.
  */
 export function installAuditNotifications(): void {
   setAuditObserver(
@@ -132,19 +131,18 @@ export function installAuditNotifications(): void {
           deduplication: { id: dedup.id, ttl: dedup.ttl },
         }),
       (error, event) => {
-        // L'échec d'enfilement ne remonte nulle part ailleurs : sans cette
-        // ligne, un Redis indisponible ferait disparaître les alertes sans un
-        // mot.
-        logger.error({ err: error, event }, "notification non enfilée");
+        // The queuing failure is reported nowhere else: without this line, an
+        // unavailable Redis would make alerts disappear without a word.
+        logger.error({ err: error, event }, 'notification not queued');
       },
     ),
   );
 }
 
 /**
- * Remet en distribution une alerte qu'une maintenance avait retenue, telle
- * qu'elle était partie la première fois. Elle repasse par la décision : si une
- * autre fenêtre couvre encore son sujet, c'est celle-là qui la garde.
+ * Puts back into delivery an alert a maintenance window had held, as it went
+ * out the first time. It goes through the decision again: if another window
+ * still covers its subject, that one keeps it.
  */
 export async function releaseHeldNotification(
   data: NotificationDispatchJobData,
@@ -156,13 +154,13 @@ export async function releaseHeldNotification(
 }
 
 /**
- * Installe l'horloge qui ferme les fenêtres de regroupement.
+ * Installs the clock that closes the grouping windows.
  *
- * Aucune ligne en base pour ce scheduler, donc aucune réconciliation : c'est un
- * détail d'exécution, réinstallé à l'identique à chaque démarrage. Ce qui vit en
- * base, c'est l'état des fenêtres — et c'est justement ce qui fait qu'un worker
- * redémarré au milieu d'un orage retrouve ses fenêtres ouvertes au lieu de
- * relâcher tout d'un coup. Même construction que le balayage des sondes.
+ * No database row for this scheduler, hence no reconciliation: it is a run
+ * detail, reinstalled identically at each startup. What lives in the database is
+ * the windows' state — and that is precisely what makes a worker restarted in
+ * the middle of a storm find its windows open instead of releasing everything at
+ * once. The same construction as the probes sweep.
  */
 export async function installNotificationDigestSweep(): Promise<void> {
   await getNotificationsQueue().upsertJobScheduler(
@@ -173,29 +171,26 @@ export async function installNotificationDigestSweep(): Promise<void> {
       data: {},
       opts: {
         attempts: 1,
-        // La cadence est de quelques secondes : conserver mille occurrences
-        // n'apprendrait rien et encombrerait Redis.
+        // The interval is a few seconds: keeping a thousand occurrences would teach
+        // nothing and clutter Redis.
         removeOnComplete: { age: 600, count: 50 },
         removeOnFail: { age: 24 * 3600, count: 50 },
       },
     },
   );
-  logger.info(
-    { everyMs: NOTIFICATION_DIGEST_SWEEP_EVERY_MS },
-    'balayage des fenêtres de regroupement installé',
-  );
+  logger.info({ everyMs: NOTIFICATION_DIGEST_SWEEP_EVERY_MS }, 'digest windows sweep installed');
 }
 
 // ─── distribution ─────────────────────────────────────────────────────────────
 
 /**
- * Racine publique du panel, pour les liens des messages.
+ * The panel's public root, for the messages' links.
  *
- * Lue directement dans l'environnement plutôt qu'ajoutée au schéma du worker :
- * elle n'est pas une dépendance de son fonctionnement — un message sans lien
- * reste un message utile —, et le worker ne doit pas refuser de démarrer parce
- * qu'une URL d'agrément est absente. Le `.env` partagé la porte déjà pour le
- * panel (`BETTER_AUTH_URL`).
+ * Read directly from the environment rather than added to the worker's schema:
+ * it is not a dependency of its working — a message without a link stays a
+ * useful message —, and the worker must not refuse to start because a
+ * convenience URL is missing. The shared `.env` already carries it for the panel
+ * (`BETTER_AUTH_URL`).
  */
 function panelUrl(): string | null {
   const raw = process.env.BETTER_AUTH_URL?.trim();
@@ -208,17 +203,17 @@ function panelUrl(): string | null {
 }
 
 /**
- * Enfile une remise par canal abonné.
+ * Queues one delivery per subscribed channel.
  *
- * `addBulk` et non une boucle d'`add` : c'est un aller-retour Redis au lieu de
- * quatre, sur un chemin qui doit rester court — c'est lui qui sépare l'incident
- * de la première alerte.
+ * `addBulk` and not a loop of `add`: it is one Redis round trip instead of four,
+ * on a path that must stay short — it is what separates the incident from the
+ * first alert.
  *
- * La charge utile voyage **composée**. Recomposer dans la remise ferait qu'un
- * rejeu trois minutes plus tard produirait un message différent de celui reçu
- * par les autres canaux ; et cela rendrait chaque tentative dépendante de la
- * base. Aucun secret n'y transite : le message neutre n'en contient pas, la
- * configuration du canal est relue au moment d'envoyer.
+ * The payload travels **composed**. Composing again in the delivery would make
+ * a retry three minutes later produce a message different from the one the
+ * other channels received; and it would make each attempt depend on the
+ * database. No secret goes through it: the neutral message contains none, the
+ * channel's configuration is read again at send time.
  */
 async function enqueueDeliveries(
   channels: NotificationChannelRecord[],
@@ -243,12 +238,12 @@ async function enqueueDeliveries(
 }
 
 /**
- * Décide du sort d'un événement notifiable.
+ * Decides the fate of a notifiable event.
  *
- * Le chemin « immédiat » est le chemin par défaut et il est **court** : lire les
- * canaux abonnés, composer, décider, enfiler. Aucune attente, aucun délai
- * volontaire. Un digest qui retarderait la première alerte aurait échangé un
- * défaut contre un pire.
+ * The "immediate" path is the default path and it is **short**: read the
+ * subscribed channels, compose, decide, queue. No wait, no deliberate delay. A
+ * digest that delayed the first alert would have traded one flaw for a worse
+ * one.
  */
 export async function handleNotificationDispatch(
   job: Job<unknown, NotificationDispatchJobResult>,
@@ -266,17 +261,17 @@ export async function handleNotificationDispatch(
   });
 
   if (!isNotificationEventKey(data.event)) {
-    // Un événement retiré du catalogue entre l'enfilement et la consommation.
-    log.warn('événement inconnu, distribution abandonnée');
+    // An event removed from the catalog between queuing and consumption.
+    log.warn('unknown event, delivery abandoned');
     return nothing('skipped');
   }
 
   const channels = await notificationChannelsForEvent(data.event);
   if (channels.length === 0) {
-    // Personne n'écoute : on ne touche pas non plus à l'état de regroupement.
-    // Ouvrir une fenêtre pour un événement que nul ne reçoit ferait retenir la
-    // première alerte du jour où quelqu'un s'abonnera.
-    log.debug('aucun canal abonné');
+    // Nobody listens: we do not touch the grouping state either. Opening a window
+    // for an event nobody receives would hold the first alert of the day someone
+    // subscribes.
+    log.debug('no subscribed channel');
     return nothing('skipped');
   }
 
@@ -290,17 +285,17 @@ export async function handleNotificationDispatch(
     panelUrl: panelUrl(),
     actor,
     occurredAt: data.occurredAt,
-    // Personne n'est devant l'écran : la langue de l'alerte est celle de
-    // l'instance, la même que le panel et que les e-mails d'invitation.
+    // Nobody is in front of the screen: the alert's language is the instance's, the
+    // same as the panel and the invitation emails.
     language: languageOf(settings.locale),
   };
 
   const message = buildNotificationMessage(data.event, data.entry, ctx);
   const item = buildNotificationDigestItem(data.event, data.entry, ctx);
 
-  // Une maintenance passe avant le regroupement : une alerte qu'elle retient
-  // n'a pas à ouvrir de fenêtre de résumé. Elle n'est pas perdue — la fin de
-  // la fenêtre la remet en distribution si son problème est toujours là.
+  // A maintenance window comes before grouping: an alert it holds does not have to
+  // open a digest window. It is not lost — the end of the window puts it back
+  // into delivery if its problem is still there.
   const rule = maintenanceRuleOf(data.event);
   const subject = rule?.subject(data.entry) ?? null;
   if (rule && subject) {
@@ -315,7 +310,7 @@ export async function handleNotificationDispatch(
         subject,
         data: data as unknown as Record<string, unknown>,
       });
-      log.info({ windowId: window.id, label: message.title }, 'alerte retenue par une maintenance');
+      log.info({ windowId: window.id, label: message.title }, 'alert held by a maintenance window');
       return {
         event: data.event,
         targeted: channels.length,
@@ -340,7 +335,7 @@ export async function handleNotificationDispatch(
         windowEndsAt: admission.windowEndsAt.toISOString(),
         label: item.label,
       },
-      'alerte retenue pour regroupement',
+      'alert held for a digest',
     );
     return {
       event: data.event,
@@ -353,7 +348,7 @@ export async function handleNotificationDispatch(
   }
 
   const queued = await enqueueDeliveries(channels, { type: 'event', message });
-  log.info({ targeted: channels.length, queued }, 'alerte enfilée sans délai');
+  log.info({ targeted: channels.length, queued }, 'alert queued without delay');
 
   return {
     event: data.event,
@@ -366,13 +361,12 @@ export async function handleNotificationDispatch(
 }
 
 /**
- * Ferme les fenêtres échues et compose les résumés.
+ * Closes the due windows and composes the digests.
  *
- * Le balayage est **sans état** : il relit la base, ne suppose rien de ce qui
- * s'est passé avant, et peut donc être interrompu, redémarré ou exécuté par un
- * autre worker sans conséquence. La transaction de `claimNotificationDigest()`
- * garantit qu'un groupe n'est résumé qu'une fois même si deux balayages se
- * croisent.
+ * The sweep is **stateless**: it reads the database again, assumes nothing about
+ * what happened before, and can therefore be interrupted, restarted or run by
+ * another worker without consequence. `claimNotificationDigest()`'s transaction
+ * guarantees a group is only summarized once even if two sweeps cross.
  */
 export async function handleNotificationDigestSweep(
   job: Job<unknown, NotificationDigestSweepJobResult>,
@@ -386,22 +380,22 @@ export async function handleNotificationDigestSweep(
 
   for (const groupKey of groups) {
     const claim = await claimNotificationDigest(groupKey);
-    // `null` : la fenêtre s'est refermée sans rien avoir retenu. Le groupe
-    // redevient silencieux, la prochaine panne isolée repartira sans délai.
+    // `null`: the window closed without having held anything. The group becomes
+    // quiet again, the next isolated outage will go out without delay.
     if (!claim) continue;
 
     if (!isNotificationEventKey(claim.event)) {
-      log.warn({ groupKey, event: claim.event }, 'résumé abandonné : événement hors catalogue');
+      log.warn({ groupKey, event: claim.event }, 'digest abandoned: event outside the catalog');
       continue;
     }
 
     const channels = await notificationChannelsForEvent(claim.event);
     if (channels.length === 0) {
-      // Tous les abonnements ont été retirés pendant la fenêtre. On le dit :
-      // des alertes retenues disparaissent ici, et un silence serait trompeur.
+      // Every subscription was removed during the window. We say so: held alerts
+      // disappear here, and silence would be misleading.
       log.warn(
         { groupKey, count: claim.count },
-        'résumé sans destinataire : plus aucun canal abonné',
+        'digest without recipient: no subscribed channel left',
       );
       continue;
     }
@@ -431,7 +425,7 @@ export async function handleNotificationDigestSweep(
 
     log.info(
       { groupKey, count: claim.count, named: claim.items.length, nextWindowMs: claim.nextWindowMs },
-      'résumé composé',
+      'digest composed',
     );
   }
 
@@ -439,18 +433,18 @@ export async function handleNotificationDigestSweep(
 }
 
 /**
- * Délivre à **un** canal.
+ * Delivers to **one** channel.
  *
- * Trois tentatives, un seul destinataire : le rejeu ne peut donc rien renvoyer
- * à quelqu'un qui avait déjà reçu. La remise est *au moins une fois* — un envoi
- * réussi dont l'accusé se perd partira deux fois. C'est l'arbitrage assumé : un
- * message en double est une gêne, un message d'incident jamais parti est une
- * panne.
+ * Three attempts, a single recipient: retrying can therefore send nothing again
+ * to someone who had already received it. Delivery is *at least once* — a
+ * successful send whose acknowledgment gets lost will go out twice. It is the
+ * accepted trade-off: a duplicate message is a nuisance, an incident message
+ * that never went out is an outage.
  *
- * L'issue n'est enregistrée qu'**une fois**, au terme : sur un succès, ou sur la
- * dernière tentative ratée. Compter chaque tentative gonflerait
- * `consecutive_failures`, qui répond à « depuis quand ce canal ne marche
- * plus ? » et non à « combien de paquets ont été perdus ? ».
+ * The outcome is recorded only **once**, at the end: on a success, or on the last
+ * failed attempt. Counting each attempt would inflate `consecutive_failures`,
+ * which answers "since when has this channel not worked?" and not "how many
+ * packets were lost?".
  */
 export async function handleNotificationDeliver(
   job: Job<unknown, NotificationDeliverJobResult>,
@@ -463,10 +457,10 @@ export async function handleNotificationDeliver(
 
   const resolved = await resolveNotificationChannel(data.channelId);
   if (!resolved) {
-    // Canal supprimé entre la décision et la remise. Rien à réparer : rejouer
-    // ne le ferait pas réapparaître.
-    log.warn('canal disparu, remise abandonnée');
-    throw new UnrecoverableError(`canal « ${data.channelName} » introuvable`);
+    // Channel deleted between the decision and the delivery. Nothing to repair:
+    // retrying would not make it reappear.
+    log.warn('channel gone, delivery abandoned');
+    throw new UnrecoverableError(`channel "${data.channelName}" not found`);
   }
 
   try {
@@ -476,22 +470,22 @@ export async function handleNotificationDeliver(
       data.payload,
     );
   } catch (error) {
-    // `describeFailure` expurge : un message de fournisseur peut contenir un
-    // fragment de jeton, et il finirait sinon en base et dans l'audit.
+    // `describeFailure` scrubs: a provider's message can contain a token fragment,
+    // and it would otherwise end up in the database and in the audit log.
     const detail = describeFailure(error, resolved.resolved.secrets, await instanceLanguage());
 
     if (attempt < maxAttempts) {
-      log.warn({ error: detail }, 'remise en échec, nouvelle tentative programmée');
+      log.warn({ error: detail }, 'delivery failed, retry scheduled');
       throw error;
     }
 
     await recordNotificationOutcome(data.channelId, { ok: false, error: detail });
-    log.error({ error: detail }, 'notification non délivrée');
+    log.error({ error: detail }, 'notification not delivered');
 
     /**
-     * L'échec est tracé. `notification.delivery.failed` n'est volontairement
-     * **pas** un événement notifiable : tenter de prévenir que l'on n'a pas su
-     * prévenir ferait boucler la distribution sur elle-même.
+     * The failure is recorded. `notification.delivery.failed` is deliberately **not**
+     * a notifiable event: trying to warn that we could not warn would make the
+     * delivery loop on itself.
      */
     await logAudit({
       actorId: null,
@@ -511,7 +505,7 @@ export async function handleNotificationDeliver(
   }
 
   await recordNotificationOutcome(data.channelId, { ok: true });
-  log.info({ digest: data.payload.type === 'digest' }, 'notification délivrée');
+  log.info({ digest: data.payload.type === 'digest' }, 'notification delivered');
 
   return { channelId: data.channelId, event, delivered: true, attempt, error: null };
 }
@@ -523,17 +517,17 @@ export async function handleNotificationTest(
 ): Promise<NotificationTestJobResult> {
   const data = notificationTestJobDataSchema.parse(job.data);
   const resolved = await resolveNotificationChannel(data.channelId);
-  if (!resolved) throw new Error(`Canal « ${data.channelId} » introuvable`);
+  if (!resolved) throw new Error(`Channel "${data.channelId}" not found`);
 
   const { row } = resolved;
   const settings = await getAppSettingsValue();
   const language = languageOf(settings.locale);
   const implementation = getNotificationChannel(row.kind);
 
-  // Deux étapes distinctes, rapportées séparément : la sonde dit si les
-  // identifiants sont bons, l'envoi dit si le destinataire est le bon. Un jeton
-  // Telegram valide pointé sur une conversation inexistante passe la première
-  // et rate le second — et c'est exactement ce que l'opérateur doit voir.
+  // Two distinct steps, reported separately: the probe says whether the
+  // credentials are right, the send says whether the recipient is the right one.
+  // A valid Telegram token pointed at a nonexistent chat passes the first and
+  // fails the second — and that is exactly what the operator must see.
   const probe = await implementation.test(resolved.resolved, language);
 
   let delivered = false;

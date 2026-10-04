@@ -25,39 +25,38 @@ import { workerSay, type WorkerSay } from '../messages.js';
 import { destroyDeployment } from './deployment.js';
 
 /**
- * Suppression en cascade d'une application.
+ * Cascading deletion of an application.
  *
- * Trois gestes enchaînés, dans cet ordre et pas un autre : détruire sur les
- * machines, purger l'historique, effacer l'application. L'ordre n'est pas un
- * détail — purger avant de détruire ferait perdre les poignées qui servent
- * justement à détruire.
+ * Three chained gestures, in this order and no other: destroy on the machines,
+ * purge the history, erase the application. The order is not a detail — purging
+ * before destroying would lose the handles that are precisely used to destroy.
  *
- * ── L'arbitrage sur l'échec partiel ──────────────────────────────────────────
- * Trois déploiements, la deuxième cible éteinte. « Tout ou rien » n'est pas
- * implémentable : une destruction réussie ne se défait pas, on ne redéploie pas
- * une application pour annuler une suppression. Reste donc à choisir entre
- * s'arrêter au premier échec et continuer.
+ * ── The trade-off on partial failure ────────────────────────────────────────
+ * Three deployments, the second target off. "All or nothing" cannot be
+ * implemented: a successful destruction cannot be undone, one does not redeploy
+ * an application to cancel a deletion. What remains is choosing between
+ * stopping at the first failure and going on.
  *
- * On continue, et on **ne supprime rien en base** : chaque cible joignable est
- * nettoyée, la cible morte est nommée, et l'application reste dans le panel
- * avec tout son historique — c'est-à-dire avec les poignées qui permettent de
- * réessayer, ou de forcer en connaissance de cause. Relancer la cascade ne
- * repasse que sur ce qui reste : les déploiements déjà détruits ne bloquent
- * plus. L'opération se déclare `deleted: false` et rapporte la liste exacte de
- * ce qui a résisté. Elle n'est jamais « réussie à moitié » en silence.
+ * We go on, and **delete nothing in the database**: each reachable target is
+ * cleaned up, the dead target is named, and the application stays in the panel
+ * with its whole history — that is with the handles that allow retrying, or
+ * forcing knowingly. Running the cascade again only goes over what remains: the
+ * deployments already destroyed no longer block. The operation declares itself
+ * `deleted: false` and reports the exact list of what resisted. It is never
+ * silently "half successful".
  */
 
 /**
- * Tentative bornée, pour le seul chemin de la cascade.
+ * Bounded attempt, for the cascade's path only.
  *
- * Une cible éteinte, avec le défaut SSH (trois essais de quinze secondes plus
- * le backoff), c'est près d'une minute par déploiement avant le moindre mot sur
- * ce qui bloque. Ici on veut un verdict : un essai, dix secondes. On ne cherche
- * pas à réussir malgré une machine capricieuse, on cherche à savoir.
+ * A target turned off, with the SSH default (three fifteen-second attempts plus
+ * backoff), is nearly a minute per deployment before the slightest word about
+ * what blocks. Here we want a verdict: one attempt, ten seconds. We do not try to
+ * succeed despite a capricious machine, we try to know.
  */
 const CASCADE_CONNECT: ConnectOptions = { retries: 1, readyTimeout: 10_000 };
 
-/** Plafond de tours de purge — `purgeDeployments()` traite 500 lignes par appel. */
+/** Cap on purge rounds — `purgeDeployments()` handles 500 rows per call. */
 const PURGE_ROUNDS = 20;
 
 export async function handleApplicationDelete(
@@ -66,8 +65,8 @@ export async function handleApplicationDelete(
   const data = applicationDeleteJobDataSchema.parse(job.data);
   const log = logger.child({ jobId: job.id, applicationId: data.applicationId });
 
-  // Le compte rendu est montré à l'écran et gardé au journal d'activité : dans
-  // la langue de l'instance, comme le journal d'un déploiement.
+  // The report is shown on screen and kept in the activity log: in the instance's
+  // language, like a deployment's log.
   const language = await instanceLanguage();
   const say = workerSay(language);
 
@@ -76,10 +75,10 @@ export async function handleApplicationDelete(
 
   const blockers = await listApplicationDeletionBlockers(data.applicationId, { language });
 
-  // Un déploiement en cours ne se détruit pas, ne se purge pas, et le forçage
-  // ne le change pas : effacer la ligne sous le worker qui l'écrit produirait
-  // une erreur incompréhensible et une machine dans un état indéterminé.
-  // C'est un état qui se termine tout seul en quelques minutes — on attend.
+  // A deployment in progress is not destroyed, not purged, and forcing does not
+  // change that: erasing the row under the worker writing it would produce an
+  // incomprehensible error and a machine in an undetermined state. It is a state
+  // that ends by itself in a few minutes — we wait.
   const inProgress = blockers.filter((blocker) => blocker.reason === 'in_progress');
   if (inProgress.length > 0) {
     throw new Error(
@@ -100,7 +99,7 @@ export async function handleApplicationDelete(
   }
 
   const live = blockers.filter((blocker) => blocker.reason === 'live');
-  log.info({ live: live.length, force: data.force }, 'suppression en cascade démarrée');
+  log.info({ live: live.length, force: data.force }, 'cascading deletion started');
 
   const destroyed: DestroyedDeployment[] = [];
   const abandoned: AbandonedWorkload[] = [];
@@ -118,13 +117,13 @@ export async function handleApplicationDelete(
         targetId: blocker.targetId,
         targetName: blocker.targetName,
       });
-      log.info({ deploymentId: blocker.id, target: blocker.targetName }, 'déploiement détruit');
+      log.info({ deploymentId: blocker.id, target: blocker.targetName }, 'deployment destroyed');
     } catch (error) {
       const residue = describeResidue(blocker, error);
       abandoned.push(residue);
       log.warn(
         { deploymentId: blocker.id, target: blocker.targetName, error: residue.error },
-        'destruction impossible',
+        'destruction failed',
       );
     }
   }
@@ -137,7 +136,7 @@ export async function handleApplicationDelete(
     abandoned,
   };
 
-  // ── Échec partiel sans forçage : on ne touche pas à la base ────────────────
+  // ── Partial failure without forcing: we do not touch the database ──────────
   if (abandoned.length > 0 && !data.force) {
     const summary = say('cascade.partial', {
       destroyed: destroyed.length,
@@ -156,17 +155,17 @@ export async function handleApplicationDelete(
       ip: data.ip,
     });
 
-    log.warn({ abandoned: abandoned.length }, 'cascade interrompue, rien effacé');
+    log.warn({ abandoned: abandoned.length }, 'cascade interrupted, nothing erased');
     return { ...base, deleted: false, purgedCount: 0, releasedPorts: [], summary };
   }
 
-  // ── Tout a été détruit : la purge garde son garde-fou ──────────────────────
+  // ── Everything was destroyed: the purge keeps its safeguard ────────────────
   if (abandoned.length === 0) {
     const purge = await purgeAll(application.id, language);
 
     if (purge.refused.length > 0) {
-      // Filet de sécurité : la purge voit encore quelque chose de vivant alors
-      // que toutes les destructions ont réussi. On préfère refuser et le dire.
+      // Safety net: the purge still sees something alive although every destruction
+      // succeeded. We prefer to refuse and say so.
       const summary = say('cascade.historyStuck', {
         refusals: purge.refused.map((refusal) => refusal.message).join(' ; '),
       });
@@ -217,7 +216,7 @@ export async function handleApplicationDelete(
       ip: data.ip,
     });
 
-    log.info({ purged: purge.purged.length }, 'application supprimée en cascade');
+    log.info({ purged: purge.purged.length }, 'application deleted in cascade');
     return {
       ...base,
       deleted: true,
@@ -227,13 +226,13 @@ export async function handleApplicationDelete(
     };
   }
 
-  // ── Forçage : on efface en sachant ce qu'on abandonne ──────────────────────
+  // ── Forcing: we erase knowing what we abandon ──────────────────────────────
   //
-  // L'entrée d'audit écrite ici est la SEULE trace qui subsistera : dès la
-  // transaction passée, plus rien dans le panel ne sait nommer ce qui tourne
-  // encore sur ces machines. Elle est donc écrite avec de quoi finir le ménage
-  // à la main — hôte, projet Compose ou namespace, port — et non avec un
-  // décompte.
+  // The audit entry written here is the ONLY trace that will remain: once the
+  // transaction is through, nothing in the panel can name what still runs on
+  // these machines. It is therefore written with what is needed to finish the
+  // cleanup by hand — host, Compose project or namespace, port — and not with a
+  // count.
   const erasure = await eraseApplication(application.id);
   if (!erasure) throw new Error(say('cascade.alreadyErased', { id: application.id }));
 
@@ -254,12 +253,12 @@ export async function handleApplicationDelete(
     after: {
       forced: true,
       destroyed,
-      /** Ce qui reste à nettoyer à la main, machine par machine. */
+      /** What remains to clean up by hand, machine by machine. */
       abandoned,
       erasedDeploymentIds: erasure.deploymentIds,
       erasedDeploymentCount: erasure.deploymentIds.length,
       releasedPorts: erasure.releasedPorts,
-      /** Les commandes à passer sur chaque machine pour finir le travail. */
+      /** The commands to run on each machine to finish the work. */
       manualCleanup: abandoned.map((residue) => cleanupHint(residue, application.slug)),
       summary,
     },
@@ -268,7 +267,7 @@ export async function handleApplicationDelete(
 
   log.warn(
     { abandoned: abandoned.length, erased: erasure.deploymentIds.length },
-    'application effacée de force — des charges restent sur les cibles',
+    'application erased by force — workloads remain on the targets',
   );
 
   return {
@@ -281,12 +280,12 @@ export async function handleApplicationDelete(
 }
 
 /**
- * Purge tout l'historique de l'application, par tours de `PURGE_MAX_ROWS`.
+ * Purges the application's whole history, in rounds of `PURGE_MAX_ROWS`.
  *
- * Passe par `purgeDeployments()` et non par un `DELETE` maison : c'est elle qui
- * porte le garde-fou du vivant, la libération des ports orphelins et la cascade
- * sur les steps et les scans. La cascade n'a aucune raison d'avoir sa propre
- * version de tout ça.
+ * Goes through `purgeDeployments()` and not a home-made `DELETE`: it is the one
+ * carrying the "alive" safeguard, the release of orphan ports and the cascade on
+ * steps and scans. The cascade has no reason to have its own version of all
+ * that.
  */
 async function purgeAll(
   applicationId: string,
@@ -312,12 +311,12 @@ async function purgeAll(
 }
 
 /**
- * Nomme ce qu'un déploiement laisse derrière lui quand sa destruction échoue.
+ * Names what a deployment leaves behind when its destruction fails.
  *
- * Le nom du regroupement — projet Compose ou namespace — vient du driver, via
- * `workspaceName()`. Le déduire ici reviendrait à écrire `app-${slug}` hors
- * d'une classe de driver, c'est-à-dire à faire fuir le vocabulaire d'un runtime
- * dans du code qui n'a pas à le connaître.
+ * The grouping's name — Compose project or namespace — comes from the driver,
+ * through `workspaceName()`. Deriving it here would amount to writing
+ * `app-${slug}` outside a driver class, that is leaking a runtime's vocabulary
+ * into code that does not have to know it.
  */
 function describeResidue(
   blocker: ApplicationDeletionBlocker,
@@ -351,11 +350,12 @@ function residueIdentity(residue: AbandonedWorkload, say: WorkerSay): string {
 }
 
 /**
- * De quoi reprendre la main sans le panel : où se connecter, et quoi y faire.
+ * What is needed to take back control without the panel: where to connect, and
+ * what to do there.
  *
- * Les commandes viennent du driver (`manualCleanup()`), jamais d'un `if` sur le
- * runtime écrit ici — ce serait exactement la divergence que la règle 1
- * interdit.
+ * The commands come from the driver (`manualCleanup()`), never from an `if` on
+ * the runtime written here — that would be exactly the divergence rule 1
+ * forbids.
  */
 function cleanupHint(
   residue: AbandonedWorkload,

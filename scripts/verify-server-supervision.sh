@@ -509,7 +509,7 @@ printf '%s' "$JOB_NAMES" | grep -q 'target:metrics' \
 pass "la file « supervision » porte des tâches « target:metrics »"
 
 WORKER_LOG=$(docker compose logs worker --since 30m 2>&1 || true)
-printf '%s\n' "$WORKER_LOG" | grep -q 'relevé de métriques terminé' \
+printf '%s\n' "$WORKER_LOG" | grep -q 'metrics reading completed' \
   || fail "le worker n'a jamais journalisé de relevé"
 pass "c'est le worker qui a ouvert les sessions SSH"
 

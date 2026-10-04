@@ -26,37 +26,34 @@ import { logger } from '../logger.js';
 import { workerSay } from '../messages.js';
 
 /**
- * Les e-mails transactionnels du cycle de vie des comptes : invitation et
- * réinitialisation de mot de passe.
+ * The accounts' life-cycle transactional emails: invitation and password reset.
  *
- * ── Pourquoi ici et pas dans le panel ───────────────────────────────────────
- * Le panel n'a aucun transport SMTP — `nodemailer` est tenu hors de son graphe
- * exactement comme `ssh2`, et `verify-server-supervision.sh` va jusqu'à
- * chercher `ssh2` dans son bundle pour le prouver. Il enfile, le worker
- * délivre. C'est le même chemin que l'essai d'un canal.
+ * ── Why here and not in the panel ───────────────────────────────────────────
+ * The panel has no SMTP transport — `nodemailer` is kept out of its graph
+ * exactly like `ssh2`, and `verify-server-supervision.sh` goes as far as looking
+ * for `ssh2` in its bundle to prove it. It queues, the worker delivers. It is the
+ * same path as a channel's test.
  *
- * ── Pourquoi ce n'est pas une notification ──────────────────────────────────
- * Une notification part vers les destinataires **configurés** d'un canal ; cet
- * e-mail part vers la personne désignée par l'action. On emprunte donc au canal
- * SMTP son transport (serveur, port, chiffrement, identifiants, expéditeur) et
- * rien d'autre — pas son champ « Destinataires », pas ses abonnements
- * d'événements, pas sa mise en forme d'alerte.
+ * ── Why it is not a notification ────────────────────────────────────────────
+ * A notification goes to a channel's **configured** recipients; this email goes
+ * to the person designated by the action. We therefore borrow the SMTP
+ * channel's transport (server, port, encryption, credentials, sender) and
+ * nothing else — not its "Recipients" field, not its event subscriptions, not
+ * its alert formatting.
  */
 
 /**
- * Le canal SMTP dont on emprunte le transport.
+ * The SMTP channel whose transport is borrowed.
  *
- * Règle : le premier canal SMTP **actif** dans l'ordre alphabétique de son nom
- * — c'est-à-dire l'ordre dans lequel l'écran des paramètres les affiche, donc
- * un choix qu'un opérateur peut prédire sans lire ce fichier. Une instance qui
- * en configure deux a déjà décidé que les deux savent poster ; celle qui n'en
- * configure aucun ne peut pas inviter, et l'écran le dit avant de proposer le
- * parcours.
+ * Rule: the first **active** SMTP channel in the alphabetical order of its name
+ * — that is the order in which the settings screen shows them, hence a choice
+ * an operator can predict without reading this file. An instance that
+ * configures two has already decided both can post; one that configures none
+ * cannot invite, and the screen says so before offering the journey.
  *
- * Volontairement pas un drapeau « canal transactionnel » en base : ce serait
- * une colonne, une migration, une case à cocher de plus dans un écran, et une
- * quatrième façon de se tromper — pour un arbitrage que 99 % des instances ne
- * rencontreront jamais.
+ * Deliberately not a "transactional channel" flag in the database: it would be
+ * a column, a migration, one more checkbox on a screen, and a fourth way to get
+ * it wrong — for a trade-off 99% of instances will never meet.
  */
 function pickTransactionalMailChannel(
   channels: NotificationChannelRecord[],
@@ -83,12 +80,12 @@ export async function handleAccountMail(
 
   if (!picked) {
     /**
-     * Aucun canal SMTP : le message ne partira pas, et rien ne le fera partir
-     * plus tard. `UnrecoverableError` plutôt qu'un échec ordinaire — un rejeu
-     * ne configurerait pas de serveur d'e-mail.
+     * No SMTP channel: the message will not go out, and nothing will make it go out
+     * later. `UnrecoverableError` rather than an ordinary failure — a retry would not
+     * configure an email server.
      *
-     * Le panel refuse déjà d'ouvrir le parcours dans ce cas ; on arrive ici
-     * quand le canal a été supprimé entre le formulaire et la consommation.
+     * The panel already refuses to open the journey in that case; we get here when
+     * the channel was deleted between the form and the consumption.
      */
     await logAudit({
       actorId: null,
@@ -97,19 +94,19 @@ export async function handleAccountMail(
       resourceId: data.userId,
       after: { kind: data.kind, reason: 'no_smtp_channel' },
     });
-    log.error('aucun canal SMTP actif : e-mail de compte non délivrable');
+    log.error('no active SMTP channel: account email cannot be delivered');
     throw new UnrecoverableError(workerSay(await instanceLanguage())('mail.noSmtp'));
   }
 
   const resolved = await resolveNotificationChannel(picked.id);
-  if (!resolved) throw new UnrecoverableError(`canal « ${picked.name} » disparu`);
+  if (!resolved) throw new UnrecoverableError(`channel "${picked.name}" gone`);
 
   const settings = await getAppSettingsValue();
 
   /**
-   * Le lien n'existe en clair qu'ici, dans la mémoire du worker, le temps du
-   * rendu. Il ne redescend ni en base, ni dans l'audit, ni dans les logs — le
-   * `log.child` plus haut ne porte que le type et l'identifiant du compte.
+   * The link only exists in clear here, in the worker's memory, while rendering.
+   * It goes down neither to the database, nor the audit log, nor the logs — the
+   * `log.child` above only carries the account's type and identifier.
    */
   const mail = accountMailSchema.parse({
     kind: data.kind,
@@ -122,10 +119,9 @@ export async function handleAccountMail(
   });
 
   /**
-   * La langue de l'e-mail est celle de **l'instance**, pas du destinataire :
-   * une invitation part vers quelqu'un qui n'a pas encore de compte, donc
-   * personne à qui demander. Même règle que les alertes et que le panel, et
-   * même source — la locale de régionalisation.
+   * The email's language is **the instance's**, not the recipient's: an
+   * invitation goes to someone who has no account yet, so nobody to ask. The same
+   * rule as alerts and the panel, and the same source — the regional locale.
    */
   const envelope = renderAccountMail(mail, languageOf(settings.locale));
   const transport = nodemailerTransport(smtpOptionsFrom(resolved.resolved, NOTIFICATION_TIMEOUT_MS));
@@ -133,19 +129,19 @@ export async function handleAccountMail(
   try {
     await transport.send({
       from: smtpSenderFrom(resolved.resolved),
-      // Un seul destinataire, toujours : celui du compte. Le champ
-      // « Destinataires » du canal ne s'applique qu'à ses alertes.
+      // A single recipient, always: the account's. The channel's "Recipients" field
+      // only applies to its alerts.
       to: [mail.to],
       subject: envelope.subject,
       text: envelope.text,
       html: envelope.html,
       inlineImages: envelope.inlineImages,
       headers: {
-        // Le type, pas le contenu : il permet un filtre côté client d'e-mail et
-        // il ne dit rien qui ne soit déjà dans le sujet.
+        // The type, not the content: it allows a filter on the email client side and
+        // says nothing that is not already in the subject.
         'X-Control-Plane-Account-Mail': mail.kind,
-        // RFC 3834 : ce message ne doit déclencher ni réponse automatique, ni
-        // message d'absence — la personne n'a personne à qui répondre ici.
+        // RFC 3834: this message must trigger neither an automatic reply nor an
+        // out-of-office message — the person has nobody to reply to here.
         'Auto-Submitted': 'auto-generated',
       },
     });
@@ -158,30 +154,30 @@ export async function handleAccountMail(
       resourceId: data.userId,
       after: { kind: data.kind, channel: picked.name, error: detail },
     });
-    log.error({ error: detail }, 'e-mail de compte non délivré');
+    log.error({ error: detail }, 'account email not delivered');
     return { kind: data.kind, delivered: false, channel: picked.name, error: detail };
   } finally {
     transport.close();
   }
 
   /**
-   * Aucun appel à `recordNotificationOutcome()`.
+   * No call to `recordNotificationOutcome()`.
    *
-   * Ces compteurs répondent à « depuis quand ce canal n'alerte plus ? ». Un
-   * refus de destinataire (550 sur une adresse fausse) n'apprend rien là-dessus
-   * et ferait apparaître en rouge, sur l'écran des paramètres, un canal dont les
-   * alertes fonctionnent parfaitement.
+   * These counters answer "since when has this channel stopped alerting?". A
+   * recipient refusal (550 on a wrong address) teaches nothing about that and
+   * would show in red, on the settings screen, a channel whose alerts work
+   * perfectly.
    */
   await logAudit({
     actorId: null,
     action: 'account.mail.sent',
     resourceType: 'user',
     resourceId: data.userId,
-    // Ni jeton, ni lien : seulement l'adresse, qui est déjà dans `users.email`,
-    // et la date limite, qui n'ouvre rien.
+    // No token, no link: only the address, which is already in `users.email`, and
+    // the deadline, which opens nothing.
     after: { kind: data.kind, to: mail.to, channel: picked.name, expiresAt: mail.expiresAt },
   });
 
-  log.info({ channel: picked.name }, 'e-mail de compte délivré');
+  log.info({ channel: picked.name }, 'account email delivered');
   return { kind: data.kind, delivered: true, channel: picked.name, error: null };
 }

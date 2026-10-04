@@ -348,7 +348,7 @@ case "$CS" in ''|*[!0-9]*) fail "compteur de succès corrompu après balayage : 
 [ "$CS" -ge 1 ] || fail "le balayage n'a pas incrémenté les succès consécutifs"
 pass "balayage planifié : $BEFORE_SWEEP → $AFTER_SWEEP mesures, compteurs entiers ($CF échecs, $CS succès)"
 
-ERRS=$(docker compose logs worker --since 2m 2>&1 | grep -c "sonde de supervision en erreur" || true)
+ERRS=$(docker compose logs worker --since 2m 2>&1 | grep -c "monitoring probe failed" || true)
 [ "$ERRS" = "0" ] || fail "$ERRS erreur(s) de sonde dans les logs du worker pendant le balayage"
 pass "aucune erreur de sonde dans les logs du worker"
 
