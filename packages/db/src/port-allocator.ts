@@ -148,7 +148,7 @@ export async function listApplicationPortAllocations(
     .orderBy(asc(portAllocations.port));
 }
 
-// ─── vue d'ensemble ───────────────────────────────────────────────────────────
+// ─── overview ─────────────────────────────────────────────────────────────────
 
 /** A reservation, as the API and the UI present it. */
 export type PortAllocationView = {

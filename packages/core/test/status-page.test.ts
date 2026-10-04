@@ -15,7 +15,7 @@ import {
 const M1 = '11111111-1111-4111-8111-111111111111';
 const M2 = '22222222-2222-4222-8222-222222222222';
 
-describe('page de statut — la forme', () => {
+describe('status page — the shape', () => {
   it('an empty address leads to /status, a chosen address to /status/<address>', () => {
     assert.equal(statusPagePath(''), '/status');
     assert.equal(statusPagePath('clients'), '/status/clients');
@@ -157,7 +157,7 @@ describe('status page — what a visitor reads', () => {
   });
 });
 
-describe('page de statut — une modification', () => {
+describe('status page — a change', () => {
   it('does not fill in what it does not say: a title unpublishes nothing', () => {
     assert.deepEqual(updateStatusPageSchema.parse({ title: 'Nouveau titre' }), {
       title: 'Nouveau titre',

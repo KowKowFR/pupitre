@@ -36,7 +36,7 @@ const policy = (overrides: Partial<ScanPolicy> = {}): ScanPolicy => ({
   ...overrides,
 });
 
-describe('failles — corrigeable', () => {
+describe('vulnerabilities — fixable', () => {
   it('fixable when a version fixes it, and only then', () => {
     assert.equal(isFixable(curl('8.14.1-r0')), true);
     assert.equal(isFixable(curl(null)), false);
@@ -45,7 +45,7 @@ describe('failles — corrigeable', () => {
   });
 });
 
-describe('failles — accepter', () => {
+describe('vulnerabilities — accepting', () => {
   const accept = (overrides: Partial<VulnerabilityAcceptance> = {}): VulnerabilityAcceptance => ({
     cveId: 'CVE-2026-10536',
     package: 'curl',

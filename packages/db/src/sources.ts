@@ -33,7 +33,7 @@ export type ApplicationSource = typeof applicationSources.$inferSelect;
 export type SourceProposal = typeof sourceProposals.$inferSelect;
 export type SourceMode = ApplicationSource['mode'];
 
-// ─── connexion ────────────────────────────────────────────────────────────────
+// ─── connection ───────────────────────────────────────────────────────────────
 
 export async function getSourceConnection(
   provider: SourceConnection['provider'] = 'github',
@@ -164,7 +164,7 @@ export async function deleteSourceConnection(
   });
 }
 
-// ─── liaisons ─────────────────────────────────────────────────────────────────
+// ─── links ────────────────────────────────────────────────────────────────────
 
 /**
  * A straightforward relative path: neither `..` nor an absolute root. It is used
@@ -190,7 +190,7 @@ const sourceTargetsSchema = z
   .max(20)
   .refine(
     (list) => new Set(list.map((entry) => entry.targetId)).size === list.length,
-    'une cible ne se choisit qu’une fois',
+    invalid('sources.targetOnce'),
   );
 
 /**
@@ -210,7 +210,7 @@ const applicationSourceFields = z.object({
     .trim()
     .min(1)
     .max(255)
-    .refine((branch) => !/\s|\.\.|^[/-]|[~^:?*[\\]/.test(branch), { message: 'nom de branche invalide' }),
+    .refine((branch) => !/\s|\.\.|^[/-]|[~^:?*[\\]/.test(branch), invalid('sources.branch')),
   specPath: repoPathSchema,
   watchPaths: z.array(repoPathSchema).max(50),
   mode: sourceModeSchema,
@@ -238,7 +238,7 @@ export function sourceTargetsProblem(
   deployTo: SourceDeployTo,
   targets: readonly unknown[],
 ): string | null {
-  return deployTo === 'targets' && targets.length === 0 ? 'au moins une cible' : null;
+  return deployTo === 'targets' && targets.length === 0 ? 'at least one target' : null;
 }
 
 export const applicationSourceCreateSchema = applicationSourceInputSchema.superRefine(
@@ -352,7 +352,7 @@ export async function listEnabledSources(db: Database = getDb()): Promise<Applic
 
 export class SourceBindingConflictError extends Error {
   constructor() {
-    super('cette application suit déjà cette branche de ce dépôt');
+    super('this application already follows this branch of this repository');
     this.name = 'SourceBindingConflictError';
   }
 }
@@ -516,7 +516,7 @@ export async function claimSourceCommit(
   return rows.length > 0;
 }
 
-// ─── commits en attente de validation ─────────────────────────────────────────
+// ─── commits awaiting approval ────────────────────────────────────────────────
 
 export type SourceProposalInput = {
   sourceId: string;

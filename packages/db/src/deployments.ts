@@ -241,7 +241,7 @@ export async function createDeploymentWithSteps(
   });
 }
 
-// ─── lecture ──────────────────────────────────────────────────────────────────
+// ─── reading ──────────────────────────────────────────────────────────────────
 
 export const deploymentQuerySchema = z.object({
   applicationId: z.string().uuid().optional(),
@@ -522,7 +522,7 @@ export async function resetUnsuccessfulSteps(
     );
 }
 
-// ─── journal ──────────────────────────────────────────────────────────────────
+// ─── log ──────────────────────────────────────────────────────────────────────
 
 /**
  * Appends a block of lines to a step's log. The append is done by the database
@@ -968,7 +968,7 @@ export async function listSupervisedApps(db: Database = getDb()): Promise<Superv
     .sort((a, b) => a.applicationSlug.localeCompare(b.applicationSlug));
 }
 
-// ─── purge de l'historique ────────────────────────────────────────────────────
+// ─── history purge ────────────────────────────────────────────────────────────
 
 /**
  * Purging is not destroying.

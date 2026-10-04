@@ -111,7 +111,7 @@ export class GitHubSourceProvider implements SourceProvider {
     this.apiUrl = (credentials.apiUrl ?? GITHUB_API_URL).replace(/\/+$/, '');
   }
 
-  // ─── authentification ───────────────────────────────────────────────────────
+  // ─── authentication ─────────────────────────────────────────────────────────
 
   private appJwt(): string {
     return githubAppJwt(this.credentials.appId, this.credentials.privateKey, this.now());
@@ -217,7 +217,7 @@ export class GitHubSourceProvider implements SourceProvider {
     }
     const files = body.files ?? [];
     if (files.length >= COMPARE_FILE_LIMIT) {
-      return { kind: 'unknown', reason: `plus de ${COMPARE_FILE_LIMIT} fichiers modifiés` };
+      return { kind: 'unknown', reason: `more than ${COMPARE_FILE_LIMIT} files changed` };
     }
     // A rename touches the old path as well as the new one.
     return {

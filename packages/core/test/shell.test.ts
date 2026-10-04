@@ -33,7 +33,7 @@ describe('shellQuote', () => {
     }
   });
 
-  it('enferme tout entre apostrophes', () => {
+  it('wraps everything in single quotes', () => {
     assert.equal(shellQuote('a b'), "'a b'");
     assert.equal(shellQuote("it's"), `'it'\\''s'`);
   });

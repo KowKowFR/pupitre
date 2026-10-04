@@ -22,7 +22,7 @@ export type { StatusPageRow };
 /** The address is already taken by another page. */
 export class StatusPageSlugTakenError extends Error {
   constructor(readonly slug: string) {
-    super(`adresse de page de statut déjà prise : « ${slug} »`);
+    super(`status page address already taken: "${slug}"`);
     this.name = 'StatusPageSlugTakenError';
   }
 }

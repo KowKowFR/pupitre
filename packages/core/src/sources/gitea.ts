@@ -178,12 +178,12 @@ export class GiteaSourceProvider implements SourceProvider {
     const commits = body.commits ?? [];
     // Nothing in between, or a base that is not an ancestor of the head: the
     // history was rewritten (force-push), the list does not tell everything.
-    if (commits.length === 0) return { kind: 'unknown', reason: 'historique réécrit' };
+    if (commits.length === 0) return { kind: 'unknown', reason: 'history rewritten' };
     if (!commits.some((commit) => commit.parents?.some((parent) => parent.sha === base))) {
-      return { kind: 'unknown', reason: 'historique divergent' };
+      return { kind: 'unknown', reason: 'history diverged' };
     }
     if (body.total_commits !== undefined && commits.length < body.total_commits) {
-      return { kind: 'unknown', reason: `${body.total_commits} commits, liste incomplète` };
+      return { kind: 'unknown', reason: `${body.total_commits} commits, incomplete list` };
     }
     const files = new Set<string>();
     for (const commit of commits) {
@@ -191,12 +191,12 @@ export class GiteaSourceProvider implements SourceProvider {
         // Gitea does not give a rename's old path: we do not know everything that
         // moved, so everything counts.
         if (file.status === 'renamed')
-          return { kind: 'unknown', reason: `renommage de ${file.filename}` };
+          return { kind: 'unknown', reason: `rename of ${file.filename}` };
         files.add(file.filename);
       }
     }
     if (files.size >= COMPARE_FILE_LIMIT) {
-      return { kind: 'unknown', reason: `plus de ${COMPARE_FILE_LIMIT} fichiers modifiés` };
+      return { kind: 'unknown', reason: `more than ${COMPARE_FILE_LIMIT} files changed` };
     }
     return { kind: 'files', files: [...files].sort() };
   }

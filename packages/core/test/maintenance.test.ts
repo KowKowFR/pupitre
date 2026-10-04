@@ -48,7 +48,7 @@ describe('maintenance — the window', () => {
   });
 });
 
-describe('maintenance — les alertes retenues', () => {
+describe('maintenance — held alerts', () => {
   const at = (minute: number) => new Date(Date.UTC(2026, 9, 3, 20, minute));
   const held = (id: string, family: string, opens: boolean, minute: number) => ({
     id,
@@ -77,7 +77,7 @@ describe('maintenance — les alertes retenues', () => {
   });
 });
 
-describe('maintenance — le catalogue', () => {
+describe('maintenance — the catalog', () => {
   it('monitoring alerts have a rule; security and deployments, never', () => {
     const down = maintenanceRuleOf('monitor.down');
     assert.deepEqual(down?.subject({ resourceId: 'm-1', after: {} }), {

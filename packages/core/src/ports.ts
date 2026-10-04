@@ -78,7 +78,7 @@ export class PortExhaustedError extends Error {
     readonly min: number,
     readonly max: number,
   ) {
-    super(`Aucun port libre entre ${min} et ${max} sur la cible ${targetId}`);
+    super(`No free port between ${min} and ${max} on target ${targetId}`);
     this.name = 'PortExhaustedError';
   }
 }

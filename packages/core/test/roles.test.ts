@@ -34,7 +34,7 @@ describe('starting roles', () => {
     assert.deepEqual([...ROLE_DEFINITIONS.auditor.permissions].sort(), [...READS].sort());
   });
 
-  it("l'observateur lit l'exploitation, pas l'administration", () => {
+  it('the viewer reads operations, not administration', () => {
     const viewer = ROLE_DEFINITIONS.viewer.permissions;
     for (const permission of ADMINISTRATION) {
       assert.ok(!viewer.includes(permission), `l'observateur porte ${permission}`);

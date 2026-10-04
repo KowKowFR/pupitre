@@ -49,7 +49,7 @@ describe('Operations messages — two languages', () => {
 });
 
 describe('Operations messages — rendered in English', () => {
-  it('une destination de sauvegarde absente', async () => {
+  it('a missing backup destination', async () => {
     const store = new LocalBackupStore({ path: '/pupitre-test-absent' }, 'en');
     await assert.rejects(store.check(), /does not exist in the worker container/);
   });

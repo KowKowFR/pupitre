@@ -64,8 +64,8 @@ function toKeyMaterial(masterKey: string): Buffer {
   const raw = Buffer.from(masterKey, 'utf8');
   if (raw.byteLength < MIN_MASTER_KEY_BYTES) {
     throw new MasterKeyError(
-      `MASTER_KEY fait ${raw.byteLength} octets, minimum ${MIN_MASTER_KEY_BYTES}. ` +
-        'Générer une clé avec : openssl rand -hex 32',
+      `MASTER_KEY is ${raw.byteLength} bytes, minimum ${MIN_MASTER_KEY_BYTES}. ` +
+        'Generate a key with: openssl rand -hex 32',
     );
   }
   return raw;
@@ -78,9 +78,7 @@ function toKeyMaterial(masterKey: string): Buffer {
  */
 export function deriveKey(masterKey: string | undefined): Buffer {
   if (masterKey === undefined || masterKey === '') {
-    throw new MasterKeyError(
-      'MASTER_KEY est absente. Générer une clé avec : openssl rand -hex 32',
-    );
+    throw new MasterKeyError('MASTER_KEY is missing. Generate a key with: openssl rand -hex 32');
   }
   const ikm = toKeyMaterial(masterKey);
   return Buffer.from(hkdfSync('sha256', ikm, HKDF_SALT, HKDF_INFO, KEY_LENGTH));
@@ -97,9 +95,7 @@ export function deriveBackupKey(
   masterKey: string | undefined = process.env.MASTER_KEY,
 ): Buffer {
   if (masterKey === undefined || masterKey === '') {
-    throw new MasterKeyError(
-      'MASTER_KEY est absente : impossible de chiffrer ou de relire une sauvegarde.',
-    );
+    throw new MasterKeyError('MASTER_KEY is missing: a backup can be neither encrypted nor read.');
   }
   return Buffer.from(
     hkdfSync('sha256', toKeyMaterial(masterKey), salt, 'pupitre-backup-v1', KEY_LENGTH),
@@ -146,7 +142,7 @@ export function secretWeakness(value: string | undefined, name: string): string 
 
   const distinct = new Set(value).size;
   if (distinct <= 2) {
-    return `${name} ne contient que ${distinct} caractère(s) distinct(s)`;
+    return `${name} contains only ${distinct} distinct character(s)`;
   }
 
   // A pattern of 15 characters or fewer, repeated to the end: it is the shape of
@@ -160,7 +156,7 @@ export function secretWeakness(value: string | undefined, name: string): string 
     const unit = value.slice(0, size);
     const tiled = unit.repeat(Math.ceil(value.length / size)).slice(0, value.length);
     if (tiled === value) {
-      return `${name} répète le motif « ${unit} »`;
+      return `${name} repeats the pattern "${unit}"`;
     }
   }
 
@@ -205,13 +201,13 @@ export function decrypt(payload: string): string {
   const parts = payload.split(':');
   if (parts.length !== 4) {
     throw new DecryptionError(
-      `Format attendu « version:iv:authTag:ciphertext », ${parts.length} champ(s) reçu(s)`,
+      `Expected format "version:iv:authTag:ciphertext", ${parts.length} field(s) received`,
     );
   }
 
   const [version, ivB64, tagB64, dataB64] = parts as [string, string, string, string];
   if (version !== CURRENT_CRYPTO_VERSION) {
-    throw new DecryptionError(`Version de chiffrement inconnue « ${version} »`);
+    throw new DecryptionError(`Unknown encryption version "${version}"`);
   }
 
   const iv = Buffer.from(ivB64, 'base64');
@@ -219,11 +215,11 @@ export function decrypt(payload: string): string {
   const ciphertext = Buffer.from(dataB64, 'base64');
 
   if (iv.byteLength !== IV_LENGTH) {
-    throw new DecryptionError(`IV de ${iv.byteLength} octets, ${IV_LENGTH} attendus`);
+    throw new DecryptionError(`IV of ${iv.byteLength} bytes, ${IV_LENGTH} expected`);
   }
   if (authTag.byteLength !== AUTH_TAG_LENGTH) {
     throw new DecryptionError(
-      `Tag d'authentification de ${authTag.byteLength} octets, ${AUTH_TAG_LENGTH} attendus`,
+      `Authentication tag of ${authTag.byteLength} bytes, ${AUTH_TAG_LENGTH} expected`,
     );
   }
 
@@ -239,7 +235,7 @@ export function decrypt(payload: string): string {
     // `final()` fails as soon as the tag does not match: tampering with the
     // ciphertext, the IV, the tag, or decryption with another key.
     throw new DecryptionError(
-      'Déchiffrement impossible : donnée altérée ou chiffrée avec une autre MASTER_KEY',
+      'Decryption failed: data tampered with or encrypted with another MASTER_KEY',
     );
   }
 }

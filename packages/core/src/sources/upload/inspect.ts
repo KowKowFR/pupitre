@@ -382,7 +382,7 @@ function asRejection(error: unknown): SourceArchiveRejected {
   return new SourceArchiveRejected('corrupt', message.slice(0, 300));
 }
 
-// ─── l'ensemble ──────────────────────────────────────────────────────────────
+// ─── the whole ───────────────────────────────────────────────────────────────
 
 /**
  * Reads `input`, judges it, and writes into `output` the clean archive to place.

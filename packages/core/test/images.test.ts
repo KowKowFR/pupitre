@@ -93,7 +93,7 @@ describe('image references', () => {
   });
 });
 
-describe('verdict et versions', () => {
+describe('verdict and versions', () => {
   it('up to date only if everything running is the tag’s current content', () => {
     assert.equal(judgeImage({ pinned: false, running: [A], latest: A }), 'current');
     assert.equal(judgeImage({ pinned: false, running: [B], latest: A }), 'outdated');
@@ -277,7 +277,7 @@ describe('registre', () => {
 });
 
 describe('what runs, as seen by each runtime', () => {
-  it('Docker : RepoDigests par identifiant d’image', () => {
+  it('Docker: RepoDigests per image identifier', () => {
     const digests = parseRepoDigests(
       [
         `sha256:111 ["nginx@${A}"]`,
@@ -291,7 +291,7 @@ describe('what runs, as seen by each runtime', () => {
     assert.deepEqual(digests.get('sha256:333'), [B, A]);
   });
 
-  it('K3s : imageID des pods, par service', () => {
+  it('K3s: the pods’ imageID, per service', () => {
     const pods = JSON.stringify({
       items: [
         {

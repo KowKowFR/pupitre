@@ -91,8 +91,8 @@ class CdpConnection {
       for (const [, entry] of this.#pending) entry.reject(this.#closed);
       this.#pending.clear();
     };
-    socket.addEventListener('close', () => fail('connexion au navigateur fermée'));
-    socket.addEventListener('error', () => fail('connexion au navigateur en erreur'));
+    socket.addEventListener('close', () => fail('browser connection closed'));
+    socket.addEventListener('error', () => fail('browser connection failed'));
   }
 
   async send<T = Record<string, unknown>>(
@@ -332,9 +332,9 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
       return {
         ok: false,
         reason: 'too-large',
-        detail: `${Math.round(data.byteLength / 1024)} Ko après réduction, borne à ${Math.round(
+        detail: `${Math.round(data.byteLength / 1024)} KB after reduction, cap at ${Math.round(
           MONITOR_CAPTURE_MAX_BYTES / 1024,
-        )} Ko`,
+        )} KB`,
       };
     }
 

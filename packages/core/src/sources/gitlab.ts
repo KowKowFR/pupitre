@@ -234,12 +234,12 @@ export class GitLabSourceProvider implements SourceProvider {
     const commits = body.commits ?? [];
     // Nothing in between, or a base that is not an ancestor of the head: the
     // history was rewritten (force-push), the list does not tell everything.
-    if (commits.length === 0) return { kind: 'unknown', reason: 'historique réécrit' };
+    if (commits.length === 0) return { kind: 'unknown', reason: 'history rewritten' };
     if (!commits.some((commit) => commit.parent_ids?.includes(base))) {
-      return { kind: 'unknown', reason: 'historique divergent' };
+      return { kind: 'unknown', reason: 'history diverged' };
     }
     // GitLab cut the comparison at its limits: the list is incomplete.
-    if (body.compare_timeout) return { kind: 'unknown', reason: 'comparaison tronquée par GitLab' };
+    if (body.compare_timeout) return { kind: 'unknown', reason: 'comparison truncated by GitLab' };
     const files = new Set<string>();
     for (const diff of body.diffs ?? []) {
       // A rename touches two paths: the old one and the new one.
@@ -247,7 +247,7 @@ export class GitLabSourceProvider implements SourceProvider {
       files.add(diff.new_path);
     }
     if (files.size >= COMPARE_FILE_LIMIT) {
-      return { kind: 'unknown', reason: `plus de ${COMPARE_FILE_LIMIT} fichiers modifiés` };
+      return { kind: 'unknown', reason: `more than ${COMPARE_FILE_LIMIT} files changed` };
     }
     return { kind: 'files', files: [...files].sort() };
   }

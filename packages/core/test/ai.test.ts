@@ -158,7 +158,7 @@ describe('model', () => {
   });
 });
 
-describe('validation du prompt utilisateur', () => {
+describe('user prompt validation', () => {
   it('refuses empty and too long', () => {
     assert.equal(generateAppSpecInputSchema.safeParse({ prompt: 'court' }).success, false);
     assert.equal(

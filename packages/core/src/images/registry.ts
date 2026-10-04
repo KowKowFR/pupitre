@@ -121,14 +121,14 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
     if (challenge.scope) url.searchParams.set('scope', challenge.scope);
     const response = await call(url.toString(), { method: 'GET' });
     if (!response.ok) {
-      throw new RegistryError('unauthorized', `jeton refusé (HTTP ${response.status})`);
+      throw new RegistryError('unauthorized', `token refused (HTTP ${response.status})`);
     }
     const body = (await response.json().catch(() => ({}))) as {
       token?: string;
       access_token?: string;
     };
     const value = body.token ?? body.access_token;
-    if (!value) throw new RegistryError('unauthorized', 'jeton absent de la réponse');
+    if (!value) throw new RegistryError('unauthorized', 'no token in the response');
     tokens.set(key, value);
     return value;
   }
@@ -143,7 +143,7 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
     let response = await call(url, init);
     if (response.status === 401) {
       const challenge = parseBearerChallenge(response.headers.get('www-authenticate'));
-      if (!challenge) throw new RegistryError('unauthorized', 'accès refusé par le registre');
+      if (!challenge) throw new RegistryError('unauthorized', 'access refused by the registry');
       // Without an announced scope (HEAD on some registries), we infer it.
       const scoped = challenge.scope
         ? challenge
@@ -155,13 +155,13 @@ export function createRegistryClient(options: RegistryClientOptions = {}) {
       });
     }
     if (response.status === 401 || response.status === 403) {
-      throw new RegistryError('unauthorized', 'image privée ou accès refusé');
+      throw new RegistryError('unauthorized', 'private image or access refused');
     }
-    if (response.status === 404) throw new RegistryError('not_found', 'tag ou dépôt introuvable');
-    if (response.status === 429)
-      throw new RegistryError('rate_limited', 'quota du registre atteint');
+    if (response.status === 404)
+      throw new RegistryError('not_found', 'tag or repository not found');
+    if (response.status === 429) throw new RegistryError('rate_limited', 'registry quota reached');
     if (!response.ok) {
-      throw new RegistryError('unexpected', `réponse inattendue (HTTP ${response.status})`);
+      throw new RegistryError('unexpected', `unexpected response (HTTP ${response.status})`);
     }
     return response;
   }

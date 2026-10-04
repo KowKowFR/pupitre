@@ -13,7 +13,7 @@ const resolver = (table: Record<string, string[]>) => async (host: string) => {
   return found;
 };
 
-describe('appels sortants vers une adresse saisie', () => {
+describe('outgoing calls to a typed-in address', () => {
   it('refuses a cloud’s metadata, by address or by name', async () => {
     await assert.rejects(
       assertEgressAllowed('http://169.254.169.254/latest/meta-data/'),

@@ -50,7 +50,7 @@ export class NotificationChannelNameTakenError extends Error {
   readonly channelName: string;
 
   constructor(channelName: string) {
-    super(`Un canal nommé « ${channelName} » existe déjà`);
+    super(`A channel named "${channelName}" already exists`);
     this.name = 'NotificationChannelNameTakenError';
     this.channelName = channelName;
   }
@@ -104,7 +104,7 @@ function toRecord(row: NotificationChannelRow): NotificationChannelRecord {
   };
 }
 
-// ─── lecture ──────────────────────────────────────────────────────────────────
+// ─── reading ──────────────────────────────────────────────────────────────────
 
 export async function listNotificationChannels(
   db: Database = getDb(),

@@ -106,7 +106,7 @@ function deploymentOf(manifests: KubeManifest[], name: string): DeploymentManife
   return found;
 }
 
-describe('render() — AppSpec vers manifests Kubernetes', () => {
+describe('render() — AppSpec to Kubernetes manifests', () => {
   describe('simple.json', () => {
     const spec = fixture('simple');
     const manifests = renderManifests({ spec, appSlug: spec.name });
@@ -153,7 +153,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
       );
     });
 
-    it('traduit healthcheck en readinessProbe et livenessProbe', () => {
+    it('translates healthcheck into readinessProbe and livenessProbe', () => {
       const container = deploymentOf(manifests, 'api').spec.template.spec.containers[0];
       assert.ok(container);
       assert.deepEqual(container.readinessProbe.httpGet, { path: '/', port: 80, scheme: 'HTTP' });
@@ -614,7 +614,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
    * checkable without a cluster — whereas the failure they prevent only showed
    * when a pod started.
    */
-  describe('securityContext selon le type de source', () => {
+  describe('securityContext according to the source type', () => {
     /** A minimal AppSpec carrying both regimes side by side. */
     const spec = parseAppSpec({
       name: 'mixte',
@@ -730,7 +730,7 @@ describe('render() — AppSpec vers manifests Kubernetes', () => {
 /** The build that sets up or finds the builder, in the manifests below. */
 const LAST_BUILD = new Date('2026-10-04T08:00:00Z');
 
-describe('constructeur d’images K3s', () => {
+describe('K3s image builder', () => {
   const deploymentManifest = parseYaml(builderDeploymentManifest(LAST_BUILD)) as {
     metadata: { name: string; namespace: string; labels: Record<string, string> };
     spec: {
@@ -858,7 +858,7 @@ function fakeTarget(
   return { ctx, commands };
 }
 
-describe('constructeur d’images K3s — expiration', () => {
+describe('K3s image builder — expiry', () => {
   const NOW = new Date('2026-10-05T09:00:00Z');
   const idle = new Date(NOW.getTime() - BUILDER_IDLE_TTL_MS - 60_000).toISOString();
   const recent = new Date(NOW.getTime() - 60 * 60_000).toISOString();
@@ -954,7 +954,7 @@ describe('constructeur d’images K3s — expiration', () => {
     assert.equal(typeof getDriver('k3s').pruneIdleBuilder, 'function');
   });
 
-  it('disparu entre-temps : absent ; un autre refus remonte', async () => {
+  it('gone in the meantime: absent; another refusal bubbles up', async () => {
     const gone = fakeTarget([
       () => ({ code: 0, stdout: `${idle}|x|812` }),
       () => ({

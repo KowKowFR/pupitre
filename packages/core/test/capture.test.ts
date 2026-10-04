@@ -32,7 +32,7 @@ import { createCaptureEgress } from '../src/capture/egress.js';
  *     rule "a capture never fails a probe" depends on.
  */
 
-// ─── bornes ───────────────────────────────────────────────────────────────────
+// ─── bounds ───────────────────────────────────────────────────────────────────
 
 test('the rendered height is bounded, and says so when it truncates', () => {
   assert.deepEqual(captureHeightFor(1_200), { height: 1_200, truncated: false });

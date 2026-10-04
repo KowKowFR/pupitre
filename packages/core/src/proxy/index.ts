@@ -23,14 +23,14 @@ const remote: Partial<Record<ProxyKind, () => RemoteProxyProvider>> = {
 export function getProxyProvider(kind: ProxyKind): ProxyProvider {
   const make = onTargets[kind];
   if (!make) {
-    throw new ProxyError(`le proxy « ${kind} » ne tourne pas sur une cible`, kind, 'registry');
+    throw new ProxyError(`proxy "${kind}" does not run on a target`, kind, 'registry');
   }
   return make();
 }
 
 export function getRemoteProxyProvider(kind: ProxyKind): RemoteProxyProvider {
   const make = remote[kind];
-  if (!make) throw new ProxyError(`le proxy « ${kind} » n'est pas distant`, kind, 'registry');
+  if (!make) throw new ProxyError(`proxy "${kind}" is not remote`, kind, 'registry');
   return make();
 }
 

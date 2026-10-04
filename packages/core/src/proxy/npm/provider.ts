@@ -156,7 +156,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     };
   }
 
-  // ─── tester ─────────────────────────────────────────────────────────────────
+  // ─── testing ────────────────────────────────────────────────────────────────
 
   async check(ctx: RemoteProxyContext, onLog: LogSink): Promise<ProxyCheck> {
     const say = npmSay(ctx.language);
@@ -494,7 +494,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     });
   }
 
-  // ─── sonder ─────────────────────────────────────────────────────────────────
+  // ─── probing ────────────────────────────────────────────────────────────────
 
   async probe(ctx: RemoteProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe> {
     const config = this.parseConfig(ctx.config);

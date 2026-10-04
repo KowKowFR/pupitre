@@ -76,7 +76,7 @@ export function createDecryptStream(masterKey?: string, language: UiLanguage = '
           data = header.subarray(BACKUP_HEADER_BYTES);
           header = header.subarray(0, BACKUP_HEADER_BYTES);
           if (!header.subarray(0, MAGIC.length).equals(MAGIC)) {
-            throw new BackupFormatError("ce n'est pas un fichier de sauvegarde Pupitre");
+            throw new BackupFormatError('this is not a Pupitre backup file');
           }
           if (header[MAGIC.length] !== VERSION) {
             throw new BackupFormatError(`version de format inconnue : ${header[MAGIC.length]}`);

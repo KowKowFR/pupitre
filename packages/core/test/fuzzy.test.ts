@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { editDistance, foldText, matchScore, queryTokens, rankByMatch } from '../src/fuzzy.js';
 
 describe('tolerant matching', () => {
-  it('ignore accents et casse', () => {
+  it('ignores accents and case', () => {
     assert.equal(foldText('Déploiement'), 'deploiement');
     assert.ok(matchScore('deploiement', ['Déploiement de blog']) > 0);
     assert.ok(matchScore('PROD', ['prod-1']) > 0);

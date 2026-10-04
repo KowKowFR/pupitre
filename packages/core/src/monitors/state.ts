@@ -49,7 +49,7 @@ export const checkResultSchema = z.object({
 });
 export type CheckResult = z.infer<typeof checkResultSchema>;
 
-// ─── bornes communes ──────────────────────────────────────────────────────────
+// ─── shared bounds ────────────────────────────────────────────────────────────
 
 export const MONITOR_THRESHOLD_MIN = 1;
 export const MONITOR_THRESHOLD_MAX = 10;
@@ -433,7 +433,7 @@ export function formatCadence(seconds: number, language: UiLanguage = 'fr'): str
   return t(masculine ? 'cadence.every.masculine' : 'cadence.every.feminine', { interval });
 }
 
-// ─── alerte ───────────────────────────────────────────────────────────────────
+// ─── alert ────────────────────────────────────────────────────────────────────
 
 /**
  * An **outgoing webhook**, and nothing else for now. A POST request with a JSON

@@ -334,7 +334,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     );
   }
 
-  // ─── pare-feu ───────────────────────────────────────────────────────────────
+  // ─── firewall ───────────────────────────────────────────────────────────────
 
   /**
    * Opens the port on UFW.
@@ -1620,7 +1620,7 @@ export class DockerComposeDriver implements DeploymentDriver {
   }
 }
 
-// ─── utilitaires ──────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 /** Last non-empty line — where a tool says why it stops. */
 function lastLine(value: string): string | null {

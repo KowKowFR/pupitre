@@ -45,7 +45,7 @@ import type { MonitorProbe, ProbeContext } from './types.js';
  * property of the page. It is written in `neverDoes`.
  */
 
-// ─── normalisation ────────────────────────────────────────────────────────────
+// ─── normalization ────────────────────────────────────────────────────────────
 
 /** All Unicode spaces, including the no-break and the narrow no-break space. */
 const ANY_SPACE = /\s+/gu;

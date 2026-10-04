@@ -27,7 +27,7 @@ function mail(overrides: Partial<AccountMail> = {}): AccountMail {
   });
 }
 
-describe('e-mails de cycle de vie des comptes', () => {
+describe('account life-cycle emails', () => {
   it('attaches the Pupitre tile and cites it by cid:, without any remote image', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
       const { html, inlineImages } = renderAccountMail(mail({ kind }), 'fr');

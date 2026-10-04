@@ -54,7 +54,7 @@ describe('presence', () => {
   });
 });
 
-describe('sujets en direct', () => {
+describe('live topics', () => {
   it('wakes up the screens concerned by a job', () => {
     assert.equal(liveTopicOfJob('deployment:run'), 'deployments');
     assert.equal(liveTopicOfJob('source:deploy'), 'deployments');

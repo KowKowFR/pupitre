@@ -82,7 +82,7 @@ import { createRedisConnection } from '../redis.js';
  * deliberately kept out of its graph, exactly like `ssh2`.
  */
 
-// ─── producteur ───────────────────────────────────────────────────────────────
+// ─── producer ─────────────────────────────────────────────────────────────────
 
 let notificationsQueue: Queue | null = null;
 
@@ -510,7 +510,7 @@ export async function handleNotificationDeliver(
   return { channelId: data.channelId, event, delivered: true, attempt, error: null };
 }
 
-// ─── essai manuel ─────────────────────────────────────────────────────────────
+// ─── manual test ──────────────────────────────────────────────────────────────
 
 export async function handleNotificationTest(
   job: Job<unknown, NotificationTestJobResult>,

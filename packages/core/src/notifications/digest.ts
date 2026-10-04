@@ -119,7 +119,7 @@ function t(language: UiLanguage, key: keyof typeof fr, vars?: Vars): string {
   return renderMessage(DIGEST_TEXT, language, key, vars);
 }
 
-// ─── politique ────────────────────────────────────────────────────────────────
+// ─── policy ───────────────────────────────────────────────────────────────────
 
 /** Five minutes: enough for a storm to show, short enough to stay useful. */
 export const NOTIFICATION_DIGEST_WINDOW_MS_DEFAULT = 5 * 60_000;
@@ -224,7 +224,7 @@ export function notificationDigestOmitted(digest: NotificationDigest): number {
   return Math.max(0, digest.count - digest.items.length);
 }
 
-// ─── mise en forme commune ────────────────────────────────────────────────────
+// ─── shared formatting ────────────────────────────────────────────────────────
 
 /**
  * "15 s", "5 min", "1 h 20". A readable duration, not an ISO 8601.

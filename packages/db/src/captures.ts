@@ -161,7 +161,7 @@ export async function pinReferenceToIncident(
   return (row as CaptureMeta | undefined) ?? null;
 }
 
-// ─── lecture ──────────────────────────────────────────────────────────────────
+// ─── reading ──────────────────────────────────────────────────────────────────
 
 /** A probe's captures, the most recent first. Without the bytes. */
 export async function listCaptures(

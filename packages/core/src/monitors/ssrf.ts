@@ -373,7 +373,7 @@ export function classifyAddress(value: string): AddressCategory | null {
   return 'public';
 }
 
-// ─── liste d'autorisation ─────────────────────────────────────────────────────
+// ─── allow list ───────────────────────────────────────────────────────────────
 
 export type Cidr = { address: IpAddress; bits: number; text: string };
 

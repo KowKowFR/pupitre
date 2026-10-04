@@ -115,7 +115,7 @@ export const MONITOR_CAPTURE_FALLBACK_HEIGHT = 1_000;
  */
 export const MONITOR_CAPTURE_MAX_BYTES = 1_500_000;
 
-// ─── temps ────────────────────────────────────────────────────────────────────
+// ─── time ─────────────────────────────────────────────────────────────────────
 
 /** A capture's total budget, browser connection included. */
 export const MONITOR_CAPTURE_BUDGET_MS = 25_000;

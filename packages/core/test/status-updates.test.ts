@@ -20,7 +20,7 @@ import {
 const INCIDENT = { type: 'incident' as const, id: '6f1c2c1e-6c0a-4b8e-9d55-0d6d3e1b2a40' };
 const WINDOW = { type: 'maintenance' as const, id: '0b8e3f7a-2d4c-4a51-8f0e-7c2d1a9b6e33' };
 
-describe('annonces — les phases', () => {
+describe('announcements — the phases', () => {
   it('an outage and a maintenance window do not speak with the same words', () => {
     for (const phase of INCIDENT_UPDATE_PHASES) {
       assert.ok(isStatusUpdatePhaseFor('incident', phase));
@@ -93,7 +93,7 @@ describe('announcements — what gets published', () => {
 });
 
 describe('announcements — the subject’s key in an address', () => {
-  it('fait l’aller-retour', () => {
+  it('makes the round trip', () => {
     for (const subject of [INCIDENT, WINDOW]) {
       assert.deepEqual(parseStatusUpdateSubjectKey(statusUpdateSubjectKey(subject)), subject);
     }

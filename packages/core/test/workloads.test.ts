@@ -133,7 +133,7 @@ describe('a command only runs in the workload', () => {
     'it\'s "quoted" \\ back\\slash',
     'line1\nline2',
   ]) {
-    it(`arrive intacte : ${JSON.stringify(command)}`, () => {
+    it(`arrives intact: ${JSON.stringify(command)}`, () => {
       const received = execFileSync('sh', ['-c', `printf %s ${quoteForShell(command)}`], {
         encoding: 'utf8',
       });
@@ -143,7 +143,7 @@ describe('a command only runs in the workload', () => {
 });
 
 describe('jobs and messages', () => {
-  it('borne une commande : vide, trop longue', () => {
+  it('bounds a command: empty, too long', () => {
     const ok = workloadExecJobDataSchema.safeParse({
       ...base,
       action: 'exec',

@@ -14,7 +14,7 @@ import { BACKOFF_CAP_SEC, backoffMs, parseListeningPorts } from '../src/drivers/
  * takes care of it.
  */
 
-describe('plages de ports', () => {
+describe('port ranges', () => {
   it('without a worker range, the target’s range is kept as is', () => {
     assert.deepEqual(intersectPortRanges({ min: 30_000, max: 30_009 }, undefined), {
       min: 30_000,
@@ -51,7 +51,7 @@ describe('plages de ports', () => {
   });
 });
 
-describe('backoff du healthcheck', () => {
+describe('healthcheck backoff', () => {
   it('doubles at each attempt', () => {
     assert.equal(backoffMs(2, 1), 2000);
     assert.equal(backoffMs(2, 2), 4000);
@@ -70,7 +70,7 @@ describe('backoff du healthcheck', () => {
 });
 
 describe('ports listening on the target', () => {
-  it('lit la sortie de ss -tlnH', () => {
+  it('reads the output of ss -tlnH', () => {
     const output = [
       'LISTEN 0      4096         0.0.0.0:22        0.0.0.0:*',
       'LISTEN 0      4096            [::]:30001        [::]:*',

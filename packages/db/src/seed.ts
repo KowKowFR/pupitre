@@ -146,13 +146,13 @@ if (isDirectRun) {
     .then(async (result) => {
       const created =
         result.rolesCreated.length > 0
-          ? `, rôles créés : ${result.rolesCreated.join(', ')}`
-          : ', aucun rôle créé';
-      const realigned = result.adminRealigned ? ', admin réaligné' : '';
+          ? `, roles created: ${result.rolesCreated.join(', ')}`
+          : ', no role created';
+      const realigned = result.adminRealigned ? ', admin realigned' : '';
       // eslint-disable-next-line no-console
       console.log(
         `[db] seed RBAC : ${result.permissions} permissions${created}${realigned}` +
-          (result.freshInstall ? ' (installation vierge)' : ''),
+          (result.freshInstall ? ' (fresh install)' : ''),
       );
       await closeDb();
     })

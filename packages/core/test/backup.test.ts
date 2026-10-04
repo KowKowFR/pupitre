@@ -91,19 +91,19 @@ describe('format .pupb', () => {
     );
   });
 
-  it('chiffre aussi un contenu vide', async () => {
+  it('also encrypts an empty content', async () => {
     const sealed = await encryptBuffer(Buffer.alloc(0), KEY);
     assert.equal((await decryptBuffer(sealed, KEY)).length, 0);
   });
 });
 
-describe('signature S3 (SigV4)', () => {
+describe('S3 signature (SigV4)', () => {
   // The example key from AWS's documentation, public. Written in two pieces: in
   // one piece, it has the exact shape of a real key, and the CI's "no secret in
   // the repository" guard would refuse it — rightly.
   const EXAMPLE_KEY_ID = ['AKIA', 'IOSFODNN7EXAMPLE'].join('');
 
-  it('reproduit le vecteur officiel d’AWS (GET Object)', () => {
+  it('reproduces AWS’s official vector (GET Object)', () => {
     // docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html
     const headers = signV4({
       method: 'GET',
@@ -147,7 +147,7 @@ const spec = parseAppSpec({
   ],
 });
 
-describe('le plan', () => {
+describe('the plan', () => {
   it('recognizes the databases whose tool it knows — and not the others', () => {
     assert.equal(databaseEngineOf('postgres:16-alpine'), 'postgres');
     assert.equal(databaseEngineOf('docker.io/library/postgres:15'), 'postgres');

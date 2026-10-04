@@ -82,7 +82,7 @@ export class NotificationError extends Error {
   }
 }
 
-// ─── transports injectables ───────────────────────────────────────────────────
+// ─── injectable transports ────────────────────────────────────────────────────
 
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -129,7 +129,7 @@ export type NotificationTransports = {
   timeoutMs: number;
 };
 
-// ─── expurgation ──────────────────────────────────────────────────────────────
+// ─── redaction ────────────────────────────────────────────────────────────────
 
 /**
  * Shapes tokens take at the targeted providers, including **masked** by them.

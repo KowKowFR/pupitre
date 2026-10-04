@@ -57,7 +57,7 @@ function boundRaw(raw: unknown): unknown {
   return {
     truncated: true,
     bytes: serialized.length,
-    note: `sortie brute écartée : ${serialized.length} octets, au-delà de la limite de ${RAW_MAX_BYTES}`,
+    note: `raw output dropped: ${serialized.length} bytes, beyond the ${RAW_MAX_BYTES} limit`,
   };
 }
 
@@ -179,7 +179,7 @@ export async function skipScanRun(
     .where(eq(scanRuns.id, id));
 }
 
-// ─── lecture ──────────────────────────────────────────────────────────────────
+// ─── reading ──────────────────────────────────────────────────────────────────
 
 export type ScanRunSummary = {
   id: string;
@@ -496,7 +496,7 @@ export async function listFindings(
   };
 }
 
-// ─── vue transverse ───────────────────────────────────────────────────────────
+// ─── cross-cutting view ───────────────────────────────────────────────────────
 
 export const globalFindingQuerySchema = z.object({
   cveId: z.string().min(1).max(200).optional(),

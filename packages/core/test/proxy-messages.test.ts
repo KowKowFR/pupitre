@@ -65,7 +65,7 @@ describe('Proxy and probe messages — two languages', () => {
   }
 });
 
-describe('Proxys — rendus en anglais', () => {
+describe('Proxies — rendered in English', () => {
   it('a route probe’s verdict', () => {
     const route = {
       hostname: 'app.example.com',
@@ -127,7 +127,7 @@ describe('Proxys — rendus en anglais', () => {
   });
 });
 
-describe('Sondes — rendus en anglais', () => {
+describe('Probes — rendered in English', () => {
   const NOW = new Date('2026-09-13T12:00:00Z');
 
   it('a domain within the notice period, its date unambiguous', () => {

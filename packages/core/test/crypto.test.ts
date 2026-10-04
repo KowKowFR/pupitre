@@ -33,7 +33,7 @@ describe('crypto', () => {
   afterEach(() => withMasterKey(original));
 
   describe('round-trip', () => {
-    it('rend le texte d’origine', () => {
+    it('returns the original text', () => {
       const secret = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 clé de test';
       assert.equal(decrypt(encrypt(secret)), secret);
     });
@@ -51,7 +51,7 @@ describe('crypto', () => {
       assert.equal(decrypt(a), decrypt(b));
     });
 
-    it('respecte le format version:iv:authTag:ciphertext', () => {
+    it('follows the version:iv:authTag:ciphertext format', () => {
       const parts = encrypt('x').split(':');
       assert.equal(parts.length, 4);
       assert.equal(parts[0], CURRENT_CRYPTO_VERSION);
@@ -93,7 +93,7 @@ describe('crypto', () => {
       assert.throws(() => decrypt(payload.join(':')), DecryptionError);
     });
 
-    it('rejette un nombre de champs incorrect', () => {
+    it('rejects a wrong number of fields', () => {
       for (const bad of ['', 'v1', 'v1:a:b', 'v1:a:b:c:d']) {
         assert.throws(() => decrypt(bad), DecryptionError);
       }
@@ -114,7 +114,7 @@ describe('crypto', () => {
     });
   });
 
-  describe('validation de MASTER_KEY', () => {
+  describe('MASTER_KEY validation', () => {
     it('refuses a missing key', () => {
       assert.throws(() => deriveKey(undefined), MasterKeyError);
       assert.throws(() => deriveKey(''), MasterKeyError);
@@ -165,13 +165,13 @@ describe('crypto', () => {
       // 39 characters for a 10-character pattern: requiring an exact division would
       // let the example's own value through.
       assert.equal(EXAMPLE_PASSPHRASE.length % 10, 9);
-      assert.match(masterKeyWeakness(EXAMPLE_PASSPHRASE) ?? '', /répète le motif/);
-      assert.match(masterKeyWeakness('secret'.repeat(6)) ?? '', /répète le motif/);
+      assert.match(masterKeyWeakness(EXAMPLE_PASSPHRASE) ?? '', /repeats the pattern/);
+      assert.match(masterKeyWeakness('secret'.repeat(6)) ?? '', /repeats the pattern/);
     });
 
     it('flags a key with one or two distinct characters', () => {
-      assert.match(masterKeyWeakness('f'.repeat(64)) ?? '', /caractère\(s\) distinct/);
-      assert.match(masterKeyWeakness('ab'.repeat(32)) ?? '', /caractère\(s\) distinct/);
+      assert.match(masterKeyWeakness('f'.repeat(64)) ?? '', /distinct character\(s\)/);
+      assert.match(masterKeyWeakness('ab'.repeat(32)) ?? '', /distinct character\(s\)/);
     });
 
     it('lets a real key through', () => {
@@ -184,7 +184,7 @@ describe('crypto', () => {
     it('judges the Better Auth secret the same way, by its name', () => {
       assert.match(
         secretWeakness('change-me-change-me-change-me-change-me', 'BETTER_AUTH_SECRET') ?? '',
-        /^BETTER_AUTH_SECRET répète le motif « change-me- »/,
+        /^BETTER_AUTH_SECRET repeats the pattern "change-me-"/,
       );
       assert.equal(secretWeakness(randomBytes(32).toString('base64'), 'BETTER_AUTH_SECRET'), null);
       assert.equal(secretWeakness(undefined, 'BETTER_AUTH_SECRET'), null);
@@ -197,7 +197,7 @@ describe('crypto', () => {
   });
 
   describe('safeEqual', () => {
-    it('compare sans fuite de longueur ni faux positif', () => {
+    it('compares without length leak or false positive', () => {
       assert.ok(safeEqual('jeton', 'jeton'));
       assert.ok(!safeEqual('jeton', 'jetoN'));
       assert.ok(!safeEqual('jeton', 'jetons'));

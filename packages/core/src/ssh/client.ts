@@ -181,7 +181,7 @@ export async function connect(
           retries,
           error: error instanceof Error ? error.message : String(error),
         },
-        isLast ? 'connexion SSH abandonnée' : 'connexion SSH échouée, nouvelle tentative',
+        isLast ? 'SSH connection abandoned' : 'SSH connection failed, retrying',
       );
 
       if (!isLast) {
@@ -521,7 +521,7 @@ export async function disconnect(session: SshSession): Promise<void> {
   session.client.dispose();
   (session.logger ?? noopLogger).debug(
     { host: session.host, sessionId: session.id },
-    'session SSH fermée',
+    'SSH session closed',
   );
 }
 

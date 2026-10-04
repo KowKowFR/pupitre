@@ -56,7 +56,7 @@ function withChanges(change: (spec: AppSpec) => void): AppSpec {
   return parseAppSpec(next);
 }
 
-describe('changement de code ou d’infrastructure', () => {
+describe('code or infrastructure change', () => {
   it('a new version and a new image tag: code, which goes out on its own', () => {
     const report = classifySpecChange(
       BASE,
@@ -163,7 +163,7 @@ describe('pupitre.json', () => {
   });
 });
 
-// ─── client GitHub ─────────────────────────────────────────────────────────────
+// ─── GitHub client ─────────────────────────────────────────────────────────────
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
@@ -200,7 +200,7 @@ const TOKEN_ROUTE: [RegExp, (call: Call) => Response] = [
 const REPO = { fullName: 'acme/api', installationId: 42 };
 const SHA = 'a'.repeat(40);
 
-describe('client GitHub', () => {
+describe('GitHub client', () => {
   it('signs a verifiable App JWT, valid for less than ten minutes', () => {
     const now = Date.parse('2026-09-30T12:00:00Z');
     const jwt = githubAppJwt(123, privateKey, now);
@@ -349,7 +349,7 @@ const BASE_SHA = 'b'.repeat(40);
 /** The network egress guard, without DNS: everything passes. */
 const open = async () => undefined;
 
-describe('client Gitea', () => {
+describe('Gitea client', () => {
   it('the forge’s address is cleaned up, and only http(s) passes', () => {
     assert.equal(giteaBaseUrl(' https://codeberg.org/ '), 'https://codeberg.org');
     assert.equal(giteaBaseUrl('http://10.0.0.5:3000/git/'), 'http://10.0.0.5:3000/git');
@@ -538,7 +538,7 @@ const GITLAB = { baseUrl: 'https://gitlab.exemple.fr/', token: 'glpat-jeton' };
 const GITLAB_REPO = { fullName: 'atelier/web/vitrine', installationId: null };
 const GITLAB_PROJECT = 'https://gitlab.exemple.fr/api/v4/projects/atelier%2Fweb%2Fvitrine';
 
-describe('client GitLab', () => {
+describe('GitLab client', () => {
   it('the instance’s address is cleaned up, and only http(s) passes', () => {
     assert.equal(gitlabBaseUrl(' https://gitlab.com/ '), 'https://gitlab.com');
     assert.equal(gitlabBaseUrl('http://10.0.0.5:8929/gitlab/'), 'http://10.0.0.5:8929/gitlab');
@@ -844,7 +844,7 @@ describe('client GitLab', () => {
   });
 });
 
-describe('fournisseurs et liens', () => {
+describe('providers and links', () => {
   it('the factory returns the connection’s client', () => {
     assert.equal(createSourceProvider({ provider: 'gitea', ...GITEA }).kind, 'gitea');
     assert.equal(createSourceProvider({ provider: 'gitlab', ...GITLAB }).kind, 'gitlab');

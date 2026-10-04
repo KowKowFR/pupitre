@@ -34,7 +34,7 @@ function view(row: ProxyRow): ProxyView {
   return rest;
 }
 
-// ─── connexions ──────────────────────────────────────────────────────────────
+// ─── connections ─────────────────────────────────────────────────────────────
 
 /** The proxy serving this machine — today, the one running on it. */
 export async function getProxyForTarget(
@@ -372,8 +372,8 @@ export class RouteTakenError extends Error {
   ) {
     super(
       application
-        ? `le domaine « ${hostname} » est déjà routé vers « ${application} »`
-        : `le domaine « ${hostname} » est déjà routé`,
+        ? `the domain "${hostname}" is already routed to "${application}"`
+        : `the domain "${hostname}" is already routed`,
     );
     this.name = 'RouteTakenError';
   }

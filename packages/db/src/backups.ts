@@ -293,7 +293,7 @@ export async function countEnabledBackupPolicies(db: Database = getDb()): Promis
   return row?.count ?? 0;
 }
 
-// ─── l'historique ────────────────────────────────────────────────────────────
+// ─── the history ─────────────────────────────────────────────────────────────
 
 export async function createBackupRecord(
   input: {
@@ -441,7 +441,7 @@ export async function hasRunningBackup(
 export async function failInterruptedBackups(
   startedBefore: Date,
   /** The reason written on each backup, in the instance's language. */
-  reason = 'interrompue : le worker a redémarré pendant la sauvegarde',
+  reason = 'interrupted: the worker restarted during the backup',
   db: Database = getDb(),
 ): Promise<number> {
   const rows = await db

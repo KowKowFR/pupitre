@@ -27,7 +27,7 @@ import { ProxyError, type ProxyRouteSet, type RemoteProxyContext } from '../src/
  * tested by `pnpm test:npm`.
  */
 
-describe('NPM — la connexion', () => {
+describe('NPM — the connection', () => {
   it('brings the interface’s address back to itself, and probes its machine by default', () => {
     const config = npmConfigSchema.parse({
       url: ' http://10.0.0.5:81/api/ ',
@@ -59,7 +59,7 @@ describe('NPM — la connexion', () => {
     assert.equal(plainOnPublicAddress('http://face.de:81'), false);
   });
 
-  it('lit ses dates en UTC', () => {
+  it('reads its dates as UTC', () => {
     assert.equal(
       new Date(npmDate('2026-12-31 07:54:28')).toISOString(),
       '2026-12-31T07:54:28.000Z',

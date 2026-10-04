@@ -144,7 +144,7 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
         return;
       }
       if (parsed.protocol !== 'http:') {
-        res.writeHead(400).end('mandataire : http en clair uniquement sur ce chemin');
+        res.writeHead(400).end('proxy: plain http only on this path');
         return;
       }
       const port = parsed.port === '' ? 80 : Number(parsed.port);

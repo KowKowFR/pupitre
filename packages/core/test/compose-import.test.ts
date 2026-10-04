@@ -314,7 +314,7 @@ services:
   });
 });
 
-describe('lectures de valeurs Compose', () => {
+describe('reading Compose values', () => {
   it('reads durations, memory amounts and names', () => {
     assert.equal(parseDuration('1m30s'), 90);
     assert.equal(parseDuration('500ms'), 1);

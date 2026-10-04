@@ -29,7 +29,7 @@ export function loadFixture(name: string): unknown {
 }
 
 describe('AppSpec', () => {
-  describe('fixtures valides', () => {
+  describe('valid fixtures', () => {
     it('simple.json is accepted and gets its defaults', () => {
       const spec = parseAppSpec(loadFixture('simple'));
       assert.equal(spec.name, 'demo-api');
@@ -90,7 +90,7 @@ describe('AppSpec', () => {
     ];
 
     for (const [label, pattern] of expectations) {
-      it(`signale : ${label}`, () => {
+      it(`reports: ${label}`, () => {
         assert.ok(
           messages.some((message) => pattern.test(message)),
           `no message matches ${pattern}\nmessages: ${messages.join(' | ')}`,

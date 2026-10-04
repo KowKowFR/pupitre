@@ -67,7 +67,7 @@ export function effectivePresence(input: PresenceInput, now: number): PresenceSt
   return 'online';
 }
 
-// ─── Tableau de bord ─────────────────────────────────────────────────────────
+// ─── Dashboard ───────────────────────────────────────────────────────────────
 
 /**
  * What moved, coarse-grained. A screen listens to the topics that concern it and

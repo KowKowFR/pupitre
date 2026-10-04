@@ -82,7 +82,7 @@ function validateWithDockerCompose(name: string, spec: AppSpec, publishedPort: n
   });
 }
 
-describe('render() — AppSpec vers Compose', () => {
+describe('render() — AppSpec to Compose', () => {
   describe('simple.json', () => {
     const spec = fixture('simple');
     const file = renderComposeFile({ spec, appSlug: spec.name, publishedPort: 30001 });
@@ -103,7 +103,7 @@ describe('render() — AppSpec vers Compose', () => {
       assert.equal(file.services.api?.restart, 'unless-stopped');
     });
 
-    it('traduit les ressources en limites Compose', () => {
+    it('translates resources into Compose limits', () => {
       assert.equal(file.services.api?.deploy?.resources?.limits?.cpus, '0.500');
       assert.equal(file.services.api?.deploy?.resources?.limits?.memory, '256M');
     });
@@ -124,7 +124,7 @@ describe('render() — AppSpec vers Compose', () => {
       assert.deepEqual(Object.keys(file.services), ['postgres', 'api', 'front']);
     });
 
-    it('traduit dependsOn en depends_on conditionnel', () => {
+    it('translates dependsOn into a conditional depends_on', () => {
       assert.deepEqual(file.services.api?.depends_on, {
         postgres: { condition: 'service_healthy' },
       });
@@ -354,7 +354,7 @@ describe('security context', () => {
     assert.equal(thirdParty?.user, undefined);
   });
 
-  it('met la racine en lecture seule sur nos images seulement', () => {
+  it('makes the root read-only on our images only', () => {
     // Including the one carrying a volume: the volume stays writable.
     assert.equal(own?.read_only, true);
     assert.equal(ownWithVolume?.read_only, true);

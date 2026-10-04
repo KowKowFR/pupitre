@@ -108,7 +108,7 @@ const GRYPE_OUTPUT = {
   ],
 };
 
-describe('normalisation des rapports', () => {
+describe('reports normalization', () => {
   it('Trivy and Grype produce the same Finding for the same CVE', () => {
     const trivy = normalizeTrivyReport(TRIVY_OUTPUT);
     const grype = normalizeGrypeReport(GRYPE_OUTPUT);
@@ -143,7 +143,7 @@ describe('normalisation des rapports', () => {
     assert.equal(finding?.fixedVersion, null);
   });
 
-  it('Grype : Negligible devient LOW', () => {
+  it('Grype: Negligible becomes LOW', () => {
     const finding = normalizeGrypeReport(GRYPE_OUTPUT).find(
       (candidate) => candidate.cveId === 'CVE-2021-0000',
     );
@@ -165,7 +165,7 @@ describe('normalisation des rapports', () => {
   });
 });
 
-describe('seuil de blocage', () => {
+describe('blocking threshold', () => {
   const findings: Finding[] = [
     finding('CVE-1', 'HIGH'),
     finding('CVE-2', 'MEDIUM'),
@@ -208,8 +208,8 @@ describe('seuil de blocage', () => {
   });
 });
 
-describe('configuration de scan', () => {
-  it("by default, the API scans nothing", () => {
+describe('scan configuration', () => {
+  it('by default, the API scans nothing', () => {
     assert.deepEqual(scanConfigSchema.parse({}), EMPTY_SCAN_CONFIG);
     assert.deepEqual(parseScanConfig(null), EMPTY_SCAN_CONFIG);
     assert.deepEqual(parseScanConfig({ scanners: ['inconnu'] }), EMPTY_SCAN_CONFIG);
@@ -358,7 +358,7 @@ describe('scanners — where to read the images', () => {
     assert.equal(run.stdout, '/maison');
   });
 
-  it('la plateforme suit uname -m', () => {
+  it('the platform follows uname -m', () => {
     const run = spawnSync('sh', ['-c', `echo ${MACHINE_PLATFORM_FLAG}`], { encoding: 'utf8' });
     const arch = ({ x64: 'amd64', arm64: 'arm64' } as Record<string, string>)[process.arch];
     assert.ok(arch, `architecture de test inattendue : ${process.arch}`);

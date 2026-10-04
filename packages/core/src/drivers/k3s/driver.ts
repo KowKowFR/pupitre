@@ -1650,7 +1650,7 @@ export class K3sDriver implements DeploymentDriver {
     return result.code === 0 ? parsePodImages(result.stdout) : [];
   }
 
-  // ─── sauvegardes ────────────────────────────────────────────────────────────
+  // ─── backups ────────────────────────────────────────────────────────────────
 
   private async pipeOrFail(
     ctx: DriverContext,
@@ -2198,7 +2198,7 @@ export class K3sDriver implements DeploymentDriver {
   }
 }
 
-// ─── utilitaires ──────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 /**
  * These few functions also exist in the Docker driver. It is deliberate: a

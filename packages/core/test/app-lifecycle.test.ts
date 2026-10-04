@@ -18,7 +18,7 @@ import { getDriver } from '../src/drivers/index.js';
  * that would deploy without being able to stop.
  */
 
-describe('contrat des drivers', () => {
+describe('drivers contract', () => {
   for (const runtime of ['docker', 'k3s'] as const) {
     it(`${runtime} implements stop() and start()`, () => {
       const driver = getDriver(runtime);
@@ -42,7 +42,7 @@ describe('contrat des drivers', () => {
   });
 });
 
-describe('flux applicatif', () => {
+describe('application stream', () => {
   for (const action of ['stop', 'start', 'restart'] as const) {
     it(`accepts a “${action}” life-cycle event`, () => {
       const parsed = appLogMessageSchema.safeParse({

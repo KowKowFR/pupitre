@@ -146,7 +146,7 @@ const HANDLED = new Set([
   'labels',
 ]);
 
-// ─── petites lectures ────────────────────────────────────────────────────────
+// ─── small reads ─────────────────────────────────────────────────────────────
 
 function isRecord(value: unknown): value is Record_ {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -325,7 +325,7 @@ function looksSecret(name: string, value: string | null): boolean {
 const HTTP_IN_PROBE =
   /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::(\d+))?(\/[^\s'"\\|;&]*)?/;
 
-// ─── l'import ────────────────────────────────────────────────────────────────
+// ─── the import ──────────────────────────────────────────────────────────────
 
 type Draft = {
   original: string;

@@ -31,7 +31,7 @@ function placeholders(value: Entry): string[] {
   return [...names].sort();
 }
 
-describe('Reproches de validation — deux langues', () => {
+describe('Validation complaints — two languages', () => {
   for (const [name, bundle] of Object.entries({
     validation: validationCopy,
     sources: sourceCopy,
@@ -102,7 +102,7 @@ describe('Validation complaints — said again in the screen’s language', () =
     assert.doesNotMatch(issueMessage(refusal, 'en'), /[éèàç«»]/);
   });
 
-  it('un reproche inconnu reste tel quel', () => {
+  it('an unknown complaint stays as is', () => {
     assert.equal(
       issueMessage({ message: 'Too small: expected string' }, 'en'),
       'Too small: expected string',

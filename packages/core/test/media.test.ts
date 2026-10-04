@@ -41,7 +41,7 @@ const PNG = bytes(
   u32be(480),
 );
 
-describe('formats reconnus', () => {
+describe('recognized formats', () => {
   it('PNG', () => {
     assert.deepEqual(sniffImage(PNG), { contentType: 'image/png', width: 640, height: 480 });
   });
@@ -82,7 +82,7 @@ describe('formats reconnus', () => {
     assert.equal(sniffImage(bytes([0xff, 0xd8], dht, sof0))?.width, 1920);
   });
 
-  it('WebP, sous ses trois formes', () => {
+  it('WebP, in its three forms', () => {
     const riff = (chunk: string, body: number[]) =>
       bytes('RIFF', [0, 0, 0, 0], 'WEBP', chunk, body);
     assert.deepEqual(
@@ -155,7 +155,7 @@ describe('what does not get through', () => {
   });
 });
 
-describe('photos de profil', () => {
+describe('profile pictures', () => {
   it('only a URL written by the panel is shown', () => {
     const ours = '/api/users/aB3_x-9/avatar?v=0123456789ab';
     assert.equal(avatarSrc(ours), ours);
@@ -176,7 +176,7 @@ describe('photos de profil', () => {
   });
 });
 
-describe('servir une image', () => {
+describe('serving an image', () => {
   it('rendered, never interpreted', () => {
     const headers = imageResponseHeaders({
       contentType: 'image/webp',

@@ -1629,7 +1629,7 @@ const domainDefinition = (
   uptimeMeans: t("domain.uptime"),
 });
 
-// ─── registre ─────────────────────────────────────────────────────────────────
+// ─── registry ─────────────────────────────────────────────────────────────────
 
 /**
  * One entry per type. The catalog is typed opaquely on the consumer side:

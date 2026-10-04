@@ -226,7 +226,7 @@ test('durations and intervals read in French', () => {
   assert.equal(formatCadence(2 * 86400), 'tous les 2 jours');
 });
 
-// ─── catalogue : l'abstraction ────────────────────────────────────────────────
+// ─── catalog: the abstraction ─────────────────────────────────────────────────
 
 test('each type declares everything the screen needs', () => {
   for (const type of MONITOR_TYPES_LIST) {
@@ -323,7 +323,7 @@ test('the keyword exists at both levels, and both levels stay distinct', () => {
   assert.ok('keyword' in (MONITOR_TYPES.http.defaults as Record<string, unknown>));
 });
 
-// ─── politique SSRF ───────────────────────────────────────────────────────────
+// ─── SSRF policy ──────────────────────────────────────────────────────────────
 
 test('exotic schemes are refused', () => {
   assert.equal(checkUrlShape('https://example.com/').allowed, true);
@@ -343,7 +343,7 @@ test('localhost is refused by its name, not only by its address', () => {
   assert.equal(checkUrlShape('http://app.localhost/').allowed, false);
 });
 
-test('classification des adresses', () => {
+test('address classification', () => {
   assert.equal(classifyAddress('93.184.216.34'), 'public');
   assert.equal(classifyAddress('127.0.0.1'), 'loopback');
   assert.equal(classifyAddress('10.1.2.3'), 'private');
@@ -411,7 +411,7 @@ test('the SSRF policy holds for every type, not only HTTP', () => {
   assert.equal(safeParseMonitorConfig('tls', { host: 'exemple.fr' }).ok, true);
 });
 
-// ─── charge utile d'alerte ────────────────────────────────────────────────────
+// ─── alert payload ────────────────────────────────────────────────────────────
 
 test('the alert carries text and content, for Slack as for Discord', () => {
   const alert = buildMonitorAlert({

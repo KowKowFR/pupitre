@@ -196,7 +196,7 @@ export async function logAudit(
   }
 }
 
-// ─── Lecture ──────────────────────────────────────────────────────────────────
+// ─── Reading ──────────────────────────────────────────────────────────────────
 
 export const auditQuerySchema = z.object({
   actorId: z.string().min(1).max(200).optional(),

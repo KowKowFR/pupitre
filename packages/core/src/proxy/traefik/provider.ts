@@ -534,7 +534,7 @@ export class TraefikProvider implements ProxyProvider {
         await writeFile(
           ctx,
           file,
-          `# Route d'essai de Pupitre, retirée aussitôt.\nhttp:\n  routers:\n    pupitre-check:\n      rule: Host(\`${host}\`)\n      entryPoints: [${config.entryPoints.http}]\n      service: pupitre-check\n  services:\n    pupitre-check:\n      loadBalancer:\n        servers:\n          - url: http://127.0.0.1:9\n`,
+          `# Pupitre test route, removed right away.\nhttp:\n  routers:\n    pupitre-check:\n      rule: Host(\`${host}\`)\n      entryPoints: [${config.entryPoints.http}]\n      service: pupitre-check\n  services:\n    pupitre-check:\n      loadBalancer:\n        servers:\n          - url: http://127.0.0.1:9\n`,
         );
         let code = 0;
         for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -720,7 +720,7 @@ export class TraefikProvider implements ProxyProvider {
   }
 }
 
-// ─── lectures Kubernetes ─────────────────────────────────────────────────────
+// ─── Kubernetes reads ────────────────────────────────────────────────────────
 
 export function parseIngressClasses(json: string): string[] {
   try {

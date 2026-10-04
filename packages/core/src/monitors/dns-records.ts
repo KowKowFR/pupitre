@@ -114,7 +114,7 @@ export const DNS_RECORD_TYPE_FORMATS: Record<DnsRecordType, string> = {
 /** The types whose data is a domain name — case and trailing dot irrelevant. */
 const NAME_VALUED: ReadonlySet<DnsRecordType> = new Set<DnsRecordType>(['CNAME', 'NS']);
 
-// ─── canonicalisation ─────────────────────────────────────────────────────────
+// ─── canonicalization ─────────────────────────────────────────────────────────
 
 /** A domain name, reduced to what distinguishes it: lowercase, no trailing dot. */
 export function normalizeDnsName(value: string): string {
@@ -283,7 +283,7 @@ export function dnsRecordProblem(type: DnsRecordType, value: string): Validation
   }
 }
 
-// ─── comparaison ──────────────────────────────────────────────────────────────
+// ─── comparison ───────────────────────────────────────────────────────────────
 
 /**
  * Two regimes, one mechanism.

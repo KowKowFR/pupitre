@@ -149,7 +149,7 @@ export const routeCertificateSchema = z.object({
 });
 export type RouteCertificate = z.infer<typeof routeCertificateSchema>;
 
-// ─── l'amont ─────────────────────────────────────────────────────────────────
+// ─── the upstream ────────────────────────────────────────────────────────────
 
 /**
  * How the proxy reaches the application. Provided by the driver: it knows

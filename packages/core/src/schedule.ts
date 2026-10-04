@@ -271,7 +271,7 @@ export const scheduledJobResultSchema = z.object({
 
 export type ScheduledJobResult = z.infer<typeof scheduledJobResultSchema>;
 
-// ─── expressions cron ─────────────────────────────────────────────────────────
+// ─── cron expressions ─────────────────────────────────────────────────────────
 
 /**
  * Validation of a 5- or 6-field cron expression.
@@ -564,7 +564,7 @@ export function fromCron(expression: string): SimpleSchedule | null {
   return { kind: 'weekly', weekdays, hour: hr, minute: min };
 }
 
-// ─── fuseau horaire ───────────────────────────────────────────────────────────
+// ─── time zone ────────────────────────────────────────────────────────────────
 
 /**
  * Time zone of a scheduled task.
@@ -612,7 +612,7 @@ export function browserTimeZone(): string {
   }
 }
 
-// ─── description lisible ──────────────────────────────────────────────────────
+// ─── readable description ─────────────────────────────────────────────────────
 
 export type CronLocale = 'fr' | 'en';
 
@@ -830,7 +830,7 @@ function capList(values: readonly number[]): (number | string)[] {
   return values.length <= 8 ? [...values] : [...values.slice(0, 8), '…'];
 }
 
-// ─── prochaines occurrences ───────────────────────────────────────────────────
+// ─── next occurrences ─────────────────────────────────────────────────────────
 
 type CronFields = {
   raw: { second: string; minute: string; hour: string; dayOfMonth: string; month: string; dayOfWeek: string };

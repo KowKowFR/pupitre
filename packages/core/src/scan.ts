@@ -52,7 +52,7 @@ export function compareSeverity(a: Severity, b: Severity): number {
   return SEVERITY_RANK[b] - SEVERITY_RANK[a];
 }
 
-// ─── seuil de blocage ─────────────────────────────────────────────────────────
+// ─── blocking threshold ───────────────────────────────────────────────────────
 
 /** Blocking policy, stored as data and never hard-coded. */
 export const failOnSchema = z.enum(['CRITICAL', 'HIGH', 'NONE']);

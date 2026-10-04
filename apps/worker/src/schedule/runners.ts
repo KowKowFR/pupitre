@@ -309,7 +309,7 @@ const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog, say }) =
   return { targets: targets.length, enqueued };
 };
 
-// ─── sauvegardes ─────────────────────────────────────────────────────────────
+// ─── backups ─────────────────────────────────────────────────────────────────
 
 /**
  * Queues one backup per application whose automatic backup is enabled, and per
@@ -355,7 +355,7 @@ const runBackupPanel: ScheduledJobRunner = async ({ onLog, say }) => {
   return { enqueued: 1 };
 };
 
-// ─── registre ────────────────────────────────────────────────────────────────
+// ─── registry ────────────────────────────────────────────────────────────────
 
 /**
  * One entry per type. Adding a scheduled task = one entry here and one in

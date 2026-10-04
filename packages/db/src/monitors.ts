@@ -179,9 +179,9 @@ export function resolveConfig(
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     const path = first?.path.join('.') ?? 'config';
-    const issue = first?.message ?? 'valeur refusée';
+    const issue = first?.message ?? 'value refused';
     throw new MonitorConfigError(
-      `configuration de sonde « ${definition.label} » invalide — ${path} : ${issue}`,
+      `invalid "${definition.label}" probe configuration — ${path}: ${issue}`,
       `config.${path}`,
       {
         kind: 'schema',
@@ -211,8 +211,8 @@ export function resolveConfig(
   const interval = intervalSeconds ?? definition.defaultIntervalSeconds;
   if (interval < definition.minIntervalSeconds) {
     throw new MonitorConfigError(
-      `une sonde « ${definition.label} » ne se lance pas plus souvent que ` +
-        `${formatCadence(definition.minIntervalSeconds)} — ${formatCadence(interval)} demandé`,
+      `a "${definition.label}" probe does not run more often than ` +
+        `${formatCadence(definition.minIntervalSeconds, 'en')} — ${formatCadence(interval, 'en')} asked`,
       'intervalSeconds',
       {
         kind: 'interval',
@@ -380,7 +380,7 @@ export function monitorTarget(monitor: Monitor): string {
   return describeMonitorTarget(monitor.type, monitor.config);
 }
 
-// ─── balayage ─────────────────────────────────────────────────────────────────
+// ─── sweep ────────────────────────────────────────────────────────────────────
 
 /**
  * Claims the due probes and **moves their due date in the same gesture**.

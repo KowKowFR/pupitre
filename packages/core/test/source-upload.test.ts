@@ -28,7 +28,7 @@ const work = mkdtempSync(join(tmpdir(), 'pupitre-upload-test-'));
 after(() => rmSync(work, { recursive: true, force: true }));
 let counter = 0;
 
-// ─── fabrique de tar ─────────────────────────────────────────────────────────
+// ─── tar factory ─────────────────────────────────────────────────────────────
 
 type TarItem = {
   name: string;
@@ -71,7 +71,7 @@ function tarBytes(items: TarItem[]): Buffer {
   return Buffer.concat(blocks);
 }
 
-// ─── fabrique de zip ─────────────────────────────────────────────────────────
+// ─── zip factory ─────────────────────────────────────────────────────────────
 
 type ZipItem = { name: string; data?: string; mode?: number; encrypted?: boolean; unix?: boolean };
 
@@ -122,7 +122,7 @@ function zipBytes(items: ZipItem[]): Buffer {
   return Buffer.concat([...locals, directory, end]);
 }
 
-// ─── outillage ───────────────────────────────────────────────────────────────
+// ─── tooling ─────────────────────────────────────────────────────────────────
 
 function file(bytes: Buffer): string {
   counter += 1;

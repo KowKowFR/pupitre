@@ -292,7 +292,7 @@ export async function recordTargetSample(
   return row;
 }
 
-// ─── seuils ───────────────────────────────────────────────────────────────────
+// ─── thresholds ───────────────────────────────────────────────────────────────
 
 export const upsertThresholdSchema = z.object({
   metric: hostMetricKeySchema,
@@ -699,7 +699,7 @@ export async function evaluateReachability(
   });
 }
 
-// ─── balayage ─────────────────────────────────────────────────────────────────
+// ─── sweep ────────────────────────────────────────────────────────────────────
 
 /**
  * The machines whose last reading is older than the interval.

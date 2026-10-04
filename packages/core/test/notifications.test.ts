@@ -380,7 +380,7 @@ describe('notifications — the events table', () => {
     notificationMessageSchema.parse(message);
   });
 
-  it('rend un texte brut lisible', () => {
+  it('renders a readable plain text', () => {
     const text = renderPlainText(
       buildNotificationMessage('deployment.failed', entry({ after: { error: 'boum' } }), CTX),
     );
@@ -389,7 +389,7 @@ describe('notifications — the events table', () => {
   });
 });
 
-describe('notifications — le catalogue', () => {
+describe('notifications — the catalog', () => {
   it('refuses a configuration missing a required field', () => {
     assert.throws(() => channelConfigSchema('smtp').parse({ from: 'a@b.test', to: 'c@d.test' }));
     assert.throws(() => channelConfigSchema('webhook').parse({}));
@@ -419,7 +419,7 @@ describe('notifications — le catalogue', () => {
   });
 });
 
-describe('notifications — les canaux', () => {
+describe('notifications — the channels', () => {
   const message = buildNotificationMessage(
     'deployment.scan_blocked',
     entry({ after: { failedStep: 'scan', error: 'CVE-2026-1 (CRITICAL)' } }),
@@ -602,7 +602,7 @@ describe('notifications — secrets do not leak through error messages', () => {
  * the information; the one that says "shop site — unreachable" has kept it. It
  * is the only thing the rest of the layer cannot make up for.
  */
-describe('notifications — les sondes de supervision', () => {
+describe('notifications — the monitoring probes', () => {
   function monitorEntry(overrides: Partial<NotifiableAuditEntry> = {}): NotifiableAuditEntry {
     return {
       action: 'monitor.down',

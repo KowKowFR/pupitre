@@ -83,7 +83,7 @@ export async function setUserRoles(
   });
 }
 
-// ─── lecture ──────────────────────────────────────────────────────────────────
+// ─── reading ──────────────────────────────────────────────────────────────────
 
 export type RoleWithPermissions = Role & {
   permissions: Permission[];
@@ -225,7 +225,7 @@ export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
 /** Can the requested role be changed? A locked role cannot. */
 export class LockedRoleError extends Error {
   constructor(readonly key: string) {
-    super(`Le rôle « ${key} » est verrouillé : il ne peut être ni modifié ni supprimé.`);
+    super(`The role "${key}" is locked: it can be neither changed nor deleted.`);
     this.name = 'LockedRoleError';
   }
 }
@@ -236,10 +236,7 @@ export class RoleInUseError extends Error {
     readonly key: string,
     readonly userCount: number,
   ) {
-    super(
-      `${userCount} utilisateur(s) portent le rôle « ${key} ». ` +
-        'Réattribuez-les avant de le supprimer.',
-    );
+    super(`${userCount} user(s) carry the role "${key}". ` + 'Reassign them before deleting it.');
     this.name = 'RoleInUseError';
   }
 }
