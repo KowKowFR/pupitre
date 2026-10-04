@@ -9,7 +9,7 @@ import {
   DOCKERFILE_LIST_MAX,
   SOURCE_UPLOAD_MAX_ENTRIES,
   SOURCE_UPLOAD_MAX_UNPACKED_BYTES,
-  SOURCE_UPLOAD_SKIPPED,
+  isSkippedSourcePath,
   looksLikeDockerfile,
   type SourceArchiveFormat,
   type SourceArchiveRejection,
@@ -32,7 +32,8 @@ import {
  *   - au-delà de `maxEntries` entrées ou de `maxUnpackedBytes` décompressés.
  *
  * Les droits sont ramenés à `0644` ou `0755` (le bit d'exécution survit, rien
- * d'autre) ; `.git/` et `__MACOSX/` sont laissés de côté. Une archive faite
+ * d'autre) ; `.git/`, `__MACOSX/`, `.DS_Store` et les fichiers AppleDouble
+ * (`._*`) du `tar` de macOS sont laissés de côté. Une archive faite
  * d'un seul dossier perd ce dossier de tête, sauf si les Dockerfiles attendus
  * se trouvent sans le retirer.
  *
@@ -124,11 +125,9 @@ class Tree {
     }
   }
 
-  /** `true` : l'entrée est à laisser de côté (`.git/`, `__MACOSX/`). */
+  /** `true` : l'entrée est à laisser de côté (`.git/`, `__MACOSX/`, `._*`, `.DS_Store`). */
   skips(path: string): boolean {
-    const skipped = path
-      .split('/')
-      .some((part) => (SOURCE_UPLOAD_SKIPPED as readonly string[]).includes(part));
+    const skipped = isSkippedSourcePath(path);
     if (skipped) this.skipped += 1;
     return skipped;
   }

@@ -35,8 +35,27 @@ export const SOURCE_ARCHIVES_KEPT = 5;
 /** Les octets d'une archive vivent en base par morceaux de cette taille. */
 export const SOURCE_ARCHIVE_CHUNK_BYTES = 1024 * 1024;
 
-/** Des dossiers qu'on n'emporte jamais : l'historique Git, les métadonnées du Finder. */
-export const SOURCE_UPLOAD_SKIPPED = ['.git', '__MACOSX'] as const;
+/** Des noms qu'on n'emporte jamais : l'historique Git, les métadonnées du Finder. */
+export const SOURCE_UPLOAD_SKIPPED = ['.git', '__MACOSX', '.DS_Store'] as const;
+
+/**
+ * Le préfixe des fichiers AppleDouble. Le `tar` de macOS en glisse un à côté de
+ * chaque entrée qui porte des attributs étendus — `site/._Dockerfile`, et
+ * `._site` à côté du dossier de tête, qui empêchait alors de le retirer. Ce ne
+ * sont pas des fichiers du code.
+ */
+export const SOURCE_UPLOAD_APPLEDOUBLE_PREFIX = '._';
+
+/** `true` : l'entrée, ou l'un des dossiers qui la contiennent, n'est pas du code. */
+export function isSkippedSourcePath(path: string): boolean {
+  return path
+    .split('/')
+    .some(
+      (part) =>
+        (SOURCE_UPLOAD_SKIPPED as readonly string[]).includes(part) ||
+        part.startsWith(SOURCE_UPLOAD_APPLEDOUBLE_PREFIX),
+    );
+}
 
 export const SOURCE_ARCHIVE_FORMATS = ['tar.gz', 'tar', 'zip'] as const;
 export type SourceArchiveFormat = (typeof SOURCE_ARCHIVE_FORMATS)[number];
