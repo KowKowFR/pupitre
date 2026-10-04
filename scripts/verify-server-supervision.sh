@@ -1,24 +1,26 @@
 #!/usr/bin/env bash
 #
-# Vérifie la supervision par serveur :
+# Checks per-server supervision:
 #
-#   1. le relevé d'une cible joignable rend des métriques COHÉRENTES —
-#      recoupées avec la machine elle-même (nproc, /proc/loadavg, /proc/meminfo)
-#   2. une métrique manquante rend `null`, jamais zéro, et n'emporte pas le reste
-#   3. une cible INJOIGNABLE rend un relevé en erreur explicite,
-#      et ses applications restent listées
-#   4. l'écran groupe par serveur : une application apparaît sous sa cible,
-#      et sous elle seule
-#   5. `target:read` est requis pour relever une machine
-#   6. le relevé passe par la FILE, pas par une session SSH ouverte du panel
+#   1. the readout of a reachable target returns CONSISTENT metrics —
+#      cross-checked with the machine itself (nproc, /proc/loadavg, /proc/meminfo)
+#   2. a missing metric returns `null`, never zero, and does not take the rest
+#      away
+#   3. an UNREACHABLE target returns a readout with an explicit error, and its
+#      applications stay listed
+#   4. the screen groups by server: an application appears under its target,
+#      and under it alone
+#   5. `target:read` is required to read a machine
+#   6. the readout goes through the QUEUE, not through an SSH session opened by
+#      the panel
 #
-# Prérequis : une cible Docker déployable — `./scripts/setup-test-target.sh`
-# en provisionne une. Le script crée sa propre application et sa propre cible
-# morte, et les supprime toutes les deux à la fin.
+# Prerequisite: a deployable Docker target — `./scripts/setup-test-target.sh`
+# provisions one. The script creates its own application and its own dead
+# target, and deletes both at the end.
 #
-# Usage :
+# Usage:
 #   ./scripts/verify-server-supervision.sh
-#   BASE_URL=http://localhost:3100 TARGET_NAME=ma-vm ./scripts/verify-server-supervision.sh
+#   BASE_URL=http://localhost:3100 TARGET_NAME=my-vm ./scripts/verify-server-supervision.sh
 #
 set -euo pipefail
 
@@ -27,19 +29,19 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
 TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
-# Conteneur docker-in-docker qui porte la cible : c'est lui qu'on interroge
-# directement pour recouper le relevé, et sur lui qu'on cache une commande.
+# Docker-in-docker container carrying the target: it is the one queried
+# directly to cross-check the readout, and on it that a command is hidden.
 TARGET_SERVICE="${TARGET_SERVICE:-ssh-target}"
 
-# Matière propre au script. Rien de ce qui existait déjà n'est touché.
+# The script's own material. Nothing that already existed is touched.
 APP_NAME="${APP_NAME:-verif-supervision-serveur}"
 DEAD_TARGET_NAME="${DEAD_TARGET_NAME:-verif-supervision-injoignable}"
-# TEST-NET-3 (RFC 5737) : documentée comme non routable, donc injoignable
-# partout et pour toujours — pas un hôte de quelqu'un d'autre qu'on irait sonder.
+# TEST-NET-3 (RFC 5737): documented as non-routable, so unreachable everywhere
+# and forever — not somebody else's host that we would go and probe.
 DEAD_HOST="${DEAD_HOST:-203.0.113.10}"
-# Seconde adresse morte, pour couper temporairement la cible qui porte
-# l'application : `targets` impose l'unicité de (host, port, ssh_user), et
-# réutiliser la première ferait échouer la bascule sur une contrainte.
+# Second dead address, to cut off the target carrying the application
+# temporarily: `targets` enforces the uniqueness of (host, port, ssh_user), and
+# reusing the first one would make the switch fail on a constraint.
 DEAD_HOST_FLIP="${DEAD_HOST_FLIP:-203.0.113.11}"
 ROLE_KEY="${ROLE_KEY:-verif-supervision-sans-cible}"
 VIEWER_EMAIL="${VIEWER_EMAIL:-supervision-sans-cible@example.test}"
@@ -53,10 +55,10 @@ VIEWER_JAR="$WORK/viewer.jar"
 BODY="$WORK/body.json"
 HTML="$WORK/apps.html"
 
-# Ce que le script a modifié sur la machine ou en base, et qu'il doit rendre
-# tel qu'il l'a trouvé même s'il meurt en route. Chaque entrée est « nom|chemin » :
-# `df` vit dans /bin et `nproc` dans /usr/bin, les remettre au même endroit
-# n'est pas une supposition qu'on peut se permettre.
+# What the script changed on the machine or in the database, and that it must
+# give back as it found it even if it dies along the way. Each entry is
+# "name|path": `df` lives in /bin and `nproc` in /usr/bin, putting them back at
+# the same place is not an assumption we can afford.
 HIDDEN=''
 ORIGINAL_HOST=''
 TARGET_ID=''
@@ -95,7 +97,7 @@ req() {
 
 psql_q() { docker compose exec -T postgres psql -U tp -d tp -tAc "$1"; }
 
-# Commande exécutée SUR la machine cible, pour recouper le relevé.
+# Command run ON the target machine, to cross-check the readout.
 on_target() { docker compose exec -T "$TARGET_SERVICE" sh -lc "$1" | tr -d '\r'; }
 
 assert_admin() {
@@ -125,14 +127,14 @@ login() {
   assert_admin
 }
 
-# Relève une cible et laisse le rapport dans $BODY. Écho : le code HTTP.
+# Reads a target and leaves the report in $BODY. Echoes: the HTTP code.
 metrics() { req GET "/api/targets/$1/metrics"; }
 
-# Cache une commande sur la machine cible, pour éprouver le chemin « absente ».
+# Hides a command on the target machine, to try out the "missing" path.
 hide_command() {
   local name="$1" path
   path=$(on_target "command -v $name")
-  [ -n "$path" ] || fail "« $name » est déjà absent de la cible — rien à éprouver"
+  [ -n "$path" ] || fail "\"$name\" is already missing from the target — nothing to try out"
   on_target "mv '$path' /tmp/$name.hidden" >/dev/null
   HIDDEN="$HIDDEN $name|$path"
 }
@@ -142,16 +144,16 @@ restore_command() {
   for entry in $HIDDEN; do
     if [ "${entry%%|*}" = "$name" ]; then path="${entry#*|}"; fi
   done
-  [ -n "$path" ] || fail "« $name » n'a pas été caché par ce script"
+  [ -n "$path" ] || fail "\"$name\" was not hidden by this script"
   on_target "mv /tmp/$name.hidden '$path'" >/dev/null
   HIDDEN=$(printf '%s' "$HIDDEN" | sed "s#[[:space:]]*$name|[^ ]*##")
 }
 
-# Découpe la page /apps en sections par serveur et rend celle de la cible donnée.
+# Cuts the /apps page into per-server sections and returns the given target's.
 #
-# L'attribut n'existe sous cette forme littérale que dans le DOM : dans la
-# charge RSC embarquée plus bas, il est sérialisé en JSON échappé
-# (`\"data-server-id\":\"…\"`). Le découpage ne peut donc pas se tromper de moitié.
+# The attribute only exists in this literal form in the DOM: in the RSC payload
+# embedded further down, it is serialized as escaped JSON
+# (`\"data-server-id\":\"…\"`). So the cutting cannot get the wrong half.
 server_section() {
   awk -v RS='data-server-id="' -v id="$1" 'index($0, id) == 1 { print; exit }' "$HTML"
 }
@@ -160,34 +162,34 @@ step "1. Sign-in"
 login
 pass "signed in as $ADMIN_EMAIL"
 
-step "2. Prérequis"
-# `grep -q` ferme le tuyau au premier succès : sous `pipefail`, le producteur
-# meurt d'un SIGPIPE et fait échouer tout le pipeline. On matérialise donc la
-# sortie avant de la filtrer, ici comme partout ailleurs dans ce script.
+step "2. Prerequisites"
+# `grep -q` closes the pipe at the first success: under `pipefail`, the
+# producer dies of a SIGPIPE and makes the whole pipeline fail. So the output is
+# materialized before being filtered, here as everywhere else in this script.
 RUNNING=$(docker compose ps --format '{{.Service}}' 2>/dev/null || true)
 printf '%s\n' "$RUNNING" | grep -qx "$TARGET_SERVICE" \
-  || fail "le conteneur « $TARGET_SERVICE » ne tourne pas — lancez ./scripts/setup-test-target.sh"
+  || fail "the \"$TARGET_SERVICE\" container is not running — run ./scripts/setup-test-target.sh"
 
 code=$(req GET /api/targets)
 [ "$code" = "200" ] || fail "GET /api/targets → HTTP $code"
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY" | head -1)
 [ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
 ORIGINAL_HOST=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .host' "$BODY" | head -1)
-pass "cible « $TARGET_NAME » — $TARGET_ID ($ORIGINAL_HOST)"
+pass "target \"$TARGET_NAME\" — $TARGET_ID ($ORIGINAL_HOST)"
 
-# Une seconde cible enregistrée sert de témoin au test de regroupement : une
-# application ne doit apparaître que sous la sienne.
+# A second registered target serves as the control for the grouping test: an
+# application must only appear under its own.
 WITNESS_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name != $n) | .id' "$BODY" | head -1)
 
 
-# Ménage d'une exécution précédente interrompue. Entièrement « au mieux » :
-# rien de ce qu'elle fait n'est un critère, elle remet seulement le terrain à plat.
+# Cleanup from an interrupted previous run. Entirely "best effort": nothing it
+# does is a criterion, it only levels the ground again.
 precleanup() {
   local ids id
   req GET /api/apps >/dev/null || true
   ids=$(jq -r --arg s "$APP_NAME" '.items[] | select(.applicationSlug == $s) | .id' "$BODY" 2>/dev/null || true)
   for id in $ids; do
-    info "reste d'une exécution précédente : déploiement $id — destruction"
+    info "leftover from a previous run: deployment $id — destruction"
     req DELETE "/api/deployments/$id" >/dev/null || true
     for _ in $(seq 1 90); do
       sleep 2
@@ -210,13 +212,13 @@ precleanup() {
   req DELETE "/api/admin/roles/$ROLE_KEY" >/dev/null 2>&1 || true
 }
 
-step "3. Matière : une application déployée sur la cible"
+step "3. Material: an application deployed on the target"
 precleanup
 
-# Photo de départ, prise APRÈS le ménage : à la fin du script, elle doit être identique.
+# Starting snapshot, taken AFTER the cleanup: at the end of the script, it must be identical.
 req GET /api/apps >/dev/null
 LIVE_BEFORE=$(jq -r '[.items[].applicationSlug] | sort | join(",")' "$BODY")
-info "applications en marche avant le test : ${LIVE_BEFORE:-aucune}"
+info "applications running before the test: ${LIVE_BEFORE:-none}"
 
 jq -n --arg n "$APP_NAME" --arg i "$IMAGE_OK" \
   '{appSpec:{name:$n, version:"1.0.0", services:[{
@@ -227,18 +229,18 @@ req GET /api/applications >/dev/null
 APP_ID=$(jq -r --arg s "$APP_NAME" '.items[] | select(.slug == $s) | .id' "$BODY" | head -1)
 if [ -n "$APP_ID" ]; then
   code=$(req PATCH "/api/applications/$APP_ID" "@$WORK/app.json")
-  [ "$code" = "200" ] || fail "PATCH /api/applications/$APP_ID → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "PATCH /api/applications/$APP_ID → HTTP $code: $(cat "$BODY")"
 else
   code=$(req POST /api/applications "@$WORK/app.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   APP_ID=$(jq -r .id "$BODY")
 fi
 APP_SLUG=$(jq -r '.slug' "$BODY")
-pass "application « $APP_SLUG » ($APP_ID)"
+pass "application \"$APP_SLUG\" ($APP_ID)"
 
 code=$(req POST /api/deployments \
   "{\"applicationId\":\"$APP_ID\",\"targetId\":\"$TARGET_ID\",\"runtime\":\"docker\",\"proxy\":\"traefik\",\"autoRollback\":false}")
-[ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+[ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
 DEP_ID=$(jq -r .id "$BODY")
 
 DEP_STATUS=''
@@ -249,111 +251,111 @@ for _ in $(seq 1 150); do
   case "$DEP_STATUS" in success|failed|rolled_back|destroyed) break ;; esac
 done
 [ "$DEP_STATUS" = "success" ] \
-  || fail "le déploiement $DEP_ID a fini en « $DEP_STATUS » : $(jq -r '.error // ""' "$BODY")"
-pass "déploiement $DEP_ID en marche"
+  || fail "deployment $DEP_ID ended as \"$DEP_STATUS\": $(jq -r '.error // ""' "$BODY")"
+pass "deployment $DEP_ID running"
 
-step "4. Un relevé cohérent, recoupé avec la machine"
+step "4. A consistent readout, cross-checked with the machine"
 code=$(metrics "$TARGET_ID")
-[ "$code" = "200" ] || fail "GET /api/targets/$TARGET_ID/metrics → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "GET /api/targets/$TARGET_ID/metrics → HTTP $code: $(cat "$BODY")"
 cp "$BODY" "$WORK/metrics.json"
-jq -e '.reachable == true' "$BODY" >/dev/null || fail "la cible est annoncée injoignable"
-pass "relevé pris en $(jq -r '.latencyMs' "$BODY") ms de latence SSH"
+jq -e '.reachable == true' "$BODY" >/dev/null || fail "the target is announced unreachable"
+pass "readout taken with $(jq -r '.latencyMs' "$BODY") ms of SSH latency"
 
-# ── cœurs : valeur exacte, sinon la charge n'est comparable à rien
+# ── cores: exact value, otherwise the load is comparable to nothing
 REAL_CORES=$(on_target 'nproc')
 API_CORES=$(jq -r '.load.cores' "$BODY")
-[ "$API_CORES" = "$REAL_CORES" ] || fail "cœurs : le relevé dit $API_CORES, la machine dit $REAL_CORES"
-pass "cœurs : $API_CORES — identique à « nproc » sur la machine"
+[ "$API_CORES" = "$REAL_CORES" ] || fail "cores: the readout says $API_CORES, the machine says $REAL_CORES"
+pass "cores: $API_CORES — identical to \"nproc\" on the machine"
 
-# ── charge : une valeur qui bouge entre deux lectures, on vérifie l'ordre de grandeur
+# ── load: a value that moves between two readings, the order of magnitude is checked
 REAL_LOAD=$(on_target 'cat /proc/loadavg' | awk '{print $1}')
 API_LOAD=$(jq -r '.load.one' "$BODY")
 awk -v a="$API_LOAD" -v b="$REAL_LOAD" 'BEGIN { exit !(a >= 0 && b >= 0 && (a - b < 2) && (b - a < 2)) }' \
-  || fail "charge : le relevé dit $API_LOAD, la machine dit $REAL_LOAD — écart trop grand"
-pass "charge 1 min : $API_LOAD (machine : $REAL_LOAD) — /proc/loadavg concorde"
+  || fail "load: the readout says $API_LOAD, the machine says $REAL_LOAD — gap too large"
+pass "1 min load: $API_LOAD (machine: $REAL_LOAD) — /proc/loadavg agrees"
 
-# ── la charge rapportée aux cœurs, qui est la seule valeur comparable
+# ── the load relative to the cores, which is the only comparable value
 API_PER_CORE=$(jq -r '.load.perCore' "$BODY")
 awk -v p="$API_PER_CORE" -v l="$API_LOAD" -v c="$API_CORES" \
   'BEGIN { d = p - l / c; if (d < 0) d = -d; exit !(d < 0.01) }' \
-  || fail "perCore ($API_PER_CORE) ne vaut pas charge/cœurs ($API_LOAD/$API_CORES)"
-pass "charge par cœur : $API_PER_CORE — soit $API_LOAD ÷ $API_CORES"
+  || fail "perCore ($API_PER_CORE) is not load/cores ($API_LOAD/$API_CORES)"
+pass "load per core: $API_PER_CORE — that is $API_LOAD ÷ $API_CORES"
 
-# ── mémoire : MemTotal est stable, on l'exige au kibioctet près
+# ── memory: MemTotal is stable, it is required down to the kibibyte
 REAL_MEMTOTAL=$(on_target 'cat /proc/meminfo' | awk '/^MemTotal:/ {print $2}')
 API_MEMTOTAL=$(jq -r '.memory.totalKb' "$BODY")
 [ "$API_MEMTOTAL" = "$REAL_MEMTOTAL" ] \
-  || fail "MemTotal : le relevé dit $API_MEMTOTAL kB, la machine dit $REAL_MEMTOTAL kB"
-pass "MemTotal : $API_MEMTOTAL kB — identique à /proc/meminfo"
+  || fail "MemTotal: the readout says $API_MEMTOTAL kB, the machine says $REAL_MEMTOTAL kB"
+pass "MemTotal: $API_MEMTOTAL kB — identical to /proc/meminfo"
 
-# `MemAvailable` et pas `MemFree` : sur Linux la mémoire « libre » est du cache.
+# `MemAvailable` and not `MemFree`: on Linux, "free" memory is cache.
 jq -e '.memory.availableKb > 0 and .memory.usedKb == (.memory.totalKb - .memory.availableKb)' \
-  "$BODY" >/dev/null || fail "la mémoire utilisée ne dérive pas de MemAvailable"
-pass "utilisée = MemTotal − MemAvailable ($(jq -r '.memory.usedPercent' "$BODY") %)"
+  "$BODY" >/dev/null || fail "the used memory does not derive from MemAvailable"
+pass "used = MemTotal − MemAvailable ($(jq -r '.memory.usedPercent' "$BODY") %)"
 
-# ── disque : la partition qui porte les déploiements, pas seulement `/`
+# ── disk: the partition carrying the deployments, not only `/`
 API_DISK_PATH=$(jq -r '.disk.path' "$BODY")
 REAL_DF=$(on_target "df -Pk '$API_DISK_PATH'" | tail -1 | awk '{print $2}')
 API_DISK_SIZE=$(jq -r '.disk.sizeKb' "$BODY")
 [ "$API_DISK_SIZE" = "$REAL_DF" ] \
-  || fail "disque : le relevé dit $API_DISK_SIZE kB, « df -Pk $API_DISK_PATH » dit $REAL_DF kB"
-pass "disque « $API_DISK_PATH » : $API_DISK_SIZE kB — identique à df -Pk"
+  || fail "disk: the readout says $API_DISK_SIZE kB, \"df -Pk $API_DISK_PATH\" says $REAL_DF kB"
+pass "disk \"$API_DISK_PATH\": $API_DISK_SIZE kB — identical to df -Pk"
 
-# ── uptime et noyau
+# ── uptime and kernel
 REAL_UPTIME=$(on_target 'cat /proc/uptime' | awk '{printf "%d", $1}')
 API_UPTIME=$(jq -r '.uptimeSeconds' "$BODY")
 awk -v a="$API_UPTIME" -v b="$REAL_UPTIME" 'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d < 120) }' \
-  || fail "uptime : le relevé dit $API_UPTIME s, la machine dit $REAL_UPTIME s"
-pass "uptime : $API_UPTIME s (machine : $REAL_UPTIME s)"
+  || fail "uptime: the readout says $API_UPTIME s, the machine says $REAL_UPTIME s"
+pass "uptime: $API_UPTIME s (machine: $REAL_UPTIME s)"
 
 REAL_KERNEL=$(on_target 'uname -r')
 API_KERNEL=$(jq -r '.os.kernel' "$BODY")
-[ "$API_KERNEL" = "$REAL_KERNEL" ] || fail "noyau : « $API_KERNEL » ≠ « $REAL_KERNEL »"
-pass "noyau : $API_KERNEL — $(jq -r '.os.prettyName' "$BODY")"
+[ "$API_KERNEL" = "$REAL_KERNEL" ] || fail "kernel: \"$API_KERNEL\" ≠ \"$REAL_KERNEL\""
+pass "kernel: $API_KERNEL — $(jq -r '.os.prettyName' "$BODY")"
 
 jq -e '[.probes[] | select(.status == "failed")] | length == 0' "$BODY" >/dev/null \
-  || fail "un relevé a échoué : $(jq -c '[.probes[] | select(.status == "failed")]' "$BODY")"
-pass "les $(jq -r '.probes | length' "$BODY") relevés sont passés"
+  || fail "a readout failed: $(jq -c '[.probes[] | select(.status == "failed")]' "$BODY")"
+pass "the $(jq -r '.probes | length' "$BODY") readouts passed"
 
-step "5. Une métrique manquante rend « null », pas zéro"
+step "5. A missing metric returns \"null\", not zero"
 hide_command nproc
 code=$(metrics "$TARGET_ID")
-[ "$code" = "200" ] || fail "GET metrics sans nproc → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "GET metrics without nproc → HTTP $code: $(cat "$BODY")"
 
 jq -e '.load.cores == null' "$BODY" >/dev/null \
-  || fail "cœurs : attendu null, reçu $(jq -c '.load.cores' "$BODY")"
+  || fail "cores: expected null, got $(jq -c '.load.cores' "$BODY")"
 jq -e '.load.perCore == null' "$BODY" >/dev/null \
-  || fail "perCore : attendu null, reçu $(jq -c '.load.perCore' "$BODY")"
-pass "sans « nproc » : cores = null et perCore = null — pas 0, pas 1"
+  || fail "perCore: expected null, got $(jq -c '.load.perCore' "$BODY")"
+pass "without \"nproc\": cores = null and perCore = null — not 0, not 1"
 
 jq -e '.load.one >= 0 and .memory != null and .disk != null and .uptimeSeconds != null' "$BODY" \
-  >/dev/null || fail "le relevé entier a été emporté par l'absence de nproc"
-pass "le reste du relevé survit — charge $(jq -r '.load.one' "$BODY"), mémoire, disque, uptime"
+  >/dev/null || fail "the whole readout was taken away by the lack of nproc"
+pass "the rest of the readout survives — load $(jq -r '.load.one' "$BODY"), memory, disk, uptime"
 
 jq -e '[.probes[] | select(.key == "cpu")] | .[0].status == "failed" and (.[0].error | test("nproc"))' \
-  "$BODY" >/dev/null || fail "le relevé « cpu » ne dit pas pourquoi il a échoué"
-pass "la raison est dite : $(jq -r '[.probes[] | select(.key == "cpu")] | .[0].error' "$BODY")"
+  "$BODY" >/dev/null || fail "the \"cpu\" readout does not say why it failed"
+pass "the reason is stated: $(jq -r '[.probes[] | select(.key == "cpu")] | .[0].error' "$BODY")"
 
 restore_command nproc
 
-# Même épreuve sur le disque : une commande absente ne doit jamais devenir « 0 % ».
+# Same trial on the disk: a missing command must never become "0 %".
 hide_command df
 code=$(metrics "$TARGET_ID")
-[ "$code" = "200" ] || fail "GET metrics sans df → HTTP $code"
+[ "$code" = "200" ] || fail "GET metrics without df → HTTP $code"
 jq -e '.disk == null' "$BODY" >/dev/null \
-  || fail "disque : attendu null, reçu $(jq -c '.disk' "$BODY")"
+  || fail "disk: expected null, got $(jq -c '.disk' "$BODY")"
 jq -e '.memory != null and .load != null' "$BODY" >/dev/null \
-  || fail "l'absence de df a emporté la mémoire ou la charge"
-pass "sans « df » : disk = null, mémoire et charge intactes"
+  || fail "the lack of df took away the memory or the load"
+pass "without \"df\": disk = null, memory and load intact"
 restore_command df
 
 code=$(metrics "$TARGET_ID")
 jq -e '.load.cores != null and .disk != null' "$BODY" >/dev/null \
-  || fail "les commandes n'ont pas été rendues à la machine"
-pass "commandes restaurées, relevé de nouveau complet"
+  || fail "the commands were not given back to the machine"
+pass "commands restored, readout complete again"
 
-step "6. Une cible injoignable"
-# a) une cible qui n'a jamais répondu
+step "6. An unreachable target"
+# a) a target that never answered
 jq -n --arg n "$DEAD_TARGET_NAME" --arg h "$DEAD_HOST" --arg key "$(cat "$KEY_PATH")" \
   '{name:$n, host:$h, port:22, sshUser:"tp", authMethod:"key", sudoMethod:"nopasswd",
     credential:$key, labels:{env:"test"}, portRangeStart:30000, portRangeEnd:30009}' \
@@ -362,188 +364,189 @@ req GET /api/targets >/dev/null
 DEAD_ID=$(jq -r --arg n "$DEAD_TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY" | head -1)
 if [ -z "$DEAD_ID" ]; then
   code=$(req POST /api/targets "@$WORK/dead.json")
-  [ "$code" = "201" ] || fail "POST /api/targets → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/targets → HTTP $code: $(cat "$BODY")"
   DEAD_ID=$(jq -r .id "$BODY")
 fi
-pass "cible morte « $DEAD_TARGET_NAME » ($DEAD_HOST) — $DEAD_ID"
+pass "dead target \"$DEAD_TARGET_NAME\" ($DEAD_HOST) — $DEAD_ID"
 
 code=$(metrics "$DEAD_ID")
-[ "$code" = "200" ] || fail "une cible injoignable doit rendre 200 avec un rapport, pas $code"
+[ "$code" = "200" ] || fail "an unreachable target must return 200 with a report, not $code"
 jq -e '.reachable == false and (.error | length > 0)' "$BODY" >/dev/null \
-  || fail "le rapport ne dit pas pourquoi : $(cat "$BODY")"
+  || fail "the report does not say why: $(cat "$BODY")"
 jq -e '.load == null and .memory == null and .disk == null and .uptimeSeconds == null' "$BODY" \
-  >/dev/null || fail "une cible injoignable a rendu des métriques"
-pass "relevé en erreur explicite : $(jq -r '.error' "$BODY")"
+  >/dev/null || fail "an unreachable target returned metrics"
+pass "readout with an explicit error: $(jq -r '.error' "$BODY")"
 
-# b) la cible QUI PORTE l'application devient injoignable
-#    (bascule en base : changer l'hôte par l'API réencoderait le credential
-#    pour rien, alors qu'on veut exactement la même cible à une adresse morte)
+# b) the target CARRYING the application becomes unreachable
+#    (switch in the database: changing the host through the API would re-encode
+#    the credential for nothing, while we want exactly the same target at a
+#    dead address)
 psql_q "update targets set host = '$DEAD_HOST_FLIP' where id = '$TARGET_ID';" >/dev/null
-pass "« $TARGET_NAME » pointe temporairement sur $DEAD_HOST_FLIP"
+pass "\"$TARGET_NAME\" temporarily points to $DEAD_HOST_FLIP"
 
 code=$(metrics "$TARGET_ID")
-[ "$code" = "200" ] || fail "GET metrics sur cible coupée → HTTP $code"
-jq -e '.reachable == false' "$BODY" >/dev/null || fail "la cible coupée est annoncée joignable"
-pass "relevé impossible, et le rapport le dit : $(jq -r '.error' "$BODY")"
+[ "$code" = "200" ] || fail "GET metrics on a cut-off target → HTTP $code"
+jq -e '.reachable == false' "$BODY" >/dev/null || fail "the cut-off target is announced reachable"
+pass "readout impossible, and the report says so: $(jq -r '.error' "$BODY")"
 
 code=$(req GET /api/apps)
 [ "$code" = "200" ] || fail "GET /api/apps → HTTP $code"
 jq -e --arg id "$DEP_ID" '[.items[] | select(.id == $id)] | length == 1' "$BODY" >/dev/null \
-  || fail "l'application a disparu de la supervision parce que sa machine ne répond plus"
-pass "l'application « $APP_SLUG » reste listée alors que sa machine ne répond plus"
+  || fail "the application disappeared from supervision because its machine no longer answers"
+pass "the application \"$APP_SLUG\" stays listed although its machine no longer answers"
 
 curl -s -b "$JAR" -c "$JAR" "$BASE_URL/apps" -o "$HTML"
 printf '%s\n' "$(server_section "$TARGET_ID")" | grep -q "href=\"/apps?app=$DEP_ID\"" \
-  || fail "l'écran n'affiche plus l'application sous sa cible injoignable"
-pass "l'écran la montre toujours, sous son serveur"
+  || fail "the screen no longer shows the application under its unreachable target"
+pass "the screen still shows it, under its server"
 
 psql_q "update targets set host = '$ORIGINAL_HOST' where id = '$TARGET_ID';" >/dev/null
 NOW_HOST=$(psql_q "select host from targets where id = '$TARGET_ID';")
-[ "$NOW_HOST" = "$ORIGINAL_HOST" ] || fail "la cible n'a pas retrouvé son hôte ($NOW_HOST)"
-pass "« $TARGET_NAME » rendue à $ORIGINAL_HOST"
+[ "$NOW_HOST" = "$ORIGINAL_HOST" ] || fail "the target did not get its host back ($NOW_HOST)"
+pass "\"$TARGET_NAME\" given back $ORIGINAL_HOST"
 ORIGINAL_HOST=''
 
-step "7. L'écran groupe par serveur"
+step "7. The screen groups by server"
 curl -s -b "$JAR" -c "$JAR" "$BASE_URL/apps" -o "$HTML"
-grep -q 'data-server-id="' "$HTML" || fail "aucun serveur rendu sur /apps"
+grep -q 'data-server-id="' "$HTML" || fail "no server rendered on /apps"
 SERVERS=$(grep -o 'data-server-id="[^"]*"' "$HTML" | wc -l | tr -d ' ')
-pass "$SERVERS serveur(s) rendus, un panneau chacun"
+pass "$SERVERS server(s) rendered, one panel each"
 
 printf '%s\n' "$(server_section "$TARGET_ID")" | grep -q "href=\"/apps?app=$DEP_ID\"" \
-  || fail "« $APP_SLUG » n'apparaît pas sous « $TARGET_NAME »"
-pass "« $APP_SLUG » apparaît sous « $TARGET_NAME »"
+  || fail "\"$APP_SLUG\" does not appear under \"$TARGET_NAME\""
+pass "\"$APP_SLUG\" appears under \"$TARGET_NAME\""
 
-# … et sous elle seule : aucune autre section ne doit la contenir.
+# … and under it alone: no other section must contain it.
 FOREIGN=0
 for id in $(grep -o 'data-server-id="[^"]*"' "$HTML" | sed 's/data-server-id="//; s/"$//'); do
   [ "$id" = "$TARGET_ID" ] && continue
   if printf '%s\n' "$(server_section "$id")" | grep -q "href=\"/apps?app=$DEP_ID\""; then
     FOREIGN=$((FOREIGN + 1))
-    info "trouvée aussi sous $id"
+    info "found under $id too"
   fi
 done
-[ "$FOREIGN" = "0" ] || fail "l'application apparaît sous $FOREIGN serveur(s) qui ne sont pas le sien"
-pass "elle n'apparaît sous aucun autre serveur"
+[ "$FOREIGN" = "0" ] || fail "the application appears under $FOREIGN server(s) that are not its own"
+pass "it appears under no other server"
 
-# Un serveur sans application le dit plutôt que d'offrir un dépliant vide.
+# A server without an application says so rather than offering an empty disclosure.
 if [ -n "$WITNESS_ID" ]; then
   WITNESS_SECTION=$(server_section "$WITNESS_ID")
   printf '%s' "$WITNESS_SECTION" | grep -qE 'Aucune application supervisée|No monitored application' \
-    || fail "le serveur témoin n'annonce pas qu'il est vide"
+    || fail "the control server does not announce that it is empty"
   if printf '%s' "$WITNESS_SECTION" | grep -q 'aria-expanded'; then
-    fail "un serveur vide ne doit pas offrir de dépliant"
+    fail "an empty server must not offer a disclosure"
   fi
-  pass "un serveur sans application le dit, et n'offre aucun dépliant"
+  pass "a server without an application says so, and offers no disclosure"
 fi
 
-# Le dépliant du serveur peuplé est un vrai bouton, et il annonce son état.
+# The populated server's disclosure is a real button, and it announces its state.
 SECTION=$(server_section "$TARGET_ID")
-printf '%s' "$SECTION" | grep -q 'aria-expanded="' || fail "le dépliant n'annonce pas son état"
-printf '%s' "$SECTION" | grep -q 'aria-controls="' || fail "le dépliant ne désigne pas son panneau"
+printf '%s' "$SECTION" | grep -q 'aria-expanded="' || fail "the disclosure does not announce its state"
+printf '%s' "$SECTION" | grep -q 'aria-controls="' || fail "the disclosure does not designate its panel"
 printf '%s' "$SECTION" | grep -q '<button[^>]*aria-expanded' \
-  || fail "le dépliant n'est pas un <button> — il ne serait pas manipulable au clavier"
+  || fail "the disclosure is not a <button> — it would not be operable with the keyboard"
 PANEL_ID=$(printf '%s' "$SECTION" | grep -o 'aria-controls="[^"]*"' | head -1 | sed 's/aria-controls="//; s/"$//')
 printf '%s' "$SECTION" | grep -q "id=\"$PANEL_ID\"" \
-  || fail "aria-controls désigne « $PANEL_ID », qui n'existe pas dans la page"
-pass "dépliant : <button aria-expanded> → panneau « $PANEL_ID », présent dans la page"
+  || fail "aria-controls designates \"$PANEL_ID\", which does not exist in the page"
+pass "disclosure: <button aria-expanded> → panel \"$PANEL_ID\", present in the page"
 
-step "8. « target:read » est requis"
+step "8. \"target:read\" is required"
 req DELETE "/api/admin/roles/$ROLE_KEY" >/dev/null 2>&1 || true
 code=$(req POST /api/admin/roles \
   "{\"key\":\"$ROLE_KEY\",\"label\":\"Supervision sans cible\",\"permissions\":[\"deployment:read\"]}")
-[ "$code" = "201" ] || fail "POST /api/admin/roles → HTTP $code : $(cat "$BODY")"
-pass "rôle « $ROLE_KEY » : deployment:read seulement"
+[ "$code" = "201" ] || fail "POST /api/admin/roles → HTTP $code: $(cat "$BODY")"
+pass "role \"$ROLE_KEY\": deployment:read only"
 
 code=$(req POST /api/admin/users \
   "{\"name\":\"Supervision sans cible\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"$ROLE_KEY\"}")
 case "$code" in
-  201) pass "utilisateur créé avec ce rôle" ;;
-  409) pass "utilisateur déjà présent" ;;
-  *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
+  201) pass "user created with this role" ;;
+  409) pass "user already present" ;;
+  *)   fail "POST /api/admin/users → HTTP $code: $(cat "$BODY")" ;;
 esac
 VIEWER_ID=$(psql_q "select id from users where email = '$VIEWER_EMAIL';")
 
 code=$(req POST /api/auth/sign-in/email \
   "{\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\"}" "$VIEWER_JAR")
-[ "$code" = "200" ] || fail "connexion du testeur → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "tester sign-in → HTTP $code: $(cat "$BODY")"
 
 code=$(req GET "/api/targets/$TARGET_ID/metrics" '' "$VIEWER_JAR")
-[ "$code" = "403" ] || fail "relevé sans target:read : attendu 403, reçu $code"
+[ "$code" = "403" ] || fail "readout without target:read: expected 403, got $code"
 jq -e '.error.code == "forbidden" and .error.details.permission == "target:read"' "$BODY" >/dev/null \
-  || fail "le refus ne nomme pas la permission manquante : $(cat "$BODY")"
-pass "relevé refusé → 403, permission « target:read » nommée"
+  || fail "the refusal does not name the missing permission: $(cat "$BODY")"
+pass "readout refused → 403, permission \"target:read\" named"
 
 DENIED=$(psql_q "select count(*) from audit_logs
   where action = 'permission.denied' and resource_id = 'target:read'
     and actor_id = '$VIEWER_ID';")
-[ "$DENIED" -ge 1 ] || fail "le refus n'a pas été journalisé"
-pass "refus tracé dans le journal d'audit ($DENIED ligne(s))"
+[ "$DENIED" -ge 1 ] || fail "the refusal was not logged"
+pass "refusal traced in the audit log ($DENIED row(s))"
 
-# L'écran reste consultable : voir ce qui tourne ne demande que deployment:read.
+# The screen stays viewable: seeing what runs only requires deployment:read.
 curl -s -b "$VIEWER_JAR" -c "$VIEWER_JAR" "$BASE_URL/apps" -o "$WORK/viewer.html"
-grep -q "$APP_SLUG" "$WORK/viewer.html" || fail "le testeur ne voit plus les applications"
+grep -q "$APP_SLUG" "$WORK/viewer.html" || fail "the tester no longer sees the applications"
 grep -qE 'Relevé indisponible|Readout unavailable' "$WORK/viewer.html" \
-  || fail "l'écran ne dit pas pourquoi il n'affiche aucune métrique"
-pass "il voit les applications, et l'écran annonce « relevé indisponible »"
+  || fail "the screen does not say why it shows no metric"
+pass "they see the applications, and the screen announces \"readout unavailable\""
 
-step "9. Le relevé passe par la file, pas par une session SSH du panel"
-# `panel` et `worker` partagent UNE image (docker-compose.yml, ancre x-app-image) :
-# `/app/node_modules` est l'arbre de dépendances du worker, et `ssh2` s'y trouve
-# forcément — c'est lui qui ouvre les sessions. Un `find /` sur le conteneur
-# panel le voit donc, et le verrait même sans ce chantier. Ce qui doit rester
-# vide, c'est le **bundle tracé du panel**, `/app/web` : `ssh2` ou `node-ssh`
-# dedans voudrait dire que du code de session SSH a fui dans le graphe de Next.
+step "9. The readout goes through the queue, not through a panel SSH session"
+# `panel` and `worker` share ONE image (docker-compose.yml, x-app-image anchor):
+# `/app/node_modules` is the worker's dependency tree, and `ssh2` is necessarily
+# there — it is what opens the sessions. A `find /` on the panel container
+# therefore sees it, and would see it even without this work. What must stay
+# empty is the panel's **traced bundle**, `/app/web`: `ssh2` or `node-ssh` in
+# it would mean that SSH session code leaked into Next's graph.
 PANEL_SSH2=$(docker compose exec -T panel find /app/web -name ssh2 2>/dev/null || true)
 PANEL_NODESSH=$(docker compose exec -T panel find /app/web -name node-ssh 2>/dev/null || true)
 [ -z "$PANEL_SSH2$PANEL_NODESSH" ] \
-  || fail "le bundle du panel embarque une couche SSH : $PANEL_SSH2 $PANEL_NODESSH"
-pass "aucun « ssh2 » ni « node-ssh » dans /app/web — le panel ne peut pas ouvrir de session"
-info "l'image est partagée avec le worker : /app/node_modules porte bien ssh2, c'est sa place"
+  || fail "the panel's bundle ships an SSH layer: $PANEL_SSH2 $PANEL_NODESSH"
+pass "no \"ssh2\" nor \"node-ssh\" in /app/web — the panel cannot open a session"
+info "the image is shared with the worker: /app/node_modules does carry ssh2, it is its place"
 
-# La preuve positive : une tâche `target:metrics` a bien été consommée.
+# The positive proof: a `target:metrics` job was indeed consumed.
 JOB_NAMES=$(docker compose exec -T redis sh -lc \
   'for k in $(redis-cli --scan --pattern "bull:supervision:*"); do redis-cli HGET "$k" name; done' \
   | tr -d '\r' | sort -u | paste -sd' ' -)
 printf '%s' "$JOB_NAMES" | grep -q 'target:metrics' \
-  || fail "aucune tâche « target:metrics » dans la file de supervision (vu : $JOB_NAMES)"
-pass "la file « supervision » porte des tâches « target:metrics »"
+  || fail "no \"target:metrics\" job in the supervision queue (seen: $JOB_NAMES)"
+pass "the \"supervision\" queue carries \"target:metrics\" jobs"
 
 WORKER_LOG=$(docker compose logs worker --since 30m 2>&1 || true)
 printf '%s\n' "$WORKER_LOG" | grep -q 'metrics reading completed' \
-  || fail "le worker n'a jamais journalisé de relevé"
-pass "c'est le worker qui a ouvert les sessions SSH"
+  || fail "the worker never logged a readout"
+pass "it is the worker that opened the SSH sessions"
 
 step "10. Cleanup"
 code=$(req DELETE "/api/deployments/$DEP_ID")
-[ "$code" = "202" ] || fail "DELETE /api/deployments/$DEP_ID → HTTP $code : $(cat "$BODY")"
+[ "$code" = "202" ] || fail "DELETE /api/deployments/$DEP_ID → HTTP $code: $(cat "$BODY")"
 for _ in $(seq 1 90); do
   sleep 2
   req GET "/api/deployments/$DEP_ID" >/dev/null
   [ "$(jq -r .status "$BODY")" = "destroyed" ] && break
 done
-[ "$(jq -r .status "$BODY")" = "destroyed" ] || fail "le déploiement n'a pas été détruit"
-pass "déploiement détruit sur la cible"
+[ "$(jq -r .status "$BODY")" = "destroyed" ] || fail "the deployment was not destroyed"
+pass "deployment destroyed on the target"
 
 code=$(req DELETE "/api/deployments/$DEP_ID/purge")
-[ "$code" = "200" ] || info "purge → HTTP $code : $(jq -r '.error.message // ""' "$BODY")"
+[ "$code" = "200" ] || info "purge → HTTP $code: $(jq -r '.error.message // ""' "$BODY")"
 code=$(req DELETE "/api/applications/$APP_ID")
 [ "$code" = "200" ] || [ "$code" = "204" ] || fail "DELETE /api/applications/$APP_ID → HTTP $code"
-pass "application « $APP_SLUG » supprimée"
+pass "application \"$APP_SLUG\" deleted"
 
 code=$(req DELETE "/api/targets/$DEAD_ID")
 [ "$code" = "200" ] || [ "$code" = "204" ] || fail "DELETE /api/targets/$DEAD_ID → HTTP $code"
-pass "cible morte supprimée"
+pass "dead target deleted"
 
 if [ -n "$VIEWER_ID" ]; then req DELETE "/api/admin/users/$VIEWER_ID" >/dev/null; fi
 code=$(req DELETE "/api/admin/roles/$ROLE_KEY")
-[ "$code" = "200" ] || fail "DELETE /api/admin/roles/$ROLE_KEY → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "DELETE /api/admin/roles/$ROLE_KEY → HTTP $code: $(cat "$BODY")"
 pass "test user and role deleted"
 
 req GET /api/apps >/dev/null
 LIVE_AFTER=$(jq -r '[.items[].applicationSlug] | sort | join(",")' "$BODY")
 [ "$LIVE_AFTER" = "$LIVE_BEFORE" ] \
-  || fail "l'inventaire a changé : « $LIVE_BEFORE » → « $LIVE_AFTER »"
-pass "les applications en marche sont exactement celles d'avant : ${LIVE_AFTER:-aucune}"
+  || fail "the inventory changed: \"$LIVE_BEFORE\" → \"$LIVE_AFTER\""
+pass "the running applications are exactly those from before: ${LIVE_AFTER:-none}"
 
-printf '\n\033[32m✓ Supervision par serveur vérifiée.\033[0m\n'
-printf '\033[2m  Écran : %s/apps\033[0m\n\n' "$BASE_URL"
+printf '\n\033[32m✓ Per-server supervision verified.\033[0m\n'
+printf '\033[2m  Screen: %s/apps\033[0m\n\n' "$BASE_URL"

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 #
-# Vérifie la supervision des applications déployées :
+# Checks the supervision of deployed applications:
 #
-#   1. la liste ne montre que ce qui tourne réellement
-#   2. le flux SSE remonte un état de services
-#   3. il remonte des lignes de logs, attribuées au bon service
-#   4. il TIENT dans la durée (le piège des gardes de timeout)
-#   5. le redémarrage passe par la file et publie son cycle de vie
-#   6. un déploiement échoué n'est pas supervisable
-#   7. l'action est tracée dans le journal d'audit
-#   8. une application dont la DERNIÈRE MISE À JOUR A ÉCHOUÉ reste listée,
-#      avec un état qui le dit — elle tourne toujours, dans sa version d'avant
+#   1. the list only shows what really runs
+#   2. the SSE stream brings up a services state
+#   3. it brings up log lines, attributed to the right service
+#   4. it HOLDS over time (the timeout guards trap)
+#   5. the restart goes through the queue and publishes its life cycle
+#   6. a failed deployment cannot be supervised
+#   7. the action is traced in the audit log
+#   8. an application whose LAST UPDATE FAILED stays listed, with a state that
+#      says so — it still runs, in its previous version
 #
-# Usage :
+# Usage:
 #   ./scripts/verify-supervision.sh
 #   BASE_URL=http://localhost:3200 ./scripts/verify-supervision.sh
 #
@@ -23,14 +23,14 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
 TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
-# Matière propre au script : il ne touche à aucune application déjà en marche.
+# The script's own material: it touches no application already running.
 FAILED_UPDATE_SLUG="${FAILED_UPDATE_SLUG:-supervision-maj-ratee}"
 IMAGE_OK="${IMAGE_OK:-docker.io/library/nginx:1.29-alpine}"
 IMAGE_KO="${IMAGE_KO:-docker.io/library/httpd:2.4-alpine}"
 
-# Au-delà du défaut de garde SSH (30 s) : c'est précisément la durée qui a
-# révélé que le suivi de logs était coupé par un timeout qu'il ne devrait pas
-# subir. Ne pas descendre en dessous.
+# Beyond the SSH guard's default (30 s): it is precisely the duration that
+# revealed that the log following was cut by a timeout it should not undergo.
+# Do not go below.
 STREAM_SECONDS="${STREAM_SECONDS:-45}"
 
 WORK="$(mktemp -d)"
@@ -79,12 +79,12 @@ login() {
   assert_admin
 }
 
-# Extrait les données d'un type d'événement SSE donné.
+# Extracts the data of a given SSE event type.
 events() { grep -A1 "^event: $1\$" "$SSE" | grep '^data:' | sed 's/^data: //'; }
 
-# ─── helpers du scénario « dernière mise à jour échouée » ─────────────────────
+# ─── helpers of the "last update failed" scenario ─────────────────────────────
 
-# AppSpec saine : un service exposé, une image, une route de santé.
+# Healthy AppSpec: an exposed service, an image, a health route.
 spec_ok() {
   jq -n --arg n "$1" --arg v "$2" --arg i "$IMAGE_OK" \
     '{name:$n, version:$v, services:[{
@@ -93,11 +93,11 @@ spec_ok() {
       }]}'
 }
 
-# AppSpec dont la sonde du PIPELINE échoue alors que le conteneur se porte bien.
-# Même recette que verify-ports-rollback.sh : le service écoute sur 80, le driver publie
-# 8080, et personne n'écoute derrière. L'étape en défaut est donc `healthcheck`,
-# après que `deploy` a remplacé les conteneurs — le cas exact qui faisait
-# disparaître l'application de cet écran.
+# AppSpec whose PIPELINE probe fails while the container is fine. Same recipe
+# as verify-ports-rollback.sh: the service listens on 80, the driver publishes
+# 8080, and nobody listens behind it. So the faulty step is `healthcheck`, after
+# `deploy` replaced the containers — the exact case that made the application
+# disappear from this screen.
 spec_ko() {
   jq -n --arg n "$1" --arg v "$2" --arg i "$IMAGE_KO" \
     '{name:$n, version:$v, services:[{
@@ -114,24 +114,24 @@ upsert_app() {
   if [ -n "$id" ]; then
     jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/patch.json"
     code=$(req PATCH "/api/applications/$id" "@$WORK/patch.json")
-    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code : $(cat "$BODY")"
+    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code: $(cat "$BODY")"
     printf '%s' "$id"
     return
   fi
 
   jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/create.json"
   code=$(req POST /api/applications "@$WORK/create.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   jq -r .id "$BODY"
 }
 
-# Déploie et attend le verdict. Écho : "<deploymentId> <statut>".
-# `autoRollback:false` : on veut un `failed` franc, pas un `rolled_back`.
+# Deploys and waits for the verdict. Echoes: "<deploymentId> <status>".
+# `autoRollback:false`: we want an outright `failed`, not a `rolled_back`.
 deploy_and_wait() {
   local app_id="$1" target_id="$2" code id status
   code=$(req POST /api/deployments \
     "{\"applicationId\":\"$app_id\",\"targetId\":\"$target_id\",\"runtime\":\"docker\",\"proxy\":\"traefik\",\"autoRollback\":false}")
-  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
   id=$(jq -r .id "$BODY")
 
   for _ in $(seq 1 150); do
@@ -148,7 +148,7 @@ deploy_and_wait() {
 destroy_and_wait() {
   local id="$1" code status
   code=$(req DELETE "/api/deployments/$id")
-  [ "$code" = "202" ] || fail "DELETE /api/deployments/$id → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "DELETE /api/deployments/$id → HTTP $code: $(cat "$BODY")"
   for _ in $(seq 1 90); do
     sleep 2
     req GET "/api/deployments/$id" >/dev/null
@@ -162,24 +162,24 @@ step "1. Sign-in"
 login
 pass "signed in as $ADMIN_EMAIL"
 
-step "2. Les applications supervisées"
+step "2. The supervised applications"
 code=$(req GET /api/apps)
-[ "$code" = "200" ] || fail "GET /api/apps → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "GET /api/apps → HTTP $code: $(cat "$BODY")"
 
 COUNT=$(jq -r '.items | length' "$BODY")
-[ "$COUNT" -ge 1 ] || fail "aucune application en marche — déployez-en une d'abord"
-pass "$COUNT application(s) supervisée(s)"
+[ "$COUNT" -ge 1 ] || fail "no running application — deploy one first"
+pass "$COUNT supervised application(s)"
 
-# Seuls « success » et « rolled_back » représentent quelque chose qui tourne.
+# Only "success" and "rolled_back" represent something that runs.
 jq -e '[.items[] | select(.status != "success" and .status != "rolled_back")] | length == 0' \
-  "$BODY" >/dev/null || fail "la liste contient un déploiement qui ne tourne pas"
-pass "la liste ne contient que des déploiements en marche"
+  "$BODY" >/dev/null || fail "the list contains a deployment that does not run"
+pass "the list only contains running deployments"
 
-# Photo de départ : à la fin du script, elle doit être identique.
-# L'identité d'une ligne supervisée est le COUPLE application+cible, pas le
-# seul nom : la même application peut tourner sur deux machines, et deux lignes
-# « demo-api » ne sont alors pas un doublon mais deux déploiements distincts.
-# Comparer les seuls noms ferait passer ce cas normal pour une fuite.
+# Starting snapshot: at the end of the script, it must be identical. The
+# identity of a supervised row is the application+target PAIR, not the name
+# alone: the same application can run on two machines, and two "demo-api" rows
+# are then not a duplicate but two distinct deployments. Comparing the names
+# alone would make this normal case pass for a leak.
 live_pairs() { jq -r '[.items[] | "\(.applicationSlug)@\(.targetName)"] | sort | join(", ")' "$BODY"; }
 
 LIVE_BEFORE=$(live_pairs)
@@ -187,10 +187,10 @@ LIVE_BEFORE=$(live_pairs)
 APP_ID=$(jq -r '.items[0].id' "$BODY")
 APP_SLUG=$(jq -r '.items[0].applicationSlug' "$BODY")
 APP_URL=$(jq -r '.items[0].url // empty' "$BODY")
-info "sujet : « $APP_SLUG » ($APP_ID)"
+info "subject: \"$APP_SLUG\" ($APP_ID)"
 
-step "3. Flux de logs en direct (${STREAM_SECONDS} s)"
-# Du trafic, pour que l'application ait quelque chose à dire.
+step "3. Live log stream (${STREAM_SECONDS} s)"
+# Some traffic, so that the application has something to say.
 if [ -n "$APP_URL" ]; then
   ( sleep 4; for _ in $(seq 1 30); do curl -s -o /dev/null --max-time 2 "$APP_URL/" || true; done ) &
 fi
@@ -198,162 +198,162 @@ fi
 curl -sN --max-time "$STREAM_SECONDS" -b "$JAR" "$BASE_URL/api/apps/$APP_ID/logs" > "$SSE" || true
 wait 2>/dev/null || true
 
-grep -q '^event: ready' "$SSE" || fail "le flux ne s'est pas ouvert : $(head -c 300 "$SSE")"
-pass "flux ouvert"
+grep -q '^event: ready' "$SSE" || fail "the stream did not open: $(head -c 300 "$SSE")"
+pass "stream open"
 
 if grep -q '^event: error' "$SSE"; then
-  fail "le flux a signalé une erreur : $(events error | head -1)"
+  fail "the stream reported an error: $(events error | head -1)"
 fi
 
 events status | tail -1 > "$WORK/status.json"
-[ -s "$WORK/status.json" ] || fail "aucun état de services remonté"
+[ -s "$WORK/status.json" ] || fail "no services state brought up"
 SERVICES=$(jq -r '[.services[].name] | join(", ")' "$WORK/status.json")
-[ -n "$SERVICES" ] || fail "l'état ne contient aucun service"
-pass "état des services : $SERVICES"
+[ -n "$SERVICES" ] || fail "the state contains no service"
+pass "services state: $SERVICES"
 
 LINES=$(grep -c '^event: log' "$SSE" || true)
-[ "$LINES" -ge 1 ] || fail "aucune ligne de log reçue"
-pass "$LINES ligne(s) de log reçue(s)"
+[ "$LINES" -ge 1 ] || fail "no log line received"
+pass "$LINES log line(s) received"
 
-step "4. Le flux tient dans la durée"
-# Le piège : une garde de timeout côté SSH coupait « logs -f » au bout de 30 s.
-# Un « stream.stopped » avant la fin du test signifie que la coupure est revenue.
+step "4. The stream holds over time"
+# The trap: a timeout guard on the SSH side cut "logs -f" after 30 s. A
+# "stream.stopped" before the end of the test means the cut came back.
 if events lifecycle | jq -e 'select(.action == "stream.stopped")' >/dev/null 2>&1; then
   DETAIL=$(events lifecycle | jq -r 'select(.action == "stream.stopped") | .detail')
-  fail "le flux s'est coupé tout seul avant ${STREAM_SECONDS} s ($DETAIL)"
+  fail "the stream cut itself off before ${STREAM_SECONDS} s ($DETAIL)"
 fi
-pass "aucune coupure prématurée sur ${STREAM_SECONDS} s"
+pass "no premature cut over ${STREAM_SECONDS} s"
 
-step "5. Les noms de service concordent"
-# Compose préfixe avec le nom du CONTENEUR (« api-1 »), l'état rapporte le nom
-# du SERVICE (« api »). S'ils divergent, le filtre par service de l'interface
-# ne trouve jamais rien — panne silencieuse.
+step "5. The service names match"
+# Compose prefixes with the CONTAINER name ("api-1"), the state reports the
+# SERVICE name ("api"). If they diverge, the interface's per-service filter
+# never finds anything — a silent outage.
 events log | jq -r '.service // empty' | sort -u > "$WORK/vus.txt"
 jq -r '.services[].name' "$WORK/status.json" | sort -u > "$WORK/connus.txt"
 
 if [ -s "$WORK/vus.txt" ]; then
   INTRUS=$(comm -23 "$WORK/vus.txt" "$WORK/connus.txt" || true)
-  [ -z "$INTRUS" ] || fail "service inconnu de l'état dans les logs : $(echo "$INTRUS" | tr '\n' ' ')"
-  pass "tous les services vus dans les logs existent dans l'état"
+  [ -z "$INTRUS" ] || fail "service unknown to the state in the logs: $(echo "$INTRUS" | tr '\n' ' ')"
+  pass "all the services seen in the logs exist in the state"
 else
-  info "aucune ligne préfixée — rien à recouper"
+  info "no prefixed line — nothing to cross-check"
 fi
 
-step "6. Redémarrage"
+step "6. Restart"
 code=$(req POST "/api/apps/$APP_ID/restart")
-[ "$code" = "202" ] || [ "$code" = "200" ] || fail "POST restart → HTTP $code : $(cat "$BODY")"
+[ "$code" = "202" ] || [ "$code" = "200" ] || fail "POST restart → HTTP $code: $(cat "$BODY")"
 JOB=$(jq -r '.jobId // "?"' "$BODY")
-pass "redémarrage enfilé (job $JOB) — la route ne fait pas le travail elle-même"
+pass "restart queued (job $JOB) — the route does not do the work itself"
 
-# Le cycle de vie est publié sur le flux : on rouvre pour l'observer.
+# The life cycle is published on the stream: we reopen it to observe it.
 curl -sN --max-time 40 -b "$JAR" "$BASE_URL/api/apps/$APP_ID/logs" > "$SSE" || true
 
 if events lifecycle | jq -e 'select(.action == "restart" and .done == true)' \
      >/dev/null 2>&1; then
-  pass "cycle de vie observé : $(events lifecycle | jq -r 'select(.action == "restart") | .detail' | tail -1)"
+  pass "life cycle observed: $(events lifecycle | jq -r 'select(.action == "restart") | .detail' | tail -1)"
 else
-  info "le redémarrage s'est terminé avant la réouverture du flux — on vérifie l'état"
+  info "the restart ended before the stream reopened — checking the state"
   events status | tail -1 | jq -e '[.services[] | select(.state == "running")] | length >= 1' \
-    >/dev/null || fail "aucun service en marche après redémarrage"
-  pass "les services tournent après redémarrage"
+    >/dev/null || fail "no service running after the restart"
+  pass "the services run after the restart"
 fi
 
-step "7. Un déploiement qui ne tourne pas n'est pas supervisable"
+step "7. A deployment that does not run cannot be supervised"
 code=$(req GET "/api/deployments?status=failed&pageSize=1")
 DEAD=""
 [ "$code" = "200" ] && DEAD=$(jq -r '.items[0].id // empty' "$BODY" 2>/dev/null || true)
 if [ -n "$DEAD" ]; then
   code=$(curl -s -o "$BODY" -w '%{http_code}' -b "$JAR" "$BASE_URL/api/apps/$DEAD/logs")
-  [ "$code" = "409" ] || fail "déploiement échoué : attendu 409, reçu $code"
-  pass "flux refusé sur un déploiement échoué → 409"
+  [ "$code" = "409" ] || fail "failed deployment: expected 409, got $code"
+  pass "stream refused on a failed deployment → 409"
 else
-  info "aucun déploiement échoué sous la main — cas non exercé"
+  info "no failed deployment at hand — case not exercised"
 fi
 
 step "8. Traceability"
 code=$(req GET "/api/audit-logs?resourceType=deployment&pageSize=30")
 [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
 jq -e '[.items[] | select(.action == "app.restart.requested")] | length > 0' "$BODY" >/dev/null \
-  || fail "action « app.restart.requested » absente du journal d'audit"
-pass "audit : app.restart.requested"
+  || fail "action \"app.restart.requested\" missing from the audit log"
+pass "audit: app.restart.requested"
 
-# ─── 9. Une mise à jour ratée ne fait pas disparaître l'application ───────────
+# ─── 9. A failed update does not make the application disappear ───────────────
 #
-# Le défaut corrigé : l'écran ne retenait que le DERNIER déploiement du couple
-# (application, cible), et seulement s'il était `success` ou `rolled_back`. Dès
-# qu'un déploiement échouait derrière une version en service, l'application
-# sortait de la liste — alors que ses conteneurs tournaient toujours.
+# The fixed defect: the screen only kept the LAST deployment of the
+# (application, target) pair, and only if it was `success` or `rolled_back`. As
+# soon as a deployment failed behind a version in service, the application left
+# the list — although its containers were still running.
 
-step "9. Une application dont la dernière mise à jour a échoué reste listée"
+step "9. An application whose last update failed stays listed"
 
 req GET /api/targets >/dev/null
 TARGET_ID=$(jq -r --arg n "$TARGET_NAME" '.items[] | select(.name == $n) | .id' "$BODY")
 [ -n "$TARGET_ID" ] || fail "target \"$TARGET_NAME\" not found — run ./scripts/setup-test-target.sh"
-info "cible $TARGET_NAME — $TARGET_ID"
+info "target $TARGET_NAME — $TARGET_ID"
 
 MAJ_APP=$(upsert_app "$FAILED_UPDATE_SLUG" "$(spec_ok "$FAILED_UPDATE_SLUG" 1.0.0)")
 read -r MAJ_V1 MAJ_S1 <<< "$(deploy_and_wait "$MAJ_APP" "$TARGET_ID")"
-[ "$MAJ_S1" = "success" ] || fail "la v1 devait réussir, statut « $MAJ_S1 »"
-pass "v1 de « $FAILED_UPDATE_SLUG » en service — $MAJ_V1"
+[ "$MAJ_S1" = "success" ] || fail "the v1 was supposed to succeed, status \"$MAJ_S1\""
+pass "v1 of \"$FAILED_UPDATE_SLUG\" in service — $MAJ_V1"
 
 req GET /api/apps >/dev/null
 jq -e --arg s "$FAILED_UPDATE_SLUG" '[.items[] | select(.applicationSlug == $s)] | length == 1' \
-  "$BODY" >/dev/null || fail "« $FAILED_UPDATE_SLUG » n'apparaît pas dans /api/apps après la v1"
-pass "elle est listée dans /api/apps"
+  "$BODY" >/dev/null || fail "\"$FAILED_UPDATE_SLUG\" does not appear in /api/apps after the v1"
+pass "it is listed in /api/apps"
 
 upsert_app "$FAILED_UPDATE_SLUG" "$(spec_ko "$FAILED_UPDATE_SLUG" 2.0.0)" >/dev/null
 read -r MAJ_V2 MAJ_S2 <<< "$(deploy_and_wait "$MAJ_APP" "$TARGET_ID")"
-[ "$MAJ_S2" = "failed" ] || fail "la v2 devait échouer franchement, statut « $MAJ_S2 »"
+[ "$MAJ_S2" = "failed" ] || fail "the v2 was supposed to fail outright, status \"$MAJ_S2\""
 req GET "/api/deployments/$MAJ_V2" >/dev/null
 jq -e '.failedStep == "healthcheck"' "$BODY" >/dev/null \
-  || fail "l'échec devait porter sur « healthcheck », pas « $(jq -r .failedStep "$BODY") »"
-pass "v2 échouée à l'étape healthcheck — $MAJ_V2"
+  || fail "the failure was supposed to be on \"healthcheck\", not \"$(jq -r .failedStep "$BODY")\""
+pass "v2 failed at the healthcheck step — $MAJ_V2"
 
-# LE test : l'application est toujours là.
+# THE test: the application is still there.
 req GET /api/apps >/dev/null
 jq -e --arg s "$FAILED_UPDATE_SLUG" '[.items[] | select(.applicationSlug == $s)] | length == 1' \
   "$BODY" >/dev/null \
-  || fail "« $FAILED_UPDATE_SLUG » a disparu de /api/apps après un déploiement raté — c'est le défaut"
-pass "elle est TOUJOURS listée après le déploiement raté"
+  || fail "\"$FAILED_UPDATE_SLUG\" disappeared from /api/apps after a failed deployment — that is the defect"
+pass "it is STILL listed after the failed deployment"
 
-# Et c'est bien la v1 qui est présentée comme en service : c'est elle qui tourne,
-# et c'est le seul identifiant sur lequel logs et redémarrage ont un sens.
+# And it is indeed the v1 that is presented as in service: it is the one
+# running, and the only identifier on which logs and restart make sense.
 jq -e --arg s "$FAILED_UPDATE_SLUG" --arg id "$MAJ_V1" \
   '[.items[] | select(.applicationSlug == $s)][0] | .id == $id and .status == "success"' \
-  "$BODY" >/dev/null || fail "la ligne ne porte pas la v1 en service : $(jq -c --arg s "$FAILED_UPDATE_SLUG" '[.items[]|select(.applicationSlug==$s)][0]|{id,status}' "$BODY")"
-pass "la ligne porte la v1 en service, pas la v2 échouée"
+  "$BODY" >/dev/null || fail "the row does not carry the v1 in service: $(jq -c --arg s "$FAILED_UPDATE_SLUG" '[.items[]|select(.applicationSlug==$s)][0]|{id,status}' "$BODY")"
+pass "the row carries the v1 in service, not the failed v2"
 
-# L'état le dit franchement plutôt que de le taire.
+# The state says it outright rather than keeping quiet about it.
 jq -e --arg s "$FAILED_UPDATE_SLUG" --arg id "$MAJ_V2" \
   '[.items[] | select(.applicationSlug == $s)][0].lastFailedUpdate
      | . != null and .deploymentId == $id and .failedStep == "healthcheck"
        and .mayHaveReplacedServices == true' \
   "$BODY" >/dev/null \
-  || fail "l'état ne signale pas la mise à jour échouée : $(jq -c --arg s "$FAILED_UPDATE_SLUG" '[.items[]|select(.applicationSlug==$s)][0].lastFailedUpdate' "$BODY")"
-pass "l'état porte « dernière mise à jour échouée » — v2, étape healthcheck"
+  || fail "the state does not flag the failed update: $(jq -c --arg s "$FAILED_UPDATE_SLUG" '[.items[]|select(.applicationSlug==$s)][0].lastFailedUpdate' "$BODY")"
+pass "the state carries \"last update failed\" — v2, healthcheck step"
 
-# Les logs applicatifs restent accessibles sur la version en service.
+# The application logs stay reachable on the version in service.
 code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" --max-time 8 \
   "$BASE_URL/api/apps/$MAJ_V1/logs" || true)
-[ "$code" = "200" ] || fail "le flux de logs de la v1 en service devrait s'ouvrir (HTTP $code)"
-pass "le flux de logs de la version en service s'ouvre toujours"
+[ "$code" = "200" ] || fail "the log stream of the v1 in service should open (HTTP $code)"
+pass "the log stream of the version in service still opens"
 
 step "10. Cleanup"
 destroy_and_wait "$MAJ_V1"
-pass "déploiement de test détruit sur la cible"
+pass "test deployment destroyed on the target"
 code=$(req DELETE "/api/deployments/$MAJ_V2/purge")
-[ "$code" = "200" ] || info "purge de la v2 échouée → HTTP $code : $(jq -r '.error.message // ""' "$BODY")"
+[ "$code" = "200" ] || info "purge of the failed v2 → HTTP $code: $(jq -r '.error.message // ""' "$BODY")"
 code=$(req DELETE "/api/deployments/$MAJ_V1/purge")
-[ "$code" = "200" ] || info "purge de la v1 détruite → HTTP $code : $(jq -r '.error.message // ""' "$BODY")"
+[ "$code" = "200" ] || info "purge of the destroyed v1 → HTTP $code: $(jq -r '.error.message // ""' "$BODY")"
 code=$(req DELETE "/api/applications/$MAJ_APP")
-[ "$code" = "200" ] || info "suppression de $FAILED_UPDATE_SLUG → HTTP $code : $(cat "$BODY")"
-pass "application de test supprimée"
+[ "$code" = "200" ] || info "deleting $FAILED_UPDATE_SLUG → HTTP $code: $(cat "$BODY")"
+pass "test application deleted"
 
 req GET /api/apps >/dev/null
 LIVE_AFTER=$(live_pairs)
 [ "$LIVE_AFTER" = "$LIVE_BEFORE" ] \
-  || fail "les applications en marche ont changé : « $LIVE_BEFORE » → « $LIVE_AFTER »"
-pass "les applications réellement en marche sont intactes : ${LIVE_AFTER:-aucune}"
+  || fail "the running applications changed: \"$LIVE_BEFORE\" → \"$LIVE_AFTER\""
+pass "the applications really running are intact: ${LIVE_AFTER:-none}"
 
-printf '\n\033[32m✓ Supervision vérifiée.\033[0m\n'
-printf '\033[2m  Écran : %s/apps\033[0m\n\n' "$BASE_URL"
+printf '\n\033[32m✓ Supervision verified.\033[0m\n'
+printf '\033[2m  Screen: %s/apps\033[0m\n\n' "$BASE_URL"
