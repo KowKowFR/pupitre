@@ -266,7 +266,7 @@ step "5. The invitation really goes out"
 mailpit_reset
 JAR="$ADMIN_JAR"; CLIENT_IP="$IP_ADMIN"
 code=$(req POST /api/admin/users "{\"name\":\"Alice\",\"email\":\"$INVITEE\",\"role\":\"operator\"}")
-[ "$code" = "201" ] || fail "invitation → HTTP $code : $(cat "$BODY")"
+[ "$code" = "201" ] || fail "invitation → HTTP $code: $(cat "$BODY")"
 jq -e '.invitation.sent == true' "$BODY" >/dev/null \
   || fail "the route does not assert that the e-mail went out: $(jq -c .invitation "$BODY")"
 ALICE_ID=$(jq -r '.id' "$BODY")
@@ -456,7 +456,7 @@ step "8. An expired link is refused"
 mailpit_reset
 JAR="$WORK/anon3.jar"; CLIENT_IP="$IP_EXPIRY"
 code=$(req POST /api/auth/request-password-reset "{\"email\":\"$INVITEE\"}")
-[ "$code" = "200" ] || fail "demande → HTTP $code"
+[ "$code" = "200" ] || fail "request → HTTP $code"
 MID=$(mailpit_wait_for "$INVITEE") || fail "no e-mail"
 EXPIRED_LINK=$(mail_text "$MID" | grep -oE 'https?://[^ ]*reset-password/[A-Za-z0-9_-]+[^ ]*' | head -1)
 EXPIRED_TOKEN=$(sed -E 's#.*/reset-password/([A-Za-z0-9_-]+).*#\1#' <<< "$EXPIRED_LINK")
@@ -503,7 +503,7 @@ unknown_body=$(cat "$BODY")
 pass "same HTTP code on both sides: $code_known"
 
 [ "$known_body" = "$unknown_body" ] \
-  || fail "different bodies:\n    known   : $known_body\n    unknown : $unknown_body"
+  || fail "different bodies:\n    known   : $known_body\n    unknown: $unknown_body"
 pass "response body identical down to the character"
 info "$known_body"
 
@@ -544,7 +544,7 @@ code=$(req POST /api/auth/request-password-reset "{\"email\":\"$INVITEE\"}")
 [ "$code" != "429" ] || fail "another IP is limited by the first one's counter"
 pass "another IP is not affected → HTTP $code: the counter is per (IP, path)"
 
-# ─── 11. Relancer, annuler ────────────────────────────────────────────────────
+# ─── 11. Resending, cancelling ────────────────────────────────────────────────
 step "11. Resending kills the previous link; cancelling kills the link without the account"
 
 mailpit_reset
@@ -559,7 +559,7 @@ pass "Bob invited, first link captured"
 
 mailpit_reset
 code=$(req POST "/api/admin/users/$BOB_ID/invitation")
-[ "$code" = "200" ] || fail "relance → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "resend → HTTP $code: $(cat "$BODY")"
 jq -e '.revokedLinks >= 1' "$BODY" >/dev/null \
   || fail "the resend does not announce having killed the previous link: $(cat "$BODY")"
 jq -e '.invitation.sent == true' "$BODY" >/dev/null || fail "the resend sent nothing"
@@ -579,7 +579,7 @@ pass "the second link carries a different token"
 
 JAR="$ADMIN_JAR"; CLIENT_IP="$IP_ADMIN"
 code=$(req DELETE "/api/admin/users/$BOB_ID/invitation")
-[ "$code" = "200" ] || fail "annulation → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "annulation → HTTP $code: $(cat "$BODY")"
 pass "cancellation → $(jq -r '.revokedLinks' "$BODY") link(s) revoked"
 
 JAR="$WORK/bob2.jar"; CLIENT_IP="$IP_ALICE"
@@ -631,7 +631,7 @@ for action in user.invited user.invitation.resent user.invitation.revoked \
   code=$(req GET "/api/audit-logs?action=$action&pageSize=20")
   [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code"
   jq -e '.items | length > 0' "$BODY" >/dev/null || fail "action \"$action\" missing from the log"
-  pass "audit : $action"
+  pass "audit: $action"
 done
 
 code=$(req GET "/api/audit-logs?action=user.created.by_admin&pageSize=20")
@@ -669,7 +669,7 @@ redis_hits=$(docker compose exec -T redis redis-cli --scan --pattern 'bull:notif
 [ "${redis_hits:-0}" = "0" ] || fail "a token is readable in clear in Redis ($redis_hits occurrence(s))"
 pass "no token readable in clear in Redis's BullMQ keys (the payload is encrypted)"
 
-# ─── 13. L'administrateur reste utilisable ────────────────────────────────────
+# ─── 13. The administrator stays usable ───────────────────────────────────────
 step "13. Nothing moved for the administrator"
 
 JAR="$WORK/admin-check.jar"; CLIENT_IP="$IP_ADMIN"
@@ -683,5 +683,5 @@ pass "$ADMIN_EMAIL still signs in, without a second factor, still admin"
 printf '\n\033[32m✓ Accounts life cycle verified.\033[0m\n'
 printf '\033[2m  Screens: %s/admin/users · %s/forgot-password · %s/invitation\033[0m\n' \
   "$BASE_URL" "$BASE_URL" "$BASE_URL"
-printf '\033[2m  Serveur SMTP jetable : docker compose --profile test up -d mailpit (http://localhost:8025)\033[0m\n'
+printf '\033[2m  Throwaway SMTP server: docker compose --profile test up -d mailpit (http://localhost:8025)\033[0m\n'
 printf '\033[2m  The verification accounts and channel were deleted.\033[0m\n\n'

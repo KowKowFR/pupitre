@@ -78,7 +78,7 @@ function base32Decode(input) {
   const out = [];
   for (const char of clean) {
     const index = ALPHABET.indexOf(char);
-    if (index === -1) throw new Error(`caractère base32 invalide : ${char}`);
+    if (index === -1) throw new Error(`invalid base32 character: ${char}`);
     value = (value << 5) | index;
     bits += 5;
     if (bits >= 8) {
@@ -182,18 +182,18 @@ JAR="$JAR_T1"; code=$(signin "$TEST_EMAIL" "$TEST_PASSWORD")
 [ "$code" = "200" ] || fail "target user sign-in → HTTP $code: $(cat "$BODY")"
 
 code=$(req POST /api/account/two-factor/setup "{\"password\":\"$TEST_PASSWORD\"}")
-[ "$code" = "200" ] || fail "setup → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "setup → HTTP $code: $(cat "$BODY")"
 TOTP_URI=$(jq -r '.totpURI' "$BODY")
 SECRET=$(printf '%s' "$TOTP_URI" | sed -n 's/.*[?&]secret=\([^&]*\).*/\1/p')
 # `mapfile` does not exist in bash 3.2 (macOS's): an explicit loop.
 BACKUP_CODES=()
 while IFS= read -r line; do BACKUP_CODES+=("$line"); done < <(jq -r '.backupCodes[]' "$BODY")
 [ -n "$SECRET" ] || fail "no secret in the TOTP URI"
-[ "${#BACKUP_CODES[@]}" -ge 5 ] || fail "trop peu de codes de secours (${#BACKUP_CODES[@]})"
+[ "${#BACKUP_CODES[@]}" -ge 5 ] || fail "too few backup codes (${#BACKUP_CODES[@]})"
 pass "secret generated and ${#BACKUP_CODES[@]} backup codes returned"
 
 code=$(req POST /api/account/two-factor/activate "{\"code\":\"$(totp "$SECRET")\"}")
-[ "$code" = "200" ] || fail "activation → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "activation → HTTP $code: $(cat "$BODY")"
 enabled=$(psql_q "select two_factor_enabled from users where id = '$USER_ID';")
 rows=$(psql_q "select count(*) from two_factors where user_id = '$USER_ID';")
 [ "$enabled" = "t" ] || fail "users.two_factor_enabled = $enabled after activation"
@@ -217,7 +217,7 @@ jq -e '.twoFactorRedirect == true' "$BODY" >/dev/null \
 pass "password alone → twoFactorRedirect, no session set"
 
 code=$(req POST /api/auth/two-factor/verify-totp "{\"code\":\"$(totp "$SECRET")\"}")
-[ "$code" = "200" ] || fail "code TOTP valide → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "code TOTP valide → HTTP $code: $(cat "$BODY")"
 [ "$(session_email)" = "$TEST_EMAIL" ] || fail "no session after a valid code"
 pass "valid TOTP code → session open (the \"lost device\" session)"
 
@@ -362,7 +362,7 @@ pass "old backup code outside a challenge → HTTP $code, refused"
 # ─── 10. The account is not broken: we arm again ──────────────────────────────
 step "11. The target user arms a second factor again"
 code=$(req POST /api/account/two-factor/setup "{\"password\":\"$TEST_PASSWORD\"}")
-[ "$code" = "200" ] || fail "nouveau setup → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "nouveau setup → HTTP $code: $(cat "$BODY")"
 NEW_URI=$(jq -r '.totpURI' "$BODY")
 NEW_SECRET=$(printf '%s' "$NEW_URI" | sed -n 's/.*[?&]secret=\([^&]*\).*/\1/p')
 [ -n "$NEW_SECRET" ] || fail "no secret in the new TOTP URI"
@@ -386,7 +386,7 @@ code=$(req POST /api/auth/two-factor/verify-backup-code "{\"code\":\"$RESCUE\"}"
 pass "old backup code against the NEW factor → HTTP $code, refused"
 
 code=$(req POST /api/auth/two-factor/verify-totp "{\"code\":\"$(totp "$NEW_SECRET")\"}")
-[ "$code" = "200" ] || fail "nouveau code TOTP → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "nouveau code TOTP → HTTP $code: $(cat "$BODY")"
 [ "$(session_email)" = "$TEST_EMAIL" ] || fail "no session after the new code"
 pass "the new TOTP code, for its part, opens the session"
 
@@ -398,13 +398,13 @@ code=$(req GET "/api/audit-logs?action=user.2fa.reset&pageSize=20")
 jq -e --arg t "$USER_ID" --arg a "$OPERATOR_ID" \
   '[.items[] | select(.resourceId == $t and .actorId == $a)] | length > 0' "$BODY" >/dev/null \
   || fail "no user.2fa.reset row linking the operator to the target user"
-pass "audit : user.2fa.reset — acteur $(jq -r --arg t "$USER_ID" \
-  '[.items[] | select(.resourceId == $t)][0].actorEmail' "$BODY"), cible $TEST_EMAIL"
+pass "audit: user.2fa.reset — actor $(jq -r --arg t "$USER_ID" \
+  '[.items[] | select(.resourceId == $t)][0].actorEmail' "$BODY"), target user $TEST_EMAIL"
 
 jq -e --arg t "$USER_ID" --arg ip "$CLIENT_IP" \
   '[.items[] | select(.resourceId == $t)][0].ip == $ip' "$BODY" >/dev/null \
   || fail "the actor's IP is not traced"
-pass "audit : IP de l'acteur retenue ($CLIENT_IP)"
+pass "audit: the actor's IP kept ($CLIENT_IP)"
 
 jq -e --arg t "$USER_ID" \
   '[.items[] | select(.resourceId == $t)][0].before.twoFactor == "active"' "$BODY" >/dev/null \
@@ -449,7 +449,7 @@ code=$(req DELETE "/api/admin/users/$USER_ID")
 code=$(req DELETE "/api/admin/users/$OPERATOR_ID")
 [ "$code" = "200" ] || fail "deleting the operator → HTTP $code: $(cat "$BODY")"
 left=$(psql_q "select count(*) from users where email in ('$TEST_EMAIL', '$OPERATOR_EMAIL');")
-[ "$left" = "0" ] || fail "$left utilisateur(s) de test survivent"
+[ "$left" = "0" ] || fail "$left test user(s) survive"
 pass "test users deleted"
 
 code=$(req DELETE "/api/admin/roles/$ROLE_KEY")
@@ -473,5 +473,5 @@ jq -e '.twoFactorRedirect // false | not' "$BODY" >/dev/null \
 assert_admin
 pass "$ADMIN_EMAIL still signs in with their password, without a second factor"
 
-printf '\n\033[32m✓ Réinitialisation du second facteur vérifiée.\033[0m\n'
-printf '\033[2m  Écran : %s/admin/users\033[0m\n\n' "$BASE_URL"
+printf '\n\033[32m✓ Second factor reset verified.\033[0m\n'
+printf '\033[2m  Screen: %s/admin/users\033[0m\n\n' "$BASE_URL"

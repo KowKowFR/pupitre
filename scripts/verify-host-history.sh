@@ -125,7 +125,7 @@ login() {
 probe() {
   local code
   code=$(req GET "/api/targets/$TARGET_ID/metrics")
-  [ "$code" = "200" ] || fail "GET metrics → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "GET metrics → HTTP $code: $(cat "$BODY")"
 }
 
 samples_of() { psql_q "select count(*) from target_metric_samples where target_id = '$TARGET_ID';"; }
@@ -144,7 +144,7 @@ set_disk_limit() {
   local code
   code=$(req PUT /api/supervision/thresholds \
     "{\"targetId\":\"$TARGET_ID\",\"metric\":\"disk\",\"limitPercent\":$1}")
-  [ "$code" = "200" ] || fail "PUT seuil disque $1 % → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "PUT disk threshold $1 % → HTTP $code: $(cat "$BODY")"
 }
 
 step "1. Sign-in"
@@ -202,7 +202,7 @@ COUNT=$(samples_of)
 pass "4 samples in a row → 4 rows ($BEFORE → $COUNT)"
 
 code=$(req GET "/api/targets/$TARGET_ID/metrics/history?hours=24&buckets=48")
-[ "$code" = "200" ] || fail "GET metrics/history → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "GET metrics/history → HTTP $code: $(cat "$BODY")"
 API_INTERVAL=$(jq -r '.intervalSeconds' "$BODY")
 API_RETENTION=$(jq -r '.retentionDays' "$BODY")
 [ "$API_INTERVAL" = "$EXPECTED_INTERVAL" ] \
@@ -261,7 +261,7 @@ step "5. The three layers of thresholds"
 code=$(req GET /api/supervision/thresholds)
 [ "$code" = "200" ] || fail "GET /api/supervision/thresholds → HTTP $code"
 CATALOG=$(jq -r '[.catalog[] | "\(.metric)=\(.defaultLimitPercent)%/\(.defaultBreachSamples)"] | join(" ")' "$BODY")
-pass "catalogue servi : $CATALOG"
+pass "catalog served: $CATALOG"
 jq -e '[.catalog[] | select(.metric == "disk")] | .[0].defaultBreachSamples == 1' "$BODY" >/dev/null \
   || fail "the disk should open from the first sample"
 jq -e '[.catalog[] | select(.metric == "load")] | .[0].defaultBreachSamples == 3' "$BODY" >/dev/null \
@@ -277,7 +277,7 @@ origin_of() {
 pass "no setting → the catalog applies: default@90"
 
 code=$(req PUT /api/supervision/thresholds '{"targetId":null,"metric":"disk","limitPercent":80}')
-[ "$code" = "200" ] || fail "PUT seuil global → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "PUT seuil global → HTTP $code: $(cat "$BODY")"
 [ "$(origin_of)" = "global@80" ] || fail "the instance default does not apply: \"$(origin_of)\""
 pass "an instance default → global@80, it overrides the catalog"
 
@@ -563,7 +563,7 @@ for pair in "$BLIND_EMAIL|$BLIND_ROLE" "$READER_EMAIL|$READER_ROLE"; do
   email="${pair%%|*}"; role="${pair#*|}"
   code=$(req POST /api/admin/users \
     "{\"name\":\"$role\",\"email\":\"$email\",\"password\":\"$PASSWORD\",\"role\":\"$role\"}")
-  case "$code" in 201|409) ;; *) fail "POST /api/admin/users ($email) → HTTP $code : $(cat "$BODY")" ;; esac
+  case "$code" in 201|409) ;; *) fail "POST /api/admin/users ($email) → HTTP $code: $(cat "$BODY")" ;; esac
 done
 BLIND_ID=$(psql_q "select id from users where email = '$BLIND_EMAIL';")
 READER_ID=$(psql_q "select id from users where email = '$READER_EMAIL';")

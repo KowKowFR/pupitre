@@ -120,14 +120,14 @@ restore_settings() {
   req PATCH /api/settings "$patch" >/dev/null 2>&1 || true
 }
 
-# ─── 0. Contexte ──────────────────────────────────────────────────────────────
+# ─── 0. Context ───────────────────────────────────────────────────────────────
 
 step "0. Sign-in, target and starting state"
 login
 pass "signed in as $ADMIN_EMAIL"
 
 code=$(req GET /api/settings)
-[ "$code" = "200" ] || fail "GET /api/settings → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "GET /api/settings → HTTP $code: $(cat "$BODY")"
 INITIAL_AI=$(jq -c '.settings.ai' "$BODY")
 INITIAL_SECURITY=$(jq -c '.settings.security' "$BODY")
 KEY_CONFIGURED=$(jq -r '.aiApiKeyConfigured' "$BODY")
@@ -183,12 +183,12 @@ process.stdout.write(JSON.stringify(Object.fromEntries(
 )));
 ')
 PROVIDERS=$(jq -r 'keys[]' <<< "$DEFAULTS")
-info "catalogue : $(tr '\n' ' ' <<< "$PROVIDERS")"
+info "catalogue: $(tr '\n' ' ' <<< "$PROVIDERS")"
 
 for provider in $PROVIDERS; do
   model=$(jq -r --arg p "$provider" '.[$p].defaultModel' <<< "$DEFAULTS")
   code=$(req PATCH /api/settings "{\"ai\":{\"provider\":\"$provider\",\"model\":\"$model\"}}")
-  [ "$code" = "200" ] || fail "PATCH ai.provider=$provider → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "PATCH ai.provider=$provider → HTTP $code: $(cat "$BODY")"
   jq -e --arg p "$provider" --arg m "$model" \
     '.settings.ai.provider == $p and .settings.ai.model == $m' "$BODY" >/dev/null \
     || fail "provider not kept: $(jq -c .settings.ai "$BODY")"
@@ -207,7 +207,7 @@ pass "an invalid base URL is refused → 422"
 # carrying only `enabled` reset the provider, model and temperature.
 req PATCH /api/settings '{"ai":{"provider":"anthropic","model":"claude-opus-4-5","temperature":0.35}}' >/dev/null
 code=$(req PATCH /api/settings '{"ai":{"enabled":true}}')
-[ "$code" = "200" ] || fail "PATCH partiel → HTTP $code"
+[ "$code" = "200" ] || fail "partial PATCH → HTTP $code"
 jq -e '.settings.ai.provider == "anthropic" and .settings.ai.model == "claude-opus-4-5"
        and .settings.ai.temperature == 0.35' "$BODY" >/dev/null \
   || fail "a partial PATCH reset the AI section: $(jq -c .settings.ai "$BODY")"
@@ -236,7 +236,7 @@ else
     if [ -n "$envvar" ]; then
       grep -q "$envvar" <<< "$message" || fail "the message does not name \"$envvar\": $message"
     fi
-    pass "$provider → 501 : $message"
+    pass "$provider → 501: $message"
   done
 
   # A malformed request stays malformed, with or without a key: the body
@@ -266,14 +266,14 @@ code=$(req POST /api/admin/roles \
 case "$code" in
   201) pass "role \"$ROLE_KEY\" created, without application:create" ;;
   409) pass "role \"$ROLE_KEY\" already present" ;;
-  *)   fail "POST /api/admin/roles → HTTP $code : $(cat "$BODY")" ;;
+  *)   fail "POST /api/admin/roles → HTTP $code: $(cat "$BODY")" ;;
 esac
 
 code=$(req POST /api/admin/users \
   "{\"name\":\"Sans droit IA\",\"email\":\"$PEON_EMAIL\",\"password\":\"$PEON_PASSWORD\",\"role\":\"$ROLE_KEY\"}")
 case "$code" in
   201|409) PEON_ID=$(psql_q "select id from users where email = '$PEON_EMAIL';") ;;
-  *)       fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
+  *)       fail "POST /api/admin/users → HTTP $code: $(cat "$BODY")" ;;
 esac
 [ -n "$PEON_ID" ] || fail "test user's identifier not found"
 req PATCH "/api/admin/users/$PEON_ID/role" "{\"role\":\"$ROLE_KEY\"}" >/dev/null
@@ -383,7 +383,7 @@ for provider in $PROVIDERS; do
     fail "$provider: a fragment of the key leaks — $(jq -r .error.message "$BODY")"
   fi
   [ "$code" = "502" ] && REACHED=$((REACHED + 1))
-  info "$provider → HTTP $code : $(jq -r '.error.message // "—"' "$BODY" | head -c 110)"
+  info "$provider → HTTP $code: $(jq -r '.error.message // "—"' "$BODY" | head -c 110)"
 done
 [ "$REACHED" = "3" ] \
   || fail "only $REACHED provider(s) out of 3 were reached — the others proved nothing"
@@ -456,11 +456,11 @@ req GET /api/applications >/dev/null
 APP_ID=$(jq -r --arg s "$APP_SLUG" '.items[] | select(.slug == $s) | .id' "$BODY" | head -1)
 if [ -n "$APP_ID" ]; then
   code=$(req PATCH "/api/applications/$APP_ID" "@$WORK/spec.json")
-  [ "$code" = "200" ] || fail "PATCH /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "PATCH /api/applications → HTTP $code: $(cat "$BODY")"
   pass "application \"$APP_SLUG\" replaced — $APP_ID"
 else
   code=$(req POST /api/applications "@$WORK/spec.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   APP_ID=$(jq -r .id "$BODY")
   pass "application \"$APP_SLUG\" created — $APP_ID"
 fi
@@ -470,7 +470,7 @@ fi
 deploy_and_wait() {
   code=$(req POST /api/deployments \
     "{\"applicationId\":\"$APP_ID\",\"targetId\":\"$TARGET_ID\",\"runtime\":\"docker\",\"proxy\":\"traefik\",\"autoRollback\":true}")
-  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
   DEPLOY_ID=$(jq -r .id "$BODY")
   STATUS=""
   for _ in $(seq 1 150); do

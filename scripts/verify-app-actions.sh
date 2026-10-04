@@ -128,14 +128,14 @@ upsert_app() {
   if [ -n "$id" ]; then
     jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/patch.json"
     code=$(req PATCH "/api/applications/$id" "@$WORK/patch.json")
-    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code : $(cat "$BODY")"
+    [ "$code" = "200" ] || fail "PATCH /api/applications/$id → HTTP $code: $(cat "$BODY")"
     printf '%s' "$id"
     return
   fi
 
   jq -n --argjson spec "$spec" '{appSpec:$spec}' > "$WORK/create.json"
   code=$(req POST /api/applications "@$WORK/create.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   jq -r .id "$BODY"
 }
 
@@ -143,7 +143,7 @@ deploy_and_wait() {
   local app_id="$1" target_id="$2" runtime="$3" code id status
   code=$(req POST /api/deployments \
     "{\"applicationId\":\"$app_id\",\"targetId\":\"$target_id\",\"runtime\":\"$runtime\",\"proxy\":\"traefik\",\"autoRollback\":false}")
-  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
   id=$(jq -r .id "$BODY")
 
   for _ in $(seq 1 180); do
@@ -166,7 +166,7 @@ deployment_log() {
 app_state() {
   local code
   code=$(req GET "/api/apps/$1/state")
-  [ "$code" = "200" ] || fail "GET /api/apps/$1/state → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "GET /api/apps/$1/state → HTTP $code: $(cat "$BODY")"
 }
 
 # Queues a gesture, then waits for the state to switch.
@@ -187,9 +187,9 @@ gesture_and_wait() {
     if [ "$code" = "409" ]; then
       app_state "$deployment_id"
       jq -e "$expect" "$BODY" >/dev/null && return 0
-      fail "POST /api/apps/$deployment_id/$path → 409 : $(jq -r '.error.message' "$BODY")"
+      fail "POST /api/apps/$deployment_id/$path → 409: $(jq -r '.error.message' "$BODY")"
     fi
-    [ "$code" = "202" ] || fail "POST /api/apps/$deployment_id/$path → HTTP $code : $(cat "$BODY")"
+    [ "$code" = "202" ] || fail "POST /api/apps/$deployment_id/$path → HTTP $code: $(cat "$BODY")"
 
     for _ in $(seq 1 25); do
       sleep 2
@@ -207,7 +207,7 @@ expect_conflict() {
   code=$(req "$method" "$path")
   [ "$code" = "409" ] || fail "$method $path: expected 409, got $code — $(cat "$BODY")"
   jq -e --arg n "$needle" '.error.message | test($n)' "$BODY" >/dev/null \
-    || fail "$method $path : message inattendu — $(jq -r '.error.message' "$BODY")"
+    || fail "$method $path: unexpected message — $(jq -r '.error.message' "$BODY")"
   pass "409 — $(jq -r '.error.message' "$BODY")"
 }
 
@@ -231,11 +231,11 @@ on_k3s() { docker exec "$K3S_CONTAINER" sh -c "$1"; }
 audit_count() {
   local action="$1" resource="$2" code
   code=$(req GET "/api/audit-logs?action=$action&pageSize=100")
-  [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "GET /api/audit-logs → HTTP $code: $(cat "$BODY")"
   jq -r --arg r "$resource" '[.items[] | select(.resourceId == $r)] | length' "$BODY"
 }
 
-# ─── 0. Contexte ──────────────────────────────────────────────────────────────
+# ─── 0. Context ───────────────────────────────────────────────────────────────
 
 step "0. The panel answers, and we sign in"
 code=$(req GET /api/health)
@@ -436,7 +436,7 @@ for RUNTIME in $RUNTIMES; do
 
   step "── $RUNTIME ──  7. Destroy"
   code=$(req DELETE "/api/deployments/$DEPLOY_ID")
-  [ "$code" = "202" ] || fail "DELETE /api/deployments/$DEPLOY_ID → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "DELETE /api/deployments/$DEPLOY_ID → HTTP $code: $(cat "$BODY")"
   for _ in $(seq 1 90); do
     sleep 2
     req GET "/api/deployments/$DEPLOY_ID" >/dev/null
@@ -475,7 +475,7 @@ code=$(req POST /api/admin/users \
   "{\"name\":\"Vera Viewer\",\"email\":\"$VIEWER_EMAIL\",\"password\":\"$VIEWER_PASSWORD\",\"role\":\"viewer\"}")
 case "$code" in
   201|409) : ;;
-  *) fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
+  *) fail "POST /api/admin/users → HTTP $code: $(cat "$BODY")" ;;
 esac
 
 req GET /api/admin/users >/dev/null

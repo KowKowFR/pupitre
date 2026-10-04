@@ -79,7 +79,7 @@ psql_q() { docker compose exec -T postgres psql -U tp -d tp -tAc "$1"; }
 
 error_code() { jq -r '.error.code // empty' "$BODY"; }
 
-# ─── Calcul d'un vrai code TOTP (RFC 6238) ────────────────────────────────────
+# ─── Computing a real TOTP code (RFC 6238) ────────────────────────────────────
 cat > "$WORK/totp.mjs" <<'NODE'
 import { createHmac } from 'node:crypto';
 
@@ -91,7 +91,7 @@ function base32Decode(input) {
   const out = [];
   for (const char of clean) {
     const index = ALPHABET.indexOf(char);
-    if (index === -1) throw new Error(`caractère base32 invalide : ${char}`);
+    if (index === -1) throw new Error(`invalid base32 character: ${char}`);
     value = (value << 5) | index;
     bits += 5;
     if (bits >= 8) {
@@ -129,11 +129,11 @@ signin() {
 enroll() {
   local code secret
   code=$(req POST /api/account/two-factor/setup "{\"password\":\"$PASSWORD\"}")
-  [ "$code" = "200" ] || fail "setup → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "setup → HTTP $code: $(cat "$BODY")"
   secret=$(jq -r '.totpURI' "$BODY" | sed -n 's/.*[?&]secret=\([^&]*\).*/\1/p')
   [ -n "$secret" ] || fail "no secret in the TOTP URI"
   code=$(req POST /api/account/two-factor/activate "{\"code\":\"$(totp "$secret")\"}")
-  [ "$code" = "200" ] || fail "activation → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "200" ] || fail "activation → HTTP $code: $(cat "$BODY")"
   printf '%s' "$secret"
 }
 
@@ -246,13 +246,13 @@ if [ "$ADMIN_2FA" = "f" ]; then
   JAR="$ADMIN_JAR"
   code=$(req PATCH /api/settings '{"accounts":{"twoFactorPolicy":"sensitive"}}')
   [ "$code" = "409" ] || fail "expected 409, got HTTP $code: $(cat "$BODY")"
-  [ "$(error_code)" = "two_factor_self" ] || fail "code d'erreur : $(error_code)"
+  [ "$(error_code)" = "two_factor_self" ] || fail "code d'erreur: $(error_code)"
   pass "$ADMIN_EMAIL, without a second factor → 409 two_factor_self, nothing saved"
 else
   info "$ADMIN_EMAIL has a second factor: refusal not tried"
 fi
 
-# ─── 3. Droits sensibles ──────────────────────────────────────────────────────
+# ─── 3. Sensitive rights ──────────────────────────────────────────────────────
 step "3. \"Sensitive rights\" policy"
 JAR="$GUARD_JAR"
 code=$(req PATCH /api/settings '{"accounts":{"twoFactorPolicy":"sensitive"}}')
@@ -263,12 +263,12 @@ pass "the guard, who has a second factor, saves it"
 JAR="$OPERATOR_JAR"
 code=$(req GET /api/targets)
 [ "$code" = "403" ] || fail "operator on /api/targets: HTTP $code instead of 403"
-[ "$(error_code)" = "two_factor_required" ] || fail "code d'erreur : $(error_code)"
+[ "$(error_code)" = "two_factor_required" ] || fail "code d'erreur: $(error_code)"
 pass "operator without a second factor → 403 two_factor_required on the API"
 
 code=$(req GET /api/chat/messages)
 [ "$code" = "403" ] && [ "$(error_code)" = "two_factor_required" ] \
-  || fail "discussion : HTTP $code ($(error_code))"
+  || fail "discussion: HTTP $code ($(error_code))"
 pass "the chat is closed to them too"
 
 code=$(api "$OPERATOR_TOKEN" GET /api/targets)
@@ -283,15 +283,15 @@ pass "the account routes stay open, long enough to enable it"
 for target in /targets /account /onboarding; do
   read -r status location <<<"$(page "$target")"
   [ "$status" = "307" ] && [[ "$location" == *"/two-factor-setup" ]] \
-    || fail "$target : $status → $location"
+    || fail "$target: $status → $location"
 done
 read -r status _ <<<"$(page /two-factor-setup)"
-[ "$status" = "200" ] || fail "/two-factor-setup : HTTP $status"
+[ "$status" = "200" ] || fail "/two-factor-setup: HTTP $status"
 pass "their pages, \"My account\" included, redirect to /two-factor-setup, which displays"
 
 JAR="$VIEWER_JAR"
 code=$(req GET /api/targets)
-[ "$code" = "200" ] || fail "observateur sur /api/targets : HTTP $code ($(error_code))"
+[ "$code" = "200" ] || fail "viewer on /api/targets: HTTP $code ($(error_code))"
 pass "the viewer, who only reads, is not concerned"
 
 code=$(api "$SSO_TOKEN" GET /api/targets)
@@ -310,11 +310,11 @@ fi
 step "4. Better Auth's twoFactor plugin routes are closed"
 JAR="$GUARD_JAR"
 code=$(req POST /api/auth/two-factor/disable "{\"password\":\"$PASSWORD\"}")
-[ "$code" = "404" ] || fail "/api/auth/two-factor/disable : HTTP $code"
+[ "$code" = "404" ] || fail "/api/auth/two-factor/disable: HTTP $code"
 [ "$(psql_q "select two_factor_enabled from users where email = '$GUARD_EMAIL';")" = "t" ] \
   || fail "the guard's second factor was removed through the direct route"
 code=$(req POST /api/auth/two-factor/enable "{\"password\":\"$PASSWORD\"}")
-[ "$code" = "404" ] || fail "/api/auth/two-factor/enable : HTTP $code"
+[ "$code" = "404" ] || fail "/api/auth/two-factor/enable: HTTP $code"
 pass "disable and enable → 404, the guard's second factor is intact"
 
 # ─── 5. The operator enables theirs ───────────────────────────────────────────
@@ -367,7 +367,7 @@ info "viewer's session: expires in ${before} s"
 
 JAR="$GUARD_JAR"
 code=$(req PATCH /api/settings '{"accounts":{"sessionIdleHours":1}}')
-[ "$code" = "200" ] || fail "PATCH sessionIdleHours → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "PATCH sessionIdleHours → HTTP $code: $(cat "$BODY")"
 after=$(psql_q "select max(extract(epoch from expires_at - now()))::int from sessions where user_id = '$VIEWER_ID';")
 [ "$after" -le 3600 ] && [ "$after" -gt 3500 ] || fail "open session: expires in ${after} s"
 pass "the session already open is brought back to one hour (${after} s)"
@@ -384,8 +384,8 @@ fresh=$(psql_q "select extract(epoch from expires_at - now())::int from sessions
 [ "$fresh" -le 3600 ] && [ "$fresh" -gt 3500 ] || fail "new session: expires in ${fresh} s"
 pass "a new session is born with the new duration (${fresh} s)"
 
-# ─── 8. Plafond absolu ────────────────────────────────────────────────────────
-step "8. Plafond absolu de 24 heures"
+# ─── 8. Absolute cap ──────────────────────────────────────────────────────────
+step "8. Absolute cap of 24 hours"
 JAR="$GUARD_JAR"
 code=$(req PATCH /api/settings '{"accounts":{"sessionIdleHours":168,"sessionMaxHours":24}}')
 [ "$code" = "200" ] || fail "PATCH sessionMaxHours → HTTP $code"
@@ -394,7 +394,7 @@ OLD_SESSION=$(psql_q "select id from sessions where user_id = '$VIEWER_ID' order
 psql_q "update sessions set created_at = now() - interval '25 hours' where id = '$OLD_SESSION';" >/dev/null
 JAR="$VIEWER2_JAR"
 code=$(req GET /api/targets)
-[ "$code" = "401" ] || fail "session de 25 h : HTTP $code au lieu de 401"
+[ "$code" = "401" ] || fail "session de 25 h: HTTP $code au lieu de 401"
 [ "$(psql_q "select count(*) from sessions where id = '$OLD_SESSION';")" = "0" ] \
   || fail "the session that is too old stayed in the database"
 pass "a 25-hour-old session → 401, and removed from the database"
@@ -431,4 +431,4 @@ code=$(req GET /api/targets)
 [ "$code" = "200" ] || fail "$ADMIN_EMAIL does not read the targets again after the cleanup: HTTP $code ($(error_code))"
 pass "$ADMIN_EMAIL reads the targets again — settings put back"
 
-printf '\n\033[32mComptes et sessions : tout est conforme.\033[0m\n'
+printf '\n\033[32mAccounts and sessions: everything complies.\033[0m\n'

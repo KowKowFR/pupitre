@@ -101,12 +101,12 @@ assert_admin() {
   [ "$role" = "admin" ] && return 0
 
   printf '  \033[31m✗\033[0m %s\n' "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\"."
-  printf '    Le premier compte créé sur une base vierge devient administrateur ;\n'
-  printf '    les suivants sont de simples viewers.\n\n'
-  printf '    Deux issues :\n'
-  printf '      1. relancez avec VOTRE compte admin :\n'
-  printf '         ADMIN_EMAIL=vous@exemple.fr ADMIN_PASSWORD=... %s\n' "$0"
-  printf '      2. ou promouvez « %s » depuis %s/admin/users\n' "$ADMIN_EMAIL" "$BASE_URL"
+  printf '    The first account created on a blank database becomes administrator;\n'
+  printf '    the following ones are mere viewers.\n\n'
+  printf '    Two ways out:\n'
+  printf '      1. rerun with YOUR admin account:\n'
+  printf '         ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=... %s\n' "$0"
+  printf '      2. or promote "%s" from %s/admin/users\n' "$ADMIN_EMAIL" "$BASE_URL"
   exit 1
 }
 
@@ -198,7 +198,7 @@ jq -e '.runtimesAvailable.docker.available == true' "$BODY" >/dev/null \
   || fail "the preflight does not see Docker: $(jq -c '.runtimesAvailable' "$BODY")"
 pass "Docker ✓ $(jq -r '.runtimesAvailable.docker.version' "$BODY") — K3s ✗"
 
-printf '\n\033[32m✓ Cible de test prête.\033[0m\n'
-printf '\033[2m  Déployer :  DRIVER_PORT_RANGE=30000-30009 pnpm test:driver cible-docker-locale\033[0m\n'
-printf '\033[2m  UFW actif : TEST_TARGET_UFW=1 ./scripts/setup-test-target.sh\033[0m\n'
-printf '\033[2m  Nettoyer :  docker compose --profile test down -v ssh-target\033[0m\n\n'
+printf '\n\033[32m✓ Test target ready.\033[0m\n'
+printf '\033[2m  Deploy:     DRIVER_PORT_RANGE=30000-30009 pnpm test:driver cible-docker-locale\033[0m\n'
+printf '\033[2m  UFW active: TEST_TARGET_UFW=1 ./scripts/setup-test-target.sh\033[0m\n'
+printf '\033[2m  Clean up:   docker compose --profile test down -v ssh-target\033[0m\n\n'

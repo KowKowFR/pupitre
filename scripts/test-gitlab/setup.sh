@@ -38,7 +38,7 @@ api() {
   [ -n "$data" ] && args+=(--data-binary "$data")
   curl "${args[@]}"
 }
-die() { echo "$1 : HTTP $2 $(cat "$OUT")" >&2; exit 1; }
+die() { echo "$1: HTTP $2 $(cat "$OUT")" >&2; exit 1; }
 
 # ─── The administration token ─────────────────────────────────────────────────
 ADMIN_TOKEN=$(docker compose exec -T gitlab cat "$TOKEN_FILE" 2>/dev/null || true)
@@ -58,7 +58,7 @@ if [ -z "$ADMIN_TOKEN" ] || [ "$(api GET /user)" != "200" ]; then
 fi
 
 # ─── The group, the subgroup, the project ─────────────────────────────────────
-namespace_id() { # chemin complet → id, vide s'il n'existe pas
+namespace_id() { # full path → id, empty if it does not exist
   local code
   code=$(api GET "/groups/$(jq -rn --arg p "$1" '$p | @uri')")
   [ "$code" = "200" ] && jq -r .id "$OUT" || true
@@ -67,14 +67,14 @@ namespace_id() { # chemin complet → id, vide s'il n'existe pas
 GROUP_ID=$(namespace_id "$GROUP")
 if [ -z "$GROUP_ID" ]; then
   code=$(api POST /groups "$(jq -n --arg p "$GROUP" '{name:$p, path:$p, visibility:"private"}')")
-  [ "$code" = "201" ] || die "groupe $GROUP" "$code"
+  [ "$code" = "201" ] || die "group $GROUP" "$code"
   GROUP_ID=$(jq -r .id "$OUT")
 fi
 SUBGROUP_ID=$(namespace_id "$GROUP/$SUBGROUP")
 if [ -z "$SUBGROUP_ID" ]; then
   code=$(api POST /groups "$(jq -n --arg p "$SUBGROUP" --argjson parent "$GROUP_ID" \
     '{name:$p, path:$p, parent_id:$parent, visibility:"private"}')")
-  [ "$code" = "201" ] || die "sous-groupe $SUBGROUP" "$code"
+  [ "$code" = "201" ] || die "subgroup $SUBGROUP" "$code"
   SUBGROUP_ID=$(jq -r .id "$OUT")
 fi
 
@@ -84,11 +84,11 @@ code=$(api GET "/projects/$ENCODED")
 if [ "$code" = "404" ]; then
   code=$(api POST /projects "$(jq -n --arg p "$PROJECT" --argjson ns "$SUBGROUP_ID" \
     '{name:$p, path:$p, namespace_id:$ns, visibility:"private", initialize_with_readme:true, default_branch:"main"}')")
-  [ "$code" = "201" ] || die "projet $FULL" "$code"
+  [ "$code" = "201" ] || die "project $FULL" "$code"
 fi
 
 # ─── Its files, in one commit ─────────────────────────────────────────────────
-action_for() { # create ou update, selon que le fichier existe sur main
+action_for() { # create or update, depending on whether the file exists on main
   local code
   code=$(api GET "/projects/$ENCODED/repository/files/$(jq -rn --arg p "$1" '$p | @uri')?ref=main")
   [ "$code" = "200" ] && echo update || echo create

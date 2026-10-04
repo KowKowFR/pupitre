@@ -102,7 +102,7 @@ code=$(req POST /api/tokens "$ADMIN_JAR" \
 expect "$code" 201 "POST /api/tokens"
 READ_TOKEN=$(jq -r .token "$BODY")
 READ_ID=$(jq -r .item.id "$BODY")
-[[ "$READ_TOKEN" =~ ^pup_[A-Za-z0-9_-]{43}$ ]] || fail "forme inattendue : $READ_TOKEN"
+[[ "$READ_TOKEN" =~ ^pup_[A-Za-z0-9_-]{43}$ ]] || fail "unexpected shape: $READ_TOKEN"
 pass "token of the form pup_…, displayed prefix $(jq -r .item.prefix "$BODY")"
 code=$(req GET /api/tokens "$ADMIN_JAR")
 grep -qF "$READ_TOKEN" "$BODY" && fail "the token list contains the token in clear"

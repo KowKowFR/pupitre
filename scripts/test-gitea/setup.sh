@@ -54,7 +54,7 @@ put_file() {
     '{content:$c, message:$m, branch:"main"} + (if $s == "" then {} else {sha:$s} end)')
   if [ -n "$sha" ]; then code=$(api PUT "/repos/$GITEA_USER/$REPO/contents/$path" "$body")
   else code=$(api POST "/repos/$GITEA_USER/$REPO/contents/$path" "$body"); fi
-  case "$code" in 200|201) ;; *) echo "$path : HTTP $code $(cat /tmp/gitea-setup.json)" >&2; exit 1 ;; esac
+  case "$code" in 200|201) ;; *) echo "$path: HTTP $code $(cat /tmp/gitea-setup.json)" >&2; exit 1 ;; esac
 }
 
 put_file "pupitre.json" "$(jq -n --arg n "$APP_NAME" '{name:$n, version:"1.0.0", services:[{

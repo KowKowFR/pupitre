@@ -155,7 +155,7 @@ upsert_app() {
 
   jq -n --argjson spec "$(spec_json "$slug")" '{appSpec:$spec}' > "$WORK/create.json"
   code=$(req POST /api/applications "@$WORK/create.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   jq -r .id "$BODY"
 }
 
@@ -164,7 +164,7 @@ deploy_and_wait() {
   local app_id="$1" target_id="$2" code id status
   code=$(req POST /api/deployments \
     "{\"applicationId\":\"$app_id\",\"targetId\":\"$target_id\",\"runtime\":\"docker\",\"proxy\":\"traefik\",\"autoRollback\":false}")
-  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "POST /api/deployments → HTTP $code: $(cat "$BODY")"
   id=$(jq -r .id "$BODY")
 
   for _ in $(seq 1 150); do
@@ -181,7 +181,7 @@ deploy_and_wait() {
 destroy_and_wait() {
   local id="$1" code status
   code=$(req DELETE "/api/deployments/$id")
-  [ "$code" = "202" ] || fail "DELETE /api/deployments/$id → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "202" ] || fail "DELETE /api/deployments/$id → HTTP $code: $(cat "$BODY")"
   for _ in $(seq 1 90); do
     sleep 2
     req GET "/api/deployments/$id" >/dev/null
@@ -213,7 +213,7 @@ cascade() {
   fail "cascade $job returned no verdict in 4 minutes"
 }
 
-# ─── 1. Contexte ──────────────────────────────────────────────────────────────
+# ─── 1. Context ───────────────────────────────────────────────────────────────
 
 step "1. Sign-in and target"
 login
@@ -306,7 +306,7 @@ jq -e '.error.message | test("cascade")' "$BODY" >/dev/null \
 pass "409 — $(jq -r '.error.message' "$BODY")"
 
 code=$(cascade "$CASCADE_ID" '{"force":false}')
-[ "$code" = "202" ] || fail "POST cascade → HTTP $code : $(cat "$WORK/cascade-error.json" 2>/dev/null)"
+[ "$code" = "202" ] || fail "POST cascade → HTTP $code: $(cat "$WORK/cascade-error.json" 2>/dev/null)"
 jq -e '.deleted == true and (.abandoned | length) == 0 and (.destroyed | length) == 1' "$WORK/cascade.json" \
   >/dev/null || fail "unexpected cascade: $(cat "$WORK/cascade.json")"
 pass "$(jq -r '.summary' "$WORK/cascade.json")"
@@ -497,7 +497,7 @@ printf '%s' "$AUDIT" > "$WORK/audit.json"
 
 jq -e --arg w "app-$DEAD_SLUG" '.abandoned[0].workspace == $w' "$WORK/audit.json" >/dev/null \
   || fail "the log does not name the Compose project: $(jq -c '.abandoned' "$WORK/audit.json")"
-pass "projet Compose : $(jq -r '.abandoned[0].workspace' "$WORK/audit.json")"
+pass "Compose project: $(jq -r '.abandoned[0].workspace' "$WORK/audit.json")"
 
 jq -e --arg n "$TARGET_NAME" --arg h "$DEAD_HOST" \
   '.abandoned[0].targetName == $n and .abandoned[0].targetHost == $h' "$WORK/audit.json" >/dev/null \
@@ -554,7 +554,7 @@ pass "application \"$RIGHTS_SLUG\" — without any deployment, the permission gu
 req DELETE "/api/admin/roles/$ROLE_KEY" >/dev/null 2>&1 || true
 code=$(req POST /api/admin/roles \
   "{\"key\":\"$ROLE_KEY\",\"label\":\"Droits partiels\",\"permissions\":[\"application:read\",\"application:delete\",\"deployment:read\",\"deployment:purge\"]}")
-[ "$code" = "201" ] || fail "POST /api/admin/roles → HTTP $code : $(cat "$BODY")"
+[ "$code" = "201" ] || fail "POST /api/admin/roles → HTTP $code: $(cat "$BODY")"
 pass "role \"$ROLE_KEY\": application:delete + deployment:purge, WITHOUT deployment:destroy"
 
 code=$(req POST /api/admin/users \
@@ -564,7 +564,7 @@ case "$code" in
   409) PARTIAL_USER=$(psql_q "select id from users where email = '$PARTIAL_EMAIL';")
        req PATCH "/api/admin/users/$PARTIAL_USER/role" "{\"role\":\"$ROLE_KEY\"}" >/dev/null
        pass "user already present, reassigned to the role" ;;
-  *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
+  *)   fail "POST /api/admin/users → HTTP $code: $(cat "$BODY")" ;;
 esac
 PARTIAL_USER=$(psql_q "select id from users where email = '$PARTIAL_EMAIL';")
 

@@ -110,19 +110,19 @@ DB_LINES=$(psql_q "select count(*) from deployment_steps s,
 pass "deployment $DEPLOYMENT_ID — $SLUG v$VERSION"
 info "the database contains $DB_LINES log line(s)"
 
-step "3. Export texte"
+step "3. Text export"
 code=$(download "/api/deployments/$DEPLOYMENT_ID/logs/export?format=text")
-[ "$code" = "200" ] || fail "export texte → HTTP $code : $(head -c 300 "$OUT")"
+[ "$code" = "200" ] || fail "text export → HTTP $code: $(head -c 300 "$OUT")"
 [ -s "$OUT" ] || fail "the exported file is empty"
 
 CT=$(header_of content-type)
 [ "$CT" = "text/plain; charset=utf-8" ] || fail "unexpected content-type: \"$CT\""
-pass "content-type : $CT"
+pass "content-type: $CT"
 
 CD=$(header_of content-disposition)
 EXPECTED="attachment; filename=\"$SLUG-v$VERSION-$STAMP.log\""
 case "$CD" in
-  "$EXPECTED"*) pass "content-disposition : $CD" ;;
+  "$EXPECTED"*) pass "content-disposition: $CD" ;;
   *) fail "unexpected content-disposition: \"$CD\" (expected \"$EXPECTED…\")" ;;
 esac
 grep -q "filename\*=UTF-8''" <<< "$CD" || fail "the RFC 6266 \"filename*\" form is missing"
@@ -144,15 +144,15 @@ info "$(grep -v '^#' "$OUT" | head -1)"
 
 step "4. Export JSONL"
 code=$(download "/api/deployments/$DEPLOYMENT_ID/logs/export?format=jsonl")
-[ "$code" = "200" ] || fail "export jsonl → HTTP $code : $(head -c 300 "$OUT")"
+[ "$code" = "200" ] || fail "export jsonl → HTTP $code: $(head -c 300 "$OUT")"
 
 CT=$(header_of content-type)
 [ "$CT" = "application/x-ndjson; charset=utf-8" ] || fail "unexpected content-type: \"$CT\""
-pass "content-type : $CT"
+pass "content-type: $CT"
 
 CD=$(header_of content-disposition)
 case "$CD" in
-  "attachment; filename=\"$SLUG-v$VERSION-$STAMP.jsonl\""*) pass "content-disposition : $CD" ;;
+  "attachment; filename=\"$SLUG-v$VERSION-$STAMP.jsonl\""*) pass "content-disposition: $CD" ;;
   *) fail "unexpected content-disposition: \"$CD\"" ;;
 esac
 
@@ -172,7 +172,7 @@ pass "$JSONL_LINES exported line(s) = $DB_LINES line(s) in the database"
 
 jq -e 'has("ts") and has("step") and has("stream") and has("line")' >/dev/null <<< "$(head -1 "$OUT")" \
   || fail "a JSONL line does not carry the four expected fields"
-pass "champs : $(head -1 "$OUT" | jq -c 'keys')"
+pass "fields: $(head -1 "$OUT" | jq -c 'keys')"
 
 step "5. Refused identifiers"
 code=$(download "/api/deployments/00000000-0000-4000-8000-000000000000/logs/export")
@@ -194,7 +194,7 @@ code=$(req POST /api/admin/roles \
 case "$code" in
   201) pass "role \"$ROLE_KEY\" created, without deployment:read" ;;
   409) pass "role \"$ROLE_KEY\" already present" ;;
-  *)   fail "POST /api/admin/roles → HTTP $code : $(cat "$BODY")" ;;
+  *)   fail "POST /api/admin/roles → HTTP $code: $(cat "$BODY")" ;;
 esac
 
 code=$(req POST /api/admin/users \
@@ -204,7 +204,7 @@ case "$code" in
   409) req PATCH "/api/admin/users/$(psql_q "select id from users where email = '$GUEST_EMAIL';")/role" \
          "{\"role\":\"$ROLE_KEY\"}" >/dev/null
        pass "user $GUEST_EMAIL already present, reassigned to \"$ROLE_KEY\"" ;;
-  *)   fail "POST /api/admin/users → HTTP $code : $(cat "$BODY")" ;;
+  *)   fail "POST /api/admin/users → HTTP $code: $(cat "$BODY")" ;;
 esac
 GUEST_ID=$(psql_q "select id from users where email = '$GUEST_EMAIL';")
 
@@ -231,7 +231,7 @@ code=$(req GET "/api/audit-logs?action=deployment.logs.exported&pageSize=20")
 jq -e --arg id "$DEPLOYMENT_ID" \
   '[.items[] | select(.resourceId == $id)] | length >= 2' "$BODY" >/dev/null \
   || fail "the two exports are not in the audit log"
-pass "audit : deployment.logs.exported"
+pass "audit: deployment.logs.exported"
 
 jq -e --arg id "$DEPLOYMENT_ID" --argjson n "$DB_LINES" \
   '[.items[] | select(.resourceId == $id and .after.format == "jsonl" and .after.lines == $n)] | length > 0' \
@@ -244,7 +244,7 @@ jq -e '[.items[] | select(.action == "permission.denied")] | length == 0' "$BODY
 code=$(req GET "/api/audit-logs?action=permission.denied&pageSize=10")
 jq -e '[.items[] | select(.resourceId == "deployment:read")] | length > 0' "$BODY" >/dev/null \
   || fail "the permission refusal is not logged"
-pass "audit : permission.denied sur deployment:read"
+pass "audit: permission.denied sur deployment:read"
 
 step "8. Cleanup"
 req DELETE "/api/admin/users/$GUEST_ID" >/dev/null

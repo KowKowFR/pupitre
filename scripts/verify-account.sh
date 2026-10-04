@@ -56,7 +56,7 @@ req() {
 
 psql_q() { docker compose exec -T postgres psql -U tp -d tp -tAc "$1"; }
 
-# ─── Calcul d'un vrai code TOTP ───────────────────────────────────────────────
+# ─── Computing a real TOTP code ───────────────────────────────────────────────
 cat > "$WORK/totp.mjs" <<'NODE'
 import { createHmac } from 'node:crypto';
 
@@ -69,7 +69,7 @@ function base32Decode(input) {
   const out = [];
   for (const char of clean) {
     const index = ALPHABET.indexOf(char);
-    if (index === -1) throw new Error(`caractère base32 invalide : ${char}`);
+    if (index === -1) throw new Error(`invalid base32 character: ${char}`);
     value = (value << 5) | index;
     bits += 5;
     if (bits >= 8) {
@@ -138,7 +138,7 @@ admin_login() {
 }
 
 # ─── 1. Terrain ───────────────────────────────────────────────────────────────
-step "1. Terrain : administrateur et utilisateur de test"
+step "1. Ground: administrator and test user"
 admin_login
 pass "signed in as $ADMIN_EMAIL"
 
@@ -154,7 +154,7 @@ code=$(req POST /api/admin/users \
   "{\"name\":\"Compte de vérification\",\"email\":\"$TEST_EMAIL\",\"password\":\"$OLD_PASSWORD\",\"role\":\"viewer\"}")
 [ "$code" = "201" ] || fail "creating the test user → HTTP $code: $(cat "$BODY")"
 USER_ID=$(psql_q "select id from users where email = '$TEST_EMAIL';")
-[ -n "$USER_ID" ] || fail "utilisateur de test introuvable en base"
+[ -n "$USER_ID" ] || fail "test user not found in the database"
 pass "test user created ($TEST_EMAIL)"
 
 JAR_A="$WORK/a.jar"
@@ -164,7 +164,7 @@ JAR="$JAR_A"; code=$(signin "$TEST_EMAIL" "$OLD_PASSWORD")
 [ "$code" = "200" ] || fail "sign-in (session A) → HTTP $code: $(cat "$BODY")"
 JAR="$JAR_B"; code=$(signin "$TEST_EMAIL" "$OLD_PASSWORD")
 [ "$code" = "200" ] || fail "sign-in (session B) → HTTP $code: $(cat "$BODY")"
-pass "deux sessions distinctes ouvertes (cookies A et B)"
+pass "two distinct sessions open (cookies A and B)"
 
 JAR="$JAR_A"; [ "$(session_email)" = "$TEST_EMAIL" ] || fail "session A invalide"
 JAR="$JAR_B"; [ "$(session_email)" = "$TEST_EMAIL" ] || fail "session B invalide"
@@ -177,19 +177,19 @@ JAR="$JAR_A"
 code=$(req POST /api/account/password "{\"newPassword\":\"$NEW_PASSWORD\"}")
 [ "$code" = "422" ] || fail "change without the old password: expected 422, got $code"
 jq -e '.error.code == "validation_failed"' "$BODY" >/dev/null \
-  || fail "code d'erreur inattendu : $(jq -c .error "$BODY")"
+  || fail "unexpected error code: $(jq -c .error "$BODY")"
 pass "without the old password → 422, the request is not even admissible"
 
 code=$(req POST /api/account/password \
   "{\"currentPassword\":\"pas-du-tout-le-bon-mot-de-passe\",\"newPassword\":\"$NEW_PASSWORD\"}")
 [ "$code" = "400" ] || fail "wrong old password: expected 400, got $code"
 jq -e '.error.code == "invalid_password"' "$BODY" >/dev/null \
-  || fail "code d'erreur inattendu : $(jq -c .error "$BODY")"
+  || fail "unexpected error code: $(jq -c .error "$BODY")"
 pass "with a wrong old password → 400 invalid_password"
 
 code=$(req POST /api/account/password \
   "{\"currentPassword\":\"$OLD_PASSWORD\",\"newPassword\":\"$NEW_PASSWORD\"}")
-[ "$code" = "200" ] || fail "changement → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "changement → HTTP $code: $(cat "$BODY")"
 jq -e '.revokedOtherSessions == true' "$BODY" >/dev/null || fail "revocation not announced"
 pass "password changed from session A"
 
@@ -219,14 +219,14 @@ step "5. Enabling the second factor"
 JAR="$JAR_A"
 
 code=$(req POST /api/account/two-factor/setup "{\"password\":\"$NEW_PASSWORD\"}")
-[ "$code" = "200" ] || fail "setup → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "setup → HTTP $code: $(cat "$BODY")"
 TOTP_URI=$(jq -r '.totpURI' "$BODY")
 SECRET=$(printf '%s' "$TOTP_URI" | sed -n 's/.*[?&]secret=\([^&]*\).*/\1/p')
 # `mapfile` does not exist in bash 3.2 (macOS's): an explicit loop.
 BACKUP_CODES=()
 while IFS= read -r line; do BACKUP_CODES+=("$line"); done < <(jq -r '.backupCodes[]' "$BODY")
 [ -n "$SECRET" ] || fail "no secret in the TOTP URI"
-[ "${#BACKUP_CODES[@]}" -ge 5 ] || fail "trop peu de codes de secours (${#BACKUP_CODES[@]})"
+[ "${#BACKUP_CODES[@]}" -ge 5 ] || fail "too few backup codes (${#BACKUP_CODES[@]})"
 pass "secret generated (${#SECRET} base32 characters) and ${#BACKUP_CODES[@]} backup codes returned"
 
 armed=$(psql_q "select coalesce((select verified::text from two_factors where user_id = '$USER_ID'), 'aucune');")
@@ -238,13 +238,13 @@ pass "second factor NOT armed yet: two_factors.verified=false, users.two_factor_
 code=$(req POST /api/account/two-factor/activate "{\"code\":\"$(totp "$SECRET" 50)\"}")
 [ "$code" = "400" ] || fail "code outside the window: expected 400, got $code"
 jq -e '.error.code == "invalid_code"' "$BODY" >/dev/null \
-  || fail "code d'erreur inattendu : $(jq -c .error "$BODY")"
+  || fail "unexpected error code: $(jq -c .error "$BODY")"
 enabled=$(psql_q "select two_factor_enabled from users where id = '$USER_ID';")
 [ "$enabled" = "f" ] || fail "an invalid code armed the second factor all the same"
 pass "an invalid code → 400 invalid_code, nothing is armed"
 
 code=$(req POST /api/account/two-factor/activate "{\"code\":\"$(totp "$SECRET")\"}")
-[ "$code" = "200" ] || fail "activation → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "activation → HTTP $code: $(cat "$BODY")"
 enabled=$(psql_q "select two_factor_enabled from users where id = '$USER_ID';")
 [ "$enabled" = "t" ] || fail "users.two_factor_enabled stays false after a valid code"
 pass "valid code → second factor armed (users.two_factor_enabled=true)"
@@ -267,11 +267,11 @@ code=$(req POST /api/auth/two-factor/verify-totp "{\"code\":\"$(totp "$SECRET" 5
 pass "code invalide → 401"
 
 code=$(req POST /api/auth/two-factor/verify-totp "{\"code\":\"$(totp "$SECRET")\"}")
-[ "$code" = "200" ] || fail "code valide → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "code valide → HTTP $code: $(cat "$BODY")"
 [ "$(session_email)" = "$TEST_EMAIL" ] || fail "no session after a valid code"
 pass "code valide → session ouverte"
 
-# ─── 7. Codes de secours ──────────────────────────────────────────────────────
+# ─── 7. Backup codes ──────────────────────────────────────────────────────────
 step "7. A backup code is only used once"
 RESCUE="${BACKUP_CODES[0]}"
 
@@ -281,7 +281,7 @@ JAR="$JAR_E"; code=$(signin "$TEST_EMAIL" "$NEW_PASSWORD")
 jq -e '.twoFactorRedirect == true' "$BODY" >/dev/null || fail "second factor not asked for"
 sleep 4
 code=$(req POST /api/auth/two-factor/verify-backup-code "{\"code\":\"$RESCUE\"}")
-[ "$code" = "200" ] || fail "code de secours → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "backup code → HTTP $code: $(cat "$BODY")"
 [ "$(session_email)" = "$TEST_EMAIL" ] || fail "no session after the backup code"
 pass "first use of the backup code → session open"
 
@@ -330,7 +330,7 @@ code=$(req GET "/api/audit-logs?actorId=$USER_ID&pageSize=50")
 for action in account.password.changed account.password.change_failed account.2fa.setup_started account.2fa.enabled; do
   jq -e --arg a "$action" '[.items[] | select(.action == $a)] | length > 0' "$BODY" >/dev/null \
     || fail "action \"$action\" missing from the audit log"
-  pass "audit : $action"
+  pass "audit: $action"
 done
 jq -e '[.items[] | select(.action == "account.password.changed")][0].after
        | has("password") or has("newPassword") or has("currentPassword") | not' "$BODY" >/dev/null \
@@ -364,12 +364,12 @@ pass "sign-in plain again: password alone, session set"
 step "11. Cleanup"
 JAR="$ADMIN_JAR"
 code=$(req DELETE "/api/admin/users/$USER_ID")
-[ "$code" = "200" ] || fail "suppression de l'utilisateur de test → HTTP $code : $(cat "$BODY")"
+[ "$code" = "200" ] || fail "deleting the test user → HTTP $code: $(cat "$BODY")"
 left=$(psql_q "select count(*) from users where email = '$TEST_EMAIL';")
 [ "$left" = "0" ] || fail "the test user is still in the database"
 pass "test user deleted"
 
-step "12. L'administrateur reste utilisable"
+step "12. The administrator stays usable"
 JAR="$WORK/admin-check.jar"
 code=$(signin "$ADMIN_EMAIL" "$ADMIN_PASSWORD")
 [ "$code" = "200" ] || fail "the administrator can no longer sign in (HTTP $code)"
@@ -378,5 +378,5 @@ jq -e '.twoFactorRedirect // false | not' "$BODY" >/dev/null \
 assert_admin
 pass "$ADMIN_EMAIL still signs in with their password, without a second factor"
 
-printf '\n\033[32m✓ Sécurité du compte vérifiée.\033[0m\n'
-printf '\033[2m  Écran : %s/account\033[0m\n\n' "$BASE_URL"
+printf '\n\033[32m✓ Account security verified.\033[0m\n'
+printf '\033[2m  Screen: %s/account\033[0m\n\n' "$BASE_URL"

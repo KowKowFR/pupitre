@@ -80,9 +80,9 @@ assert_admin() {
   printf '  \033[31m✗\033[0m %s\n' "\"$ADMIN_EMAIL\" has the role \"${role:-none}\", not \"admin\"."
   printf '    The first account created on a blank database becomes administrator;\n'
   printf '    the following ones are mere viewers.\n\n'
-  printf '    Deux issues :\n'
+  printf '    Two ways out:\n'
   printf '      1. rerun with YOUR admin account:\n'
-  printf '         ADMIN_EMAIL=vous@exemple.fr ADMIN_PASSWORD=... %s\n' "$0"
+  printf '         ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=... %s\n' "$0"
   printf '      2. or promote "%s" from %s/admin/users\n' "$ADMIN_EMAIL" "$BASE_URL"
   exit 1
 }
@@ -103,7 +103,7 @@ if [ -n "$EXISTING" ]; then
 else
   jq '{appSpec: .}' "$SPEC" > "$WORK/app.json"
   code=$(req POST /api/applications "@$WORK/app.json")
-  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code : $(cat "$BODY")"
+  [ "$code" = "201" ] || fail "POST /api/applications → HTTP $code: $(cat "$BODY")"
   APP_ID=$(jq -r .id "$BODY")
   pass "application created: $SLUG"
 fi
@@ -207,7 +207,7 @@ code=$(req GET "/api/deployments/$DEPLOY_ID")
 URL=$(jq -r '.url // empty' "$BODY")
 PORT=$(jq -r '.publishedPort // empty' "$BODY")
 [ -n "$URL" ] || fail "the deployment produced no URL"
-pass "URL : $URL (port $PORT)"
+pass "URL: $URL (port $PORT)"
 
 jq -e '[.steps[] | select(.status == "success")] | length >= 6' "$BODY" >/dev/null \
   || fail "too few successful steps: $(jq -c '[.steps[] | {key, status}]' "$BODY")"
@@ -231,9 +231,9 @@ for action in deployment.created deployment.succeeded; do
   jq -e --arg a "$action" --arg id "$DEPLOY_ID" \
     '[.items[] | select(.action == $a and .resourceId == $id)] | length > 0' "$BODY" >/dev/null \
     || fail "action \"$action\" missing from the audit log"
-  pass "audit : $action"
+  pass "audit: $action"
 done
 
 printf '\n\033[32m✓ Deployment and live logs verified.\033[0m\n'
-printf '\033[2m  Suivi : %s/deployments/%s\033[0m\n' "$BASE_URL" "$DEPLOY_ID"
+printf '\033[2m  Follow-up: %s/deployments/%s\033[0m\n' "$BASE_URL" "$DEPLOY_ID"
 printf '\n'
