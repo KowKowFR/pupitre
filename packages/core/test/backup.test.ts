@@ -65,14 +65,14 @@ describe('format .pupb', () => {
   });
 
   it('two encryptions of the same content do not look alike', async () => {
-    const a = await encryptBuffer(Buffer.from('même contenu'), KEY);
-    const b = await encryptBuffer(Buffer.from('même contenu'), KEY);
+    const a = await encryptBuffer(Buffer.from('same content'), KEY);
+    const b = await encryptBuffer(Buffer.from('same content'), KEY);
     assert.notDeepEqual(a, b);
-    assert.equal((await decryptBuffer(a, KEY)).toString(), 'même contenu');
+    assert.equal((await decryptBuffer(a, KEY)).toString(), 'same content');
   });
 
   it('refuses a file tampered with, truncated, or encrypted under another key', async () => {
-    const sealed = await encryptBuffer(Buffer.from('données importantes'), KEY);
+    const sealed = await encryptBuffer(Buffer.from('important data'), KEY);
     const tampered = Buffer.from(sealed);
     tampered[BACKUP_HEADER_BYTES + 2] = (tampered[BACKUP_HEADER_BYTES + 2] ?? 0) ^ 1;
     await assert.rejects(decryptBuffer(tampered, KEY), BackupFormatError);
@@ -85,10 +85,7 @@ describe('format .pupb', () => {
     const header = Buffer.from(sealed);
     header[6] = (header[6] ?? 0) ^ 1;
     await assert.rejects(decryptBuffer(header, KEY), BackupFormatError);
-    await assert.rejects(
-      decryptBuffer(Buffer.from('pas une sauvegarde du tout'), KEY),
-      BackupFormatError,
-    );
+    await assert.rejects(decryptBuffer(Buffer.from('not a backup at all'), KEY), BackupFormatError);
   });
 
   it('also encrypts an empty content', async () => {

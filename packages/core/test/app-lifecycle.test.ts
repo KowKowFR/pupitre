@@ -47,7 +47,7 @@ describe('application stream', () => {
     it(`accepts a “${action}” life-cycle event`, () => {
       const parsed = appLogMessageSchema.safeParse({
         kind: 'lifecycle',
-        payload: { ts: new Date().toISOString(), action, detail: 'démarré' },
+        payload: { ts: new Date().toISOString(), action, detail: 'started' },
       });
       assert.equal(parsed.success, true);
     });

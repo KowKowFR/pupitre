@@ -88,7 +88,7 @@ describe('image references', () => {
     assert.equal(digestOf(`nginx@${A}`), A);
     assert.equal(digestOf(`docker.io/library/nginx@${A}`), A);
     assert.equal(digestOf(A), A);
-    assert.equal(digestOf('sha256:pas-un-digest'), null);
+    assert.equal(digestOf('sha256:not-a-digest'), null);
     assert.equal(shortDigest(A), 'aaaaaaaaaaaa');
   });
 });
@@ -313,7 +313,7 @@ describe('what runs, as seen by each runtime', () => {
       status: { repoDigests: [`docker.io/other/mirror@${B}`, `docker.io/library/nginx@${A}`] },
     });
     assert.equal(pulledDigest(inspect, 'nginx:alpine'), A);
-    assert.equal(pulledDigest('pas du json', 'nginx'), null);
+    assert.equal(pulledDigest('not json', 'nginx'), null);
   });
 });
 
@@ -386,6 +386,6 @@ describe('canonicalImageReference — the name containerd records', () => {
       canonicalImageReference(`postgres:16@${digest}`),
       `docker.io/library/postgres@${digest}`,
     );
-    assert.equal(canonicalImageReference('pas une image'), 'pas une image');
+    assert.equal(canonicalImageReference('not an image'), 'not an image');
   });
 });

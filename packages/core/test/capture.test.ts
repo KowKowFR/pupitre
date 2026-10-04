@@ -77,7 +77,7 @@ test("only the URLs a browser can open are capturable", () => {
   assert.equal(captureUrlFor('http://exemple.fr:8080/'), 'http://exemple.fr:8080/');
   assert.equal(captureUrlFor('ftp://exemple.fr/'), null);
   assert.equal(captureUrlFor('file:///etc/passwd'), null);
-  assert.equal(captureUrlFor('pas une url'), null);
+  assert.equal(captureUrlFor('not a url'), null);
   // The fragment is useless for rendering and would be copied in clear into the
   // database.
   assert.equal(captureUrlFor('https://exemple.fr/a#jeton'), 'https://exemple.fr/a');
@@ -98,7 +98,7 @@ test('an unreachable browser returns a verdict, not an exception', async () => {
 
 test('a CDP endpoint that answers nonsense returns a verdict too', async () => {
   const server = createServer((_req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' }).end('{"pas":"ce qu\'on attend"}');
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{"not":"what we expect"}');
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
@@ -169,7 +169,7 @@ test('the proxy lets public through and blocks private', async () => {
         let buffer = '';
         socket.setTimeout(8_000, () => {
           socket.destroy();
-          reject(new Error('mandataire muet'));
+          reject(new Error('silent proxy'));
         });
         socket.on('data', (chunk) => {
           buffer += chunk.toString('utf8');
@@ -214,7 +214,7 @@ test('an explicitly allowed range passes — the guard can be opened, it is not 
         let buffer = '';
         socket.setTimeout(8_000, () => {
           socket.destroy();
-          reject(new Error('mandataire muet'));
+          reject(new Error('silent proxy'));
         });
         socket.on('data', (chunk) => {
           buffer += chunk.toString('utf8');

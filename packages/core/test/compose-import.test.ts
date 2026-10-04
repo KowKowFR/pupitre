@@ -267,7 +267,7 @@ services:
 
   it('cleanly refuses an unreadable, empty or booby-trapped file', () => {
     assert.deepEqual(codes(importCompose('services: [unclosed')), ['yaml.invalid']);
-    assert.deepEqual(codes(importCompose('name: rien')), ['yaml.notCompose']);
+    assert.deepEqual(codes(importCompose('name: nothing')), ['yaml.notCompose']);
     assert.equal(importCompose('services: [unclosed').spec, null);
 
     // A "billion laughs": alias expansion is bounded.

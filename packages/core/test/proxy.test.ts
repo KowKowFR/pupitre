@@ -151,7 +151,7 @@ describe('Traefik — routes file', () => {
 
   it('also serves over HTTP when the redirect is not wanted, or without HTTPS', () => {
     assert.equal(document.http.routers['blog--api-example-fr--http']?.middlewares, undefined);
-    assert.equal(document.http.routers['blog--old-example-fr'], undefined, 'pas de routeur HTTPS');
+    assert.equal(document.http.routers['blog--old-example-fr'], undefined, 'no HTTPS router');
     assert.deepEqual(document.http.routers['blog--old-example-fr--http']?.entryPoints, ['web']);
   });
 
@@ -769,11 +769,7 @@ describe('BunkerWeb — one service per domain', () => {
     assert.doesNotMatch(block.BAD_BEHAVIOR_STATUS_CODES ?? '', /429/);
     assert.match(block.ALLOWED_METHODS ?? '', /PUT.*DELETE/);
     assert.equal(block.LIMIT_CONN_MAX_HTTP1, '100');
-    assert.equal(
-      wafPreset('detect').USE_LIMIT_CONN,
-      'no',
-      'nginx ne sait pas seulement journaliser',
-    );
+    assert.equal(wafPreset('detect').USE_LIMIT_CONN, 'no', 'nginx cannot only log');
     const detect = wafPreset('detect');
     assert.equal(detect.SECURITY_MODE, 'detect');
     assert.equal(detect.MODSECURITY_SEC_RULE_ENGINE, 'DetectionOnly');
@@ -798,7 +794,7 @@ describe('BunkerWeb — one service per domain', () => {
 
   it('reads its registry, even damaged', () => {
     assert.deepEqual(parseRegistry('{"hostnames":["a.fr",3]}'), { hostnames: ['a.fr'] });
-    assert.deepEqual(parseRegistry('pas du json'), { hostnames: [] });
+    assert.deepEqual(parseRegistry('not json'), { hostnames: [] });
     assert.deepEqual(parseRegistry(null), { hostnames: [] });
   });
 

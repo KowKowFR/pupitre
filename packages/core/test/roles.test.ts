@@ -49,7 +49,7 @@ describe('starting roles', () => {
       'monitor:read',
       'scan:read',
     ] as const) {
-      assert.ok(viewer.includes(permission), `l'observateur ne lit pas ${permission}`);
+      assert.ok(viewer.includes(permission), `the viewer does not read ${permission}`);
     }
   });
 

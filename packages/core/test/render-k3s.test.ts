@@ -264,7 +264,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
         ranks.every((rank, index) => index === 0 || rank >= (ranks[index - 1] ?? 0)),
         `kinds must stay ordered: ${sorted.join(', ')}`,
       );
-      assert.equal(sorted[0], namespaceFilePath('boutique'), 'le namespace vient en premier');
+      assert.equal(sorted[0], namespaceFilePath('boutique'), 'the namespace comes first');
       assert.equal(files[0]?.path, namespaceFilePath('boutique'));
     });
 
@@ -347,7 +347,7 @@ describe('render() — AppSpec to Kubernetes manifests', () => {
         for (const value of Object.values(secretValues)) {
           assert.ok(
             !yaml.includes(value.split('\n')[0] ?? value),
-            `${manifest.kind}/${manifest.metadata.name} ne doit pas porter de valeur de secret`,
+            `${manifest.kind}/${manifest.metadata.name} must not carry a secret value`,
           );
         }
       }
@@ -890,7 +890,7 @@ describe('K3s image builder — expiry', () => {
     });
     assert.equal(parseBuilderState(''), null);
     assert.equal(parseBuilderState('  \n'), null);
-    assert.equal(parseBuilderState('pas-une-date|toujours-pas|7'), null);
+    assert.equal(parseBuilderState('not-a-date|still-not|7'), null);
   });
 
   it('deletes conditionally on the version read, its pods with it', () => {

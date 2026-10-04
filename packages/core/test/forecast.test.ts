@@ -70,7 +70,7 @@ describe('forecasts', () => {
         200,
       ),
       null,
-      'bruit sans tendance nette',
+      'noise without a clear trend',
     );
     assert.equal(
       forecastDisk(
@@ -90,7 +90,7 @@ describe('forecasts', () => {
         200,
       ),
       null,
-      'pas assez de recul',
+      'not enough history',
     );
   });
 

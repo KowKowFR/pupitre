@@ -34,7 +34,7 @@ describe('crypto', () => {
 
   describe('round-trip', () => {
     it('returns the original text', () => {
-      const secret = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 clé de test';
+      const secret = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 test key';
       assert.equal(decrypt(encrypt(secret)), secret);
     });
 
@@ -45,8 +45,8 @@ describe('crypto', () => {
     });
 
     it('produces a different ciphertext at each call (random IV)', () => {
-      const a = encrypt('même secret');
-      const b = encrypt('même secret');
+      const a = encrypt('same secret');
+      const b = encrypt('same secret');
       assert.notEqual(a, b);
       assert.equal(decrypt(a), decrypt(b));
     });
@@ -178,7 +178,7 @@ describe('crypto', () => {
       assert.equal(masterKeyWeakness(VALID_HEX_KEY), null);
       assert.equal(masterKeyWeakness(OTHER_HEX_KEY), null);
       assert.equal(masterKeyWeakness(randomBytes(32).toString('hex')), null);
-      assert.equal(masterKeyWeakness('une-passphrase-honnete-et-assez-longue'), null);
+      assert.equal(masterKeyWeakness('an-honest-and-long-enough-passphrase'), null);
     });
 
     it('judges the Better Auth secret the same way, by its name', () => {

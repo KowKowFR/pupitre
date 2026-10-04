@@ -208,7 +208,7 @@ function listen(handler: (socket: import('node:net').Socket) => void): Promise<S
 
 function portOf(server: Server): number {
   const address = server.address();
-  if (address === null || typeof address === 'string') throw new Error('port introuvable');
+  if (address === null || typeof address === 'string') throw new Error('port not found');
   return address.port;
 }
 
@@ -231,7 +231,7 @@ test('a listening port is healthy, a closed port is unreachable', async () => {
     { host: '127.0.0.1', port },
     { allowlist: LOOPBACK_ALLOWED, language: 'fr' },
   );
-  assert.equal(down.outcome, 'unreachable', 'le port vient de fermer');
+  assert.equal(down.outcome, 'unreachable', 'the port just closed');
   assert.match(down.detail ?? '', /ECONNREFUSED/);
 });
 
@@ -642,7 +642,7 @@ test('a confirmed NS hijack opens a single incident', () => {
     ['healthy', ...Array.from({ length: 20 }, () => 'unhealthy' as MonitorOutcome)],
   );
   assert.equal(state.status, 'unhealthy');
-  assert.deepEqual(transitions, ['down'], 'vingt mesures, une alerte');
+  assert.deepEqual(transitions, ['down'], 'twenty measurements, one alert');
   assert.equal(state.consecutiveFailures, 20);
 });
 

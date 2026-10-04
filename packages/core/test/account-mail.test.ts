@@ -142,7 +142,7 @@ describe('account life-cycle emails', () => {
   });
 
   it('refuses an address or a URL that are not ones', () => {
-    assert.throws(() => mail({ url: 'pas-une-url' as string }));
+    assert.throws(() => mail({ url: 'not-a-url' as string }));
     assert.throws(() => accountMailSchema.parse({ ...mail(), kind: 'autre-chose' }));
   });
 });

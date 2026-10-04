@@ -44,7 +44,7 @@ describe('maintenance — the window', () => {
       '2026-12-03T21:00:00.000Z',
     );
     assert.equal(toWallClockInput('2026-10-03T20:00:00Z', 'Europe/Paris'), '2026-10-03T22:00');
-    assert.equal(fromWallClockInput('pas une date', 'Europe/Paris'), null);
+    assert.equal(fromWallClockInput('not a date', 'Europe/Paris'), null);
   });
 });
 

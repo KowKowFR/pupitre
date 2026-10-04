@@ -364,7 +364,7 @@ describe('Gitea client', () => {
       ],
     ]);
     const gitea = new GiteaSourceProvider(GITEA, fetchImpl, open);
-    assert.deepEqual(await gitea.resolveHead(GITEA_REPO, 'main', '"ignoré"'), {
+    assert.deepEqual(await gitea.resolveHead(GITEA_REPO, 'main', '"ignored"'), {
       changed: true,
       sha: SHA,
       etag: null,
@@ -550,7 +550,7 @@ describe('GitLab client', () => {
       [/\/repository\/branches\/feature%2Fx$/, () => Response.json({ commit: { id: SHA } })],
     ]);
     const gitlab = new GitLabSourceProvider(GITLAB, fetchImpl, open);
-    assert.deepEqual(await gitlab.resolveHead(GITLAB_REPO, 'feature/x', '"ignoré"'), {
+    assert.deepEqual(await gitlab.resolveHead(GITLAB_REPO, 'feature/x', '"ignored"'), {
       changed: true,
       sha: SHA,
       etag: null,
@@ -787,7 +787,7 @@ describe('GitLab client', () => {
       );
       assert.equal(seen['private-token'], 'glpat-jeton');
       assert.equal(seen['sec-fetch-mode'], undefined);
-      assert.equal(calls.length, 0, 'pas par fetch');
+      assert.equal(calls.length, 0, 'not through fetch');
       await assert.rejects(
         gitlab.downloadArchive(GITLAB_REPO, SHA, join(dir, 'trop.tar.gz'), 1000),
         SourceProviderError,

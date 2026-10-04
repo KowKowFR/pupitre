@@ -15,11 +15,11 @@ describe('tolerant matching', () => {
   });
 
   it('accepts letters in order and typos', () => {
-    assert.ok(matchScore('prd1', ['prod-1']) > 0, 'lettres dans l’ordre');
-    assert.ok(matchScore('umamo', ['umami']) > 0, 'une lettre fausse');
+    assert.ok(matchScore('prd1', ['prod-1']) > 0, 'letters in order');
+    assert.ok(matchScore('umamo', ['umami']) > 0, 'one wrong letter');
     assert.ok(matchScore('grafnaa', ['grafana']) > 0, 'two swapped letters then an extra one');
     assert.ok(matchScore('portail-cleint', ['portail-client']) > 0, 'inversion');
-    assert.equal(matchScore('zx', ['prod-1']), 0, 'deux lettres sans rapport');
+    assert.equal(matchScore('zx', ['prod-1']), 0, 'two unrelated letters');
     assert.equal(matchScore('blug', ['grafana']), 0);
   });
 
@@ -33,7 +33,7 @@ describe('tolerant matching', () => {
     assert.equal(
       matchScore('discutre', ['Open WebUI'], [summary]),
       0,
-      'pas de faute de frappe en prose',
+      'no typo tolerance in prose',
     );
   });
 

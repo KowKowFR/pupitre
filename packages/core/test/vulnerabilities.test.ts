@@ -77,7 +77,7 @@ describe('vulnerabilities — accepting', () => {
   });
 
   it('requires a reason, and a reasonable expiry or none', () => {
-    const base = { cveId: 'CVE-1', package: 'curl', reason: 'jamais appelé', expiresInDays: 90 };
+    const base = { cveId: 'CVE-1', package: 'curl', reason: 'never called', expiresInDays: 90 };
     assert.ok(createVulnerabilityAcceptanceSchema.safeParse(base).success);
     assert.ok(
       createVulnerabilityAcceptanceSchema.safeParse({ ...base, expiresInDays: null }).success,

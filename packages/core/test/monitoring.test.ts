@@ -57,7 +57,7 @@ test('a first healthy measurement confirms “healthy” without a transition', 
 test("an isolated failure neither brings the probe down nor opens an incident", () => {
   const { state, transitions } = play(['healthy', 'unreachable', 'healthy']);
   assert.equal(state.status, 'healthy');
-  assert.deepEqual(transitions, [], 'un rebond ne doit produire aucune transition');
+  assert.deepEqual(transitions, [], 'a bounce must produce no transition');
 });
 
 test('the probe goes down at the confirmation threshold, not at the first failure', () => {
@@ -251,7 +251,7 @@ test('each type declares everything the screen needs', () => {
 test('each catalog type has a registered probe', () => {
   for (const type of MONITOR_TYPES_LIST) {
     const probe = getMonitorProbe(type);
-    assert.ok(probe, `${type} : aucune sonde`);
+    assert.ok(probe, `${type}: no probe`);
     assert.equal(probe.type, type, `${type}: the probe announces another type`);
   }
 });
@@ -291,9 +291,9 @@ test('the target describes itself without knowing the type', () => {
   assert.equal(describeMonitorTarget('http', { url: 'https://exemple.fr/' }), 'https://exemple.fr/');
   assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr' }), 'exemple.fr');
   assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr', port: 8443 }), 'exemple.fr:8443');
-  assert.equal(describeMonitorTarget('http', { url: 'pas une url' }), '(unreadable configuration)');
+  assert.equal(describeMonitorTarget('http', { url: 'not a url' }), '(unreadable configuration)');
   assert.equal(
-    describeMonitorTarget('http', { url: 'pas une url' }, 'fr'),
+    describeMonitorTarget('http', { url: 'not a url' }, 'fr'),
     '(configuration illisible)',
   );
 });
@@ -331,7 +331,7 @@ test('exotic schemes are refused', () => {
   assert.equal(checkUrlShape('file:///etc/passwd').allowed, false);
   assert.equal(checkUrlShape('gopher://example.com/').allowed, false);
   assert.equal(checkUrlShape('ftp://example.com/').allowed, false);
-  assert.equal(checkUrlShape('pas une url').allowed, false);
+  assert.equal(checkUrlShape('not a url').allowed, false);
 });
 
 test('a URL carrying credentials is refused', () => {
@@ -399,7 +399,7 @@ test('link-local stays refused even when listed explicitly', () => {
 });
 
 test('an unreadable CIDR is ignored, not fatal', () => {
-  assert.equal(parseCidrList('pas-un-cidr, 10.0.0.0/8').length, 1);
+  assert.equal(parseCidrList('not-a-cidr, 10.0.0.0/8').length, 1);
   assert.equal(parseCidrList('10.0.0.0/99').length, 0);
 });
 

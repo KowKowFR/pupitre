@@ -390,12 +390,8 @@ describe('uploaded archive — nothing escapes from it', () => {
     await rejected(zipBytes([]), 'zip', 'empty');
     await rejected(gz([{ name: '.git/config', data: 'x' }]), 'tar.gz', 'empty');
     await rejected(Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x01, 0x02]), 'tar.gz', 'corrupt');
-    await rejected(
-      gzipSync(Buffer.from('pas une archive tar, mais du texte')),
-      'tar.gz',
-      'corrupt',
-    );
-    await rejected(Buffer.from('PK\x03\x04 tronqué'), 'zip', 'corrupt');
+    await rejected(gzipSync(Buffer.from('not a tar archive, just text')), 'tar.gz', 'corrupt');
+    await rejected(Buffer.from('PK\x03\x04 truncated'), 'zip', 'corrupt');
   });
 });
 

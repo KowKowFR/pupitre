@@ -114,7 +114,7 @@ describe('a target’s host key', () => {
         /a changé/.test(error.message),
     );
     assert.deepEqual(mismatches, [impostor.fingerprint]);
-    assert.equal(impostor.handshakes() - before, 1, 'une seule tentative');
+    assert.equal(impostor.handshakes() - before, 1, 'a single attempt');
   });
 
   it('without a policy — test tools —, accepts and notes the key', async () => {

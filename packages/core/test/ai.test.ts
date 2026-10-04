@@ -184,7 +184,7 @@ describe('generateAppSpec', () => {
     assert.equal(result.ok, true);
     assert.ok(result.ok);
     assert.equal(result.appSpec.name, 'demo-api');
-    assert.equal(result.attempts.length, 1, 'une seule passe');
+    assert.equal(result.attempts.length, 1, 'a single pass');
     assert.equal(result.usage.totalTokens, 1500);
     assert.equal(calls.length, 1);
   });
@@ -246,7 +246,7 @@ describe('generateAppSpec', () => {
     assert.equal(result.ok, false);
     assert.ok(!result.ok);
     assert.equal(result.reason, 'invalid_spec');
-    assert.equal(calls.length, 2, 'exactement deux appels');
+    assert.equal(calls.length, 2, 'exactly two calls');
     assert.equal(result.attempts.length, 2);
     assert.ok(result.issues.length > 0, 'the errors are returned to the caller');
   });
@@ -335,7 +335,7 @@ describe('generateAppSpec', () => {
     assert.equal(result.ok, false);
     assert.ok(!result.ok);
     assert.equal(result.reason, 'no_object');
-    assert.equal(calls.length, 2, 'toujours deux appels au maximum');
+    assert.equal(calls.length, 2, 'still two calls at most');
   });
 
   /**

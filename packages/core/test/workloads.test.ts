@@ -218,7 +218,7 @@ describe('K3s — the log of every pod', () => {
     // Nothing readable: we refuse rather than read the whole namespace.
     assert.equal(labelSelector(''), null);
     assert.equal(labelSelector('{}'), null);
-    assert.equal(labelSelector('pas du json'), null);
+    assert.equal(labelSelector('not json'), null);
   });
 
   it('puts the lines of several pods back in time order', () => {

@@ -79,7 +79,7 @@ test('stripping removes what a visitor does not read', () => {
     '<style>.a{content:"Erreur 500"}</style>' +
     '<img alt="Erreur 500"><p>Tout va bien</p>';
   const text = stripMarkup(html);
-  assert.equal(containsKeyword(text, 'Erreur 500', 'lenient'), false, 'aucune occurrence visible');
+  assert.equal(containsKeyword(text, 'Erreur 500', 'lenient'), false, 'no visible occurrence');
   assert.equal(containsKeyword(text, 'Tout va bien', 'lenient'), true);
   // On the raw response, the four invisible occurrences would wrongly trigger.
   assert.equal(containsKeyword(html, 'Erreur 500', 'lenient'), true);
@@ -99,7 +99,7 @@ test('a keyword probe without a keyword is refused', () => {
   assert.match(
     empty.success ? '' : (empty.error.issues[0]?.message ?? ''),
     /au moins/,
-    'le message doit dire quoi remplir',
+    'the message must say what to fill in',
   );
 });
 
@@ -300,7 +300,7 @@ test('the knowledge of TLDs is dated, so that we know when it ages', () => {
 test('TLDs without RDAP are known as such', () => {
   // Measured on IANA's files: 1,200 TLDs out of 1,438 publish an RDAP.
   for (const tld of ['io', 'de', 'co', 'eu', 'ch', 'it', 'es', 'be', 'us', 'jp']) {
-    assert.equal(tldPublishesRdap(tld), false, `.${tld} n'a pas de RDAP`);
+    assert.equal(tldPublishesRdap(tld), false, `.${tld} has no RDAP`);
   }
   for (const tld of ['arpa', 'edu', 'mil']) {
     assert.equal(tldPublishesRdap(tld), false, `.${tld} is a role TLD`);
@@ -309,7 +309,7 @@ test('TLDs without RDAP are known as such', () => {
 
 test('the listed gTLDs and ccTLDs have one, IDNs are not decided', () => {
   for (const tld of ['com', 'net', 'org', 'dev', 'app', 'solutions', 'fr', 'nl', 'uk', 'ca']) {
-    assert.equal(tldPublishesRdap(tld), true, `.${tld} publie un RDAP`);
+    assert.equal(tldPublishesRdap(tld), true, `.${tld} publishes an RDAP`);
   }
   assert.equal(tldPublishesRdap('xn--p1ai'), null, 'we never block on ignorance');
 });
@@ -361,7 +361,7 @@ test('IANA’s bootstrap list reads as it is published', () => {
 });
 
 test('an unreadable bootstrap list returns an empty table, not an exception', () => {
-  assert.equal(readBootstrap({ services: 'pas un tableau' }).size, 0);
+  assert.equal(readBootstrap({ services: 'not an array' }).size, 0);
   assert.equal(readBootstrap(null).size, 0);
   // An entry served in clear is ignored: an RDAP response altered in transit
   // would say anything about an expiry date.
@@ -397,7 +397,7 @@ test('a malformed response does not bring the reading down', () => {
   const facts = readRdapDomain({ objectClassName: 'domain' });
   assert.equal(facts.expiresOn, null);
   assert.deepEqual(facts.nameservers, []);
-  assert.equal(readRdapDomain('pas du JSON RDAP').registrar, null);
+  assert.equal(readRdapDomain('not RDAP JSON').registrar, null);
 });
 
 // ─── domain: the judgment ─────────────────────────────────────────────────────

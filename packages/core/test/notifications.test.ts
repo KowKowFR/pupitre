@@ -394,7 +394,7 @@ describe('notifications — the catalog', () => {
     assert.throws(() => channelConfigSchema('smtp').parse({ from: 'a@b.test', to: 'c@d.test' }));
     assert.throws(() => channelConfigSchema('webhook').parse({}));
     // A URL that is not one must not pass either.
-    assert.throws(() => channelConfigSchema('webhook').parse({ url: 'pas-une-url' }));
+    assert.throws(() => channelConfigSchema('webhook').parse({ url: 'not-a-url' }));
   });
 
   it('applies the declared default values', () => {

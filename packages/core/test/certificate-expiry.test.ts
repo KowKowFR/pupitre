@@ -53,6 +53,6 @@ describe('certificate expiry', () => {
   it('a probe without a certificate erases nothing and says nothing', () => {
     assert.equal(certificateTransition(inDays(9), null, NOW), null);
     assert.equal(certificateTransition(inDays(9), { notAfter: null }, NOW), null);
-    assert.equal(certificateTransition(null, { notAfter: 'pas une date' }, NOW), null);
+    assert.equal(certificateTransition(null, { notAfter: 'not a date' }, NOW), null);
   });
 });
