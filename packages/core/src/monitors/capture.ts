@@ -51,15 +51,9 @@ export const CAPTURE_KINDS = ['reference', 'incident_open', 'incident_resolved']
 export const captureKindSchema = z.enum(CAPTURE_KINDS);
 export type CaptureKind = z.infer<typeof captureKindSchema>;
 
-// Le libellé long de chaque moment vivait ici et n'avait plus de lecteur :
-// l'écran des captures écrit le sien, aux clés `capture.kind.*` de son propre
-// dictionnaire, donc dans la langue de l'instance.
-
-export const CAPTURE_KIND_SHORT: Record<CaptureKind, string> = {
-  reference: 'avant',
-  incident_open: 'pendant',
-  incident_resolved: 'après',
-};
+// Les libellés de chaque moment, et ceux des échecs, vivaient ici et n'avaient
+// plus de lecteur : l'écran des captures écrit les siens, aux clés `capture.*`
+// de son propre dictionnaire, donc dans la langue de l'instance.
 
 /**
  * Cadence de la référence : **6 heures**.
@@ -169,15 +163,6 @@ export type CaptureFailureReason =
   | 'too-large'
   | 'blocked'
   | 'not-capturable';
-
-export const CAPTURE_FAILURE_LABEL: Record<CaptureFailureReason, string> = {
-  'browser-unavailable': 'navigateur de capture injoignable',
-  'navigation-failed': "la page n'a pas pu être chargée",
-  timeout: 'la capture a dépassé son budget de temps',
-  'too-large': 'image au-delà de la borne de taille',
-  blocked: 'cible refusée par la politique SSRF',
-  'not-capturable': "cette sonde n'a pas de page à rendre",
-};
 
 export type CaptureImage = {
   data: Uint8Array;

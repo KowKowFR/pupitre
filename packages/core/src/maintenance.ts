@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { invalid } from './validation.js';
+import { invalid, type ValidationRef } from './validation.js';
 import { instantOfWallClock, wallClockOf } from './schedule.js';
 
 /**
@@ -48,16 +48,22 @@ export type MaintenanceFields = z.infer<typeof maintenanceFieldsSchema>;
  * au moins un sujet. Appliquées à la création comme après une modification
  * partielle, sur la fenêtre qui en résulte.
  */
-export function maintenanceProblems(fields: MaintenanceFields): string[] {
-  const problems: string[] = [];
+export function maintenanceProblems(
+  fields: MaintenanceFields,
+): Array<{ path: 'endsAt' | 'targetIds'; problem: ValidationRef }> {
+  const problems: Array<{ path: 'endsAt' | 'targetIds'; problem: ValidationRef }> = [];
   const start = new Date(fields.startsAt).getTime();
   const end = new Date(fields.endsAt).getTime();
-  if (end <= start) problems.push('endsAt: la fin doit suivre le début');
+  if (end <= start)
+    problems.push({ path: 'endsAt', problem: { key: 'maintenance.endBeforeStart' } });
   if (end - start > MAINTENANCE_MAX_DAYS * 86_400_000) {
-    problems.push(`endsAt: une fenêtre dure au plus ${MAINTENANCE_MAX_DAYS} jours`);
+    problems.push({
+      path: 'endsAt',
+      problem: { key: 'maintenance.tooLong', vars: { days: MAINTENANCE_MAX_DAYS } },
+    });
   }
   if (fields.targetIds.length + fields.monitorIds.length === 0) {
-    problems.push('targetIds: une fenêtre couvre au moins une cible ou une sonde');
+    problems.push({ path: 'targetIds', problem: { key: 'maintenance.noSubject' } });
   }
   return problems;
 }
@@ -69,9 +75,8 @@ export const createMaintenanceSchema = maintenanceFieldsSchema
     monitorIds: maintenanceFieldsSchema.shape.monitorIds.default([]),
   })
   .superRefine((fields, ctx) => {
-    for (const problem of maintenanceProblems(fields)) {
-      const [path, message] = problem.split(': ');
-      ctx.addIssue({ code: 'custom', path: [path ?? ''], message: message ?? problem });
+    for (const { path, problem } of maintenanceProblems(fields)) {
+      ctx.addIssue({ code: 'custom', path: [path], ...invalid(problem.key, problem.vars) });
     }
   });
 

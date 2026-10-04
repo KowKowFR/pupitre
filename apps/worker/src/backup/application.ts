@@ -29,7 +29,9 @@ import {
   logAudit,
 } from '@pupitre/db';
 import { openDeploymentContext } from '../deploy/context.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { formatBytes, workerSay } from '../messages.js';
 import { BackupError, applyRetention, openStore, storePiece } from './shared.js';
 
 /**
@@ -74,7 +76,9 @@ export async function backupApplication(
     getTarget(request.targetId),
     getBackupPolicy(request.applicationId),
   ]);
-  if (!application) return { status: 'skipped', reason: 'application supprimée' };
+  const language = await instanceLanguage();
+  const say = workerSay(language);
+  if (!application) return { status: 'skipped', reason: say('backup.appGone') };
 
   const [live] = await listLiveDeployments({
     applicationId: request.applicationId,
@@ -85,10 +89,10 @@ export async function backupApplication(
     if (request.backupId) {
       await finishBackupRecord(request.backupId, {
         status: 'failed',
-        error: "l'application ne tourne pas sur cette cible",
+        error: say('backup.notRunning'),
       });
     }
-    return { status: 'skipped', reason: "l'application ne tourne pas sur cette cible" };
+    return { status: 'skipped', reason: say('backup.notRunning') };
   }
 
   const spec = parseAppSpec(deployment.appSpec);
@@ -99,11 +103,11 @@ export async function backupApplication(
   const pieces = planBackup(spec, mode);
   if (pieces.length === 0) {
     if (request.backupId) await deleteBackupRecords([request.backupId]);
-    return { status: 'skipped', reason: 'rien à sauvegarder : aucun volume déclaré' };
+    return { status: 'skipped', reason: say('backup.nothing') };
   }
 
   if (!request.backupId && (await hasRunningBackup(request.applicationId))) {
-    return { status: 'skipped', reason: 'une sauvegarde de cette application est déjà en cours' };
+    return { status: 'skipped', reason: say('backup.alreadyRunning') };
   }
 
   let backupId = request.backupId ?? null;
@@ -134,7 +138,12 @@ export async function backupApplication(
     const location = record.location;
 
     onLog(
-      `sauvegarde de « ${application.slug} » vers ${opened.name} — ${pieces.length} morceau(x), mode ${mode === 'hot' ? 'à chaud' : 'arrêt bref'}`,
+      say('backup.starting', {
+        slug: application.slug,
+        destination: opened.name,
+        count: pieces.length,
+        mode: say(mode === 'hot' ? 'backup.mode.hot' : 'backup.mode.stop'),
+      }),
     );
     const context = await openDeploymentContext(deployment.id, { connect: { retries: 2 } });
     session = context.session;
@@ -143,7 +152,7 @@ export async function backupApplication(
 
     const stopForCopy = mode === 'stop' && !stopped;
     if (stopForCopy) {
-      onLog("arrêt bref de l'application");
+      onLog(say('backup.briefStop'));
       await driver.stop(context.ctx, (line) => onLog(`  ${line}`));
     }
 
@@ -153,8 +162,8 @@ export async function backupApplication(
         const file = pieceFile(piece);
         const label =
           piece.kind === 'volume'
-            ? `volume « ${piece.volume} » de « ${piece.service} »`
-            : `export ${piece.engine} de « ${piece.service} »`;
+            ? say('backup.volumeLabel', { volume: piece.volume, service: piece.service })
+            : say('backup.dumpLabel', { engine: piece.engine, service: piece.service });
         const started = Date.now();
         const result =
           piece.kind === 'volume'
@@ -178,12 +187,16 @@ export async function backupApplication(
               );
         stored.push({ ...piece, file, ...result });
         onLog(
-          `✓ ${label} — ${formatBytes(result.bytes)} en ${((Date.now() - started) / 1000).toFixed(1)} s`,
+          say('backup.pieceStored', {
+            label,
+            size: formatBytes(result.bytes, language),
+            seconds: ((Date.now() - started) / 1000).toFixed(1),
+          }),
         );
       }
     } finally {
       if (stopForCopy) {
-        onLog("redémarrage de l'application");
+        onLog(say('backup.restarting'));
         await driver.start(context.ctx, (line) => onLog(`  ${line}`));
       }
     }
@@ -208,7 +221,7 @@ export async function backupApplication(
     );
     const bytes = stored.reduce((sum, piece) => sum + piece.bytes, 0);
     await finishBackupRecord(backupId, { status: 'success', manifest, bytes });
-    onLog(`sauvegarde terminée — ${formatBytes(bytes)} au total`);
+    onLog(say('backup.done', { size: formatBytes(bytes, language) }));
 
     // Une sauvegarde de sûreté reste hors de la rotation : elle précède une
     // restauration, et la rétention pourrait retirer la sauvegarde même qu'on
@@ -256,16 +269,4 @@ export async function backupApplication(
     if (session) await disconnect(session);
     await opened?.store.close().catch(() => undefined);
   }
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  const units = ['Kio', 'Mio', 'Gio', 'Tio'];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
 }

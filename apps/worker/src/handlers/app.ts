@@ -349,22 +349,18 @@ export async function handleAppRestart(job: Job<unknown>): Promise<{ healthy: bo
 type LifecycleAction = {
   /** Nom de l'action dans le flux applicatif et dans le journal d'activité. */
   key: 'stop' | 'start';
-  /** Employé tel quel dans le journal du worker : « application : arrêt effectué ». */
-  noun: string;
   apply: (driver: DeploymentDriver, ctx: DriverContext, onLog: LogSink) => Promise<void>;
   auditAction: string;
 };
 
 const STOP: LifecycleAction = {
   key: 'stop',
-  noun: 'arrêt',
   apply: (driver, ctx, onLog) => driver.stop(ctx, onLog),
   auditAction: 'app.stopped',
 };
 
 const START: LifecycleAction = {
   key: 'start',
-  noun: 'démarrage',
   apply: (driver, ctx, onLog) => driver.start(ctx, onLog),
   auditAction: 'app.started',
 };
@@ -472,7 +468,7 @@ async function runLifecycle(
       ip: data.ip,
     });
 
-    log.info({ action: action.key, healthy }, `application : ${action.noun} effectué`);
+    log.info({ action: action.key, healthy }, 'application : geste effectué');
     return { stopped: action.key === 'stop', healthy };
   } finally {
     await disconnect(session);

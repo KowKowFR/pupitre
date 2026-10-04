@@ -6,6 +6,8 @@ import type { SFTPWrapper, Stats } from 'ssh2';
 import { hostKeyFingerprint } from '../../ssh/client.js';
 import type { SftpDestinationConfig, SftpDestinationSecrets } from '../destinations.js';
 import { BackupStoreError, probeKey, type BackupStore, type StoredObject } from './types.js';
+import type { UiLanguage } from '../../i18n.js';
+import { backupSay, type BackupSay } from '../messages.js';
 
 /**
  * Une destination SFTP — un NAS, ou n'importe quel serveur SSH.
@@ -30,10 +32,15 @@ export class SftpBackupStore implements BackupStore {
   private ssh: NodeSSH | null = null;
   private sftp: SFTPWrapper | null = null;
 
+  private readonly say: BackupSay;
+
   constructor(
     private readonly config: SftpDestinationConfig,
     private readonly secrets: SftpDestinationSecrets,
-  ) {}
+    language: UiLanguage = 'fr',
+  ) {
+    this.say = backupSay(language);
+  }
 
   private path(key: string): string {
     return posix.join(this.config.path || '.', key);
@@ -64,13 +71,16 @@ export class SftpBackupStore implements BackupStore {
     } catch (error) {
       if (expected && presented && presented !== expected) {
         throw new BackupStoreError(
-          `SFTP : la clé d'hôte de ${this.config.host} ne correspond pas (${presented}) — refus`,
+          this.say('sftp.hostKey', { host: this.config.host, presented }),
           error,
         );
       }
       throw new BackupStoreError(
-        `SFTP : connexion impossible à ${this.config.host}:${this.config.port} — ` +
-          (error instanceof Error ? error.message : String(error)),
+        this.say('sftp.connectFailed', {
+          host: this.config.host,
+          port: this.config.port,
+          detail: error instanceof Error ? error.message : String(error),
+        }),
         error,
       );
     }
@@ -116,7 +126,10 @@ export class SftpBackupStore implements BackupStore {
       await pipeline(body, counter, sftp.createWriteStream(target));
     } catch (error) {
       throw new BackupStoreError(
-        `SFTP : écriture de « ${key} » impossible — ${error instanceof Error ? error.message : String(error)}`,
+        this.say('sftp.writeFailed', {
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        }),
         error,
       );
     }
@@ -186,7 +199,7 @@ export class SftpBackupStore implements BackupStore {
     for await (const chunk of back) chunks.push(Buffer.from(chunk as Uint8Array));
     await this.remove(key);
     if (Buffer.concat(chunks).toString() !== 'pupitre') {
-      throw new BackupStoreError('SFTP : le fichier témoin relu ne correspond pas');
+      throw new BackupStoreError(this.say('sftp.probeMismatch'));
     }
   }
 

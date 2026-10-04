@@ -115,7 +115,11 @@ export class GiteaSourceProvider implements SourceProvider {
       await this.guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(error.message, null, 'gitea');
+        throw new SourceProviderError(
+          error.describe(this.credentials.language ?? 'fr'),
+          null,
+          'gitea',
+        );
       }
       throw error;
     }
@@ -360,7 +364,7 @@ export async function fetchGiteaAccount(
       await guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(error.message, null, 'gitea');
+        throw new SourceProviderError(error.describe(credentials.language ?? 'fr'), null, 'gitea');
       }
       throw error;
     }

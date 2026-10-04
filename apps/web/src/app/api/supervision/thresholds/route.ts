@@ -14,6 +14,7 @@ import { settings } from '@/i18n/messages/settings';
 import { NotFoundError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody, readSearchParams } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
+import { currentLanguage } from '@/i18n/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -55,13 +56,14 @@ const deleteQuerySchema = z.object({
 export const GET = apiRoute(async (request) => {
   await requirePermission(request, 'target:read');
   const rows = await listThresholdRows();
+  const language = await currentLanguage();
 
   return NextResponse.json({
     // Les défauts sont rendus explicitement : un écran qui n'affiche que les
     // exceptions ne dit pas ce qui s'applique quand il n'y en a aucune.
     catalog: HOST_METRIC_LIST.map((definition) => ({
       metric: definition.key,
-      label: definition.label,
+      label: definition.label(language),
       defaultLimitPercent: definition.defaultLimitPercent,
       defaultBreachSamples: definition.defaultBreachSamples,
       defaultClearSamples: definition.defaultClearSamples,

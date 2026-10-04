@@ -60,7 +60,7 @@ export const PATCH = apiRoute<Context>(async (request, context) => {
 
   const after = await updateNotificationChannel(id, patch).catch((error: unknown) => {
     if (error instanceof NotificationChannelNameTakenError) {
-      throw new ConflictError(error.message);
+      throw new ConflictError(msg(notifications, 'error.nameTaken', { name: error.channelName }));
     }
     throw error;
   });

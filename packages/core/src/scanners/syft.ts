@@ -13,6 +13,7 @@ import {
   type ToolCommand,
 } from './run.js';
 import type { ScanContext, ScanLogSink, Scanner } from './types.js';
+import { scannerSay } from './messages.js';
 
 /**
  * Syft — inventaire des composants (SBOM CycloneDX).
@@ -79,7 +80,7 @@ export class SyftSBOM implements Scanner {
     const raw = parseJsonOutput<CycloneDxDocument>(this.key, run);
 
     const components = Array.isArray(raw.components) ? raw.components.length : 0;
-    onLog(`${components} composant(s) inventorié(s)`);
+    onLog(scannerSay(ctx.session.language)('report.components', { count: components }));
 
     return {
       scanner: this.key,

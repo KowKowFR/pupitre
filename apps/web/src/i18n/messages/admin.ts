@@ -143,6 +143,12 @@ const fr = {
 
   // ═══ Rôles ══════════════════════════════════════════════════════════════
   'roles.title': 'Rôles',
+  'roles.error.locked':
+    'Le rôle « {key} » est verrouillé : il ne peut être ni modifié ni supprimé.',
+  'roles.error.inUse': {
+    one: '{count} utilisateur porte le rôle « {key} ». Réattribuez-le avant de supprimer le rôle.',
+    other: '{count} utilisateurs portent le rôle « {key} ». Réattribuez-les avant de le supprimer.',
+  },
   'roles.description.before':
     'Un utilisateur porte un rôle ; le rôle porte les permissions. Le rôle',
   'roles.description.after':
@@ -428,6 +434,11 @@ const en: Translated<typeof fr> = {
   'users.2fa.dialog.confirm': 'Reset the 2FA of {name}',
 
   'roles.title': 'Roles',
+  'roles.error.locked': 'Role “{key}” is locked: it can be neither changed nor deleted.',
+  'roles.error.inUse': {
+    one: '{count} user has role “{key}”. Reassign them before deleting the role.',
+    other: '{count} users have role “{key}”. Reassign them before deleting it.',
+  },
   'roles.description.before': 'A user carries a role; the role carries the permissions. The role',
   'roles.description.after':
     'is locked: it always holds every permission, so nobody can drop the rights needed to grant them back.',

@@ -21,7 +21,9 @@ import {
   type NotificationChannelRecord,
 } from '@pupitre/db';
 import { UnrecoverableError, type Job } from 'bullmq';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 
 /**
  * Les e-mails transactionnels du cycle de vie des comptes : invitation et
@@ -96,7 +98,7 @@ export async function handleAccountMail(
       after: { kind: data.kind, reason: 'no_smtp_channel' },
     });
     log.error('aucun canal SMTP actif : e-mail de compte non délivrable');
-    throw new UnrecoverableError('aucun canal SMTP actif sur cette instance');
+    throw new UnrecoverableError(workerSay(await instanceLanguage())('mail.noSmtp'));
   }
 
   const resolved = await resolveNotificationChannel(picked.id);
@@ -148,7 +150,7 @@ export async function handleAccountMail(
       },
     });
   } catch (error) {
-    const detail = describeFailure(error, resolved.resolved.secrets);
+    const detail = describeFailure(error, resolved.resolved.secrets, await instanceLanguage());
     await logAudit({
       actorId: null,
       action: 'account.mail.failed',

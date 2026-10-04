@@ -438,13 +438,15 @@ export async function hasRunningBackup(
  */
 export async function failInterruptedBackups(
   startedBefore: Date,
+  /** La raison écrite sur chaque sauvegarde, dans la langue de l'instance. */
+  reason = 'interrompue : le worker a redémarré pendant la sauvegarde',
   db: Database = getDb(),
 ): Promise<number> {
   const rows = await db
     .update(backups)
     .set({
       status: 'failed',
-      error: 'interrompue : le worker a redémarré pendant la sauvegarde',
+      error: reason,
       finishedAt: new Date(),
     })
     .where(and(eq(backups.status, 'running'), lt(backups.startedAt, startedBefore)))

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { Readable, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { errorMessage } from '@pupitre/core';
+import { errorMessage, type UiLanguage } from '@pupitre/core';
 import {
   DEFAULT_BACKUP_RETENTION,
   MANIFEST_FILE,
@@ -19,7 +19,9 @@ import {
   logAudit,
 } from '@pupitre/db';
 import { env } from '../env.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { applyRetention, openStore, storePiece } from './shared.js';
 
 /**
@@ -55,6 +57,7 @@ export function runPgTool(
   command: string,
   args: string[],
   streams: { stdout?: Writable; stdin?: Readable },
+  language: UiLanguage = 'fr',
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -68,11 +71,15 @@ export function runPgTool(
     const flows: Promise<void>[] = [];
     if (streams.stdout && child.stdout) flows.push(pipeline(child.stdout, streams.stdout));
     if (streams.stdin && child.stdin) flows.push(pipeline(streams.stdin, child.stdin));
+    // L'échec d'un tube est lu à la fin du processus (`close`). Sans processus
+    // — un binaire absent —, cette fin peut ne jamais venir : un rejet resté
+    // sans lecteur ferait alors tomber le worker entier.
+    for (const flow of flows) flow.catch(() => undefined);
     child.on('error', (error) =>
       reject(
         new Error(
           (error as NodeJS.ErrnoException).code === 'ENOENT'
-            ? `« ${command} » introuvable — l'image du worker l'embarque ; hors Docker, installez le client PostgreSQL`
+            ? workerSay(language)('backup.commandMissing', { command })
             : error.message,
         ),
       ),
@@ -81,8 +88,11 @@ export function runPgTool(
       Promise.all(flows).then(() => {
         if (code === 0) resolve();
         else {
-          const last = stderr.trim().split('\n').at(-1) ?? 'sans détail';
-          reject(new Error(`${command} a échoué (code ${code}) : ${last}`));
+          const say = workerSay(language);
+          const last = stderr.trim().split('\n').at(-1) ?? say('noDetail');
+          reject(
+            new Error(say('backup.commandFailed', { command, code: code ?? '?', detail: last })),
+          );
         }
       }, reject);
     });
@@ -101,12 +111,13 @@ export async function backupPanel(request: {
   error: string | null;
 }> {
   const log = logger.child({ backup: 'panel' });
+  const language = await instanceLanguage();
   if (!request.backupId && (await hasRunningBackup(null))) {
     return {
       status: 'skipped',
       backupId: null,
       bytes: 0,
-      error: 'une sauvegarde du panel est déjà en cours',
+      error: workerSay(language)('backup.panelRunning'),
     };
   }
 
@@ -141,9 +152,12 @@ export async function backupPanel(request: {
       opened.store,
       `${record.location}/${PANEL_DUMP_FILE}`,
       (sink) =>
-        runPgTool(env.PG_DUMP_PATH, ['--format=custom', '--no-owner', '--no-privileges'], {
-          stdout: sink,
-        }),
+        runPgTool(
+          env.PG_DUMP_PATH,
+          ['--format=custom', '--no-owner', '--no-privileges'],
+          { stdout: sink },
+          language,
+        ),
       { gzip: false },
     );
 

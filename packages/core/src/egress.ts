@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { renderMessage, type UiLanguage } from './i18n.js';
 import { classifyAddress, type AddressCategory } from './monitors/ssrf.js';
 
 /**
@@ -24,13 +25,35 @@ const FORBIDDEN: ReadonlySet<AddressCategory> = new Set<AddressCategory>([
   'multicast',
 ]);
 
+const egressCopy = {
+  fr: {
+    linkLocal:
+      '{host} mène à {address}, une adresse lien-local — celle des services de métadonnées des clouds : refusé',
+    unusable: "{host} mène à {address}, une adresse qu'aucun service ne peut porter : refusé",
+  },
+  en: {
+    linkLocal:
+      '{host} leads to {address}, a link-local address — that of the clouds’ metadata services: refused',
+    unusable: '{host} leads to {address}, an address no service can hold: refused',
+  },
+} as const;
+
+/** Le refus, en donnée : `describe()` le dit dans la langue de qui le lira. */
 export class EgressRefusedError extends Error {
   constructor(
-    message: string,
+    readonly host: string,
     readonly address: string,
+    readonly linkLocal: boolean,
   ) {
-    super(message);
+    super(renderMessage(egressCopy, 'fr', linkLocal ? 'linkLocal' : 'unusable', { host, address }));
     this.name = 'EgressRefusedError';
+  }
+
+  describe(language: UiLanguage): string {
+    return renderMessage(egressCopy, language, this.linkLocal ? 'linkLocal' : 'unusable', {
+      host: this.host,
+      address: this.address,
+    });
   }
 }
 
@@ -49,12 +72,7 @@ export async function assertEgressAllowed(
   for (const address of addresses) {
     const category = classifyAddress(address);
     if (category && FORBIDDEN.has(category)) {
-      throw new EgressRefusedError(
-        category === 'link-local'
-          ? `${host} mène à ${address}, une adresse lien-local — celle des services de métadonnées des clouds : refusé`
-          : `${host} mène à ${address}, une adresse qu'aucun service ne peut porter : refusé`,
-        address,
-      );
+      throw new EgressRefusedError(host, address, category === 'link-local');
     }
   }
 }

@@ -12,7 +12,9 @@ import {
   touchScheduledJob,
 } from '@pupitre/db';
 import type { Job } from 'bullmq';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { SCHEDULED_JOB_RUNNERS } from '../schedule/runners.js';
 
 /**
@@ -41,6 +43,7 @@ export async function handleScheduledJob(
   // La base fait foi. Un scheduler resté dans Redis alors que la tâche a été
   // désactivée ne doit rien exécuter — la réconciliation le retirera, mais elle
   // n'a lieu qu'au démarrage du worker.
+  const say = workerSay(await instanceLanguage());
   const row = await getScheduledJob(data.scheduledJobId);
   if (!row) {
     log.warn('tâche planifiée introuvable en base — occurrence ignorée');
@@ -48,7 +51,7 @@ export async function handleScheduledJob(
       scheduledJobId: data.scheduledJobId,
       type: data.type,
       status: 'skipped',
-      summary: { reason: 'tâche supprimée' },
+      summary: { reason: say('schedule.deleted') },
     };
   }
   if (!row.enabled && !data.manual) {
@@ -57,7 +60,7 @@ export async function handleScheduledJob(
       scheduledJobId: row.id,
       type: row.type,
       status: 'skipped',
-      summary: { reason: 'tâche désactivée' },
+      summary: { reason: say('schedule.disabled') },
     };
   }
 
@@ -67,7 +70,7 @@ export async function handleScheduledJob(
   const lines: string[] = [];
   const onLog = (line: string): void => {
     if (lines.length < MAX_LOG_LINES) lines.push(line);
-    else if (lines.length === MAX_LOG_LINES) lines.push('… journal tronqué');
+    else if (lines.length === MAX_LOG_LINES) lines.push(say('schedule.truncated'));
   };
 
   log.info({ type: row.type, task: definition.jobName, manual: data.manual }, 'tâche planifiée démarrée');
@@ -76,6 +79,7 @@ export async function handleScheduledJob(
     const summary = await SCHEDULED_JOB_RUNNERS[row.type]({
       payload: (row.payload ?? {}) as Record<string, unknown>,
       onLog,
+      say,
     });
 
     await finishScheduledJobRun(run.id, {

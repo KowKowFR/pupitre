@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { invalid } from '../validation.js';
 
 /**
  * Où vont les sauvegardes. Hors de la machine du panel, par principe : une
@@ -71,7 +72,7 @@ export const sftpDestinationSecretsSchema = z
     password: z.string().min(1).max(400).optional(),
     privateKey: z.string().min(1).max(16_000).optional(),
   })
-  .refine((value) => Boolean(value.password || value.privateKey), 'mot de passe ou clé privée');
+  .refine((value) => Boolean(value.password || value.privateKey), invalid('backup.sftpSecret'));
 
 export const localDestinationConfigSchema = z.object({
   /** Chemin **dans le conteneur du worker** — un volume monté. */

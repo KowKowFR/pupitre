@@ -114,7 +114,8 @@ export function scanSource(source, { jsx = true } = {}) {
    * Trois appels dont le contenu n'est jamais montré à personne, et que la
    * garde doit donc traverser sans rien relever :
    *
-   *   `logger.*()`   — la journalisation Pino. La langue du projet est le
+   *   `logger.*()`   — la journalisation Pino, `log.*()` compris (un logger
+   *                    enfant, dans le worker). La langue du projet est le
    *                    français, c'est écrit dans le brief, et un opérateur qui
    *                    lit `docker compose logs` n'est pas un utilisateur.
    *   `console.*()`  — les avertissements de démarrage, même statut.
@@ -129,8 +130,13 @@ export function scanSource(source, { jsx = true } = {}) {
    * comptage trop tôt.
    */
   function atIgnoredCall() {
-    const rest = source.slice(i, i + 24);
-    return /^(logger|console)\s*\.\s*\w+\s*\(|^new\s+Error\s*\(/.test(rest);
+    // En début de mot seulement : `dialog.info(` n'est pas un appel à `log`.
+    if (i > 0 && /[\w$]/.test(source[i - 1] ?? '')) return false;
+    const rest = source.slice(i, i + 40);
+    return (
+      /^(?:logger|log)\s*\.\s*(?:trace|debug|info|warn|error|fatal)\s*\(/.test(rest) ||
+      /^console\s*\.\s*\w+\s*\(|^new\s+Error\s*\(/.test(rest)
+    );
   }
 
   function skipCall() {

@@ -5,6 +5,8 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { LocalDestinationConfig } from '../destinations.js';
 import { BackupStoreError, probeKey, type BackupStore, type StoredObject } from './types.js';
+import type { UiLanguage } from '../../i18n.js';
+import { backupSay, type BackupSay } from '../messages.js';
 
 /**
  * Un dossier monté dans le conteneur du worker — typiquement le partage NFS ou
@@ -17,14 +19,17 @@ export class LocalBackupStore implements BackupStore {
   readonly kind = 'local' as const;
   private readonly root: string;
 
-  constructor(config: LocalDestinationConfig) {
+  private readonly say: BackupSay;
+
+  constructor(config: LocalDestinationConfig, language: UiLanguage = 'fr') {
     this.root = resolve(config.path);
+    this.say = backupSay(language);
   }
 
   private path(key: string): string {
     const target = resolve(this.root, key);
     if (target !== this.root && !target.startsWith(`${this.root}/`)) {
-      throw new BackupStoreError(`clé hors du dossier de sauvegarde : ${key}`);
+      throw new BackupStoreError(this.say('store.keyOutside', { key }));
     }
     return target;
   }
@@ -47,7 +52,10 @@ export class LocalBackupStore implements BackupStore {
     } catch (error) {
       await rm(partial, { force: true });
       throw new BackupStoreError(
-        `écriture de « ${key} » impossible — ${error instanceof Error ? error.message : String(error)}`,
+        this.say('store.writeFailed', {
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        }),
         error,
       );
     }
@@ -108,15 +116,13 @@ export class LocalBackupStore implements BackupStore {
   async check(): Promise<void> {
     const info = await stat(this.root).catch(() => null);
     if (!info?.isDirectory()) {
-      throw new BackupStoreError(
-        `le dossier ${this.root} n'existe pas dans le conteneur du worker — montez-y le partage`,
-      );
+      throw new BackupStoreError(this.say('store.localMissing', { path: this.root }));
     }
     const target = this.path(probeKey());
     await writeFile(target, 'pupitre');
     const back = await readFile(target, 'utf8');
     await unlink(target);
-    if (back !== 'pupitre') throw new BackupStoreError('le fichier témoin relu ne correspond pas');
+    if (back !== 'pupitre') throw new BackupStoreError(this.say('store.probeMismatch'));
   }
 
   async close(): Promise<void> {}

@@ -74,7 +74,13 @@ const fr = {
   'schedules.cronOrSchedule': 'fournir « cron » ou « schedule », pas les deux',
   'schedules.unreadable': 'périodicité illisible : « {value} »',
   'sources.specPath': 'chemin relatif à la racine du dépôt, sans « .. »',
+  'sources.atLeastOneTarget': 'au moins une cible',
+  'schedules.key': 'clé en minuscules, séparateurs `: . _ -`',
   'rbac.roleKey': 'clé en kebab-case : minuscules, chiffres et tirets',
+  'backup.sftpSecret': 'mot de passe ou clé privée',
+  'maintenance.endBeforeStart': 'la fin doit suivre le début',
+  'maintenance.tooLong': 'une fenêtre dure au plus {days} jours',
+  'maintenance.noSubject': 'une fenêtre couvre au moins une cible ou une sonde',
   'purge.criteria':
     'Au moins un critère est requis (ids, statuses, olderThanDays, applicationId, targetId)',
 } as const;
@@ -134,7 +140,13 @@ const en: Translated<typeof fr> = {
   'schedules.cronOrSchedule': 'give “cron” or “schedule”, not both',
   'schedules.unreadable': 'unreadable schedule: “{value}”',
   'sources.specPath': 'path relative to the repository root, without “..”',
+  'sources.atLeastOneTarget': 'at least one target',
+  'schedules.key': 'lowercase key, separators `: . _ -`',
   'rbac.roleKey': 'kebab-case key: lowercase letters, digits and dashes',
+  'backup.sftpSecret': 'password or private key',
+  'maintenance.endBeforeStart': 'the end must come after the start',
+  'maintenance.tooLong': 'a window lasts at most {days} days',
+  'maintenance.noSubject': 'a window covers at least one target or probe',
   'purge.criteria':
     'At least one criterion is required (ids, statuses, olderThanDays, applicationId, targetId)',
 };

@@ -13,7 +13,8 @@ import { logAudit } from '@pupitre/db';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { currentLanguage } from '@/i18n/server';
-import { ConflictError } from '@/lib/errors';
+import { notifications } from '@/i18n/messages/notifications';
+import { ConflictError, msg } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { requirePermission } from '@/lib/rbac';
 
@@ -88,7 +89,7 @@ export const POST = apiRoute(async (request) => {
     auth.userId,
   ).catch((error: unknown) => {
     if (error instanceof NotificationChannelNameTakenError) {
-      throw new ConflictError(error.message);
+      throw new ConflictError(msg(notifications, 'error.nameTaken', { name: error.channelName }));
     }
     throw error;
   });

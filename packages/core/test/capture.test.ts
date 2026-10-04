@@ -4,7 +4,6 @@ import { AddressInfo } from 'node:net';
 import { after, test } from 'node:test';
 import {
   CAPTURE_KINDS,
-  CAPTURE_KIND_SHORT,
   MONITOR_CAPTURE_MAX_BYTES,
   MONITOR_CAPTURE_MAX_HEIGHT,
   MONITOR_CAPTURE_QUALITY,
@@ -67,11 +66,10 @@ test('la cadence de référence se compte en heures, pas en mesures', () => {
   assert.equal(referenceIsDue(old, now), true);
 });
 
-test('les trois moments de capture ont un libellé, et il n’y en a que trois', () => {
+// Leurs libellés sont ceux de l'écran des captures (`capture.kind.*`), dans
+// la langue de l'instance : le cœur ne garde que les moments.
+test('il n’y a que trois moments de capture', () => {
   assert.deepEqual([...CAPTURE_KINDS], ['reference', 'incident_open', 'incident_resolved']);
-  for (const kind of CAPTURE_KINDS) {
-    assert.ok(CAPTURE_KIND_SHORT[kind].length > 0);
-  }
 });
 
 test("seules les URL qu'un navigateur peut ouvrir sont capturables", () => {

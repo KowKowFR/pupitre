@@ -115,6 +115,7 @@ export class DiscordChannel implements NotificationChannel {
   ): Promise<NotificationTestResult> {
     try {
       const result = await httpCall({
+        language,
         channel: this.kind,
         fetch: this.fetchImpl,
         url: this.url(resolved, language),
@@ -140,6 +141,7 @@ export class DiscordChannel implements NotificationChannel {
     const username = str(resolved.config, 'username');
 
     await httpCall({
+      language: message.language,
       channel: this.kind,
       fetch: this.fetchImpl,
       url: this.url(resolved, message.language),
@@ -196,6 +198,7 @@ export class DiscordChannel implements NotificationChannel {
     ].join('\n');
 
     await httpCall({
+      language: digest.language,
       channel: this.kind,
       fetch: this.fetchImpl,
       url: this.url(resolved, digest.language),

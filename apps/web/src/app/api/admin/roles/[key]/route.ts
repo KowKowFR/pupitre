@@ -24,13 +24,17 @@ type Context = { params: Promise<{ key: string }> };
 /** Un rôle verrouillé se lit, mais ne se modifie pas : 409, pas 403. */
 function translate(error: unknown): never {
   if (error instanceof LockedRoleError) {
-    throw new HttpError(409, 'role_locked', error.message, { key: error.key });
+    throw new HttpError(409, 'role_locked', msg(admin, 'roles.error.locked', { key: error.key }), {
+      key: error.key,
+    });
   }
   if (error instanceof RoleInUseError) {
-    throw new HttpError(409, 'role_in_use', error.message, {
-      key: error.key,
-      userCount: error.userCount,
-    });
+    throw new HttpError(
+      409,
+      'role_in_use',
+      msg(admin, 'roles.error.inUse', { key: error.key, count: error.userCount }),
+      { key: error.key, userCount: error.userCount },
+    );
   }
   throw error;
 }

@@ -19,6 +19,7 @@ import {
   type ToolCommand,
 } from './run.js';
 import type { ScanContext, ScanLogSink, Scanner } from './types.js';
+import { scannerSay } from './messages.js';
 
 /**
  * Grype — vulnérabilités, base Anchore.
@@ -94,7 +95,7 @@ export class GrypeScanner implements Scanner {
     const raw = parseJsonOutput<GrypeOutput>(this.key, run);
     const findings = normalizeGrypeReport(raw);
 
-    onLog(`${findings.length} vulnérabilité(s) rapportée(s)`);
+    onLog(scannerSay(ctx.session.language)('report.vulnerabilities', { count: findings.length }));
 
     return {
       scanner: this.key,

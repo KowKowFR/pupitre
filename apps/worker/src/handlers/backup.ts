@@ -18,7 +18,9 @@ import { backupApplication } from '../backup/application.js';
 import { backupPanel } from '../backup/panel.js';
 import { restoreApplicationBackup } from '../backup/restore.js';
 import { openStore } from '../backup/shared.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 
 /**
  * Les tâches de la file `backups` — et le test d'une destination, sur
@@ -76,7 +78,12 @@ export async function handleBackupDelete(job: Job): Promise<BackupJobResult> {
   const data = backupDeleteJobDataSchema.parse(job.data);
   const backup = await getBackup(data.backupId);
   if (!backup)
-    return { backupId: data.backupId, status: 'skipped', bytes: 0, detail: 'déjà effacée' };
+    return {
+      backupId: data.backupId,
+      status: 'skipped',
+      bytes: 0,
+      detail: workerSay(await instanceLanguage())('backup.alreadyDeleted'),
+    };
   const opened = await openStore(backup.destinationId).catch(() => null);
   let removed = 0;
   try {

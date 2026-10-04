@@ -126,7 +126,9 @@ import {
 import { handleSourceDeploy, handleSourcePoll } from './handlers/source.js';
 import { handleSourceArchiveInspect } from './handlers/source-archive.js';
 import { reconcileFailedDeploymentJob } from './deploy/abandoned.js';
+import { instanceLanguage } from './language.js';
 import { logger } from './logger.js';
+import { workerSay } from './messages.js';
 import { closeOpsQueue, getOpsQueue, getSupervisionQueue } from './queue.js';
 import { reconcileSchedulers } from './schedule/reconcile.js';
 import { installRealtimeAudit, installRealtimeJobEvents } from './realtime.js';
@@ -664,7 +666,10 @@ async function main(): Promise<void> {
 
   // Ce qui « tournait » quand le worker s'est arrêté ne tourne plus : le dire.
   try {
-    const interrupted = await failInterruptedBackups(new Date());
+    const interrupted = await failInterruptedBackups(
+      new Date(),
+      workerSay(await instanceLanguage())('backup.interrupted'),
+    );
     if (interrupted > 0)
       logger.warn({ interrupted }, 'sauvegardes interrompues par le redémarrage');
   } catch (error) {

@@ -5,6 +5,7 @@ import {
   type TargetMetricSample,
 } from '@pupitre/db';
 import { logger } from '../logger.js';
+import { instanceLanguage } from '../language.js';
 
 /**
  * ⟵ **LA COUTURE** ⟶
@@ -54,6 +55,8 @@ export async function notifyBreachTransition(
 ): Promise<void> {
   const definition = HOST_METRIC_CATALOG[transition.metric];
   const breach = transition.breach;
+  // L'alerte est composée ici, une fois : dans la langue de l'instance.
+  const language = await instanceLanguage();
 
   const durationSeconds = breach.resolvedAt
     ? Math.max(0, Math.round((breach.resolvedAt.getTime() - breach.startedAt.getTime()) / 1000))
@@ -70,10 +73,10 @@ export async function notifyBreachTransition(
     after: {
       targetName: target.name,
       metric: transition.metric,
-      metricLabel: definition.label,
+      metricLabel: definition.label(language),
       // La phrase toute faite : « disque /opt/bootstrap à 92.4 % ». Le catalogue
       // la compose, parce qu'il est le seul à savoir ce que la valeur signifie.
-      detail: definition.describe(transition.value, sample),
+      detail: definition.describe(transition.value, sample, language),
       value: transition.value,
       limitPercent: breach.limitPercent,
       peakValue: breach.peakValue,
