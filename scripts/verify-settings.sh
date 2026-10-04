@@ -122,15 +122,15 @@ page() {
 fingerprint() {
   local skip="$1" file="$2"
   jq -S --arg skip "$skip" '{
-    identite: { nom: .settings.instanceName, sous_titre: .settings.instanceTagline },
-    regionalisation: {
+    identity: { name: .settings.instanceName, tagline: .settings.instanceTagline },
+    regional: {
       tz: .settings.timezone, locale: .settings.locale,
-      date: .settings.dateStyle, heure: .settings.timeStyle
+      date: .settings.dateStyle, time: .settings.timeStyle
     },
-    securite: .settings.security,
-    ia: (.settings.ai + { cle: .aiApiKeyConfigured, last4: .aiApiKeyLast4 }),
-    comptes: .settings.accounts,
-    demarrage: .settings.onboarding
+    security: .settings.security,
+    ai: (.settings.ai + { key: .aiApiKeyConfigured, last4: .aiApiKeyLast4 }),
+    accounts: .settings.accounts,
+    onboarding: .settings.onboarding
   } | del(.[$skip])' "$file"
 }
 
@@ -511,7 +511,7 @@ case "$root" in
 esac
 pass "/admin/settings leads to the Identity tab"
 page /admin/settings/security "$WORK/group.html"
-for target in identite securite integrations sauvegardes connexion comptes; do
+for target in identity security integrations backups sso accounts; do
   grep -q "href=\"/admin/settings/$target\"" "$WORK/group.html" \
     || fail "the rail or the tabs of \"Security and access\" do not lead to /admin/settings/$target"
 done
@@ -581,27 +581,27 @@ isolate() {
   pass "\"$name\" saved alone — the other sections are intact down to the bit"
 }
 
-isolate identite \
+isolate identity \
   '{"instanceName":"Renommée depuis sa section"}' \
   '.settings.instanceName == "Renommée depuis sa section"
    and .settings.instanceTagline == "témoin de cloisonnement"'
 
-isolate regionalisation \
+isolate regional \
   '{"timezone":"Europe/Lisbon"}' \
   '.settings.timezone == "Europe/Lisbon" and .settings.locale == "en-GB"
    and .settings.dateStyle == "long" and .settings.timeStyle == "short"'
 
-isolate securite \
+isolate security \
   '{"security":{"failOn":"NONE"}}' \
   '.settings.security == {"scanningEnabled":true,"disabledScanners":["syft"],"failOn":"NONE","onlyFixable":false}'
 
-isolate ia \
+isolate ai \
   '{"ai":{"temperature":0.15}}' \
   '.settings.ai.temperature == 0.15 and .settings.ai.model == "gpt-4.1-mini"
    and .settings.ai.maxTokens == 1024 and .settings.ai.enabled == false
    and .aiApiKeyConfigured == true'
 
-isolate comptes \
+isolate accounts \
   '{"accounts":{"sessionMaxHours":168}}' \
   '.settings.accounts == {"twoFactorPolicy":"off","sessionIdleHours":8,"sessionMaxHours":168}'
 
