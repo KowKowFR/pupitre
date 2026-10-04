@@ -1066,7 +1066,7 @@ export class DockerComposeDriver implements DeploymentDriver {
     onLog(this.say(ctx)('start.done'));
   }
 
-  // ─── charges de la cible ────────────────────────────────────────────────────
+  // ─── the target's workloads ─────────────────────────────────────────────────
 
   /**
    * Everything running on the machine, the panel included.
@@ -1756,7 +1756,7 @@ export function hasBuildableService(spec: AppSpec): boolean {
   return spec.services.some((service) => service.source.type === 'dockerfile');
 }
 
-// ─── charges de la cible : lecture de Docker ──────────────────────────────────
+// ─── the target's workloads: reading Docker ───────────────────────────────────
 
 /**
  * Labels the Compose render sets on each service (`docker/render.ts`).
@@ -2101,7 +2101,7 @@ function renderCreateArgs(raw: DockerInspect, defaults: ImageDefaults, name: str
   return args;
 }
 
-/** `sha256:<id> ["nginx@sha256:…"]` par ligne → identifiant d'image → digests. */
+/** `sha256:<id> ["nginx@sha256:…"]` per line → image identifier → digests. */
 export function parseRepoDigests(output: string): Map<string, string[]> {
   const digests = new Map<string, string[]>();
   for (const line of output.split('\n')) {

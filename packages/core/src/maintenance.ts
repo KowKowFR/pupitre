@@ -3,24 +3,24 @@ import { invalid, type ValidationRef } from './validation.js';
 import { instantOfWallClock, wallClockOf } from './schedule.js';
 
 /**
- * Les fenêtres de maintenance : « prod-1 en maintenance de 22 h à 23 h ».
+ * Maintenance windows: "prod-1 under maintenance from 10 pm to 11 pm".
  *
- * Pendant une fenêtre, les alertes de supervision de ses sujets sont
- * **retenues** au moment de l'envoi — le journal, lui, garde tout. À la fin,
- * ce qui est resté en panne part : une alerte ne se perd jamais, elle attend.
- * Ce module ne porte que des règles pures ; la base tient les fenêtres et les
- * alertes retenues, le worker décide à l'envoi et ferme les fenêtres.
+ * During a window, the monitoring alerts of its subjects are **held** at send
+ * time — the log keeps everything. At the end, what stayed down goes out: an
+ * alert is never lost, it waits. This module only carries pure rules; the
+ * database holds the windows and the held alerts, the worker decides at send
+ * time and closes the windows.
  */
 
-/** Une fenêtre ne dépasse pas un mois : au-delà, c'est une alerte qu'on a coupée. */
+/** A window does not exceed a month: beyond that, it is an alert that was turned off. */
 export const MAINTENANCE_MAX_DAYS = 31;
 
-/** Ce qu'une fenêtre couvre au plus, pour garder la liste lisible et la requête bornée. */
+/** What a window covers at most, to keep the list readable and the query bounded. */
 export const MAINTENANCE_MAX_SUBJECTS = 100;
 
 export type MaintenancePhase = 'upcoming' | 'active' | 'ended';
 
-/** La phase d'une fenêtre à l'instant `now` : la fin est exclue, le début inclus. */
+/** A window's phase at instant `now`: the end is excluded, the start included. */
 export function maintenancePhase(
   window: { startsAt: Date | string; endsAt: Date | string },
   now: number = Date.now(),
@@ -44,9 +44,9 @@ const maintenanceFieldsSchema = z.object({
 export type MaintenanceFields = z.infer<typeof maintenanceFieldsSchema>;
 
 /**
- * Les règles d'une fenêtre complète : une fin après le début, une durée bornée,
- * au moins un sujet. Appliquées à la création comme après une modification
- * partielle, sur la fenêtre qui en résulte.
+ * The rules of a complete window: an end after the start, a bounded duration, at
+ * least one subject. Applied at creation as after a partial change, on the
+ * resulting window.
  */
 export function maintenanceProblems(
   fields: MaintenanceFields,
@@ -82,22 +82,22 @@ export const createMaintenanceSchema = maintenanceFieldsSchema
 
 export type CreateMaintenanceInput = z.infer<typeof createMaintenanceSchema>;
 
-/** Une modification partielle : les règles s'appliquent ensuite à la fenêtre entière. */
+/** A partial change: the rules then apply to the whole window. */
 export const updateMaintenanceSchema = maintenanceFieldsSchema
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, invalid('nothingToChange'));
 
 export type UpdateMaintenanceInput = z.infer<typeof updateMaintenanceSchema>;
 
-// ─── Les alertes retenues ─────────────────────────────────────────────────────
+// ─── Held alerts ──────────────────────────────────────────────────────────────
 
-/** Le sujet d'une alerte de supervision, pour savoir si une fenêtre le couvre. */
+/** The subject of a monitoring alert, to know whether a window covers it. */
 export type MaintenanceSubject = { type: 'target' | 'monitor' | 'route'; id: string };
 
 /**
- * Comment une alerte se range pendant une maintenance : son sujet, sa
- * **famille** (la panne et le rétablissement d'un même sujet en forment une),
- * et si elle ouvre un problème ou le referme.
+ * How an alert is filed during maintenance: its subject, its **family** (the
+ * outage and the recovery of the same subject form one), and whether it opens a
+ * problem or closes it.
  */
 export type MaintenanceRule = {
   readonly subject: (entry: {
@@ -111,10 +111,9 @@ export type MaintenanceRule = {
 export type HeldAlert = { id: string; family: string; opens: boolean; heldAt: Date };
 
 /**
- * Ce qui part à la fin d'une fenêtre : pour chaque famille, la **dernière**
- * alerte retenue, si elle ouvre un problème. Une panne réparée pendant la
- * maintenance (panne puis rétablissement) ne réveille personne ; une panne
- * toujours là, si.
+ * What goes out at the end of a window: for each family, the **last** held
+ * alert, if it opens a problem. An outage repaired during the maintenance
+ * (outage then recovery) wakes nobody up; an outage still there does.
  */
 export function alertsToRelease<T extends HeldAlert>(held: readonly T[]): T[] {
   const latest = new Map<string, T>();
@@ -129,18 +128,18 @@ export function alertsToRelease<T extends HeldAlert>(held: readonly T[]): T[] {
     .sort((a, b) => a.heldAt.getTime() - b.heldAt.getTime());
 }
 
-// ─── Saisie dans le fuseau de l'instance ─────────────────────────────────────
+// ─── Input in the instance's time zone ───────────────────────────────────────
 
 /**
- * Un instant, en « AAAA-MM-JJTHH:MM » dans le fuseau de l'instance — la valeur
- * d'un `<input type="datetime-local">`. Le panel affiche ses dates dans ce
- * fuseau : la saisie doit parler le même, pas celui du navigateur.
+ * An instant, as "YYYY-MM-DDTHH:MM" in the instance's time zone — the value of a
+ * `<input type="datetime-local">`. The panel shows its dates in that time zone:
+ * input must speak the same one, not the browser's.
  */
 export function toWallClockInput(instant: Date | string, timeZone: string): string {
   return new Date(wallClockOf(new Date(instant).getTime(), timeZone)).toISOString().slice(0, 16);
 }
 
-/** L'inverse : une heure murale saisie dans le fuseau de l'instance, en ISO. `null` si illisible. */
+/** The reverse: a wall-clock time in the instance's time zone, as ISO. `null` if unreadable. */
 export function fromWallClockInput(value: string, timeZone: string): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
   if (!match) return null;

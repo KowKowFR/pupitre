@@ -4,46 +4,47 @@ import { firstLine, shellQuote } from '../shell.js';
 import { driverSay } from './messages.js';
 
 /**
- * Pare-feu UFW sur la machine cible.
+ * UFW firewall on the target machine.
  *
- * Deux principes :
+ * Two principles:
  *
- * 1. **On ne force jamais l'activation.** Un panel qui active le pare-feu d'une
- *    machine qu'il ne connaît pas peut couper la session SSH qui le pilote.
- *    UFW inactif → avertissement, et on continue : le port publié par Docker
- *    est joignable de toute façon, c'est le pare-feu qui ne filtre rien.
+ * 1. **We never force enabling it.** A panel that enables the firewall of a
+ *    machine it does not know can cut the SSH session that drives it. UFW
+ *    inactive → warning, and we go on: the port published by Docker is
+ *    reachable anyway, it is the firewall that filters nothing.
  *
- * 2. **La règle est identifiée par son commentaire, pas par son numéro.**
- *    `ufw status numbered` renumérote à chaque suppression : une règle effacée
- *    par index efface la voisine dès qu'une autre est partie entre-temps. Le
- *    commentaire `pupitre:{slug}` est stable, et il dit aussi à
- *    l'administrateur de la machine qui a ouvert ce port et pour quoi.
+ * 2. **The rule is identified by its comment, not by its number.**
+ *    `ufw status numbered` renumbers at each deletion: a rule deleted by index
+ *    deletes its neighbor as soon as another one left in the meantime. The
+ *    `pupitre:{slug}` comment is stable, and it also tells the machine's
+ *    administrator who opened this port and what for.
  */
 
 const UFW_TIMEOUT_MS = 30_000;
 
-/** Marqueur posé sur chaque règle créée par le panel. */
+/** Marker set on each rule created by the panel. */
 export function ufwComment(appSlug: string): string {
   return `${UFW_MARKER}:${appSlug}`;
 }
 
 /**
- * Le préfixe des règles que le panel s'attribue, et celui d'avant le renommage.
+ * The prefix of the rules the panel claims, and the one from before the
+ * renaming.
  *
- * Ces commentaires sont **écrits dans le pare-feu de la machine cible**, pas
- * chez nous. Une règle ouverte hier porte `bootstrap-tp:`, et si le panel
- * cessait de la reconnaître il cesserait aussi de la refermer : le port
- * resterait ouvert après la destruction de l'application, sans que rien ne le
- * signale. Un renommage ne doit pas laisser de porte ouverte derrière lui.
+ * These comments are **written in the target machine's firewall**, not on our
+ * side. A rule opened yesterday carries `bootstrap-tp:`, and if the panel
+ * stopped recognizing it, it would also stop closing it: the port would stay
+ * open after the application is destroyed, with nothing to report it. A
+ * renaming must not leave an open door behind it.
  *
- * On écrit donc le nouveau et on lit les deux, `UFW_MARKERS` étant la liste que
- * consultent le nettoyage et le preflight.
+ * We therefore write the new one and read both, `UFW_MARKERS` being the list
+ * the cleanup and the preflight consult.
  */
 export const UFW_MARKER = 'pupitre';
 export const LEGACY_UFW_MARKER = 'bootstrap-tp';
 export const UFW_MARKERS = [UFW_MARKER, LEGACY_UFW_MARKER] as const;
 
-/** La ligne de `ufw status` appartient-elle au panel, toutes générations ? */
+/** Does the `ufw status` line belong to the panel, all generations included? */
 export function isManagedUfwRule(line: string): boolean {
   return UFW_MARKERS.some((marker) => line.includes(`${marker}:`));
 }
@@ -51,10 +52,10 @@ export function isManagedUfwRule(line: string): boolean {
 export type UfwState = 'active' | 'inactive' | 'absent';
 
 /**
- * État du pare-feu.
+ * Firewall state.
  *
- * `ufw status` exige root : on passe par sudo, et on retombe sur `absent` quand
- * le binaire n'est pas là — ce qui est le cas de bien des images minimales.
+ * `ufw status` requires root: we go through sudo, and fall back on `absent` when
+ * the binary is not there — which is the case of many minimal images.
  */
 export async function ufwState(ctx: TargetContext): Promise<UfwState> {
   const present = await exec(ctx.sshSession, 'command -v ufw >/dev/null 2>&1', {
@@ -70,10 +71,10 @@ export async function ufwState(ctx: TargetContext): Promise<UfwState> {
 }
 
 /**
- * Ouvre `port/tcp` avec le commentaire de l'application.
+ * Opens `port/tcp` with the application's comment.
  *
- * `ufw allow` est idempotent : rejouer la même règle produit
- * « Skipping adding existing rule ». On ne teste donc pas avant d'ajouter.
+ * `ufw allow` is idempotent: replaying the same rule produces "Skipping adding
+ * existing rule". We therefore do not test before adding.
  */
 export async function ufwAllow(
   ctx: DriverContext,
@@ -84,16 +85,16 @@ export async function ufwAllow(
 }
 
 /**
- * Le même geste pour ce qui n'est pas une application — les ports 80 et 443
- * d'un reverse proxy installé par Pupitre. Le commentaire porte le marqueur :
- * la règle reste reconnaissable comme posée par le panel.
+ * The same gesture for what is not an application — ports 80 and 443 of a
+ * reverse proxy installed by Pupitre. The comment carries the marker: the rule
+ * stays recognizable as set by the panel.
  */
 export async function ufwAllowPort(
   ctx: TargetContext,
   port: number,
   comment: string,
   onLog: LogSink,
-  /** N'ouvrir qu'à cette adresse — un proxy distant. Absente : à tous. */
+  /** Only open to this address — a remote proxy. Absent: to everyone. */
   from?: string,
 ): Promise<void> {
   const say = driverSay(ctx.language);
@@ -114,8 +115,8 @@ export async function ufwAllowPort(
   });
 
   if (result.code !== 0) {
-    // Un pare-feu qui refuse une règle n'est pas une raison de perdre le
-    // déploiement : on le dit fort, on ne l'interrompt pas.
+    // A firewall that refuses a rule is no reason to lose the deployment: we say it
+    // loudly, we do not interrupt it.
     onLog(
       say('ufw.ruleFailed', { rule, detail: firstLine(result.stderr) ?? `code ${result.code}` }),
     );
@@ -125,11 +126,11 @@ export async function ufwAllowPort(
 }
 
 /**
- * Supprime les règles portant le commentaire de l'application.
+ * Deletes the rules carrying the application's comment.
  *
- * `ufw delete allow <port>/tcp` supprime par correspondance de règle, pas par
- * numéro. On vérifie ensuite que plus rien ne porte notre commentaire sur ce
- * port : c'est le commentaire qui fait foi, il est notre marqueur.
+ * `ufw delete allow <port>/tcp` deletes by rule match, not by number. We then
+ * check that nothing carries our comment on this port anymore: it is the
+ * comment that is authoritative, it is our marker.
  */
 export async function ufwDelete(
   ctx: DriverContext,
@@ -148,10 +149,10 @@ export async function ufwDelete(
     sudo: true,
     timeout: UFW_TIMEOUT_MS,
   });
-  // Une règle limitée à une source — celle d'un proxy distant — ne se retire
-  // pas par `delete allow <port>/tcp` : on la retrouve par son numéro, à notre
-  // marqueur et au port, du plus grand au plus petit pour que les numéros
-  // restants ne bougent pas.
+  // A rule limited to a source — that of a remote proxy — is not removed by
+  // `delete allow <port>/tcp`: we find it by its number, from our marker and the
+  // port, from the largest to the smallest so that the remaining numbers do not
+  // move.
   await exec(
     ctx.sshSession,
     `ufw status numbered | grep -E ${shellQuote(UFW_MARKERS.map((marker) => `${marker}:`).join('|'))} ` +
@@ -160,11 +161,11 @@ export async function ufwDelete(
     { sudo: true, timeout: UFW_TIMEOUT_MS },
   );
 
-  // La suppression se fait par correspondance de règle (`allow <port>/tcp`),
-  // jamais par commentaire : une règle d'avant le renommage est donc retirée
-  // comme les autres. Le contrôle qui suit, lui, doit accepter les deux
-  // marqueurs — sinon un reliquat portant l'ancien passerait pour une absence,
-  // et le port resterait ouvert sans que rien ne le dise.
+  // Deletion is done by rule match (`allow <port>/tcp`), never by comment: a rule
+  // from before the renaming is therefore removed like the others. The check that
+  // follows must accept both markers — otherwise a leftover carrying the old one
+  // would pass for an absence, and the port would stay open without anything
+  // saying so.
   const markers = UFW_MARKERS.map((marker) => `${marker}:`).join('|');
   const remaining = await exec(
     ctx.sshSession,

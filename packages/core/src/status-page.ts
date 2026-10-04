@@ -2,24 +2,23 @@ import { z } from 'zod';
 import { invalid } from './validation.js';
 
 /**
- * Les pages de statut publiques : `/status`, `/status/<adresse>`.
+ * Public status pages: `/status`, `/status/<address>`.
  *
- * Une page est une **liste de blocs** que l'administrateur compose et ordonne.
- * Ce module porte leur forme (validée par Zod, la même côté éditeur et côté
- * API) et les règles qui transforment l'état interne d'une sonde en ce qu'un
- * visiteur peut lire. Il ne sort **jamais** d'une page : ni URL sondée, ni
- * message d'erreur, ni nom de machine — seulement les libellés choisis, des
- * états et des durées.
+ * A page is a **list of blocks** the administrator composes and orders. This
+ * module carries their shape (validated by Zod, the same on the editor side and
+ * the API side) and the rules that turn a probe's internal state into what a
+ * visitor can read. It **never** leaks out of a page: no probed URL, no error
+ * message, no machine name — only the chosen labels, states and durations.
  */
 
-/** Une adresse : vide pour `/status`, sinon des minuscules, des chiffres et des tirets. */
+/** An address: empty for `/status`, otherwise lowercase letters, digits and dashes. */
 export const statusPageSlugSchema = z
   .string()
   .trim()
   .max(60)
   .regex(/^(?:[a-z0-9]+(?:-[a-z0-9]+)*)?$/, 'minuscules, chiffres et tirets, sans tiret au bord');
 
-/** Le chemin public d'une page. */
+/** A page's public path. */
 export function statusPagePath(slug: string): string {
   return slug === '' ? '/status' : `/status/${slug}`;
 }
@@ -32,10 +31,10 @@ export const STATUS_PAGE_INCIDENT_DAYS = [7, 14, 30] as const;
 const blockId = z.string().min(1).max(64);
 
 export const statusBlockSchema = z.discriminatedUnion('type', [
-  /** La bande d'état général : « Tous les services fonctionnent ». */
+  /** The overall status band: "All services are operational". */
   z.object({ id: blockId, type: z.literal('summary') }),
   z.object({ id: blockId, type: z.literal('heading'), text: z.string().trim().min(1).max(120) }),
-  /** Du texte brut ; les retours à la ligne sont gardés, aucun HTML n'est interprété. */
+  /** Plain text; line breaks are kept, no HTML is interpreted. */
   z.object({ id: blockId, type: z.literal('text'), text: z.string().trim().min(1).max(2000) }),
   z.object({
     id: blockId,
@@ -45,20 +44,20 @@ export const statusBlockSchema = z.discriminatedUnion('type', [
       .array(
         z.object({
           monitorId: z.string().uuid(),
-          /** Le nom public ; `null` reprend le nom de la sonde. */
+          /** The public name; `null` reuses the probe's name. */
           label: z.string().trim().max(80).nullable(),
         }),
       )
       .min(1)
       .max(STATUS_PAGE_MAX_SERVICES),
-    /** Une barre par jour sur les trente derniers jours. */
+    /** One bar per day over the last thirty days. */
     history: z.boolean(),
-    /** Le taux de disponibilité sur la même période. */
+    /** The availability rate over the same period. */
     uptime: z.boolean(),
   }),
-  /** Les maintenances en cours et à venir qui touchent les services de la page. */
+  /** The ongoing and upcoming maintenance windows that touch the page's services. */
   z.object({ id: blockId, type: z.literal('maintenance') }),
-  /** Les pannes récentes des services de la page. */
+  /** The recent outages of the page's services. */
   z.object({
     id: blockId,
     type: z.literal('incidents'),
@@ -78,10 +77,10 @@ export const STATUS_BLOCK_TYPES = [
 ] as const satisfies readonly StatusBlockType[];
 
 /**
- * Les champs d'une page, **sans** valeurs par défaut. Elles vivent dans le
- * schéma de création seulement : `.partial()` sur un champ porteur de
- * `.default()` le remplit quand il manque, et un `PATCH { title }` remettait
- * la page en brouillon, sans description ni blocs.
+ * A page's fields, **without** default values. Those live in the creation
+ * schema only: `.partial()` on a field carrying `.default()` fills it when it is
+ * missing, and a `PATCH { title }` put the page back to draft, without a
+ * description or blocks.
  */
 const statusPageFields = z.object({
   slug: statusPageSlugSchema,
@@ -109,7 +108,7 @@ export const updateStatusPageSchema = statusPageFields
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, invalid('nothingToChange'));
 
-/** Les sondes qu'une page montre, dans l'ordre des blocs, sans doublon. */
+/** The probes a page shows, in block order, without duplicates. */
 export function statusPageMonitorIds(blocks: readonly StatusBlock[]): string[] {
   const ids: string[] = [];
   for (const block of blocks) {
@@ -119,15 +118,15 @@ export function statusPageMonitorIds(blocks: readonly StatusBlock[]): string[] {
   return ids;
 }
 
-// ─── Ce qu'un visiteur lit ────────────────────────────────────────────────────
+// ─── What a visitor reads ─────────────────────────────────────────────────────
 
 export const PUBLIC_STATES = ['operational', 'degraded', 'down', 'maintenance', 'unknown'] as const;
 export type PublicState = (typeof PUBLIC_STATES)[number];
 
 /**
- * L'état public d'une sonde. Une maintenance l'emporte : une panne voulue se
- * dit « en maintenance », pas « en panne ». Une sonde suspendue ne mesure plus
- * rien : son état est inconnu, pas « en service ».
+ * A probe's public state. A maintenance window wins: an intended outage reads
+ * "under maintenance", not "down". A paused probe no longer measures anything:
+ * its state is unknown, not "operational".
  */
 export function publicStateOf(monitor: {
   status: string;
@@ -159,9 +158,9 @@ export const OVERALL_STATES = [
 export type OverallState = (typeof OVERALL_STATES)[number];
 
 /**
- * L'état général d'une page, à partir de ses services. Toute panne compte :
- * plus de la moitié en panne, c'est une panne majeure ; jusqu'à la moitié,
- * partielle — un service sur deux n'est pas « tout est tombé ».
+ * A page's overall state, from its services. Every outage counts: more than
+ * half down is a major outage; up to half, partial — one service out of two is
+ * not "everything is down".
  */
 export function overallStateOf(states: readonly PublicState[]): OverallState {
   if (states.length === 0) return 'unknown';
@@ -181,9 +180,9 @@ export type DayBar = {
 };
 
 /**
- * Une barre par jour, du plus ancien au plus récent, sur `days` jours finissant
- * à `today` (« AAAA-MM-JJ », dans le fuseau de l'instance). Un jour sans mesure
- * reste vide plutôt que d'être compté « en service ».
+ * One bar per day, from oldest to newest, over `days` days ending on `today`
+ * ("YYYY-MM-DD", in the instance's time zone). A day without measurements stays
+ * empty rather than being counted as "operational".
  */
 export function dayBars(tallies: readonly DayTally[], today: string, days: number): DayBar[] {
   const byDay = new Map(tallies.map((tally) => [tally.day, tally]));
@@ -206,7 +205,7 @@ export function dayBars(tallies: readonly DayTally[], today: string, days: numbe
   return bars;
 }
 
-/** Le taux de disponibilité sur la période, en pourcentage ; `null` sans mesure. */
+/** The availability rate over the period, as a percentage; `null` without measurements. */
 export function uptimeOf(tallies: readonly DayTally[]): number | null {
   const total = tallies.reduce((sum, tally) => sum + tally.total, 0);
   if (total === 0) return null;

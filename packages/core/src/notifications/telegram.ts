@@ -21,25 +21,25 @@ import {
 } from './types.js';
 
 /**
- * Telegram, par l'API Bot.
+ * Telegram, through the Bot API.
  *
- * ── Les échappements de MarkdownV2 ──────────────────────────────────────────
- * MarkdownV2 exige que **dix-huit** caractères soient précédés d'une barre
- * oblique inverse, y compris le point, le tiret et le point d'exclamation.
- * Autrement dit : n'importe quelle phrase française ordinaire fait échouer
- * l'appel avec un « can't parse entities » incompréhensible, et un message
- * d'incident qui ne part pas est pire qu'un message mal mis en forme.
+ * ── MarkdownV2 escapes ──────────────────────────────────────────────────────
+ * MarkdownV2 requires **eighteen** characters to be preceded by a backslash,
+ * including the period, the dash and the exclamation mark. In other words: any
+ * ordinary sentence fails the call with an incomprehensible "can't parse
+ * entities", and an incident message that does not go out is worse than a badly
+ * formatted message.
  *
- * D'où deux règles, tenues ici et nulle part ailleurs :
- *   — tout ce qui vient du message neutre est échappé caractère par caractère ;
- *   — les seuls signes de balisage non échappés sont ceux que *ce fichier*
- *     écrit lui-même (`*` pour le titre, `` ` `` pour les valeurs).
+ * Hence two rules, held here and nowhere else:
+ *   — everything that comes from the neutral message is escaped character by
+ *     character;
+ *   — the only unescaped markup signs are those *this file* writes itself (`*`
+ *     for the title, `` ` `` for values).
  */
 
 /**
- * Ce que ce canal ajoute autour du message neutre : la phrase courte qui
- * remplace le corps d'un résumé sur un téléphone, et les deux verdicts de
- * `getMe`.
+ * What this channel adds around the neutral message: the short sentence that
+ * replaces a digest's body on a phone, and `getMe`'s two verdicts.
  */
 const fr = {
   'digest.header': '{count} alertes entre {start} et {end} (UTC), regroupées.',
@@ -67,7 +67,7 @@ function t(
   return renderMessage(TELEGRAM_TEXT, language, key, vars);
 }
 
-/** Les dix-huit caractères réservés de MarkdownV2, à la lettre. */
+/** MarkdownV2's eighteen reserved characters, to the letter. */
 const RESERVED = /[_*[\]()~`>#+\-=|{}.!\\]/g;
 
 export function escapeMarkdownV2(value: string): string {
@@ -95,8 +95,8 @@ function renderMarkdown(message: NotificationMessage): string {
   }
 
   if (message.url) {
-    // Un lien MarkdownV2 : le libellé s'échappe, l'URL ne s'échappe qu'au
-    // parenthésage — l'échapper entièrement casserait la cible.
+    // A MarkdownV2 link: the label is escaped, the URL is only escaped for
+    // parentheses — escaping it entirely would break the target.
     lines.push(
       '',
       `[${escapeMarkdownV2(notificationOpenLabel(message.language))}](${message.url.replace(/[()\\]/g, '\\$&')})`,
@@ -109,17 +109,16 @@ function renderMarkdown(message: NotificationMessage): string {
 }
 
 /**
- * Combien de lignes un résumé montre ici.
+ * How many lines a digest shows here.
  *
- * Six, et le chiffre est un arbitrage de canal, pas une constante globale :
- * Telegram s'affiche sur un téléphone, dans un fil qui défile. Cinquante lignes
- * y sont exactement aussi inutilisables que cinquante messages — on aurait
- * déplacé le bruit, pas réduit. Les lignes tues sont **annoncées** ; l'e-mail,
- * lui, les liste toutes.
+ * Six, and the figure is a channel trade-off, not a global constant: Telegram
+ * shows on a phone, in a scrolling thread. Fifty lines there are exactly as
+ * unusable as fifty messages — we would have moved the noise, not reduced it.
+ * The omitted lines are **announced**; email lists them all.
  */
 const DIGEST_LINES = 6;
 
-/** Borne dure de l'API Bot : 4096 caractères. On s'arrête bien avant. */
+/** The Bot API's hard limit: 4096 characters. We stop well before. */
 const TEXT_LIMIT = 3500;
 
 function renderDigestMarkdown(digest: NotificationDigest): string {
@@ -129,9 +128,9 @@ function renderDigestMarkdown(digest: NotificationDigest): string {
   const lines = [
     `${SEVERITY_MARK[digest.severity]} *${escapeMarkdownV2(digest.title)}*`,
     '',
-    // Le corps complet expliquerait l'arbitrage en cinq phrases : sur un
-    // téléphone, c'est ce qui pousse la liste hors de l'écran. On garde la
-    // seule phrase qui manquerait à la compréhension.
+    // The full body would explain the trade-off in five sentences: on a phone, that
+    // is what pushes the list off the screen. We keep the only sentence that would
+    // be missing for understanding.
     escapeMarkdownV2(
       t(digest.language, 'digest.header', {
         count: digest.count,
@@ -194,9 +193,9 @@ export class TelegramChannel implements NotificationChannel {
   }
 
   /**
-   * `getMe` : la seule sonde de Telegram qui ne poste rien dans la conversation.
-   * Elle vérifie que le jeton est valide ; elle ne dit rien de l'identifiant de
-   * conversation, que seul un envoi réel peut valider.
+   * `getMe`: Telegram's only probe that posts nothing in the conversation. It
+   * checks the token is valid; it says nothing about the chat identifier, which
+   * only a real send can validate.
    */
   async test(
     resolved: ResolvedChannelConfig,
@@ -215,7 +214,7 @@ export class TelegramChannel implements NotificationChannel {
       const username = jsonField(result.text, 'result', 'username');
       return {
         ok: true,
-        // Le nom du bot est de la donnée : il se recopie, il ne se traduit pas.
+        // The bot's name is data: it is copied, not translated.
         detail: username
           ? t(language, 'probe.named', { bot: username })
           : t(language, 'probe.plain'),
@@ -241,17 +240,18 @@ export class TelegramChannel implements NotificationChannel {
         chat_id: str(resolved.config, 'chatId'),
         text: renderMarkdown(message),
         parse_mode: 'MarkdownV2',
-        // L'aperçu déplierait l'URL du panel en pleine conversation, ce qui
-        // noie le message sous une vignette sans intérêt.
+        // The preview would unfold the panel's URL in the middle of the conversation,
+        // which drowns the message under a pointless thumbnail.
         link_preview_options: { is_disabled: true },
       },
     });
   }
 
   /**
-   * Le résumé, court par construction : un titre, une phrase, six lignes, et le
-   * nombre de lignes tues. C'est le canal où « rester court » l'emporte sur
-   * « tout dire » — et où l'honnêteté impose donc de dire ce qu'on ne dit pas.
+   * The digest, short by construction: a title, a sentence, six lines, and the
+   * number of omitted lines. It is the channel where "staying short" wins over
+   * "saying everything" — and where honesty therefore requires saying what is
+   * left out.
    */
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     await httpCall({

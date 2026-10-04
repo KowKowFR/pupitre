@@ -10,41 +10,40 @@ import type {
 } from './model.js';
 
 /**
- * Contrat d'un reverse proxy pilotable par le panel.
+ * The contract of a reverse proxy the panel can drive.
  *
- * Même règle que pour les drivers : ajouter un proxy, c'est ajouter une classe
- * qui remplit ce contrat, sans toucher une ligne ailleurs. Le provider ne lit
- * ni la base ni Redis ; il reçoit sa configuration et une session vers la
- * machine où il tourne, il agit, il émet des lignes.
+ * The same rule as for drivers: adding a proxy means adding a class that
+ * fulfills this contract, without touching a line elsewhere. The provider reads
+ * neither the database nor Redis; it receives its configuration and a session
+ * to the machine it runs on, it acts, it emits lines.
  *
- * ── Déclaratif ──────────────────────────────────────────────────────────────
- * `apply()` reçoit **l'ensemble** des routes d'une application et fait en
- * sorte que le proxy n'en ait pas d'autres. Ajouter, retirer, modifier un
- * domaine, c'est le même appel ; aucune liste vide ne laisse de reste. Et un
- * proxy ne touche jamais à ce qu'il n'a pas posé : chaque objet qu'il crée
- * porte la marque de Pupitre et le nom de l'application.
+ * ── Declarative ─────────────────────────────────────────────────────────────
+ * `apply()` receives **all** of an application's routes and makes sure the
+ * proxy has no others. Adding, removing, changing a domain is the same call; no
+ * empty list leaves leftovers. And a proxy never touches what it did not set
+ * up: each object it creates carries Pupitre's mark and the application's name.
  */
 
-/** La machine qui héberge le proxy, avec une session ouverte vers elle. */
+/** The machine hosting the proxy, with a session open to it. */
 export type ProxyHostContext = TargetContext;
 
-/** Une connexion en service : sa machine et sa configuration, déjà validée. */
+/** A connection in service: its machine and its configuration, already validated. */
 export type ProxyContext = ProxyHostContext & { config: unknown };
 
 export type ProxyRoute = Required<RouteInput>;
 
-/** Tout ce qu'un proxy doit router pour une application. */
+/** Everything a proxy must route for an application. */
 export type ProxyRouteSet = {
   appSlug: string;
   /**
-   * Ce qui distingue cette machine quand le proxy en sert plusieurs : la même
-   * application peut tourner sur deux d'entre elles, chacune avec ses domaines,
-   * sans que l'une n'efface les routes de l'autre. Absent : la machine du proxy.
+   * What distinguishes this machine when the proxy serves several: the same
+   * application can run on two of them, each with its domains, without one
+   * erasing the other's routes. Absent: the proxy's machine.
    */
   scope?: string;
-  /** Vide : l'application ne doit plus rien avoir sur ce proxy. */
+  /** Empty: the application must no longer have anything on this proxy. */
   routes: ProxyRoute[];
-  /** Par où la joindre. `null` seulement quand `routes` est vide. */
+  /** How to reach it. `null` only when `routes` is empty. */
   upstream: ProxyUpstream | null;
 };
 
@@ -53,43 +52,43 @@ export type ProxyCheck = {
   checks: Array<{ key: string; label: string; ok: boolean; detail: string | null }>;
 };
 
-/** Une installation trouvée sur la machine, prête à devenir une connexion. */
+/** An installation found on the machine, ready to become a connection. */
 export type ProxyDetection = {
   kind: ProxyKind;
-  /** La configuration déduite — à relire et confirmer par l'utilisateur. */
+  /** The derived configuration — to be reviewed and confirmed by the user. */
   config: unknown;
-  /** Ce qui a été trouvé, en une phrase. */
+  /** What was found, in one sentence. */
   summary: string;
-  /** Ce qui manque ou surprend : pas de résolveur ACME, réseau bridge… */
+  /** What is missing or surprising: no ACME resolver, bridge network… */
   warnings: string[];
 };
 
-/** Une façon d'installer ce proxy sur cette machine, et si elle est possible. */
+/** A way to install this proxy on this machine, and whether it is possible. */
 export type ProxyInstallOption = {
   kind: ProxyKind;
-  /** Unique pour un genre : la requête d'installation la nomme avec lui. */
+  /** Unique for a kind: the installation request names it together with the kind. */
   key: string;
-  /** Ce qu'on installe, en quelques mots : « Traefik en conteneur ». */
+  /** What is installed, in a few words: "Traefik in a container". */
   title: string;
-  /** Les autorités de certification que cette installation sait interroger. */
+  /** The certificate authorities this installation can query. */
   acmeServers: AcmeServer[];
   available: boolean;
-  /** Pourquoi elle ne l'est pas, ou ce qu'elle fera. */
+  /** Why it is not, or what it will do. */
   detail: string;
 };
 
 export type ProxyInstallRequest = { option: string; acme: AcmeSettings };
 
 /**
- * Ce qu'une route donne, vue depuis la machine du proxy : la requête passe par
- * le proxy, nom forcé vers la boucle locale — la machine n'a aucune raison de
- * connaître le DNS public du domaine.
+ * What a route gives, seen from the proxy's machine: the request goes through
+ * the proxy, the name forced to the loopback — the machine has no reason to
+ * know the domain's public DNS.
  */
 export type RouteProbe = {
   ok: boolean;
-  /** Code HTTP sur le port 80, `null` si non sondé. */
+  /** HTTP code on port 80, `null` if not probed. */
   http: number | null;
-  /** Code HTTP sur le port 443, `null` si la route n'est pas en HTTPS. */
+  /** HTTP code on port 443, `null` if the route is not HTTPS. */
   https: number | null;
   detail: string;
   certificate: RouteCertificate;
@@ -98,86 +97,87 @@ export type RouteProbe = {
 export interface ProxyProvider {
   readonly kind: ProxyKind;
 
-  /** Valide une configuration venue de la base ou d'un formulaire. */
+  /** Validates a configuration coming from the database or a form. */
   parseConfig(config: unknown): unknown;
 
   /**
-   * Où publier le port d'une application que ce proxy sert **depuis sa propre
-   * machine** : la boucle locale quand il la joint par là — le port n'a alors
-   * plus à être ouvert au monde. `null` : il la joint autrement, le port reste
-   * publié sur toutes les interfaces.
+   * Where to publish the port of an application this proxy serves **from its own
+   * machine**: the loopback when it reaches it that way — the port then no longer
+   * has to be open to the world. `null`: it reaches it otherwise, the port stays
+   * published on every interface.
    */
   publishAddress(config: unknown): string | null;
 
-  /** Les installations de ce proxy présentes sur la machine. */
+  /** This proxy's installations present on the machine. */
   detect(ctx: ProxyHostContext, onLog: LogSink): Promise<ProxyDetection[]>;
 
-  /** Ce que Pupitre peut installer ici — et pourquoi pas, sinon. */
+  /** What Pupitre can install here — and why not, otherwise. */
   installOptions(ctx: ProxyHostContext): Promise<ProxyInstallOption[]>;
 
-  /** Installe (ou configure) le proxy, et rend la configuration de la connexion. */
+  /** Installs (or configures) the proxy, and returns the connection's configuration. */
   install(ctx: ProxyHostContext, request: ProxyInstallRequest, onLog: LogSink): Promise<unknown>;
 
-  /** Défait ce que `install()` a posé. Sans effet sur un proxy trouvé, non installé. */
+  /** Undoes what `install()` set up. No effect on a proxy found, not installed. */
   uninstall(ctx: ProxyContext, onLog: LogSink): Promise<void>;
 
-  /** « Tester » : le proxy répond-il, et pose-t-il bien ce qu'on lui confie ? */
+  /** "Test": does the proxy answer, and does it really set up what it is given? */
   check(ctx: ProxyContext, onLog: LogSink): Promise<ProxyCheck>;
 
-  /** Fait correspondre le proxy à l'ensemble des routes d'une application. */
+  /** Makes the proxy match all of an application's routes. */
   apply(ctx: ProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void>;
 
-  /** Interroge une route à travers le proxy. `path` : le chemin de santé du service. */
+  /** Queries a route through the proxy. `path`: the service's health path. */
   probe(ctx: ProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe>;
 }
 
-// ─── un proxy hors des cibles ────────────────────────────────────────────────
+// ─── a proxy outside the targets ─────────────────────────────────────────────
 
 /**
- * Une connexion à un proxy **distant** (`placement: remote`) : sa configuration
- * et ses secrets, déchiffrés par le worker. Aucune session SSH — Pupitre ne
- * pilote pas sa machine, il parle à son API.
+ * A connection to a **remote** proxy (`placement: remote`): its configuration
+ * and its secrets, decrypted by the worker. No SSH session — Pupitre does not
+ * drive its machine, it talks to its API.
  */
 export type RemoteProxyContext = {
   config: unknown;
   secrets: Readonly<Record<string, string>>;
-  /** La langue de l'instance, comme `TargetContext.language`. */
+  /** The instance's language, like `TargetContext.language`. */
   language: UiLanguage;
 };
 
 /**
- * Ce qu'une requête a donné à travers le proxy, dans le vocabulaire de curl —
- * celui que `checkReach()` sait lire : `0` une réponse (son corps dans
- * `body`), `7` une connexion refusée, `28` rien dans le délai.
+ * What a request gave through the proxy, in curl's vocabulary — the one
+ * `checkReach()` can read: `0` an answer (its body in `body`), `7` a refused
+ * connection, `28` nothing in time.
  */
 export type ReachAttempt = { curlCode: number; body: string };
 
 /**
- * Le contrat d'un proxy distant. Mêmes règles que `ProxyProvider` — déclaratif,
- * ne touche qu'à ce qu'il a posé, ne lit ni la base ni Redis —, sans ce qui
- * suppose sa machine : ni détection, ni installation. On s'y connecte.
+ * The contract of a remote proxy. The same rules as `ProxyProvider` —
+ * declarative, only touches what it set up, reads neither the database nor
+ * Redis —, without what assumes its machine: no detection, no installation. You
+ * connect to it.
  */
 export interface RemoteProxyProvider {
   readonly kind: ProxyKind;
 
   parseConfig(config: unknown): unknown;
 
-  /** « Tester » : l'API répond-elle, le compte entre-t-il, a-t-il les droits ? */
+  /** "Test": does the API answer, does the account get in, does it have the rights? */
   check(ctx: RemoteProxyContext, onLog: LogSink): Promise<ProxyCheck>;
 
-  /** Fait correspondre le proxy à l'ensemble des routes d'une application. */
+  /** Makes the proxy match all of an application's routes. */
   apply(ctx: RemoteProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void>;
 
   /**
-   * Interroge une route à travers le proxy, **depuis le panel** : par l'adresse
-   * où il reçoit les visiteurs, avec le nom demandé (en-tête `Host`, SNI).
+   * Queries a route through the proxy, **from the panel**: through the address
+   * where it receives visitors, with the requested name (`Host` header, SNI).
    */
   probe(ctx: RemoteProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe>;
 
   /**
-   * Le test d'une liaison : une requête `GET /{token}` vers `address:port`, que
-   * le proxy relaie — c'est lui qui ouvre la connexion, comme il le fera pour
-   * les visiteurs. Rien ne reste sur le proxy après.
+   * A link test: a `GET /{token}` request to `address:port`, which the proxy
+   * relays — it is the proxy that opens the connection, as it will for visitors.
+   * Nothing remains on the proxy afterwards.
    */
   reach(
     ctx: RemoteProxyContext,

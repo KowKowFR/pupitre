@@ -22,16 +22,16 @@ import type { ScanContext, ScanLogSink, Scanner } from './types.js';
 import { scannerSay } from './messages.js';
 
 /**
- * Grype — vulnérabilités, base Anchore.
+ * Grype — vulnerabilities, Anchore database.
  *
- * Version relevée sur `api.github.com/repos/anchore/grype/releases/latest`
- * le 2026-09-10.
+ * Version taken from `api.github.com/repos/anchore/grype/releases/latest` on
+ * 2026-09-10.
  *
- * Tout l'intérêt de l'abstraction est ici : Grype décrit la même CVE que Trivy avec un
- * vocabulaire différent (`Negligible`, `artifact.name`, `fix.versions`). La
- * traduction vers l'échelle commune se fait dans cette classe, et nulle part
- * ailleurs. Pour une même CVE sur un même paquet, les deux scanners produisent
- * le même `Finding`.
+ * The whole point of the abstraction is here: Grype describes the same CVE as
+ * Trivy with a different vocabulary (`Negligible`, `artifact.name`,
+ * `fix.versions`). The translation to the common scale is done in this class,
+ * and nowhere else. For the same CVE on the same package, both scanners produce
+ * the same `Finding`.
  */
 export const GRYPE_VERSION = '0.118.0';
 
@@ -108,11 +108,11 @@ export class GrypeScanner implements Scanner {
 }
 
 /**
- * La ligne de commande de Grype pour une image et l'endroit où elle se trouve.
+ * Grype's command line for an image and the place where it is.
  *
- * Docker : la détection par défaut, inchangée. Containerd : ses variables
- * `CONTAINERD_*`, la source `containerd` puis `registry`, et la plateforme de
- * la machine (voir `MACHINE_PLATFORM_FLAG`).
+ * Docker: the default detection, unchanged. Containerd: its `CONTAINERD_*`
+ * variables, the `containerd` source then `registry`, and the machine's
+ * platform (see `MACHINE_PLATFORM_FLAG`).
  */
 export function grypeCommand(image: string, store: ImageStore): ToolCommand {
   const cache = `GRYPE_DB_CACHE_DIR=${cachePath('grype')} GRYPE_CHECK_FOR_APP_UPDATE=false`;
@@ -129,10 +129,10 @@ export function grypeCommand(image: string, store: ImageStore): ToolCommand {
   }
 }
 /**
- * Rapport Grype → findings normalisés.
+ * Grype report → normalized findings.
  *
- * Exporté pour être testable sans SSH : un test compare le résultat de cette
- * fonction à celui de `normalizeTrivyReport` pour la même CVE.
+ * Exported to be testable without SSH: a test compares this function's result
+ * with `normalizeTrivyReport`'s for the same CVE.
  */
 export function normalizeGrypeReport(raw: GrypeOutput): Finding[] {
   const findings: Finding[] = [];
@@ -148,8 +148,8 @@ export function normalizeGrypeReport(raw: GrypeOutput): Finding[] {
       severity: normalizeSeverity(vulnerability.severity),
       package: artifact.name,
       installedVersion: artifact.version ?? null,
-      // Grype liste toutes les versions correctives connues ; on retient la
-      // première, qui est la plus proche.
+      // Grype lists every known fixed version; we keep the first, which is the
+      // closest.
       fixedVersion: emptyToNull(vulnerability.fix?.versions?.[0]),
       title: emptyToNull(vulnerability.description) ?? emptyToNull(related?.description),
       primaryUrl:
@@ -162,11 +162,11 @@ export function normalizeGrypeReport(raw: GrypeOutput): Finding[] {
 }
 
 /**
- * Échelle Grype → échelle commune.
+ * Grype scale → common scale.
  *
- * `Negligible` n'a pas d'équivalent chez Trivy : on la range en `LOW`, le cran
- * le moins alarmant qui reste une vraie sévérité. La classer `UNKNOWN` la
- * ferait remonter plus haut dans un tri « inconnu = à examiner ».
+ * `Negligible` has no equivalent at Trivy: we file it as `LOW`, the least
+ * alarming step that is still a real severity. Filing it as `UNKNOWN` would make
+ * it rise higher in an "unknown = to examine" sort.
  */
 function normalizeSeverity(value: string | undefined): Severity {
   switch ((value ?? '').toLowerCase()) {

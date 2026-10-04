@@ -7,13 +7,13 @@ import { probeSay } from './messages.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
- * Sonde de disponibilité HTTP.
+ * HTTP availability probe.
  *
- * Elle ne fait plus la requête elle-même : la boucle de redirection gardée vit
- * dans `fetch.ts`, partagée avec la sonde de mot-clé et avec le client RDAP.
- * C'est délibéré — c'est le morceau qui referme le SSRF par redirection, et
- * chaque copie serait une occasion de diverger. Il ne reste ici que ce qui est
- * propre au type : le verdict, et les mesures qu'il rend.
+ * It no longer makes the request itself: the guarded redirect loop lives in
+ * `fetch.ts`, shared with the keyword probe and the RDAP client. It is
+ * deliberate — it is the piece that closes SSRF through redirects, and each copy
+ * would be a chance to diverge. Only what is specific to the type remains here:
+ * the verdict, and the measurements it returns.
  */
 
 async function runHttp(
@@ -26,7 +26,7 @@ async function runHttp(
     method: config.method,
     timeoutMs: config.timeoutMs,
     maxBytes: MONITOR_MAX_RESPONSE_BYTES,
-    // HEAD n'a pas de corps ; sans mot-clé à chercher, on n'en lit pas non plus.
+    // HEAD has no body; without a keyword to look for, we do not read one either.
     readBody: config.method !== 'HEAD' && config.keyword !== null,
     allowlist,
     language,
@@ -43,8 +43,8 @@ async function runHttp(
   });
 
   if (!result.ok) {
-    // Une redirection cassée est une cible qui a répondu, mal : `unhealthy`.
-    // Un refus SSRF ou une panne réseau, c'est « rien n'a répondu ».
+    // A broken redirect is a target that answered, badly: `unhealthy`. An SSRF
+    // refusal or a network failure is "nothing answered".
     const outcome = result.kind === 'redirect' ? 'unhealthy' : 'unreachable';
     return {
       outcome,

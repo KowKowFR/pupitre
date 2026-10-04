@@ -2,21 +2,20 @@ import { z } from 'zod';
 import { invalid } from '../validation.js';
 
 /**
- * AppSpec — la spécification neutre d'une application.
+ * AppSpec — an application's neutral specification.
  *
- * Elle décrit *ce que* l'application est, jamais *comment* on la déploie.
- * Aucun champ ne doit pouvoir être rattaché à un runtime précis : pas de
- * `image_pull_policy`, pas de `restart_policy`, pas de `compose`. La traduction
- * vers un `compose.yml` ou vers des manifests Kubernetes appartient au driver,
- * au moment du déploiement.
+ * It describes *what* the application is, never *how* it is deployed. No field
+ * may be tied to a specific runtime: no `image_pull_policy`, no
+ * `restart_policy`, no `compose`. Translating it into a `compose.yml` or into
+ * Kubernetes manifests belongs to the driver, at deployment time.
  *
- * Conséquence recherchée : la même AppSpec se redéploie sur l'autre runtime en
- * changeant un seul champ, ailleurs.
+ * The intended consequence: the same AppSpec redeploys on the other runtime by
+ * changing a single field, elsewhere.
  */
 
 export const SERVICE_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** `major.minor.patch`, avec pré-version et build optionnels (semver 2.0.0). */
+/** `major.minor.patch`, with optional pre-release and build (semver 2.0.0). */
 export const SEMVER_PATTERN =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
@@ -30,22 +29,22 @@ export const semverSchema = z
   .string()
   .regex(SEMVER_PATTERN, 'version semver attendue, ex. 1.4.2');
 
-/** Image déjà construite, référencée par son tag. */
+/** An image already built, referenced by its tag. */
 export const imageSourceSchema = z.object({
   type: z.literal('image'),
   ref: z.string().min(1).max(512),
 });
 
 /**
- * Sources à construire. Le build a lieu sur la machine cible, quel que soit le
- * runtime : c'est une propriété de l'application, pas du moteur d'exécution.
+ * Sources to build. The build happens on the target machine, whatever the
+ * runtime: it is a property of the application, not of the execution engine.
  */
 /**
- * Un chemin de construction reste **dans** ce qui est envoyé : ni absolu, ni
- * `..`. Un `pupitre.json` vient parfois d'un dépôt — c'est-à-dire de quiconque
- * peut y pousser — : un contexte `../..` irait chercher les dossiers des
- * autres applications de la machine, leurs `.env` de secrets compris, et les
- * embarquerait dans une image.
+ * A build path stays **within** what is sent: neither absolute, nor `..`. A
+ * `pupitre.json` sometimes comes from a repository — that is, from whoever can
+ * push to it —: a `../..` context would go and fetch the folders of the
+ * machine's other applications, their secret `.env` files included, and embed
+ * them in an image.
  */
 const confinedPath = z
   .string()
@@ -59,11 +58,11 @@ const confinedPath = z
 export const dockerfileSourceSchema = z.object({
   type: z.literal('dockerfile'),
   /**
-   * Répertoire de build, relatif à la racine du code envoyé sur la cible —
-   * celle du dépôt pour une application liée à un dépôt.
+   * Build directory, relative to the root of the code sent to the target — the
+   * repository's, for an application linked to a repository.
    */
   context: confinedPath,
-  /** Chemin du Dockerfile, relatif au `context`. */
+  /** Path of the Dockerfile, relative to `context`. */
   dockerfile: confinedPath.default('Dockerfile'),
 });
 
@@ -75,11 +74,11 @@ export const sourceSchema = z.discriminatedUnion('type', [
 export const portSchema = z.number().int().min(1).max(65535);
 
 /**
- * Sonde de vivacité.
+ * Liveness probe.
  *
- * `path` ne vaut que pour un service qui parle HTTP. Le driver décide de la
- * traduction : sonde HTTP sur `path` pour le service exposé, simple test de
- * port ouvert pour les autres. La spec ne dit pas *comment* sonder.
+ * `path` only applies to a service that speaks HTTP. The driver decides the
+ * translation: an HTTP probe on `path` for the exposed service, a simple
+ * open-port test for the others. The spec does not say *how* to probe.
  */
 export const healthcheckSchema = z.object({
   path: z.string().min(1).max(512).startsWith('/').default('/'),
@@ -94,7 +93,7 @@ export const resourcesSchema = z.object({
   memoryMi: z.number().int().min(16).max(262_144).default(512),
 });
 
-/** Taille au format Kubernetes (`10Gi`, `500Mi`), neutre vis-à-vis du runtime. */
+/** Size in Kubernetes format (`10Gi`, `500Mi`), neutral regarding the runtime. */
 export const volumeSizeSchema = z
   .string()
   .regex(/^\d+(?:\.\d+)?(?:Ki|Mi|Gi|Ti|K|M|G|T)$/, 'taille attendue, ex. 10Gi');
@@ -105,7 +104,7 @@ export const volumeSchema = z.object({
   size: volumeSizeSchema.optional(),
 });
 
-/** Grammaire d'une variable d'environnement. Commune à `env` et à `secrets`. */
+/** Grammar of an environment variable. Shared by `env` and `secrets`. */
 export const ENV_NAME_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 
 const envNameSchema = z
@@ -113,45 +112,45 @@ const envNameSchema = z
   .regex(ENV_NAME_PATTERN, 'variable en MAJUSCULES_AVEC_UNDERSCORES');
 
 /**
- * Un secret qui prend sa valeur d'un autre.
+ * A secret that takes its value from another.
  *
- * ── Pourquoi ce champ existe ────────────────────────────────────────────────
+ * ── Why this field exists ───────────────────────────────────────────────────
  *
- * Une application et sa base sont deux images distinctes qui attendent le
- * *même* mot de passe sous *deux* noms : `mariadb:11` lit `MARIADB_PASSWORD`,
- * `wordpress` lit `WORDPRESS_DB_PASSWORD`, `glpi/glpi` lit `GLPI_DB_PASSWORD`.
- * Tant que `secrets` n'était qu'une liste de noms, le magasin tirait une valeur
- * aléatoire **par nom** : les deux services recevaient deux mots de passe
- * différents et l'application ne pouvait pas joindre sa base. C'était la panne,
- * et elle était garantie par construction.
+ * An application and its database are two distinct images that expect the
+ * *same* password under *two* names: `mariadb:11` reads `MARIADB_PASSWORD`,
+ * `wordpress` reads `WORDPRESS_DB_PASSWORD`, `glpi/glpi` reads
+ * `GLPI_DB_PASSWORD`. As long as `secrets` was only a list of names, the store
+ * drew a random value **per name**: the two services got two different
+ * passwords and the application could not reach its database. It was the
+ * outage, and it was guaranteed by construction.
  *
- * `from` dit « ce nom-ci désigne la valeur de ce nom-là ». Il n'y a toujours
- * qu'un secret, qu'une ligne en base, qu'une valeur : plusieurs noms la lisent.
+ * `from` says "this name designates the value of that name". There is still
+ * only one secret, one row in the database, one value: several names read it.
  *
- * ── Pourquoi ce n'est pas résolu par le runtime ─────────────────────────────
+ * ── Why it is not resolved by the runtime ───────────────────────────────────
  *
- * Compose sait interpoler `${MARIADB_PASSWORD}` depuis le `.env`, et il aurait
- * été tentant d'écrire l'alias dans `env`. Kubernetes, lui, n'interpole rien :
- * la même AppSpec aurait marché sur un runtime et pas sur l'autre. La
- * résolution appartient donc au code neutre (`drivers/secrets.ts`), avant le
- * rendu, et les deux drivers reçoivent une carte déjà complète.
+ * Compose can interpolate `${MARIADB_PASSWORD}` from the `.env`, and it would
+ * have been tempting to write the alias in `env`. Kubernetes interpolates
+ * nothing: the same AppSpec would have worked on one runtime and not the other.
+ * Resolution therefore belongs to neutral code (`drivers/secrets.ts`), before
+ * the render, and both drivers receive an already complete map.
  */
 export const secretAliasSchema = z.object({
   name: envNameSchema,
-  /** Nom du secret dont la valeur est reprise. Doit être déclaré par la spec. */
+  /** Name of the secret whose value is reused. Must be declared by the spec. */
   from: envNameSchema,
 });
 
 /**
- * Déclaration d'un secret par un service, sous l'une de ses deux formes.
+ * A secret declared by a service, in one of its two forms.
  *
- * La chaîne nue reste la forme normale et **reste lue telle quelle** : des
- * AppSpec figées dans des déploiements passés portent `secrets: ["NOM"]` et
- * doivent continuer de se relire sans erreur. L'union n'ajoute une forme, elle
- * n'en remplace aucune — et volontairement sans `.transform()` : l'AppSpec est
- * relue depuis un JSONB souvent **sans repasser par Zod** (`getApplication()`
- * rend la colonne telle quelle), donc le type de sortie doit décrire ce qui est
- * réellement en base, y compris les anciennes lignes.
+ * The bare string stays the normal form and **is still read as is**: AppSpecs
+ * frozen in past deployments carry `secrets: ["NAME"]` and must keep reading
+ * without error. The union adds a form, it replaces none — and deliberately
+ * without `.transform()`: the AppSpec is often read back from a JSONB **without
+ * going through Zod again** (`getApplication()` returns the column as is), so
+ * the output type must describe what is really in the database, old rows
+ * included.
  */
 export const secretDeclarationSchema = z.union([envNameSchema, secretAliasSchema]);
 
@@ -161,13 +160,13 @@ export const serviceSchema = z.object({
   port: portSchema,
   exposed: z.boolean().default(false),
   replicas: z.number().int().min(1).max(50).default(1),
-  /** Valeurs littérales. Les valeurs sensibles passent par `secrets`. */
+  /** Literal values. Sensitive values go through `secrets`. */
   env: z
     .record(envNameSchema, z.string().max(4096))
     .default({}),
   /**
-   * Noms uniquement — les valeurs vivent ailleurs, chiffrées. Un nom peut
-   * déclarer qu'il reprend la valeur d'un autre : `{ name, from }`.
+   * Names only — the values live elsewhere, encrypted. A name can declare that it
+   * reuses another one's value: `{ name, from }`.
    */
   secrets: z.array(secretDeclarationSchema).default([]),
   resources: resourcesSchema.prefault({}),
@@ -177,24 +176,24 @@ export const serviceSchema = z.object({
 });
 
 export const ingressSchema = z.object({
-  /** Absent = le driver expose sur un port alloué, sans nom de domaine. */
+  /** Absent = the driver exposes on an allocated port, without a domain name. */
   host: z.string().min(1).max(253).optional(),
   tls: z.boolean().default(false),
   targetService: slugSchema,
 });
 
 /**
- * Forme de l'AppSpec, **sans** les contraintes croisées.
+ * The AppSpec's shape, **without** the cross-field constraints.
  *
- * Publiée pour un usage précis : la sortie structurée d'un LLM. Un JSON Schema
- * ne sait pas exprimer « exactement un service exposé » ni « pas de cycle dans
- * `dependsOn` » — ces règles disparaissent de toute façon à la traduction. En
- * donnant cette forme au modèle et en repassant ensuite par `appSpecSchema`,
- * c'est **notre** code qui tient la validation et qui peut réinjecter les
- * reproches de Zod dans une relance, au lieu de la déléguer au SDK.
+ * Published for a precise use: an LLM's structured output. A JSON Schema cannot
+ * express "exactly one exposed service" or "no cycle in `dependsOn`" — those
+ * rules disappear in translation anyway. By giving this shape to the model and
+ * then going through `appSpecSchema`, it is **our** code that holds the
+ * validation and can feed Zod's complaints back into a retry, instead of
+ * delegating it to the SDK.
  *
- * Elle ne remplace jamais `appSpecSchema` : rien n'est persisté ni déployé sans
- * être passé par les refinements.
+ * It never replaces `appSpecSchema`: nothing is persisted or deployed without
+ * going through the refinements.
  */
 export const appSpecShapeSchema = z.object({
   name: slugSchema,
@@ -205,7 +204,7 @@ export const appSpecShapeSchema = z.object({
 
 const baseAppSpecSchema = appSpecShapeSchema;
 
-/** Cherche un cycle dans le graphe `dependsOn`. Retourne le cycle trouvé. */
+/** Looks for a cycle in the `dependsOn` graph. Returns the cycle found. */
 export function findDependencyCycle(
   services: ReadonlyArray<{ name: string; dependsOn: readonly string[] }>,
 ): string[] | null {
@@ -217,14 +216,14 @@ export function findDependencyCycle(
     const current = state.get(name);
     if (current === 'done') return null;
     if (current === 'visiting') {
-      // Le cycle va de la première occurrence du nom jusqu'à maintenant.
+      // The cycle goes from the name's first occurrence until now.
       return [...stack.slice(stack.indexOf(name)), name];
     }
 
     state.set(name, 'visiting');
     stack.push(name);
     for (const dependency of graph.get(name) ?? []) {
-      if (!graph.has(dependency)) continue; // signalé par un autre refinement
+      if (!graph.has(dependency)) continue; // reported by another refinement
       const cycle = visit(dependency);
       if (cycle) return cycle;
     }
@@ -240,12 +239,12 @@ export function findDependencyCycle(
   return null;
 }
 
-/* ─── Secrets : lecture des deux formes de déclaration ─────────────────────── */
+/* ─── Secrets: reading both declaration forms ──────────────────────────────── */
 
 export type SecretAlias = z.infer<typeof secretAliasSchema>;
 export type SecretDeclaration = z.infer<typeof secretDeclarationSchema>;
 
-/** Forme minimale d'un service, suffisante pour lire ses secrets. */
+/** Minimal shape of a service, enough to read its secrets. */
 type SecretHolder = { readonly secrets: readonly SecretDeclaration[] };
 type SecretSpec = { readonly services: readonly SecretHolder[] };
 
@@ -253,29 +252,29 @@ export function isSecretAlias(declaration: SecretDeclaration): declaration is Se
   return typeof declaration !== 'string';
 }
 
-/** Nom sous lequel le service lit le secret — la variable que voit l'image. */
+/** Name under which the service reads the secret — the variable the image sees. */
 export function secretDeclarationName(declaration: SecretDeclaration): string {
   return typeof declaration === 'string' ? declaration : declaration.name;
 }
 
-/** Nom dont la valeur est reprise. Le sien s'il n'est pas un alias. */
+/** Name whose value is reused. Its own if it is not an alias. */
 export function secretDeclarationSource(declaration: SecretDeclaration): string {
   return typeof declaration === 'string' ? declaration : declaration.from;
 }
 
-/** Noms de variables qu'un service attend dans son environnement, alias compris. */
+/** Variable names a service expects in its environment, aliases included. */
 export function serviceSecretNames(service: SecretHolder): string[] {
   return [...new Set(service.secrets.map(secretDeclarationName))];
 }
 
-/** Tous les noms déclarés par la spec, alias compris, dans l'ordre de lecture. */
+/** Every name the spec declares, aliases included, in reading order. */
 export function secretNamesOf(spec: SecretSpec): string[] {
   return [...new Set(spec.services.flatMap(serviceSecretNames))];
 }
 
 /**
- * Table « nom → nom dont il tire sa valeur ». Un nom non aliasé se pointe
- * lui-même : le résultat se lit sans jamais tester la forme de la déclaration.
+ * A "name → name it takes its value from" table. A non-aliased name points to
+ * itself: the result reads without ever testing the declaration's form.
  */
 export function secretBindings(spec: SecretSpec): Map<string, string> {
   const bindings = new Map<string, string>();
@@ -283,9 +282,9 @@ export function secretBindings(spec: SecretSpec): Map<string, string> {
     for (const declaration of service.secrets) {
       const name = secretDeclarationName(declaration);
       const source = secretDeclarationSource(declaration);
-      // Un alias l'emporte sur une déclaration nue du même nom : la validation
-      // interdit déjà ce mélange, mais la table est aussi lue sur des AppSpec
-      // anciennes que personne n'a repassées par Zod.
+      // An alias wins over a bare declaration of the same name: validation already
+      // forbids this mix, but the table is also read on old AppSpecs nobody passed
+      // through Zod again.
       if (source !== name || !bindings.has(name)) bindings.set(name, source);
     }
   }
@@ -293,10 +292,11 @@ export function secretBindings(spec: SecretSpec): Map<string, string> {
 }
 
 /**
- * Suit la chaîne d'alias jusqu'au secret qui porte réellement la valeur.
+ * Follows the alias chain to the secret that really carries the value.
  *
- * Tolère un cycle plutôt que de boucler : `appSpecSchema` le refuse déjà, mais
- * cette fonction lit aussi des AppSpec relues depuis le JSONB sans validation.
+ * Tolerates a cycle rather than looping: `appSpecSchema` already refuses it,
+ * but this function also reads AppSpecs read back from the JSONB without
+ * validation.
  */
 export function secretRootName(bindings: ReadonlyMap<string, string>, name: string): string {
   const seen = new Set<string>([name]);
@@ -310,18 +310,18 @@ export function secretRootName(bindings: ReadonlyMap<string, string>, name: stri
 }
 
 /**
- * Noms qui ont besoin d'une **valeur** : les racines, alias exclus.
+ * Names that need a **value**: the roots, aliases excluded.
  *
- * C'est la liste que le magasin reçoit. Un alias ne crée jamais de ligne :
- * sinon on retrouverait deux valeurs indépendantes pour un seul mot de passe,
- * c'est-à-dire la panne d'origine avec une étape de plus.
+ * It is the list the store receives. An alias never creates a row: otherwise we
+ * would find two independent values for a single password, that is, the
+ * original outage with one more step.
  */
 export function storedSecretNames(spec: SecretSpec): string[] {
   const bindings = secretBindings(spec);
   return [...new Set(secretNamesOf(spec).map((name) => secretRootName(bindings, name)))];
 }
 
-/** Cherche un cycle dans les alias de secrets. Retourne le cycle trouvé. */
+/** Looks for a cycle in the secret aliases. Returns the cycle found. */
 export function findSecretAliasCycle(bindings: ReadonlyMap<string, string>): string[] | null {
   const state = new Map<string, 'visiting' | 'done'>();
   const stack: string[] = [];
@@ -381,10 +381,10 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
     });
   }
 
-  // Tous les noms déclarés par la spec : la cible d'un alias doit s'y trouver,
-  // quel que soit le service qui la déclare — c'est justement le propos.
+  // Every name the spec declares: an alias's target must be among them, whatever
+  // the service that declares it — that is precisely the point.
   const allSecretNames = new Set(secretNamesOf(spec));
-  /** Nom → source déjà vue pour lui, pour repérer deux alias contradictoires. */
+  /** Name → source already seen for it, to spot two contradictory aliases. */
   const sources = new Map<string, string>();
 
   for (const [index, service] of spec.services.entries()) {
@@ -425,8 +425,8 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
       });
     }
 
-    // Deux déclarations du même nom dans un même service se contrediraient :
-    // laquelle des deux dit d'où vient la valeur ?
+    // Two declarations of the same name in the same service would contradict each
+    // other: which of the two says where the value comes from?
     const repeated = secretNames.filter((name, position) => secretNames.indexOf(name) !== position);
     if (repeated.length > 0) {
       ctx.addIssue({
@@ -477,8 +477,8 @@ export const appSpecSchema = baseAppSpecSchema.superRefine((spec, ctx) => {
     });
   }
 
-  // Un nom déclaré nu quelque part et aliasé ailleurs : deux réponses à la
-  // question « d'où vient sa valeur ». Refusé aussi.
+  // A name declared bare somewhere and aliased elsewhere: two answers to the
+  // question "where does its value come from". Refused too.
   for (const [index, service] of spec.services.entries()) {
     for (const [position, declaration] of service.secrets.entries()) {
       if (isSecretAlias(declaration)) continue;
@@ -520,7 +520,7 @@ export type Service = z.infer<typeof serviceSchema>;
 export type Ingress = z.infer<typeof ingressSchema>;
 export type AppSpec = z.infer<typeof appSpecSchema>;
 
-/** Entrée non validée : les defaults Zod ne sont pas encore appliqués. */
+/** Unvalidated input: Zod defaults are not applied yet. */
 export type AppSpecInput = z.input<typeof appSpecSchema>;
 
 export function parseAppSpec(input: unknown): AppSpec {
@@ -531,11 +531,11 @@ export function safeParseAppSpec(input: unknown) {
   return appSpecSchema.safeParse(input);
 }
 
-/** Le service marqué `exposed`. La validation garantit qu'il y en a exactement un. */
+/** The service marked `exposed`. Validation guarantees there is exactly one. */
 export function exposedService(spec: AppSpec): Service {
   const service = spec.services.find((candidate) => candidate.exposed);
   if (!service) {
-    throw new Error('AppSpec invalide : aucun service exposé');
+    throw new Error('Invalid AppSpec: no exposed service');
   }
   return service;
 }
@@ -545,8 +545,8 @@ export function findService(spec: AppSpec, name: string): Service | undefined {
 }
 
 /**
- * Ordre de démarrage respectant `dependsOn` : une dépendance apparaît toujours
- * avant le service qui la déclare. Sans cycle, garanti par la validation.
+ * Start order honoring `dependsOn`: a dependency always appears before the
+ * service that declares it. Without a cycle, guaranteed by validation.
  */
 export function topologicalOrder(spec: AppSpec): Service[] {
   const byName = new Map(spec.services.map((service) => [service.name, service]));

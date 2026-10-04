@@ -20,50 +20,50 @@ import {
 } from './types.js';
 
 /**
- * GitLab — gitlab.com ou une instance auto-hébergée, par l'API v4 et un
- * **jeton d'accès** : de préférence un jeton de projet ou de groupe, rôle
- * Maintainer, portée `api`.
+ * GitLab — gitlab.com or a self-hosted instance, through API v4 and an **access
+ * token**: preferably a project or group token, Maintainer role, `api` scope.
  *
- * `api` est large, mais GitLab n'a rien de plus étroit pour écrire l'état d'un
- * déploiement sur un commit — `read_api` lit tout, n'écrit rien. Le rôle
- * aussi : sur une branche protégée, GitLab n'accepte un statut que de qui peut
- * y pousser — Maintainer par défaut ; Developer suffit si les développeurs
- * peuvent pousser sur la branche suivie. Un jeton de projet borne tout cela à
- * un seul projet, un jeton de groupe à ses projets. Il est chiffré en base et
- * ne vit en clair qu'en mémoire, dans ce client.
+ * `api` is wide, but GitLab has nothing narrower to write a deployment's state
+ * on a commit — `read_api` reads everything, writes nothing. The role too: on a
+ * protected branch, GitLab only accepts a status from whoever can push to it —
+ * Maintainer by default; Developer is enough if developers can push to the
+ * followed branch. A project token limits all that to a single project, a group
+ * token to its projects. It is encrypted in the database and only lives in clear
+ * in memory, in this client.
  *
- * Un dépôt s'y nomme par son chemin complet — `groupe/sous-groupe/projet` — que
- * l'API prend encodé d'un bloc comme identifiant de projet. Comme pour GitHub
- * et Gitea, tout part de Pupitre : aucun webhook, l'instance n'appelle jamais
- * le panel ; le polling compare l'empreinte de la branche au dernier commit vu.
+ * A repository is named there by its full path — `group/subgroup/project` —
+ * which the API takes encoded in one block as the project identifier. As for
+ * GitHub and Gitea, everything starts from Pupitre: no webhook, the instance
+ * never calls the panel; polling compares the branch's hash with the last
+ * commit seen.
  *
- * L'adresse de l'instance est saisie dans le panel : chaque appel passe la
- * garde des sorties réseau (`assertEgressAllowed`) — un réseau privé est
- * permis, l'adresse des métadonnées d'un cloud ne l'est pas.
+ * The instance's address is entered in the panel: each call goes through the
+ * network egress guard (`assertEgressAllowed`) — a private network is allowed, a
+ * cloud's metadata address is not.
  */
 
 type FetchLike = typeof fetch;
-/** Un GET, rien de plus : de quoi télécharger une archive. */
+/** A GET, nothing more: enough to download an archive. */
 type GetLike = (url: string, init: { headers: Record<string, string> }) => Promise<Response>;
 
 export type GitLabCredentials = {
-  /** L'adresse de l'instance, telle qu'un navigateur l'ouvre : `https://gitlab.com`. */
+  /** The instance's address, as a browser opens it: `https://gitlab.com`. */
   baseUrl: string;
-  /** Le jeton d'accès. Déchiffré juste avant l'appel, jamais journalisé. */
+  /** The access token. Decrypted just before the call, never logged. */
   token: string;
-  /** La langue de ce que le client dit — celle de l'instance. Français par défaut. */
+  /** The language of what the client says — the instance's. French by default. */
   language?: UiLanguage;
 };
 
-/** Au-delà, une comparaison ne se croit plus : on traite tout comme changé. */
+/** Beyond this, a comparison is no longer trusted: everything is treated as changed. */
 const COMPARE_FILE_LIMIT = 300;
-/** Le maximum de l'API v4 par page. */
+/** The API v4 maximum per page. */
 const PAGE_SIZE = 100;
 const MAX_PAGES = 100;
 
 const BASE_HEADERS = { accept: 'application/json', 'user-agent': 'pupitre' };
 
-/** `https://gitlab.exemple.fr/` → `https://gitlab.exemple.fr` ; refuse ce qui n'est pas http(s). */
+/** `https://gitlab.example.com/` → `https://gitlab.example.com`; refuses what is not http(s). */
 export function gitlabBaseUrl(raw: string): string {
   const url = new URL(raw.trim());
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
@@ -79,9 +79,9 @@ export function gitlabBaseUrl(raw: string): string {
 }
 
 /**
- * Un GET par `node:http`, sans les en-têtes qu'ajoute le `fetch` de Node : il
- * pose toujours `sec-fetch-mode: cors`, impossible à retirer, et GitLab
- * refuse l'archive d'un dépôt à une requête qui se dit « cors » (406).
+ * A GET through `node:http`, without the headers Node's `fetch` adds: it always
+ * sets `sec-fetch-mode: cors`, which cannot be removed, and GitLab refuses a
+ * repository's archive to a request that calls itself "cors" (406).
  */
 function plainGet(url: string, init: { headers: Record<string, string> }): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -104,7 +104,7 @@ function plainGet(url: string, init: { headers: Record<string, string> }): Promi
   });
 }
 
-/** `groupe/sous-groupe/projet` → l'identifiant de projet de l'API, encodé d'un bloc. */
+/** `group/subgroup/project` → the API's project identifier, encoded in one block. */
 function projectId(fullName: string): string {
   return encodeURIComponent(fullName);
 }
@@ -119,7 +119,7 @@ async function errorMessage(response: Response): Promise<string> {
   return `GitLab ${response.status} : ${message}`;
 }
 
-/** L'état d'un commit, dans les mots de GitLab. */
+/** A commit's state, in GitLab's words. */
 const GITLAB_STATE: Record<CommitStatus['state'], string> = {
   pending: 'pending',
   success: 'success',
@@ -160,7 +160,7 @@ export class GitLabSourceProvider implements SourceProvider {
       method?: string;
       headers?: Record<string, string>;
       body?: unknown;
-      /** Par `archiveGet` plutôt que `fetch`. */
+      /** Through `archiveGet` rather than `fetch`. */
       plain?: boolean;
     } = {},
   ): Promise<Response> {
@@ -214,7 +214,7 @@ export class GitLabSourceProvider implements SourceProvider {
         'gitlab',
       );
     }
-    // Pas d'ETag : c'est la comparaison au dernier commit vu qui dit « rien de neuf ».
+    // No ETag: it is the comparison with the last commit seen that says "nothing new".
     return { changed: true, sha, etag: null };
   }
 
@@ -232,17 +232,17 @@ export class GitLabSourceProvider implements SourceProvider {
       compare_timeout?: boolean;
     }>(response);
     const commits = body.commits ?? [];
-    // Rien entre les deux, ou une base qui n'est pas un ancêtre de la tête :
-    // l'historique a été réécrit (force-push), la liste ne dit pas tout.
+    // Nothing in between, or a base that is not an ancestor of the head: the
+    // history was rewritten (force-push), the list does not tell everything.
     if (commits.length === 0) return { kind: 'unknown', reason: 'historique réécrit' };
     if (!commits.some((commit) => commit.parent_ids?.includes(base))) {
       return { kind: 'unknown', reason: 'historique divergent' };
     }
-    // GitLab a coupé la comparaison à ses limites : la liste est incomplète.
+    // GitLab cut the comparison at its limits: the list is incomplete.
     if (body.compare_timeout) return { kind: 'unknown', reason: 'comparaison tronquée par GitLab' };
     const files = new Set<string>();
     for (const diff of body.diffs ?? []) {
-      // Un renommage touche deux chemins : l'ancien et le nouveau.
+      // A rename touches two paths: the old one and the new one.
       if (diff.renamed_file) files.add(diff.old_path);
       files.add(diff.new_path);
     }
@@ -253,7 +253,7 @@ export class GitLabSourceProvider implements SourceProvider {
   }
 
   async readFile(repo: RepositoryRef, sha: string, path: string): Promise<string | null> {
-    // Le chemin du fichier est, lui aussi, encodé d'un bloc : `apps%2Fapi%2Fpupitre.json`.
+    // The file's path is also encoded in one block: `apps%2Fapi%2Fpupitre.json`.
     const response = await this.call(
       `/projects/${projectId(repo.fullName)}/repository/files/${encodeURIComponent(path.replace(/^\/+/, ''))}/raw?ref=${encodeURIComponent(sha)}`,
       { headers: { accept: '*/*' } },
@@ -266,8 +266,8 @@ export class GitLabSourceProvider implements SourceProvider {
   }
 
   async findFiles(repo: RepositoryRef, sha: string, name: string): Promise<string[]> {
-    // L'arbre récursif, cent entrées par page. Au-delà de `MAX_PAGES`, on rend
-    // ce qu'on a : un dépôt de cette taille garde son pupitre.json près de la racine.
+    // The recursive tree, a hundred entries per page. Beyond `MAX_PAGES`, we return
+    // what we have: a repository of that size keeps its pupitre.json near the root.
     const found: string[] = [];
     for (let page = 1; page <= MAX_PAGES; page += 1) {
       const response = await this.call(
@@ -309,7 +309,7 @@ export class GitLabSourceProvider implements SourceProvider {
     destination: string,
     maxBytes: number,
   ): Promise<{ bytes: number }> {
-    // Un dossier de tête, `projet-<sha>-<sha>` : le driver le retire à l'extraction.
+    // A leading folder, `project-<sha>-<sha>`: the driver strips it on extraction.
     const response = await this.call(
       `/projects/${projectId(repo.fullName)}/repository/archive.tar.gz?sha=${encodeURIComponent(sha)}`,
       { headers: { accept: '*/*' }, plain: true },
@@ -359,14 +359,14 @@ export class GitLabSourceProvider implements SourceProvider {
         },
       },
     );
-    // GitLab tient un automate par statut : redire « pending » à un statut
-    // déjà en attente est refusé. L'état est celui qu'on voulait, rien à faire.
+    // GitLab keeps a state machine per status: saying "pending" again to a status
+    // already pending is refused. The state is the one we wanted, nothing to do.
     if (response.status === 400) {
       const message = await errorMessage(response);
       if (message.includes('Cannot transition status')) return;
       throw new SourceProviderError(message, 400, 'gitlab');
     }
-    // Le refus le plus courant, et le moins lisible : une branche protégée.
+    // The most common refusal, and the least readable: a protected branch.
     if (response.status === 403) {
       throw new SourceProviderError(
         sourceSay(this.credentials.language ?? 'fr')('gitlab.protectedBranch', {
@@ -380,10 +380,10 @@ export class GitLabSourceProvider implements SourceProvider {
   }
 
   /**
-   * Les projets dont le compte du jeton est membre — ceux d'un jeton de projet
-   * ou de groupe, ou d'un compte. Jamais la liste publique de l'instance, qui
-   * sur gitlab.com en rendrait des millions. Les projets archivés et les
-   * dépôts vides (sans branche) n'ont rien à déployer.
+   * The projects the token's account is a member of — those of a project or group
+   * token, or of an account. Never the instance's public list, which on gitlab.com
+   * would return millions. Archived projects and empty repositories (without a
+   * branch) have nothing to deploy.
    */
   async listRepositories(): Promise<SourceRepository[]> {
     const repositories = new Map<string, SourceRepository>();
@@ -411,22 +411,22 @@ export class GitLabSourceProvider implements SourceProvider {
 }
 
 export type GitLabAccount = {
-  /** Le compte du jeton : un utilisateur, ou le robot d'un jeton de projet ou de groupe. */
+  /** The token's account: a user, or the bot of a project or group token. */
   login: string;
-  /** La version de l'instance. */
+  /** The instance's version. */
   version: string;
-  /** L'adresse de l'instance, nettoyée. */
+  /** The instance's address, cleaned up. */
   baseUrl: string;
-  /** Les portées du jeton, quand l'instance sait les dire. */
+  /** The token's scopes, when the instance can tell them. */
   scopes: string[] | null;
-  /** Son échéance (`AAAA-MM-JJ`), `null` s'il n'en a pas ou si l'instance ne la dit pas. */
+  /** Its expiry (`YYYY-MM-DD`), `null` if it has none or the instance does not tell. */
   expiresAt: string | null;
 };
 
 /**
- * Vérifie une adresse et un jeton saisis à la main : l'instance répond-elle,
- * à quel compte le jeton ouvre-t-il, et porte-t-il `api` ? C'est « Tester »
- * sur l'écran des intégrations, avant d'enregistrer quoi que ce soit.
+ * Checks an address and a token entered by hand: does the instance answer,
+ * which account does the token open, and does it carry `api`? It is "Test" on
+ * the integrations screen, before saving anything.
  */
 export async function fetchGitLabAccount(
   credentials: GitLabCredentials,
@@ -463,7 +463,7 @@ export async function fetchGitLabAccount(
   };
   const user = await call('/user');
   const version = await call('/version');
-  // Une instance ancienne ne sait pas décrire le jeton : on s'en passe.
+  // An old instance cannot describe the token: we do without.
   const token = await call('/personal_access_tokens/self', true);
   const scopes =
     token && Array.isArray(token.scopes)

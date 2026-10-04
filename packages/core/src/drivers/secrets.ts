@@ -9,25 +9,25 @@ import type { UiLanguage } from '../i18n.js';
 import { driverSay } from './messages.js';
 
 /**
- * Résolution des valeurs de secrets, au moment du rendu.
+ * Resolving secret values, at render time.
  *
- * L'AppSpec ne déclare que des **noms** : les valeurs vivent chiffrées en base
- * et sont fournies par l'appelant via `DriverContext.resolveSecrets`. Ce module
- * est le seul point où l'on décide ce qui se passe quand une valeur manque, et
- * il est partagé par les deux rendus pour qu'ils ne puissent pas diverger.
+ * The AppSpec only declares **names**: the values live encrypted in the database
+ * and are provided by the caller through `DriverContext.resolveSecrets`. This
+ * module is the only place where we decide what happens when a value is
+ * missing, and it is shared by both renders so that they cannot diverge.
  *
- * ── Les alias se résolvent ici, pas dans un driver ──────────────────────────
+ * ── Aliases are resolved here, not in a driver ──────────────────────────────
  *
- * Un secret peut déclarer qu'il reprend la valeur d'un autre (`{ name, from }`)
- * — c'est ce qui permet à `mariadb:11` et à `wordpress` de partager un mot de
- * passe qu'ils lisent sous deux noms différents. La chaîne d'alias est suivie
- * **ici**, dans le code neutre, et les deux drivers reçoivent une carte déjà
- * complète, où chaque nom déclaré a sa valeur. Compose aurait su interpoler
- * `${MARIADB_PASSWORD}` depuis le `.env` ; Kubernetes n'interpole rien. Résoudre
- * avant le rendu est la seule façon que la même AppSpec marche des deux côtés.
+ * A secret can declare that it reuses another's value (`{ name, from }`) — it is
+ * what lets `mariadb:11` and `wordpress` share a password they read under two
+ * different names. The alias chain is followed **here**, in the neutral code,
+ * and both drivers receive an already complete map, where each declared name has
+ * its value. Compose could have interpolated `${MARIADB_PASSWORD}` from the
+ * `.env`; Kubernetes interpolates nothing. Resolving before the render is the
+ * only way for the same AppSpec to work on both sides.
  */
 
-/** Un secret déclaré par la spec dont l'appelant n'a fourni aucune valeur. */
+/** A secret declared by the spec for which the caller provided no value. */
 export class UnresolvedSecretError extends Error {
   override readonly name = 'UnresolvedSecretError';
 
@@ -39,35 +39,35 @@ export class UnresolvedSecretError extends Error {
   }
 }
 
-/** Noms de secrets déclarés par la spec, alias compris, dédoublonnés. */
+/** Names of the secrets declared by the spec, aliases included, deduplicated. */
 export function declaredSecretNames(spec: AppSpec): string[] {
   return secretNamesOf(spec);
 }
 
 /**
- * Noms dont l'appelant doit fournir une valeur.
+ * Names for which the caller must provide a value.
  *
- * Les racines uniquement : un alias n'a pas de valeur propre, il n'a donc rien
- * à demander au magasin — et surtout rien à y créer. C'est cette liste que les
- * drivers passent à `resolveSecrets`.
+ * The roots only: an alias has no value of its own, so it has nothing to ask the
+ * store for — and above all nothing to create there. It is this list the drivers
+ * pass to `resolveSecrets`.
  */
 export { storedSecretNames };
 
 /**
- * Complète la table des valeurs pour tous les secrets déclarés, et **échoue**
- * si l'un d'eux n'a pas été résolu.
+ * Completes the table of values for every declared secret, and **fails** if one
+ * of them was not resolved.
  *
- * Entrée : les valeurs des **racines**, telles que le magasin les rend.
- * Sortie : une valeur par nom **déclaré**, alias compris — deux noms liés par
- * un alias y portent donc, littéralement, la même chaîne.
+ * Input: the values of the **roots**, as the store returns them.
+ * Output: one value per **declared** name, aliases included — two names linked
+ * by an alias therefore carry, literally, the same string.
  *
- * Le test porte sur la *présence de la clé*, jamais sur la valeur : un secret
- * délibérément vide reste légitime — certaines images distinguent « variable
- * absente » de « variable vide » — alors qu'un secret absent de la table
- * signifie que personne n'a su répondre. Écrire `''` dans les deux cas, comme le
- * faisait le rendu Docker, transformait une erreur nommable en panne obscure
- * trois étapes plus loin : PostgreSQL refusant de s'initialiser, puis le
- * `depends_on: service_healthy` du service applicatif bloquant pour toujours.
+ * The test is on the *presence of the key*, never on the value: a deliberately
+ * empty secret stays legitimate — some images tell "variable absent" from
+ * "variable empty" — whereas a secret absent from the table means nobody could
+ * answer. Writing `''` in both cases, as the Docker render did, turned a
+ * nameable error into an obscure failure three steps further: PostgreSQL
+ * refusing to initialize, then the application service's
+ * `depends_on: service_healthy` blocking forever.
  */
 export function completeSecretValues(
   spec: AppSpec,
@@ -79,12 +79,12 @@ export function completeSecretValues(
   const missing = new Set<string>();
 
   for (const name of declaredSecretNames(spec)) {
-    // Le nom qui porte réellement la valeur — lui-même, sauf pour un alias.
+    // The name that really carries the value — itself, except for an alias.
     const root = secretRootName(bindings, name);
     if (Object.hasOwn(values, root)) {
       complete[name] = values[root] as string;
     } else {
-      // On nomme la racine : c'est elle qu'il faut renseigner, pas l'alias.
+      // We name the root: it is the one to fill in, not the alias.
       missing.add(root);
     }
   }

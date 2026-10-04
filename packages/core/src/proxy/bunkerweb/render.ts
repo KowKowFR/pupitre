@@ -3,67 +3,67 @@ import type { AcmeSettings, WafMode } from '../model.js';
 import type { ProxyRoute } from '../types.js';
 
 /**
- * Ce que Pupitre pose dans BunkerWeb — rendu pur, appliqué par le provider.
+ * What Pupitre sets up in BunkerWeb — pure rendering, applied by the provider.
  *
- * ── Un service par domaine ──────────────────────────────────────────────────
- * BunkerWeb range sa configuration en « services », un par nom de serveur.
- * Pupitre en crée un par domaine, avec les seuls réglages qu'il gère : ceux
- * qu'un administrateur ajoute à la main dans l'interface de BunkerWeb (en-têtes,
- * règles de limite supplémentaires…) restent en place d'un déploiement à
- * l'autre — `PATCH` ne touche qu'aux variables envoyées.
+ * ── One service per domain ──────────────────────────────────────────────────
+ * BunkerWeb stores its configuration as "services", one per server name.
+ * Pupitre creates one per domain, with only the settings it manages: those an
+ * administrator adds by hand in BunkerWeb's interface (headers, extra limit
+ * rules…) stay in place from one deployment to the next — `PATCH` only touches
+ * the variables sent.
  *
- * ── Les préréglages de protection ───────────────────────────────────────────
- * Les réglages par défaut de BunkerWeb sont faits pour un site vitrine : 2
- * requêtes par seconde **et par adresse, toutes URL confondues**, 10
- * connexions HTTP/1.1 simultanées par adresse, PUT et DELETE refusés, une
- * adresse bannie 24 h après dix erreurs en une minute. Mesuré : vingt
- * requêtes simultanées — une page et ses ressources — reçoivent dix-huit 429 ;
- * deux navigateurs derrière la même box dépassent les 10 connexions. Une
- * application web n'y survit pas ; d'où trois préréglages.
+ * ── The protection presets ──────────────────────────────────────────────────
+ * BunkerWeb's default settings are made for a brochure site: 2 requests per
+ * second **per address, all URLs together**, 10 simultaneous HTTP/1.1
+ * connections per address, PUT and DELETE refused, an address banned for 24 h
+ * after ten errors in a minute. Measured: twenty simultaneous requests — a page
+ * and its resources — get eighteen 429s; two browsers behind the same router
+ * exceed the 10 connections. A web application does not survive it; hence three
+ * presets.
  */
 
-/** Version épinglée : la série 1.6, correctifs compris par une montée explicite. */
+/** Pinned version: the 1.6 series, fixes included through an explicit upgrade. */
 export const BUNKERWEB_IMAGE = 'bunkerity/bunkerweb-all-in-one:1.6.15';
 export const BUNKERWEB_PROJECT = 'pupitre-bunkerweb';
 export const BUNKERWEB_CONTAINER = 'pupitre-bunkerweb';
 export const BUNKERWEB_API_PORT = 8888;
 
 /**
- * Le dossier de BunkerWeb sur la machine : `{racine du driver}/bunkerweb`. À
- * part de celui de Traefik (`{racine}/proxy`), que sa désinstallation efface.
+ * BunkerWeb's folder on the machine: `{driver root}/bunkerweb`. Apart from
+ * Traefik's (`{root}/proxy`), which its uninstall erases.
  */
 export function bunkerwebRoot(rootPath: string): string {
   return `${rootPath.replace(/\/+$/, '')}/bunkerweb`;
 }
 
 /**
- * Les sondes de Pupitre passent la liste blanche de BunkerWeb par un en-tête
- * secret, pas par leur adresse : vues du conteneur, elles arrivent de la
- * passerelle Docker — comme les visiteurs IPv6 que Docker relaie, qu'une
- * liste blanche par adresse soustrairait au WAF. Le secret vit sur la machine
- * du proxy, dans ce fichier (`Nom: valeur`, mode 600).
+ * Pupitre's probes get through BunkerWeb's whitelist with a secret header, not
+ * by their address: seen from the container, they arrive from the Docker
+ * gateway — like the IPv6 visitors Docker relays, which an address whitelist
+ * would take away from the WAF. The secret lives on the proxy's machine, in this
+ * file (`Name: value`, mode 600).
  */
 export const PROBE_HEADER = 'X-Pupitre-Probe';
 export function probeHeaderFile(rootPath: string): string {
   return `${bunkerwebRoot(rootPath)}/probe-header`;
 }
-/** Remplacé sur la machine par le secret, au moment de l'appel à l'API. */
+/** Replaced on the machine by the secret, at the time of the API call. */
 export const PROBE_SECRET_PLACEHOLDER = '__PUPITRE_PROBE_SECRET__';
 
-/** Les méthodes d'une application web, API REST comprises (BunkerWeb : GET|POST|HEAD). */
+/** A web application's methods, REST APIs included (BunkerWeb: GET|POST|HEAD). */
 const WEB_METHODS = 'GET|POST|HEAD|QUERY|PUT|PATCH|DELETE|OPTIONS';
 
 /**
- *   block   ModSecurity bloquant (règles OWASP CRS) ; 100 requêtes par seconde
- *           et par adresse — une page et ses ressources passent, le flot d'une
- *           seule adresse non ; 100 connexions simultanées par adresse — un
- *           bureau derrière une seule adresse passe ; bannissement d'une heure
- *           après trente erreurs en une minute, sans compter les 429 (dépasser
- *           la limite ne mène pas au bannissement) ;
- *   detect  les mêmes contrôles, en mode `detect` de BunkerWeb : tout est
- *           journalisé, rien n'est bloqué. Sans limite de connexions : nginx
- *           l'applique toujours, il ne sait pas seulement la journaliser ;
- *   off     plus d'inspection ni de limite ; BunkerWeb relaie.
+ *   block   blocking ModSecurity (OWASP CRS rules); 100 requests per second per
+ *           address — a page and its resources get through, a single address's
+ *           flood does not; 100 simultaneous connections per address — an
+ *           office behind a single address gets through; one-hour ban after
+ *           thirty errors in a minute, not counting 429s (exceeding the limit
+ *           does not lead to a ban);
+ *   detect  the same checks, in BunkerWeb's `detect` mode: everything is logged,
+ *           nothing is blocked. Without a connection limit: nginx always applies
+ *           it, it cannot just log it;
+ *   off     no more inspection or limit; BunkerWeb relays.
  */
 export function wafPreset(mode: WafMode): Record<string, string> {
   const inspection = {
@@ -107,11 +107,11 @@ export function wafPreset(mode: WafMode): Record<string, string> {
 }
 
 /**
- * Les variables du service d'un domaine. `upstream` : `http://IP:port` — une
- * adresse IP, le nginx de BunkerWeb ne lisant pas `/etc/hosts`. Les sondes de
- * Pupitre passent la liste blanche par leur en-tête secret — jamais limitées
- * ni bannies, sans quoi un domaine sain passerait pour tombé ; la valeur est
- * `PROBE_SECRET_PLACEHOLDER`, remplacée sur la machine du proxy.
+ * The variables of a domain's service. `upstream`: `http://IP:port` — an IP
+ * address, BunkerWeb's nginx not reading `/etc/hosts`. Pupitre's probes get
+ * through the whitelist with their secret header — never limited or banned,
+ * otherwise a healthy domain would look down; the value is
+ * `PROBE_SECRET_PLACEHOLDER`, replaced on the proxy's machine.
  */
 export function serviceVariables(input: {
   route: ProxyRoute;
@@ -127,7 +127,7 @@ export function serviceVariables(input: {
     REVERSE_PROXY_HOST: input.upstream,
     REVERSE_PROXY_URL: '/',
     AUTO_LETS_ENCRYPT: letsEncrypt ? 'yes' : 'no',
-    // HTTPS sans autorité : un certificat auto-signé plutôt que rien.
+    // HTTPS without an authority: a self-signed certificate rather than nothing.
     GENERATE_SELF_SIGNED_SSL: route.tls && !letsEncrypt ? 'yes' : 'no',
     EMAIL_LETS_ENCRYPT: acme?.email ?? '',
     LETS_ENCRYPT_SERVER: acme?.server === 'zerossl' ? 'zerossl' : 'letsencrypt',
@@ -142,11 +142,10 @@ export function serviceVariables(input: {
 }
 
 /**
- * Ce que Pupitre a posé pour une application (et la machine d'où elle vient,
- * pour le proxy central) : la liste de ses domaines, gardée dans un fichier sur
- * la machine du proxy. C'est elle qui dit quoi retirer quand un domaine
- * disparaît, et quels services ne sont pas à Pupitre — BunkerWeb n'a pas
- * d'étiquette où le noter.
+ * What Pupitre set up for an application (and the machine it comes from, for
+ * the central proxy): the list of its domains, kept in a file on the proxy's
+ * machine. It is what says what to remove when a domain disappears, and which
+ * services are not Pupitre's — BunkerWeb has no label to note it in.
  */
 export type RouteRegistry = { hostnames: string[] };
 
@@ -164,7 +163,7 @@ export function parseRegistry(text: string | null): RouteRegistry {
   }
 }
 
-/** Le nom du fichier du registre d'une application : `{slug}[--{portée}].json`. */
+/** The file name of an application's registry: `{slug}[--{scope}].json`. */
 export function registryFileName(name: string): string {
   return `${name.replace(/[^a-z0-9-]/gi, '-')}.json`;
 }
@@ -173,24 +172,23 @@ export type ServicePlan = {
   create: string[];
   update: string[];
   remove: string[];
-  /** Des services qui existent déjà dans BunkerWeb sans être à Pupitre. */
+  /** Services that already exist in BunkerWeb without being Pupitre's. */
   foreign: string[];
 };
 
 /**
- * Ce qu'il faut faire pour qu'une application ait exactement ces domaines.
- * `owned` : tous les domaines que Pupitre a posés sur ce BunkerWeb, toutes
- * applications confondues — un service existant hors de cette liste n'est pas
- * à lui, il n'y touche pas.
+ * What must be done for an application to have exactly these domains. `owned`:
+ * every domain Pupitre set up on this BunkerWeb, all applications together — an
+ * existing service outside that list is not Pupitre's, it does not touch it.
  */
 export function planServices(input: {
-  /** Les domaines que l'application doit avoir. */
+  /** The domains the application must have. */
   wanted: string[];
-  /** Ceux que Pupitre lui avait posés. */
+  /** Those Pupitre had set up for it. */
   previous: string[];
-  /** Les services qui existent dans BunkerWeb. */
+  /** The services that exist in BunkerWeb. */
   existing: string[];
-  /** Les domaines que Pupitre a posés pour les **autres** applications. */
+  /** The domains Pupitre set up for the **other** applications. */
   others: string[];
 }): ServicePlan {
   const existing = new Set(input.existing);
@@ -203,8 +201,8 @@ export function planServices(input: {
     else if (owned.has(hostname)) plan.update.push(hostname);
     else plan.foreign.push(hostname);
   }
-  // Un domaine passé à une autre application est désormais le sien : on ne
-  // retire que ce qui n'est plus réclamé par personne.
+  // A domain passed to another application is now that one's: we only remove what
+  // nobody claims anymore.
   for (const hostname of input.previous) {
     if (!wanted.has(hostname) && !others.has(hostname) && existing.has(hostname)) {
       plan.remove.push(hostname);
@@ -214,11 +212,11 @@ export function planServices(input: {
 }
 
 /**
- * Le BunkerWeb installé par Pupitre : le tout-en-un, ports 80 → 8080 et
- * 443 → 8443 (il tourne sans les droits root et écoute au-dessus de 1024),
- * l'API activée, l'interface web non — Pupitre en tient lieu. Le jeton de
- * l'API est dans `api.env`, généré sur la machine et lisible de son seul
- * propriétaire ; il n'apparaît pas ici.
+ * The BunkerWeb installed by Pupitre: the all-in-one, ports 80 → 8080 and
+ * 443 → 8443 (it runs without root rights and listens above 1024), the API
+ * enabled, the web interface not — Pupitre stands in for it. The API token is in
+ * `api.env`, generated on the machine and readable by its owner alone; it does
+ * not appear here.
  */
 export function renderBunkerwebCompose(): string {
   return stringify(
@@ -238,9 +236,9 @@ export function renderBunkerwebCompose(): string {
             MULTISITE: 'yes',
             SERVER_NAME: '',
             API_LISTEN_PORT: String(BUNKERWEB_API_PORT),
-            // Au réglage de nginx (64), un domaine d'une cinquantaine de
-            // caractères fait refuser **toute** la configuration — BunkerWeb
-            // revient alors en silence à la précédente.
+            // With nginx's setting (64), a domain of fifty-odd characters makes **the
+            // whole** configuration be refused — BunkerWeb then silently goes back to the
+            // previous one.
             SERVER_NAMES_HASH_BUCKET_SIZE: '256',
           },
           volumes: ['bunkerweb-data:/data'],

@@ -8,12 +8,12 @@ import { tlsProbe } from './tls.js';
 import type { MonitorProbe } from './types.js';
 
 /**
- * La fabrique de sondes — même forme que `getDriver(runtime)`.
+ * The probe factory — the same shape as `getDriver(runtime)`.
  *
- * **Ajouter un type de surveillance** (DNS, empreinte de contenu) : écrire
- * `packages/core/src/probe/<type>.ts`, ajouter son entrée au catalogue
- * (`monitors/catalog.ts`), et une ligne au registre ci-dessous. La table
- * `monitors`, le balayage, les routes REST et l'écran ne bougent pas.
+ * **Adding a kind of monitoring** (DNS, content fingerprint): write
+ * `packages/core/src/probe/<type>.ts`, add its entry to the catalog
+ * (`monitors/catalog.ts`), and a line to the registry below. The `monitors`
+ * table, the sweep, the REST routes and the screen do not move.
  */
 const PROBES: Record<MonitorType, MonitorProbe> = {
   http: httpProbe,

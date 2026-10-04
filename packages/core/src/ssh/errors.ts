@@ -1,7 +1,7 @@
 import type { UiLanguage } from '../i18n.js';
 import { sshSay } from './messages.js';
 
-/** Erreurs de la couche SSH. Aucune ne porte de credential dans son message. */
+/** Errors of the SSH layer. None carries a credential in its message. */
 
 export class SshError extends Error {
   constructor(
@@ -14,20 +14,20 @@ export class SshError extends Error {
   }
 }
 
-/** Identifiants refusés. **Jamais** rejouée : un retry ne ferait qu'aggraver. */
+/** Credentials refused. **Never** retried: a retry would only make things worse. */
 export class SshAuthError extends SshError {
   override readonly name = 'SshAuthError';
 }
 
-/** Hôte injoignable, DNS, TCP, handshake. Rejouable avec backoff. */
+/** Host unreachable, DNS, TCP, handshake. Retryable with backoff. */
 export class SshConnectionError extends SshError {
   override readonly name = 'SshConnectionError';
 }
 
 /**
- * La machine présente une autre clé d'hôte que celle retenue. **Jamais**
- * rejouée : ce n'est pas un incident réseau — la machine a été réinstallée, ou
- * quelqu'un se fait passer pour elle. Seul un humain peut trancher.
+ * The machine presents a different host key from the recorded one. **Never**
+ * retried: it is not a network incident — the machine was reinstalled, or
+ * someone is passing themselves off as it. Only a human can decide.
  */
 export class SshHostKeyError extends SshError {
   override readonly name = 'SshHostKeyError';
@@ -42,12 +42,12 @@ export class SshHostKeyError extends SshError {
   }
 }
 
-/** Commande dépassant son délai. */
+/** Command exceeding its timeout. */
 export class SshTimeoutError extends SshError {
   override readonly name = 'SshTimeoutError';
 }
 
-/** Configuration incohérente (ex. sudo par mot de passe sans mot de passe). */
+/** Inconsistent configuration (e.g. password sudo without a password). */
 export class SshConfigError extends SshError {
   override readonly name = 'SshConfigError';
 }
@@ -65,9 +65,9 @@ const AUTH_MARKERS = [
 ];
 
 /**
- * Un échec d'authentification est définitif : mauvaise clé, mauvais mot de
- * passe, clé chiffrée sans passphrase. Le rejouer ne peut pas aider et, sur
- * certaines cibles, déclenche un bannissement fail2ban.
+ * An authentication failure is final: wrong key, wrong password, encrypted key
+ * without a passphrase. Retrying cannot help and, on some targets, triggers a
+ * fail2ban ban.
  */
 export function isAuthFailure(error: unknown): boolean {
   if (error instanceof SshAuthError) return true;

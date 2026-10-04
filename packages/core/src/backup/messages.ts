@@ -1,9 +1,8 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les destinations de sauvegarde et le format chiffré — le
- * « Tester » d'une destination, l'échec d'une sauvegarde ou d'une
- * restauration —, dans la langue de l'instance.
+ * What the backup destinations and the encrypted format say — a destination's
+ * "Test", a backup's or a restore's failure —, in the instance's language.
  */
 const fr = {
   'store.keyOutside': 'clé hors du dossier de sauvegarde : {key}',

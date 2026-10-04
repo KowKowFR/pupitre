@@ -8,25 +8,25 @@ import {
 import { BRAND_MARK, EMAIL_COLORS, brandHeaderHtml, type InlineImage } from './brand.js';
 
 /**
- * Les e-mails **transactionnels** du cycle de vie des comptes.
+ * **Transactional** emails of the accounts' life cycle.
  *
- * Ils ne sont pas des notifications, et la distinction n'est pas de vocabulaire :
+ * They are not notifications, and the distinction is not one of vocabulary:
  *
- *   — une notification part vers les **destinataires configurés** d'un canal
- *     (la boîte d'astreinte), décrit un fait déjà arrivé, et si elle se perd on
- *     s'en aperçoit plus tard ;
- *   — un e-mail transactionnel part vers **une personne précise**, désignée par
- *     l'action en cours, et il porte le seul moyen de terminer cette action.
- *     S'il se perd, la personne est bloquée.
+ *   — a notification goes to a channel's **configured recipients** (the on-call
+ *     inbox), describes a fact that already happened, and if it gets lost one
+ *     notices later;
+ *   — a transactional email goes to **one specific person**, designated by the
+ *     action in progress, and it carries the only way to finish that action. If
+ *     it gets lost, the person is stuck.
  *
- * D'où un module séparé, un rendu séparé, et surtout un destinataire qui ne
- * vient pas du canal mais de l'appelant. Ce qu'on emprunte au canal SMTP, c'est
- * uniquement son **transport** : serveur, port, chiffrement, identifiants,
- * adresse d'expéditeur. Voir `smtpOptionsFrom()` dans `./smtp.ts`.
+ * Hence a separate module, a separate rendering, and above all a recipient that
+ * does not come from the channel but from the caller. What is borrowed from the
+ * SMTP channel is only its **transport**: server, port, encryption, credentials,
+ * sender address. See `smtpOptionsFrom()` in `./smtp.ts`.
  *
- * Ce module ne dépend que de Zod — pas de `nodemailer` : il est réexporté depuis
- * la racine de `@pupitre/core`, donc lisible par le panel Next et par le schéma
- * de la file, sans tirer de transport dans leur graphe.
+ * This module only depends on Zod — not on `nodemailer`: it is re-exported from
+ * the root of `@pupitre/core`, hence readable by the Next panel and by the
+ * queue's schema, without pulling a transport into their graph.
  */
 
 export const ACCOUNT_MAIL_KINDS = ['invitation', 'password_reset'] as const;
@@ -35,44 +35,44 @@ export const accountMailKindSchema = z.enum(ACCOUNT_MAIL_KINDS);
 export type AccountMailKind = z.infer<typeof accountMailKindSchema>;
 
 /**
- * Ce qu'un e-mail transactionnel transporte.
+ * What a transactional email carries.
  *
- * `url` est un **lien porteur** : quiconque l'ouvre prend la main sur le compte.
- * Il n'a donc rien à faire dans un journal, dans une réponse d'API ni dans une
- * charge de tâche en clair — la file le transporte chiffré, voir
- * `accountMailJobDataSchema` dans `../queue.js`.
+ * `url` is a **bearer link**: whoever opens it takes over the account. It
+ * therefore has no business in a log, in an API response or in a task payload in
+ * clear — the queue carries it encrypted, see `accountMailJobDataSchema` in
+ * `../queue.js`.
  */
 export const accountMailSchema = z.object({
   kind: accountMailKindSchema,
-  /** Adresse du destinataire. Une seule : ces messages n'ont jamais de copie. */
+  /** The recipient's address. Only one: these messages never have a copy. */
   to: z.string().trim().min(3).max(200),
-  /** Nom affiché dans la salutation. Le compte en a toujours un. */
+  /** Name shown in the greeting. The account always has one. */
   recipientName: z.string().trim().min(1).max(120),
-  /** Nom de l'instance émettrice, comme pour les notifications. */
+  /** Name of the sending instance, as for notifications. */
   instance: z.string().trim().min(1).max(60),
   url: z.string().url().max(2000),
   expiresAt: z.string().datetime(),
   /**
-   * Qui a déclenché l'envoi, quand quelqu'un l'a déclenché. Une invitation vient
-   * d'un administrateur et le dire rassure ; une réinitialisation vient de la
-   * personne elle-même (ou de quelqu'un qui a tapé son adresse) et n'a pas
-   * d'acteur à nommer.
+   * Who triggered the send, when someone did. An invitation comes from an
+   * administrator and saying so reassures; a reset comes from the person
+   * themselves (or from someone who typed their address) and has no actor to
+   * name.
    */
   actor: z.string().trim().min(1).max(200).nullable().default(null),
 });
 
 export type AccountMail = z.infer<typeof accountMailSchema>;
 
-/** Ce qu'un canal SMTP a besoin de savoir pour poster le message. */
+/** What an SMTP channel needs to know to post the message. */
 export type AccountMailEnvelope = {
   subject: string;
   text: string;
   html: string;
-  /** À joindre tel quel à l'envoi : le HTML y fait référence par `cid:`. */
+  /** To attach as is to the send: the HTML refers to it through `cid:`. */
   inlineImages: InlineImage[];
 };
 
-/** Échappement HTML. Le nom du destinataire vient d'un formulaire : rien n'est sûr. */
+/** HTML escaping. The recipient's name comes from a form: nothing is safe. */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -82,24 +82,24 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Le texte des deux messages, en un seul endroit — et sa traduction juste à
- * côté.
+ * The text of both messages, in one place — and its translation right next to
+ * it.
  *
- * ── Pourquoi le dictionnaire vit ici et pas dans `apps/web` ─────────────────
- * Ce n'est pas le panel qui compose ces e-mails : c'est le worker, qui a le
- * transport SMTP et le seul accès au lien en clair. Un dictionnaire rangé dans
- * `apps/web/src/i18n/messages` lui serait donc inaccessible. Il vit là où vit
- * la composition, comme le veut la règle : les dictionnaires de l'interface
- * chez l'interface, ceux du domaine à côté du domaine.
+ * ── Why the dictionary lives here and not in `apps/web` ─────────────────────
+ * It is not the panel that composes these emails: it is the worker, which has
+ * the SMTP transport and the only access to the link in clear. A dictionary
+ * stored in `apps/web/src/i18n/messages` would therefore be out of its reach. It
+ * lives where the composition lives, as the rule wants: the interface's
+ * dictionaries with the interface, the domain's next to the domain.
  *
- * ── Pourquoi la langue est un paramètre ─────────────────────────────────────
- * Une invitation part vers quelqu'un qui n'a pas encore de session : il n'y a
- * personne à qui demander sa langue. C'est donc celle de l'instance, comme les
- * alertes et comme le panel — et elle est **passée** plutôt que lue ici, parce
- * que ce module ne dépend que de Zod et n'a aucun accès à la base.
+ * ── Why the language is a parameter ─────────────────────────────────────────
+ * An invitation goes to someone who has no session yet: there is nobody to ask
+ * for their language. It is therefore the instance's, like the alerts and like
+ * the panel — and it is **passed** rather than read here, because this module
+ * only depends on Zod and has no access to the database.
  */
 const fr = {
-  // ── Le cadre, commun aux deux messages ──────────────────────────────────
+  // ── The frame, shared by both messages ──────────────────────────────────
   'greeting': 'Bonjour {name},',
   'link.label': '{action} :',
   'link.validity':
@@ -108,10 +108,10 @@ const fr = {
   'footer': '{instance} · message automatique, ne pas répondre',
 
   /**
-   * L'échéance, avec son fuseau écrit. Une clé plutôt qu'un `Intl` : le fuseau
-   * de l'instance n'est pas celui du destinataire, et une heure UTC affichée
-   * comme telle est la seule qui ne mente pas. Seule la ponctuation change
-   * d'une langue à l'autre.
+   * The expiry, with its time zone written out. A key rather than an `Intl`: the
+   * instance's time zone is not the recipient's, and a UTC time shown as such is
+   * the only one that does not lie. Only the punctuation changes from one
+   * language to the other.
    */
   'expiry': '{day}/{month}/{year} à {hours} h {minutes} UTC',
   'validity.days': { one: '{count} jour', other: '{count} jours' },
@@ -125,9 +125,9 @@ const fr = {
   'invitation.body.admin':
     'Un administrateur vous a ouvert un accès au plan de contrôle {instance}.',
   /**
-   * Dire explicitement que personne d'autre ne connaît le mot de passe est le
-   * point de tout ce chantier : c'est ce qui change par rapport à un compte
-   * fabriqué par un administrateur puis transmis de la main à la main.
+   * Saying explicitly that nobody else knows the password is the point of this
+   * whole work: it is what changes compared with an account made by an
+   * administrator then handed over by hand.
    */
   'invitation.body.secret':
     'Votre compte existe déjà : il ne lui manque qu’un mot de passe. Vous le choisissez vous-même, et personne d’autre ne le connaîtra — pas même l’administrateur qui vous a invité.',
@@ -135,14 +135,14 @@ const fr = {
   'invitation.ignore':
     'Si vous ne vous attendiez pas à ce message, ignorez-le. Sans ce lien, le compte reste inutilisable.',
 
-  // ── Réinitialisation ────────────────────────────────────────────────────
+  // ── Reset ───────────────────────────────────────────────────────────────
   'reset.subject': 'Réinitialiser votre mot de passe sur {instance}',
   'reset.heading': 'Réinitialisation de votre mot de passe',
   'reset.body.requested':
     'Quelqu’un a demandé la réinitialisation du mot de passe associé à cette adresse sur {instance}.',
   /**
-   * Annoncer la déconnexion avant qu'elle n'arrive : une session qui tombe sans
-   * explication ressemble à une panne.
+   * Announce the sign-out before it happens: a session that drops without
+   * explanation looks like an outage.
    */
   'reset.body.sessions':
     'En choisissant un nouveau mot de passe, vous fermerez toutes les sessions ouvertes sur ce compte, y compris celles que vous n’avez pas ouvertes.',
@@ -189,20 +189,19 @@ const accountMailMessages = { fr, en };
 
 type MailKey = keyof typeof fr;
 
-/** Lie le dictionnaire à une langue. Même fonction pure que côté panel. */
+/** Binds the dictionary to a language. The same pure function as on the panel side. */
 function messageFor(language: UiLanguage) {
   return (key: MailKey, vars?: Vars): string =>
     renderMessage(accountMailMessages, language, key, vars);
 }
 
 /**
- * Date d'expiration, fuseau UTC explicite.
+ * Expiry date, explicit UTC time zone.
  *
- * `Intl` avec un fuseau nommé serait plus agréable, mais le fuseau de
- * l'instance n'est pas celui du destinataire et il n'existe aucun moyen de
- * connaître le second. Une heure UTC affichée comme telle est la seule qui ne
- * ment pas. La phrase qui l'accompagne donne de toute façon la durée, qui est
- * l'information réellement utile.
+ * `Intl` with a named time zone would be nicer, but the instance's time zone is
+ * not the recipient's and there is no way to know the latter. A UTC time shown
+ * as such is the only one that does not lie. The sentence that goes with it
+ * gives the duration anyway, which is the really useful information.
  */
 function formatExpiry(iso: string, t: ReturnType<typeof messageFor>): string {
   const date = new Date(iso);
@@ -216,7 +215,7 @@ function formatExpiry(iso: string, t: ReturnType<typeof messageFor>): string {
   });
 }
 
-/** Durée restante, arrondie à l'unité qui se lit — « 7 jours », « 1 heure ». */
+/** Remaining duration, rounded to the unit that reads — "7 days", "1 hour". */
 function formatValidity(iso: string, t: ReturnType<typeof messageFor>): string {
   const ms = new Date(iso).getTime() - Date.now();
   const hours = Math.round(ms / 3_600_000);
@@ -226,34 +225,34 @@ function formatValidity(iso: string, t: ReturnType<typeof messageFor>): string {
   return minutes >= 60 ? t('validity.hours', { count: 1 }) : t('validity.minutes', { count: minutes });
 }
 
-/** Un paragraphe du corps : sa clé et ce qu'elle attend. */
+/** A paragraph of the body: its key and what it expects. */
 type Paragraph = { key: MailKey; vars?: Vars };
 
 type Copy = {
   subject: MailKey;
   heading: MailKey;
-  /** Paragraphes du corps, dans l'ordre. Du texte simple : aucun balisage. */
+  /** The body's paragraphs, in order. Plain text: no markup. */
   body: (mail: AccountMail) => Paragraph[];
   action: MailKey;
-  /** Ce qu'il faut faire si on n'a rien demandé. Jamais absent — c'est la garde. */
+  /** What to do if you asked for nothing. Never absent — it is the safeguard. */
   ignore: MailKey;
 };
 
 /**
- * La structure des deux messages, en un seul endroit.
+ * The structure of both messages, in one place.
  *
- * Une table de données plutôt qu'un `if (kind === …)` réparti entre le rendu
- * texte et le rendu HTML : les deux parties d'un même message doivent dire la
- * même chose, et la seule façon de le garantir est qu'elles lisent la même
- * source. C'est la règle appliquée au catalogue des canaux.
+ * A data table rather than an `if (kind === …)` spread between the text and
+ * HTML renderings: the two parts of one message must say the same thing, and the
+ * only way to guarantee it is for them to read the same source. It is the rule
+ * applied to the channels' catalog.
  */
 const COPY: Record<AccountMailKind, Copy> = {
   invitation: {
     subject: 'invitation.subject',
     heading: 'invitation.heading',
     body: (mail) => {
-      // Annoté plutôt qu'inféré : sans le type explicite, les deux branches du
-      // ternaire fusionnent en une union qui promet `actor: undefined`.
+      // Annotated rather than inferred: without the explicit type, the ternary's two
+      // branches merge into a union that promises `actor: undefined`.
       const opener: Paragraph = mail.actor
         ? { key: 'invitation.body.actor', vars: { actor: mail.actor, instance: mail.instance } }
         : { key: 'invitation.body.admin', vars: { instance: mail.instance } };
@@ -274,16 +273,19 @@ const COPY: Record<AccountMailKind, Copy> = {
   },
 };
 
-/** Teintes du design system. En dur, comme dans `smtp.ts` : un client d'e-mail ne lit ni variable CSS ni feuille externe. */
+/**
+ * Design system tints. Hard-coded, as in `smtp.ts`: an email client reads neither
+ * CSS variables nor external sheets.
+ */
 const C = EMAIL_COLORS;
 
 /**
- * La partie `text/plain`.
+ * The `text/plain` part.
  *
- * Elle n'est pas un repli de politesse : c'est elle que lisent un client en
- * mode texte, un relais qui déshabille le HTML, et l'aperçu d'une notification
- * de téléphone. Le lien y figure **en clair et sur sa propre ligne**, parce
- * qu'un lien coupé par un retour à la ligne est un lien mort.
+ * It is not a courtesy fallback: it is what a text-mode client reads, a relay
+ * that strips HTML, and a phone notification's preview. The link is in it **in
+ * clear and on its own line**, because a link cut by a line break is a dead
+ * link.
  */
 export function renderAccountMailText(mail: AccountMail, language: UiLanguage): string {
   const t = messageFor(language);
@@ -313,12 +315,12 @@ export function renderAccountMailText(mail: AccountMail, language: UiLanguage): 
 }
 
 /**
- * La partie `text/html`.
+ * The `text/html` part.
  *
- * Style en ligne uniquement, table de mise en page pour le bouton : c'est le
- * seul HTML qui traverse à peu près tous les clients. Le lien est **aussi**
- * répété en clair sous le bouton, parce qu'un bouton qui ne se rend pas ne
- * laisse rien à cliquer.
+ * Inline styles only, a layout table for the button: it is the only HTML that
+ * gets through more or less every client. The link is **also** repeated in
+ * clear under the button, because a button that does not render leaves nothing
+ * to click.
  */
 export function renderAccountMailHtml(mail: AccountMail, language: UiLanguage): string {
   const t = messageFor(language);
@@ -358,12 +360,12 @@ export function renderAccountMailHtml(mail: AccountMail, language: UiLanguage): 
 }
 
 /**
- * L'enveloppe complète : sujet, texte, HTML.
+ * The complete envelope: subject, text, HTML.
  *
- * Le sujet ne porte **pas** le préfixe `[instance]` des alertes. Une alerte est
- * triée dans une boîte d'astreinte qui en reçoit de plusieurs panels ; celui-ci
- * arrive chez une personne qui attend précisément ce message, et un crochet en
- * tête ressemble à du courrier de machine — donc à du spam.
+ * The subject does **not** carry the alerts' `[instance]` prefix. An alert is
+ * sorted in an on-call inbox that receives some from several panels; this one
+ * arrives at a person who expects precisely this message, and a bracket at the
+ * start looks like machine mail — hence like spam.
  */
 export function renderAccountMail(mail: AccountMail, language: UiLanguage): AccountMailEnvelope {
   return {

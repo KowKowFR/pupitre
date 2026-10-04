@@ -174,9 +174,9 @@ export type MonitorTypeDefinition<Config> = {
  * screen — a type's name, a field's label, input help, a measurement's name —
  * is here, once, and the compiler refuses an incomplete translation.
  *
- * Labels shared by several types (« Hôte », « Code attendu », « Temps de
- * réponse ») are only written once, under a neutral prefix: two types that show
- * the same word must not be able to give it two different translations.
+ * Labels shared by several types ("Host", "Expected code", "Response time") are
+ * only written once, under a neutral prefix: two types that show the same word
+ * must not be able to give it two different translations.
  */
 const fr = {
   // ── Shared labels ───────────────────────────────────────────────────────

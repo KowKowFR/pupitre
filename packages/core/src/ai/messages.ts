@@ -1,10 +1,10 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que la génération par IA dit **à qui la lance** — un échec, les reproches
- * d'une tentative —, dans la langue de l'instance. Ce qu'elle dit au modèle
- * (le prompt, le message de relance) n'est pas ici : ce sont des instructions,
- * écrites dans la langue du prompt.
+ * What AI generation says **to whoever starts it** — a failure, an attempt's
+ * complaints —, in the instance's language. What it says to the model (the
+ * prompt, the retry message) is not here: those are instructions, written in the
+ * prompt's language.
  */
 const fr = {
   truncated:

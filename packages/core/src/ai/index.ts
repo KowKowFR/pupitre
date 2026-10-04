@@ -1,10 +1,10 @@
 /**
- * Génération d'AppSpec par IA.
+ * AppSpec generation by AI.
  *
- * Sous-chemin dédié (`@pupitre/core/ai`) plutôt que réexport depuis la racine : le
- * SDK et son provider n'ont rien à faire dans le graphe de dépendances du
- * worker, qui ne génère rien. Même règle que `@pupitre/core/ssh`, `/drivers` et
- * `/scanners`.
+ * A dedicated subpath (`@pupitre/core/ai`) rather than a re-export from the
+ * root: the SDK and its provider have no business in the dependency graph of the
+ * worker, which generates nothing. The same rule as `@pupitre/core/ssh`,
+ * `/drivers` and `/scanners`.
  */
 export * from './assets.js';
 export * from './catalog.js';

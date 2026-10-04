@@ -1,10 +1,9 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les reverse proxys — installation, « Tester », pose des
- * routes, sondes d'un domaine, épreuve d'une liaison —, dans la langue de
- * l'instance. Ce qui est commun à tous est ici ; chaque proxy a son
- * dictionnaire, qui reprend celui-ci.
+ * What reverse proxies say — installation, "Test", applying routes, a domain's
+ * probes, testing a link —, in the instance's language. What is shared by all
+ * is here; each proxy has its dictionary, which builds on this one.
  */
 const fr = {
   'host.mkdirFailed': 'création impossible',
@@ -128,7 +127,7 @@ export function proxySay(language: UiLanguage): ProxySay {
   return translator(proxyCopy, language);
 }
 
-/** « 80 et 443 », « 80 and 443 ». */
+/** "80 et 443", "80 and 443". */
 export function listOf(items: readonly string[], language: UiLanguage): string {
   return new Intl.ListFormat(language, { type: 'conjunction' }).format(items);
 }

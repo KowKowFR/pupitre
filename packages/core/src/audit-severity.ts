@@ -1,29 +1,28 @@
 /**
- * La criticité d'une entrée du journal d'activité.
+ * The severity of an activity log entry.
  *
- * Elle ne s'écrit pas avec l'entrée : c'est une **lecture** de l'action, faite
- * au moment où l'on regarde. Revoir la table reclasse donc tout le journal,
- * passé compris, sans migration — et la trace elle-même reste ce qu'elle était.
+ * It is not written with the entry: it is a **reading** of the action, made at
+ * the time one looks. Revising the table therefore reclassifies the whole log,
+ * past included, without a migration — and the trace itself stays what it was.
  *
- * - `critical` : à traiter maintenant — une empreinte SSH qui change, un retour
- *   arrière ou une restauration qui échoue ;
- * - `high` : une panne, un refus qui ressemble à une tentative, un geste sur
- *   les accès (rôles, comptes, jetons, intégrations) ;
- * - `medium` : un changement d'état ou de configuration, un échec ordinaire ;
- * - `low` : la routine — connexions, lectures, réussites, retours à la normale.
+ * - `critical`: to handle now — an SSH fingerprint that changes, a rollback or a
+ *   restore that fails;
+ * - `high`: an outage, a refusal that looks like an attempt, a gesture on access
+ *   (roles, accounts, tokens, integrations);
+ * - `medium`: a change of state or configuration, an ordinary failure;
+ * - `low`: routine — sign-ins, reads, successes, returns to normal.
  *
- * La même table sert l'écran (`auditSeverityOf`) et le filtre en base
- * (`@pupitre/db` la traduit en `CASE … LIKE`) : les deux ne peuvent pas
- * diverger.
+ * The same table serves the screen (`auditSeverityOf`) and the database filter
+ * (`@pupitre/db` translates it into `CASE … LIKE`): the two cannot diverge.
  */
 
 export const AUDIT_SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
 export type AuditSeverity = (typeof AUDIT_SEVERITIES)[number];
 
 /**
- * Motif d'action et sa criticité. `*` vaut n'importe quelle suite de
- * caractères, points compris ; sans `*`, l'action exacte. La première règle
- * qui répond l'emporte ; aucune ne répond : `low`.
+ * Action pattern and its severity. `*` matches any sequence of characters, dots
+ * included; without `*`, the exact action. The first rule that matches wins;
+ * none matches: `low`.
  */
 export type AuditSeverityRule = readonly [pattern: string, severity: AuditSeverity];
 
@@ -33,11 +32,11 @@ export const AUDIT_SEVERITY_RULES: readonly AuditSeverityRule[] = [
   ['*.rollback.failed', 'critical'],
   ['backup.restore.failed', 'critical'],
 
-  // Élevée : les refus qui ressemblent à une tentative…
+  // High: refusals that look like an attempt…
   ['auth.admin_route.refused', 'high'],
   ['auth.two_factor_route.refused', 'high'],
   ['request.cross_site.refused', 'high'],
-  // … les gestes sur les accès…
+  // … gestures on access…
   ['role.*', 'high'],
   ['user.role.changed', 'high'],
   ['user.deleted', 'high'],
@@ -47,18 +46,18 @@ export const AUDIT_SEVERITY_RULES: readonly AuditSeverityRule[] = [
   ['api_token.created', 'high'],
   ['integration.*', 'high'],
   ['target.host_key.accepted', 'high'],
-  // … ce qui détruit, contourne ou rétablit d'autorité…
+  // … what destroys, bypasses or restores by authority…
   ['target.deleted', 'high'],
   ['deployment.purged', 'high'],
   ['deployment.unblocked', 'high'],
-  // Une faille acceptée ne bloque plus : c'est un contournement assumé.
+  // An accepted vulnerability no longer blocks: it is a deliberate bypass.
   ['vulnerability.accepted', 'high'],
   ['application.delete.force*', 'high'],
   ['backup.restore*', 'high'],
   ['backup.panel.disabled', 'high'],
   ['workload.exec*', 'high'],
   ['workload.remove*', 'high'],
-  // … et les pannes.
+  // … and outages.
   ['target.unreachable', 'high'],
   ['*.down', 'high'],
   ['deployment.scan.blocked', 'high'],
@@ -69,24 +68,24 @@ export const AUDIT_SEVERITY_RULES: readonly AuditSeverityRule[] = [
   ['proxy.install.failed', 'high'],
   ['application.delete.failed', 'high'],
 
-  // Faible, malgré la forme d'un changement : ce qu'on fait pour soi.
+  // Low, despite looking like a change: what one does for oneself.
   ['account.2fa.enabled', 'low'],
   ['account.avatar.*', 'low'],
   ['onboarding.*', 'low'],
 
-  // Moyenne : les échecs et refus ordinaires…
+  // Medium: ordinary failures and refusals…
   ['*.failed', 'medium'],
   ['*_failed', 'medium'],
   ['*.refused', 'medium'],
   ['*.blocked', 'medium'],
   ['permission.denied', 'medium'],
   ['auth.denied.*', 'medium'],
-  // … les signaux à surveiller…
+  // … signals to watch…
   ['target.threshold.breached', 'medium'],
   ['route.certificate.expiring', 'medium'],
   ['audit.exported', 'medium'],
   ['auth.sso.role.kept', 'medium'],
-  // … et les changements.
+  // … and changes.
   ['auth.signup.succeeded', 'medium'],
   ['auth.password_reset.completed', 'medium'],
   ['account.password.changed', 'medium'],
@@ -140,14 +139,14 @@ const compiled = AUDIT_SEVERITY_RULES.map(([pattern, severity]) => ({
   severity,
 }));
 
-/** La criticité d'une action du journal. */
+/** The severity of a log action. */
 export function auditSeverityOf(action: string): AuditSeverity {
   return compiled.find((rule) => rule.test.test(action))?.severity ?? 'low';
 }
 
 /**
- * Le motif d'une règle en `LIKE` SQL (échappement `\`) : `_` et `%` y sont
- * des jokers, et les actions en contiennent (`auth.two_factor.failed`).
+ * A rule's pattern as SQL `LIKE` (`\` escaping): `_` and `%` are wildcards
+ * there, and actions contain them (`auth.two_factor.failed`).
  */
 export function auditSeverityLikePattern(pattern: string): string {
   return pattern
@@ -156,7 +155,7 @@ export function auditSeverityLikePattern(pattern: string): string {
     .join('%');
 }
 
-/** `?severity=high,critical` : les criticités reconnues, dans l'ordre de l'échelle. */
+/** `?severity=high,critical`: the recognized severities, in the scale's order. */
 export function parseAuditSeverities(value: string | null | undefined): AuditSeverity[] {
   if (!value) return [];
   const wanted = new Set(value.split(',').map((part) => part.trim().toLowerCase()));

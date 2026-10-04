@@ -19,83 +19,80 @@ import {
 } from '../forecast.js';
 
 /**
- * Ce qui mérite d'être notifié — et rien d'autre.
+ * What deserves a notification — and nothing else.
  *
- * ── Pourquoi si peu d'événements ────────────────────────────────────────────
- * Le journal d'audit enregistre une soixantaine d'actions. En notifier ne
- * serait-ce que le quart rendrait la boîte de réception inutilisable en une
- * journée, et la première chose que ferait l'opérateur serait de couper la
- * fonctionnalité — c'est-à-dire de ne plus être prévenu de *rien*. Sept
- * événements sont retenus, tous répondant à la même question : « faut-il que
- * quelqu'un se lève ? »
+ * ── Why so few events ───────────────────────────────────────────────────────
+ * The audit log records some sixty actions. Notifying even a quarter of them
+ * would make the inbox unusable within a day, and the operator's first move
+ * would be to turn the feature off — that is, to no longer be warned of
+ * *anything*. Only a few events are kept, all answering the same question:
+ * "does someone need to get up?"
  *
- *   deployment.failed         une mise en ligne n'a pas abouti
- *   deployment.scan_blocked   une image vulnérable a été arrêtée avant la mise en ligne
- *   deployment.rolled_back    le panel est revenu tout seul à la version d'avant
- *   deployment.succeeded      une version est en ligne — à ne choisir que là où on veut la voir passer
- *   security.two_factor_reset une protection de compte a été levée
- *   security.role_changed     quelqu'un a gagné ou perdu des droits
- *   security.signup_pending   un compte s'est inscrit et attend qu'on lui choisisse un rôle
- *   security.api_token_created un jeton d'API a été créé : un accès qui agit sans navigateur
- *   security.host_key_changed une cible présente une autre clé d'hôte : connexion refusée
- *   monitor.down              un site supervisé est tombé, panne confirmée
- *   monitor.recovered         ce site est revenu
- *   image.update.available    une image déployée a été republiée, ou dépassée
- *   backup.failed             une sauvegarde n'a pas abouti
- *   route.down                un domaine ne répond plus à travers son reverse proxy
- *   route.recovered           ce domaine répond de nouveau
- *   route.certificate_expiring le certificat d'un domaine expire sous quatorze jours
- *   route.certificate_renewed  ce certificat a été renouvelé
- *   target.unreachable        une machine ne répond plus en SSH, deux relevés de suite
- *   target.reachable          cette machine répond de nouveau
+ *   deployment.failed         a release did not succeed
+ *   deployment.scan_blocked   a vulnerable image was stopped before the release
+ *   deployment.rolled_back    the panel went back by itself to the previous version
+ *   deployment.succeeded      a version is online — only pick it where you want to see it go by
+ *   security.two_factor_reset an account protection was lifted
+ *   security.role_changed     someone gained or lost rights
+ *   security.signup_pending   an account signed up and waits for a role to be chosen
+ *   security.api_token_created an API token was created: an access that acts without a browser
+ *   security.host_key_changed a target presents another host key: connection refused
+ *   monitor.down              a monitored site went down, outage confirmed
+ *   monitor.recovered         that site came back
+ *   image.update.available    a deployed image was republished, or overtaken
+ *   backup.failed             a backup did not succeed
+ *   route.down                a domain no longer answers through its reverse proxy
+ *   route.recovered           that domain answers again
+ *   route.certificate_expiring a domain's certificate expires in under fourteen days
+ *   route.certificate_renewed  that certificate was renewed
+ *   target.unreachable        a machine no longer answers over SSH, two readings in a row
+ *   target.reachable          that machine answers again
  *
- * Sont écartés, volontairement : les refus de permission (bavards et déjà
- * tracés) et les relevés périodiques. Un succès ne réveille personne non plus —
- * mais une équipe veut parfois voir passer ses mises en ligne dans son salon :
- * `deployment.succeeded` existe pour elle. Comme tout événement, il ne part que
- * vers les canaux qui l'ont choisi.
+ * Deliberately left out: permission refusals (chatty and already traced) and
+ * periodic readings. A success wakes nobody up either — but a team sometimes
+ * wants to see its releases go by in its room: `deployment.succeeded` exists for
+ * it. Like any event, it only goes to the channels that chose it.
  *
- * ── Pourquoi la supervision entre ici, alors qu'elle avait son webhook ───────
- * Les sondes savaient déjà alerter, mais chacune vers **son** webhook, réglé
- * sonde par sonde. Un site pouvait donc tomber sans que personne ne l'apprenne,
- * sur une instance qui a pourtant un canal Discord qui marche. Le passage par
- * le catalogue leur donne gratuitement ce que la couche de notifications sait
- * déjà faire : les quatre protocoles, le regroupement des rafales, les résumés
- * nommés, le rejeu par canal. Le webhook par sonde, lui, reste — voir plus bas.
+ * ── Why monitoring comes in here, when it had its own webhook ───────────────
+ * Probes could already alert, but each one to **its** webhook, set probe by
+ * probe. A site could therefore go down without anybody learning it, on an
+ * instance that does have a working Discord channel. Going through the catalog
+ * gives them for free what the notification layer already does: the four
+ * protocols, burst grouping, named digests, per-channel replay. The per-probe
+ * webhook stays — see below.
  *
- * ── Ce que la supervision n'envoie PAS ──────────────────────────────────────
- * Une sonde passe entre `healthy`, `unhealthy` et `unreachable`. Toutes les
- * bascules ne se valent pas, et c'est la machine à états qui tranche, pas ce
- * fichier : `nextMonitorState()` n'annonce une transition qu'après
- * `failureThreshold` échecs consécutifs (ouverture) ou `recoveryThreshold`
- * succès consécutifs (fermeture), et **aucune** quand une sonde déjà en panne
- * passe de « répond mal » à « injoignable ». L'hystérésis existe donc en amont
- * de l'audit : un rebond n'écrit pas d'entrée, donc ne produit pas d'événement.
- * Il n'y a rien à refiltrer ici, et surtout rien à réinventer.
+ * ── What monitoring does NOT send ───────────────────────────────────────────
+ * A probe moves between `healthy`, `unhealthy` and `unreachable`. Not all flips
+ * are equal, and it is the state machine that decides, not this file:
+ * `nextMonitorState()` only announces a transition after `failureThreshold`
+ * consecutive failures (opening) or `recoveryThreshold` consecutive successes
+ * (closing), and **none** when a probe already down goes from "answering
+ * badly" to "unreachable". Hysteresis therefore exists upstream of the audit: a
+ * blip writes no entry, hence produces no event. There is nothing to filter
+ * again here, and above all nothing to reinvent.
  *
- * ── Pourquoi un seul `monitor.down` et non deux ─────────────────────────────
- * Séparer « répond mal » d'« injoignable » donnerait deux événements, donc deux
- * groupes de regroupement, donc deux résumés pour une même panne
- * d'infrastructure qui produit un mélange de 503 et de connexions refusées. La
- * nature de la panne appartient au *contenu* du message et de la ligne de
- * résumé, pas à la clé — même arbitrage que `notificationDigestGroupKey()`.
+ * ── Why a single `monitor.down` and not two ─────────────────────────────────
+ * Separating "answering badly" from "unreachable" would give two events, hence
+ * two grouping buckets, hence two digests for one infrastructure outage that
+ * produces a mix of 503s and refused connections. The nature of the outage
+ * belongs to the *content* of the message and of the digest line, not to the
+ * key — the same trade-off as `notificationDigestGroupKey()`.
  *
- * ── Pourquoi la source est le journal d'audit ───────────────────────────────
- * Ces sept événements passent **déjà** par `logAudit()`, le point d'entrée
- * unique de la traçabilité. Les redécrire à la main sur chaque site d'émission
- * demanderait de modifier le pipeline de déploiement, deux routes
- * d'administration et le worker — et de recommencer au prochain événement. En
- * dérivant d'une entrée d'audit, la correspondance « ce qui s'est passé » →
- * « ce qu'on envoie » tient dans cette seule table, et rien en amont ne bouge.
+ * ── Why the source is the audit log ─────────────────────────────────────────
+ * These events **already** go through `logAudit()`, the single entry point of
+ * traceability. Describing them again by hand at each emission site would mean
+ * changing the deployment pipeline, two administration routes and the worker —
+ * and starting over at the next event. By deriving from an audit entry, the
+ * mapping "what happened" → "what we send" fits in this single table, and
+ * nothing upstream moves.
  *
- * Les deux derniers venus le démontrent : la supervision écrivait déjà
- * `monitor.down` / `monitor.recovered` dans `audit_logs`. Les brancher sur les
- * canaux n'a demandé **aucune** ligne dans `apps/worker/src/monitors` en dehors
- * d'un enrichissement de la charge utile d'audit — deux entrées ici ont suffi.
+ * Monitoring proved it: probes already wrote `monitor.down` /
+ * `monitor.recovered` to `audit_logs`. Plugging them into the channels took
+ * **no** line in `apps/worker/src/monitors` apart from enriching the audit
+ * payload — two entries here were enough.
  *
- * Corollaire assumé : un événement qui n'est pas audité n'est pas notifiable.
- * C'est une bonne contrainte — un incident qui ne laisse pas de trace ne
- * devrait pas exister.
+ * An accepted corollary: an event that is not audited cannot be notified. It is
+ * a good constraint — an incident that leaves no trace should not exist.
  */
 
 export const NOTIFICATION_EVENT_KEYS = [
@@ -128,27 +125,27 @@ export const NOTIFICATION_EVENT_KEYS = [
 export type NotificationEventKey = (typeof NOTIFICATION_EVENT_KEYS)[number];
 
 /**
- * Les mots d'une alerte, dans les deux langues.
+ * An alert's words, in both languages.
  *
- * ── Pourquoi le dictionnaire est ici et non dans `apps/web` ─────────────────
- * Personne n'est devant l'écran quand ce texte s'écrit. Il n'y a ni session, ni
- * requête, ni composant : c'est le worker qui compose, à trois heures du matin,
- * en réaction à une entrée d'audit. Le dictionnaire vit donc à côté de ce qu'il
- * décrit, comme le veut la règle posée dans `i18n.ts` — les dictionnaires
- * d'interface dans le panel, ceux du domaine à côté du domaine.
+ * ── Why the dictionary is here and not in `apps/web` ────────────────────────
+ * Nobody is in front of the screen when this text is written. There is no
+ * session, no request, no component: it is the worker that composes, at three
+ * in the morning, in reaction to an audit entry. The dictionary therefore lives
+ * next to what it describes, as the rule set in `i18n.ts` wants — interface
+ * dictionaries in the panel, the domain's next to the domain.
  *
- * ── D'où vient la langue ────────────────────────────────────────────────────
- * De `settings.locale`, par `languageOf()`, résolue par l'appelant et descendue
- * dans `NotificationRenderContext`. `packages/core` ne dépend pas de
- * `@pupitre/db` et ne la lira donc jamais lui-même. C'est la même contrainte
- * qui a fait passer `panelUrl` et `instance` par ce contexte.
+ * ── Where the language comes from ───────────────────────────────────────────
+ * From `settings.locale`, through `languageOf()`, resolved by the caller and
+ * passed down in `NotificationRenderContext`. `packages/core` does not depend
+ * on `@pupitre/db` and will therefore never read it itself. It is the same
+ * constraint that made `panelUrl` and `instance` go through this context.
  *
- * ── Ce qui ne se traduit pas ────────────────────────────────────────────────
- * Les clés d'événement, les noms d'action d'audit, les identifiants de
- * ressource, les slugs et les URL. Ce sont des données, pas des phrases.
+ * ── What is not translated ──────────────────────────────────────────────────
+ * Event keys, audit action names, resource identifiers, slugs and URLs. They
+ * are data, not sentences.
  */
 const fr = {
-  // ── vocabulaire partagé ────────────────────────────────────────────────
+  // ── shared vocabulary ──────────────────────────────────────────────────
   'actor.label': 'Déclenché par',
   'actor.system': 'le système (tâche planifiée ou worker)',
   'yes': 'oui',
@@ -161,7 +158,7 @@ const fr = {
   'duration.hoursMinutes': '{value} h {rest}',
   'duration.days': '{value} j',
 
-  // ── étiquettes de champ ────────────────────────────────────────────────
+  // ── field labels ───────────────────────────────────────────────────────
   'field.deployment': 'Déploiement',
   'field.step': 'Étape',
   'field.error': 'Erreur',
@@ -192,7 +189,7 @@ const fr = {
   'field.breachDuration': 'Durée du dépassement',
   'field.clearedBy': 'Levée par',
 
-  // ── vocabulaire de la supervision ──────────────────────────────────────
+  // ── monitoring vocabulary ──────────────────────────────────────────────
   'monitor.verdict.unreachable': 'injoignable',
   'monitor.verdict.unhealthy': 'répond mal',
   'monitor.verdict.healthy': 'sain',
@@ -916,9 +913,9 @@ const en: Translated<typeof fr> = {
 const EVENT_TEXT = { fr, en };
 
 /**
- * Chaque événement du catalogue porte ses trois textes de présentation. Le
- * compilateur le vérifie ici plutôt qu'à l'exécution : un événement ajouté sans
- * libellé ne compile pas.
+ * Each event of the catalog carries its three presentation texts. The compiler
+ * checks it here rather than at runtime: an event added without a label does
+ * not compile.
  */
 const _eventTextParity: Record<
   `${NotificationEventKey}.${'label' | 'description' | 'rationale'}`,
@@ -930,7 +927,7 @@ function t(language: UiLanguage, key: keyof typeof fr, vars?: Vars): string {
   return renderMessage(EVENT_TEXT, language, key, vars);
 }
 
-/** L'entrée d'audit, réduite à ce dont la correspondance a besoin. */
+/** The audit entry, reduced to what the mapping needs. */
 export type NotifiableAuditEntry = {
   action: string;
   resourceType: string;
@@ -940,22 +937,22 @@ export type NotifiableAuditEntry = {
   after: unknown;
 };
 
-/** Ce que l'émetteur sait de son propre contexte au moment de composer. */
+/** What the emitter knows of its own context at composition time. */
 export type NotificationRenderContext = {
-  /** Nom de l'instance, tel que les paramètres le portent. */
+  /** The instance's name, as the settings carry it. */
   instance: string;
-  /** Racine du panel, sans barre finale. `null` si elle n'est pas connue. */
+  /** The panel's root, without a trailing slash. `null` if it is not known. */
   panelUrl: string | null;
-  /** E-mail de l'acteur, quand il a pu être résolu. `null` pour le système. */
+  /** The actor's email, when it could be resolved. `null` for the system. */
   actor: string | null;
   occurredAt: string;
   /**
-   * Langue de l'instance, tirée de `settings.locale` par `languageOf()`.
+   * The instance's language, taken from `settings.locale` by `languageOf()`.
    *
-   * Elle descend en paramètre parce que `packages/core` ne dépend pas de
-   * `@pupitre/db` et ne peut donc pas lire les paramètres : c'est l'appelant —
-   * le worker, ou le panel pour l'essai de canal — qui la résout. Même motif
-   * que `panelUrl` et `instance`.
+   * It comes down as a parameter because `packages/core` does not depend on
+   * `@pupitre/db` and therefore cannot read the settings: it is the caller — the
+   * worker, or the panel for a channel test — that resolves it. The same pattern
+   * as `panelUrl` and `instance`.
    */
   language: UiLanguage;
 };
@@ -964,79 +961,79 @@ type RenderedEvent = {
   title: string;
   body: string;
   fields: NotificationField[];
-  /** Chemin relatif dans le panel, ex. `/deployments/xxx`. `null` s'il n'y en a pas. */
+  /** Path relative to the panel, e.g. `/deployments/xxx`. `null` if there is none. */
   path: string | null;
   /**
-   * Ce qu'une **ligne de résumé** nomme, quand cet événement est regroupé avec
-   * d'autres du même type. Obligatoire, et c'est voulu : c'est cette ligne qui
-   * empêche un résumé d'être un compteur muet. Elle nomme l'objet concerné —
-   * « déploiement 4f2a… », « compte alice@… » — jamais la catégorie, qui est
-   * déjà dans le titre du résumé.
+   * What a **digest line** names, when this event is grouped with others of the
+   * same type. Required, on purpose: it is this line that keeps a digest from
+   * being a mute counter. It names the object concerned — "deployment 4f2a…",
+   * "account alice@…" — never the category, which is already in the digest's
+   * title.
    */
   summary: string;
-  /** Précision courte de la ligne de résumé : l'étape, le verdict, la transition. */
+  /** A short detail of the digest line: the step, the verdict, the transition. */
   summaryDetail: string | null;
 };
 
 /**
- * Le descripteur ne porte plus ses textes : ils vivent dans le dictionnaire
- * ci-dessus, sous les clés `<événement>.label`, `.description` et `.rationale`.
- * Un descripteur est de la structure — une gravité, une action d'audit, un
- * chemin —, et la structure n'a pas de langue. Les textes se lisent par
- * `notificationEventLabel()` et `presentNotificationEvents()`, qui prennent
- * tous deux la langue.
+ * The descriptor no longer carries its texts: they live in the dictionary
+ * above, under the `<event>.label`, `.description` and `.rationale` keys. A
+ * descriptor is structure — a severity, an audit action, a path —, and
+ * structure has no language. The texts are read through
+ * `notificationEventLabel()` and `presentNotificationEvents()`, which both take
+ * the language.
  */
 export type NotificationEventDescriptor = {
   readonly key: NotificationEventKey;
   readonly severity: NotificationSeverity;
-  /** Action d'audit qui porte l'événement. */
+  /** Audit action that carries the event. */
   readonly auditAction: string;
   /**
-   * Écran du panel qui montre *l'ensemble* de ces objets. Un résumé porte
-   * plusieurs objets : il ne peut pas pointer la fiche de l'un d'eux.
+   * Panel screen showing *all* of these objects. A digest carries several
+   * objects: it cannot point to one of them's record.
    */
   readonly digestPath: string | null;
   /**
-   * Départage deux événements portés par la même action d'audit. Un scan qui
-   * bloque et un déploiement qui casse s'écrivent tous deux `deployment.failed` :
-   * seul `failedStep` les distingue.
+   * Tells apart two events carried by the same audit action. A scan that blocks
+   * and a deployment that breaks are both written `deployment.failed`: only
+   * `failedStep` distinguishes them.
    */
   readonly matches: (entry: NotifiableAuditEntry) => boolean;
   readonly render: (entry: NotifiableAuditEntry, ctx: NotificationRenderContext) => RenderedEvent;
   /**
-   * Ce qui distingue **deux occurrences successives** du même événement sur le
-   * même objet, quand l'identifiant de la ressource n'y suffit pas.
+   * What distinguishes **two successive occurrences** of the same event on the
+   * same object, when the resource's identifier is not enough.
    *
-   * L'anti-doublon de la distribution porte sur le couple (événement,
-   * ressource) pendant cinq minutes. Pour un déploiement, cela va de soi :
-   * chaque déploiement a son identifiant, et la fenêtre ne sert qu'à absorber
-   * les trois tentatives que BullMQ écrit pour un même incident.
+   * The dispatch's deduplication covers the (event, resource) pair for five
+   * minutes. For a deployment, that goes without saying: each deployment has its
+   * identifier, and the window only serves to absorb the three attempts BullMQ
+   * writes for one incident.
    *
-   * Pour une sonde, non. L'identifiant est celui de la **sonde**, stable d'une
-   * panne à l'autre : deux pannes distinctes du même site à moins de cinq
-   * minutes d'intervalle se confondaient, et la seconde alerte était avalée
-   * sans trace. Un descripteur peut donc fournir ici un discriminant tiré de sa
-   * charge utile — l'identifiant d'incident, typiquement — qui sépare les
-   * occurrences sans rien changer à l'absorption des rejeux, puisqu'un rejeu
-   * recopie la même charge.
+   * For a probe, no. The identifier is the **probe's**, stable from one outage to
+   * the next: two distinct outages of the same site less than five minutes apart
+   * were merged, and the second alert was swallowed without a trace. A
+   * descriptor can therefore provide here a discriminant taken from its payload
+   * — the incident identifier, typically — which separates occurrences without
+   * changing anything about absorbing replays, since a replay copies the same
+   * payload.
    *
-   * `undefined` garde le comportement d'origine.
+   * `undefined` keeps the original behavior.
    */
   readonly dedupDiscriminator?: (entry: NotifiableAuditEntry) => string | null;
   /**
-   * Comment l'alerte se range pendant une fenêtre de maintenance : son sujet,
-   * sa famille, si elle ouvre un problème. Absent : l'événement n'est jamais
-   * retenu — la sécurité, les déploiements, les sauvegardes passent toujours.
+   * How the alert is filed during a maintenance window: its subject, its family,
+   * whether it opens a problem. Absent: the event is never held — security,
+   * deployments, backups always go through.
    */
   readonly maintenance?: MaintenanceRule;
 };
 
-// ─── lecture défensive des charges utiles d'audit ─────────────────────────────
+// ─── defensive reading of audit payloads ──────────────────────────────────────
 
 /**
- * `before` et `after` sont des JSONB : leur forme n'est garantie par rien.
- * Une notification ne doit jamais échouer parce qu'un champ a bougé — au pire
- * elle est moins précise.
+ * `before` and `after` are JSONB: nothing guarantees their shape. A
+ * notification must never fail because a field moved — at worst it is less
+ * precise.
  */
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -1056,7 +1053,7 @@ function optional(value: unknown): string | null {
   return rendered.length > 0 ? rendered : null;
 }
 
-/** N'ajoute un champ que s'il a une valeur — une ligne « — » n'apprend rien. */
+/** Only adds a field if it has a value — a "—" line teaches nothing. */
 function fieldsOf(entries: [string, string | null][]): NotificationField[] {
   return entries
     .filter((entry): entry is [string, string] => entry[1] !== null)
@@ -1068,28 +1065,26 @@ function actorField(ctx: NotificationRenderContext): [string, string | null] {
 }
 
 /**
- * Borne une chaîne, en le disant.
+ * Caps a string, saying so.
  *
- * `notificationDigestItemSchema` plafonne `label` à 200 caractères et `detail`
- * à 300 : au-delà, le `parse()` **lève**, la tâche de distribution échoue et
- * l'alerte est perdue. Ce n'est pas théorique — une URL de sonde est acceptée
- * jusqu'à 2 048 caractères. Une ligne de résumé tronquée est une gêne ; une
- * alerte de panne jamais partie est une panne.
+ * `notificationDigestItemSchema` caps `label` at 200 characters and `detail` at
+ * 300: beyond that, `parse()` **throws**, the dispatch task fails and the alert
+ * is lost. It is not theoretical — a probe URL is accepted up to 2,048
+ * characters. A truncated digest line is a nuisance; an outage alert that never
+ * left is an outage.
  */
 function clip(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
-// ─── vocabulaire de la supervision ────────────────────────────────────────────
+// ─── monitoring vocabulary ────────────────────────────────────────────────────
 
 /**
- * Le verdict d'une sonde. Il vit ici et non dans un `switch` chez l'appelant :
- * c'est de la mise en forme de message, et `message.ts` interdit qu'elle fuie
- * ailleurs.
+ * A probe's verdict. It lives here and not in a `switch` in the caller: it is
+ * message formatting, and `message.ts` forbids it from leaking elsewhere.
  *
- * Le `switch` porte sur le **statut**, qui est une donnée, et rend une clé de
- * dictionnaire. C'est ce qui garde une seule table de correspondance quelle que
- * soit la langue.
+ * The `switch` is on the **status**, which is data, and returns a dictionary
+ * key. That is what keeps a single mapping table whatever the language.
  */
 function monitorVerdict(language: UiLanguage, status: unknown): string {
   switch (text(status, '')) {
@@ -1105,14 +1100,14 @@ function monitorVerdict(language: UiLanguage, status: unknown): string {
 }
 
 /**
- * Le même verdict, mais en prédicat.
+ * The same verdict, but as a predicate.
  *
- * Deux fonctions et non une, parce que le français ne se laisse pas
- * concaténer : « est injoignable » se dit avec le verbe être, « répond mal »
- * porte le sien. Coller un `est ${verdict}` devant l'adjectif donnait « est
- * répond mal ». Constaté à la première exécution, pas supposé. L'anglais a
- * exactement le même problème (*is unreachable* contre *answers normally*),
- * donc la même paire de clés.
+ * Two functions and not one, because French does not concatenate: « est
+ * injoignable » is said with the verb "to be", « répond mal » carries its own.
+ * Sticking an `est ${verdict}` in front of the adjective gave « est répond
+ * mal ». Observed at the first run, not assumed. English has exactly the same
+ * problem (*is unreachable* versus *answers normally*), hence the same pair of
+ * keys.
  */
 function monitorVerdictSentence(language: UiLanguage, status: unknown): string {
   switch (text(status, '')) {
@@ -1127,7 +1122,7 @@ function monitorVerdictSentence(language: UiLanguage, status: unknown): string {
   }
 }
 
-/** « 4 min », « 1 h 20 », « 2 j ». `null` quand la durée n'est pas connue. */
+/** "4 min", "1 h 20", "2 d". `null` when the duration is not known. */
 function monitorDuration(language: UiLanguage, seconds: unknown): string | null {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return null;
   const total = Math.round(seconds);
@@ -1145,12 +1140,12 @@ function monitorDuration(language: UiLanguage, seconds: unknown): string | null 
 }
 
 /**
- * Ce qui identifie la sonde dans une ligne de résumé.
+ * What identifies the probe in a digest line.
  *
- * Le nom **et** la cible, parce que ce ne sont pas les mêmes informations :
- * l'opérateur a nommé la sonde (« boutique »), mais c'est l'URL qui dit
- * laquelle des trois boutiques est tombée. Un résumé de douze pannes doit
- * pouvoir se lire sans ouvrir le panel.
+ * The name **and** the target, because they are not the same information: the
+ * operator named the probe ("shop"), but it is the URL that says which of the
+ * three shops went down. A digest of twelve outages must be readable without
+ * opening the panel.
  */
 function monitorLabel(language: UiLanguage, entry: NotifiableAuditEntry): string {
   const after = record(entry.after);
@@ -1164,23 +1159,23 @@ function monitorLabel(language: UiLanguage, entry: NotifiableAuditEntry): string
   );
 }
 
-// ─── les alertes que retient une maintenance ──────────────────────────────────
+// ─── the alerts a maintenance window holds ────────────────────────────────────
 
-/** Une sonde : la panne et le rétablissement d'une même sonde forment une famille. */
+/** A probe: the outage and the recovery of one probe form a family. */
 const monitorRule = (opens: boolean): MaintenanceRule => ({
   subject: (entry) => (entry.resourceId ? { type: 'monitor', id: entry.resourceId } : null),
   family: (entry) => `monitor:${entry.resourceId ?? '?'}`,
   opens,
 });
 
-/** Une machine injoignable, puis rejointe. */
+/** A machine unreachable, then reached again. */
 const reachabilityRule = (opens: boolean): MaintenanceRule => ({
   subject: (entry) => (entry.resourceId ? { type: 'target', id: entry.resourceId } : null),
   family: (entry) => `reach:${entry.resourceId ?? '?'}`,
   opens,
 });
 
-/** Un seuil d'une machine : chaque métrique est sa propre famille. */
+/** A machine's threshold: each metric is its own family. */
 const thresholdRule = (opens: boolean): MaintenanceRule => ({
   subject: (entry) => (entry.resourceId ? { type: 'target', id: entry.resourceId } : null),
   family: (entry) =>
@@ -1189,8 +1184,8 @@ const thresholdRule = (opens: boolean): MaintenanceRule => ({
 });
 
 /**
- * Un domaine : l'entrée est au nom de l'application, la route est dans la
- * charge. Une entrée ancienne sans `routeId` n'est jamais retenue.
+ * A domain: the entry is in the application's name, the route is in the
+ * payload. An old entry without `routeId` is never held.
  */
 const routeRule = (opens: boolean): MaintenanceRule => ({
   subject: (entry) => {
@@ -1201,13 +1196,13 @@ const routeRule = (opens: boolean): MaintenanceRule => ({
   opens,
 });
 
-/** « 2026-10-03T22:00:00.000Z » → « 2026-10-03 22:00 UTC ». */
+/** "2026-10-03T22:00:00.000Z" → "2026-10-03 22:00 UTC". */
 function utcMinute(value: unknown): string {
   const iso = optional(value);
   return iso ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : '?';
 }
 
-/** Les noms d'une liste de la charge utile, joints pour une phrase. */
+/** The names of a payload list, joined for a sentence. */
 function names(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => text(item, '?')) : [];
 }
@@ -1292,7 +1287,7 @@ const CATALOG = {
         ]),
         path: entry.resourceId ? `/deployments/${entry.resourceId}` : null,
         summary: t(lang, 'deployment.summary', { id: entry.resourceId ?? '?' }),
-        // Deux versions et une flèche : pas une phrase, rien à traduire.
+        // Two versions and an arrow: not a sentence, nothing to translate.
         summaryDetail: `${text(before.version, '?')} → ${text(after.restoredVersion, '?')}`,
       };
     },
@@ -1395,9 +1390,9 @@ const CATALOG = {
     severity: 'info',
     auditAction: 'user.created',
     digestPath: '/admin/users',
-    // Le hook de création écrit le rôle attribué. Seule l'inscription publique
-    // donne le rôle sans accès : un compte créé par un administrateur porte
-    // déjà le rôle qu'il a choisi, il n'attend personne.
+    // The creation hook writes the role assigned. Only public sign-up gives the
+    // no-access role: an account created by an administrator already carries the
+    // role they chose, it waits for nobody.
     matches: (entry) => record(entry.after).role === SIGNUP_ROLE,
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -1467,7 +1462,7 @@ const CATALOG = {
     auditAction: 'target.host_key.mismatch',
     digestPath: '/targets',
     matches: () => true,
-    // Une clé inattendue par message : le worker ne l'écrit qu'une fois par clé.
+    // One unexpected key per message: the worker only writes it once per key.
     dedupDiscriminator: (entry) => optional(record(entry.after).presented),
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -1495,13 +1490,13 @@ const CATALOG = {
     auditAction: 'monitor.down',
     maintenance: monitorRule(true),
     digestPath: '/monitors',
-    // Une seule action d'audit porte cet événement, et la machine à états a
-    // déjà écarté les rebonds : rien à départager ici.
-    // L'anti-doublon porte sur (événement, ressource), et la ressource d'une
-    // sonde est la sonde — la même d'une panne à l'autre. Deux pannes
-    // distinctes du même site à moins de cinq minutes se confondaient donc, et
-    // la seconde alerte disparaissait sans trace. L'identifiant d'incident les
-    // sépare ; un rejeu de la même tâche, lui, le recopie et reste absorbé.
+    // A single audit action carries this event, and the state machine already set
+    // blips aside: nothing to tell apart here.
+    // Deduplication covers (event, resource), and a probe's resource is the probe
+    // — the same from one outage to the next. Two distinct outages of the same site
+    // less than five minutes apart were therefore merged, and the second alert
+    // disappeared without a trace. The incident identifier separates them; a replay
+    // of the same task copies it and stays absorbed.
     dedupDiscriminator: (entry) => optional(record(entry.after).incidentId),
     matches: () => true,
     render: (entry, ctx) => {
@@ -1532,8 +1527,8 @@ const CATALOG = {
         ]),
         path: entry.resourceId ? `/monitors/${entry.resourceId}` : null,
         summary: monitorLabel(lang, entry),
-        // La nature de la panne, pas la catégorie : c'est elle qui distingue
-        // « le serveur rend 503 » de « plus rien n'écoute sur le port ».
+        // The nature of the outage, not the category: it is what distinguishes "the
+        // server returns 503" from "nothing listens on the port anymore".
         summaryDetail: clip(
           detail ? t(lang, 'monitor.down.summaryDetail', { verdict, detail }) : verdict,
           300,
@@ -1543,18 +1538,17 @@ const CATALOG = {
   },
   'monitor.recovered': {
     key: 'monitor.recovered',
-    // `info` et non `warning` : un rétablissement ne demande aucun geste. La
-    // gravité sert au routage et à la couleur ; la peindre en rouge apprendrait
-    // à ignorer le rouge.
+    // `info` and not `warning`: a recovery requires no gesture. Severity serves
+    // routing and color; painting it red would teach people to ignore red.
     severity: 'info',
     auditAction: 'monitor.recovered',
     maintenance: monitorRule(false),
     digestPath: '/monitors',
-    // L'anti-doublon porte sur (événement, ressource), et la ressource d'une
-    // sonde est la sonde — la même d'une panne à l'autre. Deux pannes
-    // distinctes du même site à moins de cinq minutes se confondaient donc, et
-    // la seconde alerte disparaissait sans trace. L'identifiant d'incident les
-    // sépare ; un rejeu de la même tâche, lui, le recopie et reste absorbé.
+    // Deduplication covers (event, resource), and a probe's resource is the probe
+    // — the same from one outage to the next. Two distinct outages of the same site
+    // less than five minutes apart were therefore merged, and the second alert
+    // disappeared without a trace. The incident identifier separates them; a replay
+    // of the same task copies it and stays absorbed.
     dedupDiscriminator: (entry) => optional(record(entry.after).incidentId),
     matches: () => true,
     render: (entry, ctx) => {
@@ -1596,10 +1590,10 @@ const CATALOG = {
     maintenance: thresholdRule(true),
     digestPath: '/apps',
     matches: () => true,
-    // Un épisode par franchissement, et son identifiant ne bouge pas tant qu'il
-    // dure : deux franchissements successifs de la même métrique sur la même
-    // machine sont deux épisodes, donc deux messages. Sans lui, la ressource
-    // serait la machine, identique d'un épisode à l'autre.
+    // One episode per crossing, and its identifier does not move while it lasts:
+    // two successive crossings of the same metric on the same machine are two
+    // episodes, hence two messages. Without it, the resource would be the machine,
+    // identical from one episode to the next.
     dedupDiscriminator: (entry) => optional(record(entry.after).breachId),
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -1658,9 +1652,9 @@ const CATALOG = {
       const machine = text(after.targetName, '?');
       const metrique = text(after.metricLabel, t(lang, 'target.threshold.cleared.metric'));
       const duree = optional(after.durationSeconds);
-      // `threshold_disabled` : l'épisode s'est refermé parce qu'on a coupé le
-      // seuil, pas parce que la machine va mieux. Le taire serait un faux
-      // soulagement — c'est exactement le genre de message qu'on lit vite.
+      // `threshold_disabled`: the episode closed because the threshold was turned
+      // off, not because the machine is better. Keeping quiet about it would be false
+      // relief — it is exactly the kind of message read quickly.
       const coupe = text(after.reason, 'crossed') === 'threshold_disabled';
 
       return {
@@ -1684,10 +1678,10 @@ const CATALOG = {
             (duree === null
               ? ''
               : t(lang, 'target.threshold.cleared.bodyDuration', {
-                  // `duree` sort d'`optional()`, donc c'est une chaîne, et
-                  // `monitorDuration()` n'accepte qu'un nombre : elle rend
-                  // `null` ici depuis toujours. Comportement reproduit tel
-                  // quel — le corriger n'est pas le travail d'une traduction.
+                  // `duree` comes out of `optional()`, so it is a string, and
+                  // `monitorDuration()` only accepts a number: it has always
+                  // returned `null` here. Behavior reproduced as is —
+                  // fixing it is not the job of a translation.
                   duration: String(monitorDuration(lang, duree)),
                 })),
         fields: fieldsOf([
@@ -1772,8 +1766,8 @@ const CATALOG = {
     auditAction: 'image.update.available',
     digestPath: '/applications',
     matches: () => true,
-    // La ressource est l'application, stable d'une annonce à l'autre : c'est la
-    // nouveauté elle-même (digests, tags) qui distingue deux annonces.
+    // The resource is the application, stable from one announcement to the next: it
+    // is the novelty itself (digests, tags) that distinguishes two announcements.
     dedupDiscriminator: (entry) => optional(record(entry.after).noticeKey),
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -1819,8 +1813,8 @@ const CATALOG = {
     auditAction: 'backup.failed',
     digestPath: '/applications',
     matches: () => true,
-    // La ressource est l'application (ou le panel), stable d'une nuit à
-    // l'autre : c'est la sauvegarde elle-même qui distingue deux échecs.
+    // The resource is the application (or the panel), stable from one night to the
+    // next: it is the backup itself that distinguishes two failures.
     dedupDiscriminator: (entry) => optional(record(entry.after).backupId),
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -1990,8 +1984,8 @@ const CATALOG = {
     auditAction: 'forecast.raised',
     digestPath: '/',
     matches: () => true,
-    // Un épisode, un message : l'identifiant de l'épisode ne bouge pas tant
-    // que la prévision dure, et une prévision refermée puis revenue en est une autre.
+    // One episode, one message: the episode's identifier does not move while the
+    // forecast lasts, and a forecast closed then back is another one.
     dedupDiscriminator: (entry) => entry.resourceId ?? null,
     render: (entry, ctx) => {
       const after = record(entry.after);
@@ -2095,13 +2089,13 @@ const CATALOG = {
   },
 } as const satisfies Record<NotificationEventKey, NotificationEventDescriptor>;
 
-/** La règle de maintenance d'un événement, ou `null` s'il n'est jamais retenu. */
+/** An event's maintenance rule, or `null` if it is never held. */
 export function maintenanceRuleOf(key: NotificationEventKey): MaintenanceRule | null {
   const descriptor: NotificationEventDescriptor = CATALOG[key];
   return descriptor.maintenance ?? null;
 }
 
-/** Le nom du champ qui porte le sujet d'une prévision. */
+/** The name of the field that carries a forecast's subject. */
 const FORECAST_SUBJECT_FIELD = {
   target: 'field.target',
   monitor: 'field.probe',
@@ -2122,8 +2116,8 @@ export function isNotificationEventKey(value: unknown): value is NotificationEve
 }
 
 /**
- * Le libellé d'un événement, dans la langue de l'instance. C'est ce que le
- * titre d'un résumé reprend — « 12 × Déploiement en échec ».
+ * An event's label, in the instance's language. It is what a digest's title
+ * repeats — "12 × Deployment failed".
  */
 export function notificationEventLabel(
   key: NotificationEventKey,
@@ -2133,10 +2127,10 @@ export function notificationEventLabel(
 }
 
 /**
- * Le catalogue sans ses fonctions, donc sérialisable vers l'écran.
+ * The catalog without its functions, hence serializable to the screen.
  *
- * Les trois textes sont rendus ici, une fois, dans la langue de l'instance :
- * l'écran de configuration reçoit des phrases, pas des clés à résoudre.
+ * The three texts are rendered here, once, in the instance's language: the
+ * configuration screen receives sentences, not keys to resolve.
  */
 export type PresentedNotificationEvent = {
   readonly key: NotificationEventKey;
@@ -2159,24 +2153,23 @@ export function presentNotificationEvents(
 }
 
 /**
- * Reconnaît un événement notifiable dans une entrée d'audit. `null` pour tout
- * le reste, c'est-à-dire pour l'immense majorité des entrées.
+ * Recognizes a notifiable event in an audit entry. `null` for everything else,
+ * that is, for the vast majority of entries.
  *
- * Cette fonction est appelée **à chaque écriture d'audit** : elle doit rester
- * une comparaison de chaînes, sans accès réseau ni base.
+ * This function is called **at every audit write**: it must stay a string
+ * comparison, without network or database access.
  */
 /**
- * Le discriminant d'anti-doublon d'une entrée, ou `null` si son descripteur
- * n'en fournit pas. Lu par la distribution, qui n'a pas à connaître le
- * catalogue.
+ * An entry's deduplication discriminant, or `null` if its descriptor provides
+ * none. Read by the dispatch, which does not have to know the catalog.
  */
 export function notificationDedupDiscriminator(
   key: NotificationEventKey,
   entry: NotifiableAuditEntry,
 ): string | null {
-  // Passage par le type large : `CATALOG` est figé en `as const`, donc son type
-  // est l'union des littéraux, et seuls deux d'entre eux portent ce champ
-  // facultatif. L'élargir ici est ce que `satisfies` garantit déjà valide.
+  // Through the wide type: `CATALOG` is frozen `as const`, so its type is the
+  // union of the literals, and only two of them carry this optional field.
+  // Widening it here is what `satisfies` already guarantees valid.
   const descriptor: NotificationEventDescriptor = CATALOG[key];
   return descriptor.dedupDiscriminator?.(entry) ?? null;
 }
@@ -2189,7 +2182,7 @@ export function notifiableEventFor(entry: NotifiableAuditEntry): NotificationEve
   return null;
 }
 
-/** Compose le message neutre. Aucun protocole n'est connu ici. */
+/** Composes the neutral message. No protocol is known here. */
 export function buildNotificationMessage(
   key: NotificationEventKey,
   entry: NotifiableAuditEntry,
@@ -2208,23 +2201,22 @@ export function buildNotificationMessage(
     url: base && rendered.path ? `${base}${rendered.path}` : null,
     instance: ctx.instance,
     occurredAt: ctx.occurredAt,
-    // La langue voyage **avec** le message, jusque dans la charge utile de la
-    // tâche de remise. Un canal ajoute ses propres mots — « Ouvrir dans le
-    // panel », la gravité en toutes lettres, « et 42 autres » — parfois
-    // plusieurs minutes après la composition ; sans ce champ, il les écrirait
-    // dans une autre langue que le corps qu'il encadre.
+    // The language travels **with** the message, into the delivery task's
+    // payload. A channel adds its own words — "Open in the panel", the severity
+    // spelled out, "and 42 more" — sometimes several minutes after composition;
+    // without this field, it would write them in another language than the body it
+    // frames.
     language: ctx.language,
   });
 }
 
 /**
- * La ligne que cet événement occupera dans un résumé.
+ * The line this event will take in a digest.
  *
- * Elle est composée **au moment où l'événement est retenu**, pas au moment du
- * résumé : l'entrée d'audit est là, l'acteur est résolu, le contexte est frais.
- * La différer voudrait dire recopier la charge utile d'audit en base pour la
- * relire une demi-heure plus tard — plus de stockage, pour une ligne qu'on sait
- * déjà écrire.
+ * It is composed **when the event is held**, not when the digest is: the audit
+ * entry is there, the actor is resolved, the context is fresh. Deferring it
+ * would mean copying the audit payload to the database to read it again half
+ * an hour later — more storage, for a line we already know how to write.
  */
 export function buildNotificationDigestItem(
   key: NotificationEventKey,
@@ -2235,9 +2227,9 @@ export function buildNotificationDigestItem(
   const rendered = descriptor.render(entry, ctx);
   const base = ctx.panelUrl?.replace(/\/+$/, '') ?? null;
 
-  // Second filet, en plus de celui posé par chaque `render`. Un dépassement de
-  // borne ferait lever le `parse()` — donc échouer la tâche de distribution,
-  // donc perdre l'alerte. Tronquer est toujours préférable à se taire.
+  // A second safety net, on top of the one set by each `render`. Exceeding a bound
+  // would make `parse()` throw — hence fail the dispatch task, hence lose the
+  // alert. Truncating always beats keeping quiet.
   return notificationDigestItemSchema.parse({
     occurredAt: ctx.occurredAt,
     label: clip(rendered.summary, 200),
@@ -2246,7 +2238,7 @@ export function buildNotificationDigestItem(
   });
 }
 
-/** Écran du panel vers lequel pointe un résumé de cet événement. */
+/** Panel screen a digest of this event points to. */
 export function notificationDigestPath(key: NotificationEventKey): string | null {
   return CATALOG[key].digestPath;
 }

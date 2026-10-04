@@ -1,17 +1,17 @@
 import { z } from 'zod';
 
 /**
- * Formes du rapport de preflight.
+ * Shapes of the preflight report.
  *
- * Ce fichier ne dépend d'aucune brique SSH : le panel l'importe pour afficher
- * un rapport, sans jamais tirer `ssh2` dans son graphe de dépendances.
- * L'exécution vit dans `@pupitre/core/ssh`.
+ * This file depends on no SSH brick: the panel imports it to show a report,
+ * without ever pulling `ssh2` into its dependency graph. The execution lives in
+ * `@pupitre/core/ssh`.
  */
 
 export const checkStatusSchema = z.enum(['success', 'failed', 'skipped']);
 export type CheckStatus = z.infer<typeof checkStatusSchema>;
 
-/** Un contrôle indépendant. Son échec n'invalide pas les autres. */
+/** An independent check. Its failure does not invalidate the others. */
 export const preflightCheckSchema = z.object({
   key: z.string().min(1),
   label: z.string().min(1),
@@ -36,9 +36,9 @@ export const k3sRuntimeSchema = z.object({
 });
 
 /**
- * Contenu de `targets.runtimes_available`.
- * Structuré et non un simple tableau : le driver a besoin des
- * versions, pas seulement de la disponibilité.
+ * Content of `targets.runtimes_available`.
+ * Structured and not a mere array: the driver needs the versions, not only the
+ * availability.
  */
 export const runtimesAvailableSchema = z.object({
   docker: dockerRuntimeSchema,
@@ -82,21 +82,21 @@ export const toolsSchema = z.object({
 });
 
 /**
- * État du pare-feu de la cible.
+ * The target's firewall state.
  *
- * `installed` sans `active` est le cas courant : ufw est là, il n'a jamais été
- * activé. Le panel ne l'active pas de son propre chef — couper le pare-feu
- * d'une machine qu'on pilote en SSH est un excellent moyen de perdre la
- * machine. Il le signale, et c'est tout.
+ * `installed` without `active` is the common case: ufw is there, it was never
+ * enabled. The panel does not enable it on its own initiative — cutting off the
+ * firewall of a machine driven over SSH is an excellent way to lose the machine.
+ * It reports it, and that is all.
  */
 export const firewallSchema = z.object({
   installed: z.boolean(),
   active: z.boolean(),
-  /** Ports ouverts portant le marqueur du panel (`pupitre:{slug}`, ou l'ancien). */
+  /** Open ports carrying the panel's marker (`pupitre:{slug}`, or the old one). */
   managedRules: z.array(z.string()).default([]),
 });
 
-/** Statut global d'une cible après preflight. */
+/** A target's overall status after preflight. */
 export const targetHealthSchema = z.enum(['unknown', 'ok', 'degraded', 'unreachable']);
 export type TargetHealth = z.infer<typeof targetHealthSchema>;
 
@@ -105,7 +105,7 @@ export const preflightReportSchema = z.object({
   checkedAt: z.string(),
   reachable: z.boolean(),
   status: targetHealthSchema,
-  /** Temps d'établissement de la session SSH. */
+  /** Time to establish the SSH session. */
   latencyMs: z.number().int().min(0).nullable().default(null),
   os: osInfoSchema,
   sudo: sudoInfoSchema,
@@ -113,13 +113,13 @@ export const preflightReportSchema = z.object({
   memory: memoryInfoSchema.nullable().default(null),
   tools: toolsSchema,
   /**
-   * Ajouté après coup. `null` pour les rapports antérieurs : un rapport déjà
-   * en base ne se réécrit pas, l'UI dit simplement « inconnu ».
+   * Added afterwards. `null` for earlier reports: a report already in the
+   * database is not rewritten, the UI simply says "unknown".
    */
   firewall: firewallSchema.nullable().default(null),
   runtimes: runtimesAvailableSchema,
   checks: z.array(preflightCheckSchema),
-  /** Message d'échec global, quand la cible n'a pas pu être jointe. */
+  /** Overall failure message, when the target could not be reached. */
   error: z.string().nullable().default(null),
 });
 
@@ -140,7 +140,7 @@ export const EMPTY_RUNTIMES: RuntimesAvailable = {
   k3s: { available: false, version: null, nodes: null, readyNodes: null, clusterReady: false },
 };
 
-/** Runtimes réellement utilisables pour un déploiement. */
+/** Runtimes really usable for a deployment. */
 export function usableRuntimes(runtimes: RuntimesAvailable): Array<'docker' | 'k3s'> {
   const usable: Array<'docker' | 'k3s'> = [];
   if (runtimes.docker.available) usable.push('docker');

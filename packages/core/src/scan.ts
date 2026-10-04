@@ -3,30 +3,30 @@ import { z } from 'zod';
 import type { Translated, UiLanguage } from './i18n.js';
 
 /**
- * Formes du rapport de scan — le vocabulaire normalisé, sans exécution.
+ * Shapes of the scan report — the normalized vocabulary, without execution.
  *
- * Ce fichier ne dépend d'aucune brique SSH : le panel l'importe pour afficher
- * des findings et pour valider le formulaire, sans jamais tirer `ssh2` dans son
- * graphe de dépendances. Même partage que `preflight.ts` (types) / `ssh/`
- * (exécution), et que `ports.ts` (interface) / `packages/db` (implémentation).
+ * This file depends on no SSH building block: the panel imports it to show
+ * findings and validate the form, without ever pulling `ssh2` into its
+ * dependency graph. The same split as `preflight.ts` (types) / `ssh/`
+ * (execution), and as `ports.ts` (interface) / `packages/db` (implementation).
  *
- * L'exécution vit dans `@pupitre/core/scanners`.
+ * Execution lives in `@pupitre/core/scanners`.
  */
 
-// ─── échelle de sévérité ──────────────────────────────────────────────────────
+// ─── severity scale ───────────────────────────────────────────────────────────
 
 /**
- * Échelle commune. Trivy et Grype ne décrivent pas une vulnérabilité de la même
- * façon : chaque implémentation ramène la sienne sur celle-ci, une fois, chez
- * elle. Rien en aval ne connaît le vocabulaire d'un scanner particulier.
+ * A common scale. Trivy and Grype do not describe a vulnerability the same way:
+ * each implementation maps its own onto this one, once, on its side. Nothing
+ * downstream knows a particular scanner's vocabulary.
  *
- * `Negligible` (Grype) est ramené à `LOW` : notre échelle n'a pas de sixième
- * cran, et la ranger sous `UNKNOWN` la rendrait plus alarmante qu'elle n'est.
+ * `Negligible` (Grype) is mapped to `LOW`: our scale has no sixth notch, and
+ * filing it under `UNKNOWN` would make it more alarming than it is.
  */
 export const severitySchema = z.enum(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']);
 export type Severity = z.infer<typeof severitySchema>;
 
-/** De la plus grave à la moins grave. Sert au tri et à la comparaison au seuil. */
+/** From the most to the least severe. Used for sorting and for comparing with the threshold. */
 export const SEVERITY_ORDER: readonly Severity[] = [
   'CRITICAL',
   'HIGH',
@@ -47,24 +47,24 @@ export function severityRank(severity: Severity): number {
   return SEVERITY_RANK[severity];
 }
 
-/** Tri décroissant : les critiques d'abord. */
+/** Descending sort: critical ones first. */
 export function compareSeverity(a: Severity, b: Severity): number {
   return SEVERITY_RANK[b] - SEVERITY_RANK[a];
 }
 
 // ─── seuil de blocage ─────────────────────────────────────────────────────────
 
-/** Politique de blocage, stockée en donnée et jamais codée en dur. */
+/** Blocking policy, stored as data and never hard-coded. */
 export const failOnSchema = z.enum(['CRITICAL', 'HIGH', 'NONE']);
 export type FailOn = z.infer<typeof failOnSchema>;
 
 /**
- * Les trois crans du seuil, en toutes lettres.
+ * The threshold's three notches, spelled out.
  *
- * Ils s'affichent dans la liste déroulante des paramètres de sécurité et sur
- * la fiche d'un déploiement — donc dans la langue de l'instance. Seules les
- * **clés** sont partagées : `CRITICAL` et `HIGH` sont les noms de l'échelle,
- * ils ne se traduisent pas ; la phrase qui les entoure, si.
+ * They show in the security settings' dropdown and on a deployment's record —
+ * hence in the instance's language. Only the **keys** are shared: `CRITICAL`
+ * and `HIGH` are the scale's names, they are not translated; the sentence
+ * around them is.
  */
 const failOnLabelsFr = {
   CRITICAL: 'Bloquer sur CRITICAL',
@@ -81,11 +81,11 @@ const failOnLabelsEn: Translated<typeof failOnLabelsFr> = {
 export const failOnLabels = { fr: failOnLabelsFr, en: failOnLabelsEn };
 
 /**
- * Le libellé d'un seuil dans une langue donnée.
+ * A threshold's label in a given language.
  *
- * Le défaut est le français parce que c'est la langue source : un appelant qui
- * ne sait pas dans quelle langue il parle — un log, un seed — obtient la
- * valeur d'origine plutôt qu'une clé nue.
+ * The default is French because it is the source language: a caller that does
+ * not know which language it speaks — a log, a seed — gets the original value
+ * rather than a bare key.
  */
 export function failOnLabel(failOn: FailOn, language: UiLanguage = 'fr'): string {
   const table: Record<FailOn, string> = failOnLabels[language] ?? failOnLabelsFr;
@@ -93,12 +93,12 @@ export function failOnLabel(failOn: FailOn, language: UiLanguage = 'fr'): string
 }
 
 /**
- * @deprecated Utiliser `failOnLabel(failOn, language)`. Conservé pour les
- * appelants qui n'affichent rien — la source reste le français.
+ * @deprecated Use `failOnLabel(failOn, language)`. Kept for callers that show
+ * nothing — the source stays French.
  */
 export const FAIL_ON_LABELS: Record<FailOn, string> = failOnLabelsFr;
 
-/** Un finding atteint-il le seuil ? `NONE` ne bloque jamais. */
+/** Does a finding reach the threshold? `NONE` never blocks. */
 export function blocks(severity: Severity, failOn: FailOn): boolean {
   if (failOn === 'NONE') return false;
   return SEVERITY_RANK[severity] >= SEVERITY_RANK[failOn];
@@ -116,28 +116,28 @@ export const sbomFormatSchema = z.enum(['cyclonedx', 'spdx']);
 export type SbomFormat = z.infer<typeof sbomFormatSchema>;
 
 /**
- * Où un runtime garde les images qu'il exécute — ce qu'un scanner doit savoir
- * pour les lire, sans savoir quel runtime les y a mises.
+ * Where a runtime keeps the images it runs — what a scanner needs to know to
+ * read them, without knowing which runtime put them there.
  *
- * C'est le driver qui le déclare (`DeploymentDriver.imageStore()`) et chaque
- * scanner qui le traduit dans sa langue (variables d'environnement, source
- * d'image, plateforme). Ni le worker ni les scanners ne testent le runtime.
+ * It is the driver that declares it (`DeploymentDriver.imageStore()`) and each
+ * scanner that translates it into its own terms (environment variables, image
+ * source, platform). Neither the worker nor the scanners test the runtime.
  *
- * - `docker` : le démon Docker, joint par le groupe `docker` de l'utilisateur.
- * - `containerd` : un containerd par son socket et son espace de noms ;
- *   `elevated` quand le socket est réservé à root — l'outil tourne alors sous
- *   `sudo`, selon la méthode d'élévation de la cible.
+ * - `docker`: the Docker daemon, reached through the user's `docker` group.
+ * - `containerd`: a containerd through its socket and its namespace;
+ *   `elevated` when the socket is reserved to root — the tool then runs under
+ *   `sudo`, according to the target's elevation method.
  */
 export type ImageStore =
   | { kind: 'docker' }
   | { kind: 'containerd'; address: string; namespace: string; elevated: boolean };
 
 /**
- * Ce que chaque scanner regarde.
+ * What each scanner looks at.
  *
- * Le **nom** d'un scanner est un nom propre et reste tel quel dans les deux
- * langues (cf. `scannerLabel`) ; la phrase qui dit ce qu'il fait, elle,
- * s'affiche sous la carte d'un scan et se traduit.
+ * A scanner's **name** is a proper noun and stays as is in both languages (see
+ * `scannerLabel`); the sentence that says what it does is shown under a scan's
+ * card and is translated.
  */
 const scannerDescriptionsFr = {
   trivy: 'Vulnérabilités des paquets système et applicatifs',
@@ -159,12 +159,12 @@ export function scannerDescription(key: ScannerKey, language: UiLanguage = 'fr')
 }
 
 /**
- * Carte d'identité des scanners — une table de données, jamais une branche.
+ * The scanners' identity card — a data table, never a branch.
  *
- * Elle vit ici, avec les types, pour que l'UI et les routes puissent nommer un
- * scanner sans importer son implémentation (et donc sans tirer `ssh2`). C'est
- * le seul endroit du projet où les trois noms sont écrits : ailleurs, on lit
- * `SCANNERS[key]`.
+ * It lives here, with the types, so that the UI and the routes can name a
+ * scanner without importing its implementation (hence without pulling `ssh2`).
+ * It is the only place in the project where the three names are written:
+ * elsewhere, we read `SCANNERS[key]`.
  */
 export const SCANNERS: Record<
   ScannerKey,
@@ -172,9 +172,9 @@ export const SCANNERS: Record<
     label: string;
     kind: ScanKind;
     description: string;
-    /** Renseigné pour les scanners `sbom` uniquement. */
+    /** Filled in for `sbom` scanners only. */
     sbomFormat: SbomFormat | null;
-    /** Extension du fichier téléchargé, pour les scanners `sbom`. */
+    /** Extension of the downloaded file, for `sbom` scanners. */
     sbomExtension: string | null;
     mediaType: string;
   }
@@ -207,46 +207,45 @@ export const SCANNERS: Record<
 
 export const SCANNER_KEYS: readonly ScannerKey[] = scannerKeySchema.options;
 
-/** Scanners capables de produire un verdict de blocage. */
+/** Scanners able to produce a blocking verdict. */
 export const VULNERABILITY_SCANNERS: readonly ScannerKey[] = SCANNER_KEYS.filter(
   (key) => SCANNERS[key].kind === 'vulnerability',
 );
 
 /**
- * Le nom d'un scanner. **Pas de langue en argument, et c'est voulu** : « Trivy »,
- * « Grype » et « Syft » sont des noms propres.
+ * A scanner's name. **No language argument, on purpose**: "Trivy", "Grype" and
+ * "Syft" are proper nouns.
  */
 export function scannerLabel(key: ScannerKey): string {
   return SCANNERS[key].label;
 }
 
-// ─── configuration d'un scan ──────────────────────────────────────────────────
+// ─── a scan's configuration ───────────────────────────────────────────────────
 
 /**
- * Contenu de `deployments.scan_config`.
+ * Content of `deployments.scan_config`.
  *
- * Par défaut : aucun scanner. Le scan est une décision explicite de l'appelant,
- * et l'API ne doit pas en imposer une à un client qui n'en parle pas — le
- * formulaire de l'UI, lui, arrive avec les trois cases cochées.
+ * By default: no scanner. Scanning is an explicit decision of the caller, and
+ * the API must not impose one on a client that does not mention it — the UI's
+ * form arrives with the three boxes ticked.
  */
 export const scanConfigSchema = z.object({
   scanners: z.array(scannerKeySchema).max(SCANNER_KEYS.length).default([]),
   failOn: failOnSchema.default('NONE'),
   /**
-   * Ne bloquer que sur une faille **corrigeable** — celle dont le scanner
-   * connaît une version qui la règle. Une faille sans correctif ne se répare
-   * pas en redéployant : bloquer dessus arrête la mise en ligne sans rien
-   * offrir à faire. Optionnel : les déploiements enregistrés avant restent
-   * lisibles, et valent « tout bloque ».
+   * Only block on a **fixable** vulnerability — one for which the scanner knows a
+   * version that fixes it. A vulnerability without a fix is not repaired by
+   * redeploying: blocking on it stops the release without offering anything to
+   * do. Optional: deployments saved before stay readable, and mean "everything
+   * blocks".
    */
   onlyFixable: z.boolean().optional(),
   /**
-   * Pourquoi il n'y a pas de scanner, quand il n'y en a pas.
+   * Why there is no scanner, when there is none.
    *
-   * Sans cela, l'étape « scan » ne saurait pas distinguer « l'utilisateur n'en
-   * a pas demandé » de « l'instance a désactivé l'analyse », et dirait la même
-   * chose dans les deux cas. Optionnel : les déploiements enregistrés avant ce
-   * champ restent lisibles.
+   * Without it, the "scan" step could not tell "the user did not ask for one"
+   * from "the instance disabled scanning", and would say the same thing in both
+   * cases. Optional: deployments saved before this field stay readable.
    */
   disabledBy: z.literal('settings').optional(),
 });
@@ -255,32 +254,32 @@ export type ScanConfig = z.infer<typeof scanConfigSchema>;
 
 export const EMPTY_SCAN_CONFIG: ScanConfig = { scanners: [], failOn: 'NONE' };
 
-/** Défaut du formulaire : tout coché, blocage sur CRITICAL. */
+/** The form's default: everything ticked, blocking on CRITICAL. */
 export const DEFAULT_UI_SCAN_CONFIG: ScanConfig = {
   scanners: [...SCANNER_KEYS],
   failOn: 'CRITICAL',
 };
 
-/** Lit une valeur venue de la base (jsonb, potentiellement `null`). */
+/** Reads a value coming from the database (jsonb, possibly `null`). */
 export function parseScanConfig(value: unknown): ScanConfig {
   if (value === null || value === undefined) return EMPTY_SCAN_CONFIG;
   const parsed = scanConfigSchema.safeParse(value);
   return parsed.success ? dedupeScanners(parsed.data) : EMPTY_SCAN_CONFIG;
 }
 
-/** Une case cochée deux fois ne doit pas faire tourner deux fois le scanner. */
+/** A box ticked twice must not run the scanner twice. */
 export function dedupeScanners(config: ScanConfig): ScanConfig {
   return { ...config, scanners: [...new Set(config.scanners)] };
 }
 
-// ─── rapport normalisé ────────────────────────────────────────────────────────
+// ─── normalized report ────────────────────────────────────────────────────────
 
 /**
- * Vulnérabilité normalisée.
+ * Normalized vulnerability.
  *
- * Deux scanners qui voient la même CVE sur le même paquet doivent produire le
- * même `Finding`. C'est tout le point de la normalisation : au-delà de cette frontière,
- * plus rien ne sait qui a parlé.
+ * Two scanners that see the same CVE on the same package must produce the same
+ * `Finding`. That is the whole point of normalization: beyond this boundary,
+ * nothing knows who spoke anymore.
  */
 export const findingSchema = z.object({
   cveId: z.string().min(1).max(200),
@@ -296,7 +295,7 @@ export type Finding = z.infer<typeof findingSchema>;
 
 export const sbomSchema = z.object({
   format: sbomFormatSchema,
-  /** Document sérialisé, tel que produit par l'outil. */
+  /** Serialized document, as produced by the tool. */
   content: z.string(),
 });
 
@@ -306,14 +305,14 @@ export type ScanReport = {
   scanner: ScannerKey;
   kind: ScanKind;
   durationMs: number;
-  /** Vide pour un SBOM. */
+  /** Empty for an SBOM. */
   findings: Finding[];
   sbom?: Sbom;
-  /** Sortie brute de l'outil, stockée telle quelle en jsonb. */
+  /** The tool's raw output, stored as is in jsonb. */
   raw: unknown;
 };
 
-// ─── agrégats ─────────────────────────────────────────────────────────────────
+// ─── aggregates ───────────────────────────────────────────────────────────────
 
 export type SeverityCounts = Record<Severity, number>;
 
@@ -335,7 +334,7 @@ export function totalFindings(counts: SeverityCounts): number {
   return SEVERITY_ORDER.reduce((sum, severity) => sum + counts[severity], 0);
 }
 
-/** Sévérité la plus grave présente, ou `null` si aucun finding. */
+/** The most severe severity present, or `null` if there is no finding. */
 export function worstSeverity(counts: SeverityCounts): Severity | null {
   return SEVERITY_ORDER.find((severity) => counts[severity] > 0) ?? null;
 }
@@ -353,10 +352,10 @@ export const scanRunStatusSchema = z.enum([
 export type ScanRunStatus = z.infer<typeof scanRunStatusSchema>;
 
 /**
- * Verdict d'un scan : bloque-t-il ?
+ * A scan's verdict: does it block?
  *
- * Un SBOM ne bloque jamais — il n'énonce aucune vulnérabilité. C'est le `kind`
- * qui tranche, pas le nom de l'outil.
+ * An SBOM never blocks — it states no vulnerability. It is the `kind` that
+ * decides, not the tool's name.
  */
 export function verdictFor(
   kind: ScanKind,
@@ -369,11 +368,11 @@ export function verdictFor(
   return findings.some((finding) => findingBlocks(finding, resolved)) ? 'fail' : 'pass';
 }
 
-// ─── corrigeable, acceptée, bloquante ─────────────────────────────────────────
+// ─── fixable, accepted, blocking ──────────────────────────────────────────────
 
 /**
- * Ce qu'il faut d'un finding pour juger s'il bloque. Les champs facultatifs
- * manquent quand on ne connaît que la sévérité — alors seul le seuil compte.
+ * What is needed from a finding to judge whether it blocks. The optional fields
+ * are missing when only the severity is known — then only the threshold counts.
  */
 export type ScannedFinding = {
   severity: Severity;
@@ -382,17 +381,16 @@ export type ScannedFinding = {
   fixedVersion?: string | null;
 };
 
-/** Une faille est corrigeable quand le scanner connaît une version qui la règle. */
+/** A vulnerability is fixable when the scanner knows a version that fixes it. */
 export function isFixable(finding: { fixedVersion?: string | null }): boolean {
   return typeof finding.fixedVersion === 'string' && finding.fixedVersion.trim() !== '';
 }
 
 /**
- * Une faille **acceptée** pour une application : on l'a lue, on sait pourquoi
- * elle ne nous concerne pas (ou pas encore), et on l'a écrit. Elle reste
- * affichée, mais ne bloque plus. `package` à `null` : la CVE sur tous les
- * paquets. Une échéance la fait expirer — l'acceptation ne vaut pas pour
- * toujours sans qu'on le décide.
+ * A vulnerability **accepted** for an application: it was read, we know why it
+ * does not concern us (or not yet), and we wrote it down. It stays displayed,
+ * but no longer blocks. `package` set to `null`: the CVE on every package. An
+ * expiry makes it lapse — the acceptance does not hold forever unless decided.
  */
 export type VulnerabilityAcceptance = {
   cveId: string;
@@ -402,26 +400,26 @@ export type VulnerabilityAcceptance = {
 
 export const VULNERABILITY_ACCEPTANCE_REASON_MIN = 3;
 export const VULNERABILITY_ACCEPTANCE_REASON_MAX = 500;
-/** Les échéances proposées, en jours ; `null` : sans échéance. */
+/** The expiries offered, in days; `null`: no expiry. */
 export const VULNERABILITY_ACCEPTANCE_DURATIONS = [30, 90, 180, null] as const;
 
 export const createVulnerabilityAcceptanceSchema = z.object({
   cveId: z.string().trim().min(1).max(200),
-  /** `null` : la CVE, quel que soit le paquet. */
+  /** `null`: the CVE, whatever the package. */
   package: z.string().trim().min(1).max(400).nullable(),
   reason: z
     .string()
     .trim()
     .min(VULNERABILITY_ACCEPTANCE_REASON_MIN)
     .max(VULNERABILITY_ACCEPTANCE_REASON_MAX),
-  /** En jours à partir de maintenant ; `null` : sans échéance. */
+  /** In days from now; `null`: no expiry. */
   expiresInDays: z.number().int().min(1).max(730).nullable(),
 });
 export type CreateVulnerabilityAcceptanceInput = z.infer<
   typeof createVulnerabilityAcceptanceSchema
 >;
 
-/** L'acceptation qui couvre ce finding à l'instant `now`, s'il y en a une. */
+/** The acceptance that covers this finding at the instant `now`, if there is one. */
 export function matchingAcceptance<A extends VulnerabilityAcceptance>(
   finding: { cveId?: string; package?: string },
   acceptances: readonly A[],
@@ -440,8 +438,8 @@ export function matchingAcceptance<A extends VulnerabilityAcceptance>(
 }
 
 /**
- * Ce qui décide du verdict d'un scan : le seuil, les seules failles
- * corrigeables ou toutes, et les failles acceptées pour l'application.
+ * What decides a scan's verdict: the threshold, only fixable vulnerabilities or
+ * all, and the vulnerabilities accepted for the application.
  */
 export type ScanPolicy = {
   failOn: FailOn;
@@ -450,7 +448,7 @@ export type ScanPolicy = {
   now?: Date;
 };
 
-/** Ce finding bloque-t-il, sous cette politique ? */
+/** Does this finding block, under this policy? */
 export function findingBlocks(finding: ScannedFinding, policy: ScanPolicy): boolean {
   if (!blocks(finding.severity, policy.failOn)) return false;
   if (policy.onlyFixable && !isFixable(finding)) return false;
@@ -459,11 +457,11 @@ export function findingBlocks(finding: ScannedFinding, policy: ScanPolicy): bool
 
 export type FindingsSummary = {
   total: number;
-  /** Corrigeables : une version qui les règle existe. */
+  /** Fixable: a version that fixes them exists. */
   fixable: number;
-  /** Acceptées pour l'application, à cet instant. */
+  /** Accepted for the application, at this instant. */
   accepted: number;
-  /** Celles qui bloquent sous la politique. */
+  /** Those that block under the policy. */
   blocking: number;
 };
 
@@ -483,8 +481,8 @@ export function summarizeFindings(
 }
 
 /**
- * Le réglage d'une application : son seuil et sa règle des corrigeables.
- * `null` : comme l'instance.
+ * An application's setting: its threshold and its fixable rule. `null`: like
+ * the instance.
  */
 export const applicationScanPolicySchema = z.object({
   failOn: failOnSchema.nullable(),
@@ -495,15 +493,15 @@ export type ApplicationScanPolicy = z.infer<typeof applicationScanPolicySchema>;
 export const INHERITED_SCAN_POLICY: ApplicationScanPolicy = { failOn: null, onlyFixable: null };
 
 /**
- * Applique le réglage d'une application à une configuration de scan. Ce qui
- * est réglé sur l'application l'emporte sur l'instance — c'est l'application
- * qui sait ce qui doit la bloquer ; ce qui ne l'est pas reste tel quel.
+ * Applies an application's setting to a scan configuration. What is set on the
+ * application wins over the instance — it is the application that knows what
+ * should block it; what is not set stays as is.
  */
 export function withApplicationScanPolicy(
   config: ScanConfig,
   policy: ApplicationScanPolicy,
 ): ScanConfig {
-  // Aucun scanner : un seuil n'aurait rien pour l'évaluer.
+  // No scanner: a threshold would have nothing to evaluate it.
   if (config.scanners.length === 0) return config;
   return {
     ...config,
@@ -512,12 +510,12 @@ export function withApplicationScanPolicy(
   };
 }
 
-// ─── correspondance avec les enums Postgres ───────────────────────────────────
+// ─── mapping with the Postgres enums ──────────────────────────────────────────
 
 /**
- * La base porte les mêmes notions en minuscules, avec un cran `negligible`
- * hérité du schéma d'origine que notre échelle n'utilise pas. La traduction vit ici,
- * une fois, plutôt que dans chaque requête.
+ * The database carries the same notions in lowercase, with a `negligible` notch
+ * inherited from the original schema that our scale does not use. The
+ * translation lives here, once, rather than in each query.
  */
 export const DB_SEVERITIES = [
   'unknown',

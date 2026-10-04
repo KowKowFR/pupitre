@@ -5,11 +5,11 @@ import { TraefikProvider } from './traefik/provider.js';
 import { ProxyError, type ProxyProvider, type RemoteProxyProvider } from './types.js';
 
 /**
- * Les reverse proxies que le panel sait piloter. Une entrée par genre : en
- * ajouter un, c'est écrire sa classe et la déclarer ici — rien d'autre ne change.
- * Ceux qui tournent sur une machine pilotée en SSH d'un côté, ceux qu'on joint
- * par leur API de l'autre : deux contrats, parce que les seconds n'ont ni
- * machine à inspecter ni rien à y installer.
+ * The reverse proxies the panel can drive. One entry per kind: adding one means
+ * writing its class and declaring it here — nothing else changes. Those running
+ * on a machine driven over SSH on one side, those reached through their API on
+ * the other: two contracts, because the latter have neither a machine to inspect
+ * nor anything to install on it.
  */
 const onTargets: Partial<Record<ProxyKind, () => ProxyProvider>> = {
   traefik: () => new TraefikProvider(),
@@ -34,7 +34,7 @@ export function getRemoteProxyProvider(kind: ProxyKind): RemoteProxyProvider {
   return make();
 }
 
-/** Les genres qu'on peut trouver ou installer sur une machine. */
+/** The kinds that can be found or installed on a machine. */
 export function implementedProxyKinds(): ProxyKind[] {
   return Object.keys(onTargets) as ProxyKind[];
 }

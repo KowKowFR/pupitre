@@ -1,18 +1,17 @@
 /**
- * Les deux gestes que partage toute commande envoyée à une machine.
+ * The two gestures every command sent to a machine shares.
  *
- * Un seul exemplaire, testé : `shellQuote` protège chaque valeur qui entre dans
- * une commande distante — un chemin, un nom de conteneur, une étiquette. Une
- * copie qui divergerait un jour suffirait à ouvrir une injection ; il en
- * existait onze.
+ * A single copy, tested: `shellQuote` protects each value that goes into a
+ * remote command — a path, a container name, a label. A copy that diverged one
+ * day would be enough to open an injection; there were eleven.
  */
 
-/** Une valeur entre apostrophes, prête pour `sh` : rien n'y est interprété. */
+/** A value between single quotes, ready for `sh`: nothing in it is interpreted. */
 export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
-/** La première ligne non vide d'une sortie, sans ses espaces ; `null` s'il n'y en a pas. */
+/** The first non-empty line of an output, trimmed; `null` if there is none. */
 export function firstLine(text: string): string | null {
   const line = text.split('\n').find((candidate) => candidate.trim().length > 0);
   return line?.trim() ?? null;

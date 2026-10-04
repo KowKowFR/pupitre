@@ -1,25 +1,25 @@
 /**
- * Supervision de sites — le point d'entrée du vocabulaire.
+ * Site monitoring — the vocabulary's entry point.
  *
- * ── Pourquoi cette fonctionnalité ne double pas `health:periodic` ────────────
- * Le healthcheck périodique sonde **depuis l'intérieur** de la machine cible,
- * par SSH, via le driver : il prouve que le conteneur se répond à lui-même.
- * Une sonde de supervision part **du worker vers la cible publique**. C'est un
- * autre point de vue, et c'est toute la justification : elle voit ce que l'autre
- * ne peut pas voir — un pare-feu refermé, un proxy cassé, un certificat expiré,
- * un DNS qui ne résout plus, une latence qui dérive.
+ * ── Why this feature does not duplicate `health:periodic` ───────────────────
+ * The periodic healthcheck probes **from inside** the target machine, over SSH,
+ * through the driver: it proves the container answers itself. A monitoring probe
+ * goes **from the worker to the public target**. It is another point of view,
+ * and that is the whole justification: it sees what the other cannot see — a
+ * firewall closed again, a broken proxy, an expired certificate, a DNS that no
+ * longer resolves, a drifting latency.
  *
- * ── L'organisation ──────────────────────────────────────────────────────────
- *   monitors/ssrf.ts        la politique SSRF, commune à tous les types
- *   monitors/catalog.ts     le catalogue déclaratif des types de sonde
- *   monitors/state.ts       verdict, machine à états, disponibilité, alerte
- *   monitors/dns-records.ts le vocabulaire DNS et la comparaison de deux réponses
- *   monitors/capture.ts     les captures d'écran d'incident — vocabulaire et bornes
+ * ── The organization ────────────────────────────────────────────────────────
+ *   monitors/ssrf.ts        the SSRF policy, shared by every type
+ *   monitors/catalog.ts     the declarative catalog of probe types
+ *   monitors/state.ts       verdict, state machine, availability, alert
+ *   monitors/dns-records.ts the DNS vocabulary and the comparison of two answers
+ *   monitors/capture.ts     incident screenshots — vocabulary and bounds
  *
- * Quatre fichiers, tous **purs** : ce module est importé par des composants
- * client, il ne doit tirer aucun module natif. Les sondes elles-mêmes — celles
- * qui ouvrent des connexions — vivent sous `@pupitre/core/probe`, et le pilote
- * du navigateur de capture sous `@pupitre/core/capture`.
+ * Four files, all **pure**: this module is imported by client components, it
+ * must pull no native module. The probes themselves — those that open
+ * connections — live under `@pupitre/core/probe`, and the capture browser's
+ * driver under `@pupitre/core/capture`.
  */
 
 export * from './monitors/ssrf.js';

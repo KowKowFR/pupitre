@@ -2,61 +2,61 @@ import { z } from 'zod';
 import { imageMediaTypeSchema } from './media.js';
 
 /**
- * Le temps réel du panel : qui est là, ce qui se dit, ce qui vient de changer.
+ * The panel's real time: who is there, what is being said, what just changed.
  *
- * Un seul canal Redis pub/sub porte tout — la même mécanique que les logs de
- * déploiement (`deploy:{id}`), relayée en SSE par le panel. Chaque message est
- * un événement typé et validé : le panel ne relaie jamais une chaîne qu'il n'a
- * pas su lire.
+ * A single Redis pub/sub channel carries everything — the same mechanics as the
+ * deployment logs (`deploy:{id}`), relayed over SSE by the panel. Each message
+ * is a typed and validated event: the panel never relays a string it could not
+ * read.
  *
- * Ce module est pur : pas de Redis ici, seulement les noms, les formes et les
- * règles. Le panel et le worker publient avec leurs propres connexions.
+ * This module is pure: no Redis here, only the names, the shapes and the rules.
+ * The panel and the worker publish with their own connections.
  */
 
 export const REALTIME_CHANNEL = 'pupitre:realtime';
 
-// ─── Présence ────────────────────────────────────────────────────────────────
+// ─── Presence ────────────────────────────────────────────────────────────────
 
 /**
- * Vert, orange, rouge, gris. `busy` n'est jamais déduit : c'est un choix de la
- * personne (« Ne pas déranger »). `away` l'est quand l'onglet est caché ou
- * qu'on n'a pas touché au clavier ni à la souris depuis un moment.
+ * Green, orange, red, grey. `busy` is never derived: it is the person's choice
+ * ("Do not disturb"). `away` is when the tab is hidden or the keyboard and mouse
+ * have not been touched for a while.
  */
 export const PRESENCE_STATUSES = ['online', 'away', 'busy', 'offline'] as const;
 export type PresenceStatus = (typeof PRESENCE_STATUSES)[number];
 
-/** Ce que la personne choisit dans son menu. `null` : laisser faire. */
+/** What the person chooses in their menu. `null`: let it be. */
 export const PRESENCE_CHOICES = ['away', 'busy'] as const;
 export type PresenceChoice = (typeof PRESENCE_CHOICES)[number];
 
-/** Le flux ouvert rafraîchit la présence à ce rythme. */
+/** The open stream refreshes presence at this rate. */
 export const PRESENCE_TOUCH_MS = 25_000;
-/** Sans nouvelle depuis ce délai, la personne est hors ligne — onglet tué, réseau coupé. */
+/** Without news for this long, the person is offline — tab killed, network cut. */
 export const PRESENCE_STALE_MS = 75_000;
-/** Sans clavier, souris ni onglet au premier plan depuis ce délai : absent. */
+/** Without keyboard, mouse or foreground tab for this long: away. */
 export const PRESENCE_IDLE_MS = 5 * 60_000;
-/** Un onglet signale une interaction au plus une fois par période. */
+/** A tab reports an interaction at most once per period. */
 export const PRESENCE_INPUT_THROTTLE_MS = 60_000;
 
 export type PresenceInput = {
-  /** Onglets ouverts, tous processus confondus. */
+  /** Open tabs, all processes together. */
   connections: number;
-  /** Dernier signe de vie d'un flux ouvert. */
+  /** Last sign of life of an open stream. */
   lastSeen: number | null;
   /**
-   * Dernière interaction, tous onglets confondus. L'inactivité se déduit du
-   * temps écoulé plutôt que d'être déclarée par chaque onglet : deux onglets,
-   * l'un oublié en arrière-plan, l'autre sous les doigts, ne se contredisent
-   * jamais — c'est la dernière interaction qui compte.
+   * Last interaction, all tabs together. Inactivity is derived from the time
+   * elapsed rather than declared by each tab: two tabs, one forgotten in the
+   * background, the other under the fingers, never contradict each other — it is
+   * the last interaction that counts.
    */
   lastInput: number | null;
   choice: PresenceChoice | null;
 };
 
 /**
- * L'état affiché, déduit — jamais stocké tel quel, pour qu'il ne puisse pas
- * contredire ses causes. Le choix l'emporte sur l'activité ; l'absence de
- * connexion l'emporte sur tout.
+ * The displayed state, derived — never stored as is, so that it cannot
+ * contradict its causes. The choice wins over activity; the absence of a
+ * connection wins over everything.
  */
 export function effectivePresence(input: PresenceInput, now: number): PresenceStatus {
   if (input.connections <= 0 || input.lastSeen === null) return 'offline';
@@ -70,9 +70,9 @@ export function effectivePresence(input: PresenceInput, now: number): PresenceSt
 // ─── Tableau de bord ─────────────────────────────────────────────────────────
 
 /**
- * Ce qui a bougé, au gros grain. Un écran écoute les sujets qui le
- * concernent et se relit — il ne reçoit pas les données elles-mêmes, qui
- * passeraient sinon à côté des permissions de la page.
+ * What moved, coarse-grained. A screen listens to the topics that concern it and
+ * reads itself again — it does not receive the data itself, which would
+ * otherwise bypass the page's permissions.
  */
 export const LIVE_TOPICS = [
   'deployments',
@@ -90,7 +90,7 @@ const JOB_TOPICS: Array<[RegExp, LiveTopic]> = [
   [/^source:deploy$/, 'deployments'],
   [/^application:/, 'applications'],
   [/^app:(restart|stop|start)$/, 'deployments'],
-  // Les tâches planifiées d'abord : `target:preflight:all` en est une.
+  // Scheduled tasks first: `target:preflight:all` is one of them.
   [/^(scan|health):periodic$|^cleanup:|^target:preflight:all$/, 'jobs'],
   [/^target:(preflight|metrics|metrics_sweep)$/, 'targets'],
   [/^workload:(remove|update|control)$/, 'targets'],
@@ -98,15 +98,15 @@ const JOB_TOPICS: Array<[RegExp, LiveTopic]> = [
   [/^source:archive-inspect$/, 'applications'],
   [/^backup:(application|restore|delete)$/, 'applications'],
   [/^backup:panel$/, 'settings'],
-  // Une connexion de proxy se lit sur la cible ; un domaine, sur l'application.
+  // A proxy connection is read on the target; a domain, on the application.
   [/^proxy:(install|check|remove|link-check)$/, 'targets'],
   [/^proxy:apply$|^routes:check$/, 'applications'],
   [/^monitor:/, 'monitors'],
 ];
 
 /**
- * Le sujet d'une tâche BullMQ, ou `null` pour celles dont l'issue ne change
- * rien à l'écran (lecture de logs, liste de conteneurs, ping).
+ * A BullMQ task's topic, or `null` for those whose outcome changes nothing on
+ * screen (reading logs, listing containers, ping).
  */
 export function liveTopicOfJob(jobName: string): LiveTopic | null {
   return JOB_TOPICS.find(([pattern]) => pattern.test(jobName))?.[1] ?? null;
@@ -129,47 +129,47 @@ const RESOURCE_TOPICS: Record<string, LiveTopic> = {
   source_connection: 'settings',
   notification_channel: 'settings',
   notification_policy: 'settings',
-  // Une prévision porte sur une machine, une sonde, un domaine ou une
-  // application : elle se lit sur la vue d'ensemble et dans la fiche des cibles.
+  // A forecast is about a machine, a probe, a domain or an application: it is
+  // read on the overview and in the targets' record.
   forecast: 'targets',
-  // Une fenêtre de maintenance se lit sur la vue d'ensemble et dans les
-  // fiches des cibles et des sondes.
+  // A maintenance window is read on the overview and in the records of targets
+  // and probes.
   maintenance_window: 'targets',
-  // Une faille acceptée se lit dans la fiche de l'application.
+  // An accepted vulnerability is read in the application's record.
   vulnerability_acceptance: 'applications',
-  // Une page de statut se compose dans l'administration.
+  // A status page is composed in the administration.
   status_page: 'settings',
-  // Une annonce commente une panne de sonde ou une maintenance.
+  // An announcement comments on a probe outage or a maintenance window.
   status_update: 'monitors',
 };
 
-/** Le sujet d'une ligne du journal d'audit. */
+/** The topic of an audit log line. */
 export function liveTopicOfResource(resourceType: string): LiveTopic | null {
   return RESOURCE_TOPICS[resourceType] ?? null;
 }
 
-// ─── Événements ──────────────────────────────────────────────────────────────
+// ─── Events ──────────────────────────────────────────────────────────────────
 
 export const chatMentionSchema = z.object({
   kind: z.enum(['user', 'target', 'app']),
   id: z.string().min(1).max(64),
-  /** Le nom au moment du message : lisible même si l'objet disparaît ensuite. */
+  /** The name at the time of the message: readable even if the object disappears later. */
   label: z.string().max(120),
 });
 export type ChatMention = z.infer<typeof chatMentionSchema>;
 
-/** Ce qu'une réponse montre de l'original : assez pour le reconnaître, pas plus. */
+/** What a reply shows of the original: enough to recognize it, no more. */
 export const chatQuoteSchema = z.object({
   id: z.string().uuid(),
   authorId: z.string().nullable(),
   authorName: z.string().nullable(),
-  /** Le début du texte, jetons de mention remplacés par leur libellé. */
+  /** The start of the text, mention tokens replaced by their label. */
   excerpt: z.string().max(200),
   deleted: z.boolean(),
 });
 export type ChatQuote = z.infer<typeof chatQuoteSchema>;
 
-/** Un emoji et qui l'a posé. L'ordre est celui de la première réaction. */
+/** An emoji and who set it. The order is the first reaction's. */
 export const chatReactionSchema = z.object({
   emoji: z.string().min(1).max(32),
   userIds: z.array(z.string()),
@@ -177,9 +177,9 @@ export const chatReactionSchema = z.object({
 export type ChatReaction = z.infer<typeof chatReactionSchema>;
 
 /**
- * Une image jointe à un message : ses métadonnées seulement. Les octets se
- * servent à part (`/api/chat/attachments/:id`) — le canal temps réel ne porte
- * jamais que de quoi réserver la place à l'écran.
+ * An image attached to a message: its metadata only. The bytes are served
+ * separately (`/api/chat/attachments/:id`) — the real-time channel only ever
+ * carries enough to reserve the space on screen.
  */
 export const chatAttachmentSchema = z.object({
   id: z.string().uuid(),
@@ -213,7 +213,7 @@ export const realtimeEventSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('chat.message'), message: chatMessageSchema }),
   z.object({ type: z.literal('chat.deleted'), id: z.string().uuid(), channel: z.string() }),
-  /** L'état complet des réactions d'un message : rejouer deux fois ne change rien. */
+  /** The complete state of a message's reactions: replaying twice changes nothing. */
   z.object({
     type: z.literal('chat.reactions'),
     messageId: z.string().uuid(),
@@ -223,7 +223,7 @@ export const realtimeEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('live'),
     topic: z.enum(LIVE_TOPICS),
-    /** D'où vient le signal : une tâche du worker, ou une ligne du journal. */
+    /** Where the signal comes from: a worker task, or an audit log line. */
     source: z.enum(['job', 'audit']),
     detail: z.string().max(120),
   }),

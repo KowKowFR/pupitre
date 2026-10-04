@@ -16,7 +16,7 @@ type Factory<K extends BackupDestinationKind> = (
   language: UiLanguage,
 ) => BackupStore;
 
-/** Une destination de plus, c'est une classe et une ligne ici — rien d'autre ne bouge. */
+/** One more destination is a class and a line here — nothing else moves. */
 const STORES: { [K in BackupDestinationKind]: Factory<K> } = {
   s3: (destination, language) =>
     new S3BackupStore(destination.config, destination.secrets, fetch, language),
@@ -25,7 +25,7 @@ const STORES: { [K in BackupDestinationKind]: Factory<K> } = {
   local: (destination, language) => new LocalBackupStore(destination.config, language),
 };
 
-/** `language` : celle de ce que la destination dit d'un échec — l'instance. */
+/** `language`: that of what the destination says about a failure — the instance's. */
 export function openBackupStore(
   destination: ResolvedBackupDestination,
   language: UiLanguage = 'fr',

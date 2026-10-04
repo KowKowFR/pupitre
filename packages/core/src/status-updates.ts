@@ -2,25 +2,25 @@ import { z } from 'zod';
 import { invalid } from './validation.js';
 
 /**
- * Les annonces d'une page de statut : des messages datés qu'un humain publie
- * pendant une panne ou une maintenance — « on enquête », « cause identifiée »,
- * « résolu ».
+ * A status page's announcements: dated messages a human publishes during an
+ * outage or a maintenance window — "we are investigating", "cause identified",
+ * "resolved".
  *
- * Une annonce est **rattachée** à ce qu'elle commente : un incident de sonde,
- * ou une fenêtre de maintenance. Elle n'a pas de vie propre — elle paraît sur
- * les pages qui montrent la sonde touchée, et disparaît avec son sujet. Son
- * texte est écrit pour des inconnus : c'est le seul endroit où une page de
- * statut porte des mots que personne n'a mis dans un libellé.
+ * An announcement is **attached** to what it comments on: a probe incident, or
+ * a maintenance window. It has no life of its own — it appears on the pages that
+ * show the affected probe, and disappears with its subject. Its text is written
+ * for strangers: it is the only place where a status page carries words nobody
+ * put in a label.
  *
- * La phase est un mot de la conversation avec les visiteurs, pas un état de la
- * sonde : annoncer « résolu » ne referme pas l'incident, que seule la sonde
- * referme quand elle voit la cible saine.
+ * The phase is a word of the conversation with visitors, not a probe state:
+ * announcing "resolved" does not close the incident, which only the probe closes
+ * when it sees the target healthy.
  */
 
 export const STATUS_UPDATE_SUBJECTS = ['incident', 'maintenance'] as const;
 export type StatusUpdateSubjectType = (typeof STATUS_UPDATE_SUBJECTS)[number];
 
-/** Les phases d'une panne, dans l'ordre où elles se suivent d'ordinaire. */
+/** An outage's phases, in the order they usually follow each other. */
 export const INCIDENT_UPDATE_PHASES = [
   'investigating',
   'identified',
@@ -28,7 +28,7 @@ export const INCIDENT_UPDATE_PHASES = [
   'resolved',
 ] as const;
 
-/** Les phases d'une maintenance. */
+/** A maintenance window's phases. */
 export const MAINTENANCE_UPDATE_PHASES = ['scheduled', 'in_progress', 'completed'] as const;
 
 export const STATUS_UPDATE_PHASES = [
@@ -40,16 +40,16 @@ export type StatusUpdatePhase = (typeof STATUS_UPDATE_PHASES)[number];
 export const STATUS_UPDATE_MESSAGE_MAX = 2000;
 
 /**
- * Combien de temps une maintenance terminée reste sur une page publique — si
- * elle porte une annonce : sans cela, « terminée » ne serait jamais lu, la
- * fenêtre disparaissant de la page à l'instant où elle finit.
+ * How long a finished maintenance window stays on a public page — if it carries
+ * an announcement: without that, "completed" would never be read, the window
+ * disappearing from the page the moment it ends.
  */
 export const ENDED_MAINTENANCE_SHOWN_HOURS = 24;
 
-/** Combien de temps une panne refermée reste proposée à l'annonce : le temps d'écrire « résolu ». */
+/** How long a closed outage stays offered for announcement: time to write "resolved". */
 export const RESOLVED_INCIDENT_ANNOUNCE_DAYS = 7;
 
-/** Les phases qu'un sujet accepte : on ne « planifie » pas une panne. */
+/** The phases a subject accepts: one does not "schedule" an outage. */
 export function statusUpdatePhasesFor(type: StatusUpdateSubjectType): readonly StatusUpdatePhase[] {
   return type === 'incident' ? INCIDENT_UPDATE_PHASES : MAINTENANCE_UPDATE_PHASES;
 }
@@ -64,7 +64,7 @@ export const statusUpdateSubjectSchema = z.object({
 });
 export type StatusUpdateSubject = z.infer<typeof statusUpdateSubjectSchema>;
 
-/** Du texte brut : les retours à la ligne sont gardés, aucun HTML n'est interprété. */
+/** Plain text: line breaks are kept, no HTML is interpreted. */
 export const statusUpdateMessageSchema = z.string().trim().min(1).max(STATUS_UPDATE_MESSAGE_MAX);
 
 export const createStatusUpdateSchema = z
@@ -79,7 +79,7 @@ export const createStatusUpdateSchema = z
   });
 export type CreateStatusUpdateInput = z.infer<typeof createStatusUpdateSchema>;
 
-/** Corriger une annonce : sa phase ou son texte. Le sujet, lui, ne change pas. */
+/** Correcting an announcement: its phase or its text. The subject does not change. */
 export const updateStatusUpdateSchema = z
   .object({
     phase: z.enum(STATUS_UPDATE_PHASES).optional(),
@@ -91,7 +91,7 @@ export const updateStatusUpdateSchema = z
   );
 export type UpdateStatusUpdateInput = z.infer<typeof updateStatusUpdateSchema>;
 
-/** La clé d'un sujet dans une adresse : `incident:<id>`, `maintenance:<id>`. */
+/** A subject's key in an address: `incident:<id>`, `maintenance:<id>`. */
 export function statusUpdateSubjectKey(subject: StatusUpdateSubject): string {
   return `${subject.type}:${subject.id}`;
 }
@@ -110,9 +110,9 @@ export function parseStatusUpdateSubjectKey(
 }
 
 /**
- * La phase que le formulaire propose pour l'annonce suivante : celle de la
- * dernière publiée — on précise plus souvent qu'on ne change d'étape —, ou la
- * première du sujet.
+ * The phase the form offers for the next announcement: that of the last one
+ * published — one refines more often than one changes step —, or the subject's
+ * first.
  */
 export function suggestedStatusUpdatePhase(
   type: StatusUpdateSubjectType,
@@ -122,21 +122,21 @@ export function suggestedStatusUpdatePhase(
   return statusUpdatePhasesFor(type)[0]!;
 }
 
-// ─── Ce qu'un visiteur lit ────────────────────────────────────────────────────
+// ─── What a visitor reads ─────────────────────────────────────────────────────
 
-/** Une annonce telle qu'elle sort sur une page publique : ni auteur, ni identifiant. */
+/** An announcement as it goes out on a public page: no author, no identifier. */
 export type PublicStatusUpdate = {
   phase: StatusUpdatePhase;
   message: string;
   at: string;
 };
 
-/** Les plus récentes d'abord : c'est la dernière qu'un visiteur cherche. */
+/** The most recent first: it is the last one a visitor looks for. */
 export function latestFirst<T extends { at: string }>(updates: readonly T[]): T[] {
   return [...updates].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 }
 
-/** Ce que le haut d'une page dit d'un sujet en cours : sa dernière annonce. */
+/** What the top of a page says about an ongoing subject: its last announcement. */
 export type StatusNotice = {
   kind: StatusUpdateSubjectType;
   services: string[];
@@ -144,10 +144,10 @@ export type StatusNotice = {
 };
 
 /**
- * Les annonces à mettre en tête de page : pour chaque sujet **en cours**
- * (panne ouverte, maintenance commencée) qui en porte au moins une, la plus
- * récente. Un sujet sans service visible sur la page n'en a pas : l'annonce
- * commenterait quelque chose que le visiteur ne voit pas.
+ * The announcements to put at the top of the page: for each **ongoing** subject
+ * (open outage, started maintenance) that carries at least one, the most recent.
+ * A subject without a visible service on the page has none: the announcement
+ * would comment on something the visitor does not see.
  */
 export function statusNotices(
   subjects: ReadonlyArray<{

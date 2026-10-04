@@ -10,11 +10,11 @@ import type { UiLanguage } from '../../i18n.js';
 import { backupSay, type BackupSay } from '../messages.js';
 
 /**
- * Une destination SFTP — un NAS, ou n'importe quel serveur SSH.
+ * An SFTP destination — a NAS, or any SSH server.
  *
- * Le chemin de base est relatif au dossier d'accueil du compte, comme le
- * comprend tout serveur SFTP. L'empreinte de la clé d'hôte, si elle est donnée,
- * est vérifiée : une machine qui en présente une autre ne reçoit rien.
+ * The base path is relative to the account's home folder, as any SFTP server
+ * understands it. The host key's fingerprint, if given, is checked: a machine
+ * that presents another one receives nothing.
  */
 
 const READY_TIMEOUT_MS = 15_000;
@@ -89,7 +89,7 @@ export class SftpBackupStore implements BackupStore {
     return this.sftp;
   }
 
-  /** `mkdir -p`, un segment à la fois. */
+  /** `mkdir -p`, one segment at a time. */
   private async ensureDir(sftp: SFTPWrapper, dir: string): Promise<void> {
     let current = '';
     for (const segment of dir.split('/').filter((part) => part && part !== '.')) {
@@ -100,7 +100,7 @@ export class SftpBackupStore implements BackupStore {
       );
       if (!exists) {
         await call<void>((done) => sftp.mkdir(current, done)).catch(async (error: unknown) => {
-          // Créé entre-temps par un envoi concurrent : sans importance.
+          // Created in the meantime by a concurrent send: no matter.
           const now = await call<Stats>((done) => sftp.stat(current, done)).then(
             () => true,
             () => false,
@@ -154,7 +154,7 @@ export class SftpBackupStore implements BackupStore {
     const sftp = await this.open();
     const root = this.config.path || '.';
     const objects: StoredObject[] = [];
-    // On descend depuis le dossier le plus profond que le préfixe désigne.
+    // We go down from the deepest folder the prefix designates.
     const start = prefix.includes('/') ? prefix.slice(0, prefix.lastIndexOf('/')) : '';
     const walk = async (relative: string): Promise<void> => {
       const entries = await call<Array<{ filename: string; attrs: Stats }>>((done) =>
@@ -181,7 +181,7 @@ export class SftpBackupStore implements BackupStore {
     const sftp = await this.open();
     const objects = await this.list(prefix);
     for (const object of objects) await this.remove(object.key);
-    // Les dossiers vidés partent aussi, du plus profond au moins profond.
+    // Emptied folders go too, from the deepest to the shallowest.
     const dirs = [...new Set(objects.map((object) => posix.dirname(object.key)))].sort(
       (a, b) => b.length - a.length,
     );

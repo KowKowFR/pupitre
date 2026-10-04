@@ -4,14 +4,14 @@ import { issueMessage } from '../validation.js';
 import { sourceSay } from './messages.js';
 
 /**
- * Lecture du `pupitre.json` d'un commit.
+ * Reading a commit's `pupitre.json`.
  *
- * Le fichier ne contient que l'AppSpec, validée par le même schéma Zod que
- * partout ailleurs : ce qui ne passerait pas dans le formulaire du panel ne
- * passe pas davantage par un commit. Une règle de plus, propre au dépôt : le
- * `name` doit être celui de l'application liée. C'est lui qui nomme le projet
- * Compose et le namespace (`app-{slug}`) ; un commit ne doit pas pouvoir
- * déployer sous le nom d'une autre application.
+ * The file only contains the AppSpec, validated by the same Zod schema as
+ * everywhere else: what would not pass in the panel's form does not pass through
+ * a commit either. One more rule, specific to the repository: the `name` must be
+ * the linked application's. It is what names the Compose project and the
+ * namespace (`app-{slug}`); a commit must not be able to deploy under another
+ * application's name.
  */
 
 export type SourceSpecResult =

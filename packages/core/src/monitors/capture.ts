@@ -1,160 +1,156 @@
 import { z } from 'zod';
 
 /**
- * Captures d'écran d'incident — le vocabulaire, les bornes, les arbitrages.
+ * Incident screenshots — the vocabulary, the bounds, the trade-offs.
  *
- * ── Ce que le texte ne dit pas ──────────────────────────────────────────────
- * Une sonde qui ouvre un incident écrit une cause et un détail : « code 503,
- * 200 attendu », « connexion refusée ». C'est exact et c'est insuffisant. À
- * trois heures du matin, « code 503 » ne dit pas si la page était blanche, si
- * elle affichait une erreur de base de données, ou si le site avait été
- * remplacé. Pire : un site qui rend **200** avec un tunnel de paiement cassé,
- * une page de maintenance ou une défiguration est en panne pour ses visiteurs
- * et au vert pour la sonde. Aucune métrique n'attrape ce cas ; une image, si.
+ * ── What the text does not say ──────────────────────────────────────────────
+ * A probe that opens an incident writes a cause and a detail: "code 503, 200
+ * expected", "connection refused". It is accurate and it is not enough. At three
+ * in the morning, "code 503" does not say whether the page was blank, whether it
+ * showed a database error, or whether the site had been replaced. Worse: a site
+ * that returns **200** with a broken checkout flow, a maintenance page or a
+ * defacement is down for its visitors and green for the probe. No metric catches
+ * that case; an image does.
  *
- * ── Ce que ce n'est pas ─────────────────────────────────────────────────────
- * **Pas un type de sonde.** Le catalogue décrit ce qu'on observe (HTTP, TLS,
- * DNS…) ; la capture est une capacité **attachée aux incidents**, orthogonale
- * au type. Toute sonde dont la cible s'ouvre dans un navigateur — c'est
- * exactement ce que dit `linkFor()` du catalogue — peut en produire une. Un
- * type ajouté demain en hérite sans rien écrire ici.
+ * ── What it is not ──────────────────────────────────────────────────────────
+ * **Not a probe type.** The catalog describes what is observed (HTTP, TLS,
+ * DNS…); the capture is a capability **attached to incidents**, orthogonal to
+ * the type. Any probe whose target opens in a browser — exactly what the
+ * catalog's `linkFor()` says — can produce one. A type added tomorrow inherits
+ * it without writing anything here.
  *
- * ── Ce module est pur ───────────────────────────────────────────────────────
- * Il est importé par des composants client. Aucun module natif, aucun réseau :
- * le navigateur se pilote depuis `@pupitre/core/capture`, qui n'est chargé que
- * par le worker.
+ * ── This module is pure ─────────────────────────────────────────────────────
+ * It is imported by client components. No native module, no network: the
+ * browser is driven from `@pupitre/core/capture`, which only the worker loads.
  */
 
-// ─── quand capturer ───────────────────────────────────────────────────────────
+// ─── when to capture ──────────────────────────────────────────────────────────
 
 /**
- * Trois moments, et **seulement** trois. Capturer à chaque interrogation est
- * exclu : une sonde à la minute produirait 1 440 images par jour et par site,
- * pour montrer 1 439 fois la même page.
+ * Three moments, and **only** three. Capturing at each query is out of the
+ * question: a probe every minute would produce 1,440 images a day per site, to
+ * show the same page 1,439 times.
  *
- *   reference          « voici à quoi le site ressemble quand tout va bien ».
- *                      Prise pendant que la sonde est saine, au plus une fois
- *                      par `MONITOR_CAPTURE_REFERENCE_EVERY_HOURS`. C'est la
- *                      moitié « avant » de la comparaison, et sans elle l'image
- *                      d'incident ne se compare à rien : on ne saurait pas si
- *                      cette bannière rouge est nouvelle.
- *   incident_open      la page au moment où l'incident est confirmé. La raison
- *                      d'être de la fonctionnalité.
- *   incident_resolved  la page au rétablissement. Elle coûte une image par
- *                      incident et répond à la question qui suit toujours la
- *                      première — « c'est vraiment reparti, ou c'est la page de
- *                      maintenance qui répond 200 ? ». Une alerte de
- *                      rétablissement sans preuve oblige à aller vérifier à la
- *                      main, ce qu'on voulait justement éviter.
+ *   reference          "here is what the site looks like when all is well".
+ *                      Taken while the probe is healthy, at most once per
+ *                      `MONITOR_CAPTURE_REFERENCE_EVERY_HOURS`. It is the
+ *                      "before" half of the comparison, and without it the
+ *                      incident image compares to nothing: we would not know
+ *                      whether that red banner is new.
+ *   incident_open      the page when the incident is confirmed. The feature's
+ *                      reason for being.
+ *   incident_resolved  the page at recovery. It costs one image per incident and
+ *                      answers the question that always follows the first —
+ *                      "is it really back, or is it the maintenance page
+ *                      answering 200?". A recovery alert without proof forces a
+ *                      manual check, which is precisely what we wanted to avoid.
  */
 export const CAPTURE_KINDS = ['reference', 'incident_open', 'incident_resolved'] as const;
 export const captureKindSchema = z.enum(CAPTURE_KINDS);
 export type CaptureKind = z.infer<typeof captureKindSchema>;
 
-// Les libellés de chaque moment, et ceux des échecs, vivaient ici et n'avaient
-// plus de lecteur : l'écran des captures écrit les siens, aux clés `capture.*`
-// de son propre dictionnaire, donc dans la langue de l'instance.
+// The labels of each moment, and those of the failures, lived here and no
+// longer had a reader: the captures screen writes its own, under the `capture.*`
+// keys of its own dictionary, hence in the instance's language.
 
 /**
- * Cadence de la référence : **6 heures**.
+ * Reference rate: **6 hours**.
  *
- * Le coût ne vient pas de la cadence mais de la rétention, et il n'y a jamais
- * qu'**une** référence vivante par sonde — une contrainte unique partielle en
- * base le garantit, ce n'est pas un `if`. Six heures est donc simplement « une
- * image assez fraîche pour que la comparaison soit honnête », sans harceler des
- * sites qui vont bien.
+ * The cost does not come from the rate but from retention, and there is only
+ * ever **one** live reference per probe — a partial unique constraint in the
+ * database guarantees it, it is not an `if`. Six hours is therefore simply "an
+ * image fresh enough for the comparison to be honest", without harassing sites
+ * that are fine.
  */
 export const MONITOR_CAPTURE_REFERENCE_EVERY_HOURS = 6;
 
-/** Références rafraîchies par passage. Borne le travail d'un seul balayage. */
+/** References refreshed per pass. Bounds a single sweep's work. */
 export const MONITOR_CAPTURE_REFERENCE_BATCH = 5;
 
-/** Le balayage des références ne repart pas plus souvent que ça. */
+/** The references sweep does not start again more often than this. */
 export const MONITOR_CAPTURE_REFERENCE_SWEEP_EVERY_SECONDS = 300;
 
-// ─── format et poids ──────────────────────────────────────────────────────────
+// ─── format and weight ────────────────────────────────────────────────────────
 
 /**
- * 1280 × 800 : un écran de bureau ordinaire. Ni mobile — on supervise des sites
- * dont on connaît la version de bureau — ni 4K, qui quadruplerait le poids pour
- * montrer la même chose.
+ * 1280 × 800: an ordinary desktop screen. Neither mobile — we monitor sites
+ * whose desktop version we know — nor 4K, which would quadruple the weight to
+ * show the same thing.
  */
 export const MONITOR_CAPTURE_WIDTH = 1280;
 export const MONITOR_CAPTURE_VIEWPORT_HEIGHT = 800;
 
 /**
- * Hauteur maximale rendue : **2 400 px**, soit trois écrans.
+ * Maximum height rendered: **2,400 px**, that is three screens.
  *
- * La pleine hauteur est un piège : une page de blog fait 20 000 px, pèse
- * plusieurs mégaoctets en PNG, et les 19 000 px du bas ne disent rien qu'on
- * ignorait au premier. Ce qui diagnostique une panne est en haut. La capture
- * note quand elle a tronqué (`truncated`) : mieux vaut le dire que le cacher.
+ * Full height is a trap: a blog page is 20,000 px, weighs several megabytes as
+ * PNG, and the bottom 19,000 px say nothing the first ones did not. What
+ * diagnoses an outage is at the top. The capture notes when it truncated
+ * (`truncated`): better to say it than hide it.
  */
 export const MONITOR_CAPTURE_MAX_HEIGHT = 2_400;
 
 /**
- * **JPEG, pas PNG.** Une page en pleine hauteur en PNG pèse 3 à 8 Mo ; la même
- * en JPEG de qualité 70 pèse 100 à 400 Ko, pour une perte invisible sur ce
- * qu'on vient y chercher (la page était-elle blanche, cassée, remplacée ?). Le
- * texte reste parfaitement lisible à cette qualité et à cette échelle.
+ * **JPEG, not PNG.** A full-height page as PNG weighs 3 to 8 MB; the same as JPEG
+ * at quality 70 weighs 100 to 400 KB, for an invisible loss on what we come
+ * looking for (was the page blank, broken, replaced?). Text stays perfectly
+ * readable at this quality and at this scale.
  *
- * PNG aurait un avantage — la netteté parfaite du texte — qui ne vaut pas un
- * facteur vingt sur une donnée qu'on stocke pour toujours à côté d'incidents
- * qui ne sont jamais purgés.
+ * PNG would have one advantage — perfectly sharp text — which is not worth a
+ * factor of twenty on data stored forever next to incidents that are never
+ * purged.
  */
 export const MONITOR_CAPTURE_FORMAT = 'jpeg' as const;
 export const MONITOR_CAPTURE_QUALITY = 70;
 
-/** Seconde tentative, plus économe, quand la première dépasse la borne dure. */
+/** Second, leaner attempt, when the first exceeds the hard cap. */
 export const MONITOR_CAPTURE_FALLBACK_QUALITY = 40;
 export const MONITOR_CAPTURE_FALLBACK_HEIGHT = 1_000;
 
 /**
- * **Borne dure : 1,5 Mo.** Au-delà, l'image est jetée avec son motif plutôt que
- * stockée. Une borne molle (« on essaie de rester petit ») n'est pas une borne :
- * il suffit d'une page pathologique pour qu'une colonne `bytea` avale la
- * sauvegarde. Le chemin normal produit 100 à 400 Ko ; 1,5 Mo est l'accident.
+ * **Hard cap: 1.5 MB.** Beyond it, the image is dropped with its reason rather
+ * than stored. A soft cap ("we try to stay small") is not a cap: a single
+ * pathological page is enough for a `bytea` column to swallow the backup. The
+ * normal path produces 100 to 400 KB; 1.5 MB is the accident.
  */
 export const MONITOR_CAPTURE_MAX_BYTES = 1_500_000;
 
 // ─── temps ────────────────────────────────────────────────────────────────────
 
-/** Budget total d'une capture, connexion au navigateur comprise. */
+/** A capture's total budget, browser connection included. */
 export const MONITOR_CAPTURE_BUDGET_MS = 25_000;
-/** Attente de l'événement `load` avant de tirer quand même. */
+/** Wait for the `load` event before shooting anyway. */
 export const MONITOR_CAPTURE_LOAD_TIMEOUT_MS = 12_000;
-/** Répit après `load` : le temps que les polices et l'hydratation se posent. */
+/** Respite after `load`: time for fonts and hydration to settle. */
 export const MONITOR_CAPTURE_SETTLE_MS = 700;
 
-// ─── rétention ────────────────────────────────────────────────────────────────
+// ─── retention ────────────────────────────────────────────────────────────────
 
 /**
- * **90 jours pour les octets ; la ligne, elle, ne part jamais.**
+ * **90 days for the bytes; the row never goes.**
  *
- * Les incidents ne sont jamais purgés — ce sont eux qui racontent l'histoire —
- * mais leurs images, si : une sonde qui bat de l'aile produit trois images par
- * incident, et un incident par jour pendant un an, c'est un quart de gigaoctet
- * pour un seul site. Au-delà de trois mois, une capture n'aide plus à diagnostiquer,
- * elle documente.
+ * Incidents are never purged — they tell the story — but their images are: a
+ * probe on its last legs produces three images per incident, and one incident a
+ * day for a year is a quarter of a gigabyte for a single site. Beyond three
+ * months, a capture no longer helps diagnose, it documents.
  *
- * Ce qu'on purge est donc l'octet, pas le fait : la ligne reste, avec sa date,
- * sa taille et son verdict, et l'écran dit « image purgée le … ». Une
- * chronologie amputée mentirait ; une chronologie qui dit ce qu'elle a perdu,
- * non.
+ * What is purged is therefore the byte, not the fact: the row stays, with its
+ * date, its size and its verdict, and the screen says "image purged on …". A
+ * truncated timeline would lie; a timeline that says what it lost does not.
  */
 export const MONITOR_CAPTURE_RETENTION_DAYS = 90;
 
-// ─── le résultat d'une capture ────────────────────────────────────────────────
+// ─── a capture's result ───────────────────────────────────────────────────────
 
 /**
- * Une capture ratée **n'est pas une erreur**.
+ * A failed capture **is not an error**.
  *
- * C'est la règle la plus importante du module. Le navigateur peut être éteint,
- * absent, saturé, ou la page peut ne jamais finir de charger : dans tous les
- * cas la sonde a déjà rendu son verdict, l'incident est déjà ouvert et l'alerte
- * est déjà partie. Une capture est un **supplément**, jamais une condition.
- * D'où un résultat en deux branches plutôt qu'une exception, et un motif
- * lisible dans la branche perdante.
+ * It is the module's most important rule. The browser can be off, absent,
+ * saturated, or the page may never finish loading: in every case the probe has
+ * already given its verdict, the incident is already open and the alert has
+ * already gone out. A capture is an **extra**, never a condition. Hence a result
+ * with two branches rather than an exception, and a readable reason in the
+ * losing branch.
  */
 export type CaptureFailureReason =
   | 'browser-unavailable'
@@ -169,14 +165,14 @@ export type CaptureImage = {
   format: typeof MONITOR_CAPTURE_FORMAT;
   width: number;
   height: number;
-  /** La page était plus haute que `MONITOR_CAPTURE_MAX_HEIGHT`. */
+  /** The page was taller than `MONITOR_CAPTURE_MAX_HEIGHT`. */
   truncated: boolean;
-  /** URL réellement rendue, après redirections. */
+  /** URL actually rendered, after redirects. */
   finalUrl: string;
-  /** Code de la réponse principale, quand le navigateur l'a vu passer. */
+  /** Code of the main response, when the browser saw it go by. */
   httpStatus: number | null;
   pageTitle: string | null;
-  /** Temps total, de la navigation à l'image. */
+  /** Total time, from navigation to the image. */
   elapsedMs: number;
 };
 
@@ -184,7 +180,7 @@ export type CaptureOutcome =
   | { ok: true; image: CaptureImage }
   | { ok: false; reason: CaptureFailureReason; detail: string };
 
-/** Une capture est-elle due pour cette sonde ? Pure, donc testable. */
+/** Is a capture due for this probe? Pure, hence testable. */
 export function referenceIsDue(lastReferenceAt: Date | null, now: Date = new Date()): boolean {
   if (lastReferenceAt === null) return true;
   const ageMs = now.getTime() - lastReferenceAt.getTime();
@@ -192,11 +188,11 @@ export function referenceIsDue(lastReferenceAt: Date | null, now: Date = new Dat
 }
 
 /**
- * Décide de la hauteur rendue à partir de la hauteur réelle de la page.
+ * Decides the rendered height from the page's real height.
  *
- * Bornée en bas aussi : une page qui se déclare haute de 0 px (rendu raté,
- * corps vide) doit quand même produire une image — « la page était blanche »
- * est précisément l'un des diagnostics qu'on vient chercher.
+ * Bounded at the bottom too: a page that declares itself 0 px high (failed
+ * render, empty body) must still produce an image — "the page was blank" is
+ * precisely one of the diagnoses we come looking for.
  */
 export function captureHeightFor(
   contentHeight: number,
@@ -209,25 +205,25 @@ export function captureHeightFor(
 }
 
 /**
- * Ce qu'on écrit à côté d'une image, et ce qu'on n'écrit pas.
+ * What is written next to an image, and what is not.
  *
- * ⚠ **Une capture peut contenir n'importe quoi de ce que la page affiche.** Le
- * navigateur est vierge — contexte neuf à chaque capture, aucun cookie, aucune
- * session — donc il voit ce que verrait un visiteur anonyme : une page derrière
- * authentification rend son écran de connexion, pas le contenu privé. Reste le
- * cas de l'URL qui **porte** le secret (`?token=…`) : là, le navigateur rend le
- * contenu privé, et l'image le montre.
+ * ⚠ **A capture can contain anything the page shows.** The browser is blank — a
+ * new context for each capture, no cookie, no session — so it sees what an
+ * anonymous visitor would see: a page behind authentication renders its sign-in
+ * screen, not the private content. There remains the case of the URL that
+ * **carries** the secret (`?token=…`): there, the browser renders the private
+ * content, and the image shows it.
  *
- * Ce qui est fait de ce risque, explicitement :
- *   — l'URL supervisée est déjà lisible par quiconque a `monitor:read` (elle est
- *     dans `config`) : la capture n'ouvre pas un accès, elle rend visible ce que
- *     cet accès permettait déjà ;
- *   — l'image n'est servie qu'à `monitor:read`, jamais publiée, jamais jointe à
- *     une alerte, jamais envoyée à un webhook ni à un canal de notification ;
- *   — la fonctionnalité est **facultative et éteinte par défaut** : sans
- *     `MONITOR_CAPTURE_CDP_URL`, aucune image n'est prise ;
- *   — la fragment d'URL (`#…`) n'est pas transmis au navigateur — il ne sert à
- *     rien au rendu serveur et se retrouverait recopié en clair dans la table.
+ * What is done about this risk, explicitly:
+ *   — the monitored URL is already readable by anyone with `monitor:read` (it is
+ *     in `config`): the capture does not open an access, it makes visible what
+ *     that access already allowed;
+ *   — the image is only served to `monitor:read`, never published, never
+ *     attached to an alert, never sent to a webhook or a notification channel;
+ *   — the feature is **optional and off by default**: without
+ *     `MONITOR_CAPTURE_CDP_URL`, no image is taken;
+ *   — the URL fragment (`#…`) is not passed to the browser — it is useless for
+ *     server rendering and would end up copied in clear into the table.
  */
 export function captureUrlFor(link: string): string | null {
   let url: URL;

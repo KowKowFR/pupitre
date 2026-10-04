@@ -2,23 +2,23 @@ import { z } from 'zod';
 import { DEFAULT_UI_LANGUAGE, type Bundle, type UiLanguage } from './i18n.js';
 
 /**
- * Définition du pipeline de déploiement.
+ * Definition of the deployment pipeline.
  *
- * Partagée entre le panel — qui crée les steps en base au moment d'enfiler le
- * job — et le worker, qui les exécute. Une seule source de vérité : l'UI peut
- * afficher la liste complète avant que le worker n'ait commencé.
+ * Shared between the panel — which creates the steps in the database when
+ * queuing the job — and the worker, which runs them. A single source of truth:
+ * the UI can show the complete list before the worker has started.
  *
- * `rollback` est déclarée ici comme les autres, et non insérée en cours
- * d'exécution. Il a été tranché que **toutes** les steps naissent en base
- * au moment d'enfiler le job, précisément pour que l'UI montre le pipeline
- * complet d'emblée ; une step qui apparaîtrait en cours de route romprait cette
- * garantie, ferait mentir le compteur « n / total » et obligerait le client SSE
- * à gérer un cas de plus. Elle est simplement `skipped` quand tout va bien —
- * exactement comme `build` sans image à construire ou `proxy` sans nom de
- * domaine. Un rollback qui n'a pas eu lieu est une information, pas un trou.
+ * `rollback` is declared here like the others, and not inserted during the run.
+ * It was decided that **every** step is born in the database when the job is
+ * queued, precisely so that the UI shows the complete pipeline from the start; a
+ * step appearing along the way would break that guarantee, make the "n / total"
+ * counter lie and force the SSE client to handle one more case. It is simply
+ * `skipped` when all goes well — exactly like `build` without an image to build
+ * or `proxy` without a domain name. A rollback that did not happen is
+ * information, not a gap.
  *
- * Elle est en dernier parce qu'elle ne peut se déclencher qu'après le verdict de
- * `healthcheck`, et qu'elle défait ce que `deploy` a fait.
+ * It comes last because it can only trigger after `healthcheck`'s verdict, and
+ * it undoes what `deploy` did.
  */
 
 export const DEPLOYMENT_STEPS = [
@@ -38,24 +38,24 @@ export const DEPLOYMENT_STEPS = [
 export type DeploymentStepKey = (typeof DEPLOYMENT_STEPS)[number]['key'];
 
 /**
- * Le nom d'une étape, dans les deux langues — **rendu à la lecture**.
+ * A step's name, in both languages — **rendered when read**.
  *
- * ── Pourquoi la colonne `deployment_steps.label` ne suffit plus ─────────────
- * Le panel écrit ce libellé en base au moment d'enfiler le job. C'était sans
- * conséquence tant qu'il n'existait qu'une langue ; ça n'en a plus aucune
- * depuis qu'il y en a deux. Un libellé écrit à la création fige la langue de
- * l'instance **au moment du déploiement** : basculer le panel en anglais
- * laisserait « Vérification de santé » sur tous les déploiements déjà passés,
- * et sur eux seuls. Le pipeline afficherait alors deux langues à la fois.
+ * ── Why the `deployment_steps.label` column is no longer enough ─────────────
+ * The panel writes this label into the database when queuing the job. It made no
+ * difference as long as there was only one language; it makes no sense anymore
+ * since there are two. A label written at creation freezes the instance's
+ * language **at deployment time**: switching the panel to English would leave
+ * "Vérification de santé" on every past deployment, and on them alone. The
+ * pipeline would then show two languages at once.
  *
- * La règle du projet est la même que pour le journal d'activité : une trace ne
- * porte que des **données**, et le nom se rend au moment de l'afficher. Ici la
- * donnée existe déjà — `deployment_steps.key` est écrite à côté du libellé, et
- * c'est elle qui a toujours servi à la logique. L'affichage la rejoint.
+ * The project's rule is the same as for the activity log: a trace only carries
+ * **data**, and the name is rendered when shown. Here the data already exists —
+ * `deployment_steps.key` is written next to the label, and it is what has always
+ * served the logic. The display joins it.
  *
- * La colonne reste écrite, telle quelle : elle est le dernier recours pour une
- * étape dont la clé aurait disparu du catalogue — un déploiement conservé après
- * qu'on a retiré une étape du pipeline. C'est le seul cas où on la relit.
+ * The column is still written, as is: it is the last resort for a step whose key
+ * has disappeared from the catalog — a deployment kept after a step was removed
+ * from the pipeline. It is the only case where it is read back.
  */
 const stepLabels = {
   fr: {
@@ -89,9 +89,9 @@ const stepLabels = {
 export const deploymentStepLabels = stepLabels;
 
 /**
- * Le nom affichable d'une étape. `fallback` sert aux clés que le catalogue ne
- * connaît plus : on rend alors ce que la base avait écrit, plutôt qu'une clé
- * nue devant un utilisateur.
+ * A step's displayable name. `fallback` serves the keys the catalog no longer
+ * knows: we then return what the database had written, rather than a bare key
+ * in front of a user.
  */
 export function deploymentStepLabel(
   key: string,
@@ -120,9 +120,9 @@ export const deploymentStatusSchema = z.enum([
 export type DeploymentStatus = z.infer<typeof deploymentStatusSchema>;
 
 /**
- * Ligne publiée sur le canal Redis `deploy:{deploymentId}`.
- * Même forme que celle relue depuis `deployment_steps.log` : le client SSE ne
- * fait aucune différence entre l'historique et le direct.
+ * Line published on the `deploy:{deploymentId}` Redis channel.
+ * The same shape as the one read back from `deployment_steps.log`: the SSE
+ * client makes no difference between history and live.
  */
 export const deployLogLineSchema = z.object({
   ts: z.string(),
@@ -133,7 +133,7 @@ export const deployLogLineSchema = z.object({
 
 export type DeployLogLine = z.infer<typeof deployLogLineSchema>;
 
-/** Changement d'état d'une step ou du déploiement, publié sur le même canal. */
+/** A step's or the deployment's state change, published on the same channel. */
 export const deployEventSchema = z.object({
   ts: z.string(),
   type: z.enum(['step', 'deployment']),
@@ -144,7 +144,7 @@ export const deployEventSchema = z.object({
 
 export type DeployEvent = z.infer<typeof deployEventSchema>;
 
-/** Enveloppe transportée sur le canal Redis. */
+/** Envelope carried on the Redis channel. */
 export const deployMessageSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('log'), payload: deployLogLineSchema }),
   z.object({ kind: z.literal('event'), payload: deployEventSchema }),
@@ -156,7 +156,7 @@ export function deployChannel(deploymentId: string): string {
   return `deploy:${deploymentId}`;
 }
 
-/** Statuts qui signent la fin d'un déploiement. */
+/** Statuses that mark a deployment's end. */
 export const TERMINAL_DEPLOYMENT_STATUSES: readonly DeploymentStatus[] = [
   'success',
   'failed',
@@ -169,11 +169,11 @@ export function isTerminal(status: DeploymentStatus): boolean {
 }
 
 /**
- * Séquences d'échappement ANSI, retirées avant affichage.
+ * ANSI escape sequences, removed before display.
  *
- * `docker compose` en produit même avec `--no-color` : déplacements de curseur
- * et effacements de ligne pendant les téléchargements. On nettoie côté serveur,
- * une fois, plutôt que dans chaque client.
+ * `docker compose` produces them even with `--no-color`: cursor moves and line
+ * erasures during downloads. We clean up on the server side, once, rather than
+ * in each client.
  */
 const ESC = '\u001B';
 const ANSI_PATTERN = new RegExp(

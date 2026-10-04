@@ -1,33 +1,32 @@
 import { readCoreAsset } from './assets.js';
 
 /**
- * Chargement du prompt système.
+ * Loading the system prompt.
  *
- * Le prompt vit dans `src/ai/prompts/generate-appspec.md`, versionné comme du
- * code — jamais en dur dans un fichier TypeScript. Il porte des marques
- * `{{FIXTURE:nom.json}}` que l'on remplace par le contenu **réel** des fixtures
- * du dépôt.
+ * The prompt lives in `src/ai/prompts/generate-appspec.md`, versioned like code
+ * — never hard-coded in a TypeScript file. It carries `{{FIXTURE:name.json}}`
+ * marks that are replaced by the **real** content of the repository's fixtures.
  *
- * Recopier les fixtures dans le markdown aurait été plus simple, et faux : les
- * exemples few-shot auraient dérivé du jour où une fixture change, sans que rien
- * ne le signale. Ici, une fixture modifiée modifie le prompt.
+ * Copying the fixtures into the markdown would have been simpler, and wrong: the
+ * few-shot examples would have drifted the day a fixture changes, with nothing
+ * to report it. Here, a modified fixture modifies the prompt.
  */
 
 const FIXTURE_PATTERN = /\{\{FIXTURE:([a-z0-9._-]+)\}\}/g;
-/** Même motif, sans `g` : `test()` sur une regex globale est à état. */
+/** The same pattern, without `g`: `test()` on a global regex is stateful. */
 const HAS_FIXTURE_MARK = /\{\{FIXTURE:[a-z0-9._-]+\}\}/;
 
 export const GENERATE_APPSPEC_PROMPT_FILE = 'ai/prompts/generate-appspec.md' as const;
 
-/** Fixtures autorisées en exemple. Une liste blanche : le prompt ne lit pas le disque à sa guise. */
+/** Fixtures allowed as examples. An allow list: the prompt does not read the disk as it pleases. */
 const ALLOWED_FIXTURES = new Set(['simple.json', 'fullstack.json', 'invalid.json']);
 
 function fixtureContent(name: string): string {
   if (!ALLOWED_FIXTURES.has(name)) {
-    throw new Error(`fixture « ${name} » non autorisée dans le prompt système`);
+    throw new Error(`fixture "${name}" not allowed in the system prompt`);
   }
-  // Le JSON d'origine est indenté pour la relecture humaine : on le republie
-  // tel quel, le modèle lit mieux ce qui est aéré.
+  // The original JSON is indented for human review: we publish it again as is,
+  // the model reads better what is airy.
   return readCoreAsset(`spec/__fixtures__/${name}`, {
     expectation: 'un objet JSON portant un champ « name »',
     looksRight: (content) => {
@@ -43,13 +42,13 @@ function fixtureContent(name: string): string {
 
 let cached: string | null = null;
 
-/** Prompt système complet, fixtures substituées. */
+/** Complete system prompt, fixtures substituted. */
 export function generateAppSpecPrompt(): string {
   if (cached !== null) return cached;
 
   const template = readCoreAsset(GENERATE_APPSPEC_PROMPT_FILE, {
-    // Sentinelle : un fichier qui ne porte pas ses marques de substitution
-    // n'est pas notre prompt, quoi qu'en dise le chemin d'où il vient.
+    // Sentinel: a file that does not carry its substitution marks is not our
+    // prompt, whatever the path it comes from says.
     expectation: 'les marques {{FIXTURE:…}} du prompt système',
     looksRight: (content) => HAS_FIXTURE_MARK.test(content),
   });
@@ -58,10 +57,10 @@ export function generateAppSpecPrompt(): string {
     fixtureContent(name),
   );
 
-  // Ceinture et bretelles : une marque survivante voudrait dire qu'une fixture
-  // n'a pas été substituée, et le modèle recevrait un exemple vide.
+  // Belt and braces: a surviving mark would mean a fixture was not substituted,
+  // and the model would receive an empty example.
   if (prompt.includes('{{FIXTURE:')) {
-    throw new Error('prompt système : une marque {{FIXTURE:…}} est restée non substituée');
+    throw new Error('system prompt: a {{FIXTURE:…}} mark was left unsubstituted');
   }
 
   cached = prompt;

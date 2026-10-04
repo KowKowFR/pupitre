@@ -12,25 +12,25 @@ import { aiSay } from './messages.js';
 import { generateAppSpecPrompt } from './prompt.js';
 
 /**
- * Génération d'une AppSpec à partir d'une description en langage naturel.
+ * Generating an AppSpec from a natural-language description.
  *
- * Le LLM ne produit **jamais** de shell. Il produit un objet, contraint par le
- * schéma de sortie structurée, que notre code valide ensuite avec
- * `appSpecSchema` — refinements compris. Rien n'est persisté ici, rien n'est
- * déployé : la fonction rend une AppSpec ou une erreur.
+ * The LLM **never** produces shell. It produces an object, constrained by the
+ * structured output schema, which our code then validates with `appSpecSchema`
+ * — refinements included. Nothing is persisted here, nothing is deployed: the
+ * function returns an AppSpec or an error.
  *
- * Deux passes au maximum. Si la première viole une contrainte croisée (deux
- * services exposés, un cycle de dépendances), on relance **une seule fois** en
- * réinjectant les reproches de Zod. Si la seconde échoue aussi, on rend la main
- * avec les erreurs : « réparer » le JSON à la main reviendrait à inventer la
- * moitié de la spec sans que personne ne l'ait demandé.
+ * Two passes at most. If the first violates a cross-field constraint (two
+ * exposed services, a dependency cycle), we retry **only once**, feeding Zod's
+ * complaints back. If the second fails too, we give control back with the
+ * errors: "repairing" the JSON by hand would amount to making up half the spec
+ * without anybody having asked for it.
  */
 
-/** Garde-fou de taille. Un prompt de 8 000 caractères ne décrit plus une application. */
+/** Size guardrail. An 8,000-character prompt no longer describes an application. */
 export const MAX_PROMPT_LENGTH = 4000;
 export const MIN_PROMPT_LENGTH = 8;
 
-/** Au-delà, on considère que le modèle ne répondra pas. */
+/** Beyond this, we consider that the model will not answer. */
 export const DEFAULT_TIMEOUT_MS = 60_000;
 
 export const DEFAULT_TEMPERATURE = 0.2;
@@ -50,11 +50,11 @@ export const generateAppSpecInputSchema = z.object({
 
 export type GenerateAppSpecInput = z.infer<typeof generateAppSpecInputSchema>;
 
-/** Une tentative, telle qu'elle s'est réellement passée. */
+/** An attempt, as it really went. */
 export type GenerationAttempt = {
   index: number;
   ok: boolean;
-  /** Reproches de Zod, chemin compris, lisibles tels quels par un humain. */
+  /** Zod's complaints, path included, readable as is by a human. */
   issues: string[];
   inputTokens: number | null;
   outputTokens: number | null;
@@ -79,9 +79,9 @@ export type GenerateAppSpecSuccess = {
 export type GenerateAppSpecFailure = {
   ok: false;
   /**
-   *   invalid_spec  le modèle a répondu, sa spec ne passe pas la validation
-   *   no_object     le modèle n'a pas produit d'objet exploitable
-   *   provider      appel impossible : réseau, quota, clé refusée, délai dépassé
+   *   invalid_spec  the model answered, its spec does not pass validation
+   *   no_object     the model did not produce a usable object
+   *   provider      the call failed: network, quota, key refused, timeout
    */
   reason: 'invalid_spec' | 'no_object' | 'provider';
   message: string;
@@ -96,52 +96,52 @@ export type GenerateAppSpecResult = GenerateAppSpecSuccess | GenerateAppSpecFail
 
 export type GenerateAppSpecOptions = {
   /**
-   * Le client de modèle, **injecté** : ni le fournisseur ni la clé n'entrent
-   * ici. C'est ce qui rend toute la chaîne vérifiable hors ligne, avec un
-   * `MockLanguageModelV3` qui rend les réponses qu'on veut éprouver.
+   * The model client, **injected**: neither the provider nor the key come in
+   * here. That is what makes the whole chain verifiable offline, with a
+   * `MockLanguageModelV3` that returns the answers we want to test.
    */
   model: LanguageModel;
-  /** Nom lisible du modèle, pour l'audit. Le `LanguageModel` ne le porte pas toujours. */
+  /** The model's readable name, for the audit log. The `LanguageModel` does not always carry it. */
   modelName: string;
   input: GenerateAppSpecInput;
   timeoutMs?: number;
-  /** Injectable pour les tests : `AbortSignal.timeout` par défaut. */
+  /** Injectable for tests: `AbortSignal.timeout` by default. */
   signal?: AbortSignal;
-  /** Réglage d'instance. Basse par défaut : on veut une spec, pas de la prose. */
+  /** Instance setting. Low by default: we want a spec, not prose. */
   temperature?: number;
   /**
-   * Plafond de sortie. Une AppSpec multi-services fait facilement 2 000 jetons ;
-   * trop bas, la réponse est tronquée et le JSON illisible — cas diagnostiqué
-   * explicitement plus bas, parce qu'il ressemble à tort à un modèle défaillant.
+   * Output cap. A multi-service AppSpec easily takes 2,000 tokens; too low, the
+   * response is truncated and the JSON unreadable — a case diagnosed explicitly
+   * below, because it wrongly looks like a failing model.
    */
   maxOutputTokens?: number;
   /**
-   * Options propres au fournisseur, opaques ici. Elles viennent de sa fabrique
-   * (`createModel()`) et sont transmises telles quelles : c'est ce qui permet à
-   * ce module d'ignorer complètement qui répond — un `if (provider === …)` ici
-   * serait exactement la fuite que l'architecture cherche à empêcher.
+   * Provider-specific options, opaque here. They come from its factory
+   * (`createModel()`) and are passed on as is: that is what lets this module
+   * completely ignore who answers — an `if (provider === …)` here would be exactly
+   * the leak the architecture tries to prevent.
    */
   providerOptions?: ProviderCallOptions;
   /**
-   * La langue de ce qui revient à l'écran : le message d'échec et les
-   * reproches des tentatives. Le dialogue avec le modèle, lui, reste dans la
-   * langue du prompt. Français par défaut.
+   * The language of what comes back to the screen: the failure message and the
+   * attempts' complaints. The dialogue with the model stays in the prompt's
+   * language. French by default.
    */
   language?: UiLanguage;
 };
 
 /**
- * Le JSON Schema tel qu'il part réellement chez le fournisseur.
+ * The JSON Schema as it really goes to the provider.
  *
- * Publié pour être inspecté hors ligne : c'est dans cette forme que se trouve
- * le `oneOf` que le mode strict d'OpenAI refuse. Sans un moyen de le regarder
- * sans clé, la régression ne se voit qu'au premier utilisateur qui en a une.
+ * Published to be inspected offline: it is in this shape that the `oneOf`
+ * OpenAI's strict mode refuses is found. Without a way to look at it without a
+ * key, the regression only shows with the first user who has one.
  */
 export function appSpecJsonSchema(): Record<string, unknown> {
   return z.toJSONSchema(appSpecShapeSchema, { io: 'input' }) as Record<string, unknown>;
 }
 
-/** Reproches de Zod aplatis en lignes « chemin : message », dans la langue demandée. */
+/** Zod's complaints flattened into "path: message" lines, in the requested language. */
 export function formatIssues(error: z.ZodError, language: UiLanguage = 'fr'): string[] {
   const say = aiSay(language);
   return error.issues.map((issue) =>
@@ -161,9 +161,9 @@ function userMessage(input: GenerateAppSpecInput): string {
     if (hints.language) lines.push(`- langage / plateforme applicative : ${hints.language}`);
     if (hints.database) lines.push(`- base de données : ${hints.database}`);
     if (hints.runtime) {
-      // Le runtime n'est PAS un champ de l'AppSpec — la spec ne connaît ni
-      // Docker ni Kubernetes. On ne le transmet que comme contexte de
-      // dimensionnement, et on le dit explicitement au modèle.
+      // The runtime is NOT an AppSpec field — the spec knows neither Docker nor
+      // Kubernetes. It is only passed on as sizing context, and we tell the model so
+      // explicitly.
       lines.push(
         `- runtime de destination : ${hints.runtime}. Ne le mentionne nulle part` +
           ` dans la spec : l'AppSpec est neutre. Il ne sert qu'à dimensionner.`,
@@ -174,7 +174,7 @@ function userMessage(input: GenerateAppSpecInput): string {
   return lines.join('\n');
 }
 
-/** Message de relance : les reproches de Zod, mot pour mot. */
+/** Retry message: Zod's complaints, word for word. */
 function repairMessage(issues: string[]): string {
   return [
     "La spec que tu viens de produire a été REJETÉE par la validation. Voici les",
@@ -228,7 +228,7 @@ export async function generateAppSpec(
   const turns: Turn[] = [{ role: 'user', content: userMessage(options.input) }];
   const attempts: GenerationAttempt[] = [];
 
-  // Deux passes au maximum : la génération, puis UNE relance avec les erreurs.
+  // Two passes at most: the generation, then ONE retry with the errors.
   for (let index = 1; index <= 2; index += 1) {
     const attemptStartedAt = Date.now();
     let object: unknown;
@@ -237,7 +237,7 @@ export async function generateAppSpec(
     try {
       const result = await generateObject({
         model: options.model,
-        // La forme, pas les refinements : c'est notre code qui valide ensuite.
+        // The shape, not the refinements: it is our code that validates afterwards.
         schema: appSpecShapeSchema,
         schemaName: 'AppSpec',
         schemaDescription:
@@ -246,22 +246,21 @@ export async function generateAppSpec(
         messages: turns,
         temperature: options.temperature ?? DEFAULT_TEMPERATURE,
         ...(options.maxOutputTokens ? { maxOutputTokens: options.maxOutputTokens } : {}),
-        // Opaques : elles viennent de la fabrique du fournisseur. C'est là que
-        // vit la connaissance de ce que chacun sait avaler — le mode strict des
-        // sorties structurées, notamment, qu'OpenAI refuse d'appliquer au
-        // `oneOf` que Zod produit pour `sourceSchema`. Écrire ce réglage ici
-        // reviendrait à nommer un fournisseur dans un module qui ne doit pas
-        // savoir qui répond.
+        // Opaque: they come from the provider's factory. That is where the knowledge of
+        // what each one can swallow lives — the strict mode of structured outputs,
+        // notably, which OpenAI refuses to apply to the `oneOf` Zod produces for
+        // `sourceSchema`. Writing that setting here would mean naming a provider in a
+        // module that must not know who answers.
         ...(options.providerOptions ? { providerOptions: options.providerOptions } : {}),
         abortSignal: signal,
       });
       object = result.object;
       usage = usageOf(result.usage);
     } catch (error) {
-      // Le SDK valide déjà la *forme* : un objet qui ne la respecte pas remonte
-      // ici sous forme de `ZodError` enveloppée. C'est la même faute qu'un
-      // refinement violé plus bas, et elle mérite le même traitement — une
-      // relance, puis un rejet. Seule une panne du fournisseur est autre chose.
+      // The SDK already validates the *shape*: an object that does not respect it
+      // comes up here as a wrapped `ZodError`. It is the same fault as a refinement
+      // violated below, and it deserves the same treatment — a retry, then a
+      // rejection. Only a provider failure is something else.
       const zodError = extractZodError(error);
       const noObject = NoObjectGeneratedError.isInstance(error);
       const failedUsage = noObject ? usageOf(error.usage ?? {}) : usageOf({});
@@ -352,17 +351,17 @@ export async function generateAppSpec(
     );
   }
 
-  // Inatteignable : la boucle rend la main dans tous les cas.
-  throw new Error('generateAppSpec : boucle de génération sortie sans verdict');
+  // Unreachable: the loop returns in every case.
+  throw new Error('generateAppSpec: generation loop exited without a verdict');
 }
 
 /**
- * Réponse coupée au plafond de jetons.
+ * A response cut at the token cap.
  *
- * Elle arrive ici sous la même forme qu'un modèle qui bafouille — du JSON
- * inachevé, donc pas d'objet — alors que la cause et le remède n'ont rien à
- * voir. Sans ce test, l'opérateur lit « le modèle n'a pas produit d'objet » et
- * change de modèle, là où il suffisait de relever une limite.
+ * It arrives here in the same shape as a model that stammers — unfinished JSON,
+ * hence no object — whereas the cause and the remedy have nothing in common.
+ * Without this test, the operator reads "the model did not produce an object"
+ * and switches models, where raising a limit was enough.
  */
 function truncated(error: unknown): boolean {
   let current: unknown = error;
@@ -370,9 +369,9 @@ function truncated(error: unknown): boolean {
     const candidate = current as { finishReason?: unknown; text?: unknown; cause?: unknown };
     if (candidate.finishReason === 'length') return true;
 
-    // Le SDK ne remonte pas toujours `finishReason` : il laisse en revanche le
-    // texte brut. Un JSON qui *commence* bien et s'arrête au milieu n'est pas un
-    // modèle qui bafouille, c'est une réponse coupée.
+    // The SDK does not always report `finishReason`: it does, however, leave the
+    // raw text. A JSON that *starts* well and stops in the middle is not a model
+    // stammering, it is a cut response.
     if (typeof candidate.text === 'string') {
       const raw = candidate.text.trim();
       if (raw.startsWith('{')) {
@@ -403,7 +402,7 @@ function messageOf(error: unknown, language: UiLanguage = 'fr'): string {
   return String(error);
 }
 
-/** Le SDK enveloppe ses causes : on cherche un `ZodError` en profondeur. */
+/** The SDK wraps its causes: we look for a `ZodError` in depth. */
 function extractZodError(error: unknown): z.ZodError | null {
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current; depth += 1) {
@@ -413,7 +412,7 @@ function extractZodError(error: unknown): z.ZodError | null {
   return null;
 }
 
-/** Objet brut refusé par le SDK, s'il l'a conservé — sert au message de relance. */
+/** Raw object refused by the SDK, if it kept it — used for the retry message. */
 function rawObjectOf(error: unknown): unknown {
   let current: unknown = error;
   for (let depth = 0; depth < 5 && current; depth += 1) {

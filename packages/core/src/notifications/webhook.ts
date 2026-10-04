@@ -17,21 +17,21 @@ import {
 } from './types.js';
 
 /**
- * Webhook générique : le message neutre, en JSON, tel quel.
+ * Generic webhook: the neutral message, as JSON, as is.
  *
- * C'est le seul canal qui ne met rien en forme — et c'est sa raison d'être :
- * ce qu'il livre est exactement la structure que les trois autres traduisent,
- * ce qui en fait aussi la meilleure façon de vérifier ce que le panel émet.
+ * It is the only channel that formats nothing — and that is its reason for
+ * being: what it delivers is exactly the structure the other three translate,
+ * which also makes it the best way to check what the panel emits.
  *
- * La charge utile est **versionnée**. Un consommateur écrit une fois, et le
- * jour où la forme du message change, il peut le voir plutôt que d'échouer
- * silencieusement sur un champ disparu.
+ * The payload is **versioned**. A consumer is written once, and the day the
+ * message's shape changes, it can see it rather than silently fail on a field
+ * that disappeared.
  */
 const PAYLOAD_VERSION = 1;
 
 /**
- * Les deux seules phrases de ce canal. La charge utile, elle, n'a pas de
- * langue : c'est du JSON destiné à un programme.
+ * This channel's only two sentences. The payload has no language: it is JSON
+ * meant for a program.
  */
 const fr = {
   'probe.none':
@@ -80,10 +80,10 @@ export class WebhookChannel implements NotificationChannel {
   ) {
     const token = str(resolved.secrets, 'token');
     return {
-      // Trois en-têtes de routage, pour qu'un consommateur puisse trier sans
-      // désérialiser le corps — un filtre de passerelle, typiquement. Le
-      // troisième distingue un résumé d'une alerte : les deux n'ont pas la même
-      // forme, et un consommateur doit pouvoir le savoir avant de parser.
+      // Three routing headers, so that a consumer can sort without deserializing the
+      // body — a gateway filter, typically. The third tells a digest from an alert:
+      // the two do not have the same shape, and a consumer must be able to know it
+      // before parsing.
       'X-Control-Plane-Event': routing.event,
       'X-Control-Plane-Severity': routing.severity,
       'X-Control-Plane-Digest': routing.digest ? 'true' : 'false',
@@ -92,9 +92,9 @@ export class WebhookChannel implements NotificationChannel {
   }
 
   /**
-   * Aucune sonde possible : un webhook quelconque n'offre rien d'autre que le
-   * POST lui-même, et le sonder reviendrait à livrer. On le dit plutôt que de
-   * prétendre avoir vérifié — c'est l'envoi d'essai qui fait foi ici.
+   * No probe possible: an arbitrary webhook offers nothing but the POST itself,
+   * and probing it would amount to delivering. We say so rather than pretend to
+   * have checked — it is the test send that is authoritative here.
    */
   test(
     resolved: ResolvedChannelConfig,
@@ -123,13 +123,13 @@ export class WebhookChannel implements NotificationChannel {
   }
 
   /**
-   * Le résumé, en JSON, **entier**.
+   * The digest, as JSON, **whole**.
    *
-   * C'est le seul canal qui ne tronque rien : sa cible est un programme, pas un
-   * écran, et un programme qui reçoit « et 42 autres » ne peut rien en faire. Il
-   * reçoit donc `items` au complet (dans la limite de stockage) et `omitted`,
-   * qui dit combien de lignes n'ont jamais été retenues — la seule perte qui
-   * existe réellement, et elle est nommée.
+   * It is the only channel that truncates nothing: its target is a program, not a
+   * screen, and a program that receives "and 42 others" can do nothing with it. It
+   * therefore receives `items` in full (within the storage limit) and `omitted`,
+   * which says how many lines were never held — the only loss that really exists,
+   * and it is named.
    */
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     await httpCall({

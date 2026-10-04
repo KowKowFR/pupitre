@@ -1503,7 +1503,7 @@ export class K3sDriver implements DeploymentDriver {
     );
   }
 
-  // ─── charges de la cible ────────────────────────────────────────────────────
+  // ─── the target's workloads ─────────────────────────────────────────────────
 
   /**
    * Everything running on the cluster.
@@ -2375,7 +2375,7 @@ function parsePods(json: string, language: UiLanguage = 'fr'): ServiceStatus[] {
   });
 }
 
-// ─── charges de la cible : lecture de Kubernetes ──────────────────────────────
+// ─── the target's workloads: reading Kubernetes ───────────────────────────────
 
 /**
  * Namespaces that run the cluster. Nothing in them carries the panel's label,

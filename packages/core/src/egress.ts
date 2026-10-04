@@ -4,19 +4,19 @@ import { renderMessage, type UiLanguage } from './i18n.js';
 import { classifyAddress, type AddressCategory } from './monitors/ssrf.js';
 
 /**
- * Une adresse saisie dans le panel, que le worker va appeler : l'API d'un
- * Nginx Proxy Manager, un webhook de notification, un stockage S3.
+ * An address entered in the panel, which the worker will call: a Nginx Proxy
+ * Manager's API, a notification webhook, an S3 storage.
  *
- * La supervision exige une adresse publique (`monitors/ssrf.ts`) ; ici, on ne
- * le peut pas : ces destinations vivent souvent sur un réseau privé — un NPM
- * sur le LAN, un MinIO, un Mattermost interne —, et c'est légitime. Mais aucune
- * n'a de raison de viser une adresse **lien-local** : c'est là que les clouds
- * servent les métadonnées de la machine (`169.254.169.254`), identifiants
- * compris. Ni l'adresse « non spécifiée », ni une adresse de multidiffusion.
+ * Monitoring requires a public address (`monitors/ssrf.ts`); here we cannot:
+ * these destinations often live on a private network — an NPM on the LAN, a
+ * MinIO, an internal Mattermost —, and that is legitimate. But none has a reason
+ * to target a **link-local** address: that is where clouds serve the machine's
+ * metadata (`169.254.169.254`), credentials included. Nor the "unspecified"
+ * address, nor a multicast address.
  *
- * Le nom est résolu et **toutes** ses adresses jugées : `metadata.google.internal`
- * ne se reconnaît qu'ainsi. Un DNS muet laisse passer — l'appel échouera de
- * lui-même, avec son vrai message.
+ * The name is resolved and **all** its addresses judged:
+ * `metadata.google.internal` can only be recognized that way. A silent DNS lets
+ * it through — the call will fail by itself, with its real message.
  */
 
 const FORBIDDEN: ReadonlySet<AddressCategory> = new Set<AddressCategory>([
@@ -38,7 +38,7 @@ const egressCopy = {
   },
 } as const;
 
-/** Le refus, en donnée : `describe()` le dit dans la langue de qui le lira. */
+/** The refusal, as data: `describe()` says it in the language of whoever reads it. */
 export class EgressRefusedError extends Error {
   constructor(
     readonly host: string,
@@ -62,7 +62,7 @@ type Resolve = (host: string) => Promise<string[]>;
 const resolveAll: Resolve = async (host) =>
   (await lookup(host, { all: true })).map((entry) => entry.address);
 
-/** Refuse une URL qui mène à une adresse lien-local, non spécifiée ou de multidiffusion. */
+/** Refuses a URL that leads to a link-local, unspecified or multicast address. */
 export async function assertEgressAllowed(
   url: string,
   resolve: Resolve = resolveAll,

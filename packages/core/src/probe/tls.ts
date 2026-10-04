@@ -8,32 +8,31 @@ import { ProbeTimeoutError, messageOf, resolveGuarded } from './net.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
- * Sonde de certificat TLS.
+ * TLS certificate probe.
  *
- * Elle existe pour prévenir la panne la plus bête et la plus totale qui soit :
- * un certificat expiré, que personne ne voit venir. Une poignée de main, puis
- * `getPeerCertificate()` — aucune dépendance.
+ * It exists to prevent the dumbest and most total outage there is: an expired
+ * certificate nobody saw coming. A handshake, then `getPeerCertificate()` — no
+ * dependency.
  *
- * C'est aussi la preuve que l'abstraction tient : ce type n'est **pas** une
- * requête HTTP, et il n'a fallu toucher ni à la table, ni au runner, ni aux
- * routes, ni à l'écran pour l'ajouter.
+ * It is also the proof that the abstraction holds: this type is **not** an HTTP
+ * request, and adding it required touching neither the table, nor the runner,
+ * nor the routes, nor the screen.
  *
- * ── Le choix qui mérite d'être écrit ────────────────────────────────────────
- * Un certificat qui expire dans dix jours fait passer la sonde en **échec**, pas
- * en simple avertissement. Une sonde de certificat n'a d'intérêt que si elle
- * alerte *avant* la panne ; attendre l'expiration reviendrait à constater
- * l'incendie. La conséquence est assumée et documentée dans le catalogue : le
- * taux de disponibilité d'une sonde TLS se lit « part du temps où le certificat
- * était valide **et hors préavis** ».
+ * ── The choice worth writing down ───────────────────────────────────────────
+ * A certificate expiring in ten days makes the probe **fail**, not merely warn.
+ * A certificate probe is only useful if it alerts *before* the outage; waiting
+ * for expiry would amount to observing the fire. The consequence is accepted and
+ * documented in the catalog: a TLS probe's availability rate reads "share of
+ * time the certificate was valid **and outside the notice period**".
  */
 
 const MS_PER_DAY = 86_400_000;
 
-/** `subject` et `issuer` sont des objets de champs X.509 ; on en tire une ligne. */
+/** `subject` and `issuer` are objects of X.509 fields; we draw a line from them. */
 function distinguishedName(fields: PeerCertificate['issuer'] | undefined): string | null {
   if (!fields) return null;
   const record = fields as unknown as Record<string, string | string[] | undefined>;
-  // CN d'abord, O ensuite : c'est ce qu'un humain reconnaît d'un émetteur.
+  // CN first, O next: it is what a human recognizes of an issuer.
   for (const key of ['CN', 'O', 'OU']) {
     const value = record[key];
     const text = Array.isArray(value) ? value[0] : value;
@@ -48,8 +47,8 @@ function handshake(input: {
   servername: string;
   timeoutMs: number;
 }): Promise<{ socket: TLSSocket; elapsedMs: number }> {
-  // Horloge monotone : un ajustement NTP pendant la mesure ne doit pas
-  // produire une latence négative ou fantaisiste.
+  // Monotonic clock: an NTP adjustment during the measurement must not produce a
+  // negative or fanciful latency.
   const started = performance.now();
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -60,12 +59,12 @@ function handshake(input: {
     };
 
     const socket = connect({
-      // Connexion à l'**adresse** contrôlée, SNI et vérification sur le nom :
-      // même garantie que la sonde HTTP contre le rebinding DNS.
+      // Connection to the checked **address**, SNI and verification on the name: the
+      // same guarantee as the HTTP probe against DNS rebinding.
       host: input.address,
       port: input.port,
       servername: input.servername,
-      // On veut savoir si la chaîne est valide — c'est la moitié de l'intérêt.
+      // We want to know whether the chain is valid — that is half the point.
       rejectUnauthorized: true,
       timeout: input.timeoutMs,
     });
@@ -113,9 +112,9 @@ async function runTls(
       timeoutMs: config.timeoutMs,
     }));
   } catch (error) {
-    // Une chaîne invalide ou un nom qui ne correspond pas remonte ici : c'est
-    // bien une panne du certificat, mais on ne saurait pas la distinguer d'un
-    // port fermé sans inspecter le code. On le fait.
+    // An invalid chain or a name that does not match comes up here: it is indeed a
+    // certificate failure, but we could not tell it from a closed port without
+    // inspecting the code. We do.
     const code = (error as NodeJS.ErrnoException).code ?? '';
     const certificateProblem =
       code.startsWith('CERT_') ||
@@ -148,7 +147,7 @@ async function runTls(
     const validTo = new Date(certificate.valid_to);
     const validFrom = certificate.valid_from ? new Date(certificate.valid_from) : null;
     const now = Date.now();
-    // Arrondi vers le bas : « 0 jour restant » le jour de l'expiration, pas 1.
+    // Rounded down: "0 days left" on the day of expiry, not 1.
     const daysRemaining = Math.floor((validTo.getTime() - now) / MS_PER_DAY);
 
     const metrics = {

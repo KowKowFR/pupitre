@@ -5,84 +5,81 @@ import { parseIp } from './ssrf.js';
 import { invalid, type ValidationRef } from '../validation.js';
 
 /**
- * Le vocabulaire DNS, et **la comparaison de deux réponses DNS**.
+ * The DNS vocabulary, and **the comparison of two DNS answers**.
  *
- * Fichier à part, et **pur** : ni `node:dns`, ni socket. La sonde DNS
- * (`@pupitre/core/probe`) interroge ; ce module dit ce qu'on attendait et ce
- * qu'on a obtenu. Le séparer permet de tester la partie difficile — la
- * comparaison — sans réseau, et permet au catalogue (importé par des composants
- * client) de valider une configuration sans tirer un module natif.
+ * A separate file, and **pure**: neither `node:dns` nor sockets. The DNS probe
+ * (`@pupitre/core/probe`) queries; this module says what was expected and what
+ * was obtained. Separating it allows testing the hard part — the comparison —
+ * without network, and lets the catalog (imported by client components)
+ * validate a configuration without pulling a native module.
  *
- * ── Le piège, et c'est tout le sujet ────────────────────────────────────────
- * Un comparateur naïf sur des chaînes produirait une alerte par interrogation :
+ * ── The trap, and it is the whole subject ───────────────────────────────────
+ * A naive string comparator would produce an alert per query:
  *
- *   - **L'ordre n'est pas du signal.** Un résolveur permute délibérément les
- *     réponses d'un même RRset (round-robin) ; deux MX rendus dans un autre
- *     ordre, c'est le même DNS. On compare donc des **ensembles**, jamais des
- *     listes.
- *   - **La casse d'un *nom* n'est pas du signal.** RFC 4343 : les noms de
- *     domaine se comparent sans égard à la casse, et certains résolveurs
- *     renvoient volontairement une casse mélangée (0x20 encoding, une défense
- *     anti-empoisonnement). `Mail.Exemple.FR.` et `mail.exemple.fr` sont le
- *     même nom.
- *   - **La casse d'une *donnée* est du signal.** Et c'est la nuance que rate
- *     un « on met tout en minuscules » : la valeur d'un TXT est une chaîne
- *     arbitraire. Une clé DKIM est du base64, où `aB` et `Ab` sont deux clés
- *     différentes. Replier la casse d'un TXT ne créerait pas de fausse alerte —
- *     il créerait une **fausse égalité**, ce qui est bien pire pour une sonde
- *     censée détecter un détournement. Donc : casse repliée sur les noms, jamais
- *     sur les données.
- *   - **Le point final n'est pas du signal.** `exemple.fr.` et `exemple.fr`
- *     sont le même nom ; les outils les écrivent différemment.
- *   - **La forme d'écriture d'une adresse n'est pas du signal.**
- *     `2001:0db8:0000::1` et `2001:db8::1` sont la même adresse. On compare donc
- *     les **octets**, pas le texte.
+ *   - **Order is not signal.** A resolver deliberately permutes the answers of
+ *     one RRset (round-robin); two MX returned in another order are the same
+ *     DNS. We therefore compare **sets**, never lists.
+ *   - **A *name*'s case is not signal.** RFC 4343: domain names compare
+ *     case-insensitively, and some resolvers deliberately return mixed case
+ *     (0x20 encoding, an anti-poisoning defense). `Mail.Example.COM.` and
+ *     `mail.example.com` are the same name.
+ *   - **A *data*'s case is signal.** And it is the nuance a "lowercase
+ *     everything" misses: a TXT's value is an arbitrary string. A DKIM key is
+ *     base64, where `aB` and `Ab` are two different keys. Folding a TXT's case
+ *     would not create a false alert — it would create a **false equality**,
+ *     which is much worse for a probe meant to detect a hijack. Hence: case
+ *     folded on names, never on data.
+ *   - **The trailing dot is not signal.** `example.com.` and `example.com` are
+ *     the same name; tools write them differently.
+ *   - **How an address is written is not signal.** `2001:0db8:0000::1` and
+ *     `2001:db8::1` are the same address. We therefore compare the **bytes**,
+ *     not the text.
  *
- * D'où la forme retenue : chaque valeur — attendue ou observée — est réduite à
- * une **clé de comparaison** canonique, et on compare des ensembles de clés. La
- * valeur d'origine est conservée pour l'affichage, parce qu'un message d'alerte
- * qui montre une clé hexadécimale n'aide personne.
+ * Hence the shape chosen: each value — expected or observed — is reduced to a
+ * canonical **comparison key**, and we compare sets of keys. The original value
+ * is kept for display, because an alert message that shows a hexadecimal key
+ * helps nobody.
  *
- * ── Ce que le préfixe de priorité fait ici ──────────────────────────────────
- * Un MX, c'est une priorité **et** un hôte : `10 mail1` puis `20 mail2` n'est
- * pas la même configuration que l'inverse — c'est le serveur de secours qui
- * devient le principal. La priorité entre donc dans la clé. Même chose pour
- * SRV, où poids et port décident où va vraiment le trafic.
+ * ── What the priority prefix does here ──────────────────────────────────────
+ * An MX is a priority **and** a host: `10 mail1` then `20 mail2` is not the same
+ * configuration as the reverse — it is the backup server that becomes the
+ * primary. The priority therefore goes into the key. The same for SRV, where
+ * weight and port decide where the traffic really goes.
  */
 
-// ─── quels types d'enregistrement, et pourquoi pas les autres ─────────────────
+// ─── which record types, and why not the others ───────────────────────────────
 
 /**
- * Les types retenus.
+ * The types chosen.
  *
- * Le critère n'est pas « ce qui existe » mais « ce dont la panne se constate de
- * l'extérieur et se répare » :
+ * The criterion is not "what exists" but "whose failure is seen from outside and
+ * gets repaired":
  *
- *   A / AAAA   où pointe le nom. La panne la plus fréquente et la plus totale.
- *   CNAME      l'alias — un CDN ou un SaaS qu'on a laissé filer se voit ici.
- *   MX         le courrier. Une erreur de MX ne se voit pas sur le site : rien
- *              ne casse visiblement, le courrier disparaît simplement.
- *   NS         la délégation. C'est **la** cible d'un détournement de domaine :
- *              qui change les NS change tout le reste sans qu'on le voie.
- *   TXT        SPF, DKIM, DMARC, et les preuves de propriété. Supprimer un TXT
- *              de vérification casse une intégration des semaines plus tard.
- *   CAA        qui a le droit d'émettre un certificat pour ce domaine. Un CAA
- *              qui disparaît, c'est la porte ouverte à une émission illégitime.
- *   SRV        les services qui se découvrent par le DNS (XMPP, SIP, LDAP,
- *              autodiscover). Peu utilisé, mais quand il l'est, c'est critique
- *              et invisible autrement.
+ *   A / AAAA   where the name points. The most frequent and most total outage.
+ *   CNAME      the alias — a CDN or a SaaS that was let go shows here.
+ *   MX         mail. An MX error does not show on the site: nothing visibly
+ *              breaks, mail simply disappears.
+ *   NS         delegation. It is **the** target of a domain hijack: whoever
+ *              changes the NS changes everything else without it showing.
+ *   TXT        SPF, DKIM, DMARC, and ownership proofs. Deleting a verification
+ *              TXT breaks an integration weeks later.
+ *   CAA        who may issue a certificate for this domain. A CAA that
+ *              disappears opens the door to an illegitimate issuance.
+ *   SRV        services discovered through DNS (XMPP, SIP, LDAP, autodiscover).
+ *              Little used, but when it is, it is critical and invisible
+ *              otherwise.
  *
- * **SOA est écarté**, alors que tous les services commerciaux le proposent. Un
- * SOA porte un numéro de série qui **change à chaque modification de la zone** :
- * une sonde qui compare un SOA alerterait à chaque édition légitime, c'est-à-dire
- * exactement quand l'administrateur sait déjà ce qu'il fait. Et ce qu'un SOA
- * apprend d'utile — la zone existe-t-elle encore, qui en est le primaire — est
- * déjà porté par NS, qui lui ne bouge pas. Une sonde qui crie à chaque
- * changement normal finit ignorée, et c'est le pire état d'une supervision.
+ * **SOA is left out**, although every commercial service offers it. An SOA
+ * carries a serial number that **changes at each zone modification**: a probe
+ * comparing an SOA would alert at each legitimate edit, that is exactly when the
+ * administrator already knows what they are doing. And what an SOA teaches that
+ * is useful — does the zone still exist, who is its primary — is already
+ * carried by NS, which does not move. A probe that cries at each normal change
+ * ends up ignored, and that is the worst state for monitoring.
  *
- * **PTR est écarté** aussi : il s'interroge sur un nom `in-addr.arpa`, pas sur
- * un domaine, et il se configure chez l'hébergeur de l'adresse, pas chez le
- * titulaire du nom. Ce n'est pas le même objet, ni la même personne à prévenir.
+ * **PTR is left out** too: it is queried on an `in-addr.arpa` name, not on a
+ * domain, and it is configured at the address's host, not at the name's holder.
+ * It is not the same object, nor the same person to warn.
  */
 export const DNS_RECORD_TYPES_LIST = [
   'A',
@@ -98,11 +95,11 @@ export const DNS_RECORD_TYPES_LIST = [
 export const dnsRecordTypeSchema = z.enum(DNS_RECORD_TYPES_LIST);
 export type DnsRecordType = z.infer<typeof dnsRecordTypeSchema>;
 
-// Ce que chaque type observe s'écrit dans le catalogue, aux clés `dns.record.*`
-// de `monitorCatalogCopy` : c'est là que l'écran va le chercher, dans la langue
-// de l'instance. La table qui vivait ici n'avait plus de lecteur.
+// What each type observes is written in the catalog, under the `dns.record.*`
+// keys of `monitorCatalogCopy`: that is where the screen looks for it, in the
+// instance's language. The table that lived here no longer had a reader.
 
-/** La forme qu'une valeur attendue doit prendre. Affichée en aide de saisie. */
+/** The shape an expected value must take. Shown as an input hint. */
 export const DNS_RECORD_TYPE_FORMATS: Record<DnsRecordType, string> = {
   A: '203.0.113.7',
   AAAA: '2001:db8::1',
@@ -114,19 +111,19 @@ export const DNS_RECORD_TYPE_FORMATS: Record<DnsRecordType, string> = {
   SRV: '10 5 5269 xmpp.exemple.fr',
 };
 
-/** Les types dont la donnée est un nom de domaine — casse et point final indifférents. */
+/** The types whose data is a domain name — case and trailing dot irrelevant. */
 const NAME_VALUED: ReadonlySet<DnsRecordType> = new Set<DnsRecordType>(['CNAME', 'NS']);
 
 // ─── canonicalisation ─────────────────────────────────────────────────────────
 
-/** Un nom de domaine, réduit à ce qui le distingue : minuscules, sans point final. */
+/** A domain name, reduced to what distinguishes it: lowercase, no trailing dot. */
 export function normalizeDnsName(value: string): string {
   return value.trim().replace(/\.+$/, '').toLowerCase();
 }
 
 /**
- * Une adresse, réduite à ses octets. C'est ce qui rend `2001:0db8:0000::1` et
- * `2001:db8::1` égales sans avoir à réimplémenter la compression IPv6.
+ * An address, reduced to its bytes. That is what makes `2001:0db8:0000::1` and
+ * `2001:db8::1` equal without having to reimplement IPv6 compression.
  */
 function addressKey(value: string): string | null {
   const parsed = parseIp(value.trim());
@@ -135,10 +132,9 @@ function addressKey(value: string): string | null {
 }
 
 /**
- * `dig` rend une longue chaîne TXT en morceaux entre guillemets :
- * `"v=spf1 ..." "... ~all"`. Un humain colle ce qu'il voit ; on recolle donc les
- * morceaux, comme le fait un résolveur. Sans guillemets, la valeur est prise
- * telle quelle.
+ * `dig` returns a long TXT string in quoted chunks: `"v=spf1 ..." "... ~all"`. A
+ * human pastes what they see; we therefore glue the chunks back, as a resolver
+ * does. Without quotes, the value is taken as is.
  */
 export function joinTxtChunks(value: string): string {
   const quoted = [...value.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((match) => match[1] ?? '');
@@ -151,26 +147,25 @@ function tokens(value: string): string[] {
 }
 
 /**
- * La **clé de comparaison** d'une valeur, attendue ou observée.
+ * The **comparison key** of a value, expected or observed.
  *
- * Deux valeurs sont « le même enregistrement » si et seulement si leurs clés
- * sont identiques. Tout le reste du module ne fait que manipuler des ensembles
- * de clés.
+ * Two values are "the same record" if and only if their keys are identical.
+ * The whole rest of the module only manipulates sets of keys.
  */
 export function dnsComparisonKey(type: DnsRecordType, value: string): string {
   const raw = value.trim();
 
   if (type === 'A' || type === 'AAAA') {
-    // Une valeur illisible garde une clé stable : elle ne correspondra à rien,
-    // ce qui est le comportement voulu, et le message montrera le texte saisi.
+    // An unreadable value keeps a stable key: it will match nothing, which is the
+    // wanted behavior, and the message will show the entered text.
     return addressKey(raw) ?? `?${raw.toLowerCase()}`;
   }
 
   if (NAME_VALUED.has(type)) return normalizeDnsName(raw);
 
   if (type === 'TXT') {
-    // Aucun repli de casse : la donnée d'un TXT est arbitraire, et une clé DKIM
-    // en base64 distingue `aB` de `Ab`.
+    // No case folding: a TXT's data is arbitrary, and a base64 DKIM key
+    // distinguishes `aB` from `Ab`.
     return joinTxtChunks(raw);
   }
 
@@ -188,9 +183,9 @@ export function dnsComparisonKey(type: DnsRecordType, value: string): string {
     return `${Number(priority)} ${Number(weight)} ${Number(port)} ${normalizeDnsName(rest.join(' '))}`;
   }
 
-  // CAA : `<drapeaux> <étiquette> <valeur>`. L'étiquette est insensible à la
-  // casse (RFC 8659) ; la valeur est un nom d'autorité ou une URL de contact,
-  // qu'on replie aussi — deux CA ne se distinguent pas par une majuscule.
+  // CAA: `<flags> <tag> <value>`. The tag is case-insensitive (RFC 8659); the
+  // value is an authority name or a contact URL, which we fold too — two CAs are
+  // not told apart by an uppercase letter.
   const parts = tokens(raw);
   if (parts.length < 3) return `?${raw.toLowerCase()}`;
   const [flags, tag, ...rest] = parts;
@@ -198,16 +193,16 @@ export function dnsComparisonKey(type: DnsRecordType, value: string): string {
   return `${Number(flags)} ${(tag ?? '').toLowerCase()} ${payload}`;
 }
 
-// ─── saisie d'une liste attendue ──────────────────────────────────────────────
+// ─── entering an expected list ────────────────────────────────────────────────
 
 /**
- * Découpe le texte saisi en valeurs attendues.
+ * Splits the entered text into expected values.
  *
- * Le retour à la ligne sépare toujours. La virgule ne sépare que pour les types
- * dont la donnée ne peut pas en contenir : une virgule est parfaitement légale
- * dans un TXT (`v=spf1 ip4:a,ip4:b` chez certains), et couper dessus casserait
- * silencieusement la valeur attendue — le pire des bogues, celui qui produit
- * une alerte que personne ne comprend.
+ * A line break always separates. A comma only separates for the types whose
+ * data cannot contain one: a comma is perfectly legal in a TXT
+ * (`v=spf1 ip4:a,ip4:b` at some), and splitting on it would silently break the
+ * expected value — the worst of bugs, the one that produces an alert nobody
+ * understands.
  */
 export function parseExpectedRecords(type: DnsRecordType, text: string): string[] {
   const lines = text.split(/\r?\n/);
@@ -218,8 +213,8 @@ export function parseExpectedRecords(type: DnsRecordType, text: string): string[
     const value = piece.trim();
     if (value === '') continue;
     const key = dnsComparisonKey(type, value);
-    // Deux écritures de la même valeur ne comptent qu'une fois, sinon un
-    // « exactement ces valeurs » deviendrait insatisfiable.
+    // Two spellings of the same value only count once, otherwise an "exactly these
+    // values" would become unsatisfiable.
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(value);
@@ -227,13 +222,13 @@ export function parseExpectedRecords(type: DnsRecordType, text: string): string[
   return out;
 }
 
-/** Contrôle de forme d'une valeur attendue. `null` = la forme est bonne. */
+/** Shape check of an expected value. `null` = the shape is fine. */
 export function validateDnsRecordValue(type: DnsRecordType, value: string): string | null {
   const problem = dnsRecordProblem(type, value);
   return problem === null ? null : invalid(problem.key, problem.vars).message;
 }
 
-/** Le même contrôle, le reproche en donnée — pour un schéma. */
+/** The same check, the complaint as data — for a schema. */
 export function dnsRecordProblem(type: DnsRecordType, value: string): ValidationRef | null {
   const raw = value.trim();
   if (raw === '') return { key: 'dns.empty' };
@@ -291,16 +286,15 @@ export function dnsRecordProblem(type: DnsRecordType, value: string): Validation
 // ─── comparaison ──────────────────────────────────────────────────────────────
 
 /**
- * Deux régimes, un seul mécanisme.
+ * Two regimes, one mechanism.
  *
- *   `exact`    l'ensemble observé doit être exactement l'ensemble attendu. Un
- *              enregistrement **ajouté** est une anomalie — c'est la signature
- *              d'un détournement, et c'est pour ça que c'est le régime par
- *              défaut.
- *   `contains` les valeurs attendues doivent être présentes, le reste est
- *              toléré. Indispensable pour TXT, où un domaine porte de front un
- *              SPF, un DKIM et trois preuves de propriété dont on ne veut pas
- *              tenir l'inventaire.
+ *   `exact`    the observed set must be exactly the expected set. An **added**
+ *              record is an anomaly — it is the signature of a hijack, and that
+ *              is why it is the default regime.
+ *   `contains` the expected values must be present, the rest is tolerated.
+ *              Essential for TXT, where a domain carries at once an SPF, a DKIM
+ *              and three ownership proofs we do not want to keep an inventory
+ *              of.
  */
 export const DNS_MATCH_MODES = ['exact', 'contains'] as const;
 export const dnsMatchModeSchema = z.enum(DNS_MATCH_MODES);
@@ -308,11 +302,11 @@ export type DnsMatchMode = z.infer<typeof dnsMatchModeSchema>;
 
 export type DnsComparison = {
   ok: boolean;
-  /** Attendues et trouvées. */
+  /** Expected and found. */
   matched: string[];
-  /** Attendues et absentes — une suppression ou une modification. */
+  /** Expected and absent — a deletion or a modification. */
   missing: string[];
-  /** Observées et non attendues — un ajout. Vide si `contains`. */
+  /** Observed and not expected — an addition. Empty if `contains`. */
   unexpected: string[];
 };
 
@@ -348,10 +342,10 @@ export function compareDnsRecords(input: {
 }
 
 /**
- * Le constat, en une phrase — c'est ce qui part dans l'alerte.
+ * The finding, in one sentence — it is what goes into the alert.
  *
- * `maxChars` borne chaque liste : un domaine qui porte dix-sept TXT produirait
- * un message de plusieurs kilooctets, que ni Slack ni personne ne lit.
+ * `maxChars` caps each list: a domain carrying seventeen TXT records would
+ * produce a message of several kilobytes, which neither Slack nor anybody reads.
  */
 export function describeDnsComparison(
   comparison: DnsComparison,

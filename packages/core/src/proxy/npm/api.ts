@@ -4,26 +4,26 @@ import { ProxyError } from '../types.js';
 import { npmSay, type NpmSay } from './messages.js';
 
 /**
- * L'API de Nginx Proxy Manager, réduite à ce que Pupitre emploie : entrer avec
- * un compte, lire et poser des hôtes, demander et retirer des certificats.
+ * Nginx Proxy Manager's API, reduced to what Pupitre uses: sign in with an
+ * account, read and set hosts, request and remove certificates.
  *
- * C'est l'API dont se sert sa propre interface (`/api`, jeton JWT d'un jour).
- * Les formes ci-dessous suivent son schéma (`backend/schema`) en 2.16.
+ * It is the API its own interface uses (`/api`, a one-day JWT token). The shapes
+ * below follow its schema (`backend/schema`) in 2.16.
  */
 
 const REQUEST_TIMEOUT_MS = 15_000;
-/** Une demande de certificat attend Let's Encrypt — défi HTTP-01 compris. */
+/** A certificate request waits for Let's Encrypt — HTTP-01 challenge included. */
 const CERTIFICATE_TIMEOUT_MS = 240_000;
 
-/** La marque de Pupitre sur un hôte qu'il a posé, rangée dans son `meta`. */
+/** Pupitre's mark on a host it set up, stored in its `meta`. */
 export type NpmMark = {
-  /** L'application, son slug. */
+  /** The application, its slug. */
   app?: string;
-  /** La machine servie, quand le proxy en sert plusieurs (`ProxyRouteSet.scope`). */
+  /** The served machine, when the proxy serves several (`ProxyRouteSet.scope`). */
   scope?: string | null;
-  /** Le certificat que Pupitre a demandé pour cet hôte — à retirer avec lui. */
+  /** The certificate Pupitre requested for this host — to remove with it. */
   certificate?: number | null;
-  /** Un hôte du test d'une liaison : éphémère. */
+  /** A link test's host: ephemeral. */
   reach?: boolean;
 };
 
@@ -66,7 +66,7 @@ export type NpmHealth = {
   version?: { major: number; minor: number; revision: number };
 };
 
-/** Une erreur de NPM : son message, tel qu'il le donne. */
+/** An NPM error: its message, as it gives it. */
 export class NpmApiError extends ProxyError {
   constructor(
     message: string,
@@ -134,7 +134,7 @@ async function call<T>(
   return payload as T;
 }
 
-/** L'API répond-elle, et quelle version ? Sans compte. */
+/** Does the API answer, and which version? Without an account. */
 export function npmHealth(base: string, language: UiLanguage = 'fr'): Promise<NpmHealth> {
   return call<NpmHealth>(base, 'health', 'GET', '/', { language });
 }
@@ -143,14 +143,14 @@ export class NpmClient {
   private constructor(
     readonly base: string,
     private readonly token: string,
-    /** La langue de l'instance : celle des erreurs de ce client, et de ce qu'on en dit. */
+    /** The instance's language: that of this client's errors, and of what is said about them. */
     readonly language: UiLanguage,
   ) {}
 
   /**
-   * Entrer avec le compte de Pupitre. Un compte à double authentification ne
-   * rend qu'un défi : Pupitre ne saurait pas y répondre seul — il lui faut un
-   * compte à lui, sans elle.
+   * Sign in with Pupitre's account. An account with two-factor authentication only
+   * returns a challenge: Pupitre could not answer it alone — it needs an account
+   * of its own, without it.
    */
   static async login(
     base: string,
@@ -221,7 +221,7 @@ export class NpmClient {
     return this.request('certificates', 'GET', '/nginx/certificates');
   }
 
-  /** Un certificat Let's Encrypt pour un nom, par le défi HTTP-01 — NPM attend l'émission. */
+  /** A Let's Encrypt certificate for a name, by HTTP-01 challenge — NPM waits for issuance. */
   requestCertificate(hostname: string): Promise<NpmCertificate> {
     return this.request(
       'certificate',

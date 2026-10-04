@@ -1,9 +1,9 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../i18n.js';
 
 /**
- * Ce que disent les fournisseurs de code et la lecture de `pupitre.json` à
- * qui les lit : l'écran des intégrations, l'état d'un dépôt lié, le statut
- * d'un commit refusé. Dans la langue de l'instance.
+ * What the code providers and the reading of `pupitre.json` say to whoever reads
+ * them: the integrations screen, a linked repository's state, a refused commit's
+ * status. In the instance's language.
  */
 const fr = {
   'github.noInstallation':

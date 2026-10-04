@@ -1,14 +1,13 @@
 /**
- * Modèle typé des manifests Kubernetes.
+ * Typed model of the Kubernetes manifests.
  *
- * Même parti pris que `docker/compose-model.ts` : le rendu construit des objets,
- * puis un sérialiseur YAML les écrit. On ne concatène jamais de chaînes — un nom
- * de service exotique, une valeur d'environnement multi-ligne ou un secret
- * contenant des guillemets sont l'affaire du sérialiseur, pas d'échappements
- * écrits à la main.
+ * The same stance as `docker/compose-model.ts`: the render builds objects, then
+ * a YAML serializer writes them. We never concatenate strings — an exotic
+ * service name, a multi-line environment value or a secret containing quotes
+ * are the serializer's business, not hand-written escapes'.
  *
- * Le modèle ne couvre que ce que l'AppSpec sait exprimer. Ajouter un champ ici
- * n'a de sens que si un champ neutre correspondant existe dans la spec.
+ * The model only covers what the AppSpec can express. Adding a field here only
+ * makes sense if a matching neutral field exists in the spec.
  */
 
 export type ObjectMeta = {
@@ -34,9 +33,9 @@ export type ConfigMapManifest = Resource<'ConfigMap'> & {
 };
 
 /**
- * `stringData` plutôt que `data` : Kubernetes encode lui-même en base64. Un
- * base64 fait maison serait une occasion supplémentaire de se tromper, et il ne
- * protège rien — ce n'est pas du chiffrement.
+ * `stringData` rather than `data`: Kubernetes encodes to base64 itself. A
+ * home-made base64 would be one more chance to get it wrong, and it protects
+ * nothing — it is not encryption.
  */
 export type SecretManifest = Resource<'Secret'> & {
   apiVersion: 'v1';
@@ -70,21 +69,21 @@ export type Probe = {
 };
 
 /**
- * `securityContext` au niveau du pod.
+ * Pod-level `securityContext`.
  *
- * L'identité d'exécution est **optionnelle** : elle ne peut être imposée qu'à
- * une image dont on connaît le contenu. Voir `podSecurityContext()`.
+ * The run identity is **optional**: it can only be imposed on an image whose
+ * content we know. See `podSecurityContext()`.
  */
 export type PodSecurityContext = {
   runAsNonRoot?: boolean;
   runAsUser?: number;
   runAsGroup?: number;
-  /** Propriétaire des volumes montés : sans lui, un PVC reste illisible en non-root. */
+  /** Owner of the mounted volumes: without it, a PVC stays unreadable as non-root. */
   fsGroup: number;
   seccompProfile: { type: 'RuntimeDefault' };
 };
 
-/** `securityContext` au niveau du conteneur. */
+/** Container-level `securityContext`. */
 export type ContainerSecurityContext = {
   allowPrivilegeEscalation: boolean;
   privileged: boolean;
@@ -128,15 +127,15 @@ export type DeploymentManifest = Resource<'Deployment'> & {
   spec: {
     replicas: number;
     /**
-     * Immuable après création : jamais de label variable ici — surtout pas la
-     * version, qui changerait à chaque déploiement et ferait échouer l'`apply`.
+     * Immutable after creation: never a variable label here — above all not the
+     * version, which would change at each deployment and fail the `apply`.
      */
     selector: { matchLabels: Record<string, string> };
     strategy: {
       type: 'RollingUpdate' | 'Recreate';
       rollingUpdate?: { maxSurge: number; maxUnavailable: number };
     };
-    /** Nombre de révisions conservées : c'est ce qui rend `rollout undo` possible. */
+    /** Number of revisions kept: that is what makes `rollout undo` possible. */
     revisionHistoryLimit: number;
     template: {
       metadata: { labels: Record<string, string>; annotations?: Record<string, string> };
@@ -153,7 +152,7 @@ export type ServiceManifest = Resource<'Service'> & {
   apiVersion: 'v1';
   spec: {
     type: 'ClusterIP' | 'NodePort';
-    /** `Local` : le pod voit l'adresse d'origine, que la NetworkPolicy filtre. */
+    /** `Local`: the pod sees the original address, which the NetworkPolicy filters. */
     externalTrafficPolicy?: 'Local' | 'Cluster';
     selector: Record<string, string>;
     ports: Array<{
@@ -161,7 +160,7 @@ export type ServiceManifest = Resource<'Service'> & {
       port: number;
       targetPort: number;
       protocol: 'TCP';
-      /** Seulement en `NodePort` : le port publié sur les nœuds. */
+      /** Only with `NodePort`: the port published on the nodes. */
       nodePort?: number;
     }>;
   };
@@ -212,7 +211,7 @@ export function milliCpu(value: number): string {
   return `${Math.max(1, Math.round(value))}m`;
 }
 
-/** Quantité mémoire Kubernetes : `512Mi`. */
+/** Kubernetes memory quantity: `512Mi`. */
 export function mebibytes(value: number): string {
   return `${Math.max(1, Math.round(value))}Mi`;
 }

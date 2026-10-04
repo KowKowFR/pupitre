@@ -74,16 +74,15 @@ const writeFile = (ctx: ProxyHostContext, path: string, content: string) =>
 const removeFile = (ctx: ProxyHostContext, path: string) => removeFileAs(ctx, path, 'traefik');
 
 /**
- * Traefik, piloté par ses propres fournisseurs : un dossier surveillé (mode
- * `file`) ou des objets Ingress (mode `kubernetes`). Voir `model.ts` pour le
- * choix, `render.ts` pour ce qui est déposé, `install.ts` pour ce qui est
- * installé.
+ * Traefik, driven through its own providers: a watched folder (`file` mode) or
+ * Ingress objects (`kubernetes` mode). See `model.ts` for the choice,
+ * `render.ts` for what is placed, `install.ts` for what is installed.
  */
 
 const SHORT_MS = 30_000;
 const INSTALL_MS = 10 * 60_000;
 
-/** Même convention que le driver K3s : le kubeconfig de K3s s'il n'y en a pas d'autre. */
+/** The same convention as the K3s driver: K3s's kubeconfig if there is no other. */
 const KUBECONFIG_SETUP =
   'if [ -z "${KUBECONFIG:-}" ] && [ -r /etc/rancher/k3s/k3s.yaml ]; ' +
   'then KUBECONFIG=/etc/rancher/k3s/k3s.yaml; export KUBECONFIG; fi';
@@ -92,7 +91,7 @@ function kubectl(args: string): string {
   return `${KUBECONFIG_SETUP}\nkubectl ${args}`;
 }
 
-/** `kubectl apply -f -`, le manifeste sur l'entrée standard : rien ne traîne sur le disque. */
+/** `kubectl apply -f -`, the manifest on stdin: nothing lingers on the disk. */
 async function kubectlApply(ctx: ProxyHostContext, manifest: string, step: string): Promise<void> {
   const result = await execPipe(ctx.sshSession, kubectl('apply -f -'), {
     stdin: Readable.from([Buffer.from(manifest, 'utf8')]),
@@ -102,7 +101,7 @@ async function kubectlApply(ctx: ProxyHostContext, manifest: string, step: strin
     fail(step, `kubectl apply : ${firstLine(result.stderr) ?? `code ${result.code}`}`);
 }
 
-// ─── le provider ─────────────────────────────────────────────────────────────
+// ─── the provider ────────────────────────────────────────────────────────────
 
 export class TraefikProvider implements ProxyProvider {
   readonly kind = 'traefik' as const;
@@ -121,13 +120,13 @@ export class TraefikProvider implements ProxyProvider {
     return config.directory ?? defaultDynamicDirectory(ctx.target.rootPath);
   }
 
-  // ─── détection ──────────────────────────────────────────────────────────────
+  // ─── detection ──────────────────────────────────────────────────────────────
 
   async detect(ctx: ProxyHostContext, onLog: LogSink): Promise<ProxyDetection[]> {
     const say = traefikSay(ctx.language);
     const found: ProxyDetection[] = [];
 
-    // Un Traefik en conteneur — le cas le plus courant.
+    // A Traefik in a container — the most common case.
     const listed = await exec(
       ctx.sshSession,
       "command -v docker >/dev/null 2>&1 && docker ps --format '{{.ID}}|{{.Image}}|{{.Names}}' 2>/dev/null || true",
@@ -165,15 +164,15 @@ export class TraefikProvider implements ProxyProvider {
       });
     }
 
-    // Un Traefik installé en binaire, hors conteneur. Les processus d'un
-    // conteneur ou d'un pod sont visibles de la machine aussi : leur cgroup les
-    // trahit, ils ont été (ou seront) vus par leur propre chemin.
+    // A Traefik installed as a binary, outside a container. The processes of a
+    // container or a pod are visible from the machine too: their cgroup gives them
+    // away, they were (or will be) seen through their own path.
     const processes = await exec(
       ctx.sshSession,
       [
         'for pid in $(pgrep -x traefik 2>/dev/null); do',
-        // kubepods (cgroup v1), /k8s.io/ (containerd de K3s), docker, libpod,
-        // ou un identifiant de conteneur de 64 caractères hexadécimaux.
+        // kubepods (cgroup v1), /k8s.io/ (K3s's containerd), docker, libpod, or a
+        // 64-hex-character container identifier.
         "  grep -qE 'kubepods|k8s\\.io|docker|containerd|libpod|[0-9a-f]{64}' /proc/$pid/cgroup 2>/dev/null && continue",
         "  tr '\\0' ' ' < /proc/$pid/cmdline; echo",
         'done',
@@ -191,7 +190,7 @@ export class TraefikProvider implements ProxyProvider {
           Name: say('detect.binary'),
           Args: args,
           HostConfig: { NetworkMode: 'host' },
-          // Hors conteneur, un chemin de Traefik est un chemin de la machine.
+          // Outside a container, a Traefik path is a path of the machine.
           Mounts: [{ Source: '/', Destination: '/' }],
         },
         read.stdout.trim() || null,
@@ -206,7 +205,7 @@ export class TraefikProvider implements ProxyProvider {
       });
     }
 
-    // Le Traefik d'un cluster Kubernetes — celui que K3s livre.
+    // The Traefik of a Kubernetes cluster — the one K3s ships.
     const classes = await exec(
       ctx.sshSession,
       kubectl('get ingressclass -o json 2>/dev/null || true'),
@@ -247,7 +246,7 @@ export class TraefikProvider implements ProxyProvider {
       ctx.sshSession,
       [
         'if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then echo docker=1; else echo docker=0; fi',
-        // Les ports 80 et 443 : pris par quelqu'un d'autre, ils empêchent tout.
+        // Ports 80 and 443: taken by someone else, they prevent everything.
         "busy=$( (ss -ltnH 2>/dev/null || netstat -ltn 2>/dev/null) | awk '{print $4}' | grep -E ':(80|443)$' | sed 's/.*://' | sort -u | tr '\\n' ' ')",
         'echo "busy=$busy"',
         `docker ps -a --filter name=^${MANAGED_CONTAINER}$ --format '{{.Names}}' 2>/dev/null | sed 's/^/managed=/'`,
@@ -340,7 +339,7 @@ export class TraefikProvider implements ProxyProvider {
         say('install.compose', { detail: firstLine(up.stdout) ?? `code ${up.code}` }),
       );
 
-    // Prêt quand la sonde de vie le dit, pas quand le conteneur a démarré.
+    // Ready when the liveness probe says so, not when the container has started.
     let health = '';
     for (let attempt = 0; attempt < 30; attempt += 1) {
       const state = await exec(
@@ -385,8 +384,8 @@ export class TraefikProvider implements ProxyProvider {
     onLog(say('install.helm'));
     await kubectlApply(ctx, renderHelmChartConfig(namespace, request.acme), 'install');
 
-    // Le contrôleur Helm de K3s relance Traefik avec ces valeurs ; on attend
-    // que le déploiement porte le résolveur, puis qu'il soit prêt.
+    // K3s's Helm controller restarts Traefik with these values; we wait for the
+    // deployment to carry the resolver, then for it to be ready.
     let configured = false;
     for (let attempt = 0; attempt < 60 && !configured; attempt += 1) {
       const args = await exec(
@@ -412,8 +411,8 @@ export class TraefikProvider implements ProxyProvider {
           detail: firstLine(rollout.stderr) ?? firstLine(rollout.stdout) ?? '',
         }),
       );
-    // Le pod est prêt avant que l'équilibreur du cluster ne le serve sur les
-    // ports 80 et 443 : on attend qu'il réponde vraiment, de la machine.
+    // The pod is ready before the cluster's load balancer serves it on ports 80 and
+    // 443: we wait for it to really answer, from the machine.
     let answering = false;
     for (let attempt = 0; attempt < 30 && !answering; attempt += 1) {
       answering = (await httpCode(ctx, 'http://127.0.0.1/')) !== 0;
@@ -457,8 +456,8 @@ export class TraefikProvider implements ProxyProvider {
         );
         onLog(say('uninstall.settingsRemoved'));
       }
-      // Le namespace des routes vers d'autres machines est à Pupitre : vide de
-      // routes, il part avec le reste — avec lui, le middleware partagé.
+      // The namespace of routes to other machines is Pupitre's: empty of routes, it
+      // goes with the rest — and with it, the shared middleware.
       const routesNamespace = await exec(
         ctx.sshSession,
         kubectl(
@@ -489,7 +488,7 @@ export class TraefikProvider implements ProxyProvider {
     onLog(say('uninstall.removed'));
   }
 
-  // ─── « Tester » ─────────────────────────────────────────────────────────────
+  // ─── "Test" ─────────────────────────────────────────────────────────────────
 
   async check(ctx: ProxyContext, onLog: LogSink): Promise<ProxyCheck> {
     const say = traefikSay(ctx.language);
@@ -528,8 +527,8 @@ export class TraefikProvider implements ProxyProvider {
             : directory,
       );
       if (access !== 'absent' && http !== 0) {
-        // La preuve que Traefik lit ce dossier : une route d'essai vers un port
-        // fermé. Lue, elle donne 502 ; ignorée, 404.
+        // The proof that Traefik reads this folder: a test route toward a closed port.
+        // Read, it gives 502; ignored, 404.
         const host = `pupitre-check-${randomBytes(4).toString('hex')}.invalid`;
         const file = `${directory}/pupitre-check.yml`;
         await writeFile(
@@ -616,7 +615,7 @@ export class TraefikProvider implements ProxyProvider {
     return { ok: checks.every((check) => check.ok), checks };
   }
 
-  // ─── les routes ─────────────────────────────────────────────────────────────
+  // ─── routes ─────────────────────────────────────────────────────────────────
 
   async apply(ctx: ProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void> {
     const say = traefikSay(ctx.language);
@@ -624,8 +623,8 @@ export class TraefikProvider implements ProxyProvider {
     if (set.routes.length > 0 && !set.upstream) {
       fail('apply', say('apply.noUpstream'));
     }
-    // Une même application peut tourner sur plusieurs des machines que ce
-    // proxy sert : le nom de ses objets porte alors celle d'où elle vient.
+    // The same application can run on several of the machines this proxy serves:
+    // its objects' name then carries the one it comes from.
     const name = set.scope ? `${set.appSlug}--${set.scope}` : set.appSlug;
     const remote = set.upstream?.kind === 'port' && set.upstream.host ? set.upstream : null;
 
@@ -653,10 +652,10 @@ export class TraefikProvider implements ProxyProvider {
 
     const names = ingressNames(name);
     if (set.routes.length === 0) {
-      // Le namespace suit l'amont : celui de l'application dans le cluster, ou
-      // celui des routes vers l'extérieur — une portée dit à elle seule que la
-      // machine n'est pas celle du proxy, l'amont a pu disparaître avec
-      // l'application. Sans amont, la convention du driver K3s.
+      // The namespace follows the upstream: the application's one in the cluster, or
+      // the one of routes to the outside — a scope alone says that the machine is not
+      // the proxy's, the upstream may have disappeared with the application. Without
+      // an upstream, the K3s driver's convention.
       const away = remote !== null || set.scope !== undefined;
       const namespace =
         set.upstream?.kind === 'kubernetes'
@@ -667,8 +666,8 @@ export class TraefikProvider implements ProxyProvider {
       const extra = away
         ? `; kubectl -n ${namespace} delete service ${name} --ignore-not-found >/dev/null 2>&1; ` +
           `kubectl -n ${namespace} delete endpointslice ${name}-upstream --ignore-not-found >/dev/null 2>&1`
-        : // Le middleware de redirection est propre au namespace de l'application ;
-          // dans celui des routes extérieures, il est partagé et reste.
+        : // The redirect middleware belongs to the application's namespace; in the one of
+          // outside routes, it is shared and stays.
           `; kubectl -n ${namespace} delete middleware.traefik.io ${REDIRECT_MIDDLEWARE} --ignore-not-found >/dev/null 2>&1`;
       await exec(
         ctx.sshSession,

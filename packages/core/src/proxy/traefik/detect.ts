@@ -4,24 +4,24 @@ import type { TraefikFileConfig, TraefikKubernetesConfig } from './config.js';
 import { traefikSay } from './messages.js';
 
 /**
- * Lire un Traefik déjà en place, sans rien y toucher.
+ * Reading a Traefik already in place, without touching anything.
  *
- * Sa configuration statique vient de trois sources que Traefik fusionne : les
- * arguments (`--entrypoints.web.address=:80`), l'environnement
- * (`TRAEFIK_ENTRYPOINTS_WEB_ADDRESS`) et un fichier YAML. On les aplatit en
- * clés pointées, en minuscules — Traefik ne distingue pas la casse des clés —,
- * et on en tire ce qu'il faut pour lui confier des routes : ses points
- * d'entrée, son dossier surveillé, ses résolveurs de certificats.
+ * Its static configuration comes from three sources Traefik merges: the
+ * arguments (`--entrypoints.web.address=:80`), the environment
+ * (`TRAEFIK_ENTRYPOINTS_WEB_ADDRESS`) and a YAML file. We flatten them into
+ * dotted keys, lowercase — Traefik is case-insensitive on keys —, and draw from
+ * them what is needed to hand it routes: its entry points, its watched folder,
+ * its certificate resolvers.
  *
- * Tout ici est pur : la collecte (SSH) est dans le provider. Ce qui ne se lit
- * pas devient un avertissement, jamais une supposition silencieuse.
+ * Everything here is pure: the collection (SSH) is in the provider. What cannot
+ * be read becomes a warning, never a silent assumption.
  */
 
 export type StaticConfig = Map<string, string>;
 
 function flatten(value: unknown, prefix: string, into: StaticConfig): void {
   if (value === null || value === undefined) {
-    // `--providers.file` sans valeur, ou `file: {}` : la clé existe.
+    // `--providers.file` without a value, or `file: {}`: the key exists.
     if (prefix) into.set(prefix, '');
     return;
   }
@@ -62,7 +62,7 @@ export function staticConfigFromYaml(text: string, into: StaticConfig = new Map(
   return into;
 }
 
-/** Le chemin du fichier de configuration statique, s'il est donné en argument. */
+/** The static configuration file's path, if it is given as an argument. */
 export function configFileArgument(args: string[]): string | null {
   for (const arg of args) {
     const match = /^--configfile=(.+)$/i.exec(arg.trim());
@@ -85,12 +85,12 @@ function portOf(address: string): number | null {
 
 export type ReadTraefik = {
   entryPoints: { http: string | null; https: string | null };
-  /** Tous les points d'entrée trouvés, avec leur adresse. */
+  /** All the entry points found, with their address. */
   addresses: Record<string, string>;
   resolvers: string[];
-  /** Le dossier surveillé par le fournisseur `file`, tel que Traefik le voit. */
+  /** The folder watched by the `file` provider, as Traefik sees it. */
   fileDirectory: string | null;
-  /** `providers.file.filename` : un fichier unique, dans lequel on ne peut pas ajouter. */
+  /** `providers.file.filename`: a single file, to which nothing can be added. */
   fileName: string | null;
   kubernetesIngress: boolean;
 };
@@ -105,8 +105,8 @@ export function readTraefik(config: StaticConfig): ReadTraefik {
     if (resolver) resolvers.add(resolver[1]!);
   }
   const names = Object.keys(addresses);
-  // Les noms d'usage d'abord — le chart Helm de Traefik écoute sur 8000/8443
-  // dans le pod et publie 80/443 par son Service : le port n'y dit rien.
+  // The usual names first — Traefik's Helm chart listens on 8000/8443 in the pod
+  // and publishes 80/443 through its Service: the port says nothing there.
   const byName = (wanted: string) => names.find((name) => name.toLowerCase() === wanted) ?? null;
   const byPort = (port: number) =>
     names.find((name) => portOf(addresses[name] ?? '') === port) ?? null;
@@ -125,7 +125,7 @@ export function readTraefik(config: StaticConfig): ReadTraefik {
   };
 }
 
-// ─── un Traefik en conteneur ─────────────────────────────────────────────────
+// ─── a Traefik in a container ────────────────────────────────────────────────
 
 export type InspectedContainer = {
   Name?: string;
@@ -136,7 +136,7 @@ export type InspectedContainer = {
   NetworkSettings?: { Networks?: Record<string, { Gateway?: string }> };
 };
 
-/** Le chemin sur la machine qui correspond à un chemin du conteneur, s'il est monté. */
+/** The machine path matching a container path, if it is mounted. */
 export function hostPathOf(container: InspectedContainer, inside: string): string | null {
   const mounts = (container.Mounts ?? [])
     .filter((mount) => mount.Source && mount.Destination)
@@ -157,8 +157,8 @@ export type ContainerFinding = {
 };
 
 /**
- * Ce qu'un conteneur Traefik permet. `staticFile` : le contenu de son fichier
- * de configuration statique, lu dans le conteneur, s'il en a un.
+ * What a Traefik container allows. `staticFile`: the content of its static
+ * configuration file, read in the container, if it has one.
  */
 export function interpretTraefikContainer(
   container: InspectedContainer,
@@ -173,7 +173,7 @@ export function interpretTraefikContainer(
     try {
       staticConfigFromYaml(staticFile, config);
     } catch {
-      // Un TOML ou un YAML illisible : les arguments et l'environnement restent.
+      // An unreadable TOML or YAML: the arguments and the environment remain.
     }
   }
   staticConfigFromEnv(container.Config?.Env ?? [], config);
@@ -239,7 +239,7 @@ export function interpretTraefikContainer(
   };
 }
 
-// ─── le Traefik d'un cluster ─────────────────────────────────────────────────
+// ─── a cluster's Traefik ─────────────────────────────────────────────────────
 
 export type ClusterFinding = {
   config: TraefikKubernetesConfig | null;
@@ -248,8 +248,8 @@ export type ClusterFinding = {
 };
 
 /**
- * `ingressClasses` : les classes dont le contrôleur est Traefik.
- * `args` : les arguments du conteneur du déploiement Traefik, s'il a été trouvé.
+ * `ingressClasses`: the classes whose controller is Traefik.
+ * `args`: the arguments of the Traefik deployment's container, if it was found.
  */
 export function interpretTraefikCluster(
   ingressClasses: string[],

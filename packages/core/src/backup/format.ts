@@ -5,17 +5,16 @@ import type { UiLanguage } from '../i18n.js';
 import { backupSay } from './messages.js';
 
 /**
- * Le format d'un fichier de sauvegarde, `.pupb` :
+ * The format of a backup file, `.pupb`:
  *
- *   en-tête   « PUPB », version (1 octet), sel (16), nonce (12)
- *   corps     AES-256-GCM, l'en-tête en données associées
- *   fin       l'étiquette d'authentification (16)
+ *   header    "PUPB", version (1 byte), salt (16), nonce (12)
+ *   body      AES-256-GCM, the header as associated data
+ *   end       the authentication tag (16)
  *
- * Chiffré **en flux** : une archive de plusieurs gigaoctets ne passe jamais
- * entière en mémoire. Le revers du GCM en flux : l'authenticité n'est connue
- * qu'au dernier octet. Une restauration télécharge donc et vérifie **avant**
- * d'appliquer quoi que ce soit — un fichier altéré est refusé, jamais à moitié
- * restauré.
+ * Encrypted **as a stream**: an archive of several gigabytes never goes whole
+ * through memory. The downside of streaming GCM: authenticity is only known at
+ * the last byte. A restore therefore downloads and verifies **before** applying
+ * anything — a tampered file is refused, never half restored.
  */
 
 const MAGIC = Buffer.from('PUPB', 'ascii');
@@ -57,10 +56,9 @@ export function createEncryptStream(masterKey?: string): Transform {
 }
 
 /**
- * Déchiffre en flux. Les seize derniers octets sont retenus jusqu'à la fin :
- * c'est l'étiquette. Une étiquette fausse — fichier tronqué, altéré, ou
- * `MASTER_KEY` différente — fait échouer le flux au dernier moment, en
- * `BackupFormatError`.
+ * Decrypts as a stream. The last sixteen bytes are held back until the end: it
+ * is the tag. A wrong tag — truncated file, tampered with, or a different
+ * `MASTER_KEY` — fails the stream at the last moment, as a `BackupFormatError`.
  */
 export function createDecryptStream(masterKey?: string, language: UiLanguage = 'fr'): Transform {
   const say = backupSay(language);
@@ -110,7 +108,7 @@ export function createDecryptStream(masterKey?: string, language: UiLanguage = '
   });
 }
 
-/** Chiffre un contenu court — le manifeste. */
+/** Encrypts short content — the manifest. */
 export async function encryptBuffer(plain: Buffer, masterKey?: string): Promise<Buffer> {
   return collect(createEncryptStream(masterKey), plain);
 }

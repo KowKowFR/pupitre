@@ -1,13 +1,13 @@
 /**
- * La capture d'écran d'incident — la partie qui ouvre des connexions.
+ * Incident screenshots — the part that opens connections.
  *
- * Point d'entrée distinct de `@pupitre/core` parce qu'il tire `node:net`,
- * `node:http` et `node:dns` : le vocabulaire de la capture (types, bornes,
- * arbitrages) vit dans `monitors/capture.ts`, qui est pur et que les composants
- * client peuvent importer. Même découpage que `monitors/` et `probe/`.
+ * An entry point separate from `@pupitre/core` because it pulls `node:net`,
+ * `node:http` and `node:dns`: the capture's vocabulary (types, bounds,
+ * trade-offs) lives in `monitors/capture.ts`, which is pure and which client
+ * components can import. The same split as `monitors/` and `probe/`.
  *
- *   captureUrl()            pilote le navigateur distant en CDP et rend l'image
- *   createCaptureEgress()   le mandataire par lequel ce navigateur sort
+ *   captureUrl()            drives the remote browser over CDP and returns the image
+ *   createCaptureEgress()   the proxy through which that browser goes out
  */
 export * from './cdp.js';
 export * from './egress.js';

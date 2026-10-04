@@ -2,20 +2,20 @@ import { appSpec, envWhen, mariadb, postgres, publicUrl, redis } from './parts.j
 import type { CatalogTemplate } from './types.js';
 
 /**
- * Les modèles du catalogue.
+ * The catalog's templates.
  *
- * Règles de la maison, les mêmes pour tous :
+ * House rules, the same for all:
  *
- * - **Une image officielle**, publiée par l'éditeur du logiciel. Tag majeur
- *   quand l'éditeur en publie un, sinon `latest` : un redéploiement prend les
- *   correctifs, jamais une version majeure qu'on n'a pas choisie — sauf là où
- *   l'éditeur ne laisse pas le choix.
- * - **Aucune commande de démarrage** : l'AppSpec n'en a pas. Une image qui ne
- *   démarre pas seule n'est pas au catalogue.
- * - **Une sonde qui répond sans compte** : la page d'accueil, ou la route de
- *   santé documentée. Une redirection vers la connexion compte comme réponse.
- * - **Les mots de passe dont on a besoin pour entrer sont demandés**, les
- *   autres sont générés (voir `askedSecrets`).
+ * - **An official image**, published by the software's publisher. A major tag
+ *   when the publisher publishes one, otherwise `latest`: a redeploy picks up
+ *   fixes, never a major version that was not chosen — except where the
+ *   publisher leaves no choice.
+ * - **No start command**: the AppSpec has none. An image that does not start on
+ *   its own is not in the catalog.
+ * - **A probe that answers without an account**: the home page, or the
+ *   documented health route. A redirect to the sign-in counts as an answer.
+ * - **The passwords needed to get in are asked for**, the others are generated
+ *   (see `askedSecrets`).
  */
 export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
   // ── Supervision ───────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Sites et contenus ─────────────────────────────────────────────────────
+  // ── Sites and content ─────────────────────────────────────────────────────
   {
     id: 'wordpress',
     name: 'WordPress',
@@ -301,7 +301,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Automatisation et IA ──────────────────────────────────────────────────
+  // ── Automation and AI ─────────────────────────────────────────────────────
   {
     id: 'n8n',
     name: 'n8n',
@@ -334,7 +334,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
             N8N_HOST: params.host,
             N8N_PROTOCOL: params.host ? (params.tls ? 'https' : 'http') : null,
             WEBHOOK_URL: url ? `${url}/` : null,
-            // Sans HTTPS, n8n refuse la connexion tant que le cookie exige TLS.
+            // Without HTTPS, n8n refuses the sign-in as long as the cookie requires TLS.
             N8N_SECURE_COOKIE: params.host && params.tls ? null : 'false',
           }),
           secrets: [
@@ -381,7 +381,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Outils de développement ───────────────────────────────────────────────
+  // ── Development tools ─────────────────────────────────────────────────────
   {
     id: 'gitea',
     name: 'Gitea',
@@ -409,7 +409,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
             DB_HOST: 'postgres:5432',
             DB_NAME: 'gitea',
             DB_USER: 'gitea',
-            // Le port SSH n'est pas publié : les dépôts se clonent en HTTPS.
+            // The SSH port is not published: repositories are cloned over HTTPS.
             DISABLE_SSH: 'true',
             DOMAIN: params.host,
             ROOT_URL: publicUrl(params) ? `${publicUrl(params)}/` : null,
@@ -472,17 +472,17 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
         {
           name: 'web',
           source: { type: 'image', ref: 'dpage/pgadmin4:latest' },
-          // Sur le port 80, l'image se donne le droit d'écouter par `sudo` —
-          // ce que `no-new-privileges` interdit : elle se rabat alors en
-          // silence sur 8080. On le lui dit d'emblée, sans privilège à demander.
+          // On port 80, the image grants itself the right to listen through `sudo` — which
+          // `no-new-privileges` forbids: it then silently falls back on 8080. We tell it
+          // right away, without any privilege to ask for.
           port: 8080,
           exposed: true,
           env: {
             PGADMIN_LISTEN_PORT: '8080',
             PGADMIN_DEFAULT_EMAIL: params.email,
-            // pgAdmin refuse au démarrage une adresse d'un domaine réservé
-            // (`.local`, `.internal`, `.test`…) — et s'arrête. Une adresse
-            // d'entreprise en `@corp.local` est banale : on les autorise.
+            // pgAdmin refuses at startup an address in a reserved domain (`.local`,
+            // `.internal`, `.test`…) — and stops. A company address at `@corp.local` is
+            // commonplace: we allow them.
             PGADMIN_CONFIG_ALLOW_SPECIAL_EMAIL_DOMAINS:
               "['local', 'localhost', 'internal', 'intranet', 'lan', 'home', 'corp', 'test', 'example']",
           },
@@ -548,7 +548,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Bureau et documents ───────────────────────────────────────────────────
+  // ── Office and documents ──────────────────────────────────────────────────
   {
     id: 'nextcloud',
     name: 'Nextcloud',
@@ -837,7 +837,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Médias ────────────────────────────────────────────────────────────────
+  // ── Media ─────────────────────────────────────────────────────────────────
   {
     id: 'jellyfin',
     name: 'Jellyfin',
@@ -902,7 +902,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Sécurité ──────────────────────────────────────────────────────────────
+  // ── Security ──────────────────────────────────────────────────────────────
   {
     id: 'vaultwarden',
     name: 'Vaultwarden',
@@ -934,7 +934,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Démonstration ─────────────────────────────────────────────────────────
+  // ── Demonstration ─────────────────────────────────────────────────────────
   {
     id: 'hello',
     name: 'Hello World',

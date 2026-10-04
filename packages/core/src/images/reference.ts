@@ -1,27 +1,26 @@
 /**
- * Une référence d'image, telle qu'un `docker pull` la comprend.
+ * An image reference, as a `docker pull` understands it.
  *
  * `nginx`, `nginx:1.27`, `bitnami/redis`, `ghcr.io/acme/api:2.1`,
- * `localhost:5000/app`, `postgres:16@sha256:…` — toutes se ramènent à un
- * registre, un dépôt, un tag et peut-être un digest. Les règles sont celles de
- * Docker (`distribution/reference`) : c'est elles que les deux runtimes
- * appliquent quand ils tirent l'image, et la vérification des mises à jour doit
- * interroger exactement le même endroit.
+ * `localhost:5000/app`, `postgres:16@sha256:…` — all come down to a registry, a
+ * repository, a tag and maybe a digest. The rules are Docker's
+ * (`distribution/reference`): they are what both runtimes apply when they pull
+ * the image, and the update check must query exactly the same place.
  */
 
 export type ImageReference = {
-  /** Hôte du registre, tel qu'on l'interroge : `registry-1.docker.io`, `ghcr.io`. */
+  /** The registry host, as queried: `registry-1.docker.io`, `ghcr.io`. */
   registry: string;
-  /** Chemin du dépôt dans ce registre : `library/nginx`, `acme/api`. */
+  /** The repository's path in that registry: `library/nginx`, `acme/api`. */
   repository: string;
   tag: string;
-  /** `sha256:…` quand la référence épingle un contenu précis. */
+  /** `sha256:…` when the reference pins a precise content. */
   digest: string | null;
 };
 
 const DOCKER_HUB = 'registry-1.docker.io';
 
-/** Ce que Docker Hub accepte comme noms d'hôte pour lui-même. */
+/** What Docker Hub accepts as host names for itself. */
 const DOCKER_HUB_ALIASES = new Set(['docker.io', 'index.docker.io', 'registry-1.docker.io']);
 
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
@@ -41,8 +40,8 @@ export function parseImageReference(raw: string): ImageReference | null {
     if (!DIGEST.test(digest)) return null;
   }
 
-  // Le tag est après le dernier « : » — sauf si ce « : » appartient au port
-  // d'un registre (`localhost:5000/app`), auquel cas un « / » le suit.
+  // The tag is after the last ":" — unless that ":" belongs to a registry's port
+  // (`localhost:5000/app`), in which case a "/" follows it.
   let tag = 'latest';
   const colon = rest.lastIndexOf(':');
   if (colon > rest.lastIndexOf('/')) {
@@ -51,8 +50,8 @@ export function parseImageReference(raw: string): ImageReference | null {
     if (!TAG.test(tag)) return null;
   }
 
-  // Le premier segment est un registre s'il ressemble à un hôte : un point, un
-  // port, ou `localhost`. Sinon c'est un compte Docker Hub (`bitnami/redis`).
+  // The first segment is a registry if it looks like a host: a dot, a port, or
+  // `localhost`. Otherwise it is a Docker Hub account (`bitnami/redis`).
   const parts = rest.split('/');
   let registry = DOCKER_HUB;
   const first = parts[0] ?? '';
@@ -62,13 +61,13 @@ export function parseImageReference(raw: string): ImageReference | null {
   }
   if (parts.length === 0 || !parts.every((part) => PATH_COMPONENT.test(part))) return null;
 
-  // Docker Hub range ses images officielles sous `library/`.
+  // Docker Hub stores its official images under `library/`.
   if (registry === DOCKER_HUB && parts.length === 1) parts.unshift('library');
 
   return { registry, repository: parts.join('/'), tag, digest };
 }
 
-/** La forme courte, celle qu'un humain écrit : `nginx:1.27`, `ghcr.io/acme/api:2.1`. */
+/** The short form, the one a human writes: `nginx:1.27`, `ghcr.io/acme/api:2.1`. */
 export function formatImageReference(ref: ImageReference): string {
   const repository =
     ref.registry === DOCKER_HUB
@@ -78,11 +77,10 @@ export function formatImageReference(ref: ImageReference): string {
 }
 
 /**
- * La forme complète, celle que containerd enregistre et la seule qu'il
- * reconnaisse : `docker.io/library/nginx:1.27`, `docker.io/acme/api:2`,
- * `ghcr.io/acme/api:2.1`, `docker.io/library/postgres@sha256:…`. Docker,
- * lui, accepte la forme courte ; certains outils qui lisent containerd non.
- * Une référence illisible est rendue telle quelle.
+ * The complete form, the one containerd records and the only one it recognizes:
+ * `docker.io/library/nginx:1.27`, `docker.io/acme/api:2`, `ghcr.io/acme/api:2.1`,
+ * `docker.io/library/postgres@sha256:…`. Docker accepts the short form; some
+ * tools that read containerd do not. An unreadable reference is returned as is.
  */
 export function canonicalImageReference(raw: string): string {
   const ref = parseImageReference(raw);
@@ -94,9 +92,9 @@ export function canonicalImageReference(raw: string): string {
 }
 
 /**
- * Extrait le digest d'une forme rapportée par un runtime :
- * `nginx@sha256:…` (Docker, `RepoDigests`), `docker.io/library/nginx@sha256:…`
- * (containerd, `imageID`), ou `sha256:…` nu.
+ * Extracts the digest from a form reported by a runtime: `nginx@sha256:…`
+ * (Docker, `RepoDigests`), `docker.io/library/nginx@sha256:…` (containerd,
+ * `imageID`), or a bare `sha256:…`.
  */
 export function digestOf(value: string): string | null {
   const at = value.lastIndexOf('@');
@@ -104,7 +102,7 @@ export function digestOf(value: string): string | null {
   return DIGEST.test(candidate) ? candidate : null;
 }
 
-/** `sha256:df221db836e1…` → `df221db836e1`, pour l'affichage. */
+/** `sha256:df221db836e1…` → `df221db836e1`, for display. */
 export function shortDigest(digest: string | null): string | null {
   if (!digest) return null;
   return digest.replace(/^sha256:/, '').slice(0, 12);

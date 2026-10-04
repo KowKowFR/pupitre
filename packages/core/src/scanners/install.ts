@@ -6,28 +6,27 @@ import { firstLine, shellQuote } from '../shell.js';
 import { scannerSay } from './messages.js';
 
 /**
- * Installation des outils sur la machine cible.
+ * Installing the tools on the target machine.
  *
- * Les trois scanners sont des binaires Go statiques distribués en `tar.gz` sur
- * les releases GitHub : la mécanique est la même pour tous, seuls le nom de
- * l'archive et la traduction de `uname -m` changent. Elle est donc écrite ici,
- * une fois, et chaque implémentation ne fournit que ce qui lui est propre.
+ * The three scanners are static Go binaries distributed as `tar.gz` on GitHub
+ * releases: the mechanics are the same for all, only the archive's name and the
+ * translation of `uname -m` change. It is therefore written here, once, and each
+ * implementation only provides what is specific to it.
  *
- * Rien n'est installé par le gestionnaire de paquets : la cible n'est pas
- * forcément Debian, et les dépôts distribuent des versions arbitrairement
- * anciennes — un scanner de sécurité périmé est pire qu'aucun scanner.
+ * Nothing is installed by the package manager: the target is not necessarily
+ * Debian, and repositories distribute arbitrarily old versions — an outdated
+ * security scanner is worse than no scanner.
  */
 
-/** Racine de travail des scanners sur la cible. */
+/** The scanners' working root on the target. */
 /**
- * Où les binaires de scan sont posés sur la machine cible.
+ * Where the scan binaries are placed on the target machine.
  *
- * **Ce chemin ne suit pas le renommage, volontairement.** C'est un cache déjà
- * rempli sur chaque cible : Trivy, Grype et Syft y sont installés, avec leurs
- * bases de vulnérabilités. Le déplacer ne rendrait service à personne — le
- * répertoire n'apparaît nulle part dans l'interface — et coûterait un
- * re-téléchargement complet sur toutes les cibles au premier scan suivant,
- * plus un répertoire orphelin laissé derrière.
+ * **This path does not follow the renaming, on purpose.** It is a cache already
+ * filled on each target: Trivy, Grype and Syft are installed there, with their
+ * vulnerability databases. Moving it would help nobody — the directory appears
+ * nowhere in the interface — and would cost a complete download again on every
+ * target at the next scan, plus an orphan directory left behind.
  */
 export const TOOL_HOME = '"$HOME"/.bootstrap-tp';
 export const TOOL_BIN = `${TOOL_HOME}/bin`;
@@ -36,13 +35,13 @@ const INSTALL_TIMEOUT_MS = 5 * 60_000;
 const VERSION_TIMEOUT_MS = 60_000;
 
 export type ReleaseAsset = {
-  /** Nom du binaire une fois installé, ex. `trivy`. */
+  /** Name of the binary once installed, e.g. `trivy`. */
   binary: string;
-  /** Version épinglée, sans le `v` initial. */
+  /** Pinned version, without the leading `v`. */
   version: string;
   /**
-   * URL de l'archive pour une architecture telle que la rapporte `uname -m`.
-   * `null` quand l'outil ne publie rien pour cette architecture.
+   * The archive's URL for an architecture as `uname -m` reports it. `null` when
+   * the tool publishes nothing for that architecture.
    */
   assetUrl: (arch: string) => string | null;
 };
@@ -51,16 +50,16 @@ export function toolPath(binary: string): string {
   return `${TOOL_BIN}/${binary}`;
 }
 
-/** Chemin des caches, isolé par outil. */
+/** Path of the caches, isolated per tool. */
 export function cachePath(binary: string): string {
   return `${TOOL_HOME}/cache/${binary}`;
 }
 
 /**
- * Installe l'outil s'il est absent ou périmé, puis retourne sa version.
+ * Installs the tool if it is missing or outdated, then returns its version.
  *
- * La détection passe par `--version` : c'est l'outil lui-même qui répond, pas
- * un fichier marqueur qu'un `rm` mal placé rendrait menteur.
+ * Detection goes through `--version`: it is the tool itself that answers, not a
+ * marker file a misplaced `rm` would make lie.
  */
 export async function ensureBinary(
   session: SshSession,
@@ -134,7 +133,7 @@ export async function ensureBinary(
   return confirmed;
 }
 
-/** Version rapportée par l'outil, ou `null` s'il n'est pas installé. */
+/** Version reported by the tool, or `null` if it is not installed. */
 async function readVersion(session: SshSession, binary: string): Promise<string | null> {
   const result = await exec(session, `${toolPath(binary)} --version 2>&1 || true`, {
     timeout: VERSION_TIMEOUT_MS,

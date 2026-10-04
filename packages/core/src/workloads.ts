@@ -3,36 +3,35 @@ import { translator, type Translated, type UiLanguage } from './i18n.js';
 import { serviceStateSchema } from './supervision.js';
 
 /**
- * Charges qui tournent sur une machine cible.
+ * Workloads running on a target machine.
  *
- * « Charge » et pas « conteneur » : une cible peut être en K3s, où ce qui tourne
- * est un pod piloté par un Deployment. Le panel peut écrire « conteneur » dans
- * son interface quand la cible est en Docker — mais c'est l'écran qui choisit ce
- * mot, à partir de la clé `kind` que le driver a posée. Le code, lui, reste
- * neutre, et aucun appelant ne teste jamais le runtime pour savoir quoi faire.
+ * "Workload" and not "container": a target can run K3s, where what runs is a
+ * pod driven by a Deployment. The panel can write "container" in its interface
+ * when the target runs Docker — but it is the screen that chooses that word,
+ * from the `kind` key the driver set. The code stays neutral, and no caller ever
+ * tests the runtime to know what to do.
  *
- * Distinct de `supervision.ts` : celle-ci raconte les services **d'un
- * déploiement du panel**, celui-ci raconte **tout ce qui tourne sur la
- * machine**, panel compris ou non. Le champ `managed` est exactement la
- * frontière entre les deux.
+ * Distinct from `supervision.ts`: that one tells about the services **of a
+ * panel deployment**, this one tells about **everything running on the
+ * machine**, whether the panel's or not. The `managed` field is exactly the
+ * boundary between the two.
  */
 
 /**
- * Structurellement identique à `RuntimeKind` (`drivers/types.ts`), et
- * volontairement redéclaré : ce module est réexporté par `index.ts`, que le
- * panel Next importe. Importer les drivers d'ici tirerait `ssh2` dans son
- * graphe de dépendances, ce que l'architecture interdit.
+ * Structurally identical to `RuntimeKind` (`drivers/types.ts`), and
+ * deliberately declared again: this module is re-exported by `index.ts`, which
+ * the Next panel imports. Importing the drivers from here would pull `ssh2` into
+ * its dependency graph, which the architecture forbids.
  */
 export const workloadRuntimeSchema = z.enum(['docker', 'k3s']);
 export type WorkloadRuntime = z.infer<typeof workloadRuntimeSchema>;
 
 /**
- * Désignation d'une charge, telle qu'on la passe d'un écran à un job puis à un
- * driver.
+ * A workload's designation, as passed from a screen to a job then to a driver.
  *
- * `id` est une **poignée opaque** : seul le driver du runtime nommé sait la
- * produire et la relire. Le panel ne l'interprète jamais — c'est ce qui permet
- * d'ajouter un troisième runtime sans toucher une ligne d'API.
+ * `id` is an **opaque handle**: only the named runtime's driver can produce and
+ * read it back. The panel never interprets it — that is what allows adding a
+ * third runtime without touching a line of API.
  */
 export const workloadRefSchema = z.object({
   runtime: workloadRuntimeSchema,
@@ -41,12 +40,12 @@ export const workloadRefSchema = z.object({
 export type WorkloadRef = z.infer<typeof workloadRefSchema>;
 
 /**
- * Forme transportable d'une référence, pour un segment d'URL.
+ * Transportable form of a reference, for a URL segment.
  *
- * Le `:` est licite dans un segment de chemin, absent d'un identifiant Docker
- * (hexadécimal) comme d'un nom Kubernetes (DNS-1123). Attention en revanche à
- * ne jamais réutiliser cette chaîne comme identifiant de tâche BullMQ :
- * `Queue.add()` refuse un « Custom Id » contenant un `:`.
+ * `:` is legal in a path segment, absent from a Docker identifier (hexadecimal)
+ * as from a Kubernetes name (DNS-1123). Be careful, however, never to reuse this
+ * string as a BullMQ job identifier: `Queue.add()` refuses a "Custom Id"
+ * containing a `:`.
  */
 export function encodeWorkloadRef(ref: WorkloadRef): string {
   return `${ref.runtime}:${ref.id}`;
@@ -63,62 +62,62 @@ export function decodeWorkloadRef(raw: string): WorkloadRef | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** Les gestes de cycle de vie : un processus qui démarre, s'arrête, redémarre. */
+/** The life-cycle gestures: a process that starts, stops, restarts. */
 export const WORKLOAD_CONTROL_ACTIONS = ['start', 'stop', 'restart'] as const;
 export const workloadControlActionSchema = z.enum(WORKLOAD_CONTROL_ACTIONS);
 export type WorkloadControlAction = z.infer<typeof workloadControlActionSchema>;
 
 export const workloadSchema = z.object({
   runtime: workloadRuntimeSchema,
-  /** Poignée opaque, produite et relue par le seul driver de ce runtime. */
+  /** Opaque handle, produced and read back by this runtime's driver alone. */
   id: z.string().min(1),
   name: z.string().min(1),
   /**
-   * Genre de charge, dans le vocabulaire de **ce runtime** : `container`,
+   * Kind of workload, in **this runtime**'s vocabulary: `container`,
    * `deployment`, `statefulset`, `daemonset`, `pod`.
    *
-   * C'est une **clé**, pas une phrase — au même titre qu'un `runtime` ou qu'un
-   * `state`. Le driver produit une donnée stable ; l'écran qui l'affiche lui
-   * donne son mot (`workload.kind.*` dans `messages/targets.ts`) et retombe sur
-   * la clé nue si un runtime à venir en nomme une qu'il ne connaît pas. Rien
-   * entre les deux ne s'en sert pour décider quoi que ce soit.
+   * It is a **key**, not a sentence — just like a `runtime` or a `state`. The
+   * driver produces stable data; the screen that shows it gives it its word
+   * (`workload.kind.*` in `messages/targets.ts`) and falls back on the bare key if
+   * a future runtime names one it does not know. Nothing in between uses it to
+   * decide anything.
    *
-   * Le champ n'est volontairement pas une énumération : ajouter un runtime doit
-   * rester l'affaire d'une classe, et un genre inconnu doit s'afficher tel quel
-   * plutôt que faire échouer la lecture de tout l'inventaire.
+   * The field is deliberately not an enumeration: adding a runtime must stay a
+   * matter of a class, and an unknown kind must show as is rather than fail the
+   * reading of the whole inventory.
    */
   kind: z.string().min(1),
-  /** Regroupement propre au runtime : projet Compose, namespace Kubernetes. */
+  /** Runtime-specific grouping: Compose project, Kubernetes namespace. */
   scope: z.string().nullable().default(null),
   image: z.string().nullable().default(null),
-  /** Même vocabulaire que la supervision : pas de second jeu d'états. */
+  /** The same vocabulary as monitoring: no second set of states. */
   state: serviceStateSchema,
   health: z.enum(['healthy', 'unhealthy', 'starting', 'none']).default('none'),
   createdAt: z.string().nullable().default(null),
-  /** Formulation du runtime : « Up 2 hours », « 2/2 prêts ». */
+  /** The runtime's wording: "Up 2 hours", "2/2 ready". */
   since: z.string().nullable().default(null),
-  /** Ports publiés, tels que le runtime les formule. */
+  /** Published ports, as the runtime words them. */
   ports: z.array(z.string()).default([]),
   /**
-   * Le panel est-il responsable du cycle de vie de cette charge ?
+   * Is the panel responsible for this workload's life cycle?
    *
-   * Une charge du panel a déjà ses gestes — redéploiement, redémarrage,
-   * destruction, rollback — et une ligne en base qui les enregistre. La
-   * supprimer par cet écran laisserait la base persuadée que l'application
-   * tourne encore, son port réservé pour rien.
+   * A panel workload already has its gestures — redeploy, restart, destroy,
+   * rollback — and a database row that records them. Deleting it through this
+   * screen would leave the database convinced that the application still runs,
+   * its port reserved for nothing.
    */
   managed: z.boolean(),
-  /** Slug de l'application du panel, quand `managed` est vrai. */
+  /** The panel application's slug, when `managed` is true. */
   managedApp: z.string().nullable().default(null),
   /**
-   * Les gestes de cycle de vie que **ce runtime** accepte pour cette charge,
-   * dans son état présent — c'est le driver qui le sait : un DaemonSet ne
-   * s'arrête pas, un pod nu ne se redémarre pas, un conteneur arrêté ne
-   * s'arrête pas deux fois, une charge du panel ne fait que redémarrer.
-   * L'écran n'offre que ceux-là ; la route et le driver le revérifient.
+   * The life-cycle gestures **this runtime** accepts for this workload, in its
+   * present state — it is the driver that knows: a DaemonSet does not stop, a bare
+   * pod does not restart, a stopped container does not stop twice, a panel
+   * workload only restarts. The screen only offers those; the route and the
+   * driver check again.
    */
   controls: z.array(workloadControlActionSchema).default([]),
-  /** Une commande peut-elle y être exécutée maintenant ? */
+  /** Can a command be run in it now? */
   exec: z.boolean().default(false),
 });
 export type Workload = z.infer<typeof workloadSchema>;
@@ -128,9 +127,9 @@ export const workloadListSchema = z.object({
   checkedAt: z.string(),
   items: z.array(workloadSchema),
   /**
-   * Runtimes interrogés et, le cas échéant, pourquoi l'un d'eux n'a rien pu
-   * dire. Une liste vide est ambiguë : « rien ne tourne » et « kubectl est
-   * injoignable » ne se ressemblent pas.
+   * Runtimes queried and, if need be, why one of them could not say anything. An
+   * empty list is ambiguous: "nothing runs" and "kubectl is unreachable" do not
+   * look alike.
    */
   runtimes: z.array(
     z.object({
@@ -154,16 +153,16 @@ export const workloadActionSchema = z.enum([
 ]);
 export type WorkloadAction = z.infer<typeof workloadActionSchema>;
 
-/** Une commande envoyée dans une charge : bornée en taille, en durée, en sortie. */
+/** A command sent into a workload: bounded in size, duration and output. */
 export const WORKLOAD_EXEC_MAX_COMMAND = 2000;
 export const WORKLOAD_EXEC_TIMEOUT_SEC = 120;
 export const WORKLOAD_EXEC_MAX_LINES = 2000;
 export const WORKLOAD_LOGS_MAX_TAIL = 2000;
 
 /**
- * Progression d'une action sur une charge, publiée sur Redis et relayée en SSE.
- * Même principe que les logs de déploiement : le driver émet des lignes, le
- * worker les publie, la route les relaie. Aucun `tail` sur un fichier.
+ * Progress of an action on a workload, published on Redis and relayed over SSE.
+ * The same principle as deployment logs: the driver emits lines, the worker
+ * publishes them, the route relays them. No `tail` on a file.
  */
 export const workloadMessageSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -173,10 +172,9 @@ export const workloadMessageSchema = z.discriminatedUnion('kind', [
       ref: z.string(),
       line: z.string(),
       /**
-       * L'exécution à laquelle la ligne appartient — une commande, une lecture
-       * du journal. Deux écrans ouverts sur la même charge ne mélangent pas
-       * leurs sorties. Absent sur les anciennes actions (suppression, mise à
-       * jour), qui n'en ont qu'une à la fois.
+       * The run the line belongs to — a command, a log read. Two screens open on the
+       * same workload do not mix their outputs. Absent on the older actions (delete,
+       * update), which only have one at a time.
        */
       run: z.string().optional(),
     }),
@@ -191,30 +189,30 @@ export const workloadMessageSchema = z.discriminatedUnion('kind', [
       status: z.enum(['started', 'succeeded', 'failed']),
       detail: z.string().nullable().default(null),
       run: z.string().optional(),
-      /** Code de sortie d'une commande, une fois terminée. */
+      /** A command's exit code, once finished. */
       exitCode: z.number().int().nullable().optional(),
-      /** La commande a dépassé son délai et a été interrompue. */
+      /** The command exceeded its timeout and was interrupted. */
       timedOut: z.boolean().optional(),
-      /** La sortie a dépassé sa borne : les lignes suivantes n'ont pas été transmises. */
+      /** The output exceeded its cap: the following lines were not sent. */
       truncated: z.boolean().optional(),
     }),
   }),
 ]);
 export type WorkloadMessage = z.infer<typeof workloadMessageSchema>;
 
-/** Canal Redis des actions sur les charges d'une cible. */
+/** Redis channel of the actions on a target's workloads. */
 export function workloadChannel(targetId: string): string {
   return `workload:${targetId}`;
 }
 
 /**
- * Les mots du refus, en un seul endroit.
+ * The refusal's words, in one place.
  *
- * La phrase existe en deux versions plutôt qu'en une avec un morceau optionnel :
- * une charge du panel rattachée à une application se nomme par cette
- * application, et coudre « (application « … ») » au milieu d'un gabarit oblige
- * les deux langues à placer la parenthèse au même endroit. Deux clés coûtent
- * une ligne et laissent l'anglais tourner sa phrase comme il l'entend.
+ * The sentence exists in two versions rather than one with an optional piece: a
+ * panel workload attached to an application is named by that application, and
+ * sewing "(application "…")" into the middle of a template forces both
+ * languages to put the parenthesis at the same place. Two keys cost one line and
+ * let English turn its sentence as it likes.
  */
 const fr = {
   'managed.refusal':
@@ -249,12 +247,12 @@ const en: Translated<typeof fr> = {
 export const workloadCopy = { fr, en };
 
 /**
- * Message d'un refus, en un seul endroit : la route HTTP le rend en 409, le
- * driver le lève en `DriverError`, et les deux disent donc la même chose.
+ * A refusal's message, in one place: the HTTP route returns it as a 409, the
+ * driver raises it as a `DriverError`, and both therefore say the same thing.
  *
- * Le français par défaut : un driver lève cette erreur au fond d'un job, sans
- * langue d'instance sous la main, et sa trace se lit dans les logs. Le panel,
- * lui, passe la sienne.
+ * French by default: a driver raises this error deep in a job, without an
+ * instance language at hand, and its trace is read in the logs. The panel
+ * passes its own.
  */
 export function managedWorkloadRefusal(
   workload: Pick<Workload, 'name' | 'managedApp'>,
@@ -267,7 +265,7 @@ export function managedWorkloadRefusal(
     : t('managed.refusal', { name: workload.name });
 }
 
-/** Le refus d'arrêter ou de démarrer une charge du panel, hors de sa page Supervision. */
+/** The refusal to stop or start a panel workload outside its Monitoring page. */
 export function managedWorkloadControlRefusal(
   workload: Pick<Workload, 'name'>,
   language: UiLanguage = 'fr',

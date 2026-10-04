@@ -7,37 +7,37 @@ import {
 } from 'node:crypto';
 
 /**
- * Chiffrement symétrique des secrets stockés en base (credentials SSH au
- * d'abord, jetons divers ensuite).
+ * Symmetric encryption of the secrets stored in the database (SSH credentials
+ * first, various tokens later).
  *
- * Format de sortie : `version:iv:authTag:ciphertext`
- * Les trois derniers champs sont en base64 — l'alphabet base64 ne contient
- * pas de `:`, le découpage est donc sans ambiguïté.
+ * Output format: `version:iv:authTag:ciphertext`
+ * The last three fields are base64 — the base64 alphabet contains no `:`, so the
+ * split is unambiguous.
  *
- * Le préfixe de version permettra une rotation de clé : une future `v2`
- * cohabitera avec les valeurs `v1` déjà en base, et `decrypt()` choisira
- * l'algorithme d'après le préfixe.
+ * The version prefix will allow a key rotation: a future `v2` will live
+ * alongside the `v1` values already in the database, and `decrypt()` will pick
+ * the algorithm from the prefix.
  */
 
 export const CURRENT_CRYPTO_VERSION = 'v1' as const;
 
 const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12; // 96 bits, taille recommandée pour GCM
+const IV_LENGTH = 12; // 96 bits, the recommended size for GCM
 const AUTH_TAG_LENGTH = 16;
 const KEY_LENGTH = 32; // AES-256
 const MIN_MASTER_KEY_BYTES = 32;
 
 /**
- * Contexte HKDF : fige le domaine d'usage de la clé dérivée.
+ * HKDF context: freezes the usage domain of the derived key.
  *
- * **Cette chaîne ne suit pas le nom du produit et ne doit jamais changer.**
- * Elle entre dans la dérivation : la modifier produit une autre clé à partir
- * du même `MASTER_KEY`, et rend illisible d'un coup tout ce qui est déjà
- * chiffré en base — credentials SSH, secrets d'applications, clé d'IA, secrets
- * de canaux, webhooks de sondes. Le panel s'appelle Pupitre depuis, et cette
- * valeur garde l'ancien nom pour cette seule raison. La changer exigerait de
- * déchiffrer avec l'ancien sel puis de rechiffrer avec le nouveau, en une
- * migration écrite pour cela.
+ * **This string does not follow the product's name and must never change.** It
+ * goes into the derivation: changing it produces another key from the same
+ * `MASTER_KEY`, and makes everything already encrypted in the database
+ * unreadable at once — SSH credentials, application secrets, AI key, channel
+ * secrets, probe webhooks. The panel has been called Pupitre since, and this
+ * value keeps the old name for that reason alone. Changing it would require
+ * decrypting with the old salt then encrypting again with the new one, in a
+ * migration written for that.
  */
 const HKDF_SALT = 'bootstrap-tp-v2/secret-encryption';
 const HKDF_INFO = 'aes-256-gcm/v1';
@@ -47,16 +47,15 @@ export class MasterKeyError extends Error {
   override readonly name = 'MasterKeyError';
 }
 
-/** Valeur chiffrée corrompue, tronquée, altérée ou chiffrée avec une autre clé. */
+/** Encrypted value corrupted, truncated, tampered with or encrypted with another key. */
 export class DecryptionError extends Error {
   override readonly name = 'DecryptionError';
 }
 
 /**
- * Matériau de clé brut.
- * `openssl rand -hex 32` produit 64 caractères hexadécimaux, décodés en
- * 32 octets. Toute autre chaîne est prise telle quelle et doit peser au
- * moins 32 octets.
+ * Raw key material.
+ * `openssl rand -hex 32` produces 64 hexadecimal characters, decoded into 32
+ * bytes. Any other string is taken as is and must weigh at least 32 bytes.
  */
 function toKeyMaterial(masterKey: string): Buffer {
   if (/^[0-9a-fA-F]{64}$/.test(masterKey)) {
@@ -73,9 +72,9 @@ function toKeyMaterial(masterKey: string): Buffer {
 }
 
 /**
- * Valide `MASTER_KEY` et retourne la clé dérivée.
- * Appelée au démarrage du panel et du worker : l'application refuse de
- * démarrer avec une clé absente ou trop faible.
+ * Validates `MASTER_KEY` and returns the derived key.
+ * Called at the panel's and the worker's startup: the application refuses to
+ * start with a missing or too weak key.
  */
 export function deriveKey(masterKey: string | undefined): Buffer {
   if (masterKey === undefined || masterKey === '') {
@@ -88,10 +87,10 @@ export function deriveKey(masterKey: string | undefined): Buffer {
 }
 
 /**
- * La clé d'un fichier de sauvegarde : tirée de `MASTER_KEY`, mais **pas** la
- * clé des secrets en base — un usage, une clé. Le sel est propre à chaque
- * fichier et rangé dans son en-tête : deux sauvegardes ne partagent jamais la
- * même clé, et une seule `MASTER_KEY` suffit à les relire toutes.
+ * A backup file's key: drawn from `MASTER_KEY`, but **not** the key of the
+ * secrets in the database — one use, one key. The salt is specific to each file
+ * and stored in its header: two backups never share the same key, and a single
+ * `MASTER_KEY` is enough to read them all.
  */
 export function deriveBackupKey(
   salt: Buffer,
@@ -115,32 +114,32 @@ function activeKey(): Buffer {
 }
 
 /**
- * La clé est-elle valide mais notoirement devinable ?
+ * Is the key valid but notoriously guessable?
  *
- * `deriveKey()` ne vérifie qu'une **longueur**, et soixante-quatre zéros font
- * trente-deux octets tout comme une vraie clé. Le `.env.example` livre
- * précisément cette valeur, et une instance montée en recopiant l'exemple
- * chiffre donc ses identifiants SSH sous une clé publiée. Elle démarre, elle
- * déchiffre, tous les tests passent — le défaut est invisible par construction,
- * et c'est bien pour cela qu'il faut le dire à voix haute.
+ * `deriveKey()` only checks a **length**, and sixty-four zeros make thirty-two
+ * bytes just like a real key. The `.env.example` ships precisely that value,
+ * and an instance set up by copying the example therefore encrypts its SSH
+ * credentials under a published key. It starts, it decrypts, all tests pass —
+ * the flaw is invisible by construction, and that is exactly why it must be
+ * said out loud.
  *
- * On ne refuse pas de démarrer : la base contient déjà des valeurs chiffrées
- * sous cette clé, et une instance qui ne démarre plus est une instance dont on
- * ne peut plus sortir les identifiants pour les rechiffrer. On avertit, et la
- * rotation reste une décision de l'exploitant.
+ * We do not refuse to start: the database already contains values encrypted
+ * under that key, and an instance that no longer starts is an instance whose
+ * credentials can no longer be taken out to encrypt them again. We warn, and
+ * rotation stays the operator's decision.
  *
- * Le critère est la **forme**, pas une liste d'exemples à tenir à jour : une
- * clé tirée au sort n'a jamais un seul caractère distinct, ni un motif court
- * répété. Aucune vraie clé ne tombe dans ce filet.
+ * The criterion is the **shape**, not a list of examples to keep up to date: a
+ * randomly drawn key never has a single distinct character, nor a short
+ * repeated pattern. No real key falls into this net.
  */
 export function masterKeyWeakness(masterKey: string | undefined): string | null {
   return secretWeakness(masterKey, 'MASTER_KEY');
 }
 
 /**
- * Le même jugement de **forme**, pour n'importe quel secret d'installation —
- * `BETTER_AUTH_SECRET` aussi, dont le `.env.example` livre une phrase répétée.
- * `name` sert seulement à la phrase rendue.
+ * The same **shape** judgment, for any installation secret — `BETTER_AUTH_SECRET`
+ * too, for which the `.env.example` ships a repeated phrase. `name` is only used
+ * for the rendered sentence.
  */
 export function secretWeakness(value: string | undefined, name: string): string | null {
   if (value === undefined || value === '') return null;
@@ -150,13 +149,13 @@ export function secretWeakness(value: string | undefined, name: string): string 
     return `${name} ne contient que ${distinct} caractère(s) distinct(s)`;
   }
 
-  // Un motif de 15 caractères ou moins, répété jusqu'au bout : c'est la forme
-  // des exemples, jamais celle d'un tirage.
+  // A pattern of 15 characters or fewer, repeated to the end: it is the shape of
+  // examples, never that of a random draw.
   //
-  // La répétition n'a pas à tomber juste : la phrase de passe du `.env.example`
-  // fait 39 caractères pour un motif de 10, sa dernière occurrence est tronquée.
-  // Exiger une division exacte laissait donc passer la valeur même de l'exemple,
-  // ce que le premier jet a fait.
+  // The repetition does not have to fall exactly: the `.env.example` passphrase is
+  // 39 characters for a 10-character pattern, its last occurrence is truncated.
+  // Requiring an exact division therefore let the example's own value through,
+  // which the first draft did.
   for (let size = 1; size <= 15 && size * 2 <= value.length; size += 1) {
     const unit = value.slice(0, size);
     const tiled = unit.repeat(Math.ceil(value.length / size)).slice(0, value.length);
@@ -169,18 +168,18 @@ export function secretWeakness(value: string | undefined, name: string): string 
 }
 
 /**
- * Vérifie `MASTER_KEY` au démarrage et met la clé dérivée en cache.
- * À appeler une fois au boot, avant de servir la moindre requête.
+ * Checks `MASTER_KEY` at startup and caches the derived key.
+ * To call once at boot, before serving the slightest request.
  *
- * Rend la raison pour laquelle la clé est faible, ou `null`. L'appelant décide
- * quoi en faire — ici on ne sait pas encore avec quel journal on écrit.
+ * Returns the reason the key is weak, or `null`. The caller decides what to do
+ * with it — here we do not know yet which log we write with.
  */
 export function assertMasterKey(): string | null {
   activeKey();
   return masterKeyWeakness(process.env.MASTER_KEY);
 }
 
-/** Réinitialise la clé mémorisée. Réservé aux tests. */
+/** Resets the memorized key. Reserved to tests. */
 export function resetKeyCache(): void {
   cachedKey = null;
 }
@@ -188,8 +187,8 @@ export function resetKeyCache(): void {
 export function encrypt(plaintext: string): string {
   const iv = randomBytes(IV_LENGTH);
   const cipher = createCipheriv(ALGORITHM, activeKey(), iv, { authTagLength: AUTH_TAG_LENGTH });
-  // La version entre dans les données authentifiées : impossible de
-  // rétrograder une `v2` en `v1` sans invalider le tag.
+  // The version goes into the authenticated data: impossible to downgrade a `v2`
+  // to `v1` without invalidating the tag.
   cipher.setAAD(Buffer.from(CURRENT_CRYPTO_VERSION, 'utf8'));
 
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
@@ -237,15 +236,15 @@ export function decrypt(payload: string): string {
   try {
     return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
   } catch {
-    // `final()` échoue dès que le tag ne correspond pas : altération du
-    // ciphertext, de l'IV, du tag, ou déchiffrement avec une autre clé.
+    // `final()` fails as soon as the tag does not match: tampering with the
+    // ciphertext, the IV, the tag, or decryption with another key.
     throw new DecryptionError(
       'Déchiffrement impossible : donnée altérée ou chiffrée avec une autre MASTER_KEY',
     );
   }
 }
 
-/** Comparaison à temps constant, pour les jetons et empreintes. */
+/** Constant-time comparison, for tokens and hashes. */
 export function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a, 'utf8');
   const bufB = Buffer.from(b, 'utf8');

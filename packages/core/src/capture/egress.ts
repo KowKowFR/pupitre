@@ -5,57 +5,56 @@ import type { Cidr } from '../monitors/ssrf.js';
 import { SsrfBlockedError, resolveGuarded } from '../probe/net.js';
 
 /**
- * **Le mandataire de sortie du navigateur de capture.**
+ * **The capture browser's egress proxy.**
  *
- * ── Pourquoi il existe : une hypothèse qui s'est révélée fausse ─────────────
- * L'intention de départ était purement topologique : mettre le navigateur sur
- * un réseau Compose à lui, sans route vers la pile, et considérer l'affaire
- * close. Un réseau sans route ne s'oublie pas, là où une garde applicative dans
- * le navigateur s'oublie — le raisonnement était bon.
+ * ── Why it exists: an assumption that turned out wrong ──────────────────────
+ * The initial intent was purely topological: put the browser on a Compose
+ * network of its own, without a route to the stack, and consider the matter
+ * closed. A network without a route cannot be forgotten, whereas an application
+ * guard in the browser can — the reasoning was good.
  *
- * **Il a été mesuré, et il est faux.** Sur Docker Engine 29 / Docker Desktop,
- * deux réseaux `bridge` distincts d'un même projet ne sont pas isolés l'un de
- * l'autre : depuis le réseau `capture`, un conteneur joint `postgres`, `redis`
- * et `panel` par leur adresse IP. Le nom ne résout plus — c'est tout ce que le
- * réseau séparé apporte — et deviner `172.x.0.4` n'est pas un obstacle.
+ * **It was measured, and it is wrong.** On Docker Engine 29 / Docker Desktop,
+ * two distinct `bridge` networks of the same project are not isolated from each
+ * other: from the `capture` network, a container reaches `postgres`, `redis` and
+ * `panel` by their IP address. The name no longer resolves — that is all the
+ * separate network brings — and guessing `172.x.0.4` is no obstacle.
  *
- * Ce qui isole réellement, et qui a été mesuré aussi : **`internal: true`**. Un
- * réseau interne n'a pas de passerelle du tout ; la table de routage du
- * conteneur tient en une ligne, celle de son propre /16. Rien d'autre n'est
- * *routable*, ni la pile, ni l'hôte, ni l'Internet.
+ * What really isolates, and was measured too: **`internal: true`**. An internal
+ * network has no gateway at all; the container's routing table fits in one
+ * line, that of its own /16. Nothing else is *routable*, neither the stack, nor
+ * the host, nor the Internet.
  *
- * Mais alors le navigateur ne peut plus rien capturer. D'où ce mandataire : le
- * navigateur est enfermé sur un réseau interne d'où **la seule chose joignable
- * est le worker**, et il est lancé avec `--proxy-server` vers celui-ci. Toute
- * sortie — page principale, redirections, sous-ressources, requêtes émises par
- * le JavaScript de la page — passe par ici, et par la garde SSRF déjà écrite.
+ * But then the browser can no longer capture anything. Hence this proxy: the
+ * browser is locked on an internal network where **the only reachable thing is
+ * the worker**, and it is started with `--proxy-server` pointing at it. Every
+ * exit — main page, redirects, sub-resources, requests made by the page's
+ * JavaScript — goes through here, and through the SSRF guard already written.
  *
- * ── Ce que ça garantit, et pourquoi c'est plus fort que l'intention ─────────
- * Une page hostile ne peut pas contourner la configuration de mandataire de son
- * navigateur : la plateforme web n'offre pas de socket brute. Et si quelqu'un
- * retirait un jour l'option `--proxy-server`, le navigateur ne perdrait pas sa
- * garde — il perdrait l'Internet, et la panne serait immédiate et visible.
- * C'est la propriété qu'on cherchait : **une garde qu'on ne peut pas oublier
- * silencieusement.**
+ * ── What it guarantees, and why it is stronger than the intent ──────────────
+ * A hostile page cannot bypass its browser's proxy configuration: the web
+ * platform offers no raw socket. And if someone removed the `--proxy-server`
+ * option one day, the browser would not lose its guard — it would lose the
+ * Internet, and the failure would be immediate and visible. That is the
+ * property we were after: **a guard that cannot be silently forgotten.**
  *
- * ── Ce que ça ne garantit pas ───────────────────────────────────────────────
- * Le mandataire filtre des **adresses**, pas des contenus. Une page publique
- * hostile reste libre de faire émettre au worker des requêtes vers d'autres
- * adresses publiques — exactement ce que la sonde HTTP fait déjà, et exactement
- * ce que `MONITOR_ALLOWED_CIDRS` borne. Il n'y a pas de nouveau pouvoir ici, il
- * y a le même, appliqué au navigateur.
+ * ── What it does not guarantee ──────────────────────────────────────────────
+ * The proxy filters **addresses**, not content. A hostile public page remains
+ * free to make the worker send requests to other public addresses — exactly
+ * what the HTTP probe already does, and exactly what `MONITOR_ALLOWED_CIDRS`
+ * bounds. There is no new power here, there is the same one, applied to the
+ * browser.
  *
- * Et ce mandataire n'est **pas** un mandataire à ouvrir sur le monde : il écoute
- * sur les réseaux Compose du worker, jamais sur l'hôte, et ne démarre pas quand
- * la capture est éteinte.
+ * And this proxy is **not** a proxy to open to the world: it listens on the
+ * worker's Compose networks, never on the host, and does not start when capture
+ * is off.
  */
 
 export type CaptureEgressOptions = {
   allowlist: readonly Cidr[];
   port: number;
-  /** Interface d'écoute. `0.0.0.0` : le navigateur est sur un autre réseau. */
+  /** Listening interface. `0.0.0.0`: the browser is on another network. */
   host?: string;
-  /** Journalisation des refus. Le worker y branche Pino. */
+  /** Logging of refusals. The worker plugs Pino into it. */
   onBlocked?: (target: string, reason: string) => void;
 };
 
@@ -65,10 +64,10 @@ export type CaptureEgress = {
   close: () => Promise<void>;
 };
 
-/** `host:port` d'une demande CONNECT, ou d'une URL absolue. */
+/** `host:port` of a CONNECT request, or of an absolute URL. */
 function splitAuthority(authority: string, fallbackPort: number): { host: string; port: number } {
   const trimmed = authority.trim();
-  // IPv6 littéral : `[::1]:443`.
+  // Literal IPv6: `[::1]:443`.
   if (trimmed.startsWith('[')) {
     const end = trimmed.indexOf(']');
     if (end > 0) {
@@ -88,8 +87,8 @@ function splitAuthority(authority: string, fallbackPort: number): { host: string
 }
 
 /**
- * En-têtes de saut en saut : elles décrivent la connexion au mandataire, pas la
- * requête. Les retransmettre casse le keep-alive et fuite notre existence.
+ * Hop-by-hop headers: they describe the connection to the proxy, not the
+ * request. Forwarding them breaks keep-alive and leaks our existence.
  */
 const HOP_BY_HOP = new Set([
   'proxy-connection',
@@ -111,10 +110,10 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
   };
 
   /**
-   * La garde, en un seul endroit pour les deux chemins (CONNECT et HTTP en
-   * clair). Elle rend l'**adresse littérale** : on se connecte à ce qui a été
-   * contrôlé, jamais à un nom qu'on re-résoudrait — c'est ce qui ferme le
-   * rebinding DNS, et c'est la même discipline que les sondes.
+   * The guard, in a single place for both paths (CONNECT and clear-text HTTP). It
+   * returns the **literal address**: we connect to what was checked, never to a
+   * name we would resolve again — that is what closes DNS rebinding, and it is the
+   * same discipline as the probes.
    */
   async function guard(host: string, port: number): Promise<{ address: string } | { error: string }> {
     try {
@@ -134,7 +133,7 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
 
   const server = createServer();
 
-  // ── http en clair : le navigateur envoie une requête en forme absolue ──────
+  // ── clear-text http: the browser sends a request in absolute form ──────────
   server.on('request', (req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
       let parsed: URL;
@@ -161,8 +160,8 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
         if (HOP_BY_HOP.has(key.toLowerCase())) continue;
         headers[key] = value;
       }
-      // Le `Host` d'origine est conservé alors qu'on se connecte à l'adresse
-      // littérale : c'est ce couple qui rend le contrôle utile.
+      // The original `Host` is kept while we connect to the literal address: it is
+      // that pair that makes the check useful.
       headers.host = parsed.host;
 
       const upstream = httpRequest(
@@ -175,11 +174,10 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
           setHost: false,
         },
         (upstreamRes) => {
-          // Les en-têtes de saut en saut se retirent **aussi** au retour. Les
-          // recopier telles quelles laissait le `Connection: keep-alive` de la
-          // cible écraser le `Connection: close` demandé par le navigateur, et
-          // la socket restait ouverte jusqu'au délai de garde — six secondes de
-          // latence sur une réponse déjà complète.
+          // Hop-by-hop headers are removed on the way back **too**. Copying them as is let
+          // the target's `Connection: keep-alive` overwrite the `Connection: close` asked
+          // for by the browser, and the socket stayed open until the guard timeout — six
+          // seconds of latency on an already complete response.
           const headers: Record<string, string | string[]> = {};
           for (const [key, value] of Object.entries(upstreamRes.headers)) {
             if (value === undefined) continue;
@@ -198,11 +196,11 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
     })();
   });
 
-  // ── https : un tunnel, sans déchiffrement ──────────────────────────────────
-  // On ne voit que `host:port`, ce qui suffit à contrôler l'adresse. Ne pas
-  // déchiffrer est délibéré : une capture doit voir exactement la même page,
-  // avec le même certificat, qu'un visiteur — un mandataire qui s'interpose
-  // fausserait le rendu et masquerait justement les pannes de certificat.
+  // ── https: a tunnel, without decryption ────────────────────────────────────
+  // We only see `host:port`, which is enough to check the address. Not
+  // decrypting is deliberate: a capture must see exactly the same page, with the
+  // same certificate, as a visitor — a proxy that steps in would skew the
+  // rendering and hide precisely the certificate failures.
   server.on('connect', (req: IncomingMessage, clientSocket: Socket, head: Buffer) => {
     void (async () => {
       const { host, port } = splitAuthority(req.url ?? '', 443);
@@ -238,8 +236,8 @@ export function createCaptureEgress(options: CaptureEgressOptions): Promise<Capt
         close: () =>
           new Promise<void>((done) => {
             server.close(() => done());
-            // Les tunnels ouverts ne se ferment pas tout seuls : sans cela, un
-            // arrêt du worker attendrait la fin d'une page qui charge encore.
+            // Open tunnels do not close by themselves: without this, a worker shutdown would
+            // wait for the end of a page still loading.
             server.closeAllConnections?.();
           }),
       });

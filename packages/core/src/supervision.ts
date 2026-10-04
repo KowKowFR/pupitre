@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
 /**
- * Supervision des applications en marche.
+ * Monitoring of running applications.
  *
- * Distincte du pipeline : celui-ci raconte un déploiement, celle-ci raconte ce
- * qui tourne *maintenant*. Les deux ont leurs propres canaux Redis et leurs
- * propres flux SSE — mélanger les deux rendrait illisible autant l'un que l'autre.
+ * Distinct from the pipeline: that one tells about a deployment, this one tells
+ * about what runs *now*. Both have their own Redis channels and their own SSE
+ * streams — mixing the two would make each as unreadable as the other.
  */
 
 export const serviceStateSchema = z.enum([
@@ -18,13 +18,13 @@ export const serviceStateSchema = z.enum([
 ]);
 export type ServiceState = z.infer<typeof serviceStateSchema>;
 
-/** État d'un service tel que le runtime le rapporte. */
+/** A service's state as the runtime reports it. */
 export const serviceStatusSchema = z.object({
   name: z.string().min(1),
   state: serviceStateSchema,
-  /** Santé rapportée par la sonde du conteneur, quand il en déclare une. */
+  /** Health reported by the container's probe, when it declares one. */
   health: z.enum(['healthy', 'unhealthy', 'starting', 'none']).default('none'),
-  /** Depuis quand, tel que l'affiche le runtime — « Up 2 hours ». */
+  /** Since when, as the runtime shows it — "Up 2 hours". */
   since: z.string().nullable().default(null),
   image: z.string().nullable().default(null),
   ports: z.array(z.string()).default([]),
@@ -37,10 +37,10 @@ export const appStatusSchema = z.object({
 });
 export type AppStatus = z.infer<typeof appStatusSchema>;
 
-/** Une ligne de log applicatif, telle que le runtime la produit. */
+/** An application log line, as the runtime produces it. */
 export const appLogLineSchema = z.object({
   ts: z.string(),
-  /** Service émetteur, quand le runtime le préfixe. */
+  /** Emitting service, when the runtime prefixes it. */
   service: z.string().nullable().default(null),
   line: z.string(),
 });
@@ -53,10 +53,10 @@ export const appLogMessageSchema = z.discriminatedUnion('kind', [
     kind: z.literal('lifecycle'),
     payload: z.object({
       ts: z.string(),
-      // `stop` et `start` s'ajoutent à `restart` : ce sont les mêmes gestes
-      // d'exploitation, ils se racontent dans le même flux et devant le même
-      // spectateur. Un consommateur qui ne les connaît pas les ignore — la
-      // console filtre déjà sur l'action qu'elle sait afficher.
+      // `stop` and `start` come in addition to `restart`: they are the same
+      // operations gestures, they are told in the same stream and in front of the same
+      // viewer. A consumer that does not know them ignores them — the console already
+      // filters on the action it can show.
       action: z.enum([
         'restart',
         'stop',
@@ -77,82 +77,81 @@ export const appLogMessageSchema = z.discriminatedUnion('kind', [
 ]);
 export type AppLogMessage = z.infer<typeof appLogMessageSchema>;
 
-/** Canal Redis des logs applicatifs d'un déploiement. */
+/** Redis channel of a deployment's application logs. */
 export function appLogChannel(deploymentId: string): string {
   return `app-logs:${deploymentId}`;
 }
 
 /**
- * Clé de présence d'un spectateur, à durée de vie courte.
+ * A viewer's presence key, with a short lifetime.
  *
- * C'est elle qui commande l'arrêt du flux : la route SSE la rafraîchit tant
- * qu'un client écoute, le worker la relit régulièrement et coupe la session SSH
- * dès qu'elle a disparu. Un onglet fermé brutalement n'émet rien — mais la clé
- * expire, et le flux s'arrête de lui-même. Plusieurs spectateurs rafraîchissent
- * la même clé : le dernier parti éteint la lumière.
+ * It is what drives stopping the stream: the SSE route refreshes it as long as a
+ * client listens, the worker reads it regularly and cuts the SSH session as soon
+ * as it has disappeared. A tab closed abruptly emits nothing — but the key
+ * expires, and the stream stops by itself. Several viewers refresh the same key:
+ * the last one out turns off the light.
  */
 export function appLogWatchKey(deploymentId: string): string {
   return `app-logs:watch:${deploymentId}`;
 }
 
-/** Durée de vie de la clé de présence. */
+/** Lifetime of the presence key. */
 export const WATCH_TTL_SECONDS = 25;
 
-/** Cadence de rafraîchissement côté panel. Doit rester bien sous le TTL. */
+/** Refresh rate on the panel side. Must stay well under the TTL. */
 export const WATCH_REFRESH_MS = 8_000;
 
-/** Cadence de relecture côté worker. */
+/** Re-read rate on the worker side. */
 export const WATCH_POLL_MS = 5_000;
 
 /**
- * Dernier état connu de l'application, retenu **hors du flux**.
+ * The application's last known state, kept **outside the stream**.
  *
- * Un `publish` Redis ne se rejoue pas : qui s'abonne après coup n'a rien. Or le
- * flux est partagé — un seul job pour tous les spectateurs d'un déploiement —
- * donc le deuxième onglet, le rechargement de page et la reconnexion après
- * coupure rejoignent tous un flux **déjà ouvert**, dont l'instantané d'état est
- * passé depuis longtemps. C'est exactement ce qui faisait dire à l'écran
- * « aucun conteneur rapporté par la cible » pendant que les logs d'un conteneur
- * défilaient : l'état n'avait jamais été reçu, pas relevé vide.
+ * A Redis `publish` is not replayed: whoever subscribes afterwards gets
+ * nothing. But the stream is shared — a single job for all the viewers of a
+ * deployment — so the second tab, the page reload and the reconnection after a
+ * cut all join a stream **already open**, whose state snapshot went by long
+ * ago. That is exactly what made the screen say "no container reported by the
+ * target" while a container's logs were scrolling: the state had never been
+ * received, not read as empty.
  *
- * D'où cette clé : le worker y dépose chaque relevé, la route SSE la relit à la
- * connexion et la sert au nouveau venu avant même la première ligne de log. Le
- * relevé porte son `checkedAt` — l'écran dit donc son âge, il ne le fait pas
- * passer pour frais.
+ * Hence this key: the worker places each reading in it, the SSE route reads it
+ * at connection and serves it to the newcomer even before the first log line.
+ * The reading carries its `checkedAt` — the screen therefore says its age, it
+ * does not pass it off as fresh.
  */
 export function appStatusKey(deploymentId: string): string {
   return `app-logs:status:${deploymentId}`;
 }
 
 /**
- * Durée de vie du dernier état connu. Large devant la cadence de relevé : la
- * clé doit survivre à un flux qui se rouvre (le temps qu'un onglet se
- * reconnecte), pas à une nuit entière. Au-delà, mieux vaut ne rien montrer que
- * de montrer un inventaire d'hier.
+ * Lifetime of the last known state. Large compared with the reading rate: the
+ * key must survive a stream that reopens (the time for a tab to reconnect), not
+ * a whole night. Beyond that, better show nothing than yesterday's inventory.
  */
 export const STATUS_TTL_SECONDS = 300;
 
 /**
- * Cadence de re-relevé de l'état pendant qu'un flux est ouvert.
+ * Rate of re-reading the state while a stream is open.
  *
- * L'instantané d'ouverture ne suffit pas : un flux vit jusqu'à trente minutes,
- * pendant lesquelles un conteneur peut sortir, redémarrer en boucle ou devenir
- * malsain sans que la carte d'état bouge d'un pixel. Vingt secondes, parce que
- * le relevé emprunte la session SSH **déjà ouverte** pour les logs — pas de
- * connexion à établir, un `compose ps` de quelques centaines de millisecondes.
- * C'est le seul coût récurrent qu'on impose à la machine cible, et il n'existe
- * que tant que quelqu'un regarde l'écran.
+ * The opening snapshot is not enough: a stream lives up to thirty minutes,
+ * during which a container can exit, restart in a loop or become unhealthy
+ * without the state card moving by a pixel. Twenty seconds, because the reading
+ * borrows the SSH session **already open** for the logs — no connection to
+ * establish, a `compose ps` of a few hundred milliseconds. It is the only
+ * recurring cost imposed on the target machine, and it only exists while
+ * someone is looking at the screen.
  */
 export const STATUS_REFRESH_MS = 20_000;
 
 /**
- * Durée maximale d'un flux, quoi qu'il arrive. Un slot de worker ne doit pas
- * rester pris indéfiniment parce qu'un onglet est resté ouvert tout un week-end.
- * Le panel redemande un flux à la reconnexion : la coupure est invisible.
+ * Maximum duration of a stream, whatever happens. A worker slot must not stay
+ * taken indefinitely because a tab stayed open a whole weekend. The panel asks
+ * for a stream again at reconnection: the cut is invisible.
  */
 export const STREAM_MAX_MS = 30 * 60_000;
 
-/** Un déploiement dont on peut suivre et redémarrer l'application. */
+/** A deployment whose application can be followed and restarted. */
 export function isSupervisable(status: string): boolean {
   return status === 'success' || status === 'rolled_back';
 }

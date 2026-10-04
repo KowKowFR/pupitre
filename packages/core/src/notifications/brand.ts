@@ -1,22 +1,22 @@
 /**
- * La marque Pupitre dans les e-mails : la tuile, et les teintes du design system.
+ * The Pupitre brand in emails: the tile, and the design system's tints.
  *
- * ── Pourquoi une image jointe, et pas une URL ─────────────────────────────────
- * Le panel est auto-hébergé : il tourne souvent sur un réseau privé que la
- * messagerie du destinataire ne joint pas, et les clients d'e-mail bloquent
- * les images distantes par défaut. Une URL donnerait un carré vide dans la
- * moitié des boîtes. Le SVG, lui, n'est pas affiché par Gmail ni Outlook.
- * Reste le PNG joint au message et référencé par `cid:` : il voyage avec
- * l'e-mail, s'affiche sans rien demander au réseau, et pèse 2 Ko.
+ * ── Why an attached image, and not a URL ─────────────────────────────────────
+ * The panel is self-hosted: it often runs on a private network the recipient's
+ * mail system does not reach, and email clients block remote images by
+ * default. A URL would give an empty square in half the inboxes. SVG is not
+ * shown by Gmail or Outlook. What remains is the PNG attached to the message and
+ * referenced by `cid:`: it travels with the email, shows without asking the
+ * network for anything, and weighs 2 KB.
  *
- * 56 × 56 pixels pour un affichage à 28 : net sur un écran haute densité.
+ * 56 × 56 pixels for a display at 28: sharp on a high-density screen.
  */
 
-/** Une image jointe au message et affichée dans le HTML par son `cid`. */
+/** An image attached to the message and shown in the HTML by its `cid`. */
 export type InlineImage = {
   filename: string;
   contentType: 'image/png';
-  /** Référencé dans le HTML par `src="cid:…"`. */
+  /** Referenced in the HTML by `src="cid:…"`. */
   cid: string;
   /** Octets de l'image, en base64. */
   content: string;
@@ -61,9 +61,9 @@ export const BRAND_MARK: InlineImage = {
 };
 
 /**
- * Les teintes du design system (thème clair), en dur : un client d'e-mail ne
- * lit ni variable CSS ni feuille externe. Même source que `tokens/`, mêmes
- * noms que les variables du panel.
+ * The design system's tints (light theme), hard-coded: an email client reads
+ * neither CSS variables nor external sheets. Same source as `tokens/`, same names
+ * as the panel's variables.
  */
 export const EMAIL_COLORS = {
   bg: '#F7F8FA',
@@ -80,7 +80,7 @@ export const EMAIL_COLORS = {
   dangerText: '#A6251A',
 } as const;
 
-/** Échappement HTML. Le nom d'instance vient des réglages : rien n'est sûr. */
+/** HTML escaping. The instance's name comes from the settings: nothing is safe. */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -90,11 +90,11 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * L'en-tête de marque : la tuile, puis le nom de l'instance.
+ * The brand header: the tile, then the instance's name.
  *
- * Une table plutôt qu'un `flex` : c'est la seule mise en page côte à côte
- * qu'Outlook respecte. Le nom d'instance est ce qui distingue deux panels ;
- * la tuile dit seulement d'où vient le message — d'où son `alt`.
+ * A table rather than a `flex`: it is the only side-by-side layout Outlook
+ * respects. The instance's name is what tells two panels apart; the tile only
+ * says where the message comes from — hence its `alt`.
  */
 export function brandHeaderHtml(instance: string): string {
   return (

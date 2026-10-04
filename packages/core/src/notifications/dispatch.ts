@@ -10,20 +10,20 @@ import {
 } from './events.js';
 
 /**
- * Le branchement entre le journal d'audit et la file des notifications.
+ * The connection between the audit log and the notifications queue.
  *
- * Il vit ici, et non dans le panel ou dans le worker, parce que les deux
- * processus écrivent dans `audit_logs` et doivent se comporter **exactement**
- * pareil : un déploiement en échec est tracé par le worker, un changement de
- * rôle par le panel. Deux copies de cette logique finiraient par diverger, et
- * la divergence se verrait sous la forme d'un incident non notifié.
+ * It lives here, and not in the panel or the worker, because both processes
+ * write into `audit_logs` and must behave **exactly** the same: a failed
+ * deployment is recorded by the worker, a role change by the panel. Two copies
+ * of this logic would end up diverging, and the divergence would show as an
+ * incident not notified.
  *
- * Ce module ne connaît ni BullMQ, ni Redis, ni `@pupitre/db` : il reçoit une
- * fonction d'enfilement. C'est ce qui lui permet de vivre à la racine de
- * `@pupitre/core`, donc d'être appelable des deux côtés.
+ * This module knows neither BullMQ, nor Redis, nor `@pupitre/db`: it receives a
+ * queuing function. That is what lets it live at the root of `@pupitre/core`,
+ * hence be callable from both sides.
  */
 
-/** Une ligne d'`audit_logs`, décrite structurellement. */
+/** An `audit_logs` row, described structurally. */
 export type AuditRowLike = {
   id: string;
   action: string;
@@ -43,14 +43,14 @@ export type NotificationEnqueue = (
 ) => Promise<unknown>;
 
 /**
- * Fabrique l'observateur à poser sur `setAuditObserver()`.
+ * Builds the observer to set on `setAuditObserver()`.
  *
- * Il est **synchrone** et rend la main immédiatement : l'enfilement part en
- * tâche de fond, et son échec est rapporté sur `onError` sans jamais remonter.
- * Une notification qui ne part pas ne doit pas casser l'action qu'elle décrit —
- * c'est la même règle que pour `logAudit()` lui-même. Mais elle ne doit pas
- * échouer en silence non plus : d'où `onError`, qui n'a pas de valeur par
- * défaut, pour qu'aucun appelant ne puisse l'oublier.
+ * It is **synchronous** and returns immediately: queuing goes on in the
+ * background, and its failure is reported on `onError` without ever bubbling
+ * up. A notification that does not go out must not break the action it
+ * describes — the same rule as for `logAudit()` itself. But it must not fail
+ * silently either: hence `onError`, which has no default value, so that no
+ * caller can forget it.
  */
 export function auditNotificationObserver(
   enqueue: NotificationEnqueue,

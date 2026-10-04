@@ -5,73 +5,73 @@ import type { JSONValue, LanguageModel } from 'ai';
 import { aiProviderDescriptor, type AiProvider } from './catalog.js';
 
 /**
- * Fabrique de fournisseurs d'IA.
+ * AI provider factory.
  *
- * Même forme que `getDriver()` et `getScanner()` : un registre indexé par la
- * clé, une implémentation par fournisseur, et **aucun** `if (provider === …)`
- * ailleurs dans le projet. Ajouter un fournisseur, c'est ajouter une entrée
- * ici et son descripteur dans `catalog.ts` ; rien d'autre ne bouge.
+ * The same shape as `getDriver()` and `getScanner()`: a registry indexed by key,
+ * one implementation per provider, and **no** `if (provider === …)` elsewhere in
+ * the project. Adding a provider means adding an entry here and its descriptor
+ * in `catalog.ts`; nothing else moves.
  *
- * Le type `Record<AiProvider, …>` est la garantie : un fournisseur déclaré au
- * catalogue sans fabrique ne compile pas.
+ * The `Record<AiProvider, …>` type is the guarantee: a provider declared in the
+ * catalog without a factory does not compile.
  *
- * ── Le mode strict des sorties structurées ───────────────────────────────────
- * Ce que la fabrique porte n'est pas seulement « comment instancier », c'est
- * aussi « ce que ce fournisseur sait avaler ». Cas réel, remonté par un
- * utilisateur avec une vraie clé OpenAI :
+ * ── Structured outputs' strict mode ──────────────────────────────────────────
+ * What the factory carries is not only "how to instantiate", it is also "what
+ * this provider can swallow". A real case, reported by a user with a real OpenAI
+ * key:
  *
  *   Invalid schema for response_format 'AppSpec': In context=('properties',
  *   'services', 'items', 'properties', 'source'), 'oneOf' is not permitted.
  *
- * L'AppSpec décrit `source` par un `z.discriminatedUnion`, que Zod traduit en
- * `oneOf`. Le mode strict d'OpenAI n'accepte que `anyOf` — et exige en plus
- * `additionalProperties: false` partout, toutes les propriétés dans `required`,
- * et refuse `default`, `minimum`, `maximum`, dont l'AppSpec est pleine.
+ * The AppSpec describes `source` with a `z.discriminatedUnion`, which Zod
+ * translates into `oneOf`. OpenAI's strict mode only accepts `anyOf` — and also
+ * requires `additionalProperties: false` everywhere, every property in
+ * `required`, and refuses `default`, `minimum`, `maximum`, which the AppSpec is
+ * full of.
  *
- * Deux voies : appauvrir l'AppSpec pour la faire entrer dans le moule d'un
- * fournisseur — c'est-à-dire maintenir un schéma parallèle à reconstruire à
- * chaque évolution — ou désactiver le mode strict. On désactive. Ce qu'on perd
- * est une garantie dont ce code ne dépend pas : `generateAppSpec()` valide
- * déjà la réponse avec Zod et relance sur erreur. C'est le dispositif de la
- * règle 4 de CLAUDE.md — le modèle produit du JSON, **notre code le valide**.
- * La validation côté fournisseur était une ceinture en plus, pas la ceinture.
+ * Two ways: impoverish the AppSpec to fit it into one provider's mold — that is
+ * maintain a parallel schema to rebuild at each change — or disable strict mode.
+ * We disable it. What we lose is a guarantee this code does not depend on:
+ * `generateAppSpec()` already validates the response with Zod and retries on
+ * error. It is the mechanism of rule 4 in CLAUDE.md — the model produces JSON,
+ * **our code validates it**. The provider-side validation was an extra belt, not
+ * the belt.
  *
- * Et puisque c'est une propriété du fournisseur, elle est déclarée ici, dans sa
- * fabrique — pas dans `generate.ts`, qui ne doit rien savoir de qui répond.
- * Chaque fournisseur l'exprime d'ailleurs à sa façon : OpenAI par une option
- * d'appel, OpenRouter par un réglage de modèle, Anthropic pas du tout (il passe
- * par l'appel d'outil, dont le schéma n'est pas soumis au même moule).
+ * And since it is a property of the provider, it is declared here, in its
+ * factory — not in `generate.ts`, which must know nothing about who answers.
+ * Each provider expresses it its own way, by the way: OpenAI through a call
+ * option, OpenRouter through a model setting, Anthropic not at all (it goes
+ * through tool calling, whose schema is not subject to the same mold).
  */
 
 export type ProviderCredentials = {
   apiKey: string;
-  /** Seulement pour les fournisseurs qui l'acceptent (cf. `supportsBaseUrl`). */
+  /** Only for the providers that accept it (see `supportsBaseUrl`). */
   baseUrl?: string | undefined;
 };
 
 /**
- * Options d'appel propres au fournisseur, indexées par son identifiant dans le
- * SDK. `generateObject` les transmet telles quelles et ignore celles qui ne
- * concernent pas le modèle utilisé : l'appelant n'a donc jamais à savoir
- * lesquelles s'appliquent.
+ * Provider-specific call options, indexed by its identifier in the SDK.
+ * `generateObject` passes them on as is and ignores those that do not concern
+ * the model used: the caller therefore never has to know which apply.
  */
 export type ProviderCallOptions = Record<string, Record<string, JSONValue>>;
 
-/** Un modèle prêt à l'emploi, et ce qu'il faut passer à l'appel pour lui. */
+/** A ready-to-use model, and what must be passed to the call for it. */
 export type ConfiguredModel = {
   model: LanguageModel;
   callOptions: ProviderCallOptions;
 };
 
-/** Une fabrique rend un sélecteur de modèle, pas un modèle : le nom vient après. */
+/** A factory returns a model selector, not a model: the name comes after. */
 export type AiProviderFactory = (
   credentials: ProviderCredentials,
 ) => (modelName: string) => ConfiguredModel;
 
 const registry: Record<AiProvider, AiProviderFactory> = {
-  // OpenRouter achemine vers des fournisseurs tiers, dont OpenAI : le même mur
-  // se dresse selon le modèle routé. Le réglage se pose ici à la construction
-  // du modèle, et non en option d'appel — c'est la forme que le paquet expose.
+  // OpenRouter routes to third-party providers, OpenAI among them: the same wall
+  // rises depending on the routed model. The setting is set here when building
+  // the model, and not as a call option — it is the shape the package exposes.
   openrouter: ({ apiKey }) => {
     const provider = createOpenRouter({ apiKey });
     return (modelName) => ({
@@ -79,9 +79,9 @@ const registry: Record<AiProvider, AiProviderFactory> = {
       callOptions: {},
     });
   },
-  // `.chat()` et non l'appel direct : l'API Chat Completions est celle que
-  // réimplémentent les serveurs compatibles OpenAI, donc la seule qui tienne
-  // quand `baseUrl` pointe ailleurs que chez OpenAI.
+  // `.chat()` and not the direct call: the Chat Completions API is the one
+  // OpenAI-compatible servers reimplement, hence the only one that holds when
+  // `baseUrl` points elsewhere than OpenAI.
   openai: ({ apiKey, baseUrl }) => {
     const provider = createOpenAI({
       apiKey,
@@ -106,9 +106,9 @@ export function getAiProviderFactory(provider: AiProvider): AiProviderFactory {
 }
 
 /**
- * Instancie le modèle d'un fournisseur. L'URL de base n'est transmise qu'aux
- * fournisseurs qui la déclarent : la donner ailleurs serait l'ignorer en
- * silence, ce qui est pire que de ne pas la proposer.
+ * Instantiates a provider's model. The base URL is only passed to the providers
+ * that declare it: giving it elsewhere would silently ignore it, which is worse
+ * than not offering it.
  */
 export function instantiateModel(
   provider: AiProvider,

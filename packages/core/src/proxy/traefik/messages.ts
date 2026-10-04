@@ -1,7 +1,7 @@
 import { translator, type Translate, type Translated, type UiLanguage } from '../../i18n.js';
 import { proxyCopy } from '../messages.js';
 
-/** Ce que dit Traefik, dans la langue de l'instance. Voir `../messages.ts`. */
+/** What Traefik says, in the instance's language. See `../messages.ts`. */
 const fr = {
   ...proxyCopy.fr,
 

@@ -3,35 +3,35 @@ import { acmeSettingsSchema, type ProxyDescriptor } from '../model.js';
 import type { ProbeSignatures } from '../probe.js';
 
 /**
- * BunkerWeb — sa configuration de connexion, et ce qu'il dit de lui-même.
- * Rien n'est exécuté ici : l'écran l'importe, comme le worker.
+ * BunkerWeb — its connection configuration, and what it says about itself.
+ * Nothing runs here: the screen imports it, as does the worker.
  *
- * Pupitre le pilote par son API REST (`SERVICE_API=yes`), appelée **depuis sa
- * machine** par SSH. Le jeton de l'API n'est pas dans cette configuration : il
- * est lu dans le conteneur à chaque appel, sans jamais quitter la machine — ni
- * base, ni navigateur, ni journal.
+ * Pupitre drives it through its REST API (`SERVICE_API=yes`), called **from its
+ * machine** over SSH. The API token is not in this configuration: it is read in
+ * the container at each call, without ever leaving the machine — neither
+ * database, nor browser, nor log.
  */
 
-/** Les autorités que BunkerWeb sait interroger : Let's Encrypt et ZeroSSL, pas d'autre URL. */
+/** The authorities BunkerWeb can query: Let's Encrypt and ZeroSSL, no other URL. */
 export const BUNKERWEB_ACME_SERVERS = ['production', 'staging', 'zerossl'] as const;
 
 export const bunkerwebConfigSchema = z.object({
-  /** Le conteneur qui reçoit les visiteurs : le tout-en-un, ou `bunkerweb`. */
+  /** The container that receives visitors: the all-in-one, or `bunkerweb`. */
   container: z.string().min(1).max(128),
-  /** Le conteneur de l'API — le même en tout-en-un. Son jeton y est lu à chaque appel. */
+  /** The API's container — the same with the all-in-one. Its token is read there at each call. */
   apiContainer: z.string().min(1).max(128),
   apiPort: z.number().int().min(1).max(65_535).default(8888),
   /**
-   * L'adresse IP par laquelle BunkerWeb joint un port publié sur sa machine :
-   * la passerelle Docker, ou `127.0.0.1` en réseau hôte. Une IP et pas un nom :
-   * son nginx résout par DNS, pas par `/etc/hosts`.
+   * The IP address through which BunkerWeb reaches a port published on its
+   * machine: the Docker gateway, or `127.0.0.1` on the host network. An IP and
+   * not a name: its nginx resolves through DNS, not through `/etc/hosts`.
    */
   upstreamHost: z.string().min(1).max(255),
-  /** Image du BunkerWeb installé par Pupitre. */
+  /** Image of the BunkerWeb installed by Pupitre. */
   image: z.string().max(200).nullable().default(null),
-  /** Installé par Pupitre : sa désinstallation retire le conteneur et ses données. */
+  /** Installed by Pupitre: its uninstall removes the container and its data. */
   managed: z.boolean().default(false),
-  /** Renseigné quand Pupitre règle les certificats : réglé domaine par domaine. */
+  /** Filled in when Pupitre sets the certificates: set domain by domain. */
   acme: acmeSettingsSchema
     .refine((acme) => acme.server !== 'custom', {
       message: 'BunkerWeb n’accepte que Let’s Encrypt ou ZeroSSL',
@@ -66,9 +66,9 @@ export const bunkerwebDescriptor: ProxyDescriptor<BunkerWebConfig> = {
 };
 
 /**
- * Ce que BunkerWeb sert à un nom qu'il ne connaît pas — sa page par défaut, en
- * **200** —, et le certificat auto-signé qu'il présente tant qu'il n'en a pas
- * obtenu un vrai.
+ * What BunkerWeb serves to a name it does not know — its default page, as a
+ * **200** —, and the self-signed certificate it presents until it has obtained
+ * a real one.
  */
 export const BUNKERWEB_PROBE: ProbeSignatures = {
   noRouteBody: 'utm_source=bwdefault',

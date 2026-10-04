@@ -23,16 +23,16 @@ import type { UiLanguage } from '../i18n.js';
 import { sshSay } from './messages.js';
 
 /**
- * Preflight d'une machine cible.
+ * A target machine's preflight.
  *
- * Règle de conception : **chaque contrôle est indépendant**. Un `kubectl`
- * absent marque K3s indisponible, il ne fait pas échouer le preflight.
- * Seule l'impossibilité d'ouvrir la session SSH est fatale.
+ * Design rule: **each check is independent**. A missing `kubectl` marks K3s
+ * unavailable, it does not fail the preflight. Only the impossibility of opening
+ * the SSH session is fatal.
  */
 
 const CHECK_TIMEOUT_MS = 15_000;
 
-/** Exécute un contrôle en capturant son échec au lieu de le propager. */
+/** Runs a check capturing its failure instead of propagating it. */
 async function runCheck<T>(
   checks: PreflightCheck[],
   key: string,
@@ -81,7 +81,7 @@ function parseOsRelease(content: string): { name: string | null; version: string
   };
 }
 
-/** `df -Pk /` — le format POSIX est stable, contrairement à `df -h`. */
+/** `df -Pk /` — the POSIX format is stable, unlike `df -h`. */
 function parseDf(output: string): DiskInfo | null {
   const lines = output.trim().split('\n');
   const row = lines[lines.length - 1];
@@ -117,7 +117,7 @@ function parseFree(output: string): MemoryInfo | null {
   const total = Number.parseInt(columns[1] ?? '', 10);
   const used = Number.parseInt(columns[2] ?? '', 10);
   const free = Number.parseInt(columns[3] ?? '', 10);
-  // `available` est la 7e colonne sur les `free` récents, absente sur les anciens.
+  // `available` is the 7th column on recent `free`, absent on old ones.
   const available = Number.parseInt(columns[6] ?? columns[3] ?? '', 10);
 
   if ([total, used, free].some(Number.isNaN)) return null;
@@ -167,7 +167,7 @@ function parseKubectlNodes(json: string): {
 }
 
 async function probeTools(session: SshSession): Promise<Tools> {
-  // Un seul aller-retour pour les cinq binaires.
+  // A single round trip for the five binaries.
   const result = await exec(
     session,
     'for b in ufw curl git docker kubectl; do ' +
@@ -193,12 +193,12 @@ async function probeTools(session: SshSession): Promise<Tools> {
 }
 
 /**
- * État du pare-feu et règles posées par le panel.
+ * Firewall state and rules set by the panel.
  *
- * Les règles sont reconnues à leur commentaire `pupitre:` — le même marqueur
- * que celui posé par le driver, plus celui d'avant le renommage. C'est ce qui permet à l'UI de montrer
- * ce que le panel a ouvert sans le confondre avec ce que l'administrateur de la
- * machine a ouvert lui-même.
+ * The rules are recognized by their `pupitre:` comment — the same marker as the
+ * one the driver sets, plus the one from before the renaming. That is what lets
+ * the UI show what the panel opened without confusing it with what the
+ * machine's administrator opened themselves.
  */
 async function probeFirewall(session: SshSession, installed: boolean): Promise<FirewallInfo> {
   if (!installed) return { installed: false, active: false, managedRules: [] };
@@ -219,9 +219,9 @@ async function probeFirewall(session: SshSession, installed: boolean): Promise<F
 }
 
 /**
- * Déduit le statut global.
- * `ok` : au moins un runtime exploitable. `degraded` : la machine répond mais
- * rien n'est déployable dessus. `unreachable` : session SSH impossible.
+ * Derives the overall status.
+ * `ok`: at least one usable runtime. `degraded`: the machine answers but nothing
+ * can be deployed on it. `unreachable`: SSH session impossible.
  */
 function deriveStatus(runtimes: RuntimesAvailable, checks: PreflightCheck[]): TargetHealth {
   const hasRuntime =
@@ -254,7 +254,7 @@ export async function runPreflight(
       error: null,
     });
   } catch (error) {
-    // Seul échec fatal : sans session, aucun autre contrôle n'a de sens.
+    // The only fatal failure: without a session, no other check makes sense.
     const message =
       error instanceof SshAuthError
         ? say('auth.refused.short')

@@ -31,22 +31,21 @@ import {
 } from './types.js';
 
 /**
- * E-mail, par un serveur SMTP.
+ * Email, through an SMTP server.
  *
- * Le message part en deux versions : `text/plain` et `text/html`, dans le même
- * message multipart. Ce n'est pas un luxe — un client en mode texte, un relais
- * qui déshabille le HTML, une notification de téléphone qui n'en montre que le
- * début : dans les trois cas c'est la version texte qui est lue.
+ * The message goes out in two versions: `text/plain` and `text/html`, in the
+ * same multipart message. It is not a luxury — a text-mode client, a relay that
+ * strips HTML, a phone notification that only shows the beginning: in all three
+ * cases it is the text version that is read.
  *
- * Le HTML est écrit **ici**, et nulle part ailleurs. C'est le point de contrôle
- * de l'abstraction : le jour où l'appelant compose du HTML, c'est que la
- * couche a fui.
+ * The HTML is written **here**, and nowhere else. It is the abstraction's
+ * checkpoint: the day the caller composes HTML, the layer has leaked.
  */
 
 /**
- * Ce que ce canal ajoute autour du message neutre. Trois phrases : le mot qui
- * marque un résumé dans l'en-tête, le verdict de la poignée de main, et le
- * refus quand aucun destinataire n'est configuré.
+ * What this channel adds around the neutral message. Three sentences: the word
+ * that marks a digest in the header, the handshake's verdict, and the refusal
+ * when no recipient is configured.
  */
 const fr = {
   'digestTag': 'résumé',
@@ -66,7 +65,7 @@ function t(language: UiLanguage, key: keyof typeof fr, vars?: Record<string, str
   return renderMessage(SMTP_TEXT, language, key, vars);
 }
 
-/** Échappement HTML. Le contenu vient d'une erreur de déploiement : rien n'est sûr. */
+/** HTML escaping. The content comes from a deployment error: nothing is safe. */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -76,13 +75,13 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * Teinte de l'encadré et de l'étiquette, par gravité : la couleur dit l'état,
- * et rien d'autre. Le filet prend la teinte pleine, l'étiquette sa variante
- * lisible sur blanc.
+ * Tint of the box and the label, per severity: the color says the state, and
+ * nothing else. The rule takes the full tint, the label its variant readable on
+ * white.
  *
- * En dur plutôt que par variables CSS : les clients d'e-mail ne connaissent ni
- * les variables, ni les feuilles externes, ni la moitié des sélecteurs. Le
- * style en ligne est le seul qui traverse.
+ * Hard-coded rather than through CSS variables: email clients know neither
+ * variables, nor external sheets, nor half of the selectors. Inline style is the
+ * only one that gets through.
  */
 const ACCENT: Record<NotificationMessage['severity'], { line: string; text: string }> = {
   info: { line: EMAIL_COLORS.accent, text: EMAIL_COLORS.accentText },
@@ -126,15 +125,15 @@ function renderHtml(message: NotificationMessage): string {
 }
 
 /**
- * Le résumé, en HTML.
+ * The digest, in HTML.
  *
- * L'e-mail est le seul canal qui peut **tout** lister : on y déroule donc
- * l'intégralité des lignes retenues, sans troncature de politesse. C'est
- * précisément sa valeur dans le dispositif — quand Telegram dit « et 42
- * autres », c'est dans la boîte de réception qu'on va lire lesquelles.
+ * Email is the only channel that can list **everything**: we therefore unroll
+ * all the held lines, without a courtesy truncation. That is precisely its value
+ * in the mechanism — when Telegram says "and 42 others", it is in the inbox that
+ * one goes to read which.
  *
- * Une `<ol>` et non une `<table>` : la liste peut faire cent lignes, et une
- * table de cent lignes à deux colonnes est illisible sur un téléphone.
+ * An `<ol>` and not a `<table>`: the list can be a hundred lines long, and a
+ * two-column table of a hundred lines is unreadable on a phone.
  */
 function renderDigestHtml(digest: NotificationDigest): string {
   const items = digest.items
@@ -173,12 +172,12 @@ function renderDigestHtml(digest: NotificationDigest): string {
 }
 
 /**
- * Transport par défaut : nodemailer.
+ * Default transport: nodemailer.
  *
- * Isolé derrière `SmtpTransportFactory` pour que la couche soit vérifiable sans
- * serveur — un test fournit un faux qui enregistre l'enveloppe. C'est aussi ce
- * qui garde `nodemailer` hors du graphe du panel Next : il n'est chargé que
- * lorsqu'un envoi part réellement, dans le worker.
+ * Isolated behind `SmtpTransportFactory` so that the layer is testable without a
+ * server — a test provides a fake that records the envelope. It is also what
+ * keeps `nodemailer` out of the Next panel's graph: it is only loaded when a
+ * send really goes out, in the worker.
  */
 export const nodemailerTransport: SmtpTransportFactory = (options) => {
   const transporter = nodemailer.createTransport({
@@ -205,7 +204,7 @@ export const nodemailerTransport: SmtpTransportFactory = (options) => {
         text: envelope.text,
         html: envelope.html,
         headers: envelope.headers,
-        // Les images du HTML voyagent avec le message, référencées par `cid:`.
+        // The HTML's images travel with the message, referenced by `cid:`.
         attachments: (envelope.inlineImages ?? []).map((image) => ({
           filename: image.filename,
           content: Buffer.from(image.content, 'base64'),
@@ -227,21 +226,20 @@ function str(config: ChannelConfig, key: string): string {
 }
 
 /**
- * Les réglages de connexion, dérivés du champ « Chiffrement ».
+ * The connection settings, derived from the "Encryption" field.
  *
- * `secure` (SMTPS implicite) et `requireTLS` (STARTTLS obligatoire) ne sont
- * pas interchangeables : le premier ouvre la session déjà chiffrée, le second
- * l'élève après le premier échange et **échoue** si le serveur ne le propose
- * pas. Laisser nodemailer choisir opportunistement reviendrait à accepter en
- * silence une session en clair sur un serveur mal configuré.
+ * `secure` (implicit SMTPS) and `requireTLS` (mandatory STARTTLS) are not
+ * interchangeable: the first opens the session already encrypted, the second
+ * upgrades it after the first exchange and **fails** if the server does not offer
+ * it. Letting nodemailer choose opportunistically would amount to silently
+ * accepting a clear-text session on a misconfigured server.
  *
- * Fonction exportée plutôt que méthode privée depuis que les e-mails
- * transactionnels du cycle de vie des comptes (invitation, réinitialisation)
- * **empruntent le transport** d'un canal SMTP sans emprunter son destinataire.
- * Les deux chemins doivent dériver les mêmes réglages de la même configuration :
- * une seconde copie de ces six lignes finirait par diverger, et la divergence
- * s'appellerait « les invitations partent en clair alors que les alertes sont
- * chiffrées ».
+ * An exported function rather than a private method since the transactional
+ * emails of the accounts' life cycle (invitation, reset) **borrow the
+ * transport** of an SMTP channel without borrowing its recipient. Both paths must
+ * derive the same settings from the same configuration: a second copy of these
+ * six lines would end up diverging, and the divergence would be called
+ * "invitations go out in clear while alerts are encrypted".
  */
 export function smtpOptionsFrom(
   resolved: ResolvedChannelConfig,
@@ -264,7 +262,7 @@ export function smtpOptionsFrom(
   };
 }
 
-/** Adresse d'expéditeur déclarée sur le canal. Vide si le canal n'en porte pas. */
+/** Sender address declared on the channel. Empty if the channel carries none. */
 export function smtpSenderFrom(resolved: ResolvedChannelConfig): string {
   return str(resolved.config, 'from');
 }
@@ -314,14 +312,14 @@ export class SmtpChannel implements NotificationChannel {
       await transport.send({
         from: str(resolved.config, 'from'),
         to: recipients,
-        // Le nom de l'instance en tête du sujet : c'est ce qui permet de trier
-        // dans une boîte qui reçoit les alertes de plusieurs panels.
+        // The instance's name at the start of the subject: it is what allows sorting in
+        // an inbox that receives alerts from several panels.
         subject: `[${message.instance}] ${message.title}`,
         text: renderPlainText(message),
         html: renderHtml(message),
         inlineImages: [BRAND_MARK],
-        // En-têtes de service : ils rendent le filtrage possible côté client
-        // d'e-mail, et le désabonnement d'une liste n'a pas de sens ici.
+        // Service headers: they make filtering possible on the email client side, and
+        // list unsubscription makes no sense here.
         headers: {
           'X-Control-Plane-Event': message.event,
           'X-Control-Plane-Severity': message.severity,
@@ -341,13 +339,13 @@ export class SmtpChannel implements NotificationChannel {
   }
 
   /**
-   * Le résumé emprunte exactement le même chemin que l'alerte unitaire : même
-   * enveloppe, mêmes en-têtes de service, deux parties. Seule la mise en forme
-   * change — une liste au lieu d'un tableau de champs.
+   * The digest takes exactly the same path as the single alert: same envelope,
+   * same service headers, two parts. Only the formatting changes — a list instead
+   * of a table of fields.
    *
-   * Le sujet annonce le nombre : `[Panel] 12 × Déploiement en échec — résumé`.
-   * C'est ce que lit un opérateur dans la liste de sa boîte, avant même
-   * d'ouvrir, et c'est ce qui doit lui dire que douze incidents l'attendent.
+   * The subject announces the number: `[Panel] 12 × Deployment failed — digest`.
+   * It is what an operator reads in their inbox's list, even before opening, and
+   * it is what must tell them twelve incidents are waiting.
    */
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     const recipients = splitMailboxList(str(resolved.config, 'to'));
@@ -365,16 +363,16 @@ export class SmtpChannel implements NotificationChannel {
         from: str(resolved.config, 'from'),
         to: recipients,
         subject: `[${digest.instance}] ${digest.title}`,
-        // Aucune borne : l'e-mail est le canal qui liste tout. Les canaux
-        // courts renvoient ici implicitement, par leur « et N autres ».
+        // No cap: email is the channel that lists everything. The short channels
+        // implicitly point here, through their "and N others".
         text: renderDigestPlainText(digest),
         html: renderDigestHtml(digest),
         inlineImages: [BRAND_MARK],
         headers: {
           'X-Control-Plane-Event': digest.event,
           'X-Control-Plane-Severity': digest.severity,
-          // En-têtes propres au résumé : un filtre côté client peut ranger les
-          // résumés ailleurs que les alertes, ce qui est un besoin réel.
+          // Digest-specific headers: a client-side filter can store digests elsewhere
+          // than alerts, which is a real need.
           'X-Control-Plane-Digest': 'true',
           'X-Control-Plane-Digest-Count': String(digest.count),
           'Auto-Submitted': 'auto-generated',

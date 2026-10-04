@@ -16,38 +16,39 @@ import {
 } from '../monitors/capture.js';
 
 /**
- * Le pilote du navigateur de capture — en CDP brut, par WebSocket.
+ * The capture browser's driver — in raw CDP, over WebSocket.
  *
- * ── Pourquoi pas Playwright ─────────────────────────────────────────────────
- * Playwright apporterait des attentes plus riches (`networkidle`, sélecteurs)
- * dont on n'a pas l'usage ici : on charge une page et on tire. En échange il
- * apporterait une dépendance npm de plusieurs mégaoctets **et** un couplage de
- * version dur avec l'image du navigateur — `playwright.connect()` refuse de
- * parler à un serveur d'une autre version, ce qui transforme toute mise à jour
- * du navigateur en mise à jour synchronisée de deux choses.
+ * ── Why not Playwright ──────────────────────────────────────────────────────
+ * Playwright would bring richer waits (`networkidle`, selectors) we have no use
+ * for here: we load a page and shoot. In exchange it would bring an npm
+ * dependency of several megabytes **and** a hard version coupling with the
+ * browser image — `playwright.connect()` refuses to talk to a server of another
+ * version, which turns any browser update into a synchronized update of two
+ * things.
  *
- * Le protocole DevTools, lui, est stable depuis des années sur les quelques
- * commandes utilisées ici, et Node 24 fournit `fetch` et `WebSocket` en global.
- * Le worker ne gagne donc **aucune** dépendance, et son image ne bouge pas d'un
- * octet — ce qui était l'autre moitié du problème, l'image faisant déjà 1,88 Go.
+ * The DevTools protocol, on the other hand, has been stable for years on the few
+ * commands used here, and Node 24 provides `fetch` and `WebSocket` as globals.
+ * The worker therefore gains **no** dependency, and its image does not move by
+ * a byte — which was the other half of the problem, the image already weighing
+ * 1.88 GB.
  *
- * ── Deux détails qui font perdre une heure quand on les ignore ──────────────
+ * ── Two details that cost an hour when ignored ──────────────────────────────
  *
- *  1. **L'en-tête `Host`.** Le point d'entrée DevTools refuse toute requête
- *     dont le `Host` n'est ni une adresse IP ni `localhost` — c'est sa
- *     protection contre le rebinding DNS. Un `fetch('http://capture-browser:9222')`
- *     se fait donc fermer au nez. On résout le nom nous-mêmes et on parle à
- *     l'adresse littérale : le `Host` devient une IP, et c'est accepté.
- *  2. **L'adresse annoncée.** Le navigateur écoute sur `127.0.0.1` derrière un
- *     relais, et annonce donc une `webSocketDebuggerUrl` en `127.0.0.1` —
- *     inutilisable depuis l'extérieur. On réécrit l'hôte, on garde le chemin
- *     (il porte l'identifiant de session).
+ *  1. **The `Host` header.** The DevTools endpoint refuses any request whose
+ *     `Host` is neither an IP address nor `localhost` — it is its protection
+ *     against DNS rebinding. A `fetch('http://capture-browser:9222')` therefore
+ *     gets the door shut in its face. We resolve the name ourselves and talk to
+ *     the literal address: the `Host` becomes an IP, and it is accepted.
+ *  2. **The announced address.** The browser listens on `127.0.0.1` behind a
+ *     relay, and therefore announces a `webSocketDebuggerUrl` on `127.0.0.1` —
+ *     unusable from outside. We rewrite the host, we keep the path (it carries
+ *     the session identifier).
  *
- * Aucune de ces deux résolutions ne passe par `resolveGuarded()`, et c'est
- * volontaire : ce n'est pas une cible supervisée fournie par un utilisateur,
- * c'est notre propre conteneur, désigné par la configuration de déploiement. La
- * garde SSRF s'applique à ce que le **navigateur** va chercher — voir
- * `egress.ts`, qui la lui applique sur chaque requête.
+ * Neither of these two resolutions goes through `resolveGuarded()`, and it is
+ * deliberate: it is not a monitored target provided by a user, it is our own
+ * container, designated by the deployment configuration. The SSRF guard applies
+ * to what the **browser** fetches — see `egress.ts`, which applies it to each
+ * request.
  */
 
 type CdpMessage = {
@@ -111,7 +112,7 @@ class CdpConnection {
         reject,
       });
       setTimeout(() => {
-        if (this.#pending.delete(id)) reject(new Error(`${method} sans réponse`));
+        if (this.#pending.delete(id)) reject(new Error(`${method} got no answer`));
       }, timeoutMs).unref?.();
     });
   }
@@ -125,12 +126,12 @@ class CdpConnection {
     try {
       this.#socket.close();
     } catch {
-      /* la fermeture d'une socket déjà morte n'apprend rien */
+      /* closing an already dead socket teaches nothing */
     }
   }
 }
 
-/** Le point d'entrée du navigateur, résolu et réécrit. */
+/** The browser's endpoint, resolved and rewritten. */
 async function browserEndpoint(cdpUrl: string): Promise<{ ws: string; browser: string }> {
   const configured = new URL(cdpUrl);
   const port = configured.port === '' ? '9222' : configured.port;
@@ -140,13 +141,13 @@ async function browserEndpoint(cdpUrl: string): Promise<{ ws: string; browser: s
   const response = await fetch(`http://${authority}/json/version`, {
     signal: AbortSignal.timeout(5_000),
   });
-  if (!response.ok) throw new Error(`/json/version a répondu ${response.status}`);
+  if (!response.ok) throw new Error(`/json/version answered ${response.status}`);
   const body = (await response.json()) as { Browser?: string; webSocketDebuggerUrl?: string };
-  if (!body.webSocketDebuggerUrl) throw new Error('/json/version sans webSocketDebuggerUrl');
+  if (!body.webSocketDebuggerUrl) throw new Error('/json/version without webSocketDebuggerUrl');
 
   const ws = new URL(body.webSocketDebuggerUrl);
   ws.host = authority;
-  return { ws: ws.toString(), browser: body.Browser ?? 'inconnu' };
+  return { ws: ws.toString(), browser: body.Browser ?? 'unknown' };
 }
 
 function openSocket(url: string, timeoutMs: number): Promise<WebSocket> {
@@ -156,9 +157,9 @@ function openSocket(url: string, timeoutMs: number): Promise<WebSocket> {
       try {
         socket.close();
       } catch {
-        /* rien à faire */
+        /* nothing to do */
       }
-      reject(new Error('poignée de main WebSocket expirée'));
+      reject(new Error('WebSocket handshake timed out'));
     }, timeoutMs);
     timer.unref?.();
     socket.addEventListener('open', () => {
@@ -167,25 +168,25 @@ function openSocket(url: string, timeoutMs: number): Promise<WebSocket> {
     });
     socket.addEventListener('error', () => {
       clearTimeout(timer);
-      reject(new Error('connexion WebSocket au navigateur refusée'));
+      reject(new Error('WebSocket connection to the browser refused'));
     });
   });
 }
 
 export type CaptureOptions = {
-  /** `http://capture-browser:9222`. Absent = la capture est éteinte. */
+  /** `http://capture-browser:9222`. Absent = capture is off. */
   cdpUrl: string;
   url: string;
   budgetMs?: number;
 };
 
 /**
- * Rend une page et en produit une image. **Ne lève jamais.**
+ * Renders a page and produces an image of it. **Never throws.**
  *
- * Tout ce qui peut mal tourner — navigateur éteint, page qui ne charge pas,
- * image trop lourde — sort par la branche perdante de `CaptureOutcome`. Une
- * capture manquante n'est pas un incident : la sonde a déjà tranché, l'alerte
- * est déjà partie. C'est un supplément, et un supplément qui échoue se tait.
+ * Everything that can go wrong — browser off, page that does not load, image
+ * too heavy — goes out through `CaptureOutcome`'s losing branch. A missing
+ * capture is not an incident: the probe has already decided, the alert has
+ * already gone out. It is an extra, and an extra that fails keeps quiet.
  */
 export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcome> {
   const budgetMs = options.budgetMs ?? MONITOR_CAPTURE_BUDGET_MS;
@@ -220,12 +221,12 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
 
   try {
     /**
-     * Un **contexte de navigation neuf par capture**, jeté aussitôt après.
+     * A **new browsing context per capture**, thrown away right after.
      *
-     * C'est l'équivalent d'une fenêtre privée : ni cookie, ni stockage local,
-     * ni cache partagés entre deux sites supervisés. Sans quoi un site hostile
-     * pourrait poser un cookie que le suivant renverrait, et deux clients
-     * différents supervisés par la même instance se verraient l'un l'autre.
+     * It is the equivalent of a private window: no cookie, local storage or cache
+     * shared between two monitored sites. Otherwise a hostile site could set a
+     * cookie the next one would send back, and two different customers monitored
+     * by the same instance would see each other.
      */
     ({ browserContextId } = await cdp.send<{ browserContextId: string }>(
       'Target.createBrowserContext',
@@ -244,8 +245,8 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
 
     await cdp.send('Page.enable', {}, sessionId);
     await cdp.send('Network.enable', {}, sessionId);
-    // Une page supervisée n'a rien à télécharger : un téléchargement écrirait
-    // dans le conteneur et n'apparaîtrait sur aucune image.
+    // A monitored page has nothing to download: a download would write into the
+    // container and would appear on no image.
     await cdp.send('Page.setDownloadBehavior', { behavior: 'deny' }, sessionId);
     await cdp.send(
       'Emulation.setDeviceMetricsOverride',
@@ -257,17 +258,17 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
       },
       sessionId,
     );
-    // On se présente. L'agent par défaut de Chromium est conservé — le changer
-    // ferait servir une autre page par les sites qui négocient — mais suffixé,
-    // pour qu'un exploitant qui lit ses journaux d'accès sache qui passe.
+    // We introduce ourselves. Chromium's default agent is kept — changing it would
+    // make sites that negotiate serve another page — but suffixed, so that an
+    // operator reading their access logs knows who is passing by.
     await cdp.send(
       'Network.setUserAgentOverride',
       { userAgent: `${navigatorUserAgentOf(endpoint.browser)} Pupitre-Capture/1` },
       sessionId,
     );
 
-    // Le code de la réponse principale : on écoute avant de naviguer, sinon
-    // l'événement passe pendant qu'on attend le retour de `Page.navigate`.
+    // The main response's code: we listen before navigating, otherwise the event
+    // goes by while we wait for `Page.navigate` to return.
     const documents: Array<{ frameId: string; status: number }> = [];
     const offResponse = cdp.on((message) => {
       if (message.sessionId !== sessionId) return;
@@ -292,8 +293,8 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
         ok: false,
         reason: 'navigation-failed',
         // `ERR_NAME_NOT_RESOLVED`, `ERR_CONNECTION_REFUSED`, `ERR_TUNNEL_CONNECTION_FAILED`
-        // (celui-ci = le mandataire de sortie a refusé l'adresse) : le motif
-        // brut de Chromium est plus utile qu'une reformulation.
+        // (the latter = the egress proxy refused the address): Chromium's raw reason is
+        // more useful than a rewording.
         detail: navigation.errorText,
       };
     }
@@ -318,9 +319,9 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
     let truncated = first.truncated;
 
     if (data.byteLength > MONITOR_CAPTURE_MAX_BYTES) {
-      // Une seule seconde chance, plus économe. Deux réglages bougent d'un coup
-      // — hauteur et qualité — parce qu'une page qui dépasse 1,5 Mo en JPEG 70
-      // est soit immense, soit une photo plein écran, et les deux se soignent.
+      // A single second chance, leaner. Two settings move at once — height and
+      // quality — because a page that exceeds 1.5 MB as JPEG 70 is either huge or a
+      // full-screen photo, and both can be treated.
       const second = captureHeightFor(first.height, MONITOR_CAPTURE_FALLBACK_HEIGHT);
       data = await shoot(cdp, sessionId, second.height, MONITOR_CAPTURE_FALLBACK_QUALITY);
       height = second.height;
@@ -356,10 +357,10 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
     const timedOut = Date.now() >= deadline || /sans réponse|expir/i.test(message);
     return { ok: false, reason: timedOut ? 'timeout' : 'navigation-failed', detail: message };
   } finally {
-    // Le contexte est jeté quoi qu'il arrive : un onglet oublié garde la page
-    // vivante, ses minuteurs tournent, et le navigateur enfle jusqu'à sa borne
-    // mémoire. Les erreurs de nettoyage sont avalées — on ne va pas faire
-    // échouer une capture réussie parce que la fermeture a raté.
+    // The context is thrown away whatever happens: a forgotten tab keeps the page
+    // alive, its timers run, and the browser swells up to its memory limit.
+    // Cleanup errors are swallowed — we are not going to fail a successful capture
+    // because closing went wrong.
     if (targetId) await cdp.send('Target.closeTarget', { targetId }, undefined, 5_000).catch(noop);
     if (browserContextId) {
       await cdp.send('Target.disposeBrowserContext', { browserContextId }, undefined, 5_000).catch(noop);
@@ -369,7 +370,7 @@ export async function captureUrl(options: CaptureOptions): Promise<CaptureOutcom
 }
 
 function noop(): void {
-  /* nettoyage au mieux */
+  /* best-effort cleanup */
 }
 
 function sleep(ms: number): Promise<void> {
@@ -379,7 +380,7 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
-/** L'agent utilisateur du navigateur, reconstitué depuis « Chrome/151.0.… ». */
+/** The browser's user agent, rebuilt from "Chrome/151.0.…". */
 function navigatorUserAgentOf(browser: string): string {
   const version = /[\d.]+/.exec(browser)?.[0] ?? '0.0.0.0';
   return (
@@ -389,12 +390,12 @@ function navigatorUserAgentOf(browser: string): string {
 }
 
 /**
- * Attend `load`, ou rend la main quand le budget est épuisé.
+ * Waits for `load`, or returns when the budget is spent.
  *
- * **On tire même si la page n'a pas fini de charger**, et c'est le comportement
- * voulu : une page qui ne finit jamais est exactement ce qu'on veut voir. Une
- * capture blanche « parce que ça chargeait encore » est une information ; pas
- * de capture du tout n'en est pas une.
+ * **We shoot even if the page has not finished loading**, and it is the wanted
+ * behavior: a page that never finishes is exactly what we want to see. A blank
+ * capture "because it was still loading" is information; no capture at all is
+ * not.
  */
 async function waitForLoad(
   cdp: CdpConnection,
@@ -418,7 +419,7 @@ async function waitForLoad(
   });
 }
 
-/** Titre et URL finale. Une page qui refuse d'évaluer garde l'URL demandée. */
+/** Title and final URL. A page that refuses to evaluate keeps the requested URL. */
 async function readPageIdentity(
   cdp: CdpConnection,
   sessionId: string,
@@ -456,9 +457,8 @@ async function shoot(
     {
       format: MONITOR_CAPTURE_FORMAT,
       quality,
-      // Rend au-delà de la fenêtre sans avoir à faire défiler : un défilement
-      // déclencherait les animations « au scroll » et donnerait une image à
-      // moitié apparue.
+      // Renders beyond the viewport without having to scroll: scrolling would trigger
+      // "on scroll" animations and give a half-revealed image.
       captureBeyondViewport: true,
       clip: { x: 0, y: 0, width: MONITOR_CAPTURE_WIDTH, height, scale: 1 },
       optimizeForSpeed: false,

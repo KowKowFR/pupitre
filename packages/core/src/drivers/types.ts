@@ -178,7 +178,7 @@ export type PreflightResult = {
 };
 
 export type RenderedArtifacts = {
-  /** Nom du projet / namespace : `app-{slug}`. */
+  /** Project / namespace name: `app-{slug}`. */
   projectName: string;
   files: RenderedFile[];
   /** Port published on the target, or `null` if exposure goes through an Ingress. */
@@ -280,7 +280,7 @@ export interface DeploymentDriver {
    */
   upstream(ctx: DriverContext, publishedPort: number | null): ProxyUpstream | null;
 
-  /** Traduit l'AppSpec en artefacts propres au runtime. Aucun effet de bord. */
+  /** Translates the AppSpec into runtime-specific artifacts. No side effects. */
   render(ctx: DriverContext): Promise<RenderedArtifacts>;
 
   /**

@@ -3,15 +3,15 @@ import type { SshSession } from '../ssh/client.js';
 import type { LogSink } from './types.js';
 
 /**
- * Une commande dans une charge, partagée par les deux drivers : seule la
- * ligne de commande change (`docker exec` d'un côté, `kubectl exec` de
- * l'autre). Le reste — la borne de sortie, le délai, le code de retour —
- * doit se comporter pareil, sinon la même console dirait deux choses.
+ * A command in a workload, shared by both drivers: only the command line changes
+ * (`docker exec` on one side, `kubectl exec` on the other). The rest — the
+ * output cap, the timeout, the exit code — must behave the same, otherwise the
+ * same console would say two things.
  */
 
 export type WorkloadExecOptions = {
   timeoutMs: number;
-  /** Au-delà, les lignes ne sont plus transmises : une commande bavarde ne noie pas l'écran. */
+  /** Beyond this, lines are no longer sent: a chatty command does not flood the screen. */
   maxLines: number;
 };
 
@@ -22,10 +22,10 @@ export type WorkloadExecResult = {
 };
 
 /**
- * Échappement POSIX en quotes simples. La commande de l'opérateur traverse
- * **deux** shells : celui de la machine (SSH), puis `sh -c` dans la charge.
- * Citée ici, elle reste une seule chaîne pour le premier, et ne s'exécute
- * donc que dans le second — jamais sur l'hôte.
+ * POSIX escaping in single quotes. The operator's command goes through **two**
+ * shells: the machine's (SSH), then `sh -c` in the workload. Quoted here, it
+ * stays a single string for the first, and therefore only runs in the second —
+ * never on the host.
  */
 export function quoteForShell(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
@@ -47,8 +47,8 @@ export async function runBoundedExec(
       if (lines <= options.maxLines) onLine(line);
       else truncated = true;
     },
-    // La sortie d'une commande peut porter n'importe quoi, secrets compris :
-    // elle ne va que vers l'écran qui l'a demandée, jamais dans un journal.
+    // A command's output can carry anything, secrets included: it only goes to the
+    // screen that asked for it, never into a log.
     { timeout: options.timeoutMs, logOutput: false },
   );
   return { exitCode: result.code, truncated, timedOut: result.timedOut };

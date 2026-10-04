@@ -2,24 +2,24 @@ import type { Readable } from 'node:stream';
 import type { BackupDestinationKind } from '../destinations.js';
 
 /**
- * Le contrat d'une destination de sauvegarde. Le worker n'en connaît que ça :
- * déposer un flux sous une clé, le relire, l'effacer, lister. Ajouter une
- * destination, c'est ajouter une classe qui le respecte.
+ * The contract of a backup destination. It is all the worker knows of it: place
+ * a stream under a key, read it back, delete it, list. Adding a destination
+ * means adding a class that respects it.
  *
- * Les clés sont des chemins relatifs (`apps/blog/2026-…/manifest.json.pupb`),
- * toujours avec `/` ; chaque destination les place sous son préfixe.
+ * Keys are relative paths (`apps/blog/2026-…/manifest.json.pupb`), always with
+ * `/`; each destination places them under its prefix.
  */
 export type StoredObject = { key: string; bytes: number; modifiedAt: string | null };
 
 export interface BackupStore {
   readonly kind: BackupDestinationKind;
-  /** Écrit, relit et efface un fichier témoin : la destination est-elle utilisable ? */
+  /** Writes, reads back and deletes a witness file: is the destination usable? */
   check(): Promise<void>;
-  /** Dépose le flux sous la clé ; rend le nombre d'octets écrits. */
+  /** Places the stream under the key; returns the number of bytes written. */
   put(key: string, body: Readable): Promise<number>;
   get(key: string): Promise<Readable>;
   remove(key: string): Promise<void>;
-  /** Efface tout ce qui commence par ce préfixe ; rend le nombre de fichiers effacés. */
+  /** Deletes everything that starts with this prefix; returns the number of files deleted. */
   removePrefix(prefix: string): Promise<number>;
   list(prefix: string): Promise<StoredObject[]>;
   close(): Promise<void>;
@@ -35,7 +35,7 @@ export class BackupStoreError extends Error {
   }
 }
 
-/** Un nom de fichier témoin, sous le préfixe de la destination. */
+/** A witness file name, under the destination's prefix. */
 export function probeKey(): string {
   return `.pupitre-check-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }

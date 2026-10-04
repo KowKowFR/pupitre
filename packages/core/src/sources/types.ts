@@ -2,41 +2,41 @@ import { z } from 'zod';
 import { invalid } from '../validation.js';
 
 /**
- * `SourceProvider` — la quatrième abstraction, à côté de `DeploymentDriver`,
- * `ProxyProvider` et `Scanner`.
+ * `SourceProvider` — the fourth abstraction, next to `DeploymentDriver`,
+ * `ProxyProvider` and `Scanner`.
  *
- * Elle répond à une seule question : **d'où vient le code d'une application**
- * quand ce n'est pas l'opérateur qui le colle dans le panel. Un dépôt Git
- * hébergé (GitHub, GitLab, Gitea et Forgejo) porte à sa racine — ou
- * dans le dossier de l'application, pour un monorepo — un `pupitre.json` :
- * l'AppSpec de l'application, versionnée avec son code.
+ * It answers a single question: **where an application's code comes from**
+ * when it is not the operator pasting it into the panel. A hosted Git
+ * repository (GitHub, GitLab, Gitea and Forgejo) carries at its root — or in the
+ * application's folder, for a monorepo — a `pupitre.json`: the application's
+ * AppSpec, versioned with its code.
  *
- * ── Ce que le dépôt décide, et ce qu'il ne décide pas ───────────────────────
- * Le dépôt dit **quoi** : l'AppSpec, rien de plus, validée par le même schéma
- * Zod que partout ailleurs. Il ne dit jamais **où** ni **quand** — les cibles,
- * le runtime et le mode de déclenchement vivent dans le panel, sous RBAC.
- * Sinon, quiconque peut pousser sur la branche choisirait où son code tourne.
- * Et il ne porte aucun script : même raison que la règle 4 pour le LLM.
+ * ── What the repository decides, and what it does not ───────────────────────
+ * The repository says **what**: the AppSpec, nothing more, validated by the same
+ * Zod schema as everywhere else. It never says **where** or **when** — the
+ * targets, the runtime and the trigger mode live in the panel, under RBAC.
+ * Otherwise, whoever can push to the branch would choose where their code runs.
+ * And it carries no script: the same reason as rule 4 for the LLM.
  *
- * ── Pourquoi du polling ─────────────────────────────────────────────────────
- * Le panel est privé : aucun webhook ne peut l'atteindre. Le worker interroge
- * donc le fournisseur (connexions sortantes seulement), avec un ETag qui rend
- * la question « rien de nouveau ? » presque gratuite. Tout ce contrat se lit
- * dans ce sens : c'est Pupitre qui demande, jamais le fournisseur qui appelle.
+ * ── Why polling ─────────────────────────────────────────────────────────────
+ * The panel is private: no webhook can reach it. The worker therefore queries
+ * the provider (outgoing connections only), with an ETag that makes the
+ * question "anything new?" almost free. This whole contract reads in that
+ * direction: it is Pupitre that asks, never the provider that calls.
  *
- * ── Critère de qualité ──────────────────────────────────────────────────────
- * Ajouter un fournisseur, c'est ajouter une classe qui implémente ce contrat,
- * et la ligne qui la fabrique depuis sa connexion (`registry.ts`). Rien d'autre
- * dans le worker ni dans le panel ne connaît son nom — sauf l'écran qui le
- * connecte, par nature propre à chacun (une GitHub App, un jeton Gitea ou GitLab).
+ * ── Quality bar ─────────────────────────────────────────────────────────────
+ * Adding a provider means adding a class that implements this contract, and the
+ * line that builds it from its connection (`registry.ts`). Nothing else in the
+ * worker or the panel knows its name — except the screen that connects it, by
+ * nature specific to each (a GitHub App, a Gitea or GitLab token).
  */
 
 export const SOURCE_PROVIDER_KINDS = ['github', 'gitea', 'gitlab'] as const;
 export type SourceProviderKind = (typeof SOURCE_PROVIDER_KINDS)[number];
 
 /**
- * Une connexion, ses secrets déchiffrés : ce dont la fabrique a besoin pour
- * construire son client (`createSourceProvider`). Ne se range nulle part.
+ * A connection, its secrets decrypted: what the factory needs to build its
+ * client (`createSourceProvider`). Not stored anywhere.
  */
 export type SourceConnectionSecrets =
   | { provider: 'github'; appId: number; privateKey: string; apiUrl: string | null }
@@ -44,9 +44,9 @@ export type SourceConnectionSecrets =
   | { provider: 'gitlab'; baseUrl: string; token: string };
 
 /**
- * Le nom d'un dépôt, tel que son fournisseur l'écrit : `propriétaire/nom`, ou
- * chez GitLab tout le chemin de ses groupes, `groupe/sous-groupe/projet`. Pas
- * de segment `.` ni `..` : le nom finit dans le chemin d'un appel d'API.
+ * A repository's name, as its provider writes it: `owner/name`, or at GitLab the
+ * whole path of its groups, `group/subgroup/project`. No `.` or `..` segment:
+ * the name ends up in an API call's path.
  */
 export const sourceRepositorySchema = z
   .string()
@@ -61,53 +61,54 @@ export const sourceRepositorySchema = z
     invalid('sources.repository'),
   );
 
-/** Un dépôt, désigné comme le fournisseur le désigne : `propriétaire/nom`. */
+/** A repository, designated as the provider designates it: `owner/name`. */
 export type RepositoryRef = {
-  /** `owner/name` — `groupe/sous-groupe/projet` chez GitLab. */
+  /** `owner/name` — `group/subgroup/project` at GitLab. */
   fullName: string;
   /**
-   * L'installation de la GitHub App par laquelle Pupitre y a accès. `null`
-   * chez un fournisseur qui n'en a pas : Gitea et GitLab ouvrent tout par leur jeton.
+   * The installation of the GitHub App through which Pupitre has access. `null`
+   * at a provider that has none: Gitea and GitLab open everything through their
+   * token.
    */
   installationId: number | null;
 };
 
-/** Réponse à « quel est le dernier commit de cette branche ? ». */
+/** Answer to "what is this branch's last commit?". */
 export type HeadResult =
   | { changed: false }
   | {
       changed: true;
       sha: string;
-      /** À renvoyer à la question suivante : une réponse 304 ne coûte rien. */
+      /** To send back with the next question: a 304 response costs nothing. */
       etag: string | null;
     };
 
-/** Ce qui a changé entre deux commits. */
+/** What changed between two commits. */
 export type CompareResult =
   | { kind: 'files'; files: string[] }
   /**
-   * La comparaison n'est pas fiable : trop de fichiers pour la liste, historique
-   * réécrit (force-push), commit de base disparu. On traite alors tout comme
-   * changé — redéployer à tort coûte moins cher que d'ignorer un vrai changement.
+   * The comparison is not reliable: too many files for the list, rewritten
+   * history (force-push), base commit gone. Everything is then treated as changed
+   * — redeploying wrongly costs less than ignoring a real change.
    */
   | { kind: 'unknown'; reason: string };
 
 export type SourceCommit = {
   sha: string;
   message: string;
-  /** L'auteur tel que le fournisseur le nomme (login si connu, sinon nom). */
+  /** The author as the provider names them (login if known, otherwise name). */
   author: string | null;
   url: string | null;
 };
 
-/** L'état d'un déploiement, renvoyé sur le commit qui l'a déclenché. */
+/** A deployment's state, sent back on the commit that triggered it. */
 export type CommitStatus = {
   state: 'pending' | 'success' | 'failure' | 'error';
-  /** Une ligne, courte : le fournisseur la tronque (140 caractères chez GitHub). */
+  /** One short line: the provider truncates it (140 characters at GitHub). */
   description: string;
-  /** Distingue les cibles : `pupitre/prod-1`. */
+  /** Tells the targets apart: `pupitre/prod-1`. */
   context: string;
-  /** Lien vers le run, dans le panel. Absent si l'URL du panel est inconnue. */
+  /** Link to the run, in the panel. Absent if the panel's URL is unknown. */
   targetUrl: string | null;
 };
 
@@ -124,32 +125,32 @@ export interface SourceProvider {
   readonly kind: SourceProviderKind;
 
   /**
-   * Le dernier commit de `branch`. `etag` est celui de la réponse précédente :
-   * si rien n'a bougé, le fournisseur répond « non modifié » sans décompter la
-   * requête de son quota, et on rend `{ changed: false }`.
+   * The last commit of `branch`. `etag` is the previous response's: if nothing
+   * moved, the provider answers "not modified" without counting the request
+   * against its quota, and we return `{ changed: false }`.
    */
   resolveHead(repo: RepositoryRef, branch: string, etag: string | null): Promise<HeadResult>;
 
-  /** Les fichiers modifiés de `base` à `head`. */
+  /** The files modified from `base` to `head`. */
   compare(repo: RepositoryRef, base: string, head: string): Promise<CompareResult>;
 
-  /** Le contenu d'un fichier à un commit donné, ou `null` s'il n'existe pas. */
+  /** A file's content at a given commit, or `null` if it does not exist. */
   readFile(repo: RepositoryRef, sha: string, path: string): Promise<string | null>;
 
   /**
-   * Les fichiers de ce nom, partout dans l'arbre du commit — les `pupitre.json`
-   * d'un dépôt, à proposer à la création d'une application. Chemins relatifs à
-   * la racine, triés.
+   * The files with this name, anywhere in the commit's tree — a repository's
+   * `pupitre.json` files, to offer when creating an application. Paths relative to
+   * the root, sorted.
    */
   findFiles(repo: RepositoryRef, sha: string, name: string): Promise<string[]>;
 
-  /** Le message et l'auteur d'un commit, pour le journal et l'écran. */
+  /** A commit's message and author, for the log and the screen. */
   commit(repo: RepositoryRef, sha: string): Promise<SourceCommit>;
 
   /**
-   * L'archive `tar.gz` du commit, écrite dans `destination`. Une seule racine
-   * dans l'archive (un dossier), que l'extraction retire. Plafonnée à
-   * `maxBytes` : au-delà, l'écriture s'arrête et la méthode lève.
+   * The commit's `tar.gz` archive, written to `destination`. A single root in the
+   * archive (a folder), which extraction removes. Capped at `maxBytes`: beyond
+   * that, writing stops and the method throws.
    */
   downloadArchive(
     repo: RepositoryRef,
@@ -158,14 +159,14 @@ export interface SourceProvider {
     maxBytes: number,
   ): Promise<{ bytes: number }>;
 
-  /** Publie l'état d'un déploiement sur le commit. */
+  /** Publishes a deployment's state on the commit. */
   reportStatus(repo: RepositoryRef, sha: string, status: CommitStatus): Promise<void>;
 
-  /** Les dépôts auxquels l'intégration a accès, pour l'écran de liaison. */
+  /** The repositories the integration has access to, for the linking screen. */
   listRepositories(): Promise<SourceRepository[]>;
 }
 
-/** Une erreur du fournisseur, avec le code HTTP quand il y en a un. */
+/** A provider error, with the HTTP code when there is one. */
 export class SourceProviderError extends Error {
   constructor(
     message: string,
@@ -177,11 +178,11 @@ export class SourceProviderError extends Error {
   }
 }
 
-/** Le nom du fichier de spec par défaut, à la racine du dépôt ou du dossier de l'app. */
+/** The default spec file name, at the root of the repository or of the app's folder. */
 export const SOURCE_SPEC_FILE = 'pupitre.json';
 
-/** Plafond d'une archive de dépôt : au-delà, le déploiement échoue en le disant. */
+/** A repository archive's cap: beyond it, the deployment fails and says so. */
 export const SOURCE_ARCHIVE_MAX_BYTES = 512 * 1024 * 1024;
 
-/** Cadence du polling : une minute entre deux questions « quoi de neuf ? ». */
+/** Polling rate: one minute between two "anything new?" questions. */
 export const SOURCE_POLL_EVERY_MS = 60_000;

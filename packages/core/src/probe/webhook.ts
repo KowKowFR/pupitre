@@ -9,18 +9,18 @@ import { messageOf, resolveUrlGuarded } from './net.js';
 export type WebhookDelivery = { ok: true; status: number } | { ok: false; error: string };
 
 /**
- * Émet une charge utile JSON vers un récepteur.
+ * Sends a JSON payload to a receiver.
  *
- * Le webhook part du worker vers une URL fournie par un utilisateur : **même
- * politique SSRF que les sondes**, sans exception. C'est exactement la même
- * surface d'attaque, et l'oublier ici annulerait tout le reste.
+ * The webhook goes from the worker to a URL provided by a user: **the same SSRF
+ * policy as the probes**, without exception. It is exactly the same attack
+ * surface, and forgetting it here would cancel all the rest.
  */
 export async function postWebhook(input: {
   url: string;
   payload: unknown;
   allowlist: readonly Cidr[];
   timeoutMs?: number;
-  /** La langue de l'erreur rendue — celle de l'instance. */
+  /** The language of the returned error — the instance's. */
   language?: UiLanguage;
 }): Promise<WebhookDelivery> {
   const timeoutMs = input.timeoutMs ?? 10_000;

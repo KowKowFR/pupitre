@@ -1,31 +1,31 @@
 import { z } from 'zod';
 
 /**
- * Les images que des personnes déposent dans le panel : une photo de profil,
- * une image dans la discussion.
+ * The images people upload into the panel: a profile picture, an image in the
+ * chat.
  *
- * ── Pourquoi lire les octets plutôt que croire l'en-tête ────────────────────
- * Le navigateur dit `image/png`, le nom de fichier dit `.jpg` : ni l'un ni
- * l'autre n'engage rien. Ce module lit la signature et les dimensions dans les
- * premiers octets, et c'est **ce type-là** qui est stocké et resservi. Un
- * fichier qui ne se reconnaît pas comme l'un des quatre formats est refusé.
+ * ── Why read the bytes rather than trust the header ─────────────────────────
+ * The browser says `image/png`, the file name says `.jpg`: neither commits to
+ * anything. This module reads the signature and the dimensions in the first
+ * bytes, and it is **that type** that is stored and served again. A file that is
+ * not recognized as one of the four formats is refused.
  *
- * ── Pourquoi pas de SVG ─────────────────────────────────────────────────────
- * Un SVG est un document, scripts compris. Servi depuis l'origine du panel, ce
- * serait du XSS stocké à la portée de quiconque peut écrire dans la discussion.
+ * ── Why no SVG ──────────────────────────────────────────────────────────────
+ * An SVG is a document, scripts included. Served from the panel's origin, it
+ * would be stored XSS within reach of anyone who can write in the chat.
  *
- * ── Pourquoi le redimensionnement est fait par le navigateur ───────────────
- * Le panel n'embarque aucune bibliothèque d'image native (pas de `sharp` dans
- * l'image Docker). Le navigateur recadre et réencode avant l'envoi — ce qui
- * retire au passage les métadonnées EXIF, position GPS comprise. Le serveur, lui,
- * ne fait confiance à rien : il borne la taille, lit le format et les dimensions.
+ * ── Why resizing is done by the browser ────────────────────────────────────
+ * The panel ships no native image library (no `sharp` in the Docker image). The
+ * browser crops and re-encodes before sending — which removes EXIF metadata
+ * along the way, GPS position included. The server trusts nothing: it caps the
+ * size, reads the format and the dimensions.
  */
 
 export const IMAGE_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const;
 export const imageMediaTypeSchema = z.enum(IMAGE_MEDIA_TYPES);
 export type ImageMediaType = z.infer<typeof imageMediaTypeSchema>;
 
-/** Une photo de profil : un carré, réencodé par le navigateur. */
+/** A profile picture: a square, re-encoded by the browser. */
 export const AVATAR_EDGE = 256;
 export const AVATAR_MAX_BYTES = 512 * 1024;
 export const AVATAR_MEDIA_TYPES: readonly ImageMediaType[] = [
@@ -34,12 +34,12 @@ export const AVATAR_MEDIA_TYPES: readonly ImageMediaType[] = [
   'image/webp',
 ];
 
-/** Une image de la discussion : le plus grand côté borné, quatre par message. */
+/** A chat image: the longest side capped, four per message. */
 export const CHAT_IMAGE_MAX_EDGE = 1920;
 export const CHAT_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
 export const CHAT_IMAGES_PER_MESSAGE = 4;
 
-/** Au-delà, une image n'est plus une image : c'est une bombe de décompression. */
+/** Beyond this, an image is no longer an image: it is a decompression bomb. */
 const MAX_DIMENSION = 12_000;
 
 export type ImageInfo = { contentType: ImageMediaType; width: number; height: number };
@@ -89,7 +89,7 @@ function webp(b: Uint8Array): ImageInfo | null {
   return null;
 }
 
-/** Les marqueurs SOF portent les dimensions ; DHT, JPG et DAC partagent leur plage sans en être. */
+/** SOF markers carry the dimensions; DHT, JPG and DAC share their range without being ones. */
 const SOF = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
 
 function jpeg(b: Uint8Array): ImageInfo | null {
@@ -98,7 +98,7 @@ function jpeg(b: Uint8Array): ImageInfo | null {
   while (index + 9 < b.length) {
     if (b[index] !== 0xff) return null;
     const marker = b[index + 1] ?? 0;
-    // Bourrage, et marqueurs sans segment (RSTn, TEM).
+    // Padding, and markers without a segment (RSTn, TEM).
     if (marker === 0xff) {
       index += 1;
       continue;
@@ -118,9 +118,8 @@ function jpeg(b: Uint8Array): ImageInfo | null {
 }
 
 /**
- * Le format et les dimensions d'une image, lus dans ses octets. `null` si ce
- * n'est pas l'un des quatre formats acceptés, ou si ses dimensions sont
- * absurdes.
+ * An image's format and dimensions, read from its bytes. `null` if it is not one
+ * of the four accepted formats, or if its dimensions are absurd.
  */
 export function sniffImage(bytes: Uint8Array): ImageInfo | null {
   if (bytes.length < 26) return null;
@@ -132,14 +131,14 @@ export function sniffImage(bytes: Uint8Array): ImageInfo | null {
 }
 
 /**
- * Les en-têtes d'une image servie depuis l'origine du panel. Elle est rendue,
- * jamais interprétée : pas de sniffing, pas de script, pas de navigation.
+ * The headers of an image served from the panel's origin. It is rendered, never
+ * interpreted: no sniffing, no script, no navigation.
  */
 export function imageResponseHeaders(input: {
   contentType: ImageMediaType;
   bytes: number;
   filename: string;
-  /** Une URL versionnée ne change jamais de contenu : elle se garde un an. */
+  /** A versioned URL never changes content: it is kept for a year. */
   immutable: boolean;
 }): Record<string, string> {
   return {
@@ -152,18 +151,18 @@ export function imageResponseHeaders(input: {
   };
 }
 
-/** `image/webp` → `webp`, pour un nom de fichier. */
+/** `image/webp` → `webp`, for a file name. */
 export function imageExtension(contentType: ImageMediaType): string {
   return contentType === 'image/jpeg' ? 'jpg' : contentType.slice('image/'.length);
 }
 
 /**
- * L'URL d'une photo de profil, si — et seulement si — c'est l'une des nôtres.
+ * A profile picture's URL, if — and only if — it is one of ours.
  *
- * `users.image` est un champ de Better Auth, que son API laisse modifier par
- * son titulaire. Afficher n'importe quelle URL qui s'y trouverait ferait
- * charger à chaque membre de l'équipe une image hébergée ailleurs — un pixel
- * espion, au minimum. Seule la forme que le panel écrit lui-même passe.
+ * `users.image` is a Better Auth field, which its API lets its holder change.
+ * Showing any URL that might be found there would make each team member load
+ * an image hosted elsewhere — a tracking pixel, at the very least. Only the
+ * shape the panel writes itself gets through.
  */
 const AVATAR_URL = /^\/api\/users\/[\w-]{1,64}\/avatar\?v=[a-f0-9]{12}$/;
 

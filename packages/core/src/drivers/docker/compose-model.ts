@@ -1,10 +1,10 @@
 /**
- * Modèle typé d'un fichier Compose.
+ * Typed model of a Compose file.
  *
- * Le rendu passe par ce modèle puis par un sérialiseur YAML : on ne concatène
- * jamais de chaînes. Un nom de service contenant une apostrophe, une valeur
- * d'environnement multi-ligne ou une commande avec des guillemets sont gérés
- * par le sérialiseur, pas par des échappements écrits à la main.
+ * The render goes through this model then a YAML serializer: we never
+ * concatenate strings. A service name containing an apostrophe, a multi-line
+ * environment value or a command with quotes are handled by the serializer, not
+ * by hand-written escapes.
  */
 
 export type ComposeHealthcheck = {
@@ -47,24 +47,23 @@ export type ComposeService = {
   deploy?: ComposeDeploy;
   labels?: Record<string, string>;
 
-  // ── Contexte de sécurité ────────────────────────────────────────────────────
-  // Pendants Compose du `securityContext` des manifests K8s. Ce qui les décide
-  // est dans `render.ts` ; ce qui n'a pas d'équivalent Compose y est dit aussi.
+  // ── Security context ────────────────────────────────────────────────────────
+  // Compose counterparts of the K8s manifests' `securityContext`. What decides
+  // them is in `render.ts`; what has no Compose equivalent is said there too.
 
-  /** `uid:gid` imposé au processus. Pendant de `runAsUser`/`runAsGroup`. */
+  /** `uid:gid` imposed on the process. Counterpart of `runAsUser`/`runAsGroup`. */
   user?: string;
-  /** Capacités retirées. Toujours `['ALL']` : on part de zéro puis on rend. */
+  /** Capabilities dropped. Always `['ALL']`: we start from zero then give back. */
   cap_drop?: string[];
-  /** Capacités rendues. Pendant de `capabilities.add`. */
+  /** Capabilities given back. Counterpart of `capabilities.add`. */
   cap_add?: string[];
   /** Pendant de `allowPrivilegeEscalation: false` : `no-new-privileges:true`. */
   security_opt?: string[];
   /** Pendant de `readOnlyRootFilesystem`. */
   read_only?: boolean;
   /**
-   * Montages tmpfs. Syntaxe courte `chemin:options` — Compose la transmet telle
-   * quelle à `--tmpfs`, ce que la syntaxe longue (`size`/`mode` seulement) ne
-   * permet pas.
+   * tmpfs mounts. Short `path:options` syntax — Compose passes it as is to
+   * `--tmpfs`, which the long syntax (`size`/`mode` only) does not allow.
    */
   tmpfs?: string[];
 };
@@ -76,7 +75,7 @@ export type ComposeFile = {
   networks?: Record<string, { name: string; driver: string }>;
 };
 
-/** Durée Compose (`10s`). Compose n'accepte pas les millisecondes ici. */
+/** Compose duration (`10s`). Compose does not accept milliseconds here. */
 export function seconds(value: number): string {
   return `${Math.max(1, Math.round(value))}s`;
 }

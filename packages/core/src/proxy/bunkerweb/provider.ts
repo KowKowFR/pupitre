@@ -43,19 +43,19 @@ import {
 } from './render.js';
 
 /**
- * BunkerWeb, piloté par son API REST — appelée **depuis sa machine**, par SSH.
+ * BunkerWeb, driven through its REST API — called **from its machine**, over SSH.
  *
- * Le jeton de l'API ne quitte jamais cette machine : chaque appel le lit dans
- * l'environnement du conteneur, l'écrit dans un fichier temporaire lisible du
- * seul compte, et `curl` le lit là (`-H @fichier`) — ni en argument d'un
- * processus, ni dans une sortie, ni dans la base de Pupitre.
+ * The API token never leaves that machine: each call reads it from the
+ * container's environment, writes it into a temporary file readable by the
+ * account alone, and `curl` reads it there (`-H @file`) — neither as a process
+ * argument, nor in an output, nor in Pupitre's database.
  */
 
 const SHORT_MS = 30_000;
 const INSTALL_MS = 20 * 60_000;
-/** L'image tout-en-un pèse ~2,1 Go ; on demande un peu de marge. */
+/** The all-in-one image weighs ~2.1 GB; we ask for a little margin. */
 const IMAGE_DISK_KB = 3 * 1024 * 1024;
-/** Mesuré à vide : ~650 Mo. En dessous de 800 Mo disponibles, on prévient. */
+/** Measured idle: ~650 MB. Below 800 MB available, we warn. */
 const MEMORY_WARNING_KB = 800 * 1024;
 
 function fail(step: string, message: string): never {
@@ -65,9 +65,9 @@ function fail(step: string, message: string): never {
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Deux poses simultanées sur le même BunkerWeb se marcheraient dessus : son
- * API relit et réécrit la configuration entière à chaque appel. On les met
- * l'une après l'autre, machine par machine.
+ * Two simultaneous applies on the same BunkerWeb would step on each other: its
+ * API reads and rewrites the whole configuration at each call. We put them one
+ * after the other, machine by machine.
  */
 const queues = new Map<string, Promise<unknown>>();
 function serialized<T>(key: string, run: () => Promise<T>): Promise<T> {
@@ -80,14 +80,14 @@ function serialized<T>(key: string, run: () => Promise<T>): Promise<T> {
   return next;
 }
 
-// ─── l'API, depuis la machine ────────────────────────────────────────────────
+// ─── the API, from the machine ───────────────────────────────────────────────
 
 type ApiResponse = { status: number; body: unknown };
 
 /**
- * Un appel à l'API. Le corps — des réglages, jamais un secret — voyage en
- * base64 dans la commande ; l'adresse du conteneur et le jeton sont lus sur
- * place, à chaque fois — un conteneur recréé change d'adresse.
+ * An API call. The body — settings, never a secret — travels as base64 in the
+ * command; the container's address and the token are read on the spot, each
+ * time — a recreated container changes address.
  */
 async function api(
   ctx: ProxyHostContext,
@@ -95,7 +95,7 @@ async function api(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
-  /** Un fichier de la machine dont la valeur remplace `PROBE_SECRET_PLACEHOLDER` dans le corps. */
+  /** A file on the machine whose value replaces `PROBE_SECRET_PLACEHOLDER` in the body. */
   secretFrom?: string,
 ): Promise<ApiResponse> {
   const container = shellQuote(config.apiContainer);
@@ -111,8 +111,8 @@ async function api(
     (body === undefined
       ? ''
       : `printf '%s' '${Buffer.from(JSON.stringify(body), 'utf8').toString('base64')}' | base64 -d | ` +
-        // Le secret des sondes, glissé sur la machine : awk le lit dans son
-        // fichier, il n'apparaît dans aucun argument de processus.
+        // The probes' secret, slipped in on the machine: awk reads it from its file, it
+        // appears in no process argument.
         (secretFrom
           ? `awk -v f=${shellQuote(secretFrom)} 'BEGIN { getline s < f; sub(/^[^:]*: */, "", s) } { gsub(/${PROBE_SECRET_PLACEHOLDER}/, s); print }' | `
           : '')) +
@@ -135,7 +135,7 @@ async function api(
   try {
     parsed = raw.trim() ? JSON.parse(raw) : null;
   } catch {
-    // Une réponse qui n'est pas du JSON : on la garde telle quelle pour la dire.
+    // A response that is not JSON: we keep it as is to report it.
   }
   return { status, body: parsed };
 }
@@ -166,7 +166,7 @@ async function expectOk(
   return response;
 }
 
-/** Les services connus de BunkerWeb, par leur premier nom de serveur. */
+/** The services BunkerWeb knows, by their first server name. */
 async function listServices(ctx: ProxyHostContext, config: BunkerWebConfig): Promise<string[]> {
   const say = bunkerwebSay(ctx.language);
   const response = await expectOk(
@@ -186,7 +186,7 @@ async function listServices(ctx: ProxyHostContext, config: BunkerWebConfig): Pro
     .filter(Boolean);
 }
 
-// ─── détection ───────────────────────────────────────────────────────────────
+// ─── detection ───────────────────────────────────────────────────────────────
 
 type InspectedBunkerWeb = {
   name: string;
@@ -195,8 +195,8 @@ type InspectedBunkerWeb = {
 };
 
 /**
- * Ce qu'un conteneur dit de lui, sans jamais le jeton : sa présence seule est
- * imprimée (`API_TOKEN=present`), filtrée sur la machine.
+ * What a container says about itself, never with the token: only its presence
+ * is printed (`API_TOKEN=present`), filtered on the machine.
  */
 async function readContainer(
   ctx: ProxyHostContext,
@@ -248,7 +248,7 @@ async function dockerBridgeGateway(ctx: ProxyHostContext): Promise<string | null
   return result.stdout.split(/\s+/).find((value) => /^\d+\.\d+\.\d+\.\d+$/.test(value)) ?? null;
 }
 
-// ─── le provider ─────────────────────────────────────────────────────────────
+// ─── the provider ────────────────────────────────────────────────────────────
 
 export class BunkerWebProvider implements ProxyProvider {
   readonly kind = 'bunkerweb' as const;
@@ -258,9 +258,8 @@ export class BunkerWebProvider implements ProxyProvider {
   }
 
   /**
-   * Une application de sa machine est publiée là où BunkerWeb la joint : la
-   * passerelle Docker (ou la boucle locale en réseau hôte) — pas sur toutes
-   * les interfaces.
+   * An application on its machine is published where BunkerWeb reaches it: the
+   * Docker gateway (or loopback in host network mode) — not on every interface.
    */
   publishAddress(config: unknown): string | null {
     return this.parseConfig(config).upstreamHost;
@@ -270,7 +269,7 @@ export class BunkerWebProvider implements ProxyProvider {
     return bunkerwebRoot(ctx.target.rootPath);
   }
 
-  // ─── détection ──────────────────────────────────────────────────────────────
+  // ─── detection ──────────────────────────────────────────────────────────────
 
   async detect(ctx: ProxyHostContext, onLog: LogSink): Promise<ProxyDetection[]> {
     const say = bunkerwebSay(ctx.language);
@@ -448,7 +447,7 @@ export class BunkerWebProvider implements ProxyProvider {
     const root = this.root(ctx);
     await ensureDirectory(ctx, root, 'bunkerweb');
     await writeFile(ctx, `${root}/compose.yml`, renderBunkerwebCompose(), 'bunkerweb');
-    // Le jeton de l'API naît sur la machine et n'en sort pas.
+    // The API token is born on the machine and does not leave it.
     const token = await exec(
       ctx.sshSession,
       `cd ${shellQuote(root)} && umask 077 && { [ -s api.env ] || printf 'API_TOKEN=%s\\n' "$(od -An -tx1 -N32 /dev/urandom | tr -d ' \\n')" > api.env; } && chmod 600 api.env`,
@@ -534,7 +533,7 @@ export class BunkerWebProvider implements ProxyProvider {
     onLog(say('uninstall.removed'));
   }
 
-  // ─── « Tester » ─────────────────────────────────────────────────────────────
+  // ─── "Test" ─────────────────────────────────────────────────────────────────
 
   async check(ctx: ProxyContext, onLog: LogSink): Promise<ProxyCheck> {
     const say = bunkerwebSay(ctx.language);
@@ -575,9 +574,8 @@ export class BunkerWebProvider implements ProxyProvider {
     }
 
     if (apiOk && http !== 0) {
-      // La preuve que BunkerWeb applique ce qu'on lui confie : un service
-      // d'essai vers un port fermé. Appliqué, il répond 502 ; ignoré, la page
-      // par défaut.
+      // The proof that BunkerWeb applies what we hand it: a test service toward a
+      // closed port. Applied, it answers 502; ignored, the default page.
       const host = `pupitre-check-${randomBytes(4).toString('hex')}.invalid`;
       let code = 0;
       try {
@@ -616,7 +614,7 @@ export class BunkerWebProvider implements ProxyProvider {
     return { ok: checks.every((check) => check.ok), checks };
   }
 
-  // ─── les routes ─────────────────────────────────────────────────────────────
+  // ─── routes ─────────────────────────────────────────────────────────────────
 
   apply(ctx: ProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void> {
     return serialized(`${ctx.target.id}`, () => this.applyNow(ctx, set, onLog));
@@ -634,7 +632,7 @@ export class BunkerWebProvider implements ProxyProvider {
       fail('apply', say('apply.needsPort'));
     }
 
-    // Le registre : ce que Pupitre a posé, application par application.
+    // The registry: what Pupitre set up, application by application.
     const directory = `${this.root(ctx)}/routes`;
     const file = `${directory}/${registryFileName(name)}`;
     const registries = await exec(
@@ -722,13 +720,13 @@ export class BunkerWebProvider implements ProxyProvider {
       onLog(say('apply.serviceRemoved', { hostname }));
     }
 
-    // BunkerWeb applique en différé, et revient en silence à la configuration
-    // précédente si nginx refuse la nouvelle : on attend de voir les domaines
-    // servis, et on dit pourquoi sinon.
+    // BunkerWeb applies with a delay, and silently goes back to the previous
+    // configuration if nginx refuses the new one: we wait to see the domains
+    // served, and say why otherwise.
     const posed = [...plan.create, ...plan.update];
     if (posed.length > 0) await this.awaitApplied(ctx, config, posed, startedAt);
 
-    // Le registre suit : ce que l'application a maintenant, ni plus ni moins.
+    // The registry follows: what the application now has, no more, no less.
     if (set.routes.length === 0) {
       await removeFile(ctx, file, 'bunkerweb');
     } else {
@@ -750,8 +748,8 @@ export class BunkerWebProvider implements ProxyProvider {
   }
 
   /**
-   * Le secret des sondes : généré sur la machine à la première pose, gardé
-   * dans un fichier lisible du seul compte. Rend le chemin du fichier.
+   * The probes' secret: generated on the machine at the first apply, kept in a
+   * file readable by the account alone. Returns the file's path.
    */
   private async ensureProbeSecret(ctx: ProxyHostContext): Promise<string> {
     const file = probeHeaderFile(ctx.target.rootPath);
@@ -773,9 +771,9 @@ export class BunkerWebProvider implements ProxyProvider {
   }
 
   /**
-   * Attendre que BunkerWeb serve ces domaines — plus sa page par défaut. Au
-   * bout du délai, ce que son journal dit d'un refus : nginx qui rejette la
-   * configuration (`[emerg]`), et BunkerWeb qui revient à la précédente.
+   * Wait for BunkerWeb to serve these domains — no longer its default page. At
+   * the end of the delay, what its log says about a refusal: nginx rejecting the
+   * configuration (`[emerg]`), and BunkerWeb going back to the previous one.
    */
   private async awaitApplied(
     ctx: ProxyContext,

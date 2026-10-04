@@ -21,20 +21,20 @@ import {
 } from './types.js';
 
 /**
- * Discord, par un webhook de salon.
+ * Discord, through a channel webhook.
  *
- * Un `embed` plutôt qu'un message de texte : la barre de couleur à gauche rend
- * la gravité lisible d'un coup d'œil dans un salon qui défile, et les champs
- * s'alignent au lieu de se perdre dans un paragraphe.
+ * An `embed` rather than a text message: the color bar on the left makes the
+ * severity readable at a glance in a scrolling channel, and the fields line up
+ * instead of getting lost in a paragraph.
  *
- * Les bornes de l'API sont dures et silencieuses — un dépassement rend un 400
- * sans dire lequel des dix champs est en cause. On tronque donc ici, une fois,
- * plutôt que de découvrir la limite en production.
+ * The API's limits are hard and silent — exceeding one returns a 400 without
+ * saying which of the ten fields is at fault. We therefore truncate here, once,
+ * rather than discover the limit in production.
  */
 
 /**
- * Ce que ce canal ajoute autour du message neutre : le pied de l'`embed` d'un
- * résumé, et les deux verdicts de la sonde.
+ * What this channel adds around the neutral message: a digest's `embed` footer,
+ * and the probe's two verdicts.
  */
 const fr = {
   'digest.footer': '{count} alertes regroupées',
@@ -63,16 +63,16 @@ function t(
 const LIMIT = { title: 256, description: 4096, fieldName: 256, fieldValue: 1024, fields: 25 };
 
 /**
- * Lignes détaillées d'un résumé dans un salon.
+ * Detailed lines of a digest in a channel.
  *
- * Quinze : un salon Discord se lit sur un écran large et se remonte facilement,
- * on peut donc y être plus généreux que sur Telegram — mais pas cinquante, sous
- * peine de noyer le reste du salon sous un seul message. Les lignes tues sont
- * annoncées, comme ailleurs.
+ * Fifteen: a Discord channel is read on a wide screen and scrolls back easily,
+ * so one can be more generous there than on Telegram — but not fifty, or the
+ * rest of the channel drowns under a single message. Omitted lines are
+ * announced, as elsewhere.
  */
 const DIGEST_LINES = 15;
 
-/** Couleur de la barre latérale, en entier — c'est la forme qu'attend Discord. */
+/** Color of the side bar, as an integer — the shape Discord expects. */
 const COLOR: Record<NotificationMessage['severity'], number> = {
   info: 0x3b6fd4,
   warning: 0xb7791f,
@@ -105,9 +105,9 @@ export class DiscordChannel implements NotificationChannel {
   }
 
   /**
-   * Un `GET` sur l'URL du webhook rend sa description sans rien déposer dans le
-   * salon : c'est la sonde exacte qu'il faut, et elle valide à la fois l'URL et
-   * le jeton qu'elle contient.
+   * A `GET` on the webhook's URL returns its description without posting anything
+   * in the channel: it is exactly the probe needed, and it validates both the URL
+   * and the token it contains.
    */
   async test(
     resolved: ResolvedChannelConfig,
@@ -124,7 +124,7 @@ export class DiscordChannel implements NotificationChannel {
         secrets: resolved.secrets,
       });
       const name = jsonField(result.text, 'name');
-      // Le nom du webhook a été écrit côté Discord : c'est de la donnée.
+      // The webhook's name was written on the Discord side: it is data.
       return {
         ok: true,
         detail: name ? t(language, 'probe.named', { name }) : t(language, 'probe.plain'),
@@ -160,8 +160,8 @@ export class DiscordChannel implements NotificationChannel {
             fields: message.fields.slice(0, LIMIT.fields).map((field) => ({
               name: clamp(field.label, LIMIT.fieldName),
               value: clamp(field.value, LIMIT.fieldValue),
-              // Les valeurs sont des identifiants et des messages d'erreur :
-              // sur deux colonnes elles seraient tronquées à l'affichage.
+              // The values are identifiers and error messages: on two columns they would be
+              // truncated on display.
               inline: false,
             })),
             footer: {
@@ -177,13 +177,13 @@ export class DiscordChannel implements NotificationChannel {
   }
 
   /**
-   * Le résumé : un seul `embed`, la liste dans la `description` plutôt que dans
-   * des `fields`.
+   * The digest: a single `embed`, the list in the `description` rather than in
+   * `fields`.
    *
-   * Les `fields` d'un embed sont faits pour des paires étiquette/valeur courtes ;
-   * quinze d'entre eux empilés produisent un pavé illisible, et l'API en refuse
-   * plus de vingt-cinq. Une liste à puces dans la description se lit comme une
-   * liste — ce qu'elle est.
+   * An embed's `fields` are made for short label/value pairs; fifteen of them
+   * stacked produce an unreadable block, and the API refuses more than
+   * twenty-five. A bulleted list in the description reads like a list — which it
+   * is.
    */
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     const username = str(resolved.config, 'username');

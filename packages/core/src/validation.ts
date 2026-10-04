@@ -3,19 +3,19 @@ import { renderMessage, type Translated, type UiLanguage, type Vars } from './i1
 import { ssrfRefusalText, type SsrfRefusal } from './monitors/ssrf.js';
 
 /**
- * Les reproches des schémas Zod de Pupitre, dans les deux langues.
+ * Pupitre's Zod schema complaints, in both languages.
  *
- * ── Pourquoi la phrase française reste le `message` ───────────────────────
- * Un schéma est une constante : il ne connaît pas la langue de qui le lira.
- * Le reproche garde donc sa phrase française — la valeur par défaut, celle
- * que lisent les tests et la boucle de correction de l'IA, dont le prompt est
- * en français — et porte **en plus** sa clé et ses variables dans `params`.
- * L'écran le redit dans sa langue au dernier moment (`issueMessage()`,
- * `localizeZodError()`), comme le journal d'activité rend ses entrées.
+ * ── Why the French sentence stays the `message` ─────────────────────────────
+ * A schema is a constant: it does not know the language of whoever will read
+ * it. The complaint therefore keeps its French sentence — the default value, the
+ * one the tests and the AI's correction loop read, whose prompt is in French —
+ * and **also** carries its key and its variables in `params`. The screen says it
+ * again in its language at the last moment (`issueMessage()`,
+ * `localizeZodError()`), as the activity log renders its entries.
  *
- * Un contrôle intégré (`.min(1, '…')`, `.regex(…, '…')`) ne garde pas de
- * `params` : on le retrouve par sa phrase française, qui est sans variable.
- * Le transformer en `refine` aurait changé le schéma JSON envoyé à l'IA.
+ * A built-in check (`.min(1, '…')`, `.regex(…, '…')`) keeps no `params`: it is
+ * found again by its French sentence, which has no variable. Turning it into a
+ * `refine` would have changed the JSON schema sent to the AI.
  */
 const fr = {
   'spec.relativePath': 'chemin relatif attendu, sans « .. » ni « / » au début',
@@ -155,12 +155,13 @@ export const validationCopy = { fr, en };
 
 export type ValidationKey = keyof typeof fr;
 
-/** Ce qu'un reproche porte pour être redit : sa clé, et ses variables. */
+/** What a complaint carries to be said again: its key, and its variables. */
 export type ValidationRef = { key: ValidationKey; vars?: Vars };
 
 /**
- * Le reproche d'un schéma : sa phrase française, et de quoi la redire dans une
- * autre langue. À étaler dans `ctx.addIssue({ … })` ou à passer à `.refine()`.
+ * A schema's complaint: its French sentence, and what is needed to say it again
+ * in another language. To spread into `ctx.addIssue({ … })` or pass to
+ * `.refine()`.
  */
 export function invalid(
   key: ValidationKey,
@@ -172,14 +173,14 @@ export function invalid(
   };
 }
 
-/** Les reproches sans variable, retrouvés par leur phrase française. */
+/** The complaints without a variable, found again by their French sentence. */
 const byFrenchText = new Map<string, ValidationKey>(
   (Object.entries(fr) as Array<[ValidationKey, string]>)
     .filter(([, text]) => !text.includes('{'))
     .map(([key, text]) => [text, key]),
 );
 
-/** Ce qu'un reproche dit, dans la langue demandée. Un reproche inconnu reste tel quel. */
+/** What a complaint says, in the requested language. An unknown complaint stays as is. */
 export function issueMessage(
   issue: { message: string; params?: unknown },
   language: UiLanguage,
@@ -194,8 +195,8 @@ export function issueMessage(
 }
 
 /**
- * Le même `ZodError`, ses reproches redits dans la langue demandée — à
- * appliquer juste avant de les montrer (`z.flattenError()`, une liste).
+ * The same `ZodError`, its complaints said again in the requested language — to
+ * apply just before showing them (`z.flattenError()`, a list).
  */
 export function localizeZodError<T>(error: z.ZodError<T>, language: UiLanguage): z.ZodError<T> {
   return new z.ZodError(

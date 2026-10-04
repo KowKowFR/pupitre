@@ -16,15 +16,15 @@ import type { ScanContext, ScanLogSink, Scanner } from './types.js';
 import { scannerSay } from './messages.js';
 
 /**
- * Syft — inventaire des composants (SBOM CycloneDX).
+ * Syft — component inventory (CycloneDX SBOM).
  *
- * Version relevée sur `api.github.com/repos/anchore/syft/releases/latest`
- * le 2026-09-10.
+ * Version taken from `api.github.com/repos/anchore/syft/releases/latest` on
+ * 2026-09-10.
  *
- * `kind = "sbom"` : cet outil n'énonce aucune vulnérabilité, donc il ne produit
- * aucun `Finding` et ne peut pas bloquer un déploiement. Ce n'est pas un cas
- * particulier codé dans le pipeline — c'est le `kind` qui le dit, et le
- * pipeline ne lit que le `kind`.
+ * `kind = "sbom"`: this tool states no vulnerability, so it produces no
+ * `Finding` and cannot block a deployment. It is not a special case coded in the
+ * pipeline — it is the `kind` that says so, and the pipeline only reads the
+ * `kind`.
  */
 export const SYFT_VERSION = '1.51.1';
 
@@ -86,7 +86,7 @@ export class SyftSBOM implements Scanner {
       scanner: this.key,
       kind: this.kind,
       durationMs: run.durationMs,
-      // Un SBOM n'énonce pas de vulnérabilité : la liste est vide, par nature.
+      // An SBOM states no vulnerability: the list is empty, by nature.
       findings: [],
       sbom: { format, content: run.stdout.trim() },
       raw,
@@ -95,8 +95,8 @@ export class SyftSBOM implements Scanner {
 }
 
 /**
- * La ligne de commande de Syft pour une image et l'endroit où elle se trouve —
- * mêmes sources et même plateforme que Grype, qui s'appuie sur lui.
+ * Syft's command line for an image and the place where it is — same sources and
+ * same platform as Grype, which relies on it.
  */
 export function syftCommand(image: string, store: ImageStore, format: string): ToolCommand {
   const cache = `SYFT_CACHE_DIR=${cachePath('syft')} SYFT_CHECK_FOR_APP_UPDATE=false`;

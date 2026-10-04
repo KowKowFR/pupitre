@@ -4,12 +4,12 @@ import type { ChannelConfig, NotificationChannelKind } from './catalog.js';
 import { NotificationError, describeFailure, redactSecrets, type FetchLike } from './types.js';
 
 /**
- * Appel HTTP commun aux trois canaux qui en font un — Telegram, Discord,
- * webhook. Trois fois la même prudence : une borne de temps, un corps d'erreur
- * tronqué, et **rien** qui ressemble à un jeton dans le message remonté.
+ * HTTP call shared by the three channels that make one — Telegram, Discord,
+ * webhook. Three times the same caution: a time bound, a truncated error body,
+ * and **nothing** that looks like a token in the reported message.
  *
- * Le `fetch` est reçu en argument et non importé : c'est ce qui permet de
- * vérifier la forme d'une charge utile sans réseau.
+ * The `fetch` is received as an argument and not imported: that is what allows
+ * checking a payload's shape without network.
  */
 
 export type HttpCallOptions = {
@@ -20,9 +20,9 @@ export type HttpCallOptions = {
   headers?: Record<string, string>;
   body?: unknown;
   timeoutMs: number;
-  /** Valeurs à masquer dans tout message d'erreur remonté. */
+  /** Values to mask in any reported error message. */
   secrets: ChannelConfig;
-  /** La langue des erreurs remontées — celle de l'instance. */
+  /** The language of the reported errors — the instance's. */
   language?: UiLanguage;
 };
 
@@ -41,7 +41,7 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
     ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
   };
 
-  // Un webhook ne vise jamais les métadonnées d'un cloud — voir `egress.ts`.
+  // A webhook never targets a cloud's metadata — see `egress.ts`.
   try {
     await assertEgressAllowed(options.url);
   } catch (error) {
@@ -58,8 +58,8 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
   try {
     response = await options.fetch(options.url, init);
   } catch (error) {
-    // Une URL injoignable, un DNS muet, un délai dépassé : tous ici. Le message
-    // de `fetch` contient parfois l'URL entière, jeton compris.
+    // An unreachable URL, a silent DNS, a timeout: all here. `fetch`'s message
+    // sometimes contains the whole URL, token included.
     throw new NotificationError(
       describeFailure(error, options.secrets, options.language),
       options.channel,
@@ -82,7 +82,7 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
   return { status: response.status, text };
 }
 
-/** Lit une valeur de chaîne dans une réponse JSON, sans jamais lever. */
+/** Reads a string value in a JSON response, without ever throwing. */
 export function jsonField(raw: string, ...path: string[]): string | null {
   let current: unknown;
   try {

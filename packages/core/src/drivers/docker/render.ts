@@ -19,14 +19,14 @@ import {
 } from './compose-model.js';
 
 /**
- * Traduction AppSpec → Compose.
+ * AppSpec → Compose translation.
  *
- * C'est le seul endroit du projet qui a le droit de connaître Docker. Tout ce
- * que la spec neutre ne sait pas dire — politique de redémarrage, réseau,
- * nommage des images — est décidé ici, parce que c'est une affaire de runtime.
+ * It is the only place in the project allowed to know Docker. Everything the
+ * neutral spec cannot say — restart policy, network, image naming — is decided
+ * here, because it is a runtime matter.
  */
 
-/** Dérivé de la convention partagée : une seule définition de `app-`. */
+/** Derived from the shared convention: a single definition of `app-`. */
 export const PROJECT_PREFIX = WORKSPACE_PREFIX;
 
 export function projectName(appSlug: string): string {
@@ -37,159 +37,158 @@ export function networkName(appSlug: string): string {
   return `${projectName(appSlug)}-net`;
 }
 
-/** Nom d'un volume, préfixé pour rester unique sur une cible partagée. */
+/** A volume's name, prefixed to stay unique on a shared target. */
 export function volumeName(appSlug: string, service: string, volume: string): string {
   return `${projectName(appSlug)}-${service}-${volume}`;
 }
 
-/** Image construite localement pour un service à bâtir. */
+/** An image built locally for a service to build. */
 export function buildImageTag(appSlug: string, service: string, version: string): string {
   return `${projectName(appSlug)}/${service}:${version}`;
 }
 
 /**
- * UID/GID du compte non privilégié. La spec ne le dit pas : c'est une décision
- * de runtime, comme la politique de redémarrage.
+ * UID/GID of the unprivileged account. The spec does not say it: it is a
+ * runtime decision, like the restart policy.
  *
- * Le rendu K3s pose la même valeur, mais elle y sert **deux** usages : imposer
- * l'identité du processus, et donner son groupe au volume monté (`fsGroup`).
- * Compose n'a pas de second usage à offrir — voir `pinsRunAsUser()`.
+ * The K3s render sets the same value, but there it serves **two** uses:
+ * imposing the process identity, and giving its group to the mounted volume
+ * (`fsGroup`). Compose has no second use to offer — see `pinsRunAsUser()`.
  */
 export const RUN_AS_UID = 1000;
 
 /**
- * Pendant de `allowPrivilegeEscalation: false`.
+ * The counterpart of `allowPrivilegeEscalation: false`.
  *
- * Ce n'est **pas** une redondance avec `cap_drop`. Mesuré sur la cible, un
- * conteneur Docker sans option démarre avec `NoNewPrivs: 0` — un binaire setuid
- * présent dans l'image peut donc encore regagner ce qu'on vient de retirer.
- * L'option pose le bit à 1 :
+ * It is **not** redundant with `cap_drop`. Measured on the target, a Docker
+ * container without the option starts with `NoNewPrivs: 0` — a setuid binary
+ * present in the image can therefore still regain what was just removed. The
+ * option sets the bit to 1:
  *
  *     docker run --rm nginx:1.27-alpine grep NoNewPrivs /proc/1/status
  *     NoNewPrivs:  0
  *     docker run --rm --security-opt no-new-privileges:true … → NoNewPrivs: 1
  *
- * Vérifiée sans dégât sur `nginx`, `postgres`, `redis`, `httpd`, `mariadb`,
- * `wordpress` et `adminer` : leurs points d'entrée abandonnent leurs privilèges
- * avec `gosu`/`su-exec`, qui appellent `setuid()` en tant que root et ne sont
- * pas des binaires setuid — le drapeau ne les gêne pas. Une image qui passerait
- * par `su` ou `sudo`, eux setuid, serait la seule à en souffrir.
+ * Checked harmless on `nginx`, `postgres`, `redis`, `httpd`, `mariadb`,
+ * `wordpress` and `adminer`: their entry points drop privileges with
+ * `gosu`/`su-exec`, which call `setuid()` as root and are not setuid binaries —
+ * the flag does not bother them. An image that went through `su` or `sudo`,
+ * which are setuid, would be the only one to suffer from it.
  */
 const NO_NEW_PRIVILEGES = 'no-new-privileges:true';
 
 /**
- * Capacités rendues à un conteneur qui garde l'identité choisie par son image.
+ * Capabilities given back to a container that keeps the identity chosen by its
+ * image.
  *
- * Même liste que le rendu K3s, et pour la même raison — vérifiée ici aussi,
- * `cap_drop: ALL` seul casse les images officielles les plus banales :
+ * The same list as the K3s render, for the same reason — checked here too,
+ * `cap_drop: ALL` alone breaks the most ordinary official images:
  *
  *     nginx    : chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
  *     postgres : chmod: /var/run/postgresql: Operation not permitted
  *                error: failed switching to 'postgres': operation not permitted
  *
- * Le schéma est toujours le même : démarrer root, préparer ses répertoires,
- * puis abandonner ses privilèges. Il réclame ces cinq capacités et pas une de
- * plus — `CapEff` tombe de `a80425fb` (les quatorze de Docker) à `cb`.
+ * The pattern is always the same: start as root, prepare its directories, then
+ * drop privileges. It needs these five capabilities and not one more — `CapEff`
+ * drops from `a80425fb` (Docker's fourteen) to `cb`.
  *
- * `NET_BIND_SERVICE` en est volontairement absente, comme côté K3s : Docker
- * pose `net.ipv4.ip_unprivileged_port_start=0` dans le conteneur, et un `nginx`
- * écoutant sur 80 démarre sans elle — vérifié sur la cible.
+ * `NET_BIND_SERVICE` is deliberately absent, as on the K3s side: Docker sets
+ * `net.ipv4.ip_unprivileged_port_start=0` in the container, and an `nginx`
+ * listening on 80 starts without it — checked on the target.
  */
 const RETAINED_CAPABILITIES = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'];
 
 /**
- * Scratch imposé par la racine en lecture seule.
+ * Scratch space imposed by the read-only root.
  *
- * `exec` est explicite et ce n'est pas un oubli de durcissement : le tmpfs de
- * Docker est `noexec` par défaut, alors que l'`emptyDir` que le rendu K3s monte
- * au même endroit ne l'est pas. Laisser le défaut ferait qu'une application qui
- * exécute quelque chose depuis `/tmp` tournerait en K3s et échouerait en
- * Docker : ce serait exactement la divergence de comportement entre runtimes
- * que le projet interdit. Le durcissement marginal ne vaut pas ce prix.
+ * `exec` is explicit and it is not a hardening oversight: Docker's tmpfs is
+ * `noexec` by default, whereas the `emptyDir` the K3s render mounts at the same
+ * place is not. Leaving the default would make an application that runs
+ * something from `/tmp` work on K3s and fail on Docker: exactly the behavior
+ * divergence between runtimes the project forbids. The marginal hardening is not
+ * worth that price.
  *
- * `mode=1777` reprend le défaut de Docker, écrit pour qu'il cesse d'être un
- * défaut implicite.
+ * `mode=1777` repeats Docker's default, written so that it stops being an
+ * implicit default.
  */
 const TMP_SCRATCH = `/tmp:exec,mode=1777`;
 
 /**
- * Le durcissement n'est légitime que sur ce qu'on connaît.
+ * Hardening is only legitimate on what we know.
  *
- * Sur une image que **nous** construisons depuis un Dockerfile, on sait ce
- * qu'elle écrit et sous quel compte elle tourne. Sur une image tierce tirée
- * d'un registry, on ne sait rien de tout cela, et chaque contrainte imposée à
- * l'aveugle devient une panne au démarrage.
+ * On an image **we** build from a Dockerfile, we know what it writes and under
+ * which account it runs. On a third-party image pulled from a registry, we know
+ * none of that, and each constraint imposed blindly becomes a startup failure.
  */
 function isOwnImage(service: Service): boolean {
   return service.source.type === 'dockerfile';
 }
 
 /**
- * Imposons-nous l'identité du processus, ou laissons-nous l'image choisir ?
+ * Do we impose the process identity, or let the image choose?
  *
- * C'est **la** question que Compose pose différemment de Kubernetes, et la
- * seule divergence assumée entre les deux rendus.
+ * It is **the** question Compose asks differently from Kubernetes, and the only
+ * accepted divergence between the two renders.
  *
- * Côté K3s, `fsGroup` fait qu'un volume fraîchement provisionné devient
- * inscriptible par un conteneur tournant sous son propre uid : le kubelet
- * chown le point de montage. **Compose n'a aucun équivalent.** Mesuré sur la
- * cible, un volume nommé neuf est `root:root 0755` et le reste :
+ * On K3s, `fsGroup` makes a freshly provisioned volume writable by a container
+ * running under its own uid: the kubelet chowns the mount point. **Compose has
+ * no equivalent.** Measured on the target, a new named volume is
+ * `root:root 0755` and stays so:
  *
- *     docker run -u 1000:1000 -v neuf:/data nginx:1.27-alpine touch /data/x
+ *     docker run -u 1000:1000 -v new:/data nginx:1.27-alpine touch /data/x
  *     touch: /data/x: Permission denied
  *
- * `group_add: 0` n'y change rien — le répertoire est en `0755`, le groupe n'a
- * pas le bit d'écriture. Le seul chemin qui marche est que l'image ait
- * elle-même préparé le point de montage : Docker recopie alors la propriété de
- * ce répertoire dans le volume neuf. Or le Dockerfile vient de l'utilisateur,
- * on ne peut pas en faire une hypothèse.
+ * `group_add: 0` changes nothing — the directory is `0755`, the group has no
+ * write bit. The only path that works is for the image to have prepared the
+ * mount point itself: Docker then copies that directory's ownership into the new
+ * volume. But the Dockerfile comes from the user, we cannot assume it.
  *
- * D'où la règle : on n'impose l'uid qu'aux images que l'on bâtit **et** qui ne
- * déclarent aucun volume. Ailleurs, l'image garde son identité — et reçoit donc
- * les cinq capacités, qui sont précisément ce dont son point d'entrée a besoin
- * pour faire à la main ce que `fsGroup` ferait pour lui.
+ * Hence the rule: we only impose the uid on images we build **and** that declare
+ * no volume. Elsewhere, the image keeps its identity — and therefore gets the
+ * five capabilities, which are precisely what its entry point needs to do by
+ * hand what `fsGroup` would do for it.
  *
- * Imposer l'uid partout produirait un conteneur qui démarre puis échoue à la
- * première écriture : une régression, pas un durcissement.
+ * Imposing the uid everywhere would produce a container that starts then fails
+ * at the first write: a regression, not hardening.
  */
 function pinsRunAsUser(service: Service): boolean {
   return isOwnImage(service) && service.volumes.length === 0;
 }
 
 /**
- * Racine en lecture seule : tenable seulement sur une image que l'on bâtit.
- * Vérifié sur la cible, `--read-only` sur une image tierce échoue tout de
- * suite — `nginx` : `mkdir() "/var/cache/nginx/client_temp" failed (30:
- * Read-only file system)`. Le critère est donc `isOwnImage()`, exactement comme
- * côté K3s, et non `pinsRunAsUser()` : un volume monté reste inscriptible quoi
- * qu'il arrive à la racine.
+ * Read-only root: only bearable on an image we build. Checked on the target,
+ * `--read-only` on a third-party image fails right away — `nginx`:
+ * `mkdir() "/var/cache/nginx/client_temp" failed (30: Read-only file system)`.
+ * The criterion is therefore `isOwnImage()`, exactly as on the K3s side, and not
+ * `pinsRunAsUser()`: a mounted volume stays writable whatever happens to the
+ * root.
  */
 function allowsReadOnlyRoot(service: Service): boolean {
   return isOwnImage(service);
 }
 
 /**
- * Pose le contexte de sécurité sur un service.
+ * Sets the security context on a service.
  *
- * Ce qui **n'est pas** écrit ici l'est tout autant par décision :
+ * What **is not** written here is just as much a decision:
  *
- * - **Profil seccomp.** Aucun à déclarer. Docker en applique déjà un
- *   (`docker info` → `name=seccomp,profile=builtin`), et il est actif sans
- *   qu'on demande rien : `grep Seccomp /proc/1/status` rend `2` (mode filtre)
- *   dans un conteneur lancé sans option. C'est le `RuntimeDefault` du rendu
- *   K3s, sous un autre nom. Compose ne sait de toute façon dire que
- *   `seccomp:unconfined` ou un chemin de profil JSON : la seule déclaration
- *   possible affaiblirait ce qui est déjà en place.
- * - **`privileged: false`.** C'est le défaut de Docker. L'écrire n'ajouterait
- *   rien qu'un champ de plus à relire.
- * - **`fsGroup`.** Sans équivalent — voir `pinsRunAsUser()`.
+ * - **Seccomp profile.** None to declare. Docker already applies one
+ *   (`docker info` → `name=seccomp,profile=builtin`), and it is active without
+ *   asking for anything: `grep Seccomp /proc/1/status` returns `2` (filter
+ *   mode) in a container started without options. It is the K3s render's
+ *   `RuntimeDefault`, under another name. Compose can anyway only say
+ *   `seccomp:unconfined` or a JSON profile path: the only possible declaration
+ *   would weaken what is already in place.
+ * - **`privileged: false`.** It is Docker's default. Writing it would add
+ *   nothing but one more field to read.
+ * - **`fsGroup`.** No equivalent — see `pinsRunAsUser()`.
  */
 function applySecurityContext(composeService: ComposeService, service: Service): void {
   composeService.security_opt = [NO_NEW_PRIVILEGES];
 
-  // On part de zéro dans tous les cas, puis on rend ce qui a été mesuré comme
-  // nécessaire. Une image dont on fixe l'uid n'a besoin de rien : elle ne
-  // démarre jamais root, donc elle n'a rien à préparer avant de se dégrader.
+  // We start from zero in every case, then give back what was measured as
+  // necessary. An image whose uid we pin needs nothing: it never starts as root,
+  // so it has nothing to prepare before dropping privileges.
   composeService.cap_drop = ['ALL'];
   if (!pinsRunAsUser(service)) {
     composeService.cap_add = [...RETAINED_CAPABILITIES];
@@ -201,8 +200,8 @@ function applySecurityContext(composeService: ComposeService, service: Service):
 
   if (allowsReadOnlyRoot(service)) {
     composeService.read_only = true;
-    // Sans `/tmp` inscriptible, presque aucun runtime applicatif ne démarre.
-    // Sauf si la spec y monte déjà un volume — même réserve que le rendu K3s.
+    // Without a writable `/tmp`, almost no application runtime starts. Unless the
+    // spec already mounts a volume there — the same caveat as the K3s render.
     if (!service.volumes.some((volume) => volume.mountPath === '/tmp')) {
       composeService.tmpfs = [TMP_SCRATCH];
     }
@@ -210,30 +209,29 @@ function applySecurityContext(composeService: ComposeService, service: Service):
 }
 
 /**
- * Sonde exécutée *dans* le conteneur.
+ * Probe run *inside* the container.
  *
- * Qui est sondé en HTTP et qui l'est en TCP n'est pas décidé ici : c'est
- * `isHttpProbed()`, partagé avec le rendu K3s. Ne reste à ce rendu que le
- * *comment*, qui dépend de ce que l'image embarque.
+ * Who is probed over HTTP and who over TCP is not decided here: it is
+ * `isHttpProbed()`, shared with the K3s render. Only the *how* is left to this
+ * render, which depends on what the image ships.
  *
- * HTTP : `wget`, sinon `curl`, présents dans busybox comme dans la plupart des
- * bases Debian. Une image qui n'a **ni l'un ni l'autre** existe pourtant —
- * `freshrss/freshrss`, vu sur une vraie cible : sa sonde rendait 127 à vie, le
- * conteneur restait `unhealthy` et `up --wait` faisait échouer le déploiement
- * d'une application qui répondait très bien. Faute d'outil HTTP, la sonde
- * retombe alors sur le test TCP ci-dessous. Elle ne retombe **que** dans ce
- * cas : un `wget` présent qui reçoit une 500 reste un échec, il ne se rattrape
- * pas sur un port ouvert. Le statut HTTP, lui, est vérifié de l'extérieur par
- * `healthcheck()` à chaque déploiement.
+ * HTTP: `wget`, otherwise `curl`, present in busybox as in most Debian bases. An
+ * image with **neither** does exist though — `freshrss/freshrss`, seen on a real
+ * target: its probe returned 127 forever, the container stayed `unhealthy` and
+ * `up --wait` failed the deployment of an application that answered very well.
+ * Lacking an HTTP tool, the probe then falls back on the TCP test below. It
+ * **only** falls back in that case: a present `wget` that gets a 500 stays a
+ * failure, it does not recover on an open port. The HTTP status is checked from
+ * outside by `healthcheck()` at each deployment.
  *
- * TCP : `nc` puis la redirection `/dev/tcp` de bash. Les deux sont nécessaires
- * et aucun ne suffit — `postgres:16-alpine` a `nc` mais pas `bash`,
- * `postgres:16` et `mariadb:11` (Debian) ont `bash` mais **ni `nc`, ni `wget`,
- * ni `curl`. L'ancienne chaîne `nc || wget || curl` ne trouvait donc aucune de
- * ses trois commandes sur une base Debian : le shell rendait 127, le conteneur
- * restait `unhealthy` à vie, et le `depends_on: service_healthy` du service
- * applicatif bloquait avec lui. Un repli HTTP sur un service qui ne parle pas
- * HTTP n'aurait de toute façon jamais abouti : il est retiré.
+ * TCP: `nc` then bash's `/dev/tcp` redirection. Both are needed and neither is
+ * enough — `postgres:16-alpine` has `nc` but not `bash`, `postgres:16` and
+ * `mariadb:11` (Debian) have `bash` but **neither `nc`, nor `wget`, nor
+ * `curl`**. The old `nc || wget || curl` chain therefore found none of its three
+ * commands on a Debian base: the shell returned 127, the container stayed
+ * `unhealthy` forever, and the application service's
+ * `depends_on: service_healthy` blocked with it. An HTTP fallback on a service
+ * that does not speak HTTP would never have succeeded anyway: it is removed.
  */
 function renderHealthcheck(spec: AppSpec, service: Service): ComposeHealthcheck {
   const port = probePort(service);
@@ -262,21 +260,21 @@ function renderHealthcheck(spec: AppSpec, service: Service): ComposeHealthcheck 
 export type RenderInput = {
   spec: AppSpec;
   appSlug: string;
-  /** Port publié sur l'hôte pour le service exposé. `null` = pas de publication. */
+  /** Port published on the host for the exposed service. `null` = no publication. */
   publishedPort: number | null;
   /** Adresse de publication — voir `DriverExposure.bindAddress`. Absente : toutes. */
   publishAddress?: string;
-  /** Noms des secrets dont la valeur sera fournie par le fichier `.env`. */
+  /** Names of the secrets whose value the `.env` file will provide. */
   secretNames?: readonly string[];
-  /** Le code d'un dépôt est sous `source/` : voir `DriverContext.sourceInRelease`. */
+  /** A repository's code is under `source/`: see `DriverContext.sourceInRelease`. */
   sourceInRelease?: boolean;
-  /** L'étiquette des images construites : la release (`releaseName()`). Défaut : la version. */
+  /** The tag of the built images: the release (`releaseName()`). Default: the version. */
   imageTag?: string;
-  /** La langue d'une erreur de rendu (un secret sans valeur). Défaut : le français. */
+  /** The language of a render error (a secret without a value). Default: French. */
   language?: UiLanguage;
 };
 
-/** Le fichier Compose de Pupitre, toujours désigné par son nom (`-f`). */
+/** Pupitre's Compose file, always designated by its name (`-f`). */
 export const COMPOSE_FILE = 'compose.yml';
 
 export function renderComposeFile(input: RenderInput): ComposeFile {
@@ -288,8 +286,8 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
   const services: Record<string, ComposeService> = {};
   const volumes: Record<string, Record<string, never>> = {};
 
-  // L'ordre topologique rend le fichier lisible : une dépendance apparaît
-  // toujours avant le service qui la déclare.
+  // The topological order makes the file readable: a dependency always appears
+  // before the service that declares it.
   for (const service of topologicalOrder(spec)) {
     const isExposed = service.name === exposed.name;
 
@@ -300,14 +298,14 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
 
     const composeService: ComposeService = {
       image,
-      // La politique de redémarrage est une décision du runtime, pas de la
-      // spec : c'est pour ça qu'aucun champ `restart` n'existe dans l'AppSpec.
+      // The restart policy is a runtime decision, not the spec's: that is why no
+      // `restart` field exists in the AppSpec.
       restart: 'unless-stopped',
       networks: [network],
       expose: [String(service.port)],
-      // Préfixe `pupitre.` depuis le renommage. Le driver continue de lire les
-      // anciens `tp.*` : un conteneur posé avant garde son empreinte, et le
-      // panel doit continuer de le reconnaître comme sien.
+      // `pupitre.` prefix since the renaming. The driver still reads the old `tp.*`:
+      // a container set up before keeps its fingerprint, and the panel must keep
+      // recognizing it as its own.
       labels: {
         'pupitre.app': appSlug,
         'pupitre.service': service.name,
@@ -327,8 +325,8 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
       composeService.environment = { ...service.env };
     }
 
-    // Les secrets ne sont jamais inscrits dans le compose.yml : ils arrivent
-    // par un fichier `.env` déposé à côté, en mode 0600.
+    // Secrets are never written into compose.yml: they arrive through a `.env` file
+    // placed next to it, with mode 0600.
     if (service.secrets.length > 0) {
       composeService.env_file = ['./.env'];
     }
@@ -357,8 +355,8 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
 
     composeService.healthcheck = renderHealthcheck(spec, service);
 
-    // Après les volumes : la présence d'un volume décide de l'identité imposée,
-    // et un volume monté sur `/tmp` rend le tmpfs de scratch inutile.
+    // After the volumes: the presence of a volume decides the imposed identity, and
+    // a volume mounted on `/tmp` makes the scratch tmpfs useless.
     applySecurityContext(composeService, service);
 
     const deploy: ComposeDeployDraft = {};
@@ -391,7 +389,7 @@ export function renderComposeFile(input: RenderInput): ComposeFile {
 
 type ComposeDeployDraft = NonNullable<ComposeService['deploy']>;
 
-/** Sérialise le modèle. `lineWidth: 0` évite les replis de ligne inattendus. */
+/** Serializes the model. `lineWidth: 0` avoids unexpected line wraps. */
 export function serializeComposeFile(file: ComposeFile): string {
   const header = [
     '# Généré par Pupitre — ne pas éditer à la main.',
@@ -401,7 +399,7 @@ export function serializeComposeFile(file: ComposeFile): string {
   return `${header}${stringify(file, { lineWidth: 0, singleQuote: false })}`;
 }
 
-/** Fichier `.env` des secrets. Déposé en 0600, jamais journalisé. */
+/** The secrets' `.env` file. Placed with mode 0600, never logged. */
 export function serializeEnvFile(values: Record<string, string>): string {
   return Object.entries(values)
     .map(([key, value]) => `${key}=${escapeEnvValue(value)}`)
@@ -414,7 +412,7 @@ function escapeEnvValue(value: string): string {
   return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n')}"`;
 }
 
-/** Ensemble complet des fichiers à déposer sur la cible. */
+/** The complete set of files to place on the target. */
 export function renderFiles(
   input: RenderInput & { secretValues?: Record<string, string> },
 ): RenderedFile[] {
@@ -426,9 +424,9 @@ export function renderFiles(
     },
   ];
 
-  // Échoue si un secret déclaré n'a pas de valeur résolue — voir
-  // `completeSecretValues()`. Le rendu est le dernier endroit où l'on peut
-  // encore nommer le coupable.
+  // Fails if a declared secret has no resolved value — see
+  // `completeSecretValues()`. The render is the last place where the culprit can
+  // still be named.
   const complete = completeSecretValues(input.spec, input.secretValues ?? {}, input.language);
 
   if (Object.keys(complete).length > 0) {

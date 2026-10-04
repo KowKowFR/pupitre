@@ -15,36 +15,36 @@ import { messageOf } from './net.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
- * Sonde d'enregistrements DNS.
+ * DNS record probe.
  *
- * ── Ce que la garde SSRF veut dire ici, et c'est le point subtil ────────────
- * Les autres sondes se connectent à ce qu'elles surveillent ; celle-ci **non**.
- * Elle pose une question *à propos* d'un nom, à un résolveur. Les adresses
- * qu'elle obtient sont des **données** : on les compare, on ne les joint jamais.
- * Les soumettre au contrôle d'adresse serait absurde — superviser « le A de
- * `db.interne` vaut bien 10.0.0.5 » est parfaitement légitime, et ne joint rien.
+ * ── What the SSRF guard means here, and it is the subtle point ──────────────
+ * The other probes connect to what they monitor; this one does **not**. It asks
+ * a question *about* a name, to a resolver. The addresses it gets are **data**:
+ * compared, never reached. Submitting them to the address check would be absurd
+ * — monitoring "the A of `db.internal` is indeed 10.0.0.5" is perfectly
+ * legitimate, and reaches nothing.
  *
- * La règle qui couvre tous les types sans cas particulier est donc : **la garde
- * porte sur tout endpoint vers lequel le worker ouvre une socket**. Ici, cet
- * endpoint est le résolveur, et c'est lui qui est contrôlé — avec une exception
- * explicite pour le résolveur du système, qui n'est pas une saisie d'utilisateur
- * mais un fait de déploiement (dans un conteneur, c'est souvent `127.0.0.11`,
- * que la garde refuserait à tort).
+ * The rule that covers every type without a special case is therefore: **the
+ * guard applies to every endpoint the worker opens a socket to**. Here, that
+ * endpoint is the resolver, and it is what is checked — with an explicit
+ * exception for the system's resolver, which is not a user input but a
+ * deployment fact (in a container, it is often `127.0.0.11`, which the guard
+ * would wrongly refuse).
  *
- * ── Pourquoi `Resolver` et pas `dns.resolve` ────────────────────────────────
- * Une instance de `Resolver` porte ses propres serveurs et son propre délai.
- * Les fonctions du module global partagent une configuration de processus : les
- * faire pointer sur le résolveur d'une sonde changerait la résolution de **tout
- * le worker**, déploiements SSH compris. Une instance par mesure, jetée après,
- * est la seule forme correcte.
+ * ── Why `Resolver` and not `dns.resolve` ────────────────────────────────────
+ * A `Resolver` instance carries its own servers and its own timeout. The global
+ * module's functions share a process configuration: pointing them at a probe's
+ * resolver would change the resolution of **the whole worker**, SSH deployments
+ * included. One instance per measurement, thrown away after, is the only correct
+ * form.
  *
- * `Resolver` fait aussi ce qu'il faut d'autre : il interroge le type demandé
- * (`resolveMx`, `resolveCaa`…) au lieu de passer par `getaddrinfo`, il ne suit
- * pas le suffixe de recherche du système, et il rend les enregistrements
- * structurés plutôt que du texte à réanalyser.
+ * `Resolver` also does the other things needed: it queries the requested type
+ * (`resolveMx`, `resolveCaa`…) instead of going through `getaddrinfo`, it does
+ * not follow the system's search suffix, and it returns structured records
+ * rather than text to parse again.
  */
 
-/** Une réponse, réduite à des chaînes affichables — la comparaison fait le reste. */
+/** An answer, reduced to displayable strings — the comparison does the rest. */
 type Answer = { values: string[]; minTtl: number | null };
 
 async function query(
@@ -54,9 +54,8 @@ async function query(
 ): Promise<Answer> {
   switch (type) {
     case 'A': {
-      // `ttl: true` : le TTL n'est pas du signal de panne, mais il explique
-      // pourquoi une correction met du temps à se voir. C'est la question
-      // qu'on se pose toujours en incident.
+      // `ttl: true`: the TTL is not an outage signal, but it explains why a fix takes
+      // time to show. It is the question one always asks during an incident.
       const records = await resolver.resolve4(name, { ttl: true });
       return {
         values: records.map((record) => record.address),
@@ -94,10 +93,9 @@ async function query(
       const records = await resolver.resolveCaa(name);
       return {
         values: records.map((record) => {
-          // Node rend `{ critical, type: 'CAA', issue }` : une propriété par
-          // étiquette, plus deux champs de forme. `type` n'est pas une étiquette
-          // CAA — l'oublier ferait comparer « 0 type CAA » au lieu de
-          // « 0 issue pki.goog ».
+          // Node returns `{ critical, type: 'CAA', issue }`: one property per tag, plus
+          // two shape fields. `type` is not a CAA tag — forgetting it would compare
+          // "0 type CAA" instead of "0 issue pki.goog".
           const critical = record.critical ?? 0;
           const entry = Object.entries(record).find(
             ([key]) => key !== 'critical' && key !== 'type',
@@ -108,26 +106,26 @@ async function query(
       };
     }
     default: {
-      // TXT. Node rend les morceaux d'une même chaîne séparément : on les
-      // recolle, parce qu'un TXT découpé à 255 octets reste une seule valeur.
+      // TXT. Node returns the chunks of one string separately: we glue them back,
+      // because a TXT split at 255 bytes stays a single value.
       const records = await resolver.resolveTxt(name);
       return { values: records.map((chunks) => chunks.join('')), minTtl: null };
     }
   }
 }
 
-/** `ENOTFOUND` et `ENODATA` sont des constats, pas des pannes du worker. */
+/** `ENOTFOUND` and `ENODATA` are findings, not worker failures. */
 const EMPTY_CODES: ReadonlySet<string> = new Set(['ENOTFOUND', 'ENODATA']);
 
 /**
- * Longueur retenue d'une liste de valeurs, en caractères.
+ * Length kept of a list of values, in characters.
  *
- * Un domaine sérieux porte volontiers dix-sept TXT (SPF, DKIM, DMARC et une
- * preuve de propriété par prestataire) : les recopier entiers dans `metrics`,
- * puis à nouveau dans `unexpected`, puis dans le message d'alerte, ferait
- * quelques kilooctets par mesure — quatre-vingt-seize mesures par jour et par
- * sonde. On coupe : ce qui compte dans une alerte tient dans les premières
- * valeurs, et la liste complète se relit d'un `dig`.
+ * A serious domain readily carries seventeen TXT records (SPF, DKIM, DMARC and
+ * one ownership proof per provider): copying them whole into `metrics`, then
+ * again into `unexpected`, then into the alert message, would make a few
+ * kilobytes per measurement — ninety-six measurements per day per probe. We cut:
+ * what matters in an alert fits in the first values, and the full list can be
+ * read again with a `dig`.
  */
 const VALUES_MAX_CHARS = 400;
 
@@ -156,9 +154,9 @@ async function runDns(
 
   const resolver = new Resolver({ timeout: config.timeoutMs, tries: 1 });
   if (config.resolver !== null) {
-    // Un résolveur **déclaré** est une saisie d'utilisateur : il passe par la
-    // garde, comme n'importe quelle cible de connexion. C'est le seul endroit
-    // de cette sonde où une adresse est jugée.
+    // A **declared** resolver is a user input: it goes through the guard, like any
+    // connection target. It is the only place in this probe where an address is
+    // judged.
     const verdict = checkAddress(config.resolver, allowlist);
     if (!verdict.allowed) {
       return {
@@ -184,10 +182,10 @@ async function runDns(
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code ?? '';
     const resolveMs = Math.round(performance.now() - started);
-    // Le nom n'existe pas, ou n'a pas d'enregistrement de ce type. Le résolveur
-    // a répondu : ce n'est pas `unreachable`, c'est une réponse qui n'est pas
-    // celle qu'on attend. La nuance compte — `unreachable` voudrait dire « je
-    // n'ai pas pu regarder », alors qu'ici on a bien regardé.
+    // The name does not exist, or has no record of this type. The resolver
+    // answered: it is not `unreachable`, it is an answer that is not the expected
+    // one. The nuance matters — `unreachable` would mean "I could not look", whereas
+    // here we did look.
     if (EMPTY_CODES.has(code)) {
       return {
         outcome: 'unhealthy',
@@ -211,9 +209,9 @@ async function runDns(
   const metrics = {
     resolveMs,
     recordCount: answer.values.length,
-    // `metrics` n'accepte que nombre, chaîne ou `null` : une liste se sérialise.
-    // La virgule est un séparateur d'affichage, pas de données — la comparaison,
-    // elle, travaille sur la liste.
+    // `metrics` only accepts a number, a string or `null`: a list is serialized. The
+    // comma is a display separator, not a data one — the comparison works on the
+    // list.
     values: summarize(answer.values),
     resolver: resolverLabel,
     minTtl: answer.minTtl,
@@ -230,10 +228,9 @@ async function runDns(
     };
   }
 
-  // Aucune valeur déclarée : la sonde constate la présence, et c'est tout ce
-  // qu'elle prétend faire. C'est le réglage utile pour « ce nom résout-il
-  // encore », sans avoir à figer une adresse qui bouge légitimement (CDN,
-  // bascule d'hébergeur).
+  // No declared value: the probe observes presence, and that is all it claims to
+  // do. It is the useful setting for "does this name still resolve", without
+  // having to freeze an address that legitimately moves (CDN, hosting switch).
   if (expected.length === 0) {
     return { outcome: 'healthy', latencyMs: resolveMs, detail: null, metrics };
   }

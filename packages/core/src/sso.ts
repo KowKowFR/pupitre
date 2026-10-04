@@ -1,24 +1,24 @@
 import type { SsoSettings } from './settings.js';
 
 /**
- * Ce que Pupitre fait d'un profil OpenID Connect, sans rien en savoir d'autre :
- * lire ses groupes, et en tirer un rôle.
+ * What Pupitre does with an OpenID Connect profile, without knowing anything
+ * else about it: read its groups, and draw a role from them.
  */
 
-/** L'identifiant du fournisseur pour Better Auth : il entre dans l'URL de retour. */
+/** The provider's identifier for Better Auth: it goes into the callback URL. */
 export const SSO_PROVIDER_ID = 'oidc';
 
-/** L'URL de retour à déclarer chez le fournisseur, pour un panel servi à `baseUrl`. */
+/** The callback URL to declare at the provider, for a panel served at `baseUrl`. */
 export function ssoCallbackUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/api/auth/callback/${SSO_PROVIDER_ID}`;
 }
 
-/** Le document de découverte d'un émetteur. */
+/** An issuer's discovery document. */
 export function ssoDiscoveryUrl(issuer: string): string {
   return `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`;
 }
 
-/** Les portées, dédoublonnées, `openid` toujours en tête : sans elle, pas d'OpenID Connect. */
+/** The scopes, deduplicated, `openid` always first: without it, no OpenID Connect. */
 export function ssoScopes(scopes: string): string[] {
   const list = scopes.split(/\s+/).filter(Boolean);
   return ['openid', ...new Set(list.filter((scope) => scope !== 'openid'))];
@@ -29,10 +29,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Les valeurs d'un champ du profil, par son chemin pointé : `groups`, ou
- * `realm_access.roles` pour les rôles de realm de Keycloak — que celui-ci ne
- * met dans le jeton d'identité que si son mappeur l'y ajoute. Une chaîne seule
- * compte pour une valeur ; tout le reste est ignoré.
+ * The values of a profile field, by its dotted path: `groups`, or
+ * `realm_access.roles` for Keycloak's realm roles — which it only puts in the ID
+ * token if its mapper adds them. A lone string counts as one value; everything
+ * else is ignored.
  */
 export function claimValues(profile: unknown, path: string): string[] {
   let current: unknown = profile;
@@ -46,15 +46,18 @@ export function claimValues(profile: unknown, path: string): string[] {
   return [];
 }
 
-/** Keycloak écrit un groupe en chemin complet (`/ops/prod`) ou en nom seul : on compare sans le `/` de tête. */
+/**
+ * Keycloak writes a group as a full path (`/ops/prod`) or a bare name: we compare
+ * without the leading `/`.
+ */
 function normalizeGroup(group: string): string {
   return group.trim().replace(/^\/+/, '');
 }
 
 /**
- * Le rôle que donnent les groupes : la **première** correspondance de la liste,
- * dans l'ordre où l'administrateur l'a écrite — c'est ce qui permet de faire
- * passer « admins » avant « ops ». Sans correspondance, le rôle par défaut.
+ * The role the groups give: the **first** match of the list, in the order the
+ * administrator wrote it — that is what allows putting "admins" before "ops".
+ * Without a match, the default role.
  */
 export function roleFromGroups(
   groups: readonly string[],

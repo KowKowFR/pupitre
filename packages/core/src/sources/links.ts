@@ -1,18 +1,17 @@
 import type { SourceProviderKind } from './types.js';
 
 /**
- * Les adresses d'un dépôt côté navigateur, fournisseur par fournisseur.
+ * A repository's browser-side addresses, provider by provider.
  *
- * Module pur : l'écran s'en sert pour un lien vers un commit ou une branche,
- * le panel pour recopier l'adresse d'un dépôt dans un déploiement. Un dépôt
- * s'ouvre à `{base}/{propriétaire}/{nom}` partout — chez GitLab, avec tout le
- * chemin de ses groupes ; seules les pages d'une branche et d'un commit
- * diffèrent.
+ * A pure module: the screen uses it for a link to a commit or a branch, the
+ * panel to copy a repository's address into a deployment. A repository opens at
+ * `{base}/{owner}/{name}` everywhere — at GitLab, with the whole path of its
+ * groups; only a branch's and a commit's pages differ.
  */
 
 export const GITHUB_WEB_URL = 'https://github.com';
 
-/** Le nom d'un fournisseur, tel qu'on l'écrit partout — un nom propre, qui ne se traduit pas. */
+/** A provider's name, as written everywhere — a proper noun, not translated. */
 export const SOURCE_PROVIDER_LABELS: Record<SourceProviderKind, string> = {
   github: 'GitHub',
   gitea: 'Gitea',
@@ -20,8 +19,8 @@ export const SOURCE_PROVIDER_LABELS: Record<SourceProviderKind, string> = {
 };
 
 /**
- * L'adresse web d'une forge GitHub : github.com, ou celle d'un GitHub
- * Enterprise, déduite de son API (`https://ghe.exemple.fr/api/v3`).
+ * The web address of a GitHub forge: github.com, or a GitHub Enterprise's,
+ * inferred from its API (`https://ghe.example.com/api/v3`).
  */
 export function githubWebUrl(apiUrl: string | null): string {
   if (!apiUrl) return GITHUB_WEB_URL;
@@ -48,8 +47,8 @@ export function branchWebUrl(
 }
 
 /**
- * La page d'un commit. Sans fournisseur connu — le run d'une liaison disparue —,
- * `/commit/` : GitHub et Gitea l'ouvrent, GitLab redirige vers `/-/commit/`.
+ * A commit's page. Without a known provider — the run of a link that is gone —,
+ * `/commit/`: GitHub and Gitea open it, GitLab redirects to `/-/commit/`.
  */
 export function commitWebUrl(
   repositoryUrl: string,

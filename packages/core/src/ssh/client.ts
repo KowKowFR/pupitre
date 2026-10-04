@@ -26,16 +26,16 @@ export const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
 export const DEFAULT_READY_TIMEOUT_MS = 15_000;
 export const DEFAULT_RETRIES = 3;
 
-/** Session ouverte. Opaque pour l'appelant : tout passe par les fonctions du module. */
+/** Open session. Opaque to the caller: everything goes through the module's functions. */
 export type SshSession = {
   readonly id: string;
   readonly host: string;
   readonly port: number;
   readonly username: string;
   readonly connectedAt: Date;
-  /** Temps d'établissement de la connexion, en millisecondes. */
+  /** Time to establish the connection, in milliseconds. */
   readonly latencyMs: number;
-  /** L'empreinte de la clé d'hôte présentée (`SHA256:…`). */
+  /** The fingerprint of the presented host key (`SHA256:…`). */
   readonly hostKey: string | null;
   /** @internal */
   readonly client: NodeSSH;
@@ -43,7 +43,7 @@ export type SshSession = {
   readonly target: SshTarget;
   /** @internal */
   readonly logger: SshLogger | undefined;
-  /** La langue de ce que la session dit — voir `ConnectOptions.language`. */
+  /** The language of what the session says — see `ConnectOptions.language`. */
   readonly language: UiLanguage;
 };
 
@@ -59,19 +59,19 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * L'empreinte d'une clé d'hôte, au format de `ssh-keygen -lf` :
- * `SHA256:` puis le SHA-256 du blob de la clé publique, en base64 sans `=`.
+ * A host key's fingerprint, in `ssh-keygen -lf` format: `SHA256:` then the
+ * SHA-256 of the public key blob, in base64 without `=`.
  */
 export function hostKeyFingerprint(key: Buffer): string {
   return `SHA256:${createHash('sha256').update(key).digest('base64').replace(/=+$/, '')}`;
 }
 
 /**
- * Ouvre une session SSH.
+ * Opens an SSH session.
  *
- * Rejoue jusqu'à `retries` fois avec un backoff exponentiel sur échec réseau.
- * **Jamais** sur échec d'authentification : la clé ne deviendra pas valide en
- * réessayant, et certaines cibles bannissent l'IP après quelques tentatives.
+ * Retries up to `retries` times with exponential backoff on a network failure.
+ * **Never** on an authentication failure: the key will not become valid by
+ * retrying, and some targets ban the IP after a few attempts.
  */
 export async function connect(
   target: SshTarget,
@@ -82,8 +82,8 @@ export async function connect(
   const retries = options.retries ?? DEFAULT_RETRIES;
   const readyTimeout = options.readyTimeout ?? DEFAULT_READY_TIMEOUT_MS;
 
-  // La clé présentée, relevée à chaque tentative ; refusée si elle n'est pas
-  // celle qu'on attend — `ssh2` coupe alors la poignée de main.
+  // The presented key, recorded at each attempt; refused if it is not the one
+  // expected — `ssh2` then cuts the handshake.
   const policy = target.hostKey;
   let presented: string | null = null;
   const base = {
@@ -120,7 +120,7 @@ export async function connect(
       await client.connect(config);
       const latencyMs = Date.now() - startedAt;
 
-      // Une machine jamais jointe : sa clé est retenue, désormais attendue.
+      // A machine never reached: its key is recorded, and expected from now on.
       if (policy && policy.expected === null && presented) {
         await policy.onFirstSeen?.(presented);
       }
@@ -154,12 +154,12 @@ export async function connect(
       lastError = error;
       client.dispose();
 
-      // `presented` est réassigné par le vérificateur, appelé pendant `connect`.
+      // `presented` is reassigned by the verifier, called during `connect`.
       const seen = presented as string | null;
       if (policy?.expected && seen && seen !== policy.expected) {
         logger.warn(
           { host: target.host, expected: policy.expected, presented: seen },
-          "clé d'hôte inattendue — connexion refusée, aucune nouvelle tentative",
+          'unexpected host key — connection refused, no retry',
         );
         await policy.onMismatch?.(seen);
         throw new SshHostKeyError(target.host, policy.expected, seen, options.language);
@@ -168,7 +168,7 @@ export async function connect(
       if (isAuthFailure(error)) {
         logger.warn(
           { host: target.host, authMethod: target.credentials.authMethod },
-          "échec d'authentification SSH — aucune nouvelle tentative",
+          'SSH authentication failed — no retry',
         );
         throw new SshAuthError(say('auth.refused'), target.host, error);
       }
@@ -199,8 +199,8 @@ export async function connect(
 }
 
 /**
- * Enrobe une commande de `sudo` selon la méthode déclarée sur la cible.
- * `nopasswd` → `sudo -n` ; `password` → `sudo -S` alimenté par stdin.
+ * Wraps a command with `sudo` according to the method declared on the target.
+ * `nopasswd` → `sudo -n`; `password` → `sudo -S` fed through stdin.
  */
 function withSudo(session: SshSession, command: string): { command: string; stdin?: string } {
   if (session.target.sudoMethod === 'nopasswd') {
@@ -211,8 +211,8 @@ function withSudo(session: SshSession, command: string): { command: string; stdi
     throw new SshConfigError(sshSay(session.language)('sudo.passwordWithKey'), session.host);
   }
 
-  // Le mot de passe passe par stdin, jamais par la ligne de commande :
-  // il n'apparaît donc ni dans `ps`, ni dans l'historique du shell distant.
+  // The password goes through stdin, never through the command line: it
+  // therefore appears neither in `ps` nor in the remote shell's history.
   return {
     command: `sudo -S -p '' -- sh -c ${shellQuote(command)}`,
     stdin: `${session.target.credentials.password}\n`,
@@ -220,10 +220,9 @@ function withSudo(session: SshSession, command: string): { command: string; stdi
 }
 
 /**
- * Exécute une commande et retourne son résultat complet.
- * Un code de retour non nul n'est pas une erreur : c'est une information que
- * l'appelant interprète (un `docker` absent renvoie 127, ce n'est pas un échec
- * du preflight).
+ * Runs a command and returns its complete result. A non-zero exit code is not
+ * an error: it is information the caller interprets (a missing `docker` returns
+ * 127, which is not a preflight failure).
  */
 export async function exec(
   session: SshSession,
@@ -231,14 +230,14 @@ export async function exec(
   options: ExecOptions = {},
 ): Promise<ExecResult> {
   const logger = session.logger ?? noopLogger;
-  // `??` confondrait `null` — garde désarmée, volontaire — avec « non fourni ».
+  // `??` would confuse `null` — guard disarmed, deliberately — with "not provided".
   const timeout = options.timeout === undefined ? DEFAULT_EXEC_TIMEOUT_MS : options.timeout;
   const prepared = options.sudo ? withSudo(session, command) : { command };
   const startedAt = Date.now();
 
   logger.debug(
     { host: session.host, sessionId: session.id, command, sudo: options.sudo === true, timeout },
-    'exécution SSH',
+    'SSH exec',
   );
 
   const run = session.client.execCommand(prepared.command, {
@@ -247,8 +246,8 @@ export async function exec(
   });
 
   let timer: NodeJS.Timeout | undefined;
-  // `timeout: null` : aucune garde. On ne met alors rien dans la course, sinon
-  // la promesse resterait en suspens à jamais.
+  // `timeout: null`: no guard. Nothing is put in the race then, otherwise the
+  // promise would hang forever.
   const guard =
     timeout === null
       ? null
@@ -274,7 +273,7 @@ export async function exec(
     };
 
     if (options.logOutput !== false) {
-      // La sortie traverse le `redact` Pino configuré par l'appelant.
+      // The output goes through the Pino `redact` configured by the caller.
       logger.debug(
         {
           host: session.host,
@@ -284,12 +283,12 @@ export async function exec(
           stdout: truncate(result.stdout),
           stderr: truncate(result.stderr),
         },
-        'commande SSH terminée',
+        'SSH command done',
       );
     } else {
       logger.debug(
         { host: session.host, code: result.code, durationMs: result.durationMs },
-        'commande SSH terminée (sortie non journalisée)',
+        'SSH command done (output not logged)',
       );
     }
 
@@ -312,8 +311,8 @@ export async function exec(
 }
 
 /**
- * Exécute une commande en diffusant sa sortie ligne par ligne.
- * Sert à pousser les logs de déploiement sur Redis pub/sub.
+ * Runs a command streaming its output line by line. Used to push deployment
+ * logs onto Redis pub/sub.
  */
 export async function execStream(
   session: SshSession,
@@ -322,17 +321,17 @@ export async function execStream(
   options: ExecOptions = {},
 ): Promise<ExecResult> {
   const logger = session.logger ?? noopLogger;
-  // `??` confondrait `null` — garde désarmée, volontaire — avec « non fourni ».
+  // `??` would confuse `null` — guard disarmed, deliberately — with "not provided".
   const timeout = options.timeout === undefined ? DEFAULT_EXEC_TIMEOUT_MS : options.timeout;
   const prepared = options.sudo ? withSudo(session, command) : { command };
   const startedAt = Date.now();
 
   logger.debug(
     { host: session.host, sessionId: session.id, command, sudo: options.sudo === true },
-    'exécution SSH en flux',
+    'SSH streaming exec',
   );
 
-  /** Découpe un flux d'octets en lignes complètes. */
+  /** Splits a byte stream into complete lines. */
   const makeSplitter = (stream: 'stdout' | 'stderr') => {
     let buffer = '';
     return (chunk: Buffer) => {
@@ -354,8 +353,8 @@ export async function execStream(
   });
 
   let timer: NodeJS.Timeout | undefined;
-  // `timeout: null` : aucune garde. On ne met alors rien dans la course, sinon
-  // la promesse resterait en suspens à jamais.
+  // `timeout: null`: no guard. Nothing is put in the race then, otherwise the
+  // promise would hang forever.
   const guard =
     timeout === null
       ? null
@@ -396,17 +395,17 @@ export async function execStream(
 }
 
 export type PipeOptions = {
-  /** Reçoit la sortie standard brute — octets, pas lignes. Terminé à la fin de la commande. */
+  /** Receives the raw stdout — bytes, not lines. Ended at the end of the command. */
   stdout?: Writable;
-  /** Alimente l'entrée standard ; sa fin ferme l'entrée de la commande distante. */
+  /** Feeds stdin; its end closes the remote command's input. */
   stdin?: Readable;
-  /** Millisecondes. `null` : aucune garde. Défaut : six heures. */
+  /** Milliseconds. `null`: no guard. Default: six hours. */
   timeout?: number | null;
 };
 
 export type PipeResult = {
   code: number;
-  /** Les derniers kilo-octets de la sortie d'erreur, pour dire pourquoi. */
+  /** The last kilobytes of stderr, to say why. */
   stderr: string;
   timedOut: boolean;
   durationMs: number;
@@ -416,15 +415,14 @@ const PIPE_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const STDERR_TAIL_BYTES = 8 * 1024;
 
 /**
- * Exécute une commande en branchant ses flux **octets** — une archive de
- * volume qui sort, un export de base qui rentre. `exec()` et `execStream()`
- * accumulent ou découpent du texte : un `tar` de plusieurs gigaoctets n'y a pas
- * sa place.
+ * Runs a command plugging in its **byte** streams — a volume archive going out,
+ * a database export coming in. `exec()` and `execStream()` accumulate or split
+ * text: a multi-gigabyte `tar` has no place there.
  *
- * La pression arrière est respectée dans les deux sens : un envoi lent vers le
- * stockage ralentit la lecture sur la cible au lieu de tout garder en mémoire.
- * Pas de `sudo` ici : les commandes qui passent par là (`docker`, `kubectl`)
- * tournent sous l'utilisateur de la cible, comme le reste des drivers.
+ * Backpressure is honored both ways: a slow upload to the storage slows down
+ * reading on the target instead of keeping everything in memory. No `sudo`
+ * here: the commands that go through it (`docker`, `kubectl`) run as the
+ * target's user, like the rest of the drivers.
  */
 export async function execPipe(
   session: SshSession,
@@ -442,7 +440,7 @@ export async function execPipe(
   }
   const timeout = options.timeout === undefined ? PIPE_TIMEOUT_MS : options.timeout;
   const startedAt = Date.now();
-  logger.debug({ host: session.host, sessionId: session.id, command }, 'exécution SSH en tube');
+  logger.debug({ host: session.host, sessionId: session.id, command }, 'SSH piped exec');
 
   const channel = await new Promise<ClientChannel>((resolve, reject) => {
     connection.exec(command, (error, opened) => (error ? reject(error) : resolve(opened)));
@@ -487,7 +485,7 @@ export async function execPipe(
   return { code, stderr, timedOut, durationMs: Date.now() - startedAt };
 }
 
-/** Téléverse un fichier local ou un contenu en mémoire vers la cible. */
+/** Uploads a local file or in-memory content to the target. */
 export async function upload(
   session: SshSession,
   source: string | Buffer,
@@ -515,7 +513,7 @@ export async function upload(
       remotePath,
       bytes: typeof source === 'string' ? undefined : source.byteLength,
     },
-    'fichier téléversé',
+    'file uploaded',
   );
 }
 
@@ -527,7 +525,7 @@ export async function disconnect(session: SshSession): Promise<void> {
   );
 }
 
-/** Ouvre une session, exécute `run`, puis ferme quoi qu'il arrive. */
+/** Opens a session, runs `run`, then closes no matter what. */
 export async function withSession<T>(
   target: SshTarget,
   run: (session: SshSession) => Promise<T>,
