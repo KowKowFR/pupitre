@@ -19,6 +19,8 @@ import {
   type TraefikKubernetesConfig,
 } from './config.js';
 import { probeRoute } from '../probe.js';
+import { listOf } from '../messages.js';
+import { traefikSay } from './messages.js';
 import {
   ProxyError,
   type ProxyCheck,
@@ -122,6 +124,7 @@ export class TraefikProvider implements ProxyProvider {
   // ─── détection ──────────────────────────────────────────────────────────────
 
   async detect(ctx: ProxyHostContext, onLog: LogSink): Promise<ProxyDetection[]> {
+    const say = traefikSay(ctx.language);
     const found: ProxyDetection[] = [];
 
     // Un Traefik en conteneur — le cas le plus courant.
@@ -148,8 +151,12 @@ export class TraefikProvider implements ProxyProvider {
         `docker exec ${shellQuote(id!)} sh -c ${shellQuote(files.map((file) => `cat ${shellQuote(file)} 2>/dev/null`).join(' || '))} || true`,
         { timeout: SHORT_MS },
       );
-      const finding = interpretTraefikContainer(container, read.stdout.trim() || null);
-      onLog(`conteneur ${container.Name ?? id} : ${finding.summary}`);
+      const finding = interpretTraefikContainer(
+        container,
+        read.stdout.trim() || null,
+        ctx.language,
+      );
+      onLog(say('detect.container', { name: container.Name ?? id!, summary: finding.summary }));
       found.push({
         kind: 'traefik',
         config: finding.config,
@@ -181,15 +188,16 @@ export class TraefikProvider implements ProxyProvider {
       });
       const finding = interpretTraefikContainer(
         {
-          Name: 'traefik (binaire)',
+          Name: say('detect.binary'),
           Args: args,
           HostConfig: { NetworkMode: 'host' },
           // Hors conteneur, un chemin de Traefik est un chemin de la machine.
           Mounts: [{ Source: '/', Destination: '/' }],
         },
         read.stdout.trim() || null,
+        ctx.language,
       );
-      onLog(`processus : ${finding.summary}`);
+      onLog(say('detect.process', { summary: finding.summary }));
       found.push({
         kind: 'traefik',
         config: finding.config,
@@ -216,8 +224,9 @@ export class TraefikProvider implements ProxyProvider {
       const finding = interpretTraefikCluster(
         traefikClasses,
         parseTraefikDeployment(deployments.stdout),
+        ctx.language,
       );
-      onLog(`cluster : ${finding.summary}`);
+      onLog(say('detect.cluster', { summary: finding.summary }));
       found.push({
         kind: 'traefik',
         config: finding.config,
@@ -226,13 +235,14 @@ export class TraefikProvider implements ProxyProvider {
       });
     }
 
-    if (found.length === 0) onLog('aucun Traefik sur cette machine');
+    if (found.length === 0) onLog(say('detect.none', { proxy: 'Traefik' }));
     return found;
   }
 
   // ─── installation ───────────────────────────────────────────────────────────
 
   async installOptions(ctx: ProxyHostContext): Promise<ProxyInstallOption[]> {
+    const say = traefikSay(ctx.language);
     const probe = await exec(
       ctx.sshSession,
       [
@@ -263,12 +273,10 @@ export class TraefikProvider implements ProxyProvider {
       options.push({
         kind: 'traefik',
         key: 'kubernetes',
-        title: 'Le Traefik de K3s',
+        title: say('option.k3s.title'),
         acmeServers: ['production', 'staging', 'custom'],
         available: !foreign,
-        detail: foreign
-          ? 'une HelmChartConfig « traefik » existe déjà dans kube-system : Pupitre ne l’écrase pas'
-          : 'régler le Traefik livré avec K3s : certificats Let’s Encrypt et volume pour les garder',
+        detail: foreign ? say('option.k3s.foreign') : say('option.k3s.detail'),
       });
     }
     const docker = value('docker') === '1';
@@ -276,14 +284,14 @@ export class TraefikProvider implements ProxyProvider {
     options.push({
       kind: 'traefik',
       key: 'container',
-      title: 'Traefik en conteneur',
+      title: say('option.container.title'),
       acmeServers: ['production', 'staging', 'custom'],
       available: docker && (managed || busy.length === 0),
       detail: !docker
-        ? 'Docker est absent ou inaccessible sur cette machine'
+        ? say('option.container.noDocker')
         : !managed && busy.length > 0
-          ? `le port ${busy.join(' et ')} est déjà utilisé : un autre serveur web ou proxy tourne ici`
-          : `installer ${TRAEFIK_IMAGE} en conteneur, sur les ports 80 et 443`,
+          ? say('install.portBusy', { ports: listOf(busy, ctx.language) })
+          : say('option.container.detail', { image: TRAEFIK_IMAGE }),
     });
     return options;
   }
@@ -295,7 +303,9 @@ export class TraefikProvider implements ProxyProvider {
   ): Promise<TraefikConfig> {
     const options = await this.installOptions(ctx);
     const option = options.find((candidate) => candidate.key === request.option);
-    if (!option) fail('install', `installation « ${request.option} » impossible sur cette machine`);
+    if (!option) {
+      fail('install', traefikSay(ctx.language)('install.unavailable', { option: request.option }));
+    }
     if (!option.available) fail('install', option.detail);
     return request.option === 'kubernetes'
       ? this.installInCluster(ctx, request, onLog)
@@ -307,6 +317,7 @@ export class TraefikProvider implements ProxyProvider {
     request: ProxyInstallRequest,
     onLog: LogSink,
   ): Promise<TraefikFileConfig> {
+    const say = traefikSay(ctx.language);
     const root = proxyRoot(ctx.target.rootPath);
     await ensureDirectory(ctx, `${root}/dynamic`);
     if (request.acme.caCertificate) {
@@ -324,7 +335,10 @@ export class TraefikProvider implements ProxyProvider {
       { timeout: INSTALL_MS },
     );
     if (up.code !== 0)
-      fail('install', `docker compose up : ${firstLine(up.stdout) ?? `code ${up.code}`}`);
+      fail(
+        'install',
+        say('install.compose', { detail: firstLine(up.stdout) ?? `code ${up.code}` }),
+      );
 
     // Prêt quand la sonde de vie le dit, pas quand le conteneur a démarré.
     let health = '';
@@ -338,9 +352,13 @@ export class TraefikProvider implements ProxyProvider {
       if (health === 'healthy') break;
       await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-    if (health !== 'healthy')
-      fail('install', `Traefik ne répond pas après son démarrage (état : ${health || 'inconnu'})`);
-    onLog('Traefik répond');
+    if (health !== 'healthy') {
+      fail(
+        'install',
+        say('install.notHealthy', { proxy: 'Traefik', state: health || say('state.unknown') }),
+      );
+    }
+    onLog(say('install.answers'));
 
     for (const port of [80, 443]) {
       await ufwAllowPort(ctx, port, `${UFW_MARKER}:proxy`, onLog);
@@ -362,8 +380,9 @@ export class TraefikProvider implements ProxyProvider {
     request: ProxyInstallRequest,
     onLog: LogSink,
   ): Promise<TraefikKubernetesConfig> {
+    const say = traefikSay(ctx.language);
     const namespace = 'kube-system';
-    onLog('HelmChartConfig traefik — résolveur ACME et volume des certificats');
+    onLog(say('install.helm'));
     await kubectlApply(ctx, renderHelmChartConfig(namespace, request.acme), 'install');
 
     // Le contrôleur Helm de K3s relance Traefik avec ces valeurs ; on attend
@@ -380,7 +399,7 @@ export class TraefikProvider implements ProxyProvider {
       configured = args.stdout.includes(`certificatesresolvers.${MANAGED_RESOLVER}.acme`);
       if (!configured) await new Promise((resolve) => setTimeout(resolve, 3000));
     }
-    if (!configured) fail('install', "K3s n'a pas reconfiguré Traefik dans les temps");
+    if (!configured) fail('install', say('install.notReconfigured'));
     const rollout = await exec(
       ctx.sshSession,
       kubectl(`-n ${namespace} rollout status deploy/traefik --timeout=300s`),
@@ -389,7 +408,9 @@ export class TraefikProvider implements ProxyProvider {
     if (rollout.code !== 0)
       fail(
         'install',
-        `Traefik ne redémarre pas : ${firstLine(rollout.stderr) ?? firstLine(rollout.stdout) ?? ''}`,
+        say('install.noRestart', {
+          detail: firstLine(rollout.stderr) ?? firstLine(rollout.stdout) ?? '',
+        }),
       );
     // Le pod est prêt avant que l'équilibreur du cluster ne le serve sur les
     // ports 80 et 443 : on attend qu'il réponde vraiment, de la machine.
@@ -398,9 +419,8 @@ export class TraefikProvider implements ProxyProvider {
       answering = (await httpCode(ctx, 'http://127.0.0.1/')) !== 0;
       if (!answering) await new Promise((resolve) => setTimeout(resolve, 2000));
     }
-    if (!answering)
-      fail('install', 'Traefik est prêt, mais rien ne répond sur le port 80 de la machine');
-    onLog('Traefik redémarré avec le résolveur de certificats');
+    if (!answering) fail('install', say('install.port80Silent'));
+    onLog(say('install.restarted'));
     return {
       mode: 'kubernetes',
       ingressClass: 'traefik',
@@ -412,9 +432,10 @@ export class TraefikProvider implements ProxyProvider {
   }
 
   async uninstall(ctx: ProxyContext, onLog: LogSink): Promise<void> {
+    const say = traefikSay(ctx.language);
     const config = this.parseConfig(ctx.config);
     if (!config.acme) {
-      onLog("Traefik n'a pas été installé par Pupitre : il reste en place");
+      onLog(say('uninstall.foreign', { proxy: 'Traefik' }));
       return;
     }
     if (config.mode === 'kubernetes') {
@@ -434,7 +455,7 @@ export class TraefikProvider implements ProxyProvider {
           ),
           { timeout: SHORT_MS * 2 },
         );
-        onLog('réglages de Traefik retirés : K3s revient à sa configuration par défaut');
+        onLog(say('uninstall.settingsRemoved'));
       }
       // Le namespace des routes vers d'autres machines est à Pupitre : vide de
       // routes, il part avec le reste — avec lui, le middleware partagé.
@@ -453,7 +474,7 @@ export class TraefikProvider implements ProxyProvider {
           kubectl(`delete namespace ${REMOTE_NAMESPACE} --ignore-not-found --wait=false`),
           { timeout: SHORT_MS },
         );
-        onLog(`namespace ${REMOTE_NAMESPACE} retiré`);
+        onLog(say('uninstall.namespaceRemoved', { namespace: REMOTE_NAMESPACE }));
       }
       return;
     }
@@ -463,14 +484,15 @@ export class TraefikProvider implements ProxyProvider {
       `cd ${shellQuote(root)} 2>/dev/null && docker compose -p ${MANAGED_PROJECT} down -v 2>&1 || docker rm -f ${MANAGED_CONTAINER} 2>&1 || true`,
       { timeout: INSTALL_MS },
     );
-    onLog(firstLine(down.stdout) ?? 'conteneur arrêté');
+    onLog(firstLine(down.stdout) ?? say('uninstall.stopped'));
     await exec(ctx.sshSession, `rm -rf ${shellQuote(root)}`, { timeout: SHORT_MS });
-    onLog('Traefik retiré de la machine');
+    onLog(say('uninstall.removed'));
   }
 
   // ─── « Tester » ─────────────────────────────────────────────────────────────
 
   async check(ctx: ProxyContext, onLog: LogSink): Promise<ProxyCheck> {
+    const say = traefikSay(ctx.language);
     const config = this.parseConfig(ctx.config);
     const checks: ProxyCheck['checks'] = [];
     const add = (key: string, label: string, ok: boolean, detail: string | null) => {
@@ -479,10 +501,12 @@ export class TraefikProvider implements ProxyProvider {
     };
 
     const http = await httpCode(ctx, 'http://127.0.0.1/');
-    add('http', 'Port 80', http !== 0, http !== 0 ? `répond (${http})` : 'rien n’écoute');
+    const answer = (code: number) =>
+      code !== 0 ? say('check.answers', { code }) : say('check.silent');
+    add('http', 'Port 80', http !== 0, answer(http));
     if (config.entryPoints.https) {
       const https = await httpCode(ctx, 'https://127.0.0.1/');
-      add('https', 'Port 443', https !== 0, https !== 0 ? `répond (${https})` : 'rien n’écoute');
+      add('https', 'Port 443', https !== 0, answer(https));
     }
 
     if (config.mode === 'file') {
@@ -495,11 +519,13 @@ export class TraefikProvider implements ProxyProvider {
       const access = writable.stdout.trim();
       add(
         'directory',
-        'Dossier des routes',
+        say('check.directory'),
         access !== 'absent',
         access === 'absent'
-          ? `${directory} n’existe pas`
-          : `${directory}${access === 'sudo' ? ' (écrit par sudo)' : ''}`,
+          ? say('check.directory.missing', { directory })
+          : access === 'sudo'
+            ? say('check.directory.sudo', { directory })
+            : directory,
       );
       if (access !== 'absent' && http !== 0) {
         // La preuve que Traefik lit ce dossier : une route d'essai vers un port
@@ -520,11 +546,11 @@ export class TraefikProvider implements ProxyProvider {
         await removeFile(ctx, file);
         add(
           'reload',
-          'Traefik lit ce dossier',
+          say('check.reload'),
           code === 502,
           code === 502
-            ? 'une route d’essai y a été prise en compte'
-            : `route d’essai ignorée (${code || 'pas de réponse'})`,
+            ? say('check.reload.ok')
+            : say('check.reload.ignored', { code: code || say('noAnswer') }),
         );
       }
       if (config.container) {
@@ -536,9 +562,9 @@ export class TraefikProvider implements ProxyProvider {
         const state = running.stdout.trim();
         add(
           'container',
-          `Conteneur ${config.container}`,
+          say('check.container', { name: config.container }),
           state.startsWith('running'),
-          state || 'introuvable',
+          state || say('check.notFound'),
         );
       }
     } else {
@@ -554,7 +580,7 @@ export class TraefikProvider implements ProxyProvider {
         'ingressclass',
         `IngressClass ${config.ingressClass}`,
         present,
-        present ? null : 'absente du cluster',
+        present ? null : say('check.ingressClass.missing'),
       );
       const ready = await exec(
         ctx.sshSession,
@@ -566,9 +592,9 @@ export class TraefikProvider implements ProxyProvider {
       const [readyCount, wanted] = ready.stdout.trim().split('/');
       add(
         'deployment',
-        'Traefik prêt',
+        say('check.ready'),
         Boolean(readyCount) && readyCount === wanted,
-        ready.stdout.trim() || 'introuvable',
+        ready.stdout.trim() || say('check.notFound'),
       );
       if (config.certResolver) {
         const args = await exec(
@@ -581,9 +607,9 @@ export class TraefikProvider implements ProxyProvider {
         const known = args.stdout.includes(`certificatesresolvers.${config.certResolver}.`);
         add(
           'resolver',
-          `Résolveur « ${config.certResolver} »`,
+          say('check.resolver', { name: config.certResolver }),
           known,
-          known ? null : 'inconnu de ce Traefik',
+          known ? null : say('check.resolver.unknown'),
         );
       }
     }
@@ -593,9 +619,10 @@ export class TraefikProvider implements ProxyProvider {
   // ─── les routes ─────────────────────────────────────────────────────────────
 
   async apply(ctx: ProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void> {
+    const say = traefikSay(ctx.language);
     const config = this.parseConfig(ctx.config);
     if (set.routes.length > 0 && !set.upstream) {
-      fail('apply', "l'application n'expose rien que le proxy puisse joindre");
+      fail('apply', say('apply.noUpstream'));
     }
     // Une même application peut tourner sur plusieurs des machines que ce
     // proxy sert : le nom de ses objets porte alors celle d'où elle vient.
@@ -607,14 +634,11 @@ export class TraefikProvider implements ProxyProvider {
       const path = `${directory}/${traefikFileName(name)}`;
       if (set.routes.length === 0) {
         await removeFile(ctx, path);
-        onLog(`routes retirées : ${path}`);
+        onLog(say('apply.removed', { path }));
         return;
       }
       if (set.upstream?.kind !== 'port') {
-        fail(
-          'apply',
-          "ce Traefik lit des fichiers : il ne joint qu'une application publiée sur un port",
-        );
+        fail('apply', say('apply.fileNeedsPort'));
       }
       const host = set.upstream.host ?? config.upstreamHost;
       await ensureDirectory(ctx, directory);
@@ -623,7 +647,7 @@ export class TraefikProvider implements ProxyProvider {
         path,
         renderTraefikFile(name, set.routes, `http://${host}:${set.upstream.port}`, config),
       );
-      onLog(`routes écrites : ${path} → ${host}:${set.upstream.port}`);
+      onLog(say('apply.written', { path, upstream: `${host}:${set.upstream.port}` }));
       return;
     }
 
@@ -653,7 +677,7 @@ export class TraefikProvider implements ProxyProvider {
         ),
         { timeout: SHORT_MS },
       );
-      onLog(`routes retirées du namespace ${namespace}`);
+      onLog(say('apply.removedFromNamespace', { namespace }));
       return;
     }
 
@@ -664,10 +688,7 @@ export class TraefikProvider implements ProxyProvider {
       namespace = set.upstream.namespace;
     } else if (remote) {
       if (!isIPv4(remote.host!)) {
-        fail(
-          'apply',
-          `le Traefik du cluster joint une autre machine par son adresse IPv4 — « ${remote.host} » n'en est pas une`,
-        );
+        fail('apply', say('apply.needsIpv4', { host: remote.host! }));
       }
       rendered = renderTraefikRemoteIngresses(
         name,
@@ -677,10 +698,7 @@ export class TraefikProvider implements ProxyProvider {
       );
       namespace = REMOTE_NAMESPACE;
     } else {
-      fail(
-        'apply',
-        'ce Traefik vit dans le cluster : il joint une application du cluster, ou une autre machine par son adresse — pas un port de la sienne',
-      );
+      fail('apply', say('apply.clusterOnly'));
     }
     await kubectlApply(ctx, serializeKubeObjects(rendered.objects), 'apply');
     if (rendered.stale.length > 0) {
@@ -691,8 +709,10 @@ export class TraefikProvider implements ProxyProvider {
       );
     }
     onLog(
-      `Ingress appliqués dans ${namespace} : ${set.routes.map((route) => route.hostname).join(', ')}` +
-        (remote ? ` → ${remote.host}:${remote.port}` : ''),
+      say('apply.ingresses', {
+        namespace,
+        hostnames: set.routes.map((route) => route.hostname).join(', '),
+      }) + (remote ? ` → ${remote.host}:${remote.port}` : ''),
     );
   }
 

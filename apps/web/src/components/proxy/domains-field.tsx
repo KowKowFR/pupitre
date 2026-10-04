@@ -8,7 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { IconButton } from '@/components/ui/tooltip';
-import { useT } from '@/i18n/client';
+import { useLanguage, useT } from '@/i18n/client';
 import { proxy as messages } from '@/i18n/messages/proxy';
 
 /**
@@ -44,8 +44,9 @@ type DnsState =
 
 function DnsHint({ targetId, hostname }: { targetId: string; hostname: string }) {
   const t = useT(messages);
+  const language = useLanguage();
   const [dns, setDns] = useState<{ host: string; result: DnsState } | null>(null);
-  const valid = hostname.length > 0 && hostnameProblem(hostname) === null;
+  const valid = hostname.length > 0 && hostnameProblem(hostname, language) === null;
 
   useEffect(() => {
     if (!valid) return;
@@ -80,7 +81,7 @@ function DnsHint({ targetId, hostname }: { targetId: string; hostname: string })
 
   if (!valid) {
     return hostname.length > 0 ? (
-      <span className="t-cap text-danger-text">{hostnameProblem(hostname)}</span>
+      <span className="t-cap text-danger-text">{hostnameProblem(hostname, language)}</span>
     ) : null;
   }
   const result = dns?.host === hostname ? dns.result : { state: 'checking' as const };

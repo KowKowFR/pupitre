@@ -128,6 +128,33 @@ const fr = {
 
   'abandoned.cause': 'BullMQ a terminé la tâche « {job} » en échec sans l’exécuter : « {reason} »',
   'abandoned.detectedBy': 'tâche « {job} » terminée en échec sans avoir été exécutée',
+
+  'proxy.none': 'aucun reverse proxy ne sert cette cible — application jointe par son port',
+  'proxy.noneWithRoutes': {
+    one: 'aucun reverse proxy ne sert cette cible : {hostnames} non routé',
+    other: 'aucun reverse proxy ne sert cette cible : {hostnames} non routés',
+  },
+  'proxy.installing':
+    'le reverse proxy est en cours d’installation — domaines posés au prochain déploiement',
+  'proxy.servedBy': 'servie par le proxy « {proxy} », qui la joint à {address}',
+  'proxy.noDomain': 'aucun domaine pour cette application',
+  'proxy.certificatePending': ' — certificat en cours d’émission',
+  'proxy.certificateValid': ' — certificat valide jusqu’au {date}',
+  'proxy.problem': '{hostname} : {detail}',
+  'proxy.notRemoved': '⚠ routes non retirées du proxy : {error}',
+  'proxy.released': { one: '{count} domaine libéré', other: '{count} domaines libérés' },
+  'proxy.notRunning': 'l’application ne tourne pas sur cette cible',
+  'proxy.failedCheck': '{label} : {detail}',
+  'proxy.failed': 'en échec',
+  'proxy.stillServing': 'des domaines passent encore par ce proxy : retirez-les d’abord',
+  'proxy.notFound': 'connexion de proxy introuvable',
+  'proxy.noHost': 'ce proxy ne tourne sur aucune machine connue',
+  'link.gone': 'le proxy de cette liaison a disparu',
+  'link.none': 'aucune liaison pour cette cible',
+  'link.unreachable':
+    'le proxy de « {proxy} » ne joint pas cette machine : {detail}. Rétablissez le passage de « {proxy} » vers {address} (ports {min}-{max}), puis « Tester la liaison » dans l’onglet Reverse proxy de la cible.',
+  'link.ok': '✓ liaison au proxy de « {proxy} » : {detail}',
+  'link.from': ' — arrivée depuis {source}',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -251,6 +278,33 @@ const en: Translated<typeof fr> = {
 
   'abandoned.cause': 'BullMQ marked job “{job}” as failed without running it: “{reason}”',
   'abandoned.detectedBy': 'job “{job}” marked as failed without having run',
+
+  'proxy.none': 'no reverse proxy serves this target — the application is reached by its port',
+  'proxy.noneWithRoutes': {
+    one: 'no reverse proxy serves this target: {hostnames} not routed',
+    other: 'no reverse proxy serves this target: {hostnames} not routed',
+  },
+  'proxy.installing':
+    'the reverse proxy is being installed — domains will be set at the next deployment',
+  'proxy.servedBy': 'served by proxy “{proxy}”, which reaches it at {address}',
+  'proxy.noDomain': 'no domain for this application',
+  'proxy.certificatePending': ' — certificate being issued',
+  'proxy.certificateValid': ' — certificate valid until {date}',
+  'proxy.problem': '{hostname}: {detail}',
+  'proxy.notRemoved': '⚠ routes not removed from the proxy: {error}',
+  'proxy.released': { one: '{count} domain released', other: '{count} domains released' },
+  'proxy.notRunning': 'the application does not run on this target',
+  'proxy.failedCheck': '{label}: {detail}',
+  'proxy.failed': 'failed',
+  'proxy.stillServing': 'domains still go through this proxy: remove them first',
+  'proxy.notFound': 'proxy connection not found',
+  'proxy.noHost': 'this proxy runs on no known machine',
+  'link.gone': 'the proxy of this link has disappeared',
+  'link.none': 'no link for this target',
+  'link.unreachable':
+    'the proxy of “{proxy}” cannot reach this machine: {detail}. Restore the path from “{proxy}” to {address} (ports {min}-{max}), then “Test the link” in the target’s Reverse proxy tab.',
+  'link.ok': '✓ link to the proxy of “{proxy}”: {detail}',
+  'link.from': ' — arriving from {source}',
 };
 
 export const workerCopy = { fr, en };

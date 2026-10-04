@@ -5,6 +5,8 @@ import { exec } from '../../ssh/client.js';
 import { ensureDirectory, httpCode, removeFile, writeFile } from '../host.js';
 import { firstLine, shellQuote } from '../../shell.js';
 import { probeRoute } from '../probe.js';
+import { listOf } from '../messages.js';
+import { bunkerwebSay, type BunkerWebSay } from './messages.js';
 import {
   ProxyError,
   type ProxyCheck,
@@ -119,14 +121,12 @@ async function api(
       ` -w '\\nPUPITRE_HTTP %{http_code}' "http://$IP:${config.apiPort}${path}"`,
   ].join('\n');
   const result = await exec(ctx.sshSession, script, { timeout: SHORT_MS * 2 });
+  const say = bunkerwebSay(ctx.language);
   if (/^PUPITRE_API absent/m.test(result.stdout)) {
-    fail('api', `le conteneur ${config.apiContainer} est introuvable ou arrêté`);
+    fail('api', say('api.containerGone', { container: config.apiContainer }));
   }
   if (/^PUPITRE_API sans-jeton/m.test(result.stdout)) {
-    fail(
-      'api',
-      `le conteneur ${config.apiContainer} n'a pas d'API_TOKEN : Pupitre ne peut pas piloter ce BunkerWeb`,
-    );
+    fail('api', say('api.noToken', { container: config.apiContainer }));
   }
   const match = /(?:^|\n)PUPITRE_HTTP (\d{3})\s*$/.exec(result.stdout);
   const status = match ? Number(match[1]) : 0;
@@ -140,7 +140,7 @@ async function api(
   return { status, body: parsed };
 }
 
-function apiMessage(response: ApiResponse): string {
+function apiMessage(response: ApiResponse, say: BunkerWebSay): string {
   const body = response.body as { message?: unknown; detail?: unknown } | null;
   const message =
     typeof body?.message === 'string'
@@ -150,27 +150,30 @@ function apiMessage(response: ApiResponse): string {
         : typeof response.body === 'string'
           ? firstLine(response.body)
           : null;
-  return `${response.status || 'pas de réponse'}${message ? ` — ${message}` : ''}`;
+  return `${response.status || say('noAnswer')}${message ? ` — ${message}` : ''}`;
 }
 
 async function expectOk(
   step: string,
   what: string,
   call: Promise<ApiResponse>,
+  say: BunkerWebSay,
 ): Promise<ApiResponse> {
   const response = await call;
   if (response.status < 200 || response.status >= 300) {
-    fail(step, `API de BunkerWeb, ${what} : ${apiMessage(response)}`);
+    fail(step, say('api.failed', { what, detail: apiMessage(response, say) }));
   }
   return response;
 }
 
 /** Les services connus de BunkerWeb, par leur premier nom de serveur. */
 async function listServices(ctx: ProxyHostContext, config: BunkerWebConfig): Promise<string[]> {
+  const say = bunkerwebSay(ctx.language);
   const response = await expectOk(
     'api',
-    'liste des services',
+    say('api.list'),
     api(ctx, config, 'GET', '/services'),
+    say,
   );
   const services = (response.body as { services?: unknown } | null)?.services;
   if (!Array.isArray(services)) return [];
@@ -270,6 +273,7 @@ export class BunkerWebProvider implements ProxyProvider {
   // ─── détection ──────────────────────────────────────────────────────────────
 
   async detect(ctx: ProxyHostContext, onLog: LogSink): Promise<ProxyDetection[]> {
+    const say = bunkerwebSay(ctx.language);
     const listed = await exec(
       ctx.sshSession,
       "command -v docker >/dev/null 2>&1 && docker ps --format '{{.Image}}|{{.Names}}' 2>/dev/null || true",
@@ -306,28 +310,29 @@ export class BunkerWebProvider implements ProxyProvider {
       const http = hostNetwork ? (seen.env.HTTP_PORT ?? '8080') : seen.ports['8080/tcp'];
       const https = hostNetwork ? (seen.env.HTTPS_PORT ?? '8443') : seen.ports['8443/tcp'];
       if (http !== '80' || https !== '443') {
-        warnings.push(
-          `BunkerWeb ne reçoit pas les visiteurs sur les ports 80 et 443 de la machine (${http ?? '—'} et ${https ?? '—'}) : les domaines ne lui parviendront pas`,
-        );
+        warnings.push(say('detect.ports', { http: http ?? '—', https: https ?? '—' }));
       }
       let usable = true;
       if (!apiSource || (front.role === 'all-in-one' && apiSource.env.SERVICE_API !== 'yes')) {
         usable = false;
-        warnings.push(
-          'son API est désactivée : ajoutez SERVICE_API=yes et un API_TOKEN au conteneur, ou laissez Pupitre installer le sien',
-        );
+        warnings.push(say('detect.apiOff'));
       } else if (apiSource.env.API_TOKEN !== 'present') {
         usable = false;
-        warnings.push(
-          `son API n'a pas d'API_TOKEN (${apiSource.name}) : Pupitre s'authentifie par jeton — ajoutez-en un au conteneur`,
-        );
+        warnings.push(say('detect.noToken', { name: apiSource.name }));
       }
       if (!hostNetwork && !gateway) {
         usable = false;
-        warnings.push('la passerelle Docker de la machine est introuvable');
+        warnings.push(say('detect.noGateway'));
       }
-      const summary = `BunkerWeb « ${front.name} » (${front.image})${apiSource && apiSource.name !== front.name ? ` — API : ${apiSource.name}` : ''}`;
-      onLog(`conteneur ${front.name} : ${summary}${usable ? '' : ' — inutilisable en l’état'}`);
+      const summary =
+        say('detect.summary', { name: front.name, image: front.image }) +
+        (apiSource && apiSource.name !== front.name
+          ? say('detect.summary.api', { name: apiSource.name })
+          : '');
+      onLog(
+        say('detect.container', { name: front.name, summary }) +
+          (usable ? '' : say('detect.unusable')),
+      );
       found.push({
         kind: 'bunkerweb',
         config:
@@ -348,13 +353,14 @@ export class BunkerWebProvider implements ProxyProvider {
         warnings,
       });
     }
-    if (found.length === 0) onLog('aucun BunkerWeb sur cette machine');
+    if (found.length === 0) onLog(say('detect.none', { proxy: 'BunkerWeb' }));
     return found;
   }
 
   // ─── installation ───────────────────────────────────────────────────────────
 
   async installOptions(ctx: ProxyHostContext): Promise<ProxyInstallOption[]> {
+    const say = bunkerwebSay(ctx.language);
     const probe = await exec(
       ctx.sshSession,
       [
@@ -378,7 +384,7 @@ export class BunkerWebProvider implements ProxyProvider {
     const base = {
       kind: 'bunkerweb' as const,
       key: 'container',
-      title: 'BunkerWeb en conteneur (WAF)',
+      title: say('option.title'),
       acmeServers: [...BUNKERWEB_ACME_SERVERS],
     };
     if (value('docker') !== '1') {
@@ -386,8 +392,7 @@ export class BunkerWebProvider implements ProxyProvider {
         {
           ...base,
           available: false,
-          detail:
-            'BunkerWeb s’installe en conteneur Docker, absent de cette machine. Pour une machine K3s : reliez-la au BunkerWeb d’une machine Docker (« Ou passer par le reverse proxy d’une autre machine »).',
+          detail: say('option.noDocker'),
         },
       ];
     }
@@ -401,7 +406,7 @@ export class BunkerWebProvider implements ProxyProvider {
         {
           ...base,
           available: false,
-          detail: `le port ${busy.join(' et ')} est déjà utilisé : un autre serveur web ou proxy tourne ici`,
+          detail: say('install.portBusy', { ports: listOf(busy, ctx.language) }),
         },
       ];
     }
@@ -410,19 +415,19 @@ export class BunkerWebProvider implements ProxyProvider {
         {
           ...base,
           available: false,
-          detail: `l’image de BunkerWeb pèse ~2,1 Go et il ne reste que ${(diskKb / 1024 / 1024).toFixed(1)} Go pour Docker`,
+          detail: say('option.noDisk', { free: (diskKb / 1024 / 1024).toFixed(1) }),
         },
       ];
     }
     const memory =
       memKb > 0 && memKb < MEMORY_WARNING_KB
-        ? ` — attention : ${Math.round(memKb / 1024)} Mo de mémoire disponible, BunkerWeb en utilise ~650`
+        ? say('option.lowMemory', { available: Math.round(memKb / 1024) })
         : '';
     return [
       {
         ...base,
         available: true,
-        detail: `installer ${BUNKERWEB_IMAGE} (~2,1 Go, ~650 Mo de mémoire) sur les ports 80 et 443, API activée, interface web non${memory}`,
+        detail: say('option.detail', { image: BUNKERWEB_IMAGE, memory }),
       },
     ];
   }
@@ -432,14 +437,13 @@ export class BunkerWebProvider implements ProxyProvider {
     request: ProxyInstallRequest,
     onLog: LogSink,
   ): Promise<BunkerWebConfig> {
+    const say = bunkerwebSay(ctx.language);
     const [option] = await this.installOptions(ctx);
     if (!option || option.key !== request.option) {
-      fail('install', `installation « ${request.option} » impossible sur cette machine`);
+      fail('install', say('install.unavailable', { option: request.option }));
     }
     if (!option.available) fail('install', option.detail);
-    if (request.acme.server === 'custom') {
-      fail('install', 'BunkerWeb n’accepte que Let’s Encrypt ou ZeroSSL comme autorité');
-    }
+    if (request.acme.server === 'custom') fail('install', say('install.acmeOnly'));
 
     const root = this.root(ctx);
     await ensureDirectory(ctx, root, 'bunkerweb');
@@ -451,16 +455,22 @@ export class BunkerWebProvider implements ProxyProvider {
       { timeout: SHORT_MS },
     );
     if (token.code !== 0)
-      fail('install', `jeton de l'API : ${firstLine(token.stderr) ?? `code ${token.code}`}`);
+      fail(
+        'install',
+        say('install.token', { detail: firstLine(token.stderr) ?? `code ${token.code}` }),
+      );
 
-    onLog(`docker compose up — ${BUNKERWEB_IMAGE} (~2,1 Go à télécharger la première fois)`);
+    onLog(say('install.pulling', { image: BUNKERWEB_IMAGE }));
     const up = await exec(
       ctx.sshSession,
       `cd ${shellQuote(root)} && docker compose -p ${BUNKERWEB_PROJECT} up -d --pull missing 2>&1`,
       { timeout: INSTALL_MS },
     );
     if (up.code !== 0)
-      fail('install', `docker compose up : ${firstLine(up.stdout) ?? `code ${up.code}`}`);
+      fail(
+        'install',
+        say('install.compose', { detail: firstLine(up.stdout) ?? `code ${up.code}` }),
+      );
 
     let health = '';
     for (let attempt = 0; attempt < 90; attempt += 1) {
@@ -476,11 +486,11 @@ export class BunkerWebProvider implements ProxyProvider {
     if (health !== 'healthy')
       fail(
         'install',
-        `BunkerWeb ne répond pas après son démarrage (état : ${health || 'inconnu'})`,
+        say('install.notHealthy', { proxy: 'BunkerWeb', state: health || say('state.unknown') }),
       );
 
     const gateway = await dockerBridgeGateway(ctx);
-    if (!gateway) fail('install', 'la passerelle Docker de la machine est introuvable');
+    if (!gateway) fail('install', say('detect.noGateway'));
     const config: BunkerWebConfig = {
       container: BUNKERWEB_CONTAINER,
       apiContainer: BUNKERWEB_CONTAINER,
@@ -495,9 +505,10 @@ export class BunkerWebProvider implements ProxyProvider {
       ping = await api(ctx, config, 'GET', '/ping');
       if (ping.status !== 200) await sleep(2000);
     }
-    if (ping.status !== 200)
-      fail('install', `l’API de BunkerWeb ne répond pas : ${apiMessage(ping)}`);
-    onLog('BunkerWeb répond, son API aussi');
+    if (ping.status !== 200) {
+      fail('install', say('install.apiDown', { detail: apiMessage(ping, say) }));
+    }
+    onLog(say('install.ready'));
 
     for (const port of [80, 443]) {
       await ufwAllowPort(ctx, port, `${UFW_MARKER}:proxy`, onLog);
@@ -506,9 +517,10 @@ export class BunkerWebProvider implements ProxyProvider {
   }
 
   async uninstall(ctx: ProxyContext, onLog: LogSink): Promise<void> {
+    const say = bunkerwebSay(ctx.language);
     const config = this.parseConfig(ctx.config);
     if (!config.managed) {
-      onLog("BunkerWeb n'a pas été installé par Pupitre : il reste en place");
+      onLog(say('uninstall.foreign', { proxy: 'BunkerWeb' }));
       return;
     }
     const root = this.root(ctx);
@@ -517,14 +529,15 @@ export class BunkerWebProvider implements ProxyProvider {
       `cd ${shellQuote(root)} 2>/dev/null && docker compose -p ${BUNKERWEB_PROJECT} down -v 2>&1 || docker rm -f ${shellQuote(config.container)} 2>&1 || true`,
       { timeout: INSTALL_MS },
     );
-    onLog(firstLine(down.stdout) ?? 'conteneur arrêté');
+    onLog(firstLine(down.stdout) ?? say('uninstall.stopped'));
     await exec(ctx.sshSession, `rm -rf ${shellQuote(root)}`, { timeout: SHORT_MS });
-    onLog('BunkerWeb retiré de la machine, données et certificats compris');
+    onLog(say('uninstall.removed'));
   }
 
   // ─── « Tester » ─────────────────────────────────────────────────────────────
 
   async check(ctx: ProxyContext, onLog: LogSink): Promise<ProxyCheck> {
+    const say = bunkerwebSay(ctx.language);
     const config = this.parseConfig(ctx.config);
     const checks: ProxyCheck['checks'] = [];
     const add = (key: string, label: string, ok: boolean, detail: string | null) => {
@@ -533,9 +546,11 @@ export class BunkerWebProvider implements ProxyProvider {
     };
 
     const http = await httpCode(ctx, 'http://127.0.0.1/');
-    add('http', 'Port 80', http !== 0, http !== 0 ? `répond (${http})` : 'rien n’écoute');
+    const answer = (code: number) =>
+      code !== 0 ? say('check.answers', { code }) : say('check.silent');
+    add('http', 'Port 80', http !== 0, answer(http));
     const https = await httpCode(ctx, 'https://127.0.0.1/');
-    add('https', 'Port 443', https !== 0, https !== 0 ? `répond (${https})` : 'rien n’écoute');
+    add('https', 'Port 443', https !== 0, answer(https));
 
     const state = await exec(
       ctx.sshSession,
@@ -545,18 +560,18 @@ export class BunkerWebProvider implements ProxyProvider {
     const running = state.stdout.trim();
     add(
       'container',
-      `Conteneur ${config.container}`,
+      say('check.container', { name: config.container }),
       running.startsWith('running') && !running.includes('unhealthy'),
-      running || 'introuvable',
+      running || say('check.notFound'),
     );
 
     let apiOk = false;
     try {
       const ping = await api(ctx, config, 'GET', '/ping');
       apiOk = ping.status === 200;
-      add('api', 'API de BunkerWeb', apiOk, apiOk ? 'répond, jeton accepté' : apiMessage(ping));
+      add('api', say('check.api'), apiOk, apiOk ? say('check.api.ok') : apiMessage(ping, say));
     } catch (error) {
-      add('api', 'API de BunkerWeb', false, error instanceof Error ? error.message : String(error));
+      add('api', say('check.api'), false, error instanceof Error ? error.message : String(error));
     }
 
     if (apiOk && http !== 0) {
@@ -568,7 +583,7 @@ export class BunkerWebProvider implements ProxyProvider {
       try {
         await expectOk(
           'check',
-          'service d’essai',
+          say('api.test'),
           api(ctx, config, 'POST', '/services', {
             server_name: host,
             variables: {
@@ -579,6 +594,7 @@ export class BunkerWebProvider implements ProxyProvider {
               AUTO_LETS_ENCRYPT: 'no',
             },
           }),
+          say,
         );
         for (let attempt = 0; attempt < 20; attempt += 1) {
           await sleep(1500);
@@ -590,11 +606,11 @@ export class BunkerWebProvider implements ProxyProvider {
       }
       add(
         'apply',
-        'BunkerWeb applique ce qu’on lui confie',
+        say('check.apply'),
         code === 502,
         code === 502
-          ? 'un service d’essai y a été pris en compte, puis retiré'
-          : `service d’essai ignoré (${code || 'pas de réponse'})`,
+          ? say('check.apply.ok')
+          : say('check.apply.ignored', { code: code || say('noAnswer') }),
       );
     }
     return { ok: checks.every((check) => check.ok), checks };
@@ -607,17 +623,15 @@ export class BunkerWebProvider implements ProxyProvider {
   }
 
   private async applyNow(ctx: ProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void> {
+    const say = bunkerwebSay(ctx.language);
     const config = this.parseConfig(ctx.config);
     const startedAt = Math.floor(Date.now() / 1000) - 5;
     const name = set.scope ? `${set.appSlug}--${set.scope}` : set.appSlug;
     if (set.routes.length > 0 && !set.upstream) {
-      fail('apply', "l'application n'expose rien que le proxy puisse joindre");
+      fail('apply', say('apply.noUpstream'));
     }
     if (set.routes.length > 0 && set.upstream?.kind !== 'port') {
-      fail(
-        'apply',
-        'BunkerWeb joint une application par un port publié, pas par un Service du cluster : servez cette machine K3s par une liaison au BunkerWeb d’une machine Docker',
-      );
+      fail('apply', say('apply.needsPort'));
     }
 
     // Le registre : ce que Pupitre a posé, application par application.
@@ -646,10 +660,7 @@ export class BunkerWebProvider implements ProxyProvider {
       others,
     });
     if (plan.foreign.length > 0) {
-      fail(
-        'apply',
-        `${plan.foreign.join(', ')} : déjà un service de BunkerWeb que Pupitre n’a pas créé — retirez-le de BunkerWeb ou choisissez un autre domaine`,
-      );
+      fail('apply', say('apply.foreign', { hostnames: plan.foreign.join(', ') }));
     }
 
     const routesByHost = new Map(set.routes.map((route) => [route.hostname, route]));
@@ -662,7 +673,7 @@ export class BunkerWebProvider implements ProxyProvider {
       for (const hostname of plan.create) {
         await expectOk(
           'apply',
-          `création de ${hostname}`,
+          say('api.create', { hostname }),
           api(
             ctx,
             config,
@@ -671,12 +682,13 @@ export class BunkerWebProvider implements ProxyProvider {
             { server_name: hostname, variables: variablesOf(hostname) },
             secret,
           ),
+          say,
         );
       }
       for (const hostname of plan.update) {
         await expectOk(
           'apply',
-          `mise à jour de ${hostname}`,
+          say('api.update', { hostname }),
           api(
             ctx,
             config,
@@ -685,19 +697,29 @@ export class BunkerWebProvider implements ProxyProvider {
             { variables: variablesOf(hostname) },
             secret,
           ),
+          say,
         );
       }
       onLog(
-        `services BunkerWeb : ${[...plan.create, ...plan.update].join(', ')} → ${upstream}` +
-          ` (protection : ${set.routes.map((route) => `${route.hostname} ${route.waf}`).join(', ')})`,
+        say('apply.services', {
+          hostnames: [...plan.create, ...plan.update].join(', '),
+          upstream,
+          waf: set.routes.map((route) => `${route.hostname} ${route.waf}`).join(', '),
+        }),
       );
     }
     for (const hostname of plan.remove) {
       const removed = await api(ctx, config, 'DELETE', `/services/${hostname}`);
       if (removed.status !== 404 && (removed.status < 200 || removed.status >= 300)) {
-        fail('apply', `API de BunkerWeb, retrait de ${hostname} : ${apiMessage(removed)}`);
+        fail(
+          'apply',
+          say('api.failed', {
+            what: say('api.remove', { hostname }),
+            detail: apiMessage(removed, say),
+          }),
+        );
       }
-      onLog(`service BunkerWeb retiré : ${hostname}`);
+      onLog(say('apply.serviceRemoved', { hostname }));
     }
 
     // BunkerWeb applique en différé, et revient en silence à la configuration
@@ -740,7 +762,12 @@ export class BunkerWebProvider implements ProxyProvider {
       { timeout: SHORT_MS },
     );
     if (made.code !== 0) {
-      fail('apply', `secret des sondes : ${firstLine(made.stderr) ?? `code ${made.code}`}`);
+      fail(
+        'apply',
+        bunkerwebSay(ctx.language)('apply.probeSecret', {
+          detail: firstLine(made.stderr) ?? `code ${made.code}`,
+        }),
+      );
     }
     return file;
   }
@@ -778,11 +805,12 @@ export class BunkerWebProvider implements ProxyProvider {
       { timeout: SHORT_MS },
     );
     const emerg = /\[emerg\][^\n]*/.exec(journal.stdout)?.[0];
+    const say = bunkerwebSay(ctx.language);
     fail(
       'apply',
       emerg
-        ? `BunkerWeb a refusé la configuration et garde la précédente : ${emerg.replace(/^\[emerg\]\s*/, '')}`
-        : `BunkerWeb ne sert pas encore ${waiting.join(', ')} au bout de 40 s`,
+        ? say('apply.refused', { detail: emerg.replace(/^\[emerg\]\s*/, '') })
+        : say('apply.notServed', { hostnames: waiting.join(', ') }),
     );
   }
 }

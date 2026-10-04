@@ -14,6 +14,8 @@ import {
 import { disconnect } from '@pupitre/core/ssh';
 import { resolveProxySecrets, type ProxyView } from '@pupitre/db';
 import { openTargetContext } from '../deploy/target-context.js';
+import { instanceLanguage } from '../language.js';
+import { workerSay } from '../messages.js';
 
 /**
  * Un proxy prêt à servir, où qu'il tourne. Le worker ne fait que cela avec un
@@ -45,7 +47,11 @@ export async function openProxy(proxy: ProxyView, local?: TargetContext): Promis
   if (proxyPlacement(proxy.kind) === 'remote') {
     const provider = getRemoteProxyProvider(proxy.kind);
     // Les identifiants de l'API, déchiffrés ici et nulle part ailleurs.
-    const ctx = { config: proxy.config, secrets: await resolveProxySecrets(proxy.id) };
+    const ctx = {
+      config: proxy.config,
+      secrets: await resolveProxySecrets(proxy.id),
+      language: await instanceLanguage(),
+    };
     return {
       name: proxy.name,
       apply: (set, onLog) => provider.apply(ctx, set, onLog),
@@ -61,7 +67,7 @@ export async function openProxy(proxy: ProxyView, local?: TargetContext): Promis
     };
   }
 
-  if (!proxy.hostTargetId) throw new Error('ce proxy ne tourne sur aucune machine connue');
+  if (!proxy.hostTargetId) throw new Error(workerSay(await instanceLanguage())('proxy.noHost'));
   const reuse = local?.target.id === proxy.hostTargetId ? local : null;
   const opened = reuse ? null : await openTargetContext(proxy.hostTargetId);
   const host = reuse ?? opened!.ctx;

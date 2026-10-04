@@ -12,6 +12,8 @@ import {
 } from '@pupitre/db';
 import { openTargetContext } from '../deploy/target-context.js';
 import { env } from '../env.js';
+import { instanceLanguage } from '../language.js';
+import { workerSay } from '../messages.js';
 import { openProxy } from './connect.js';
 
 /**
@@ -39,12 +41,14 @@ export async function verifyTargetLink(input: {
   const link = await getTargetLink(input.targetId);
   if (!link) return null;
   const proxy = await getProxy(link.proxyId);
-  if (!proxy) throw new Error('le proxy de cette liaison a disparu');
+  if (!proxy) throw new Error(workerSay(await instanceLanguage())('link.gone'));
 
   // Un port libre de la plage, hors des réservations du panel : là où le
   // driver publiera, donc là où un pare-feu bloquerait l'application.
   const report = await getTargetPortReport(input.targetId);
-  if (!report) throw new Error('cible introuvable');
+  if (!report) {
+    throw new Error(workerSay(await instanceLanguage())('notFound.target', { id: input.targetId }));
+  }
   const portRange =
     input.portRange ?? intersectPortRanges(report.range, env.DRIVER_PORT_RANGE) ?? report.range;
   const reserved = new Set(report.allocations.map((allocation) => allocation.port));
@@ -105,18 +109,23 @@ export async function verifyLinkBeforeDeploy(input: {
   });
   if (!checked) return false;
   const { result, proxyHostName } = checked;
+  const say = workerSay(input.served.language);
   if (result.ok === false) {
     throw new Error(
-      `le proxy de « ${proxyHostName} » ne joint pas cette machine : ${result.detail}. ` +
-        `Rétablissez le passage de « ${proxyHostName} » vers ${result.address} ` +
-        `(ports ${input.portRange.min}-${input.portRange.max}), puis « Tester la liaison » ` +
-        'dans l’onglet Reverse proxy de la cible.',
+      say('link.unreachable', {
+        proxy: proxyHostName,
+        detail: result.detail,
+        address: result.address,
+        min: input.portRange.min,
+        max: input.portRange.max,
+      }),
     );
   }
   const source = reachSource(result);
   input.onLog(
     result.ok
-      ? `✓ liaison au proxy de « ${proxyHostName} » : ${result.detail}${source ? ` — arrivée depuis ${source}` : ''}`
+      ? say('link.ok', { proxy: proxyHostName, detail: result.detail }) +
+          (source ? say('link.from', { source }) : '')
       : `⚠ ${result.detail}`,
   );
   return true;

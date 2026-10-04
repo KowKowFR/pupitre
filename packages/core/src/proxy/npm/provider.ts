@@ -28,6 +28,7 @@ import {
   type NpmConfig,
 } from './config.js';
 import { errorMessage } from '../../error-message.js';
+import { npmSay } from './messages.js';
 
 /**
  * Nginx Proxy Manager, piloté par son API — un proxy **distant** : Pupitre ne
@@ -149,18 +150,22 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
   private async open(ctx: RemoteProxyContext): Promise<{ config: NpmConfig; client: NpmClient }> {
     const config = this.parseConfig(ctx.config);
     const { password } = npmSecretsSchema.parse(ctx.secrets);
-    return { config, client: await NpmClient.login(config.url, config.email, password) };
+    return {
+      config,
+      client: await NpmClient.login(config.url, config.email, password, ctx.language),
+    };
   }
 
   // ─── tester ─────────────────────────────────────────────────────────────────
 
   async check(ctx: RemoteProxyContext, onLog: LogSink): Promise<ProxyCheck> {
+    const say = npmSay(ctx.language);
     const config = this.parseConfig(ctx.config);
     const checks: ProxyCheck['checks'] = [];
     const done = (): ProxyCheck => ({ ok: checks.every((item) => item.ok), checks });
 
     try {
-      const health = await npmHealth(config.url);
+      const health = await npmHealth(config.url, ctx.language);
       const version = health.version
         ? `${health.version.major}.${health.version.minor}.${health.version.revision}`
         : null;
@@ -168,7 +173,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         key: 'api',
         label: 'API',
         ok: health.status === 'OK',
-        detail: `Nginx Proxy Manager${version ? ` ${version}` : ''} à ${config.url}`,
+        detail: say('check.api.detail', { version: version ? ` ${version}` : '', url: config.url }),
       });
     } catch (error) {
       checks.push({ key: 'api', label: 'API', ok: false, detail: errorMessage(error) });
@@ -179,22 +184,27 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     const publicPlain = plainOnPublicAddress(config.url);
     checks.push({
       key: 'transport',
-      label: 'Chiffrement',
+      label: say('check.transport'),
       ok: !publicPlain,
       detail:
         url.protocol === 'https:'
           ? 'HTTPS'
           : publicPlain
-            ? `HTTP sur une adresse publique : le mot de passe du compte passerait en clair — passez par HTTPS, ou par une adresse privée`
-            : 'HTTP, à réserver à un réseau privé',
+            ? say('check.transport.publicPlain')
+            : say('check.transport.privatePlain'),
     });
 
     let client: NpmClient;
     try {
       client = (await this.open(ctx)).client;
-      checks.push({ key: 'login', label: 'Compte', ok: true, detail: config.email });
+      checks.push({ key: 'login', label: say('check.login'), ok: true, detail: config.email });
     } catch (error) {
-      checks.push({ key: 'login', label: 'Compte', ok: false, detail: errorMessage(error) });
+      checks.push({
+        key: 'login',
+        label: say('check.login'),
+        ok: false,
+        detail: errorMessage(error),
+      });
       return done();
     }
 
@@ -206,16 +216,23 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         admin || (rights?.proxy_hosts === 'manage' && rights.certificates === 'manage');
       checks.push({
         key: 'rights',
-        label: 'Droits',
+        label: say('check.rights'),
         ok: allowed,
         detail: allowed
           ? admin
-            ? 'administrateur de NPM'
-            : `gère les hôtes et les certificats${rights?.visibility === 'user' ? ' — les siens seulement' : ''}`
-          : 'le compte doit pouvoir gérer (« Manage ») les Proxy Hosts et les SSL Certificates',
+            ? say('check.rights.admin')
+            : rights?.visibility === 'user'
+              ? say('check.rights.own')
+              : say('check.rights.manage')
+          : say('check.rights.missing'),
       });
     } catch (error) {
-      checks.push({ key: 'rights', label: 'Droits', ok: false, detail: errorMessage(error) });
+      checks.push({
+        key: 'rights',
+        label: say('check.rights'),
+        ok: false,
+        detail: errorMessage(error),
+      });
     }
 
     // Les sondes des domaines partent du panel vers l'entrée de NPM.
@@ -223,15 +240,22 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     const answers = await entrypointAnswers(entrypoint);
     checks.push({
       key: 'entrypoint',
-      label: 'Entrée',
+      label: say('check.entrypoint'),
       ok: answers.http > 0,
       detail:
         answers.http > 0
-          ? `reçoit sur ${entrypoint.host}:${entrypoint.httpPort}${answers.httpsOpen ? ` et ${entrypoint.httpsPort}` : ` — ${entrypoint.httpsPort} fermé`}`
-          : `${entrypoint.host}:${entrypoint.httpPort} ne répond pas depuis le panel : les domaines ne pourront pas être sondés — réglez l'adresse où NPM reçoit les visiteurs`,
+          ? say(answers.httpsOpen ? 'check.entrypoint.both' : 'check.entrypoint.httpOnly', {
+              host: entrypoint.host,
+              http: entrypoint.httpPort,
+              https: entrypoint.httpsPort,
+            })
+          : say('check.entrypoint.down', { host: entrypoint.host, port: entrypoint.httpPort }),
     });
     onLog(
-      `NPM ${config.url} : ${checks.map((item) => `${item.label} ${item.ok ? 'ok' : '✗'}`).join(', ')}`,
+      say('check.summary', {
+        url: config.url,
+        checks: checks.map((item) => `${item.label} ${item.ok ? 'ok' : '✗'}`).join(', '),
+      }),
     );
     return done();
   }
@@ -239,6 +263,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
   // ─── poser les routes ───────────────────────────────────────────────────────
 
   async apply(ctx: RemoteProxyContext, set: ProxyRouteSet, onLog: LogSink): Promise<void> {
+    const say = npmSay(ctx.language);
     const { client } = await this.open(ctx);
     const scope = set.scope ?? null;
     const hosts = await client.hosts();
@@ -250,11 +275,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     let upstream: { host: string; port: number } | null = null;
     if (set.routes.length > 0) {
       if (set.upstream?.kind !== 'port' || !set.upstream.host) {
-        throw new ProxyError(
-          'Nginx Proxy Manager joint une application par une adresse et un port : reliez la machine à NPM',
-          this.kind,
-          'apply',
-        );
+        throw new ProxyError(say('apply.needsAddress'), this.kind, 'apply');
       }
       upstream = { host: set.upstream.host, port: set.upstream.port };
     }
@@ -270,7 +291,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     for (const host of mine) {
       if (host.domain_names.length === 1 && wanted.has(host.domain_names[0]!)) continue;
       await client.deleteHost(host.id);
-      onLog(`NPM : ${host.domain_names.join(', ')} retiré`);
+      onLog(say('apply.hostRemoved', { hostnames: host.domain_names.join(', ') }));
       const owned = markOf(host)?.certificate;
       if (owned) released.add(owned);
     }
@@ -293,7 +314,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       } catch (error) {
         problems.push(
           error instanceof NpmApiError && /already in use/i.test(error.message)
-            ? `« ${route.hostname} » existe déjà dans NPM, hors de Pupitre : retirez-le de NPM, ou choisissez un autre domaine`
+            ? say('apply.foreign', { hostname: route.hostname })
             : `${route.hostname} : ${errorMessage(error)}`,
         );
       }
@@ -306,9 +327,9 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         if (still.has(id)) continue;
         await client
           .deleteCertificate(id)
-          .then(() => onLog(`NPM : certificat ${id} retiré`))
+          .then(() => onLog(say('apply.certificateRemoved', { id })))
           .catch((error: unknown) =>
-            onLog(`⚠ certificat ${id} non retiré : ${errorMessage(error)}`),
+            onLog(say('apply.certificateKept', { id, error: errorMessage(error) })),
           );
       }
     }
@@ -328,6 +349,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     listCertificates: () => Promise<NpmCertificate[]>,
     onLog: LogSink,
   ): Promise<{ released: number | null }> {
+    const say = npmSay(client.language);
     const previousMark = existing ? markOf(existing) : null;
     let certificateId = 0;
     let owned: number | null = null;
@@ -345,7 +367,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         certificateId = reusable.id;
         owned = previousMark?.certificate === reusable.id ? reusable.id : null;
         if (reusable.id !== existing?.certificate_id) {
-          onLog(`NPM : ${route.hostname} reprend le certificat « ${reusable.nice_name} »`);
+          onLog(say('apply.reuses', { hostname: route.hostname, name: reusable.nice_name }));
         }
       }
     }
@@ -389,7 +411,12 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         enabled: true,
         locations: [],
       });
-      onLog(`NPM : ${route.hostname} → ${upstream.host}:${upstream.port}`);
+      onLog(
+        say('apply.host', {
+          hostname: route.hostname,
+          upstream: `${upstream.host}:${upstream.port}`,
+        }),
+      );
     } else {
       const wanted = fields(certificateId, owned);
       const changed =
@@ -402,7 +429,12 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         JSON.stringify(previousMark) !== JSON.stringify(wanted.meta[MARK]);
       if (changed) {
         await client.updateHost(existing.id, { ...wanted, enabled: true });
-        onLog(`NPM : ${route.hostname} → ${upstream.host}:${upstream.port} (mis à jour)`);
+        onLog(
+          say('apply.hostUpdated', {
+            hostname: route.hostname,
+            upstream: `${upstream.host}:${upstream.port}`,
+          }),
+        );
       }
 
       // Un hôte déjà là, toujours sans certificat : on le redemande.
@@ -433,7 +465,8 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
     attempts: number,
     onLog: LogSink,
   ): Promise<number | null> {
-    onLog(`NPM : demande d'un certificat pour ${hostname}…`);
+    const say = npmSay(client.language);
+    onLog(say('certificate.requesting', { hostname }));
     // NPM ne lance qu'un certbot à la fois et refuse aussitôt le second : les
     // demandes de ce worker vers une même instance passent l'une après l'autre.
     return oneAtATime(client.base, async () => {
@@ -444,7 +477,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
         const started = Date.now();
         try {
           const certificate = await client.requestCertificate(hostname);
-          onLog(`NPM : certificat obtenu pour ${hostname}`);
+          onLog(say('certificate.obtained', { hostname }));
           return certificate.id;
         } catch (error) {
           failure = errorMessage(error);
@@ -456,9 +489,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
           }
         }
       }
-      onLog(
-        `⚠ NPM n'a pas obtenu de certificat pour ${hostname} : ${failure} — servi en HTTP ; le prochain déploiement ou « Appliquer » le redemandera`,
-      );
+      onLog(say('certificate.failed', { hostname, failure }));
       return null;
     });
   }
@@ -467,7 +498,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
 
   async probe(ctx: RemoteProxyContext, route: ProxyRoute, path: string): Promise<RouteProbe> {
     const config = this.parseConfig(ctx.config);
-    const probe = await probeDirect(npmEntrypoint(config), route, path, NPM_PROBE);
+    const probe = await probeDirect(npmEntrypoint(config), route, path, NPM_PROBE, ctx.language);
     if (probe.ok || !route.tls || (probe.https ?? 0) !== 0) return probe;
     // HTTPS ne répond pas : NPM refuse la poignée de main d'un nom sans
     // certificat. On lui demande si c'est cela, pour le dire.
@@ -479,7 +510,7 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       if (host && host.certificate_id === 0) {
         return {
           ...probe,
-          detail: `HTTPS : NPM n'a pas encore de certificat pour ce domaine — le DNS doit pointer vers NPM et son port 80 être ouvert ; le prochain déploiement ou « Appliquer » le redemandera`,
+          detail: npmSay(ctx.language)('probe.noCertificate'),
           certificate: { status: 'pending', subject: null, issuer: null, notAfter: null },
         };
       }
@@ -523,7 +554,13 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       meta: { [MARK]: { reach: true } satisfies NpmMark },
     });
     try {
-      onLog(`NPM relaie ${hostname} vers ${request.address}:${request.port}`);
+      onLog(
+        npmSay(ctx.language)('reach.relaying', {
+          hostname,
+          address: request.address,
+          port: request.port,
+        }),
+      );
       const entrypoint = npmEntrypoint(config);
       // NPM recharge nginx sans attendre qu'il ait pris : tant que son site par
       // défaut répond pour ce nom — sa page, ou son 404 pour un autre chemin —,
@@ -536,7 +573,10 @@ export class NginxProxyManagerProvider implements RemoteProxyProvider {
       }
       if (answer.code === 0) {
         throw new ProxyError(
-          `NPM ne répond pas sur ${entrypoint.host}:${entrypoint.httpPort} depuis le panel`,
+          npmSay(ctx.language)('reach.silent', {
+            host: entrypoint.host,
+            port: entrypoint.httpPort,
+          }),
           this.kind,
           'reach',
         );

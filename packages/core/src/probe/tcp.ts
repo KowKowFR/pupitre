@@ -2,7 +2,9 @@ import { Socket } from 'node:net';
 import { tcpConfigSchema, type TcpConfig } from '../monitors/catalog.js';
 import type { Cidr } from '../monitors/ssrf.js';
 import type { CheckResult } from '../monitors/state.js';
-import { SsrfBlockedError, messageOf, resolveGuarded } from './net.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
+import { ProbeTimeoutError, messageOf, resolveGuarded } from './net.js';
 import type { MonitorProbe, ProbeContext } from './types.js';
 
 /**
@@ -115,7 +117,7 @@ function connectAndListen(input: {
       // Distinguer les deux délais est ce qui permet un message honnête : « le
       // port accepte mais n'annonce rien » n'est pas « le port ne répond pas ».
       if (connected) done(true);
-      else finish(() => reject(new Error(`délai dépassé après ${input.timeoutMs} ms`)));
+      else finish(() => reject(new ProbeTimeoutError(input.timeoutMs)));
     });
 
     socket.on('error', (error) => finish(() => reject(error)));
@@ -137,7 +139,12 @@ function sanitizeBanner(value: string): string {
     .slice(0, 200);
 }
 
-async function runTcp(config: TcpConfig, allowlist: readonly Cidr[]): Promise<CheckResult> {
+async function runTcp(
+  config: TcpConfig,
+  allowlist: readonly Cidr[],
+  language: UiLanguage,
+): Promise<CheckResult> {
+  const say = probeSay(language);
   let address: string;
   try {
     address = (await resolveGuarded(config.host, allowlist)).address;
@@ -145,7 +152,7 @@ async function runTcp(config: TcpConfig, allowlist: readonly Cidr[]): Promise<Ch
     return {
       outcome: 'unreachable',
       latencyMs: null,
-      detail: error instanceof SsrfBlockedError ? error.reason : messageOf(error),
+      detail: messageOf(error, language),
       metrics: {},
     };
   }
@@ -165,7 +172,7 @@ async function runTcp(config: TcpConfig, allowlist: readonly Cidr[]): Promise<Ch
     return {
       outcome: 'unreachable',
       latencyMs: null,
-      detail: messageOf(error),
+      detail: messageOf(error, language),
       metrics: { address },
     };
   }
@@ -189,9 +196,8 @@ async function runTcp(config: TcpConfig, allowlist: readonly Cidr[]): Promise<Ch
       outcome: 'unhealthy',
       latencyMs: handshake.connectMs,
       detail: handshake.bannerTimedOut
-        ? `le port accepte la connexion mais n'a rien annoncé en ${config.timeoutMs} ms ` +
-          '— un service où le client parle en premier ne rend jamais de bannière'
-        : 'le port accepte la connexion puis referme sans rien annoncer',
+        ? say('tcp.silentBanner', { ms: config.timeoutMs })
+        : say('tcp.closedSilently'),
       metrics,
     };
   }
@@ -203,7 +209,7 @@ async function runTcp(config: TcpConfig, allowlist: readonly Cidr[]): Promise<Ch
     return {
       outcome: 'unhealthy',
       latencyMs: handshake.connectMs,
-      detail: `bannière « ${config.expectBanner} » attendue, reçu « ${handshake.banner} »`,
+      detail: say('tcp.wrongBanner', { expected: config.expectBanner, banner: handshake.banner }),
       metrics,
     };
   }
@@ -219,10 +225,12 @@ export const tcpProbe: MonitorProbe = {
       return {
         outcome: 'unreachable',
         latencyMs: null,
-        detail: `configuration de sonde invalide : ${parsed.error.issues.map((issue) => issue.message).join(', ')}`,
+        detail: probeSay(ctx.language)('invalidConfig', {
+          issues: parsed.error.issues.map((issue) => issue.message).join(', '),
+        }),
         metrics: {},
       };
     }
-    return runTcp(parsed.data, ctx.allowlist);
+    return runTcp(parsed.data, ctx.allowlist, ctx.language);
   },
 };

@@ -34,7 +34,9 @@ import {
 import type { Job } from 'bullmq';
 import { openDeploymentContext } from '../deploy/context.js';
 import { openTargetContext } from '../deploy/target-context.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay } from '../messages.js';
 import { openProxy, proxyContextOf, withProxy } from '../proxy/connect.js';
 import { verifyTargetLink } from '../proxy/link.js';
 import { applyCoupleRoutes, probeCoupleRoutes } from '../proxy/routes.js';
@@ -81,11 +83,19 @@ async function runCheck(proxyId: string): Promise<ProxyCheck | null> {
       open.check((line) => logger.info({ proxyId }, line)),
     );
     const failed = check.checks.filter((item) => !item.ok);
+    const say = workerSay(await instanceLanguage());
     await setProxyStatus(proxyId, {
       status: check.ok ? 'ok' : 'failed',
       error:
         failed.length > 0
-          ? failed.map((item) => `${item.label} : ${item.detail ?? 'en échec'}`).join(' · ')
+          ? failed
+              .map((item) =>
+                say('proxy.failedCheck', {
+                  label: item.label,
+                  detail: item.detail ?? say('proxy.failed'),
+                }),
+              )
+              .join(' · ')
           : null,
       check: check as unknown as Record<string, unknown>,
     });
@@ -109,7 +119,7 @@ export async function handleProxyCheck(job: Job): Promise<ProxyCheck | null> {
 export async function handleProxyInstall(job: Job): Promise<{ ok: boolean; error: string | null }> {
   const data = proxyInstallJobDataSchema.parse(job.data);
   const proxy = await getProxy(data.proxyId);
-  if (!proxy) throw new Error('connexion de proxy introuvable');
+  if (!proxy) throw new Error(workerSay(await instanceLanguage())('proxy.notFound'));
   const opened = await openTargetContext(data.targetId);
   try {
     const config = await getProxyProvider(proxy.kind).install(
@@ -162,7 +172,7 @@ export async function handleProxyRemove(job: Job): Promise<{ removed: boolean }>
   const proxy = await getProxy(data.proxyId);
   if (!proxy) return { removed: false };
   if ((await countRoutesServedBy(proxy.id)) > 0) {
-    throw new Error('des domaines passent encore par ce proxy : retirez-les d’abord');
+    throw new Error(workerSay(await instanceLanguage())('proxy.stillServing'));
   }
   if (data.uninstall && proxy.managed && proxy.hostTargetId) {
     const opened = await openTargetContext(proxy.hostTargetId);
@@ -202,7 +212,11 @@ export async function handleProxyApply(job: Job): Promise<{
     targetId: data.targetId,
   });
   if (!live?.inService) {
-    return { skipped: 'l’application ne tourne pas sur cette cible', url: null, problems: [] };
+    return {
+      skipped: workerSay(await instanceLanguage())('proxy.notRunning'),
+      url: null,
+      problems: [],
+    };
   }
   const opened = await openDeploymentContext(live.inService.id);
   try {
@@ -285,7 +299,7 @@ export async function handleProxyLinkCheck(job: Job): Promise<{
 }> {
   const data = proxyLinkCheckJobDataSchema.parse(job.data);
   const checked = await verifyTargetLink({ targetId: data.targetId });
-  if (!checked) throw new Error('aucune liaison pour cette cible');
+  if (!checked) throw new Error(workerSay(await instanceLanguage())('link.none'));
   const { result } = checked;
   return {
     ok: result.ok,

@@ -3,6 +3,7 @@ import https from 'node:https';
 import net from 'node:net';
 import type { TLSSocket } from 'node:tls';
 import type { RouteCertificate } from './model.js';
+import type { UiLanguage } from '../i18n.js';
 import { judgeRouteProbe, type Probed, type ProbeSignatures } from './probe.js';
 import type { ProxyRoute, RouteProbe } from './types.js';
 
@@ -124,22 +125,27 @@ export async function probeDirect(
   route: ProxyRoute,
   path: string,
   signatures: ProbeSignatures,
+  language: UiLanguage = 'fr',
 ): Promise<RouteProbe> {
   const target = path.startsWith('/') ? path : `/${path}`;
   const plain = await ask('http', entrypoint, route.hostname, target, signatures);
   const secure = route.tls
     ? await ask('https', entrypoint, route.hostname, target, signatures)
     : null;
-  return judgeRouteProbe(route, {
-    http: probed(plain, signatures),
-    https: secure ? probed(secure, signatures) : undefined,
-    certificate: secure?.certificate ?? {
-      status: 'unknown',
-      subject: null,
-      issuer: null,
-      notAfter: null,
+  return judgeRouteProbe(
+    route,
+    {
+      http: probed(plain, signatures),
+      https: secure ? probed(secure, signatures) : undefined,
+      certificate: secure?.certificate ?? {
+        status: 'unknown',
+        subject: null,
+        issuer: null,
+        notAfter: null,
+      },
     },
-  });
+    language,
+  );
 }
 
 /**

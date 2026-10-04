@@ -25,6 +25,7 @@ import {
   type RouteView,
   type ServingProxy,
 } from '@pupitre/db';
+import { workerSay } from '../messages.js';
 import { getSupervisionQueue } from '../queue.js';
 import { withProxy, type OpenProxy } from './connect.js';
 
@@ -256,25 +257,24 @@ export async function applyCoupleRoutes(input: {
   onLog: LogSink;
 }): Promise<AppliedRoutes> {
   const { applicationId, targetId, driver, ctx, onLog } = input;
+  const say = workerSay(ctx.language);
   const serving = await resolveServingProxy(targetId);
   const routes = await listRoutes({ applicationId, targetId });
   if (!serving) {
     const reason =
       routes.length > 0
-        ? `aucun reverse proxy ne sert cette cible : ${routes.map((route) => route.hostname).join(', ')} non routé(s)`
-        : 'aucun reverse proxy ne sert cette cible — application jointe par son port';
+        ? say('proxy.noneWithRoutes', {
+            count: routes.length,
+            hostnames: routes.map((route) => route.hostname).join(', '),
+          })
+        : say('proxy.none');
     return { skipped: reason, url: null, problems: [] };
   }
   if (serving.proxy.status === 'installing') {
-    return {
-      skipped:
-        'le reverse proxy est en cours d’installation — domaines posés au prochain déploiement',
-      url: null,
-      problems: [],
-    };
+    return { skipped: say('proxy.installing'), url: null, problems: [] };
   }
   if (serving.link && routes.length > 0) {
-    onLog(`servie par le proxy « ${serving.proxy.name} », qui la joint à ${serving.link.address}`);
+    onLog(say('proxy.servedBy', { proxy: serving.proxy.name, address: serving.link.address }));
   }
 
   return withProxy(serving.proxy, ctx, async (proxy) => {
@@ -288,7 +288,7 @@ export async function applyCoupleRoutes(input: {
       onLog,
     );
     if (routes.length === 0) {
-      return { skipped: 'aucun domaine pour cette application', url: null, problems: [] };
+      return { skipped: say('proxy.noDomain'), url: null, problems: [] };
     }
 
     // Un proxy relit sa configuration en une ou deux secondes ; un contrôleur
@@ -307,15 +307,17 @@ export async function applyCoupleRoutes(input: {
       await recordProbe(route, probe, { confirm: false });
       const certificate =
         probe.certificate.status === 'pending'
-          ? ' — certificat en cours d’émission'
+          ? say('proxy.certificatePending')
           : probe.certificate.status === 'valid'
-            ? ` — certificat valide jusqu’au ${probe.certificate.notAfter?.slice(0, 10) ?? '?'}`
+            ? say('proxy.certificateValid', {
+                date: probe.certificate.notAfter?.slice(0, 10) ?? '?',
+              })
             : '';
       onLog(
         `${probe.ok ? '✓' : '✗'} ${route.hostname} — ${probe.detail}${probe.ok ? certificate : ''}`,
       );
       if (probe.ok) url ??= routeUrl(route);
-      else problems.push(`${route.hostname} : ${probe.detail}`);
+      else problems.push(say('proxy.problem', { hostname: route.hostname, detail: probe.detail }));
       if (probe.certificate.status === 'pending') certificatePending = true;
     }
     // Un certificat s'obtient en quelques secondes, la tournée passe toutes les
@@ -398,10 +400,12 @@ export async function removeCoupleRoutes(input: {
       );
     } catch (error) {
       input.onLog(
-        `⚠ routes non retirées du proxy : ${error instanceof Error ? error.message : String(error)}`,
+        workerSay(input.ctx.language)('proxy.notRemoved', {
+          error: error instanceof Error ? error.message : String(error),
+        }),
       );
     }
   }
   const removed = await deleteRoutesOf(input.applicationId, input.targetId);
-  if (removed > 0) input.onLog(`${removed} domaine(s) libéré(s)`);
+  if (removed > 0) input.onLog(workerSay(input.ctx.language)('proxy.released', { count: removed }));
 }

@@ -1,5 +1,7 @@
 import { parse as parseYaml } from 'yaml';
+import type { UiLanguage } from '../../i18n.js';
 import type { TraefikFileConfig, TraefikKubernetesConfig } from './config.js';
+import { traefikSay } from './messages.js';
 
 /**
  * Lire un Traefik déjà en place, sans rien y toucher.
@@ -161,7 +163,9 @@ export type ContainerFinding = {
 export function interpretTraefikContainer(
   container: InspectedContainer,
   staticFile: string | null,
+  language: UiLanguage = 'fr',
 ): ContainerFinding {
+  const say = traefikSay(language);
   const name = (container.Name ?? '').replace(/^\//, '') || 'traefik';
   const args = container.Args ?? [];
   const config = new Map<string, string>();
@@ -186,32 +190,29 @@ export function interpretTraefikContainer(
   if (!read.fileDirectory) {
     return {
       config: null,
-      summary: `Traefik « ${name} » sans dossier surveillé`,
+      summary: say('finding.noDirectory', { name }),
       warnings: [
         read.fileName
-          ? `il lit un fichier unique (${read.fileName}) : Pupitre a besoin d'un dossier — ajoutez --providers.file.directory`
-          : "le fournisseur « file » n'est pas activé : ajoutez --providers.file.directory et montez ce dossier depuis la machine",
+          ? say('finding.singleFile', { file: read.fileName })
+          : say('finding.noFileProvider'),
       ],
     };
   }
   const directory = hostPathOf(container, read.fileDirectory);
   if (!directory) {
-    warnings.push(
-      `le dossier ${read.fileDirectory} n'est pas monté depuis la machine : Pupitre ne peut pas y écrire`,
-    );
+    warnings.push(say('finding.notMounted', { directory: read.fileDirectory }));
   }
-  if (!read.entryPoints.http) warnings.push("aucun point d'entrée sur le port 80");
-  if (!read.entryPoints.https) warnings.push("aucun point d'entrée sur le port 443 : pas de HTTPS");
-  if (read.resolvers.length === 0) {
-    warnings.push(
-      'aucun résolveur ACME : les domaines seront servis avec le certificat par défaut',
-    );
-  }
+  if (!read.entryPoints.http) warnings.push(say('finding.noHttp'));
+  if (!read.entryPoints.https) warnings.push(say('finding.noHttps'));
+  if (read.resolvers.length === 0) warnings.push(say('finding.noResolver'));
   if (!hostMode) {
     warnings.push(
       upstreamHost
-        ? `Traefik est en réseau « ${container.HostConfig?.NetworkMode ?? 'bridge'} » : il joindra les applications par la passerelle ${upstreamHost}, et leur port restera ouvert sur la machine`
-        : 'réseau du conteneur illisible : indiquez à quelle adresse Traefik joint la machine',
+        ? say('finding.bridge', {
+            network: container.HostConfig?.NetworkMode ?? 'bridge',
+            gateway: upstreamHost,
+          })
+        : say('finding.networkUnreadable'),
     );
   }
 
@@ -229,7 +230,11 @@ export function interpretTraefikContainer(
             acme: null,
           }
         : null,
-    summary: `Traefik « ${name} » (${container.Config?.Image ?? 'image inconnue'}) — dossier ${directory ?? read.fileDirectory}`,
+    summary: say('finding.summary', {
+      name,
+      image: container.Config?.Image ?? say('finding.unknownImage'),
+      directory: directory ?? read.fileDirectory,
+    }),
     warnings,
   };
 }
@@ -249,19 +254,16 @@ export type ClusterFinding = {
 export function interpretTraefikCluster(
   ingressClasses: string[],
   deployment: { namespace: string; args: string[] } | null,
+  language: UiLanguage = 'fr',
 ): ClusterFinding {
+  const say = traefikSay(language);
   if (ingressClasses.length === 0) {
-    return { config: null, summary: 'aucune IngressClass Traefik dans le cluster', warnings: [] };
+    return { config: null, summary: say('finding.noIngressClass'), warnings: [] };
   }
   const read = readTraefik(staticConfigFromArgs(deployment?.args ?? []));
   const warnings: string[] = [];
-  if (!deployment)
-    warnings.push("le déploiement de Traefik n'a pas été trouvé : réglages par défaut");
-  if (read.resolvers.length === 0) {
-    warnings.push(
-      'aucun résolveur ACME : les domaines seront servis avec le certificat par défaut',
-    );
-  }
+  if (!deployment) warnings.push(say('finding.noDeployment'));
+  if (read.resolvers.length === 0) warnings.push(say('finding.noResolver'));
   const ingressClass = ingressClasses.includes('traefik') ? 'traefik' : ingressClasses[0]!;
   return {
     config: {
@@ -275,7 +277,7 @@ export function interpretTraefikCluster(
       certResolver: read.resolvers[0] ?? null,
       acme: null,
     },
-    summary: `Traefik du cluster — IngressClass ${ingressClass}`,
+    summary: say('finding.cluster', { ingressClass }),
     warnings,
   };
 }

@@ -290,7 +290,7 @@ describe('Traefik — lire une installation existante', () => {
       null,
     );
     assert.equal(unmounted.config, null);
-    assert.ok(unmounted.warnings.some((warning) => warning.includes("n'est pas monté")));
+    assert.ok(unmounted.warnings.some((warning) => warning.includes('n’est pas monté')));
 
     const labelsOnly = interpretTraefikContainer({ Args: ['--providers.docker=true'] }, null);
     assert.equal(labelsOnly.config, null);

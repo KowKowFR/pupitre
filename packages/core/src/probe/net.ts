@@ -6,6 +6,8 @@ import {
   type Cidr,
   type SsrfRefusal,
 } from '../monitors/ssrf.js';
+import type { UiLanguage } from '../i18n.js';
+import { probeSay } from './messages.js';
 
 /**
  * La résolution contrôlée, partagée par toutes les sondes.
@@ -111,7 +113,20 @@ export async function resolveUrlGuarded(
   return { target: await resolveGuarded(parsed.hostname, allowlist), parsed };
 }
 
-export function messageOf(error: unknown): string {
+/**
+ * Un délai dépassé, en donnée : `messageOf()` le dit dans la langue de qui
+ * lira le relevé, comme le refus d'un `SsrfBlockedError`.
+ */
+export class ProbeTimeoutError extends Error {
+  override readonly name = 'ProbeTimeoutError';
+  constructor(readonly ms: number) {
+    super(probeSay('fr')('timeout', { ms }));
+  }
+}
+
+export function messageOf(error: unknown, language: UiLanguage = 'fr'): string {
+  if (error instanceof ProbeTimeoutError) return probeSay(language)('timeout', { ms: error.ms });
+  if (error instanceof SsrfBlockedError) return ssrfRefusalText(error.refusal, language);
   if (error instanceof Error) {
     const code = (error as NodeJS.ErrnoException).code;
     return code ? `${code} — ${error.message}` : error.message;

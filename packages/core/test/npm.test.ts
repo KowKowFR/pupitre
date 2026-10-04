@@ -334,6 +334,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     ctx = {
       config: { url: npm.url, email: 'pupitre@exemple.fr', entrypoint: npm.entrypoint },
       secrets: { password: PASSWORD },
+      language: 'fr',
     };
   });
   after(async () => npm.stop());
@@ -485,7 +486,7 @@ describe('NPM — le provider, contre un faux NPM', () => {
     const lines: string[] = [];
     await provider.apply(ctx, set(['sans-dns.exemple.fr']), (line) => lines.push(line));
     assert.equal(npm.hosts[0]!.certificate_id, 0);
-    assert.ok(lines.some((line) => line.includes("n'a pas obtenu de certificat")));
+    assert.ok(lines.some((line) => line.includes('n’a pas obtenu de certificat')));
     const probe = await provider.probe(
       ctx,
       { hostname: 'sans-dns.exemple.fr', tls: true, redirectHttps: true, waf: 'block' },
