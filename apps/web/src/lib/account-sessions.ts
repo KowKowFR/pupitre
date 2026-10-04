@@ -4,21 +4,21 @@ import { compactIp } from '@/lib/ip';
 import { describeUserAgent } from '@/lib/user-agent';
 
 /**
- * Une session ouverte, telle que « Mon compte » la montre.
+ * An open session, as "My account" shows it.
  *
- * **Le jeton ne sort jamais d'ici.** Better Auth le renvoie avec chaque
- * session, parce que c'est lui qui la révoque ; le navigateur, lui, n'a besoin
- * que de l'identifiant — la route de fermeture retrouve le jeton côté serveur.
+ * **The token never leaves here.** Better Auth returns it with each session,
+ * because it is what revokes it; the browser, for its part, only needs the
+ * identifier — the closing route finds the token again on the server side.
  */
 export type AccountSession = {
   id: string;
-  /** La session de la requête en cours : « celle-ci ». */
+  /** The current request's session: "this one". */
   current: boolean;
-  /** « Firefox 131 · Linux », ou `null` quand l'agent n'a rien dit. */
+  /** "Firefox 131 · Linux", or `null` when the agent said nothing. */
   device: string | null;
   ipAddress: string | null;
   createdAt: string;
-  /** Dernier renouvellement : à un jour près (`updateAge`), la dernière activité. */
+  /** The last renewal: to within a day (`updateAge`), the last activity. */
   updatedAt: string;
   expiresAt: string;
 };
@@ -36,13 +36,13 @@ type BetterAuthSession = {
 const iso = (value: Date | string) => new Date(value).toISOString();
 
 /**
- * Les sessions **encore valides** de l'appelant, la sienne d'abord, puis de
- * la plus récemment active à la plus ancienne. Better Auth écarte déjà les
- * sessions expirées.
+ * The caller's **still valid** sessions, theirs first, then from the most
+ * recently active to the oldest. Better Auth already sets the expired sessions
+ * aside.
  */
 export async function listAccountSessions(headers: Headers): Promise<{
   sessions: AccountSession[];
-  /** Pour la révocation seulement — jamais sérialisé vers le client. */
+  /** For revocation only — never serialized to the client. */
   tokens: Map<string, string>;
 }> {
   const [current, raw] = await Promise.all([

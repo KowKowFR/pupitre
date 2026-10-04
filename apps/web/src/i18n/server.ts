@@ -12,49 +12,48 @@ import {
 import { getAppSettings } from '@pupitre/db';
 
 /**
- * La langue, côté serveur.
+ * The language, server side.
  *
- * ── Pourquoi les paramètres d'instance, et pas une préférence par compte ────
- * Le panel n'est pas la seule bouche qui parle. Le worker compose des alertes
- * sans personne devant lui ; l'e-mail d'invitation part vers quelqu'un qui n'a
- * pas encore de compte, donc pas de préférence ; le résumé quotidien s'adresse
- * à une liste. Ces trois-là ont besoin d'**une** langue d'instance, et il en
- * faudrait donc une de toute façon.
+ * ── Why the instance settings, and not a per-account preference ─────────────
+ * The panel is not the only mouth that speaks. The worker composes alerts with
+ * nobody in front of it; the invitation email goes to someone who has no account
+ * yet, hence no preference; the daily digest is addressed to a list. These three
+ * need **one** instance language, so one would be needed anyway.
  *
- * Ajouter par-dessus une préférence par compte ne rendrait bilingue que le
- * panel : le prestataire anglophone lirait un écran anglais, puis recevrait
- * l'alerte du déploiement qu'il vient de lancer en français. C'est exactement
- * la moitié de traduction qu'on cherche à éviter — avec, en prime, une colonne,
- * une migration et une lecture de plus par rendu.
+ * Adding a per-account preference on top would only make the panel bilingual:
+ * the English-speaking contractor would read an English screen, then receive the
+ * alert of the deployment they just started in French. That is exactly the half
+ * translation we try to avoid — with, as a bonus, a column, a migration and one
+ * more read per render.
  *
- * Le prix est réel et assumé : sur une instance francophone, l'anglophone lit
- * du français. Le jour où ce prix devient trop cher, tout tient dans cette
- * fonction : `currentLanguage()` regarderait d'abord la préférence de la
- * session, et retomberait sur l'instance. Rien d'autre dans le panel ne sait
- * d'où vient la langue.
+ * The price is real and assumed: on a French-speaking instance, the English
+ * speaker reads French. The day this price becomes too high, everything fits in
+ * this function: `currentLanguage()` would look at the session's preference
+ * first, and fall back on the instance. Nothing else in the panel knows where the
+ * language comes from.
  *
- * ── Pourquoi un `cache()` ───────────────────────────────────────────────────
- * Chaque composant serveur qui affiche du texte appelle ceci. `getAppSettings()`
- * a déjà son cache de 5 s, mais il est global au processus : `cache()` évite en
- * plus la promesse répétée dans un même rendu. Les 5 s expliquent aussi
- * pourquoi changer la langue ne demande ni redéploiement ni reconnexion — le
- * rendu suivant relit, au pire cinq secondes plus tard.
+ * ── Why a `cache()` ─────────────────────────────────────────────────────────
+ * Each server component that shows text calls this. `getAppSettings()` already
+ * has its 5 s cache, but it is process-wide: `cache()` also avoids the repeated
+ * promise within one render. The 5 s also explain why changing the language
+ * requires neither a redeployment nor a reconnection — the next render reads
+ * again, at worst five seconds later.
  */
 export const currentLanguage = cache(async (): Promise<UiLanguage> => {
   try {
     const { settings } = await getAppSettings();
     return languageOf(settings.locale);
   } catch {
-    // Traversée de `next build` sans base : un titre de page n'est jamais une
-    // raison de faire échouer une compilation. Même arbitrage qu'au layout.
+    // Crossing `next build` without a database: a page title is never a reason to
+    // fail a build. The same trade-off as in the layout.
     return DEFAULT_UI_LANGUAGE;
   }
 });
 
 /**
- * Le `t` d'un composant serveur. On passe le dictionnaire, pas son nom : c'est
- * ce qui permet au compilateur de connaître les clés de cet écran-là, et au
- * bundler de ne charger que le dictionnaire de cet écran-là.
+ * A server component's `t`. We pass the dictionary, not its name: that is what
+ * allows the compiler to know that screen's keys, and the bundler to only load
+ * that screen's dictionary.
  */
 export async function getT<F extends Dict>(bundle: Bundle<F>): Promise<Translate<F>> {
   return translator(bundle, await currentLanguage());

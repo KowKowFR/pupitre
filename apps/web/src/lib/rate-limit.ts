@@ -5,28 +5,26 @@ import { getRedis } from './redis';
 import { logger } from './logger';
 
 /**
- * Limitation de débit, en fenêtre fixe, dans Redis.
+ * Rate limiting, as a fixed window, in Redis.
  *
- * Il n'existait rien de tel dans le panel : celle de Better Auth ne couvre que
- * l'authentification. La génération par IA en a besoin parce qu'une route de génération
- * appelle un fournisseur payant — sans garde-fou, un utilisateur légitime qui
- * clique douze fois brûle un quota, et un compte compromis brûle le reste.
+ * Nothing of the kind existed in the panel: Better Auth's only covers
+ * authentication. AI generation needs it because a generation route calls a paid
+ * provider — without a guardrail, a legitimate user who clicks twelve times burns
+ * a quota, and a compromised account burns the rest.
  *
- * Fenêtre fixe plutôt que fenêtre glissante : `INCR` + `EXPIRE` sur une clé
- * horodatée tient en deux commandes atomiques, sans script Lua ni structure à
- * purger. Le défaut connu — deux rafales à cheval sur la frontière de fenêtre
- * peuvent passer — est sans conséquence ici : on protège un budget, pas une
- * primitive de sécurité.
+ * A fixed window rather than a sliding window: `INCR` + `EXPIRE` on a timestamped
+ * key fits in two atomic commands, without a Lua script or a structure to purge.
+ * The known flaw — two bursts straddling the window boundary can get through — is
+ * without consequence here: we protect a budget, not a security primitive.
  *
- * Le compteur est **par utilisateur**, pas par IP : derrière un NAT
- * d'entreprise, tout le monde partage une IP, et la session est de toute façon
- * obligatoire sur ces routes.
+ * The counter is **per user**, not per IP: behind a corporate NAT, everyone shares
+ * an IP, and the session is required on these routes anyway.
  */
 
 export type RateLimitRule = {
-  /** Préfixe de clé Redis, ex. `appspec:generate`. */
+  /** The Redis key prefix, e.g. `appspec:generate`. */
   name: string;
-  /** Nombre d'autorisations par fenêtre. */
+  /** The number of authorizations per window. */
   limit: number;
   windowSec: number;
 };
@@ -35,7 +33,7 @@ export type RateLimitVerdict = {
   allowed: boolean;
   limit: number;
   remaining: number;
-  /** Secondes avant réouverture de la fenêtre. */
+  /** Seconds before the window reopens. */
   resetSec: number;
 };
 
@@ -54,7 +52,7 @@ class RateLimitedError extends HttpError {
   }
 }
 
-/** Génération d'AppSpec : coûteuse, lente, et facturée par le fournisseur. */
+/** AppSpec generation: costly, slow, and billed by the provider. */
 export const APPSPEC_GENERATION_RULE: RateLimitRule = {
   name: 'appspec:generate',
   limit: 10,
@@ -69,8 +67,8 @@ async function consume(rule: RateLimitRule, subject: string): Promise<RateLimitV
     const redis = getRedis();
     const count = await redis.incr(key);
     if (count === 1) {
-      // Posé seulement à la création : un `EXPIRE` à chaque appel ferait
-      // glisser la fenêtre et la rendrait infinie sous charge soutenue.
+      // Only set at creation: an `EXPIRE` at each call would slide the window and make
+      // it infinite under sustained load.
       await redis.expire(key, rule.windowSec);
     }
 
@@ -82,14 +80,14 @@ async function consume(rule: RateLimitRule, subject: string): Promise<RateLimitV
       resetSec: ttl > 0 ? ttl : rule.windowSec,
     };
   } catch (error) {
-    // Redis indisponible : on laisse passer. Un compteur en panne ne doit pas
-    // couper une fonctionnalité — mais il doit se voir dans les logs.
-    logger.error({ err: error, rule: rule.name }, 'limitation de débit indisponible');
+    // Redis unavailable: we let it through. A broken counter must not cut a feature —
+    // but it must show in the logs.
+    logger.error({ err: error, rule: rule.name }, 'rate limiting unavailable');
     return { allowed: true, limit: rule.limit, remaining: rule.limit, resetSec: 0 };
   }
 }
 
-/** Consomme une autorisation, ou lève un 429. */
+/** Consumes an authorization, or throws a 429. */
 export async function enforceRateLimit(
   rule: RateLimitRule,
   subject: string,

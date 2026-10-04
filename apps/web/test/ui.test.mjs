@@ -4,13 +4,13 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 /**
- * Les invariants du design system qui se vérifient sans navigateur.
+ * The design system's invariants that can be checked without a browser.
  *
- * Ces tests chargent les composants TSX par `tsx` (voir le script `test`) et
- * les rendent en HTML statique : c'est suffisant pour ce qu'on veut garantir
- * — ce qui est écrit, ce qui est désactivé, ce qui disparaît. Le reste de la
- * logique des couches (URL d'un drawer, clavier, confirmation par saisie) vit
- * dans des modules purs, testés directement.
+ * These tests load the TSX components through `tsx` (see the `test` script) and
+ * render them as static HTML: it is enough for what we want to guarantee — what
+ * is written, what is disabled, what disappears. The rest of the layers' logic (a
+ * drawer's URL, keyboard, confirmation by typing) lives in pure modules, tested
+ * directly.
  */
 
 const { Button } = await import('../src/components/ui/button.tsx');
@@ -26,7 +26,7 @@ const { activeSection, parsePaletteQuery, splitPaletteVerbs, visibleCommands, vi
   '../src/lib/navigation.ts'
 );
 
-/** Une session de test à partir d'une liste de permissions. */
+/** A test session from a list of permissions. */
 const session = (...permissions) => (permission) => permissions.includes(permission);
 
 const ADMIN = session(
@@ -41,25 +41,25 @@ const OPERATOR = session(
 const VIEWER = session('target:read', 'application:read', 'deployment:read', 'monitor:read');
 
 describe('Button', () => {
-  it('désactive le bouton et écrit sa raison en clair quand disabledReason est fourni', () => {
+  it('disables the button and spells out its reason when disabledReason is provided', () => {
     const html = renderToStaticMarkup(
       createElement(Button, { disabledReason: 'Votre rôle ne permet aucun geste ici.' }, 'Détruire'),
     );
     assert.match(html, /<button[^>]*disabled=""/);
     assert.match(html, /class="reason"[^>]*>Votre rôle ne permet aucun geste ici\.</);
-    // La raison est reliée au bouton, pas seulement posée à côté.
+    // The reason is linked to the button, not merely set next to it.
     const describedBy = /aria-describedby="([^"]+)"/.exec(html)?.[1];
     assert.ok(describedBy);
     assert.match(html, new RegExp(`id="${describedBy}"`));
   });
 
-  it("n'ajoute ni raison ni désactivation sans disabledReason", () => {
+  it('adds neither a reason nor a disabling without disabledReason', () => {
     const html = renderToStaticMarkup(createElement(Button, null, 'Déployer'));
     assert.doesNotMatch(html, /disabled/);
     assert.doesNotMatch(html, /reason/);
   });
 
-  it('marque le travail en cours : spinner, bouton inerte, aria-busy', () => {
+  it('marks work in progress: spinner, inert button, aria-busy', () => {
     const html = renderToStaticMarkup(createElement(Button, { loading: true }, 'Déploiement…'));
     assert.match(html, /disabled=""/);
     assert.match(html, /aria-busy="true"/);
@@ -67,8 +67,8 @@ describe('Button', () => {
   });
 });
 
-describe('masquage par permission', () => {
-  it("le rail d'un observateur n'a ni tâches, ni journal, ni utilisateurs, ni rôles", () => {
+describe('hiding by permission', () => {
+  it('a viewer’s rail has neither tasks, nor log, nor users, nor roles', () => {
     const groups = visibleNavigation(VIEWER);
     const keys = groups.flatMap((group) => group.sections.map((section) => section.key));
     assert.deepEqual(keys, [
@@ -80,17 +80,17 @@ describe('masquage par permission', () => {
       'domains',
       'monitoring',
     ]);
-    // Un groupe vide disparaît : pas d'« Administration » sans section.
+    // An empty group disappears: no "Administration" without a section.
     assert.deepEqual(groups.map((group) => group.key), ['operations']);
   });
 
-  it("le rail d'un administrateur montre les quatorze sections, catalogue compris", () => {
+  it('an administrator’s rail shows the fourteen sections, catalog included', () => {
     const keys = visibleNavigation(ADMIN).flatMap((group) => group.sections.map((section) => section.key));
     assert.equal(keys.length, 14);
     assert.ok(keys.includes('catalog'));
   });
 
-  it('les pages de statut s’ouvrent à qui compose comme à qui annonce, pas aux autres', () => {
+  it('the status pages open to whoever composes as to whoever announces, not to the others', () => {
     const keysOf = (can) =>
       visibleNavigation(can).flatMap((group) => group.sections.map((section) => section.key));
     assert.ok(keysOf(session('status_page:announce')).includes('statusPages'));
@@ -98,32 +98,32 @@ describe('masquage par permission', () => {
     assert.ok(!keysOf(VIEWER).includes('statusPages'));
   });
 
-  it('la palette lit un verbe d’action dans la saisie', () => {
+  it('the palette reads an action verb in the input', () => {
     assert.deepEqual(splitPaletteVerbs('Redémarrer umami'), { verbs: ['restart'], rest: 'umami' });
     assert.deepEqual(splitPaletteVerbs('prod-1 tester'), { verbs: ['test'], rest: 'prod-1' });
     assert.deepEqual(splitPaletteVerbs('api facturation'), { verbs: [], rest: 'api facturation' });
     assert.deepEqual(splitPaletteVerbs('suspendre'), { verbs: ['pause'], rest: '' });
   });
 
-  it('la palette ne propose pas une commande interdite', () => {
+  it('the palette does not offer a forbidden command', () => {
     assert.deepEqual(visibleCommands(VIEWER), ['theme', 'shortcuts', 'searchRuns']);
     assert.deepEqual(visibleCommands(OPERATOR), [
       'deploy', 'testTargets', 'newApp', 'theme', 'shortcuts',
       'act.test', 'act.editTarget', 'act.deploy', 'searchRuns',
     ]);
-    // Une action sur un objet suit la même règle : sans `deployment:restart`, pas de « redémarrer ».
+    // An action on an object follows the same rule: without `deployment:restart`, no "restart".
     assert.ok(!visibleCommands(OPERATOR).includes('act.restart'));
     assert.ok(visibleCommands(ADMIN).includes('searchLogs') && visibleCommands(ADMIN).includes('settings'));
     assert.ok(visibleCommands(ADMIN).includes('language'));
   });
 
-  it('le préfixe › ne garde que les commandes', () => {
+  it('the › prefix only keeps the commands', () => {
     assert.deepEqual(parsePaletteQuery('› thème'), { query: 'thème', commandsOnly: true });
     assert.deepEqual(parsePaletteQuery('>deploy'), { query: 'deploy', commandsOnly: true });
     assert.deepEqual(parsePaletteQuery('prod-1'), { query: 'prod-1', commandsOnly: false });
   });
 
-  it('la section active suit le chemin, sans que « / » capture tout', () => {
+  it('the active section follows the path, without "/" capturing everything', () => {
     assert.equal(activeSection('/'), 'dashboard');
     assert.equal(activeSection('/targets/abc'), 'targets');
     assert.equal(activeSection('/catalog'), 'catalog');
@@ -133,19 +133,19 @@ describe('masquage par permission', () => {
 });
 
 describe('Drawer', () => {
-  it("lit l'élément ouvert dans l'URL, et ignore une valeur vide", () => {
+  it('reads the open item in the URL, and ignores an empty value', () => {
     assert.equal(selectionFrom('?target=prod-1&page=2', 'target'), 'prod-1');
     assert.equal(selectionFrom('?target=', 'target'), null);
     assert.equal(selectionFrom('', 'run'), null);
   });
 
-  it("pose et retire l'élément sans toucher aux autres paramètres", () => {
+  it('sets and removes the item without touching the other parameters', () => {
     assert.equal(hrefWithSelection('/targets', '?status=ok', 'target', 'prod-1'), '/targets?status=ok&target=prod-1');
     assert.equal(hrefWithSelection('/targets', '?status=ok&target=prod-1', 'target', null), '/targets?status=ok');
     assert.equal(hrefWithSelection('/targets', '?target=prod-1', 'target', null), '/targets');
   });
 
-  it('J et K passent à la ligne voisine, sans boucler aux bords', () => {
+  it('J and K move to the neighboring row, without looping at the edges', () => {
     const ids = ['a', 'b', 'c'];
     assert.equal(neighbour(ids, 'b', 1), 'c');
     assert.equal(neighbour(ids, 'b', -1), 'a');
@@ -153,7 +153,7 @@ describe('Drawer', () => {
     assert.equal(neighbour(ids, 'a', -1), null);
   });
 
-  it('traduit les touches en actions, et se tait pendant une saisie', () => {
+  it('translates keys into actions, and goes quiet during an input', () => {
     const nav = { canPrevious: true, canNext: true, hasRecord: true };
     assert.equal(drawerKeyAction({ key: 'j' }, nav), 'next');
     assert.equal(drawerKeyAction({ key: 'K' }, nav), 'previous');
@@ -164,7 +164,7 @@ describe('Drawer', () => {
     assert.equal(drawerKeyAction({ key: 'j' }, { ...nav, canNext: false }), null);
   });
 
-  it("reconnaît une zone de saisie, mais pas une case à cocher", () => {
+  it('recognizes an input area, but not a checkbox', () => {
     const element = (tagName, type) => ({ tagName, getAttribute: () => type ?? null });
     assert.equal(isTyping(element('INPUT', 'text')), true);
     assert.equal(isTyping(element('TEXTAREA')), true);
@@ -173,8 +173,8 @@ describe('Drawer', () => {
   });
 });
 
-describe('confirmation par saisie du nom', () => {
-  it('ne débloque que sur une correspondance exacte, casse comprise', () => {
+describe('confirmation by typing the name', () => {
+  it('only unlocks on an exact match, case included', () => {
     assert.equal(confirmMatches('blog', 'blog'), true);
     assert.equal(confirmMatches('  blog ', 'blog'), true);
     assert.equal(confirmMatches('Blog', 'blog'), false);
@@ -182,7 +182,7 @@ describe('confirmation par saisie du nom', () => {
     assert.equal(confirmMatches('', ''), false);
   });
 
-  it('réserve le rouge plein au niveau « perte de données »', () => {
+  it('reserves the full red for the "data loss" level', () => {
     assert.equal(confirmVariant('data'), 'destructive-solid');
     assert.equal(confirmVariant('trace'), 'destructive');
     assert.equal(confirmVariant('reversible'), 'default');

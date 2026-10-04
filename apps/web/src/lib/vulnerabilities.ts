@@ -1,7 +1,7 @@
 import 'server-only';
 import type { VulnerabilityAcceptanceView } from '@pupitre/db';
 
-/** Une acceptation telle que l'écran et l'API la rendent. */
+/** An acceptance as the screen and the API return it. */
 export type AcceptanceJson = {
   id: string;
   cveId: string;

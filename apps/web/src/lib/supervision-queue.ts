@@ -8,9 +8,8 @@ declare global {
 }
 
 /**
- * File dédiée à la supervision. Séparée de `ops` pour qu'un flux de logs, qui
- * occupe son slot pendant toute la consultation, ne retarde jamais un
- * déploiement.
+ * The queue dedicated to monitoring. Separate from `ops` so that a log stream,
+ * which takes its slot for the whole viewing, never delays a deployment.
  */
 export function getSupervisionQueue(): Queue {
   globalThis.__tpSupervisionQueue ??= new Queue(SUPERVISION_QUEUE, {

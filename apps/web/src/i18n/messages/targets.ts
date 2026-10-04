@@ -1,28 +1,27 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les cibles — la liste, la fiche, le formulaire, les panneaux de ports et de
- * charges, et les refus que renvoient les routes `/api/targets`.
+ * Targets — the list, the record, the form, the ports and workloads panels, and
+ * the refusals the `/api/targets` routes return.
  *
- * L'aide « Qu'est-ce qu'une cible ? » a son propre module (`target-help.ts`) :
- * c'est de la documentation, elle pèse à elle seule plus que tout le reste de
- * cet écran, et rien ne justifie de la charger pour afficher un tableau.
+ * The "What is a target?" help has its own module (`target-help.ts`): it is
+ * documentation, it alone weighs more than the whole rest of this screen, and
+ * nothing justifies loading it to show a table.
  *
- * Rappel de la règle : la colonne `fr` reproduit à l'identique les chaînes qui
- * existaient. « injoignable », « Relevé indisponible » et « initialiser » sont
- * cherchés tels quels par des scripts d'intégration.
+ * A reminder of the rule: the `fr` column reproduces identically the strings that
+ * existed. "injoignable", "Relevé indisponible" and "initialiser" are looked for
+ * as is by integration scripts.
  *
- * Ce qui ne se traduit pas et n'entre donc pas ici : `ufw`, les sorties de
- * `ufw status`, les noms de binaires et de distributions, et les commandes
- * shell.
+ * What is not translated and therefore does not enter here: `ufw`, the outputs of
+ * `ufw status`, the names of binaries and distributions, and the shell commands.
  *
- * Le `kind` d'une charge, lui, y entre bien — mais par sa **clé**. Le driver
- * pose `container` ou `pod` ; c'est une donnée, comme le runtime. Les entrées
- * `workload.kind.*` lui donnent son mot au moment de l'afficher, et l'écran
- * retombe sur la clé nue pour un genre qu'il ne connaît pas.
+ * A workload's `kind`, on the other hand, does enter here — but through its
+ * **key**. The driver sets `container` or `pod`; it is data, like the runtime.
+ * The `workload.kind.*` entries give it its word at display time, and the screen
+ * falls back on the bare key for a kind it does not know.
  */
 const fr = {
-  // ── La liste ────────────────────────────────────────────────────────────
+  // ── The list ────────────────────────────────────────────────────────────
   'page.title': 'Cibles',
   'page.description':
     "Les machines sur lesquelles Pupitre déploie, joignables en SSH. Le preflight détermine ce qu'on peut y lancer : Docker, K3s, ou ni l'un ni l'autre.",
@@ -106,8 +105,8 @@ const fr = {
   },
   'filter.none': 'Aucune cible ne correspond à ce filtre.',
 
-  /** Titres des pastilles d'étiquette. Fournis par la table : `target-label`
-   *  est rendu des deux côtés de la frontière serveur/client et n'a pas de `t`. */
+  /** The label chips' titles. Provided by the table: `target-label` is rendered on
+   *  both sides of the server/client boundary and has no `t`. */
   'label.filter.on': 'Filtrer sur {pair}',
   'label.filter.off': 'Retirer le filtre {pair}',
 
@@ -116,7 +115,7 @@ const fr = {
   'table.timestamps': 'Horodatages en {timezone}.',
 
 
-  // ── Preflight : le bouton, ses phases, ses échecs ───────────────────────
+  // ── Preflight: the button, its phases, its failures ─────────────────────
   'action.test': 'Tester la connexion',
   'action.testing': 'Test en cours…',
   'preflight.never': 'jamais',
@@ -128,13 +127,13 @@ const fr = {
   'preflight.error.poll': 'Suivi de tâche impossible (HTTP {status})',
   'preflight.error.failed': 'Le preflight a échoué',
 
-  // ── État d'une cible. « injoignable » est cherché tel quel. ─────────────
+  // ── A target's state. "injoignable" is looked for as is. ────────────────
   'status.unknown': 'jamais testée',
   'status.ok': 'opérationnelle',
   'status.degraded': 'dégradée',
   'status.unreachable': 'injoignable',
 
-  // ── Création ────────────────────────────────────────────────────────────
+  // ── Creation ────────────────────────────────────────────────────────────
   'nav.back': 'Machines cibles',
   'new.description':
     "Le panel se connectera en SSH à cette machine pour y déployer. Le credential est chiffré en base dès l'enregistrement.",
@@ -142,14 +141,14 @@ const fr = {
   'new.card.description':
     "Rien n'est touché sur la machine à l'enregistrement. C'est le preflight — le contrôle de connexion, de sudo, de runtime et de pare-feu — qui l'ouvre pour la première fois. Il se lance depuis « Tester la connexion », et détermine ce qui sera déployable ici.",
 
-  // ── Édition ─────────────────────────────────────────────────────────────
+  // ── Editing ─────────────────────────────────────────────────────────────
   'edit.title': 'Modifier « {name} »',
   'edit.description':
     "Ces réglages valent pour les prochaines connexions. Rien de ce qui tourne déjà sur cette machine n'est redéployé, et les ports déjà réservés le restent même si vous rétrécissez la plage. Après un changement d'hôte, de compte ou de clé, relancez un preflight : le relevé précédent reste affiché tel quel jusque-là.",
   'edit.card.description':
     "Le credential n'est jamais pré-rempli : laissez le champ vide pour conserver celui déjà en base.",
 
-  // ── Le formulaire ───────────────────────────────────────────────────────
+  // ── The form ────────────────────────────────────────────────────────────
   'field.name': 'Nom',
   'field.sshUser': 'Utilisateur SSH',
   'field.host': 'Hôte',
@@ -168,14 +167,14 @@ const fr = {
   'field.credential.password': 'Mot de passe',
   'credential.help':
     "Chiffré en AES-256-GCM avant insertion. Jamais renvoyé par l'API, jamais journalisé.",
-  /** Suite de la phrase précédente, en édition seulement. L'espace initiale est
-   *  celle qui séparait les deux phrases dans le JSX d'origine. */
+  /** The continuation of the previous sentence, when editing only. The leading space
+   *  is the one that separated the two sentences in the original JSX. */
   'credential.help.edit': ' Laissez vide pour conserver le credential actuel.',
   'field.portRange': 'Plage de ports publiables',
   'portRange.help':
     'Ce que le pare-feu de cette machine laisse passer. Chaque application déployée en Docker y réserve un port, garanti unique par la base.',
   'field.labels': 'Étiquettes',
-  /** Coupée autour de `clé=valeur`, que le JSX rend en chasse fixe. */
+  /** Cut around `key=value`, which the JSX renders monospaced. */
   'labels.help.before': 'Une paire',
   'labels.help.pair': 'clé=valeur',
   'labels.help.after':
@@ -184,7 +183,7 @@ const fr = {
   'form.error.passwordRequired': 'Le mot de passe est requis.',
   'submit.create': 'Créer la cible',
 
-  // ── La fiche ────────────────────────────────────────────────────────────
+  // ── The record ──────────────────────────────────────────────────────────
   'detail.tabs': 'Sections de la fiche',
   'detail.tab.overview': "Vue d'ensemble",
   'detail.tab.workloads': 'Charges',
@@ -252,7 +251,7 @@ const fr = {
     'Ancienne clé gardée — les connexions restent refusées tant que la machine présente l’autre',
   'field.portRangeShort': 'Plage de ports',
 
-  // ── Les ports alloués ───────────────────────────────────────────────────
+  // ── The allocated ports ─────────────────────────────────────────────────
   'ports.title': 'Ports alloués',
   'ports.range': 'Plage {min}–{max}',
   'ports.used': {
@@ -269,7 +268,7 @@ const fr = {
   'ports.freeSample': 'Prochains ports libres : {list}',
   'ports.exhausted': 'Plus aucun port libre dans la plage : élargissez-la avant de déployer.',
 
-  /** `ufw` est le nom du programme : il ne se traduit dans aucune langue. */
+  /** `ufw` is the program's name: it is translated in no language. */
   'firewall.unknown': 'État du pare-feu inconnu — lancez un preflight.',
   'firewall.absent.badge': 'ufw absent',
   'firewall.absent.text': 'Les ports publiés ne sont filtrés par personne.',
@@ -282,7 +281,7 @@ const fr = {
     other: '{count} règles posées par le panel.',
   },
 
-  // ── Le rapport de preflight ─────────────────────────────────────────────
+  // ── The preflight report ────────────────────────────────────────────────
   'report.title': 'Rapport de preflight',
   'report.none': "Aucun preflight n'a encore été lancé sur cette cible.",
   'report.unreachable': 'Cible injoignable',
@@ -307,7 +306,7 @@ const fr = {
     "Chaque contrôle est indépendant : un échec n'invalide pas les autres.",
   'column.check': 'Contrôle',
 
-  // ── Ce qui tourne sur la machine ────────────────────────────────────────
+  // ── What runs on the machine ────────────────────────────────────────────
   'workloads.title': 'Ce qui tourne sur cette machine',
   'workloads.subtitle': 'Inventaire pris en direct sur la machine, par le worker.',
   'workloads.count': { one: '{count} charge', other: '{count} charges' },
@@ -385,12 +384,11 @@ const fr = {
   'image.unknown': 'inconnue',
 
   /**
-   * Le genre d'une charge, tel que son runtime le nomme.
+   * A workload's kind, as its runtime names it.
    *
-   * Le driver pose une **clé** (`container`, `pod`, …) ; le mot se choisit ici,
-   * et seulement ici. Un genre absent de cette liste — un runtime ajouté plus
-   * tard — s'affiche tel quel : mieux vaut le mot de `kubectl` qu'une clé de
-   * dictionnaire à l'écran.
+   * The driver sets a **key** (`container`, `pod`, …); the word is chosen here, and
+   * only here. A kind absent from this list — a runtime added later — shows as is:
+   * `kubectl`'s word is better than a dictionary key on screen.
    */
   'workload.kind.container': 'conteneur',
   'workload.kind.pod': 'pod',
@@ -399,7 +397,7 @@ const fr = {
   'workload.kind.daemonset': 'daemonset',
 
 
-  // ── Les refus de l'API ──────────────────────────────────────────────────
+  // ── The API's refusals ──────────────────────────────────────────────────
   'error.notFound': 'Cible « {id} » introuvable',
   'error.noPendingHostKey': 'Aucune nouvelle clé d’hôte en attente pour cette cible.',
   'error.nameTaken': 'Une cible se nomme déjà « {name} »',
@@ -409,9 +407,9 @@ const fr = {
   'error.badRange':
     'Plage de ports invalide : {start}-{end}. La borne basse doit précéder la borne haute.',
   /**
-   * Les deux formes françaises sont identiques, et c'est voulu : la phrase
-   * d'origine écrit « déploiement(s) actif(s) » plutôt que de s'accorder, et
-   * l'aide des cibles la cite mot pour mot. L'anglais, lui, s'accorde.
+   * The two French forms are identical, and it is on purpose: the original
+   * sentence writes "déploiement(s) actif(s)" rather than agreeing, and the
+   * targets help quotes it word for word. English, for its part, agrees.
    */
   'error.liveDeployments': {
     one: 'Cette cible porte {count} déploiement(s) actif(s). Détruisez-les avant de la supprimer.',
@@ -435,8 +433,8 @@ const fr = {
   'error.inventoryUnreadable': 'Le worker a renvoyé un inventaire illisible',
   'error.badWorkloadRef': 'Référence de charge illisible : « {ref} »',
   'error.workloadNotFound': 'Aucune charge « {ref} » sur « {name} »',
-  /** Deux clés plutôt qu'un fragment interpolé : `msg()` est paresseux, la
-   *  langue n'est connue qu'au moment de sérialiser la réponse. */
+  /** Two keys rather than an interpolated fragment: `msg()` is lazy, the language is
+   *  only known when the response is serialized. */
   'error.workloadManagedUpdate':
     "« {name} » est déployée par le panel : sa mise à jour est un redéploiement. Lancez-en un depuis la fiche de l'application, qui rejouera aussi les scans et l'historique.",
   'error.workloadManagedUpdateApp':

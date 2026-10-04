@@ -55,7 +55,7 @@ function formatClock(iso: string, format: FormatSettings): string {
   });
 }
 
-// ─── frise des verdicts ───────────────────────────────────────────────────────
+// ─── verdicts strip ───────────────────────────────────────────────────────────
 
 /** Each verdict's `.strip` class: green by default, then amber, red, gray. */
 const STRIP_CLASS: Record<string, string> = {
@@ -156,7 +156,7 @@ function clockOf(iso: string, format: FormatSettings): string {
   return formatDateTimeWith(iso, format, { hour: '2-digit', minute: '2-digit' });
 }
 
-// ─── courbe de latence ────────────────────────────────────────────────────────
+// ─── latency curve ────────────────────────────────────────────────────────────
 
 type Plotted = { x: number; y: number; point: OutcomePoint };
 

@@ -19,24 +19,24 @@ import { HttpError, msg } from '@/lib/errors';
 import { getEnv } from '@/lib/env';
 
 /**
- * Les fournisseurs de code, vus du panel.
+ * The code providers, seen from the panel.
  *
- * Le panel s'en sert pour peu de choses : montrer une connexion, lister les
- * dépôts dans le tiroir de liaison, lire les `pupitre.json` d'une branche.
- * Tout le reste — suivre la branche, déployer, écrire les statuts — est
- * l'affaire du worker. Les secrets d'une connexion sont déchiffrés à l'appel
- * et ne quittent pas le serveur.
+ * The panel uses them for few things: showing a connection, listing the
+ * repositories in the link drawer, reading a branch's `pupitre.json` files.
+ * Everything else — following the branch, deploying, writing the statuses — is
+ * the worker's business. A connection's secrets are decrypted at call time and
+ * do not leave the server.
  */
 
-/** Cookie du jeton anti-rejeu de la création de l'App. Dix minutes, puis il expire. */
+/** The cookie of the App creation's anti-replay token. Ten minutes, then it expires. */
 export const GITHUB_STATE_COOKIE = 'pupitre_github_state';
 
-/** L'origine publique du panel, telle que le navigateur la connaît. */
+/** The panel's public origin, as the browser knows it. */
 export function panelOrigin(): string {
   return new URL(getEnv().BETTER_AUTH_URL).origin;
 }
 
-/** Les identifiants d'une GitHub App, pour ce qui ne concerne qu'elle (ses installations). */
+/** A GitHub App's credentials, for what only concerns it (its installations). */
 export function githubCredentialsOf(connection: SourceConnection): GitHubAppCredentials {
   const secrets = sourceConnectionSecrets(connection);
   if (secrets.provider !== 'github') throw new Error('connexion GitHub attendue');
@@ -47,12 +47,12 @@ export function githubCredentialsOf(connection: SourceConnection): GitHubAppCred
   };
 }
 
-/** Le client d'une connexion. */
+/** A connection's client. */
 export function providerOf(connection: SourceConnection, language: UiLanguage): SourceProvider {
   return createSourceProvider(sourceConnectionSecrets(connection), language);
 }
 
-/** Le client d'un fournisseur, s'il est connecté. */
+/** A provider's client, if it is connected. */
 export async function sourceProvider(kind: SourceProviderKind): Promise<{
   provider: SourceProvider;
   connection: SourceConnection;
@@ -62,7 +62,7 @@ export async function sourceProvider(kind: SourceProviderKind): Promise<{
   return { provider: providerOf(connection, await currentLanguage()), connection };
 }
 
-/** Tous les fournisseurs connectés. */
+/** All the connected providers. */
 export async function sourceProviders(): Promise<
   Array<{ provider: SourceProvider; connection: SourceConnection }>
 > {
@@ -73,7 +73,7 @@ export async function sourceProviders(): Promise<
   }));
 }
 
-/** Ce que l'écran peut savoir de la GitHub App : tout, sauf la clé. */
+/** What the screen can know of the GitHub App: everything, except the key. */
 export type GitHubConnectionView = {
   appId: number | null;
   slug: string | null;
@@ -96,11 +96,11 @@ export function githubConnectionView(connection: SourceConnection): GitHubConnec
   };
 }
 
-/** Ce que l'écran peut savoir d'une forge à jeton — Gitea, GitLab : tout, sauf le jeton. */
+/** What the screen can know of a token forge — Gitea, GitLab: everything, except the token. */
 export type TokenForgeConnectionView = {
   /** L'adresse de la forge. */
   url: string;
-  /** Le compte du jeton. */
+  /** The token's account. */
   account: string;
   name: string;
   createdAt: string;
@@ -117,13 +117,13 @@ export function tokenForgeConnectionView(connection: SourceConnection): TokenFor
   };
 }
 
-/** Une forge connectée, telle que les écrans de liaison la montrent. */
+/** A connected forge, as the link screens show it. */
 export type ForgeView = {
   provider: SourceProviderKind;
-  /** « GitHub », ou l'hôte de la forge Gitea ou GitLab. */
+  /** "GitHub", or the Gitea or GitLab forge's host. */
   label: string;
   webUrl: string;
-  /** GitHub : où choisir les dépôts de l'App. */
+  /** GitHub: where to choose the App's repositories. */
   installUrl: string | null;
 };
 
@@ -140,10 +140,10 @@ export function forgeView(connection: SourceConnection): ForgeView {
   };
 }
 
-/** Une erreur du fournisseur, rendue au format du panel : son message, cité. */
+/** A provider error, rendered in the panel's format: its message, quoted. */
 export function providerError(error: unknown): never {
   if (error instanceof SourceProviderError) {
-    // 502 : c'est le fournisseur qui a refusé, pas l'appelant qui s'est trompé.
+    // 502: it is the provider that refused, not the caller that got it wrong.
     throw new HttpError(
       502,
       'provider_error',

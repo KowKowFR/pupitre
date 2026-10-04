@@ -300,7 +300,7 @@ export function HelpTable({
   );
 }
 
-/** Un bout de code en ligne. */
+/** A piece of inline code. */
 export function HelpCode({ children }: { children: React.ReactNode }) {
   return (
     <code className="mono rounded bg-surface-3 px-1 py-0.5 text-[0.85em] text-text">

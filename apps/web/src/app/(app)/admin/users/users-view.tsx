@@ -117,7 +117,7 @@ export function UsersView({
   const [pending, startTransition] = useTransition();
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
-  /** Identifiant de l'utilisateur dont l'invitation est en cours de traitement. */
+  /** The identifier of the user whose invitation is being processed. */
   const [inviting, setInviting] = useState<string | null>(null);
   /** The user whose reset is being confirmed. */
   const [confirmTarget, setConfirmTarget] = useState<AdminUserRow | null>(null);

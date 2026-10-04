@@ -101,7 +101,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
   });
 });
 
-// ─── lecture en base, par tranches ────────────────────────────────────────────
+// ─── reading from the database, in slices ─────────────────────────────────────
 
 /**
  * Produces the file piece by piece, without ever holding more than one slice of
@@ -187,7 +187,7 @@ function renderRaw(raw: string, render: (line: DeployLogLine) => string): string
   return parsed.success ? render(parsed.data) : null;
 }
 
-// ─── rendus ───────────────────────────────────────────────────────────────────
+// ─── renderings ───────────────────────────────────────────────────────────────
 
 /** Fixed columns: timestamp, step, channel, message. Nothing is lost. */
 function renderText(line: DeployLogLine): string {

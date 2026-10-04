@@ -62,7 +62,7 @@ type HealthPayload = {
  */
 // i18n-ignore — an internal marker passed to `resolveAiConfig()` as a dummy key,
 // and never read back. It is not a sentence, it is a sentinel.
-const KEY_PRESENT = '(clé enregistrée en base)';
+const KEY_PRESENT = '(key stored in the database)';
 
 async function probe(name: string, run: () => Promise<unknown>): Promise<ComponentState> {
   try {

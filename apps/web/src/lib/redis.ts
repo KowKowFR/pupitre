@@ -6,7 +6,7 @@ declare global {
   var __tpRedis: Redis | undefined;
 }
 
-/** Connexion partagée, survit au HMR de `next dev`. */
+/** A shared connection, survives `next dev`'s HMR. */
 export function getRedis(): Redis {
   globalThis.__tpRedis ??= new Redis(getEnv().REDIS_URL, {
     maxRetriesPerRequest: null,

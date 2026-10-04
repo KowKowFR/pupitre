@@ -1,15 +1,15 @@
 import type { Permission } from '@pupitre/core';
 
 /**
- * Les sections du panel — une seule source pour le rail, la palette ⌘K et les
- * raccourcis `G` puis une lettre.
+ * The panel's sections — a single source for the rail, the ⌘K palette and the
+ * `G` then a letter shortcuts.
  *
- * Chaque entrée porte **la permission que sa page exige** : ce qu'un rôle ne
- * peut pas ouvrir disparaît du rail, de la palette et des raccourcis d'un même
- * geste. Rien n'est grisé pour une raison de droits.
+ * Each entry carries **the permission its page requires**: what a role cannot
+ * open disappears from the rail, the palette and the shortcuts in one gesture.
+ * Nothing is greyed out for a reason of rights.
  *
- * Module pur, sans React : il sert à la coquille (serveur), à la palette
- * (client) et aux tests.
+ * A pure module, without React: it serves the shell (server), the palette
+ * (client) and the tests.
  */
 
 export type SectionKey =
@@ -33,8 +33,8 @@ export type NavSection = {
   key: SectionKey;
   href: string;
   /**
-   * `null` : toute session peut ouvrir la page. Une liste : l'une d'elles
-   * suffit — la page montre à chacun la part qui lui revient.
+   * `null`: any session can open the page. A list: one of them is enough — the page
+   * shows each one the part that is theirs.
    */
   permission: Permission | readonly Permission[] | null;
   /** Lettre du raccourci `G` puis… */
@@ -50,12 +50,13 @@ const NAVIGATION: readonly NavGroup[] = [
       { key: 'dashboard', href: '/', permission: null, shortcut: 'D' },
       { key: 'targets', href: '/targets', permission: 'target:read', shortcut: 'C' },
       { key: 'applications', href: '/applications', permission: 'application:read', shortcut: 'A' },
-      // Le catalogue ne sert qu'à créer : sans ce droit, il n'y a rien à y faire.
+      // The catalog only serves to create: without that right, there is nothing to do
+      // there.
       { key: 'catalog', href: '/catalog', permission: 'application:create' },
       { key: 'servers', href: '/apps', permission: 'deployment:read' },
       { key: 'deployments', href: '/deployments', permission: 'deployment:read', shortcut: 'P' },
-      // Tous les domaines de l'instance : ce qui se voit d'un domaine se lit avec
-      // la permission qui donne déjà ses domaines sur la fiche d'une application.
+      // All the instance's domains: what can be seen of a domain reads with the
+      // permission that already gives its domains on an application's record.
       { key: 'domains', href: '/domains', permission: 'application:read' },
       { key: 'monitoring', href: '/monitors', permission: 'monitor:read', shortcut: 'S' },
       { key: 'maintenance', href: '/maintenance', permission: 'maintenance:read' },
@@ -68,8 +69,8 @@ const NAVIGATION: readonly NavGroup[] = [
       { key: 'logs', href: '/admin/logs', permission: 'audit:read' },
       { key: 'users', href: '/admin/users', permission: 'user:manage' },
       { key: 'roles', href: '/admin/roles', permission: 'role:read' },
-      // Ce que des inconnus verront : une décision d'administration.
-      // Composer les pages, ou y annoncer une panne : l'une ou l'autre ouvre l'écran.
+      // What strangers will see: an administration decision. Composing the pages, or
+      // announcing an outage there: either one opens the screen.
       {
         key: 'statusPages',
         href: '/status-pages',
@@ -88,7 +89,7 @@ function allowed(
   return typeof permission === 'string' ? can(permission) : permission.some(can);
 }
 
-/** Les groupes visibles pour une session ; un groupe vide disparaît. */
+/** The groups visible to a session; an empty group disappears. */
 export function visibleNavigation(can: (permission: Permission) => boolean): NavGroup[] {
   return NAVIGATION.map((group) => ({
     key: group.key,
@@ -96,7 +97,7 @@ export function visibleNavigation(can: (permission: Permission) => boolean): Nav
   })).filter((group) => group.sections.length > 0);
 }
 
-/** La section active pour un chemin : `/` n'est actif que sur lui-même. */
+/** The active section for a path: `/` is only active on itself. */
 export function activeSection(
   pathname: string,
   groups: readonly NavGroup[] = NAVIGATION,
@@ -113,8 +114,8 @@ export function activeSection(
 }
 
 /**
- * Les commandes de la palette et ce qu'elles exigent. Une commande interdite
- * n'apparaît pas — elle n'est ni grisée ni expliquée.
+ * The palette's commands and what they require. A forbidden command does not
+ * appear — it is neither greyed out nor explained.
  */
 export type CommandKey =
   | 'deploy'
@@ -124,7 +125,7 @@ export type CommandKey =
   | 'theme'
   | 'language'
   | 'shortcuts'
-  // Les actions sur un objet trouvé : « tester prod-1 », « redémarrer umami »…
+  // The actions on a found object: "test prod-1", "restart umami"…
   | 'act.test'
   | 'act.editTarget'
   | 'act.deploy'
@@ -132,7 +133,7 @@ export type CommandKey =
   | 'act.probe'
   | 'act.pause'
   | 'act.editMonitor'
-  // Les onglets des paramètres, et la recherche poursuivie dans un écran.
+  // The settings' tabs, and the search continued in a screen.
   | 'settings'
   | 'searchLogs'
   | 'searchRuns';
@@ -168,7 +169,7 @@ export function visibleCommands(can: (permission: Permission) => boolean): Comma
 }
 
 /**
- * Une saisie de palette : le préfixe `›` (ou `>`) ne garde que les commandes.
+ * A palette input: the `›` (or `>`) prefix only keeps the commands.
  */
 export function parsePaletteQuery(raw: string): { query: string; commandsOnly: boolean } {
   const trimmed = raw.trimStart();
@@ -176,7 +177,7 @@ export function parsePaletteQuery(raw: string): { query: string; commandsOnly: b
   return { query: (commandsOnly ? trimmed.slice(1) : trimmed).trim(), commandsOnly };
 }
 
-/** Un verbe d'action tapé dans la palette, et les familles d'objets sur lesquelles il porte. */
+/** An action verb typed in the palette, and the families of objects it applies to. */
 export type PaletteVerb =
   'test' | 'edit' | 'deploy' | 'restart' | 'logs' | 'probe' | 'pause' | 'resume' | 'versions';
 
@@ -206,9 +207,9 @@ function fold(value: string): string {
 }
 
 /**
- * Sépare d'une saisie les verbes d'action et ce qui nomme l'objet :
- * « redémarrer umami » → `{ verbs: ['restart'], rest: 'umami' }`. Les accents
- * et la casse ne comptent pas ; un mot qui n'est pas un verbe reste au nom.
+ * Separates from an input the action verbs and what names the object:
+ * "redémarrer umami" → `{ verbs: ['restart'], rest: 'umami' }`. Accents and case
+ * do not count; a word that is not a verb stays with the name.
  */
 export function splitPaletteVerbs(query: string): { verbs: PaletteVerb[]; rest: string } {
   const verbs: PaletteVerb[] = [];

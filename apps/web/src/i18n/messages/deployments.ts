@@ -20,7 +20,7 @@ import type { Translated } from '@pupitre/core';
  * "compliant" — and are translated.
  */
 const fr = {
-  // ── Journal des runs ────────────────────────────────────────────────────
+  // ── Runs log ────────────────────────────────────────────────────────────
   'page.title': 'Déploiements',
   'page.description':
     'Chaque ligne est un run : une AppSpec figée, poussée sur une cible, avec ses scans et son verdict. Ouvrez-en un pour revoir ses étapes et ses logs.',
@@ -59,7 +59,7 @@ const fr = {
   'step.failed': 'échouée',
   'step.skipped': 'sans objet',
 
-  // ── Tableau ─────────────────────────────────────────────────────────────
+  // ── Table ───────────────────────────────────────────────────────────────
   'table.selected': {
     one: '{count} run sélectionné',
     other: '{count} runs sélectionnés',
@@ -115,14 +115,14 @@ const fr = {
     other: 'ports libérés : {list}',
   },
 
-  // ── Verdicts de scan ────────────────────────────────────────────────────
+  // ── Scan verdicts ───────────────────────────────────────────────────────
   'verdict.fail': 'bloquant',
   'verdict.pass': 'conforme',
   'verdict.unknown': 'indéterminé',
   'verdict.error': 'en erreur',
   'verdict.running': 'en cours',
 
-  // ── Suivi d'un run ──────────────────────────────────────────────────────
+  // ── A run's follow-up ───────────────────────────────────────────────────
   'loading.label': 'Chargement du déploiement',
   'detail.description': 'Déployé sur {target} ({host}) en {runtime}.',
   'tab.pipeline': 'Pipeline',
@@ -214,7 +214,7 @@ const fr = {
   'column.title': 'Intitulé',
   'findings.noFix': 'aucun',
 
-  // ── Refus des routes ────────────────────────────────────────────────────
+  // ── Route refusals ──────────────────────────────────────────────────────
   'error.notFound': 'Déploiement « {id} » introuvable',
   'error.applicationNotFound': 'Application « {id} » introuvable',
   'error.targetNotFound': 'Cible « {id} » introuvable',

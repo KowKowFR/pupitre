@@ -13,7 +13,7 @@ import type { Translated } from '@pupitre/core';
  * moved comma would make it fail.
  */
 const fr = {
-  // ── Plomberie commune aux sous-sections ─────────────────────────────────
+  // ── Plumbing shared by the subsections ──────────────────────────────────
   'form.saved': 'Section enregistrée.',
 
   /**
@@ -87,7 +87,7 @@ const fr = {
   'section.onboarding.governs':
     "Le parcours de prise en main proposé à l'arrivée sur une instance vierge. On le relance d'ici quand il a été terminé ou abandonné — c'est un raccourci vers un parcours, pas un réglage de plus.",
 
-  // ── Coquille : bandeau de page, rail, mention de lecture seule ──────────
+  // ── Shell: page banner, rail, read-only notice ──────────────────────────
   'page.title': 'Paramètres',
   'page.description.short': "Réglages de l'instance, appliqués à chaud.",
   'page.description.before':
@@ -152,7 +152,7 @@ const fr = {
   'security.frozen':
     "Le réglage s'applique au moment où un déploiement est enfilé, et la configuration retenue est gelée avec lui : réactiver l'analyse ne relance pas ce qui est déjà en file. Chaque modification est tracée dans les logs d'activité.",
 
-  // ── Intelligence artificielle ───────────────────────────────────────────
+  // ── Artificial intelligence ─────────────────────────────────────────────
   'ai.badge.off': 'désactivée',
   'ai.badge.missingKey': 'clé manquante',
   'ai.badge.missingKey.title': 'Aucune clé enregistrée, {envVar} vide',
@@ -218,7 +218,7 @@ const fr = {
   'threshold.error.targetNotFound': 'Cible « {id} » introuvable',
   'threshold.error.notSet': 'Aucun seuil posé à cette portée pour cette métrique',
 
-  // ── Connexion unique ────────────────────────────────────────────────────
+  // ── Single sign-on ──────────────────────────────────────────────────────
   'sso.badge.active': 'Active',
   'sso.badge.off': 'Désactivée',
   'sso.badge.error': 'Indisponible',
@@ -285,7 +285,7 @@ const fr = {
   'sso.problem.unreachable': 'fournisseur injoignable : {detail}',
   'sso.problem.unreadable': 'configuration illisible',
 
-  // ── Comptes et sessions ─────────────────────────────────────────────────
+  // ── Accounts and sessions ───────────────────────────────────────────────
   'accounts.state.off': 'au choix',
   'accounts.state.sensitive': 'exigé · droits sensibles',
   'accounts.state.all': 'exigé · tous les comptes',

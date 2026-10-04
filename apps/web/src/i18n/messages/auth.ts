@@ -21,7 +21,7 @@ const fr = {
   'shell.footer.line1': "Panel auto-hébergé. Les déploiements partent d'ici vers vos machines,",
   'shell.footer.line2': 'en Docker Compose ou en K3s.',
 
-  // ── Titres d'onglet ─────────────────────────────────────────────────────
+  // ── Tab titles ──────────────────────────────────────────────────────────
   'meta.login': 'Connexion — Pupitre',
   'meta.signup': 'Inscription — Pupitre',
   'meta.forgot': 'Mot de passe oublié — Pupitre',
@@ -49,12 +49,12 @@ const fr = {
     other: 'Le mot de passe doit faire au moins {count} caractères.',
   },
 
-  // ── Sorties de secours ──────────────────────────────────────────────────
+  // ── Emergency exits ─────────────────────────────────────────────────────
   'link.backToLogin': 'Retour à la connexion',
   'link.backToDashboard': "Retour à la vue d'ensemble",
   'link.back': 'Retour',
 
-  // ── Connexion ───────────────────────────────────────────────────────────
+  // ── Sign-in ─────────────────────────────────────────────────────────────
   'login.title': 'Connexion',
   'login.description': "Avec l'adresse et le mot de passe de votre compte.",
   'login.description.sso':
@@ -96,7 +96,7 @@ const fr = {
   'twoFactor.useApp': 'Utiliser le code de mon application',
   'twoFactor.useBackup': 'Utiliser un code de secours',
 
-  // ── Inscription ─────────────────────────────────────────────────────────
+  // ── Sign-up ─────────────────────────────────────────────────────────────
   'signup.title': 'Créer un compte',
   'signup.description': 'Le premier compte créé reçoit automatiquement le rôle administrateur.',
   'signup.submit': 'Créer le compte',
@@ -171,7 +171,7 @@ const fr = {
   'forbidden.body':
     "Les permissions se portent par le rôle, jamais par le compte : un administrateur l'ajoute au vôtre depuis Administration → Rôles, et elle prend effet à votre prochaine navigation. La tentative est enregistrée dans les logs d'activité, au même titre qu'une action aboutie.",
 
-  // ── 404 hors du panel ───────────────────────────────────────────────────
+  // ── 404 outside the panel ───────────────────────────────────────────────
   'notFound.title': "Cette page n'existe pas",
   'notFound.description': "L'adresse demandée ne correspond à aucun écran du panel.",
   'notFound.body':

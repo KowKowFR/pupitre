@@ -26,7 +26,7 @@ const fr = {
   'page.empty.restricted':
     "Cet écran part du parc de machines, et le lire demande la permission target:read. Un administrateur peut l'ajouter à votre rôle depuis Administration → Rôles.",
 
-  // ── Liste des serveurs ──────────────────────────────────────────────────
+  // ── Servers list ────────────────────────────────────────────────────────
   'list.servers': { one: '{count} serveur', other: '{count} serveurs' },
   'list.apps': {
     one: '{count} application supervisée',
@@ -70,7 +70,7 @@ const fr = {
   'age.minutes': 'il y a {count} min',
   'age.hours': 'il y a {count} h',
 
-  // ── Applications d'un serveur ───────────────────────────────────────────
+  // ── A server's applications ─────────────────────────────────────────────
   'health.healthy': 'en marche',
   'health.unhealthy': 'répond mal',
   'health.unreachable': 'injoignable',
@@ -129,7 +129,7 @@ const fr = {
   'uptime.hours': '{hours} h {minutes} min',
   'uptime.minutes': '{minutes} min',
 
-  // ── Historique ──────────────────────────────────────────────────────────
+  // ── History ─────────────────────────────────────────────────────────────
   'history.empty':
     'Aucun relevé en mémoire pour cette machine. Le balayage en écrit un toutes les 5 minutes ; le premier arrive dans la minute qui suit sa déclaration.',
   'history.samples': {

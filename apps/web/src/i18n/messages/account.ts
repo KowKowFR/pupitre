@@ -29,7 +29,7 @@ const fr = {
    */
   'error.http': 'Échec (HTTP {status}).',
 
-  // ── Mot de passe ────────────────────────────────────────────────────────
+  // ── Password ────────────────────────────────────────────────────────────
   'avatar.edit': 'Changer la photo de profil',
   'avatar.dialog.title': 'Photo de profil',
   'avatar.dialog.description':
@@ -65,7 +65,7 @@ const fr = {
   'password.changed':
     'Mot de passe changé. Toutes les autres sessions ont été fermées ; celle-ci reste ouverte.',
 
-  // ── Second facteur ──────────────────────────────────────────────────────
+  // ── Second factor ───────────────────────────────────────────────────────
   'twoFactor.title': 'Double authentification (TOTP)',
   'twoFactor.badge.on': 'active',
   'twoFactor.badge.off': 'inactive',
@@ -115,7 +115,7 @@ const fr = {
   'mail.failed': 'L’e-mail n’est pas parti : {message}',
   'mail.unreadableVerdict': 'Le worker a renvoyé un verdict illisible',
 
-  // ── Erreurs des routes ──────────────────────────────────────────────────
+  // ── Route errors ────────────────────────────────────────────────────────
   'error.invalidPassword': 'Le mot de passe actuel est incorrect.',
   'error.passwordTooShort': 'Le nouveau mot de passe est trop court.',
   'error.passwordTooLong': 'Le nouveau mot de passe est trop long.',

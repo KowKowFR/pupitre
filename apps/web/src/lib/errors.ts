@@ -10,31 +10,31 @@ import {
 import { errors } from '@/i18n/messages/errors';
 
 /**
- * Erreurs métier traduites en codes HTTP par le wrapper `apiRoute()`.
- * Aucune route ne construit de réponse d'erreur à la main.
+ * Business errors turned into HTTP codes by the `apiRoute()` wrapper. No route
+ * builds an error response by hand.
  *
- * ── Pourquoi une clé plutôt qu'une phrase ───────────────────────────────────
- * Ces erreurs se lancent depuis n'importe où, y compris depuis du code
- * synchrone qui n'a aucun moyen d'aller lire la langue de l'instance. Elles
- * transportent donc une **référence** — une clé et ses variables — et c'est
- * `apiRoute()`, seul endroit déjà asynchrone du chemin, qui rend la phrase dans
- * la langue courante.
+ * ── Why a key rather than a sentence ────────────────────────────────────────
+ * These errors are thrown from anywhere, including from synchronous code that has
+ * no way of reading the instance's language. They therefore carry a
+ * **reference** — a key and its variables — and it is `apiRoute()`, the only
+ * place of the path that is already asynchronous, that renders the sentence in
+ * the current language.
  *
- * `message` reste rempli, en français : c'est ce que voit `Error.stack`, ce que
- * Pino journalise, et ce que lisent les rares appelants internes qui attrapent
- * l'erreur pour la réémettre. Une erreur reste donc lisible même si personne ne
- * la sérialise jamais en HTTP.
+ * `message` stays filled, in French, the dictionaries' source language: it is what
+ * `Error.stack` sees, what Pino logs, and what the rare internal callers that
+ * catch the error to emit it again read. An error therefore stays readable even
+ * if nobody ever serializes it over HTTP.
  */
 
 /**
- * Une phrase désignée par son dictionnaire et sa clé.
+ * A sentence designated by its dictionary and its key.
  *
- * Le dictionnaire voyage avec la référence plutôt que d'être unique et
- * central. Un catalogue d'erreurs global aurait rassemblé en un fichier des
- * phrases qui n'ont rien en commun sinon d'être des échecs — « Cible
- * introuvable » appartient au vocabulaire des cibles, pas à un fourre-tout. Le
- * mot vit donc à côté des écrans qui parlent de la même chose, et une surface
- * se traduit d'un seul fichier.
+ * The dictionary travels with the reference rather than being single and
+ * central. A global error catalog would have gathered in one file sentences that
+ * have nothing in common except being failures — "Target not found" belongs to
+ * the targets' vocabulary, not to a catch-all. The word therefore lives next to
+ * the screens that talk about the same thing, and a surface is translated from a
+ * single file.
  */
 export type MessageRef = {
   readonly bundle: Bundle;
@@ -42,7 +42,7 @@ export type MessageRef = {
   readonly vars?: Vars;
 };
 
-/** Désigne un message. Le typage refuse une clé absente du dictionnaire donné. */
+/** Designates a message. The typing refuses a key absent from the given dictionary. */
 export function msg<F extends Dict>(
   bundle: Bundle<F>,
   key: keyof F & string,
@@ -51,22 +51,22 @@ export function msg<F extends Dict>(
   return { bundle: bundle as Bundle, key, vars };
 }
 
-/** Rend une référence dans une langue. */
+/** Renders a reference in a language. */
 export function renderRef(ref: MessageRef, language: UiLanguage): string {
   return renderMessage(ref.bundle, language, ref.key, ref.vars);
 }
 
-/** Rend une référence en français — la langue des logs et de `Error.message`. */
+/** Renders a reference in French — the language of `Error.message` and the logs. */
 function sourceText(message: string | MessageRef): string {
   return typeof message === 'string' ? message : renderRef(message, 'fr');
 }
 
 export class HttpError extends Error {
   /**
-   * Présente quand le message vient du catalogue. Absente pour les messages
-   * qui n'appartiennent pas au panel — ceux que renvoie un worker, un
-   * fournisseur d'authentification ou une bibliothèque tierce : les traduire
-   * demanderait de traduire une phrase qu'on n'a pas écrite.
+   * Present when the message comes from the catalog. Absent for the messages that
+   * do not belong to the panel — those a worker, an authentication provider or a
+   * third-party library returns: translating them would require translating a
+   * sentence we did not write.
    */
   readonly ref?: MessageRef;
 
@@ -91,9 +91,9 @@ export class UnauthenticatedError extends HttpError {
 }
 
 /**
- * Jeton d'API refusé — mal formé, inconnu, révoqué ou échu : 401, comme une
- * session absente. Le code dit lequel, pour qu'une CI sache s'il faut en
- * refaire un.
+ * An API token refused — malformed, unknown, revoked or expired: 401, like an
+ * absent session. The code says which, so that a CI knows whether a new one must
+ * be made.
  */
 export class InvalidApiTokenError extends HttpError {
   constructor(reason: 'invalid' | 'revoked' | 'expired') {
@@ -103,9 +103,9 @@ export class InvalidApiTokenError extends HttpError {
 }
 
 /**
- * Jeton d'API valide, mais hors de sa portée : une route qui ne vérifie pas
- * l'application visée, une application qu'il ne couvre pas, ou une route qui
- * n'accepte que le panel.
+ * A valid API token, but out of its scope: a route that does not check the
+ * targeted application, an application it does not cover, or a route that only
+ * accepts the panel.
  */
 export class ApiTokenScopeError extends HttpError {
   constructor(reason: 'scope' | 'application' | 'sessionOnly') {
@@ -130,9 +130,9 @@ export class ForbiddenError extends HttpError {
 }
 
 /**
- * Session sans aucune permission — typiquement une inscription publique qui
- * attend qu'un administrateur lui choisisse un rôle : 403 sur ce qui est
- * réservé à l'équipe (discussion, présence), qui ne demande pas de permission.
+ * A session without any permission — typically a public sign-up waiting for an
+ * administrator to choose it a role: 403 on what is reserved to the team (chat,
+ * presence), which requires no permission.
  */
 export class NoAccessError extends HttpError {
   constructor(message: string | MessageRef = msg(errors, 'no_access')) {
@@ -142,8 +142,8 @@ export class NoAccessError extends HttpError {
 }
 
 /**
- * La politique de l'instance exige un second facteur de ce compte, et il n'en
- * a pas : 403 partout, sauf sur « Mon compte », où il s'active.
+ * The instance's policy requires a second factor from this account, and it has
+ * none: 403 everywhere, except on "My account", where it is enabled.
  */
 export class TwoFactorRequiredError extends HttpError {
   constructor(message: string | MessageRef = msg(errors, 'two_factor_required')) {
@@ -152,7 +152,7 @@ export class TwoFactorRequiredError extends HttpError {
   }
 }
 
-/** Compte désactivé : 403, quelle que soit la permission demandée. */
+/** A disabled account: 403, whatever the requested permission. */
 export class AccountDisabledError extends HttpError {
   constructor(message: string | MessageRef = msg(errors, 'account_disabled')) {
     super(403, 'account_disabled', message);

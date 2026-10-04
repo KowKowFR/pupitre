@@ -45,55 +45,52 @@ import { sessionPolicy, type SessionPolicy } from './session-policy';
 import { peekSsoGroups, rememberSsoGroups, ssoState, takeSsoGroups, type SsoRuntime } from './sso';
 
 /**
- * Rôle attribué à un utilisateur créé sans rôle explicite — c'est-à-dire par
- * l'inscription publique : aucune permission, en attendant un administrateur.
- * Un compte créé depuis `/admin/users` porte le rôle choisi par celui-ci.
+ * The role given to a user created without an explicit role — that is, through
+ * public sign-up: no permission, waiting for an administrator. An account created
+ * from `/admin/users` carries the role chosen by that administrator.
  */
 const DEFAULT_ROLE: RoleKey = SIGNUP_ROLE;
 
 /**
- * Durée de vie d'un lien de réinitialisation : une heure.
+ * A reset link's lifetime: one hour.
  *
- * C'est la valeur par défaut de Better Auth, reprise explicitement pour qu'elle
- * soit lisible ici plutôt que devinable dans `node_modules`. Une heure, parce
- * que la personne qui demande une réinitialisation est devant son écran au
- * moment où elle la demande : elle n'a pas besoin de trois jours, et un lien qui
- * ouvre un compte n'a rien à faire dans une boîte de réception plus longtemps
- * que nécessaire.
+ * It is Better Auth's default value, taken explicitly so that it is readable here
+ * rather than guessable in `node_modules`. One hour, because the person asking
+ * for a reset is in front of their screen when they ask: they do not need three
+ * days, and a link that opens an account has no business in an inbox longer than
+ * necessary.
  *
- * L'invitation, elle, vaut 72 heures — voir `INVITATION_TTL_MS`. Les deux liens
- * empruntent la même machinerie, mais pas la même situation : l'un répond à une
- * demande immédiate, l'autre arrive sans prévenir.
+ * The invitation, for its part, lasts 72 hours — see `INVITATION_TTL_MS`. Both
+ * links use the same machinery, but not the same situation: one answers an
+ * immediate request, the other arrives unannounced.
  */
 const PASSWORD_RESET_TTL_SECONDS = 3600;
 
 /**
- * Où atterrit la personne qui clique.
+ * Where the person who clicks lands.
  *
- * Deux pages pour un seul mécanisme : « choisir son premier mot de passe » et
- * « en choisir un nouveau » sont la même opération technique et deux situations
- * différentes, et un écran qui dirait « réinitialiser votre mot de passe » à
- * quelqu'un qui n'en a jamais eu serait simplement faux.
+ * Two pages for a single mechanism: "choosing one's first password" and
+ * "choosing a new one" are the same technical operation and two different
+ * situations, and a screen saying "reset your password" to someone who never had
+ * one would simply be wrong.
  *
- * Le choix se fait **ici, côté serveur**, à partir de l'état du compte — et pas
- * à partir du `redirectTo` que l'appelant envoie à Better Auth. La différence
- * compte : `/api/auth/request-password-reset` est public, et si le libellé de
- * l'e-mail suivait un paramètre de requête, n'importe qui pourrait faire
- * envoyer à n'importe quelle adresse un message disant « un administrateur vous
- * a ouvert un accès ».
+ * The choice is made **here, on the server side**, from the account's state — and
+ * not from the `redirectTo` the caller sends to Better Auth. The difference
+ * matters: `/api/auth/request-password-reset` is public, and if the email's
+ * wording followed a request parameter, anyone could have a message saying "an
+ * administrator opened an access for you" sent to any address.
  */
 export const INVITATION_PATH = '/invitation';
 const RESET_PASSWORD_PATH = '/reset-password';
 
 /**
- * Ce compte a-t-il déjà un mot de passe ?
+ * Does this account already have a password?
  *
- * C'est l'unique discriminant entre une invitation et une réinitialisation, et
- * il est **infalsifiable** : il ne dépend d'aucune entrée de l'appelant. Un
- * compte créé par invitation n'a aucune ligne `accounts` de type `credential`
- * tant que la personne n'a pas choisi son mot de passe — Better Auth la crée au
- * moment du `reset-password`. Le jour où la ligne existe, l'invitation est
- * consommée et le compte est un compte ordinaire.
+ * It is the only discriminant between an invitation and a reset, and it is
+ * **unforgeable**: it depends on no input from the caller. An account created by
+ * invitation has no `accounts` row of type `credential` until the person chose
+ * their password — Better Auth creates it at `reset-password` time. The day the
+ * row exists, the invitation is consumed and the account is an ordinary account.
  */
 export async function hasPassword(userId: string): Promise<boolean> {
   const [row] = await getDb()
@@ -110,18 +107,18 @@ export async function hasPassword(userId: string): Promise<boolean> {
 }
 
 /**
- * Réécrit la page d'atterrissage du lien fabriqué par Better Auth.
+ * Rewrites the landing page of the link made by Better Auth.
  *
- * Le lien reçu vise `/api/auth/reset-password/{jeton}?callbackURL=…` : un GET
- * qui **vérifie le jeton sans le consommer**, puis redirige vers `callbackURL`
- * avec `?token=` s'il est bon, ou `?error=INVALID_TOKEN` s'il est périmé. On
- * garde ce détour — c'est lui qui fait qu'un lien expiré affiche un message au
- * lieu de laisser quelqu'un saisir un mot de passe pour rien —, on ne change
- * que la destination.
+ * The received link targets `/api/auth/reset-password/{token}?callbackURL=…`: a
+ * GET that **checks the token without consuming it**, then redirects to
+ * `callbackURL` with `?token=` if it is good, or `?error=INVALID_TOKEN` if it is
+ * expired. We keep this detour — it is what makes an expired link show a message
+ * instead of letting someone type a password for nothing —, we only change the
+ * destination.
  *
- * Réécrire plutôt que reconstruire : la forme de l'URL appartient à Better
- * Auth, et la recopier ici en dur serait un doublon qui casserait en silence à
- * la première mise à jour.
+ * Rewriting rather than rebuilding: the URL's shape belongs to Better Auth, and
+ * copying it here hard-coded would be a duplicate that would break silently at
+ * the first update.
  */
 function withLanding(rawUrl: string, path: string): string {
   const url = new URL(rawUrl);
@@ -130,11 +127,11 @@ function withLanding(rawUrl: string, path: string): string {
 }
 
 /**
- * Better Auth ne connaît par défaut que `user` et `admin`. On lui déclare notre
- * vocabulaire de rôles pour qu'il protège ses propres endpoints d'administration.
+ * Better Auth only knows `user` and `admin` by default. We declare our role
+ * vocabulary to it so that it protects its own administration endpoints.
  *
- * Attention : ceci ne gouverne QUE les endpoints Better Auth. L'autorité sur les
- * permissions de l'API du panel reste `user_roles` + `requirePermission()`.
+ * Careful: this ONLY governs the Better Auth endpoints. The authority over the
+ * panel API's permissions stays `user_roles` + `requirePermission()`.
  */
 const accessControl = createAccessControl(defaultStatements);
 
@@ -152,8 +149,8 @@ async function countUsers(): Promise<number> {
 }
 
 /**
- * L'inscription publique reste ouverte tant qu'aucun compte n'existe, pour
- * créer le premier administrateur. Ensuite elle dépend de `ALLOW_SIGNUP`.
+ * Public sign-up stays open as long as no account exists, to create the first
+ * administrator. Afterwards it depends on `ALLOW_SIGNUP`.
  */
 export async function isSignupOpen(): Promise<boolean> {
   if (getEnv().ALLOW_SIGNUP) return true;
@@ -161,12 +158,12 @@ export async function isSignupOpen(): Promise<boolean> {
 }
 
 /**
- * Après une connexion par le fournisseur d'identité : la tracer, et — si le
- * fournisseur fait foi — remettre le rôle d'accord avec ses groupes.
+ * After a sign-in through the identity provider: trace it, and — if the provider
+ * is authoritative — bring the role back in line with its groups.
  *
- * Le dernier administrateur n'est jamais rétrogradé par là : un groupe mal
- * nommé chez le fournisseur ne doit pas enfermer l'instance dehors. Le rôle
- * est alors gardé, et le journal dit pourquoi.
+ * The last administrator is never demoted that way: a badly named group at the
+ * provider must not lock the instance out. The role is then kept, and the log
+ * says why.
  */
 async function afterSsoSignIn(
   sso: SsoRuntime,
@@ -184,7 +181,7 @@ async function afterSsoSignIn(
       const known = await getRoleByKey(wanted);
       const losesAdmin = before.roles.includes(LOCKED_ROLE) && wanted !== LOCKED_ROLE;
       if (!known) {
-        logger.warn({ role: wanted }, 'connexion unique : rôle inconnu, rôle actuel gardé');
+        logger.warn({ role: wanted }, 'single sign-on: unknown role, current role kept');
       } else if (losesAdmin && (await countActiveAdmins(user.id)) === 0) {
         await logAudit({
           actorId: null,
@@ -221,9 +218,9 @@ async function afterSsoSignIn(
 }
 
 /**
- * Le compteur de la limitation de débit, partagé par toutes les instances de
- * Better Auth que ce processus fabrique — et, par Redis, par tous les panels.
- * Voir `auth-rate-limit.ts`.
+ * The rate limiting's counter, shared by all the Better Auth instances this
+ * process makes — and, through Redis, by all the panels. See
+ * `auth-rate-limit.ts`.
  */
 const rateLimitStorage = createAuthRateLimitStorage(getRedis, logger);
 
@@ -239,8 +236,8 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
 
     database: drizzleAdapter(getDb(), {
       provider: 'pg',
-      // Nos tables sont au pluriel : on les mappe explicitement aux modèles
-      // Better Auth plutôt que de renommer le schéma d'origine.
+      // Our tables are plural: we map them explicitly to the Better Auth models rather
+      // than renaming the original schema.
       schema: {
         user: users,
         session: sessions,
@@ -256,64 +253,60 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
       minPasswordLength: PASSWORD_MIN_LENGTH,
 
       /**
-       * Aucune vérification d'adresse séparée, et c'est un choix argumenté.
+       * No separate address verification, and it is an argued choice.
        *
-       * Sur cette instance, il n'existe que deux façons d'obtenir un mot de
-       * passe : cliquer sur un lien d'invitation, ou cliquer sur un lien de
-       * réinitialisation. Les deux arrivent **par e-mail à l'adresse du
-       * compte**. Recevoir le lien *est* la preuve qu'on contrôle la boîte —
-       * un second e-mail « confirmez votre adresse » ne prouverait rien de
-       * plus, il ajouterait un clic et un état de compte supplémentaire à
-       * gérer.
+       * On this instance, there are only two ways to obtain a password: clicking an
+       * invitation link, or clicking a reset link. Both arrive **by email at the
+       * account's address**. Receiving the link *is* the proof that one controls the
+       * mailbox — a second "confirm your address" email would prove nothing more, it
+       * would add a click and one more account state to manage.
        *
-       * Deux arguments de plus, mesurés et pas supposés :
-       *   — sur une instance neuve, aucun canal SMTP n'est configuré ; exiger
-       *     une vérification enfermerait dehors le premier administrateur, qui
-       *     est justement celui qui doit aller configurer le SMTP ;
-       *   — en 1.7.3, le jeton de vérification d'e-mail est un JWT signé, pas
-       *     une ligne de `verifications` : il est **rejouable jusqu'à son
-       *     expiration**, là où le jeton de réinitialisation est consommé une
-       *     fois pour toutes. Le mécanisme sur lequel on s'appuie est donc le
-       *     plus solide des deux.
+       * Two more arguments, measured and not assumed:
+       *   — on a new instance, no SMTP channel is configured; requiring a verification
+       *     would lock out the first administrator, who is precisely the one who must
+       *     go and configure SMTP;
+       *   — in 1.7.3, the email verification token is a signed JWT, not a
+       *     `verifications` row: it is **replayable until it expires**, whereas the
+       *     reset token is consumed once and for all. The mechanism relied upon is
+       *     therefore the more solid of the two.
        *
-       * `users.email_verified` n'est pas abandonné pour autant : il est posé à
-       * `true` dans `onPasswordReset`, au moment exact où la preuve est faite.
+       * `users.email_verified` is not abandoned for all that: it is set to `true` in
+       * `onPasswordReset`, at the exact moment the proof is made.
        */
       requireEmailVerification: false,
 
       resetPasswordTokenExpiresIn: PASSWORD_RESET_TTL_SECONDS,
 
       /**
-       * Toutes les sessions du compte tombent.
+       * All the account's sessions go down.
        *
-       * Même règle que le changement de mot de passe volontaire, et la même
-       * raison en plus fort : on réinitialise précisément parce qu'on a perdu
-       * la main sur son compte. Laisser vivre les sessions ouvertes — celle du
-       * voleur comprise — viderait la manœuvre de son intérêt.
+       * The same rule as the voluntary password change, and the same reason even more
+       * so: one resets precisely because one lost control of one's account. Letting
+       * the open sessions live — the thief's included — would empty the operation of
+       * its point.
        *
-       * Contrairement à `changePassword`, Better Auth ferme ici **aussi** la
-       * session de l'appelant. C'est cohérent : il n'y en a pas. La personne
-       * arrive déconnectée sur le lien, et l'écran la renvoie se connecter avec
-       * son nouveau mot de passe.
+       * Unlike `changePassword`, Better Auth **also** closes the caller's session here.
+       * It is consistent: there is none. The person arrives signed out on the link,
+       * and the screen sends them to sign in with their new password.
        */
       revokeSessionsOnPasswordReset: true,
 
       /**
-       * L'envoi du lien. Better Auth fabrique le jeton, la ligne de
-       * `verifications` et l'URL ; nous ne faisons que choisir la page
-       * d'atterrissage, le texte, et le chemin par lequel le message part.
+       * Sending the link. Better Auth makes the token, the `verifications` row and the
+       * URL; we only choose the landing page, the text, and the path through which the
+       * message goes out.
        *
-       * Rien de tout cela n'est réimplémenté : ni la génération du jeton, ni sa
-       * durée, ni son usage unique, ni l'anti-énumération de la route publique.
+       * None of that is reimplemented: neither the token's generation, nor its
+       * duration, nor its single use, nor the public route's anti-enumeration.
        */
       async sendResetPassword({ user, url }) {
         const invitation = !(await hasPassword(user.id));
         const kind = invitation ? 'invitation' : 'password_reset';
 
-        // Un compte désactivé ne peut pas se connecter : lui envoyer de quoi
-        // choisir un mot de passe ne servirait à rien et donnerait à croire
-        // que l'accès est rétabli. La réponse de la route publique, elle, ne
-        // change pas d'un octet — c'est ce qui compte.
+        // A disabled account cannot sign in: sending it what it takes to choose a
+        // password would be useless and would suggest that access is restored. The
+        // public route's response, for its part, does not change by a byte — that is
+        // what matters.
         const [row] = await getDb()
           .select({ banned: users.banned })
           .from(users)
@@ -330,8 +323,8 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
           return;
         }
 
-        // Aucun jeton, aucune URL dans le journal : la trace dit qu'un lien est
-        // parti, à qui, et jusqu'à quand il vaut. Elle n'ouvre rien.
+        // No token, no URL in the log: the trace says that a link went out, to whom, and
+        // until when it is valid. It opens nothing.
         await logAudit({
           actorId: null,
           action: 'auth.password_reset.requested',
@@ -340,10 +333,9 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
           after: { kind, email: user.email },
         });
 
-        // Une invitation vaut plus longtemps qu'une réinitialisation. Le jeton
-        // reste celui de Better Auth ; seule l'échéance de sa ligne est
-        // repoussée, et l'e-mail annonce l'échéance **réellement** posée —
-        // jamais celle qu'on aurait voulu poser. Voir `extendResetToken()`.
+        // An invitation lasts longer than a reset. The token stays Better Auth's; only
+        // its row's expiry is pushed back, and the email announces the expiry **really**
+        // set — never the one we would have liked to set. See `extendResetToken()`.
         const expiresAt = invitation
           ? ((await extendResetToken(user.id, INVITATION_TTL_MS)) ??
             new Date(Date.now() + PASSWORD_RESET_TTL_SECONDS * 1000))
@@ -361,12 +353,11 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
       },
 
       /**
-       * Après l'écriture du nouveau mot de passe.
+       * After the new password is written.
        *
-       * C'est ici que `email_verified` passe à `true` : la personne vient de
-       * prouver, en cliquant, qu'elle relève la boîte. Le poser plus tôt
-       * mentirait ; ne jamais le poser laisserait la colonne éternellement
-       * fausse et sans usage.
+       * It is here that `email_verified` switches to `true`: the person just proved, by
+       * clicking, that they read the mailbox. Setting it earlier would lie; never
+       * setting it would leave the column forever false and useless.
        */
       async onPasswordReset({ user }) {
         await getDb()
@@ -385,46 +376,42 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
     },
 
     /**
-     * Limitation de débit — celle de Better Auth, pas la nôtre.
+     * Rate limiting — Better Auth's, not ours.
      *
-     * Elle est là depuis toujours, mais `enabled` vaut par défaut
-     * `NODE_ENV === 'production'` : elle était donc **muette en développement**,
-     * c'est-à-dire précisément là où on la vérifie. On la force, pour que le
-     * comportement observé en local soit celui de la production.
+     * It has always been there, but `enabled` defaults to
+     * `NODE_ENV === 'production'`: it was therefore **silent in development**, that
+     * is precisely where it is checked. We force it, so that the behavior observed
+     * locally is production's.
      *
-     * Les règles reprises telles quelles du défaut de la bibliothèque
-     * (3 requêtes / 60 s sur `/request-password-reset`, 3 / 10 s sur
-     * `/sign-in`) sont écrites ici plutôt que laissées implicites : un
-     * formulaire de réinitialisation sans garde est un moyen d'envoyer des
-     * e-mails depuis le serveur de quelqu'un d'autre, et cette phrase mérite
-     * d'être vraie explicitement.
+     * The rules taken as is from the library's default (3 requests / 60 s on
+     * `/request-password-reset`, 3 / 10 s on `/sign-in`) are written here rather
+     * than left implicit: a reset form without a guard is a way to send emails from
+     * someone else's server, and this sentence deserves to be explicitly true.
      *
-     * La clé est (IP, chemin), et le compteur vit dans Redis
-     * (`customStorage`) : plusieurs panels derrière un répartiteur comptent
-     * ensemble, au lieu de multiplier la limite par leur nombre. Les sessions,
-     * elles, restent en base — un `secondaryStorage` les aurait déplacées.
-     * Redis muet, le compte se fait en mémoire, comme avant.
+     * The key is (IP, path), and the counter lives in Redis (`customStorage`):
+     * several panels behind a load balancer count together, instead of multiplying
+     * the limit by their number. The sessions, for their part, stay in the database
+     * — a `secondaryStorage` would have moved them. With a silent Redis, the count is
+     * done in memory, as before.
      */
     rateLimit: {
       enabled: true,
       customStorage: rateLimitStorage,
       customRules: {
-        // Le formulaire public : trois demandes par minute et par IP.
+        // The public form: three requests per minute and per IP.
         '/request-password-reset': { window: 60, max: 3 },
-        // La consommation du jeton. Le jeton fait 24 caractères aléatoires et
-        // n'est pas devinable ; la borne est là pour le coût, pas pour le
-        // secret.
+        // Consuming the token. The token is 24 random characters and cannot be guessed;
+        // the bound is there for the cost, not for the secret.
         '/reset-password': { window: 60, max: 10 },
       },
     },
 
     /**
-     * La durée sans activité se règle dans les paramètres (« Comptes et
-     * sessions »). Better Auth prolonge une session utilisée quand son
-     * dernier prolongement date de plus de `updateAge` : il doit donc rester
-     * bien en deçà de la durée elle-même — sinon une session d'une heure
-     * expirerait au bout d'une heure, active ou non. Le plafond absolu, lui,
-     * est tenu par `requireSession()`.
+     * The duration without activity is set in the settings ("Accounts and
+     * sessions"). Better Auth extends a used session when its last extension is
+     * older than `updateAge`: it must therefore stay well below the duration itself
+     * — otherwise a one-hour session would expire after one hour, active or not. The
+     * absolute ceiling, for its part, is held by `requireSession()`.
      */
     session: {
       expiresIn: sessionLimits.idleSeconds,
@@ -432,12 +419,12 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
     },
 
     /**
-     * Lier une connexion unique à un compte existant de même e-mail : seulement
-     * si le réglage le veut, et seulement quand **le fournisseur** déclare
-     * l'e-mail vérifié — le fournisseur n'est pas marqué « de confiance », ce
-     * qui obligerait Better Auth à le croire sur parole. Côté Pupitre, on
-     * n'exige pas la vérification : un compte créé par un administrateur n'a
-     * jamais cliqué de lien, et il est pourtant le bon.
+     * Linking a single sign-on to an existing account with the same email: only if
+     * the setting wants it, and only when **the provider** declares the email
+     * verified — the provider is not marked "trusted", which would force Better Auth
+     * to take it at its word. On Pupitre's side, verification is not required: an
+     * account created by an administrator never clicked a link, and yet it is the
+     * right one.
      */
     account: {
       accountLinking: {
@@ -449,8 +436,8 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
     hooks: sso
       ? {
           after: createAuthMiddleware(async (ctx) => {
-            // Le fournisseur générique passe par les routes « sociales » de
-            // Better Auth : son retour est `/callback/oidc`.
+            // The generic provider goes through Better Auth's "social" routes: its return is
+            // `/callback/oidc`.
             if (!ctx.path.startsWith('/callback')) return;
             const user = ctx.context.newSession?.user;
             if (!user) return;
@@ -461,7 +448,7 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
                 ctx.request ? clientIp(ctx.request) : null,
               );
             } catch (error) {
-              logger.error({ err: error, userId: user.id }, 'connexion unique : suite impossible');
+              logger.error({ err: error, userId: user.id }, 'single sign-on: follow-up failed');
             }
           }),
         }
@@ -471,11 +458,11 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
       user: {
         create: {
           async before(user) {
-            // Le tout premier compte devient administrateur.
+            // The very first account becomes administrator.
             const isFirstUser = (await countUsers()) === 0;
-            // Un compte qui naît d'une connexion unique reçoit d'emblée le rôle
-            // de ses groupes — pas « Sans accès » suivi d'un changement, qui
-            // ferait partir deux notifications pour une seule arrivée.
+            // An account born from a single sign-on receives its groups' role right away —
+            // not "No access" followed by a change, which would send two notifications for a
+            // single arrival.
             const groups = sso ? peekSsoGroups(user.email) : null;
             const ssoRole = sso && groups ? roleFromGroups(groups, sso.settings).role : null;
             return {
@@ -488,21 +475,21 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
             };
           },
           async after(user) {
-            // Le rôle demandé doit exister en base : ceux de départ, ou un rôle
-            // créé depuis l'écran des rôles — c'est ce que peut désigner une
-            // correspondance de la connexion unique.
+            // The requested role must exist in the database: the starting ones, or a role
+            // created from the roles screen — it is what a single sign-on mapping can
+            // designate.
             const requested = typeof user.role === 'string' ? user.role : DEFAULT_ROLE;
             const roleKey: RoleKey = (await getRoleByKey(requested)) ? requested : DEFAULT_ROLE;
 
             try {
               await setUserRoles(user.id, [roleKey]);
             } catch (error) {
-              logger.error({ userId: user.id, roleKey, error }, "attribution du rôle impossible");
+              logger.error({ userId: user.id, roleKey, error }, 'role assignment failed');
             }
 
-            // Fait brut de la création de la ligne. L'acteur est inconnu à ce
-            // niveau : la route qui a déclenché la création trace qui a agi
-            // (`auth.signup.succeeded` ou `user.created.by_admin`).
+            // The raw fact of the row's creation. The actor is unknown at this level: the
+            // route that triggered the creation traces who acted (`auth.signup.succeeded` or
+            // `user.created.by_admin`).
             await logAudit({
               actorId: null,
               action: 'user.created',
@@ -529,9 +516,9 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
         defaultRole: DEFAULT_ROLE,
         adminRoles: ['admin'],
       }),
-      // Second facteur TOTP. `skipVerificationOnEnable` reste à sa valeur par
-      // défaut (false) : le secret n'est armé qu'après un premier code valide,
-      // sinon une application mal réglée enfermerait son propriétaire dehors.
+      // TOTP second factor. `skipVerificationOnEnable` stays at its default value
+      // (false): the secret is only armed after a first valid code, otherwise a badly
+      // set app would lock its owner out.
       twoFactor({
         issuer: 'Pupitre',
       }),
@@ -543,20 +530,19 @@ function buildAuth(sso: SsoRuntime | null, sessionLimits: SessionPolicy) {
                   providerId: SSO_PROVIDER_ID,
                   name: sso.settings.label,
                   discoveryUrl: ssoDiscoveryUrl(sso.settings.issuer),
-                  // Les groupes, donc les rôles, viennent du jeton d'identité :
-                  // il doit être vérifié contre les clés du fournisseur.
+                  // The groups, hence the roles, come from the identity token: it must be checked
+                  // against the provider's keys.
                   requireIdTokenVerification: true,
                   clientId: sso.settings.clientId,
                   clientSecret: sso.clientSecret,
                   scopes: ssoScopes(sso.settings.scopes),
                   pkce: true,
                   disableSignUp: !sso.settings.autoCreate,
-                  // Se déconnecter du panel ne déconnecte pas du fournisseur.
+                  // Signing out of the panel does not sign out of the provider.
                   disableProviderLogout: true,
                   mapProfileToUser(profile) {
-                    // Le seul moment où le profil du fournisseur est visible :
-                    // ses groupes sont retenus pour la création du compte et
-                    // pour l'après-connexion (`afterSsoSignIn`).
+                    // The only moment the provider's profile is visible: its groups are kept
+                    // for the account's creation and for after sign-in (`afterSsoSignIn`).
                     const groups = claimValues(profile, sso.settings.groupsClaim);
                     if (typeof profile.email === 'string') rememberSsoGroups(profile.email, groups);
                     return {};
@@ -577,17 +563,16 @@ declare global {
 }
 
 /**
- * Propre à ce chargement du module. Une instance construite par une version
- * précédente du code — rechargement à chaud de `next dev` — ne doit pas être
- * réutilisée : ses crochets seraient ceux d'avant.
+ * Specific to this module load. An instance built by a previous version of the
+ * code — `next dev`'s hot reload — must not be reused: its hooks would be the old
+ * ones.
  */
 const MODULE_LOAD = Math.random().toString(36).slice(2);
 
 /**
- * Instance Better Auth, construite à la première requête — et reconstruite
- * quand la connexion unique change (`lib/sso.ts`). Les sessions vivent en base
- * et leurs cookies sont signés par `BETTER_AUTH_SECRET` : une reconstruction
- * ne déconnecte personne.
+ * The Better Auth instance, built at the first request — and rebuilt when single
+ * sign-on changes (`lib/sso.ts`). The sessions live in the database and their
+ * cookies are signed by `BETTER_AUTH_SECRET`: a rebuild signs nobody out.
  */
 export function getAuth(): Auth {
   const sso = ssoState().runtime;
@@ -600,43 +585,41 @@ export function getAuth(): Auth {
   return auth;
 }
 
-/** Session courante, ou `null`. Ne throw pas. */
+/** The current session, or `null`. Does not throw. */
 export async function getSession(headers: Headers) {
   try {
     return await getAuth().api.getSession({ headers });
   } catch (error) {
-    logger.warn({ error }, 'lecture de session impossible');
+    logger.warn({ error }, 'session could not be read');
     return null;
   }
 }
 
 /* ---------------------------------------------------------------------------
-   Les jetons de réinitialisation, vus depuis notre côté
+   The reset tokens, seen from our side
    ------------------------------------------------------------------------- */
 
 /**
- * ## Le seul endroit du projet qui touche aux lignes de Better Auth
+ * ## The only place in the project that touches Better Auth's rows
  *
- * Better Auth range un jeton de réinitialisation dans `verifications` sous la
- * forme `identifier = 'reset-password:{jeton}'`, `value = {id de l'utilisateur}`.
- * C'est lui qui l'écrit, lui qui le consomme (une seule fois, dans une
- * transaction), lui qui vérifie son échéance. On ne réimplémente rien de tout
- * cela.
+ * Better Auth stores a reset token in `verifications` in the shape
+ * `identifier = 'reset-password:{token}'`, `value = {user id}`. It is the one that
+ * writes it, the one that consumes it (once, in a transaction), the one that
+ * checks its expiry. We reimplement none of that.
  *
- * Les deux fonctions ci-dessous font strictement deux choses que la
- * bibliothèque n'expose pas :
+ * The two functions below do strictly two things the library does not expose:
  *
- *   1. **repousser l'échéance** d'un jeton fraîchement créé, parce qu'une
- *      invitation et une réinitialisation n'ont pas la même durée de vie et que
- *      `resetPasswordTokenExpiresIn` est un réglage global ;
- *   2. **révoquer** les jetons en cours d'un compte, ce qui est exactement ce
- *      qu'un administrateur veut dire par « annuler cette invitation ».
+ *   1. **pushing back the expiry** of a freshly created token, because an
+ *      invitation and a reset do not have the same lifetime and
+ *      `resetPasswordTokenExpiresIn` is a global setting;
+ *   2. **revoking** an account's current tokens, which is exactly what an
+ *      administrator means by "cancel this invitation".
  *
- * Le préfixe `reset-password:` est un détail interne de la bibliothèque, et
- * c'est assumé comme tel : si une version future le changeait, `extendResetToken`
- * rendrait `null` et l'invitation retomberait à une heure — l'e-mail annoncerait
- * alors honnêtement une heure, parce qu'il lit l'échéance rendue ici et non
- * celle qu'on espérait. Une dégradation visible, pas un mensonge silencieux.
+ * The `reset-password:` prefix is an internal detail of the library, and it is
+ * assumed as such: if a future version changed it, `extendResetToken` would
+ * return `null` and the invitation would fall back to one hour — the email would
+ * then honestly announce one hour, because it reads the expiry returned here and
+ * not the one we hoped for. A visible degradation, not a silent lie.
  */
 const RESET_TOKEN_PREFIX = 'reset-password:';
 
@@ -648,8 +631,8 @@ function resetTokensOf(userId: string) {
 }
 
 /**
- * Repousse l'échéance des jetons de réinitialisation en cours d'un compte.
- * Rend la nouvelle échéance, ou `null` si aucune ligne n'a été touchée.
+ * Pushes back the expiry of an account's current reset tokens. Returns the new
+ * expiry, or `null` if no row was touched.
  */
 async function extendResetToken(userId: string, ttlMs: number): Promise<Date | null> {
   const expiresAt = new Date(Date.now() + ttlMs);
@@ -663,7 +646,7 @@ async function extendResetToken(userId: string, ttlMs: number): Promise<Date | n
   if (rows.length === 0) {
     logger.warn(
       { userId },
-      'aucun jeton de réinitialisation à prolonger — le format de Better Auth a-t-il changé ?',
+      'no reset token to extend — has the Better Auth format changed?',
     );
     return null;
   }
@@ -671,11 +654,11 @@ async function extendResetToken(userId: string, ttlMs: number): Promise<Date | n
 }
 
 /**
- * Révoque tous les liens en cours d'un compte. Rend le nombre de liens morts.
+ * Revokes all of an account's current links. Returns the number of dead links.
  *
- * Appelée quand un administrateur annule une invitation, et **avant** d'en
- * renvoyer une : sans cela, deux liens ouvriraient le même compte et le premier
- * survivrait à l'annulation du second.
+ * Called when an administrator cancels an invitation, and **before** resending
+ * one: without that, two links would open the same account and the first would
+ * survive the second one's cancellation.
  */
 export async function revokeResetTokens(userId: string): Promise<number> {
   const rows = await getDb()

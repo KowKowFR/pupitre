@@ -181,7 +181,7 @@ const fr = {
   'chronicle.median.value': ' · durée médiane {seconds} s',
   'chronicle.scans': ' · {count} analyses de sécurité',
 
-  // ── Statuts ─────────────────────────────────────────────────────────────
+  // ── Statuses ────────────────────────────────────────────────────────────
   'status.success': 'réussi',
   'status.failed': 'échoué',
   'status.rolled_back': 'replié',

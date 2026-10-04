@@ -33,10 +33,10 @@ import { HttpError, msg } from './errors';
 import { getEnv } from './env';
 
 /**
- * Ce que l'écran de supervision consomme, et la garde SSRF côté panel.
+ * What the monitoring screen consumes, and the SSRF guard on the panel side.
  *
- * Aucune projection ne connaît de type de sonde : la cible, le lien et les
- * mesures viennent du catalogue. Ajouter un type n'oblige pas à repasser ici.
+ * No projection knows a probe type: the target, the link and the measurements
+ * come from the catalog. Adding a type does not require coming back here.
  */
 
 let cachedCidrs: Cidr[] | null = null;
@@ -47,24 +47,23 @@ function allowedCidrs(): readonly Cidr[] {
 }
 
 /**
- * Refuse une cible interdite **à la création**, pas seulement au moment de
- * sonder.
+ * Refuses a forbidden target **at creation**, not only at probing time.
  *
- * Laisser entrer une cible interne pour la refuser silencieusement toutes les
- * minutes serait un piège : l'opérateur verrait une sonde éternellement en
- * échec sans comprendre pourquoi. Le worker refait le contrôle de son côté — à
- * chaque saut de redirection — parce qu'un DNS peut changer entre les deux, et
- * parce qu'une garde qui ne tient qu'à l'interface n'en est pas une.
+ * Letting an internal target in to refuse it silently every minute would be a
+ * trap: the operator would see a probe forever failing without understanding
+ * why. The worker does the check again on its side — at each redirect hop —
+ * because a DNS can change in between, and because a guard that only holds in
+ * the interface is not one.
  */
 export async function assertUrlAllowed(url: string, field = 'url'): Promise<void> {
   try {
     await resolveUrlGuarded(url, allowedCidrs());
   } catch (error) {
     if (error instanceof SsrfBlockedError) {
-      // `refusal` plutôt que `reason` : la garde SSRF vit dans `@pupitre/core`,
-      // qui n'a pas de langue d'instance et rend donc du français. Le refus
-      // voyage en donnée, et c'est ici — le seul endroit qui parle à quelqu'un —
-      // qu'il devient une phrase.
+      // `refusal` rather than `reason`: the SSRF guard lives in `@pupitre/core`, which
+      // has no instance language and therefore returns French. The refusal travels as
+      // data, and it is here — the only place that speaks to someone — that it becomes
+      // a sentence.
       const reason = ssrfRefusalText(error.refusal, await currentLanguage());
       throw new HttpError(422, 'url_not_allowed', reason, { field, url });
     }
@@ -73,15 +72,14 @@ export async function assertUrlAllowed(url: string, field = 'url'): Promise<void
 }
 
 /**
- * Le refus d'une configuration de sonde, mis en phrase.
+ * A probe configuration's refusal, put into a sentence.
  *
- * `@pupitre/db` lève le refus en pièces détachées — voir `MonitorConfigReason`.
- * Les deux routes qui l'attrapent le rendent d'ici, donc de la même façon : une
- * seule version de la phrase pour la création et pour la modification.
+ * `@pupitre/db` raises the refusal in separate pieces — see
+ * `MonitorConfigReason`. The two routes that catch it render it from here, hence
+ * the same way: a single version of the sentence for creation and for editing.
  *
- * Le libellé du type et les cadences sont rendus **tout de suite**, dans la
- * langue de l'instance ; c'est celle-là même dans laquelle `apiRoute()` rendra
- * le gabarit.
+ * The type's label and the cadences are rendered **right away**, in the instance's
+ * language; it is the very one in which `apiRoute()` will render the template.
  */
 export async function monitorConfigMessage(error: MonitorConfigError): Promise<HttpError> {
   const language: UiLanguage = await currentLanguage();
@@ -125,11 +123,11 @@ export async function monitorConfigMessage(error: MonitorConfigError): Promise<H
 }
 
 /**
- * Contrôle la cible d'une sonde, quel que soit son type.
+ * Checks a probe's target, whatever its type.
  *
- * La cible est décrite par le catalogue (`linkFor`), pas lue dans un champ
- * connu d'avance : une sonde HTTP porte une URL, une sonde TLS un hôte et un
- * port, et une sonde qui viendra plus tard portera autre chose.
+ * The target is described by the catalog (`linkFor`), not read from a field known
+ * in advance: an HTTP probe carries a URL, a TLS probe a host and a port, and a
+ * probe coming later will carry something else.
  */
 export async function assertConfigAllowed(type: MonitorType, config: unknown): Promise<void> {
   const link = monitorTargetLink(type, config);
@@ -137,7 +135,7 @@ export async function assertConfigAllowed(type: MonitorType, config: unknown): P
   await assertUrlAllowed(link, 'config');
 }
 
-// ─── projections d'écran ──────────────────────────────────────────────────────
+// ─── screen projections ───────────────────────────────────────────────────────
 
 export type MonitorCheckView = {
   id: string;
@@ -170,7 +168,7 @@ export type MonitorView = {
   name: string;
   type: MonitorType;
   typeLabel: string;
-  /** La cible en une ligne — une URL pour HTTP, un hôte:port pour TLS. */
+  /** The target in one line — a URL for HTTP, a host:port for TLS. */
   target: string;
   targetLink: string | null;
   config: Record<string, unknown>;
@@ -180,7 +178,7 @@ export type MonitorView = {
   enabled: boolean;
   pausedReason: string | null;
   applicationId: string | null;
-  /** Jamais l'URL : c'est le secret. Seule sa présence est publique. */
+  /** Never the URL: it is the secret. Only its presence is public. */
   hasWebhook: boolean;
   status: 'unknown' | 'healthy' | 'unhealthy' | 'unreachable';
   lastOutcome: 'unknown' | 'healthy' | 'unhealthy' | 'unreachable' | null;
@@ -191,11 +189,11 @@ export type MonitorView = {
   lastDetail: string | null;
   lastMetrics: CheckMetrics;
   nextCheckAt: string;
-  /** `true` tant qu'aucune mesure n'est passée : l'écran le dit plutôt que 0 %. */
+  /** `true` as long as no measurement went through: the screen says so rather than 0%. */
   neverRan: boolean;
   uptime24h: UptimeView;
   uptime7d: UptimeView;
-  /** Mesures récentes, de la plus ancienne à la plus récente. */
+  /** Recent measurements, from the oldest to the most recent. */
   recent: Array<{ at: string; latencyMs: number | null; outcome: string }>;
   openIncidentSince: string | null;
   createdAt: string;
@@ -237,11 +235,10 @@ export function toIncidentView(incident: MonitorIncident): MonitorIncidentView {
 }
 
 /**
- * Une liste de sondes, complète pour l'écran.
+ * A list of probes, complete for the screen.
  *
- * Les deux fenêtres de disponibilité sont calculées en **deux requêtes
- * groupées**, pas en deux requêtes par sonde : vingt sondes, c'est deux
- * requêtes, pas quarante.
+ * The two availability windows are computed in **two grouped queries**, not in
+ * two queries per probe: twenty probes are two queries, not forty.
  */
 export async function buildMonitorViews(rows: Monitor[]): Promise<MonitorView[]> {
   const ids = rows.map((row) => row.id);
@@ -266,9 +263,8 @@ export async function buildMonitorViews(rows: Monitor[]): Promise<MonitorView[]>
         typeLabel: known
           ? definition.label
           : renderMessage(messages, language, 'type.unknown', { type: row.type }),
-        // Le même contenu que `monitorTarget()` de `@pupitre/db`, mais rendu
-        // dans la langue de l'instance : la cible s'affiche, elle ne se
-        // journalise pas.
+        // The same content as `@pupitre/db`'s `monitorTarget()`, but rendered in the
+        // instance's language: the target is displayed, it is not logged.
         target: known
           ? describeMonitorTarget(type, row.config, language)
           : renderMessage(messages, language, 'target.unknownType'),
@@ -312,12 +308,11 @@ export async function buildMonitorViews(rows: Monitor[]): Promise<MonitorView[]>
 }
 
 /**
- * Le catalogue, sérialisé pour l'écran.
+ * The catalog, serialized for the screen.
  *
- * Les schémas Zod ne traversent pas la frontière serveur/client : on n'envoie
- * que ce que le formulaire doit savoir — champs, mesures, bornes, valeurs de
- * départ. C'est ce qui permet à l'écran de se construire sans aucun
- * `if (type === 'http')`.
+ * The Zod schemas do not cross the server/client boundary: we only send what the
+ * form must know — fields, measurements, bounds, starting values. That is what
+ * allows the screen to build itself without any `if (type === 'http')`.
  */
 export type MonitorTypeOption = {
   type: MonitorType;

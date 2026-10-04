@@ -20,7 +20,7 @@ const fr = {
   'page.description':
     "Une sonde part du worker vers l'adresse publique d'un service. Elle voit ce que le healthcheck SSH ne voit pas : le pare-feu, le proxy, le certificat.",
 
-  // ── Verdicts d'une mesure ───────────────────────────────────────────────
+  // ── A measurement's verdicts ────────────────────────────────────────────
   'outcome.healthy': 'sain',
   'outcome.unhealthy': 'répond mal',
   'outcome.unreachable': 'injoignable',
@@ -36,7 +36,7 @@ const fr = {
   'health.unreachable': 'injoignable',
   'health.unknown': 'état inconnu',
 
-  // ── Liste ───────────────────────────────────────────────────────────────
+  // ── List ────────────────────────────────────────────────────────────────
   'empty.title': 'Aucune sonde',
   'empty.hint.canManage':
     "Une sonde part du worker vers l'adresse publique de ce qu'elle surveille. C'est un point de vue différent du healthcheck : elle voit le pare-feu, le proxy et le certificat.",
@@ -50,7 +50,7 @@ const fr = {
   },
 
 
-  // ── Carte d'une sonde ───────────────────────────────────────────────────
+  // ── A probe's card ──────────────────────────────────────────────────────
   'card.action.probe': 'Sonder',
   'card.action.pause': 'Suspendre',
   'card.action.resume': 'Reprendre',
@@ -169,7 +169,7 @@ const fr = {
   'edit.unchanged': 'Aucune modification à enregistrer.',
   'toast.updated': 'Sonde {name} enregistrée',
 
-  // ── Champs de configuration, rendus depuis le catalogue ─────────────────
+  // ── Configuration fields, rendered from the catalog ─────────────────────
   'config.optional': 'facultatif',
   'config.advanced': 'Options avancées',
 
@@ -261,7 +261,7 @@ const fr = {
     "Pas d'image de référence pour cet incident : la sonde n'avait pas encore été photographiée en bon état. La comparaison avant/après apparaîtra au prochain.",
   'captures.incomplete': "Il manque une des deux images : la comparaison n'est pas possible.",
 
-  // ── Erreurs d'API ───────────────────────────────────────────────────────
+  // ── API errors ──────────────────────────────────────────────────────────
   'error.monitorNotFound': 'Sonde « {id} » introuvable',
   'error.applicationNotFound': 'Application « {id} » introuvable',
   'error.captureNotFound': 'Capture « {id} » introuvable',

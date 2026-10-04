@@ -13,7 +13,7 @@ import type { Translated } from '@pupitre/core';
  * When in doubt: the string goes into its surface's dictionary.
  */
 const fr = {
-  // ── Verbes d'action ─────────────────────────────────────────────────────
+  // ── Action verbs ────────────────────────────────────────────────────────
   save: 'Enregistrer',
   cancel: 'Annuler',
   close: 'Fermer',

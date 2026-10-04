@@ -6,7 +6,7 @@ import type { Translated } from '@pupitre/core';
  * panel.
  */
 const fr = {
-  // ── La page publique ────────────────────────────────────────────────────
+  // ── The public page ─────────────────────────────────────────────────────
   'public.updated': 'Mis à jour à {time}',
   'public.refresh': 'La page se met à jour toute seule chaque minute.',
   'public.empty': 'Cette page ne montre encore rien.',
@@ -145,7 +145,7 @@ const fr = {
   'error.slugTaken': "L'adresse {path} est déjà celle d'une autre page.",
   'error.monitorNotFound': "La sonde {id} n'existe pas.",
 
-  // ── Les annonces ────────────────────────────────────────────────────────
+  // ── The announcements ───────────────────────────────────────────────────
   'announce.title': 'Annonces',
   'announce.sub':
     'Pendant une panne ou une maintenance, dites aux visiteurs ce qui se passe. Une annonce paraît sur chaque page qui montre une sonde touchée.',

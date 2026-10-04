@@ -1,29 +1,28 @@
 /**
- * Confirmation à la mesure du risque — les trois niveaux du design system.
+ * A confirmation matching the risk — the design system's three levels.
  *
- *   1. `reversible` : arrêter, redémarrer, suspendre. Dialogue court, verbe en
- *      primaire.
- *   2. `trace` : purger un historique, supprimer un objet vide. Conséquences
- *      listées, bouton destructif au trait.
- *   3. `data` : détruire une app sur sa cible, supprimer une app vivante,
- *      forcer l'effacement. Il faut **retaper le nom** ; le bouton rouge plein
- *      reste désactivé tant que la saisie ne correspond pas exactement.
+ *   1. `reversible`: stop, restart, pause. A short dialog, the verb as primary.
+ *   2. `trace`: purge a history, delete an empty object. Consequences listed, an
+ *      outlined destructive button.
+ *   3. `data`: destroy an app on its target, delete a live app, force the
+ *      erasure. One must **type the name again**; the full red button stays
+ *      disabled as long as the input does not match exactly.
  *
- * Ce module est pur : il sert au dialogue et aux tests.
+ * This module is pure: it serves the dialog and the tests.
  */
 
 export type ConfirmLevel = 'reversible' | 'trace' | 'data';
 
 /**
- * La saisie débloque-t-elle la confirmation ? Correspondance exacte, casse
- * comprise : `Blog` ne débloque pas `blog`. Seuls les blancs de tête et de
- * queue sont tolérés, parce qu'un copier-coller en ramène souvent un.
+ * Does the input unlock the confirmation? An exact match, case included: `Blog`
+ * does not unlock `blog`. Only leading and trailing blanks are tolerated, because
+ * a copy and paste often brings one along.
  */
 export function confirmMatches(typed: string, expected: string): boolean {
   return expected.length > 0 && typed.trim() === expected;
 }
 
-/** Le verbe final prend la variante du niveau. */
+/** The final verb takes the level's variant. */
 export function confirmVariant(
   level: ConfirmLevel,
 ): 'default' | 'destructive' | 'destructive-solid' {

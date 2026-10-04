@@ -3,8 +3,8 @@ import { setAuditFailureReporter } from '@pupitre/db';
 import { pino } from 'pino';
 
 /**
- * Champs jamais journalisés, quelle que soit leur profondeur.
- * Le wildcard `*.x` couvre un niveau ; on liste aussi les racines usuelles.
+ * Fields never logged, whatever their depth. The `*.x` wildcard covers one level;
+ * the usual roots are listed too.
  */
 const REDACTED = [
   'password',
@@ -20,9 +20,9 @@ const REDACTED = [
   'encryptedCredential',
   'privateKey',
   'passphrase',
-  // Magasin des secrets d'application : la valeur chiffrée comme la valeur en
-  // clair, sous les noms qu'elles portent selon la couche traversée — corps de
-  // PUT, colonne Drizzle, colonne SQL, table résolue passée au rendu.
+  // The applications' secrets store: the encrypted value as well as the plain
+  // value, under the names they carry depending on the layer crossed — PUT body,
+  // Drizzle column, SQL column, resolved table passed to the rendering.
   'encryptedValue',
   'encrypted_value',
   'secretValue',
@@ -31,33 +31,32 @@ const REDACTED = [
   'cookie',
   'MASTER_KEY',
   'BETTER_AUTH_SECRET',
-  // Une variable par fournisseur d'IA : la liste suit le catalogue de
-  // `@pupitre/core/ai`. Un fournisseur ajouté sans sa variable ici ferait fuir sa clé
-  // dans un log de configuration.
+  // One variable per AI provider: the list follows `@pupitre/core/ai`'s catalog. A
+  // provider added without its variable here would leak its key into a
+  // configuration log.
   'OPENROUTER_API_KEY',
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
-  // Clé du fournisseur d'IA, sous les noms qu'elle peut porter selon la couche
-  // traversée : corps de PATCH, colonne Drizzle, colonne SQL, argument de
-  // `createModel()`.
+  // The AI provider's key, under the names it can carry depending on the layer
+  // crossed: PATCH body, Drizzle column, SQL column, `createModel()` argument.
   'aiApiKey',
   'apiKey',
   'aiApiKeyEncrypted',
   'ai_api_key_encrypted',
-  // Second facteur : le secret TOTP voyage aussi sous forme d'URI `otpauth://`,
-  // qui le porte en clair dans sa query string. Les codes de secours sont des
-  // équivalents du mot de passe — ils ne se journalisent pas davantage.
+  // Second factor: the TOTP secret also travels as an `otpauth://` URI, which
+  // carries it in clear in its query string. The backup codes are password
+  // equivalents — they are not logged either.
   'totpURI',
   'totpUri',
   'backupCodes',
   'backupCode',
   'twoFactorSecret',
   'backup_codes',
-  // Canaux de notification : les champs secrets du catalogue de
-  // `@pupitre/core/notifications`, sous les noms qu'ils portent selon la couche
-  // traversée — corps de POST/PATCH, objet résolu passé au canal, colonne
-  // Drizzle, colonne SQL. `webhookUrl` est bien un secret : l'URL d'un webhook
-  // Discord contient son jeton d'écriture.
+  // Notification channels: the secret fields of `@pupitre/core/notifications`'
+  // catalog, under the names they carry depending on the layer crossed — POST/PATCH
+  // body, resolved object passed to the channel, Drizzle column, SQL column.
+  // `webhookUrl` is indeed a secret: a Discord webhook's URL contains its write
+  // token.
   'botToken',
   'webhookUrl',
   'secrets',
@@ -80,10 +79,10 @@ export const logger = pino({
   redact: { paths, censor: '[redacted]' },
 });
 
-// Un échec d'écriture d'audit ne casse pas la requête, mais doit être visible.
+// An audit write failure does not break the request, but must be visible.
 setAuditFailureReporter((error, entry) => {
   logger.error(
     { err: error, action: entry.action, resourceType: entry.resourceType },
-    "échec d'écriture dans audit_logs",
+    'audit_logs write failed',
   );
 });

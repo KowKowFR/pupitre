@@ -1,15 +1,15 @@
 import { AVATAR_EDGE, CHAT_IMAGE_MAX_BYTES, CHAT_IMAGE_MAX_EDGE } from '@pupitre/core';
 
 /**
- * Préparer une image **dans le navigateur**, avant l'envoi.
+ * Preparing an image **in the browser**, before uploading.
  *
- * Le panel n'embarque aucune bibliothèque d'image côté serveur : c'est ici que
- * l'on recadre, réduit et réencode. Le réencodage a un second effet, voulu :
- * une image passée par un `<canvas>` perd ses métadonnées EXIF — la position
- * GPS d'une photo de téléphone ne part donc jamais dans la base.
+ * The panel embeds no image library on the server side: it is here that one
+ * crops, reduces and re-encodes. Re-encoding has a second, intended effect: an
+ * image that went through a `<canvas>` loses its EXIF metadata — a phone
+ * picture's GPS position therefore never goes into the database.
  *
- * Le serveur, lui, ne fait confiance à rien de tout cela : il relit le format
- * et les dimensions dans les octets reçus.
+ * The server, for its part, trusts none of that: it reads the format and the
+ * dimensions again in the received bytes.
  */
 
 export class ImagePrepError extends Error {
@@ -19,7 +19,7 @@ export class ImagePrepError extends Error {
   }
 }
 
-/** Décode une image. L'orientation EXIF est appliquée par le navigateur. */
+/** Decodes an image. The EXIF orientation is applied by the browser. */
 export async function loadImage(file: Blob): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(file);
   try {
@@ -32,7 +32,7 @@ export async function loadImage(file: Blob): Promise<HTMLImageElement> {
   } catch (error) {
     throw error instanceof ImagePrepError ? error : new ImagePrepError('unreadable');
   } finally {
-    // L'image décodée garde ses pixels ; l'URL ne sert plus.
+    // The decoded image keeps its pixels; the URL is no longer needed.
     URL.revokeObjectURL(url);
   }
 }
@@ -42,9 +42,9 @@ function toBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promi
 }
 
 /**
- * WebP d'abord ; un navigateur qui ne sait pas l'encoder rend du PNG à la
- * place, et l'on s'en contente s'il tient dans la borne. Sinon, JPEG — sur fond
- * blanc, puisque le JPEG n'a pas de transparence.
+ * WebP first; a browser that cannot encode it returns PNG instead, and we settle
+ * for it if it fits in the bound. Otherwise, JPEG — on a white background, since
+ * JPEG has no transparency.
  */
 async function encode(canvas: HTMLCanvasElement, maxBytes: number, quality: number): Promise<Blob> {
   const webp = await toBlob(canvas, 'image/webp', quality);
@@ -65,7 +65,7 @@ async function encode(canvas: HTMLCanvasElement, maxBytes: number, quality: numb
   throw new ImagePrepError('too_large');
 }
 
-/** La zone retenue d'une image, en pixels de l'image : un carré pour une photo de profil. */
+/** An image's kept area, in the image's pixels: a square for a profile picture. */
 export type CropSquare = { x: number; y: number; size: number };
 
 export async function cropAvatar(image: HTMLImageElement, crop: CropSquare): Promise<Blob> {
@@ -82,9 +82,9 @@ export async function cropAvatar(image: HTMLImageElement, crop: CropSquare): Pro
 export type PreparedImage = { blob: Blob; width: number; height: number };
 
 /**
- * Une image pour la discussion : le plus grand côté ramené à 1920 px,
- * réencodée. Un GIF qui tient dans la borne passe tel quel — le réencoder lui
- * ferait perdre son animation.
+ * An image for the chat: the longest side brought down to 1920 px, re-encoded. A
+ * GIF that fits in the bound goes through as is — re-encoding it would lose its
+ * animation.
  */
 export async function prepareChatImage(file: File): Promise<PreparedImage> {
   const image = await loadImage(file);
@@ -106,7 +106,7 @@ export async function prepareChatImage(file: File): Promise<PreparedImage> {
   return { blob, width: canvas.width, height: canvas.height };
 }
 
-/** `image/webp` → `webp`, pour nommer un fichier envoyé. */
+/** `image/webp` → `webp`, to name an uploaded file. */
 export function extensionOf(blob: Blob): string {
   const subtype = blob.type.split('/')[1] ?? 'bin';
   return subtype === 'jpeg' ? 'jpg' : subtype;

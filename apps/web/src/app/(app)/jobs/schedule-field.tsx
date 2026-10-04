@@ -121,7 +121,7 @@ function withKind(previous: SimpleSchedule, kind: SimpleScheduleKind): SimpleSch
   }
 }
 
-// ─── horloge ──────────────────────────────────────────────────────────────────
+// ─── clock ────────────────────────────────────────────────────────────────────
 
 const TICK_MS = 30_000;
 
@@ -233,7 +233,7 @@ function SchedulePreview({
   );
 }
 
-// ─── champ ────────────────────────────────────────────────────────────────────
+// ─── field ────────────────────────────────────────────────────────────────────
 
 export function ScheduleField({
   idPrefix,

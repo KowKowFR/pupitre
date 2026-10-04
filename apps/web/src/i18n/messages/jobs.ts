@@ -17,7 +17,7 @@ const fr = {
   'page.description':
     'Ce que le panel refait tout seul sur ce qui est déjà déployé : ré-analyser les images, sonder la santé des applications, rafraîchir le preflight des cibles, purger les vieilles versions. Ordonnancées par BullMQ — pas par un cron Linux — et donc visibles, rejouables et traçables ici. Aucune ne redéploie, ne rollback ni ne bloque quoi que ce soit : elles constatent et alertent.',
 
-  // ── Bandeau d'introduction ──────────────────────────────────────────────
+  // ── Introduction banner ─────────────────────────────────────────────────
   'banner.a':
     "Chaque tâche porte son propre fuseau, et c'est lui qui décide de l'heure à laquelle elle part : une tâche neuve hérite de ",
   'banner.b':
@@ -70,7 +70,7 @@ const fr = {
   'history.empty': 'Aucune exécution enregistrée.',
   'history.manual': 'déclenchée à la main',
 
-  // ── Retours d'action ────────────────────────────────────────────────────
+  // ── Action feedback ─────────────────────────────────────────────────────
   'notice.created': 'Tâche « {key} » planifiée',
   'notice.triggered': '« {key} » lancée',
   'notice.enabled': '« {key} » activée',
@@ -78,12 +78,12 @@ const fr = {
   'notice.deleted': '« {key} » supprimée',
   'notice.cadenceUpdated': 'Cadence de « {key} » modifiée',
 
-  // ── Dialogue de cadence ─────────────────────────────────────────────────
+  // ── Cadence dialog ──────────────────────────────────────────────────────
   'dialog.title': 'Cadence de « {key} »',
   'dialog.expertOnly':
     "L'expression enregistrée n'a pas d'équivalent en mode simple : l'écran s'ouvre en mode expert plutôt que d'afficher une périodicité approchée.",
 
-  // ── Champ de cadence ────────────────────────────────────────────────────
+  // ── Cadence field ───────────────────────────────────────────────────────
   'field.label': 'Cadence',
   'field.kind.label': 'Périodicité',
   'field.mode.aria': 'Mode de saisie de la cadence',
@@ -133,7 +133,7 @@ const fr = {
   'preview.noRun': "Aucune exécution dans les 366 prochains jours — vérifiez l'expression.",
   'preview.next': 'Prochaine',
 
-  // ── Aide ────────────────────────────────────────────────────────────────
+  // ── Help ────────────────────────────────────────────────────────────────
   'help.trigger': 'À quoi servent les tâches planifiées ?',
   'help.title': 'À quoi servent les tâches planifiées ?',
   'help.subtitle':
@@ -295,7 +295,7 @@ const fr = {
 Attention : jour du mois ET jour de semaine renseignés se combinent en OU.
 « 0 3 1 * 1 » tourne le 1er du mois *et* tous les lundis.`,
 
-  // ── Erreurs d'API ───────────────────────────────────────────────────────
+  // ── API errors ──────────────────────────────────────────────────────────
   'error.keyTaken': 'Une tâche planifiée « {key} » existe déjà',
   'error.notFound': 'Aucune tâche planifiée « {id} »',
   'error.queueJobNotFound': 'Aucune tâche « {id} » dans la queue ops',

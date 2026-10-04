@@ -870,7 +870,7 @@ async function ChronicleLane({
   );
 }
 
-// ─── le parc ──────────────────────────────────────────────────────────────────
+// ─── the fleet ────────────────────────────────────────────────────────────────
 
 /**
  * One row per machine: its state, the shape of its load over the window, what it

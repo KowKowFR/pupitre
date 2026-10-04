@@ -104,7 +104,7 @@ const fr = {
   'deployTo.targets.help':
     'Chaque commit part sur les cibles de la liaison, qu’elle y tourne déjà ou non.',
 
-  // ── Fiche d'une application ─────────────────────────────────────────────
+  // ── An application's record ─────────────────────────────────────────────
   'card.title': 'Dépôt',
   'card.description':
     "Le pupitre.json d'une branche décrit l'application. Pupitre vérifie chaque minute s'il a changé.",
@@ -206,7 +206,7 @@ const fr = {
   'gitlab.token.help':
     'Paramètres du projet ou du groupe → Jetons d’accès, portée api — la seule qui permette d’écrire l’état des déploiements sur les commits —, rôle Maintainer : sur une branche protégée, GitLab n’accepte un statut que de qui peut y pousser (Developer suffit si les développeurs y poussent). Chiffré dès l’enregistrement, jamais réaffiché.',
 
-  // ── Tiroir de liaison ───────────────────────────────────────────────────
+  // ── Link drawer ─────────────────────────────────────────────────────────
   'drawer.kind': 'Dépôt',
   'drawer.title.new': 'Relier un dépôt',
   'drawer.title.edit': 'Modifier la liaison',
@@ -253,7 +253,7 @@ const fr = {
   // ── Deployments ─────────────────────────────────────────────────────────
   'run.source': 'Commit',
 
-  // ── Erreurs ─────────────────────────────────────────────────────────────
+  // ── Errors ──────────────────────────────────────────────────────────────
   'error.branchNotFound': 'La branche « {branch} » est introuvable dans ce dépôt.',
   'error.specMissing': 'Aucun {path} sur la branche « {branch} ».',
   'error.specInvalid': '{path} refusé : {issue}',

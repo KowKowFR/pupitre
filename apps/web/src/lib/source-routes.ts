@@ -25,11 +25,11 @@ import { providerError, sourceProvider } from '@/lib/sources';
 import { getSupervisionQueue } from '@/lib/supervision-queue';
 
 /**
- * Ce que partagent les routes des liaisons : retrouver une liaison sous son
- * application, vérifier des cibles, enfiler une tâche.
+ * What the links' routes share: finding a link under its application, checking
+ * targets, queuing a job.
  */
 
-/** La liaison, à condition qu'elle appartienne bien à cette application. */
+/** The link, provided that it does belong to this application. */
 export async function sourceOf(
   applicationId: string,
   sourceId: string,
@@ -49,7 +49,7 @@ export async function assertApplication(applicationId: string) {
   return application;
 }
 
-/** Chaque cible existe, et son preflight a vu le runtime demandé. */
+/** Each target exists, and its preflight saw the requested runtime. */
 export async function assertTargets(list: ApplicationSourceInput['targets']): Promise<void> {
   for (const entry of list) {
     const target = await getTarget(entry.targetId);
@@ -86,7 +86,7 @@ export async function enqueueSourceDeploy(data: SourceDeployJobData): Promise<st
   return job.id;
 }
 
-/** Une liaison, telle que les routes la rendent. */
+/** A link, as the routes return it. */
 export function sourceJson(source: ApplicationSourceView) {
   return {
     id: source.id,
@@ -109,7 +109,7 @@ export function sourceJson(source: ApplicationSourceView) {
   };
 }
 
-/** Le client d'un fournisseur connecté — sinon 409, en le nommant. */
+/** The client of a connected provider — otherwise 409, naming it. */
 export async function connectedProvider(kind: SourceProviderKind) {
   const access = await sourceProvider(kind);
   if (!access) {
@@ -121,9 +121,9 @@ export async function connectedProvider(kind: SourceProviderKind) {
 }
 
 /**
- * Le dépôt, tel que le fournisseur le montre à Pupitre — vérifié auprès de
- * lui : un dépôt (et, chez GitHub, un identifiant d'installation) venu d'un
- * formulaire ne se croit pas sur parole.
+ * The repository, as the provider shows it to Pupitre — checked with it: a
+ * repository (and, at GitHub, an installation identifier) coming from a form is
+ * not taken at its word.
  */
 export async function accessibleRepository(
   provider: SourceProvider,

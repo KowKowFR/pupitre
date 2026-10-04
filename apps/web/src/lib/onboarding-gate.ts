@@ -23,36 +23,35 @@ import { logger } from '@/lib/logger';
 import type { AuthContext } from '@/lib/rbac';
 
 /**
- * Décision d'affichage de l'assistant de démarrage.
+ * Deciding whether to show the onboarding assistant.
  *
- * Elle ne peut pas se prendre dans `proxy.ts` : celui-ci tourne en Edge et ne
- * lit qu'un cookie, il n'a aucun accès à `app_settings`. Elle appartient donc
- * au layout serveur de `(app)`, qui charge déjà l'authentification et les
- * paramètres — les deux seules choses dont elle dépend.
+ * It cannot be decided in `proxy.ts`: that one runs on Edge and only reads a
+ * cookie, it has no access to `app_settings`. It therefore belongs to `(app)`'s
+ * server layout, which already loads the authentication and the settings — the
+ * only two things it depends on.
  *
- * **La règle tient en une phrase : tant que le parcours n'est pas soldé, on y
- * revient.** `pending` comme `in_progress` renvoient à l'assistant, depuis
- * n'importe quelle page. Seuls `completed` et `dismissed` en libèrent.
+ * **The rule fits in one sentence: as long as the journey is not settled, one
+ * comes back to it.** `pending` as well as `in_progress` send back to the
+ * assistant, from any page. Only `completed` and `dismissed` release from it.
  *
- * Il n'y a donc qu'une seule sortie avant la fin : l'abandon, et il passe par
- * une confirmation qui dit ce qu'on laisse derrière soi. C'est délibéré — un
- * bouton « Plus tard » qu'on presse par réflexe n'est pas un choix, et une
- * installation à moitié configurée qu'on découvre trois semaines plus tard
- * coûte plus cher que trente secondes de lecture.
+ * There is therefore only one exit before the end: abandoning, and it goes
+ * through a confirmation that says what one leaves behind. It is deliberate — a
+ * "Later" button pressed by reflex is not a choice, and a half-configured
+ * installation discovered three weeks later costs more than thirty seconds of
+ * reading.
  *
- * On ne compte pas les cibles pour décider. Le drapeau dit ce qui s'est
- * réellement passé ; le parc, lui, peut être vide pour de bonnes raisons.
- * L'état réel du parc sert ailleurs : dans l'assistant, à montrer qu'une
- * étape est déjà satisfaite.
+ * We do not count the targets to decide. The flag says what really happened; the
+ * fleet, for its part, can be empty for good reasons. The fleet's real state
+ * serves elsewhere: in the assistant, to show that a step is already satisfied.
  */
 
 export type OnboardingGate = {
   state: OnboardingState;
-  /** Étapes que cette personne peut réellement accomplir. Vide = hors sujet. */
+  /** The steps this person can really accomplish. Empty = not concerned. */
   steps: OnboardingStepDefinition[];
-  /** L'assistant concerne-t-il cette personne ? */
+  /** Does the assistant concern this person? */
   applies: boolean;
-  /** Parcours ouvert : ni terminé, ni abandonné — on peut le reprendre. */
+  /** An open journey: neither finished nor abandoned — it can be resumed. */
   resumable: boolean;
   /** L'assistant doit s'imposer maintenant. */
   shouldOffer: boolean;
@@ -74,17 +73,17 @@ export function onboardingGate(auth: AuthContext, settings: AppSettings): Onboar
 }
 
 /**
- * Marque l'assistant comme proposé, puis laisse l'appelant rediriger.
+ * Marks the assistant as offered, then lets the caller redirect.
  *
- * L'ordre n'est pas négociable, et c'est ce qui rend la redirection finie : le
- * layout de `(app)` enveloppe aussi `/onboarding`, donc rediriger sans changer
- * d'état bouclerait indéfiniment. La transition `pending → in_progress` est
- * exactement le fait qu'on cherche à enregistrer — « l'assistant a été montré »
- * — et elle suffit à ce que la passe suivante ne redirige plus.
+ * The order is not negotiable, and it is what makes the redirect finite: `(app)`'s
+ * layout also wraps `/onboarding`, so redirecting without changing state would
+ * loop forever. The `pending → in_progress` transition is exactly the fact we
+ * want to record — "the assistant was shown" — and it is enough for the next pass
+ * not to redirect any more.
  *
- * Rend `false` quand rien n'a changé — l'état était déjà entamé. **Ce n'est
- * pas un motif de ne pas rediriger** : sur une instance sans cible, l'écran
- * s'impose que la transition ait eu lieu ou non. L'appelant décide.
+ * Returns `false` when nothing changed — the state was already started. **It is
+ * not a reason not to redirect**: on an instance without a target, the screen
+ * imposes itself whether the transition took place or not. The caller decides.
  */
 export async function offerOnboarding(auth: AuthContext): Promise<boolean> {
   try {
@@ -106,19 +105,19 @@ export async function offerOnboarding(auth: AuthContext): Promise<boolean> {
     });
     return true;
   } catch (error) {
-    logger.error({ err: error }, "l'assistant de démarrage n'a pas pu être marqué comme proposé");
+    logger.error({ err: error }, 'the onboarding assistant could not be marked as offered');
     return false;
   }
 }
 
 /**
- * État réel de l'installation, tel que l'assistant a le droit de le montrer à
- * cette personne. `null` là où la permission de lecture manque — l'assistant
- * ne sert pas de canal détourné pour compter ce qu'on n'a pas le droit de voir.
+ * The installation's real state, as the assistant is allowed to show it to this
+ * person. `null` where the read permission is missing — the assistant does not
+ * serve as a back channel to count what one is not allowed to see.
  *
- * Il ne décide de rien : il sert à dire « vous avez déjà deux cibles » pour
- * qu'une installation déjà configurée puisse solder l'assistant en deux clics
- * au lieu de refaire ce qui existe.
+ * It decides nothing: it serves to say "you already have two targets" so that an
+ * already configured installation can settle the assistant in two clicks instead
+ * of redoing what exists.
  */
 export type OnboardingEnvironment = {
   targets: number | null;

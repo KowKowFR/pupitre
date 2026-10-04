@@ -19,7 +19,7 @@ import type { Translated } from '@pupitre/core';
  * it measures.
  */
 const fr = {
-  // ── Rail de navigation ──────────────────────────────────────────────────
+  // ── Navigation rail ─────────────────────────────────────────────────────
   'shell.loading': 'Chargement',
   'nav.dashboard': "Vue d'ensemble",
   'nav.targets': 'Cibles',
@@ -43,7 +43,7 @@ const fr = {
   'nav.account': 'Mon compte',
   'nav.signOut': 'Déconnexion',
 
-  // ── Coquille : rail, barre haute ────────────────────────────────────────
+  // ── Shell: rail, top bar ────────────────────────────────────────────────
   'shell.instanceMenu': "Instance {name} — ouvrir le menu d'instance",
   'shell.instance.settings': "Paramètres de l'instance",
   'shell.breadcrumb': "Fil d'Ariane",
@@ -69,7 +69,7 @@ const fr = {
   'shell.theme.light': 'Clair',
   'shell.theme.dark': 'Sombre',
 
-  // ── Raccourcis clavier ──────────────────────────────────────────────────
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────
   'shortcuts.title': 'Raccourcis clavier',
   'shortcuts.description': 'Ils fonctionnent partout, sauf pendant une saisie.',
   'shortcuts.palette': 'Ouvrir la palette de commandes',
@@ -88,7 +88,7 @@ const fr = {
   'otp.label': 'Code à six chiffres',
   'otp.digit': 'Chiffre {index} sur 6',
 
-  // ── Couches : drawer, dialogue, toasts ──────────────────────────────────
+  // ── Layers: drawer, dialog, toasts ──────────────────────────────────────
   'drawer.previous': 'Précédent',
   'drawer.next': 'Suivant',
   'drawer.expand': 'Ouvrir en pleine page',
@@ -100,7 +100,7 @@ const fr = {
   'toast.region': 'Notifications',
   'toast.dismiss': 'Fermer la notification',
 
-  // ── Palette ⌘K ──────────────────────────────────────────────────────────
+  // ── ⌘K palette ──────────────────────────────────────────────────────────
   'palette.open': 'Rechercher, lancer…',
   'palette.label': 'Palette de commandes',
   'palette.placeholder':

@@ -89,13 +89,13 @@ export const GET = apiRoute<Context>(async (request, context) => {
       });
 
       subscriber.on('error', (error) => {
-        logger.warn({ err: error, channel }, 'connexion Redis du flux SSE en erreur');
+        logger.warn({ err: error, channel }, 'SSE stream Redis connection failed');
       });
 
       try {
         await subscriber.subscribe(channel);
       } catch (error) {
-        logger.error({ err: error, channel }, 'abonnement Redis impossible');
+        logger.error({ err: error, channel }, 'Redis subscription failed');
         send('error', { message: 'flux indisponible' });
         await cleanup();
         controller.close();

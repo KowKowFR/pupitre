@@ -1,14 +1,13 @@
 /**
- * « Firefox 131 · Linux » à partir d'un en-tête `User-Agent`.
+ * "Firefox 131 · Linux" from a `User-Agent` header.
  *
- * Juste de quoi reconnaître un appareil dans la liste des sessions : le
- * navigateur, sa version majeure, le système. Pas de base de données
- * d'agents — une session se reconnaît à ces trois mots, et un agent inconnu
- * (`curl/8.4.0`, un script) est montré par son premier jeton plutôt qu'en
- * entier.
+ * Just enough to recognize a device in the sessions list: the browser, its major
+ * version, the system. No database of agents — a session is recognized by these
+ * three words, and an unknown agent (`curl/8.4.0`, a script) is shown by its first
+ * token rather than in full.
  *
- * L'ordre des navigateurs compte : Edge et Opera s'annoncent aussi comme
- * Chrome, et Chrome comme Safari.
+ * The browsers' order matters: Edge and Opera also announce themselves as Chrome,
+ * and Chrome as Safari.
  */
 const BROWSERS: ReadonlyArray<[RegExp, string]> = [
   [/Edg(?:e|A|iOS)?\/(\d+)/, 'Edge'],

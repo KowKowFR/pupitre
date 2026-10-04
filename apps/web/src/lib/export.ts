@@ -2,25 +2,24 @@ import 'server-only';
 import { logger } from '@/lib/logger';
 
 /**
- * Les exports de fichiers du panel : journal d'un déploiement, liste des runs,
- * journal d'activité.
+ * The panel's file exports: a deployment's log, the runs list, the activity log.
  *
- * Tous suivent le même contrat, écrit ici une fois :
+ * All follow the same contract, written here once:
  *
- *  - la réponse **part en flux** : le premier octet sort avant que la dernière
- *    ligne soit lue, et la mémoire ne tient jamais plus d'un lot ;
- *  - l'export est **journalisé une seule fois**, qu'il aille au bout ou qu'il
- *    soit interrompu (onglet fermé, erreur en base) — `complete` dit lequel ;
- *  - une erreur après le premier octet **coupe** le flux : impossible de
- *    repasser en 500, et un fichier tronqué vaut mieux qu'un fichier faux.
+ *  - the response **goes out as a stream**: the first byte goes out before the
+ *    last line is read, and the memory never holds more than one batch;
+ *  - the export is **logged only once**, whether it goes to the end or is
+ *    interrupted (tab closed, database error) — `complete` says which;
+ *  - an error after the first byte **cuts** the stream: impossible to switch back
+ *    to a 500, and a truncated file is better than a wrong file.
  */
 export function exportResponse(options: {
   chunks: AsyncGenerator<string, void, undefined>;
   contentType: string;
   filename: string;
-  /** Nom de repli quand `filename` ne contient rien d'ASCII. */
+  /** The fallback name when `filename` contains nothing ASCII. */
   fallbackName: string;
-  /** Appelé une fois, à la fin du flux ou à son interruption. */
+  /** Called once, at the end of the stream or at its interruption. */
   onSettled: (complete: boolean) => Promise<void>;
   /** Contexte des logs d'erreur. */
   context: Record<string, unknown>;
@@ -46,7 +45,7 @@ export function exportResponse(options: {
         }
         controller.enqueue(encoder.encode(value));
       } catch (error) {
-        logger.error({ err: error, ...options.context }, 'export interrompu');
+        logger.error({ err: error, ...options.context }, 'export interrupted');
         controller.error(error);
         await settle(false);
       }
@@ -63,20 +62,20 @@ export function exportResponse(options: {
       'content-type': options.contentType,
       'content-disposition': contentDisposition(options.filename, options.fallbackName),
       'cache-control': 'no-store',
-      // nginx retiendrait le flux jusqu'à la fin sans cet en-tête.
+      // nginx would hold the stream back until the end without this header.
       'x-accel-buffering': 'no',
     },
   });
 }
 
 /**
- * `content-disposition` conforme à la RFC 6266.
+ * A `content-disposition` conforming to RFC 6266.
  *
- * Un slug est censé être en kebab-case ASCII, mais il vient de la base : rien
- * ne garantit qu'un enregistrement ancien le respecte, et un guillemet ou un
- * saut de ligne dans un en-tête casse la réponse entière. On produit donc les
- * deux formes : `filename` assaini en ASCII pour les clients anciens, et
- * `filename*` percent-encodé en UTF-8, que les navigateurs préfèrent.
+ * A slug is supposed to be ASCII kebab-case, but it comes from the database:
+ * nothing guarantees that an old record respects it, and a quote or a line break
+ * in a header breaks the whole response. So we produce both forms: `filename`
+ * sanitized to ASCII for old clients, and `filename*` percent-encoded in UTF-8,
+ * which browsers prefer.
  */
 function contentDisposition(filename: string, fallbackName: string): string {
   const ascii = filename
@@ -90,7 +89,7 @@ function contentDisposition(filename: string, fallbackName: string): string {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeRFC5987(filename)}`;
 }
 
-/** `encodeURIComponent` laisse passer `!'()*`, que la RFC 5987 veut encodés. */
+/** `encodeURIComponent` lets `!'()*` through, which RFC 5987 wants encoded. */
 function encodeRFC5987(value: string): string {
   return encodeURIComponent(value).replace(
     /['()!*]/g,

@@ -4,27 +4,27 @@ import { getAiApiKey, getAppSettings } from '@pupitre/db';
 import { currentLanguage } from '@/i18n/server';
 import { getEnv } from '@/lib/env';
 
-/** Ce que le formulaire « Nouvelle application » sait de la génération par IA. */
+/** What the "New application" form knows of AI generation. */
 export type NewApplicationAi = {
-  /** `false` quand aucune clé n'est configurée, ou que l'IA est coupée. */
+  /** `false` when no key is configured, or AI is turned off. */
   aiEnabled: boolean;
-  /** Libellé du fournisseur retenu — « OpenRouter », « OpenAI », « Anthropic ». */
+  /** The chosen provider's label — "OpenRouter", "OpenAI", "Anthropic". */
   provider: string;
   model: string;
-  /** Non nul quand le modèle ne ressemble pas à un identifiant du fournisseur. */
+  /** Not null when the model does not look like an identifier of the provider. */
   modelWarning: string | null;
-  /** Variable d'environnement de repli du fournisseur, à citer quand la clé manque. */
+  /** The provider's fallback environment variable, to quote when the key is missing. */
   missingKeyVar: string | null;
 };
 
 /**
- * L'état de la génération, tel que le formulaire le montre.
+ * The generation's state, as the form shows it.
  *
- * La clé ne quitte pas le serveur : on ne transmet au client que le fait
- * qu'elle existe, le fournisseur et le nom du modèle — qui ne sont pas des
- * secrets. `process.env` plutôt que `getEnv()` pour les clés de fournisseurs :
- * quelle variable lire appartient au descripteur du fournisseur, pas au
- * schéma d'environnement du panel.
+ * The key does not leave the server: we only pass on to the client the fact that
+ * it exists, the provider and the model's name — which are not secrets.
+ * `process.env` rather than `getEnv()` for the providers' keys: which variable to
+ * read belongs to the provider's descriptor, not to the panel's environment
+ * schema.
  */
 export async function newApplicationAi(): Promise<NewApplicationAi> {
   getEnv();
@@ -35,9 +35,9 @@ export async function newApplicationAi(): Promise<NewApplicationAi> {
     env: process.env,
   });
   const descriptor = aiProviderDescriptor(ai.provider);
-  // `resolveAiConfig()` compose son avertissement sans savoir à qui il parle —
-  // il sert aussi le worker et les logs. On le recalcule ici, dans la langue de
-  // l'instance, parce que celui-là s'affiche dans une `Alert`.
+  // `resolveAiConfig()` composes its warning without knowing whom it speaks to — it
+  // also serves the worker and the logs. We compute it again here, in the
+  // instance's language, because this one shows in an `Alert`.
   const modelWarning = aiModelMismatch(ai.provider, ai.model, {
     baseUrl: ai.baseUrl,
     language: await currentLanguage(),

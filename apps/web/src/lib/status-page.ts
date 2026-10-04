@@ -32,10 +32,10 @@ import { statusPages as messages } from '@/i18n/messages/status-pages';
 import { NotFoundError, msg } from '@/lib/errors';
 
 /**
- * Ce qu'une page de statut montre, calculé au serveur : un JSON qui ne porte
- * **que** des libellés publics, des états et des dates. C'est la frontière —
- * le composant qui l'affiche, sur la page publique comme dans l'aperçu de
- * l'éditeur, ne voit jamais une sonde, une URL ni une machine.
+ * What a status page shows, computed on the server: a JSON that **only** carries
+ * public labels, states and dates. It is the boundary — the component that shows
+ * it, on the public page as in the editor's preview, never sees a probe, a URL or
+ * a machine.
  */
 export type StatusService = {
   label: string;
@@ -62,7 +62,7 @@ export type StatusBlockModel =
         startsAt: string;
         endsAt: string;
         active: boolean;
-        /** Finie depuis moins d'un jour, et annoncée : on la montre le temps qu'on lise « terminée ». */
+        /** Finished less than a day ago, and announced: shown long enough to read "ended". */
         ended: boolean;
         services: string[];
         updates: PublicStatusUpdate[];
@@ -89,7 +89,7 @@ export type StatusPageModel = {
   blocks: StatusBlockModel[];
 };
 
-/** « AAAA-MM-JJ » d'aujourd'hui, dans le fuseau de l'instance. */
+/** Today's "YYYY-MM-DD", in the instance's time zone. */
 function todayIn(timeZone: string, now: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -108,8 +108,8 @@ export async function buildStatusPageModel(
     0,
     ...page.blocks.map((block) => (block.type === 'incidents' ? block.days : 0)),
   );
-  // L'état général porte les annonces des sujets en cours : sans bloc
-  // d'incidents, il lui faut quand même les pannes ouvertes (`days` à 0).
+  // The general state carries the announcements of the ongoing subjects: without an
+  // incidents block, it still needs the open outages (`days` at 0).
   const hasSummary = page.blocks.some((block) => block.type === 'summary');
   const settings = await getAppSettingsValue();
   const timeZone = settings.timezone;
@@ -135,7 +135,7 @@ export async function buildStatusPageModel(
   const updatesOfWindow = groupUpdates(updates, (update) => update.maintenanceWindowId);
   const today = todayIn(timeZone, now);
 
-  // Le libellé public d'une sonde : le premier que la page lui donne, sinon son nom.
+  // A probe's public label: the first one the page gives it, otherwise its name.
   const byId = new Map(monitors.map((monitor) => [monitor.id, monitor]));
   const labels = new Map<string, string>();
   for (const block of page.blocks) {
@@ -249,8 +249,8 @@ export async function buildStatusPageModel(
 }
 
 /**
- * Les annonces, rangées par sujet et réduites à ce qu'un visiteur lit : la
- * phase, le texte, l'heure. Ni auteur, ni identifiant.
+ * The announcements, sorted by subject and reduced to what a visitor reads: the
+ * phase, the text, the time. Neither author nor identifier.
  */
 function groupUpdates(
   updates: readonly StatusUpdateView[],
@@ -267,9 +267,9 @@ function groupUpdates(
   return grouped;
 }
 
-// ─── Pour l'écran qui les compose ─────────────────────────────────────────────
+// ─── For the screen that composes them ────────────────────────────────────────
 
-/** Une page telle que l'éditeur la reçoit. */
+/** A page as the editor receives it. */
 export type StatusPageJson = {
   id: string;
   slug: string;
@@ -294,7 +294,7 @@ export function statusPageJson(row: StatusPageRow): StatusPageJson {
   };
 }
 
-/** Toutes les sondes que les blocs nomment doivent exister. */
+/** All the probes the blocks name must exist. */
 export async function assertStatusMonitors(blocks: readonly StatusBlock[]): Promise<void> {
   const ids = statusPageMonitorIds(blocks);
   if (ids.length === 0) return;
@@ -303,7 +303,7 @@ export async function assertStatusMonitors(blocks: readonly StatusBlock[]): Prom
   if (missing) throw new NotFoundError(msg(messages, 'error.monitorNotFound', { id: missing }));
 }
 
-/** Un résumé pour le journal : de quoi savoir ce qui a été rendu public, sans tout recopier. */
+/** A summary for the log: enough to know what was made public, without copying everything. */
 export function statusPageAuditSummary(page: {
   slug: string;
   title: string;

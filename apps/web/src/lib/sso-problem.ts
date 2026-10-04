@@ -1,7 +1,7 @@
 import type { Translate } from '@pupitre/core';
 import type { settings } from '@/i18n/messages/settings';
 
-/** La raison d'une connexion unique indisponible, dite dans la langue de l'instance. */
+/** The reason single sign-on is unavailable, said in the instance's language. */
 export function describeSsoProblem(
   problem: { code: string; detail: string | null },
   t: Translate<typeof settings.fr>,

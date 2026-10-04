@@ -2,11 +2,11 @@ import 'server-only';
 import type { PublicTarget } from '@pupitre/db';
 
 /**
- * Projection d'une cible pour le journal d'audit.
+ * A target's projection for the audit log.
  *
- * `PublicTarget` ne porte déjà pas de credential — la requête SQL ne
- * sélectionne pas la colonne. Cette fonction réduit encore le bruit et sert de
- * point unique si un champ sensible venait à être ajouté au modèle.
+ * `PublicTarget` already carries no credential — the SQL query does not select
+ * the column. This function reduces the noise further and serves as a single
+ * point if a sensitive field were ever added to the model.
  */
 export function auditableTarget(target: PublicTarget): Record<string, unknown> {
   return {

@@ -11,41 +11,40 @@ import { deployments } from '@/i18n/messages/deployments';
 import { msg, type MessageRef } from '@/lib/errors';
 
 /**
- * Verdict sur un déploiement que la base croit en cours.
+ * The verdict on a deployment the database believes in progress.
  *
- * La règle vit dans `@pupitre/core` (`UNFINISHED_JOB_STATES`,
- * `jobMayAdvanceDeployment`) ; ce module n'est que la glue qui va la lire dans
- * Redis. `@pupitre/core` ne dépend pas de `bullmq` — il décrit le contrat des files,
- * il n'en ouvre aucune — et c'est cette séparation qui permet au worker
- * d'appliquer exactement la même règle sans que la décision soit écrite deux
- * fois.
+ * The rule lives in `@pupitre/core` (`UNFINISHED_JOB_STATES`,
+ * `jobMayAdvanceDeployment`); this module is only the glue that reads it in
+ * Redis. `@pupitre/core` does not depend on `bullmq` — it describes the queues'
+ * contract, it opens none — and it is this separation that allows the worker to
+ * apply exactly the same rule without the decision being written twice.
  */
 export type StuckVerdict = {
   deployment: UnfinishedDeployment;
   /**
-   * Plus aucune tâche exécutable ne porte ce déploiement : c'est un fantôme
-   * avéré, pas une supposition.
+   * No runnable job carries this deployment any more: it is a proven ghost, not an
+   * assumption.
    */
   ghost: boolean;
-  /** La tâche qui peut encore agir, quand il y en a une — c'est elle qui innocente. */
+  /** The job that can still act, when there is one — it is the one that clears it. */
   job: { id: string; name: string; state: UnfinishedJobState } | null;
-  /** Âge de la ligne. Sert au diagnostic, jamais au verdict. */
+  /** The row's age. Serves the diagnosis, never the verdict. */
   ageMs: number;
-  /** Dans la fenêtre de grâce de l'enfilage : on ne conclut pas encore. */
+  /** Within the queuing grace window: we do not conclude yet. */
   tooRecent: boolean;
 };
 
 type LiveJob = { id: string; name: string; data: unknown; state: UnfinishedJobState };
 
 /**
- * Toutes les tâches de la file `ops` encore susceptibles de s'exécuter.
+ * All the `ops` queue's jobs still likely to run.
  *
- * Lues état par état — et non d'un bloc — parce que le verdict doit pouvoir
- * **nommer** l'état qui innocente le déploiement : « votre tâche est active
- * depuis quatre minutes » est une réponse, « elle existe » n'en est pas une.
+ * Read state by state — and not in one go — because the verdict must be able to
+ * **name** the state that clears the deployment: "your job has been active for
+ * four minutes" is an answer, "it exists" is not one.
  *
- * Le volume est borné par nature : ces états ne contiennent que ce qui reste à
- * faire. Les milliers de tâches terminées, elles, ne sont jamais parcourues.
+ * The volume is bounded by nature: these states only contain what is left to do.
+ * The thousands of finished jobs are never gone through.
  */
 async function listLiveJobs(queue: Queue): Promise<LiveJob[]> {
   const perState = await Promise.all(
@@ -84,7 +83,7 @@ function verdictFor(
   };
 }
 
-/** Tout ce que la base croit en cours, avec le verdict de chacun. */
+/** Everything the database believes in progress, with each one's verdict. */
 export async function inspectUnfinishedDeployments(queue: Queue): Promise<StuckVerdict[]> {
   const unfinished = await listUnfinishedDeployments();
   if (unfinished.length === 0) return [];
@@ -95,8 +94,8 @@ export async function inspectUnfinishedDeployments(queue: Queue): Promise<StuckV
 }
 
 /**
- * Le verdict d'un seul déploiement. `null` quand il n'est plus « en cours » —
- * il s'est conclu, ou il n'existe pas.
+ * A single deployment's verdict. `null` when it is no longer "in progress" — it
+ * concluded, or it does not exist.
  */
 export async function inspectDeployment(
   queue: Queue,
@@ -110,11 +109,11 @@ export async function inspectDeployment(
 }
 
 /**
- * Pourquoi on refuse de déclarer ce déploiement figé.
+ * Why we refuse to declare this deployment stuck.
  *
- * Une **référence** et non une phrase : la fonction est synchrone et n'a aucun
- * moyen d'aller lire la langue de l'instance. C'est `apiRoute()` qui rendra le
- * texte, comme pour toutes les erreurs du panel.
+ * A **reference** and not a sentence: the function is synchronous and has no way
+ * of reading the instance's language. It is `apiRoute()` that will render the
+ * text, as for all the panel's errors.
  */
 export function refusalMessage(verdict: StuckVerdict): MessageRef {
   if (verdict.job) {

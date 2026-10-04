@@ -24,7 +24,7 @@ import type { Translated } from '@pupitre/core';
 const fr = {
   // ── Shared by both administration screens ───────────────────────────────
 
-  // ═══ Utilisateurs ═══════════════════════════════════════════════════════
+  // ═══ Users ══════════════════════════════════════════════════════════════
   'users.title': 'Utilisateurs',
   'users.description':
     "Un utilisateur porte un rôle ; le rôle porte les permissions. Désactiver un compte coupe ses sessions : il n'est jamais supprimé, pour garder le journal lisible.",
@@ -55,7 +55,7 @@ const fr = {
     'Le compte de {email} est créé, mais l’invitation n’est pas partie : {reason}. Relancez-la depuis la liste.',
   'users.reason.unknown': 'raison inconnue',
 
-  // ── Table des utilisateurs ──────────────────────────────────────────────
+  // ── Users table ─────────────────────────────────────────────────────────
   'users.drawer.invite': "L'invitation part par e-mail dès l'envoi.",
   'users.drawer.create': 'Le compte est créé avec le mot de passe saisi ici.',
   'users.preview.title': 'Ce que reçoit {name}',
@@ -298,7 +298,7 @@ const fr = {
   'logs.drawer.filterAction': 'Filtrer sur cette action',
   'logs.timezone': 'Horodatages en {timezone}.',
 
-  // ═══ Erreurs des routes ═════════════════════════════════════════════════
+  // ═══ Route errors ═══════════════════════════════════════════════════════
   'error.role.exists': 'Un rôle « {key} » existe déjà',
   'error.role.notFound': 'Rôle « {key} » introuvable',
   'error.role.deleteFailed': "Le rôle « {key} » n'a pas pu être supprimé",

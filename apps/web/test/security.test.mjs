@@ -2,9 +2,9 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 /**
- * Une écriture d'un navigateur doit venir du panel lui-même : c'est ce qui
- * empêche une page d'un sous-domaine voisin — une application que Pupitre a
- * peut-être déployée — de faire agir un administrateur connecté à son insu.
+ * A browser's write must come from the panel itself: that is what prevents a page
+ * of a neighboring subdomain — an application Pupitre may have deployed — from
+ * making a signed-in administrator act unknowingly.
  */
 
 const { foreignWrite, originOf } = await import('../src/lib/same-origin.ts');
@@ -12,18 +12,18 @@ const { foreignWrite, originOf } = await import('../src/lib/same-origin.ts');
 const PANEL = 'https://pupitre.exemple.fr';
 const request = (method, headers = {}) => ({ method, headers: new Headers(headers) });
 
-describe('écritures venues d’ailleurs que le panel', () => {
-  it('laisse passer une lecture, d’où qu’elle vienne', () => {
+describe('writes coming from elsewhere than the panel', () => {
+  it('lets a read through, wherever it comes from', () => {
     assert.equal(foreignWrite(request('GET', { origin: 'https://blog.exemple.fr' }), PANEL), null);
     assert.equal(foreignWrite(request('HEAD'), PANEL), null);
   });
 
-  it('laisse passer une écriture du panel', () => {
+  it('lets a write from the panel through', () => {
     assert.equal(foreignWrite(request('POST', { origin: PANEL }), PANEL), null);
     assert.equal(foreignWrite(request('DELETE', { 'sec-fetch-site': 'same-origin' }), PANEL), null);
   });
 
-  it('refuse une écriture d’un sous-domaine voisin, même « same-site »', () => {
+  it('refuses a write from a neighboring subdomain, even "same-site"', () => {
     assert.match(
       foreignWrite(
         request('POST', { origin: 'https://blog.exemple.fr', 'sec-fetch-site': 'same-site' }),
@@ -41,20 +41,20 @@ describe('écritures venues d’ailleurs que le panel', () => {
     );
   });
 
-  it('refuse une origine « null » et un autre port ou schéma', () => {
+  it('refuses a "null" origin and another port or scheme', () => {
     assert.ok(foreignWrite(request('POST', { origin: 'null' }), PANEL));
     assert.ok(foreignWrite(request('POST', { origin: 'http://pupitre.exemple.fr' }), PANEL));
     assert.ok(foreignWrite(request('POST', { origin: 'https://pupitre.exemple.fr:8443' }), PANEL));
   });
 
-  it('laisse passer un client qui n’est pas un navigateur — ni Origin, ni Sec-Fetch-Site', () => {
+  it('lets through a client that is not a browser — neither Origin nor Sec-Fetch-Site', () => {
     assert.equal(
       foreignWrite(request('POST', { 'content-type': 'application/json' }), PANEL),
       null,
     );
   });
 
-  it('tire l’origine de BETTER_AUTH_URL, chemin et barre finale compris', () => {
+  it('draws the origin from BETTER_AUTH_URL, path and trailing slash included', () => {
     assert.equal(originOf('https://pupitre.exemple.fr/'), PANEL);
     assert.equal(originOf('http://localhost:3000/panel'), 'http://localhost:3000');
   });

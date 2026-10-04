@@ -1,5 +1,5 @@
 /**
- * La documentation du projet : le dossier `docs/` du dépôt. Le panel ne
- * l'embarque pas — elle évolue avec le code, et c'est là qu'on la relit.
+ * The project's documentation: the repository's `docs/` folder. The panel does
+ * not embed it — it evolves with the code, and that is where it is read.
  */
 export const DOCS_URL = 'https://github.com/KowKowFR/pupitre/tree/main/docs';

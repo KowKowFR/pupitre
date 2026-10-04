@@ -15,7 +15,7 @@ const querySchema = z.object({
   /** The repository's provider; GitHub when nothing is said. */
   provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
   repository: sourceRepositorySchema,
-  /** GitHub : l'installation de l'App. Rien chez Gitea ni GitLab. */
+  /** GitHub: the App's installation. Nothing at Gitea or GitLab. */
   installationId: z.coerce.number().int().positive().optional(),
   /** Absent: the repository's default branch. */
   branch: z.string().trim().min(1).max(255).optional(),

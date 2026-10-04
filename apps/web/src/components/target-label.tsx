@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
  * on the theme.
  */
 
-/** Nombre de teintes de la rampe `--tag-*`. Doit suivre `globals.css`. */
+/** The number of tints of the `--tag-*` ramp. Must follow `globals.css`. */
 const TAG_TONE_COUNT = 6;
 
 /**

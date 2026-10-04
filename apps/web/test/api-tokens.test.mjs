@@ -5,8 +5,8 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Les jetons d'API : leur forme, leur lecture dans l'en-tête, et la règle qui
- * empêche un jeton limité à une application d'agir sur les autres.
+ * API tokens: their shape, reading them in the header, and the rule that prevents
+ * a token limited to one application from acting on the others.
  */
 
 const { API_TOKEN_PREFIX, bearerToken, generateApiToken, hashApiToken } =
@@ -14,8 +14,8 @@ const { API_TOKEN_PREFIX, bearerToken, generateApiToken, hashApiToken } =
 
 const headers = (value) => new Headers(value === undefined ? {} : { authorization: value });
 
-describe('jetons d’API — la forme', () => {
-  it('pup_, 32 octets d’aléa, un préfixe affichable, une empreinte stable', () => {
+describe('API tokens — the shape', () => {
+  it('pup_, 32 random bytes, a displayable prefix, a stable fingerprint', () => {
     const { token, prefix, hash } = generateApiToken();
     assert.match(token, /^pup_[A-Za-z0-9_-]{43}$/);
     assert.equal(prefix, token.slice(0, 12));
@@ -25,7 +25,7 @@ describe('jetons d’API — la forme', () => {
     assert.notEqual(generateApiToken().token, token);
   });
 
-  it('lit un Bearer, ignore les autres schémas, refuse ce qui n’en a pas la forme', () => {
+  it('reads a Bearer, ignores the other schemes, refuses what does not have its shape', () => {
     const { token } = generateApiToken();
     assert.equal(bearerToken(headers(`Bearer ${token}`)), token);
     assert.equal(bearerToken(headers(`bearer   ${token}  `)), token);
@@ -49,12 +49,12 @@ function routes(dir) {
 }
 
 /**
- * Les routes qui acceptent un jeton limité à des applications. Chacune est
- * une décision : l'ajouter ici, c'est avoir vérifié qu'elle contrôle
- * l'application visée **avant** d'agir.
+ * The routes that accept a token limited to applications. Each one is a decision:
+ * adding it here is having checked that it controls the targeted application
+ * **before** acting.
  */
 const SCOPED = [
-  // Une CI sans dépôt lié téléverse le code de son application, puis déploie.
+  // A CI without a linked repository uploads its application's code, then deploys.
   'applications/[id]/archives/[archiveId]/route.ts',
   'applications/[id]/archives/route.ts',
   'applications/[id]/redeploy/route.ts',
@@ -65,10 +65,10 @@ const SCOPED = [
   'deployments/route.ts',
 ];
 
-describe('jetons d’API — la portée par application', () => {
+describe('API tokens — the per-application scope', () => {
   const files = routes(API);
 
-  it('seules les routes retenues acceptent un jeton limité', () => {
+  it('only the chosen routes accept a limited token', () => {
     const scoped = files
       .filter((file) => readFileSync(file, 'utf8').includes('applicationScoped: true'))
       .map((file) => path.relative(API, file).split(path.sep).join('/'))
@@ -76,19 +76,19 @@ describe('jetons d’API — la portée par application', () => {
     assert.deepEqual(scoped, [...SCOPED].sort());
   });
 
-  it('chacune vérifie l’application visée', () => {
+  it('each one checks the targeted application', () => {
     for (const relative of SCOPED) {
       const source = readFileSync(path.join(API, relative), 'utf8');
       const declared = (source.match(/applicationScoped: true/g) ?? []).length;
       const checked = (source.match(/requireApplicationScope\(request, auth,/g) ?? []).length;
       assert.ok(
         checked >= declared,
-        `${relative} : ${declared} déclaration(s), ${checked} vérification(s)`,
+        `${relative}: ${declared} declaration(s), ${checked} check(s)`,
       );
     }
   });
 
-  it('la gestion des jetons se fait depuis le panel, jamais avec un jeton', () => {
+  it('tokens are managed from the panel, never with a token', () => {
     for (const relative of ['tokens/route.ts', 'tokens/[id]/route.ts']) {
       const source = readFileSync(path.join(API, relative), 'utf8');
       assert.ok(source.includes('requireTeamMember(request)'), relative);

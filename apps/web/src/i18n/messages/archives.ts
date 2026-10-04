@@ -9,7 +9,7 @@ import type { Translated } from '@pupitre/core';
  * and format names.
  */
 const fr = {
-  // ── La carte ────────────────────────────────────────────────────────────
+  // ── The card ────────────────────────────────────────────────────────────
   'card.title': 'Code de l’application',
   'card.description':
     'Une archive .tar.gz ou .zip du code : les services qui se construisent depuis un Dockerfile la prennent pour contexte. Elle n’apporte que le code — l’AppSpec reste celle du panel.',
@@ -72,7 +72,7 @@ const fr = {
   'reject.special_file': 'Un fichier spécial (périphérique, tube) : {detail}',
   'reject.duplicate': 'Deux entrées au même chemin : {detail}',
 
-  // ── Erreurs des routes ──────────────────────────────────────────────────
+  // ── Route errors ────────────────────────────────────────────────────────
   'error.notFound': 'Application {id} introuvable',
   'error.archiveNotFound': 'Archive {id} introuvable',
   'error.linked':

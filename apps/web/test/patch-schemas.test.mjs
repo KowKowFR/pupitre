@@ -2,23 +2,22 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 /**
- * Une modification ne remplit pas ce qu'elle ne dit pas.
+ * A change does not fill what it does not say.
  *
- * `.partial()` sur un champ porteur de `.default()` le remplit quand il
- * manque : un `PATCH` d'un seul champ remettait les autres à leur valeur de
- * création. Les écrans envoient tout, ils ne le voyaient pas ; un jeton d'API,
- * si.
+ * `.partial()` on a field carrying `.default()` fills it when it is missing: a
+ * single-field `PATCH` reset the others to their creation value. The screens send
+ * everything, they did not see it; an API token did.
  */
 const { applicationSourceCreateSchema, applicationSourcePatchSchema } = await import('@pupitre/db');
 
-describe('liaison de dépôt — une modification', () => {
-  it('PATCH { branch } ne touche ni la spec, ni le mode, ni les cibles, ni l’activation', () => {
+describe('repository link — a change', () => {
+  it('PATCH { branch } touches neither the spec, nor the mode, nor the targets, nor the activation', () => {
     assert.deepEqual(applicationSourcePatchSchema.parse({ branch: 'develop' }), {
       branch: 'develop',
     });
   });
 
-  it('la création, elle, garde ses valeurs par défaut', () => {
+  it('creation, for its part, keeps its default values', () => {
     const source = applicationSourceCreateSchema.parse({
       repository: 'atelier/wiki',
       branch: 'main',

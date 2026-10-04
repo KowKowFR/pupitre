@@ -1,17 +1,17 @@
 /**
- * « Cette chaîne est-elle du français ? »
+ * "Is this string French?"
  *
- * Le détecteur doit être *précis* avant d'être exhaustif. Une garde qui signale
- * un faux positif par écran finit commentée dans le fichier de config, et la
- * seconde langue pourrit trois semaines plus tard — ce qu'on cherche
- * précisément à empêcher.
+ * The detector must be *precise* before being exhaustive. A guard that reports a
+ * false positive per screen ends up commented out in the config file, and the
+ * second language rots three weeks later — which is precisely what we try to
+ * prevent.
  *
- * Deux signaux, aucun des deux suffisant seul :
- *   • un caractère accenté propre au français ;
- *   • deux mots-outils français distincts, choisis pour n'être homographes ni
- *     de l'anglais ni du vocabulaire technique (« on », « son », « sur », « par »
- *     sont donc absents de la liste : ils apparaissent en anglais ou dans des
- *     noms de propriétés).
+ * Two signals, neither of which is enough alone:
+ *   • an accented character specific to French;
+ *   • two distinct French function words, chosen for being homographs neither of
+ *     English nor of technical vocabulary ("on", "son", "sur", "par" are
+ *     therefore absent from the list: they appear in English or in property
+ *     names).
  */
 
 const ACCENTED = /[éèêëàâäçùûüôöîïœÉÈÊËÀÂÄÇÙÛÜÔÖÎÏŒ]/;
@@ -74,8 +74,8 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * Les chaînes qui contiennent des accents sans être de l'interface : noms de
- * langues dans leur propre langue, unités, valeurs de données.
+ * The strings that contain accents without being interface: language names in
+ * their own language, units, data values.
  */
 const EXEMPT = new Set(['Français (France)', 'Español (España)', 'français', 'fr', 'fr-FR']);
 
@@ -92,7 +92,7 @@ export function isFrench(text) {
   return found.size >= 2;
 }
 
-/** Les substitutions `{nom}` d'un gabarit — elles doivent survivre à la traduction. */
+/** A template's `{name}` substitutions — they must survive the translation. */
 export function placeholdersOf(text) {
   return new Set([...String(text).matchAll(/\{(\w+)\}/g)].map((match) => match[1]));
 }

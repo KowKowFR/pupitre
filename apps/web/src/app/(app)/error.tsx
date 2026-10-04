@@ -36,7 +36,7 @@ export default function AppError({
   useEffect(() => {
     // The browser's console keeps the complete trace, including in development
     // where the message is not masked.
-    console.error('[panel] erreur de rendu', error);
+    console.error('[panel] rendering error', error);
   }, [error]);
 
   return (

@@ -6,32 +6,32 @@ import { getAppSettings, getSsoClientSecret } from '@pupitre/db';
 import { logger } from './logger';
 
 /**
- * La connexion unique telle que le panel s'en sert, à l'instant.
+ * Single sign-on as the panel uses it, right now.
  *
- * Better Auth fige ses fournisseurs à la construction de son instance ; la
- * connexion unique, elle, se règle depuis le panel, à chaud. Ce module tient
- * donc la configuration **effective** sur `globalThis` — avec une empreinte —,
- * et `getAuth()` reconstruit son instance quand l'empreinte change. Sur
- * `globalThis` et non dans une variable de module : Next peut charger plusieurs
- * copies de ce fichier, et toutes doivent voir la même configuration.
+ * Better Auth freezes its providers when its instance is built; single sign-on,
+ * for its part, is set from the panel, live. This module therefore holds the
+ * **effective** configuration on `globalThis` — with a fingerprint —, and
+ * `getAuth()` rebuilds its instance when the fingerprint changes. On `globalThis`
+ * and not in a module variable: Next can load several copies of this file, and
+ * all of them must see the same configuration.
  *
- * La découverte est lue ici, **avant** d'offrir le bouton : Better Auth ne la
- * lit qu'à la construction, et un fournisseur injoignable à ce moment-là est
- * écarté en silence. Mieux vaut le savoir, le dire sur l'écran de réglage, et
- * ne pas proposer un bouton qui mènerait à une erreur.
+ * The discovery is read here, **before** offering the button: Better Auth only
+ * reads it at construction, and a provider unreachable at that moment is set
+ * aside silently. Better to know it, say it on the settings screen, and not offer
+ * a button that would lead to an error.
  */
 
 export type SsoRuntime = {
-  /** Change dès qu'un réglage qui compte change : c'est la clé de reconstruction. */
+  /** Changes as soon as a setting that matters changes: it is the rebuild key. */
   key: string;
   settings: SsoSettings;
   clientSecret: string;
 };
 
 /**
- * Pourquoi la connexion unique n'est pas offerte. Un code et son détail brut
- * (une adresse, un statut HTTP) : la phrase appartient à l'écran, qui la dit
- * dans la langue de l'instance (`sso.problem.*`).
+ * Why single sign-on is not offered. A code and its raw detail (an address, an
+ * HTTP status): the sentence belongs to the screen, which says it in the
+ * instance's language (`sso.problem.*`).
  */
 export type SsoProblem = {
   code: 'missing' | 'http' | 'issuer' | 'incomplete' | 'unreachable' | 'unreadable';
@@ -48,7 +48,7 @@ declare global {
   var __pupitreSso: SsoState | undefined;
 }
 
-/** Après un échec, on retente au plus toutes les minutes — l'écran de connexion n'attend pas. */
+/** After a failure, we retry at most every minute — the sign-in screen does not wait. */
 const RETRY_AFTER_MS = 60_000;
 const DISCOVERY_TIMEOUT_MS = 5_000;
 
@@ -56,7 +56,7 @@ export function ssoState(): SsoState {
   return globalThis.__pupitreSso ?? { runtime: null, problem: null, checkedAt: 0 };
 }
 
-/** Ce que l'écran de connexion a besoin de savoir : rien de secret. */
+/** What the sign-in screen needs to know: nothing secret. */
 export function ssoButton(): { label: string } | null {
   const runtime = ssoState().runtime;
   return runtime ? { label: runtime.settings.label } : null;
@@ -66,9 +66,9 @@ export type DiscoveryCheck =
   { ok: true; issuer: string; endpoints: string[] } | { ok: false; problem: SsoProblem };
 
 /**
- * Le fournisseur répond-il, et dit-il ce qu'il faut ? L'émetteur annoncé doit
- * être celui qu'on a saisi : c'est lui qui signe les jetons, et Better Auth
- * refusera tout jeton signé par un autre.
+ * Does the provider answer, and does it say what it should? The announced issuer
+ * must be the one that was typed: it is the one that signs the tokens, and Better
+ * Auth will refuse any token signed by another.
  */
 export async function checkDiscovery(issuer: string): Promise<DiscoveryCheck> {
   const url = ssoDiscoveryUrl(issuer);
@@ -103,8 +103,8 @@ export async function checkDiscovery(issuer: string): Promise<DiscoveryCheck> {
 }
 
 /**
- * Relit la configuration et la découverte, et met à jour l'état partagé. À
- * appeler au démarrage et après chaque enregistrement des réglages.
+ * Reads the configuration and the discovery again, and updates the shared state.
+ * To call at startup and after each save of the settings.
  */
 export async function refreshSso(): Promise<SsoState> {
   const now = Date.now();
@@ -134,17 +134,17 @@ export async function refreshSso(): Promise<SsoState> {
       }
     }
   } catch (error) {
-    logger.error({ err: error }, 'connexion unique : configuration illisible');
+    logger.error({ err: error }, 'single sign-on: configuration unreadable');
     state = { runtime: null, problem: { code: 'unreadable', detail: null }, checkedAt: now };
   }
-  if (state.problem) logger.warn({ problem: state.problem }, 'connexion unique indisponible');
+  if (state.problem) logger.warn({ problem: state.problem }, 'single sign-on unavailable');
   globalThis.__pupitreSso = state;
   return state;
 }
 
 /**
- * L'état, relu s'il le faut : activée mais indisponible (fournisseur éteint au
- * démarrage du panel), on retente — au plus une fois par minute.
+ * The state, read again if needed: enabled but unavailable (provider off when the
+ * panel started), we retry — at most once a minute.
  */
 export async function currentSso(): Promise<SsoState> {
   const state = ssoState();
@@ -153,13 +153,13 @@ export async function currentSso(): Promise<SsoState> {
   return state;
 }
 
-// ─── les groupes d'une connexion en cours ─────────────────────────────────────
+// ─── the groups of a sign-in in progress ──────────────────────────────────────
 
 /**
- * Le profil du fournisseur n'est visible qu'au moment où Better Auth le lit
- * (`mapProfileToUser`) ; les rôles, eux, s'appliquent après, quand la session
- * existe. Entre les deux, dans la même requête, les groupes attendent ici —
- * quelques secondes au plus, sous l'adresse e-mail du profil.
+ * The provider's profile is only visible when Better Auth reads it
+ * (`mapProfileToUser`); the roles, for their part, apply afterwards, when the
+ * session exists. In between, within the same request, the groups wait here — a
+ * few seconds at most, under the profile's email address.
  */
 const PENDING_TTL_MS = 60_000;
 
@@ -178,7 +178,7 @@ export function rememberSsoGroups(email: string, groups: string[]): void {
   pending().set(email.toLowerCase(), { groups, at: now });
 }
 
-/** Les groupes d'une connexion en cours, sans les consommer : la création du compte les lit aussi. */
+/** A sign-in's groups in progress, not consumed: the account's creation reads them too. */
 export function peekSsoGroups(email: string): string[] | null {
   const entry = pending().get(email.toLowerCase());
   if (!entry || Date.now() - entry.at > PENDING_TTL_MS) return null;

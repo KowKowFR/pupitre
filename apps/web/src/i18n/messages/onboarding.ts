@@ -22,7 +22,7 @@ import type { Translated } from '@pupitre/core';
  * existed — curly apostrophes included where the source had them.
  */
 const fr = {
-  // ── Coquille ────────────────────────────────────────────────────────────
+  // ── Shell ───────────────────────────────────────────────────────────────
   'shell.eyebrow': 'Premiers pas',
   'page.title': 'Assistant de démarrage',
   'page.description':
@@ -37,9 +37,9 @@ const fr = {
     "Déclarer une cible, créer un rôle ou un compte, régler l'instance : chacune de ces actions demande une permission que votre rôle ne porte pas. Une étape qui finirait en 403 est pire qu'une étape absente.",
   'notApplicable.back': 'Retour au tableau de bord',
 
-  // ── Bandeau de reprise ──────────────────────────────────────────────────
+  // ── Resume banner ───────────────────────────────────────────────────────
 
-  // ── Verbes de l'assistant ───────────────────────────────────────────────
+  // ── Assistant verbs ─────────────────────────────────────────────────────
   'action.later': 'Plus tard',
   'action.start': 'Commencer',
   'action.finish': 'Terminer',
@@ -221,7 +221,7 @@ const fr = {
     "Terminer marque le parcours comme accompli : le bandeau de reprise disparaît et l'assistant ne se proposera plus de lui-même.",
   'summary.run': "C'est le passage n° {n}.",
 
-  // ── Abandon ─────────────────────────────────────────────────────────────
+  // ── Abandoning ──────────────────────────────────────────────────────────
   'leave.title': "Quitter l'assistant sans l'avoir terminé ?",
   'leave.progress': {
     one: 'Vous avez traité {count} étape sur {total}.',
@@ -241,7 +241,7 @@ const fr = {
     "Vous restez dans l'assistant : seule cette étape est marquée comme passée, et elle se refait plus tard depuis l'écran correspondant.",
   'skip.back': "Revenir à l'étape",
 
-  // ── Erreurs de `PATCH /api/onboarding` ──────────────────────────────────
+  // ── `PATCH /api/onboarding` errors ──────────────────────────────────────
   'error.notApplicable': "Aucune étape de l'assistant de démarrage ne relève de vos permissions",
   'error.restartForbidden':
     "Relancer l'assistant modifie l'instance : permission « settings:manage » requise",

@@ -26,7 +26,7 @@ const fr = {
   'failedUpdate.step': ', étape {step}',
   'failedUpdate.link': 'Voir le déploiement échoué',
 
-  // ── Exploitation ────────────────────────────────────────────────────────
+  // ── Operations ──────────────────────────────────────────────────────────
   'ops.label': 'Exploitation',
   'ops.reading': "Lecture de l'état…",
   'ops.running': 'En marche sur {target}',
@@ -144,7 +144,7 @@ const fr = {
   'service.requested': '{cpu} mCPU · {memory} Mio',
   'service.probe': 'GET {path} toutes les {interval} s, {retries} essais',
 
-  // ── Mise en ligne ───────────────────────────────────────────────────────
+  // ── Release ─────────────────────────────────────────────────────────────
   'rollout.title': 'Mise en ligne',
   'rollout.trace': 'Voir la trace',
   'rollout.version': 'Version',
@@ -170,7 +170,7 @@ const fr = {
   'scan.high': { one: '{count} élevée', other: '{count} élevées' },
   'scan.when': '{scanners}, au moment de la mise en ligne',
 
-  // ── La machine ──────────────────────────────────────────────────────────
+  // ── The machine ─────────────────────────────────────────────────────────
   'machine.title': 'La machine',
   'machine.restricted': 'Lire les relevés machine demande la permission target:read.',
   'machine.empty': 'Aucun relevé sur {hours} h pour cette machine.',
@@ -181,7 +181,7 @@ const fr = {
   'gauge.memory': 'mém',
   'gauge.disk': 'dsk',
 
-  // ── Sonde de site ───────────────────────────────────────────────────────
+  // ── Site probe ──────────────────────────────────────────────────────────
   'monitor.title': 'Sonde de site',
   'monitor.restricted': 'Lire les sondes demande la permission monitor:read.',
   'monitor.none': "Aucune sonde ne surveille cette application depuis l'extérieur.",
@@ -252,7 +252,7 @@ const fr = {
     "Filtre : seules les lignes où figure un mot d'erreur ou d'avertissement.",
   'export.at': 'Exporté le {date}',
 
-  // ── Refus des routes ────────────────────────────────────────────────────
+  // ── Route refusals ──────────────────────────────────────────────────────
   'error.alreadyStopped': 'Cette application est déjà arrêtée depuis le {date}.',
   'error.notStopped': "Cette application n'est pas arrêtée : il n'y a rien à démarrer.",
   'error.notSupervisable.stop': "Un déploiement « {status} » n'a pas d'application à arrêter.",

@@ -14,7 +14,7 @@ import type { Translated } from '@pupitre/core';
  * existed — curly apostrophes included, they were already there.
  */
 const fr = {
-  // ── Canaux : la liste ───────────────────────────────────────────────────
+  // ── Channels: the list ──────────────────────────────────────────────────
   empty:
     "Aucun canal configuré. Tant qu'il n'y en a pas, un déploiement en échec, un scan bloquant ou une réinitialisation de second facteur ne laissent de trace que dans les logs d'activité — qu'il faut penser à aller lire.",
   'channel.on': 'actif',
@@ -45,7 +45,7 @@ const fr = {
   'channel.saved': 'Canal enregistré.',
   'channel.deleted': 'Canal « {name} » supprimé.',
 
-  // ── Canaux : l'essai ────────────────────────────────────────────────────
+  // ── Channels: the test ──────────────────────────────────────────────────
   'test.sending': 'Envoi…',
   'test.probe': 'sonde : ',
   'test.probeFailed': 'sonde en échec : ',
@@ -54,7 +54,7 @@ const fr = {
   'test.failed': 'Envoi en échec : {detail}',
   'test.noDetail': 'sans détail',
 
-  // ── Canaux : le formulaire ──────────────────────────────────────────────
+  // ── Channels: the form ──────────────────────────────────────────────────
   'form.kind': 'Type de canal',
   'form.name': 'Nom',
   'form.name.placeholder': 'astreinte',
@@ -68,7 +68,7 @@ const fr = {
   'field.secret.clear': 'Effacer ce secret',
   'field.secret.cleared': '— sera effacé.',
 
-  // ── Regroupement des alertes ────────────────────────────────────────────
+  // ── Alerts grouping ─────────────────────────────────────────────────────
   'digest.card.title': 'Regroupement des alertes',
   'digest.card.description':
     'Ce qui empêche cinquante pannes en dix minutes de produire cinquante messages — sans jamais retarder la première.',

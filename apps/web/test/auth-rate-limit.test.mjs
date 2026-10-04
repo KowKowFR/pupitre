@@ -3,13 +3,12 @@ import { describe, it } from 'node:test';
 import { AUTH_RATE_LIMIT_PREFIX, createAuthRateLimitStorage } from '../src/lib/auth-rate-limit.ts';
 
 /**
- * La limitation de débit de la connexion, comptée dans Redis : deux panels
- * comptent ensemble, la fenêtre se rouvre, et un Redis en panne — qu'il
- * réponde par une erreur ou ne réponde plus — ne laisse ni passer tout le
- * monde, ni personne.
+ * The sign-in rate limiting, counted in Redis: two panels count together, the
+ * window reopens, and a broken Redis — whether it answers with an error or no
+ * longer answers — lets neither everyone through, nor nobody.
  */
 
-/** Un Redis réduit au script du compteur, sur une horloge qu'on avance à la main. */
+/** A Redis reduced to the counter's script, on a clock moved forward by hand. */
 function fakeRedis(clock) {
   const keys = new Map();
   const calls = [];
@@ -40,8 +39,8 @@ function silentLog() {
 const SIGN_IN = { window: 10, max: 3 };
 const KEY = '203.0.113.7|/sign-in/email';
 
-describe('limitation de débit de la connexion — dans Redis', () => {
-  it('trois essais passent, le quatrième attend la fin de la fenêtre', async () => {
+describe('sign-in rate limiting — in Redis', () => {
+  it('three attempts go through, the fourth waits for the end of the window', async () => {
     const clock = { now: 1_000_000 };
     const redis = fakeRedis(clock);
     const storage = createAuthRateLimitStorage(() => redis, silentLog(), { now: () => clock.now });
@@ -57,7 +56,7 @@ describe('limitation de débit de la connexion — dans Redis', () => {
     });
   });
 
-  it('deux panels derrière un répartiteur comptent ensemble', async () => {
+  it('two panels behind a load balancer count together', async () => {
     const clock = { now: 0 };
     const redis = fakeRedis(clock);
     const first = createAuthRateLimitStorage(() => redis, silentLog(), { now: () => clock.now });
@@ -68,7 +67,7 @@ describe('limitation de débit de la connexion — dans Redis', () => {
     assert.equal((await second.consume(KEY, SIGN_IN)).allowed, false);
   });
 
-  it('la fenêtre passée, on peut réessayer ; une autre IP a son propre compte', async () => {
+  it('once the window is past, one can try again; another IP has its own count', async () => {
     const clock = { now: 0 };
     const redis = fakeRedis(clock);
     const storage = createAuthRateLimitStorage(() => redis, silentLog(), { now: () => clock.now });
@@ -79,8 +78,8 @@ describe('limitation de débit de la connexion — dans Redis', () => {
   });
 });
 
-describe('limitation de débit de la connexion — Redis en panne', () => {
-  it('une erreur : le compte se fait en mémoire, et la limite tient', async () => {
+describe('sign-in rate limiting — Redis down', () => {
+  it('an error: the count is done in memory, and the limit holds', async () => {
     const log = silentLog();
     let tries = 0;
     const storage = createAuthRateLimitStorage(
@@ -95,13 +94,13 @@ describe('limitation de débit de la connexion — Redis en panne', () => {
     const answers = [];
     for (let i = 0; i < 4; i += 1) answers.push((await storage.consume(KEY, SIGN_IN)).allowed);
     assert.deepEqual(answers, [true, true, true, false]);
-    assert.equal(tries, 1, 'Redis n’est pas réessayé à chaque connexion');
+    assert.equal(tries, 1, 'Redis is not retried at each sign-in');
     assert.deepEqual(log.lines, [
-      'warn limitation de débit de la connexion : Redis indisponible, comptée en mémoire',
+      'warn sign-in rate limiting: Redis unavailable, counted in memory',
     ]);
   });
 
-  it('un Redis muet : la connexion n’attend pas plus que le délai, puis compte en mémoire', async () => {
+  it('a silent Redis: the sign-in waits no longer than the delay, then counts in memory', async () => {
     const storage = createAuthRateLimitStorage(
       () => ({ eval: () => new Promise(() => {}) }),
       silentLog(),
@@ -112,7 +111,7 @@ describe('limitation de débit de la connexion — Redis en panne', () => {
     assert.ok(Date.now() - started < 1000);
   });
 
-  it('Redis revenu : réessayé passé le délai, le compte y retourne, et le retour se dit', async () => {
+  it('Redis back: retried once the delay is past, the count goes back to it, and the return is said', async () => {
     const clock = { now: 0 };
     const redis = fakeRedis(clock);
     let down = true;
@@ -134,7 +133,7 @@ describe('limitation de débit de la connexion — Redis en panne', () => {
     assert.equal(redis.keys.get(`${AUTH_RATE_LIMIT_PREFIX}${KEY}`)?.count, 1);
     assert.equal(
       log.lines.at(-1),
-      'info limitation de débit de la connexion : Redis répond de nouveau',
+      'info sign-in rate limiting: Redis answers again',
     );
   });
 });

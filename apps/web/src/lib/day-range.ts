@@ -1,17 +1,17 @@
 /**
- * Les jours d'un filtre « Du … Au … », lus dans le fuseau de l'instance.
+ * The days of a "From … To …" filter, read in the instance's time zone.
  *
- * Un champ de date rend `2026-09-30`. Converti tel quel, c'est minuit UTC :
- * « Au 30/09 » excluait alors toute la journée du 30, et à Paris les deux
- * premières heures du 29 tombaient du mauvais côté. On lit donc le jour comme
- * l'écran l'affiche — dans le fuseau réglé — et « Au » couvre la journée
- * entière. Une valeur qui porte déjà une heure (un appel d'API en ISO 8601)
- * est laissée telle quelle : elle dit exactement ce qu'elle veut.
+ * A date field returns `2026-09-30`. Converted as is, it is midnight UTC: "To
+ * 30/09" then excluded the whole day of the 30th, and in Paris the first two
+ * hours of the 29th fell on the wrong side. So we read the day as the screen
+ * shows it — in the set time zone — and "To" covers the whole day. A value that
+ * already carries a time (an API call in ISO 8601) is left as is: it says exactly
+ * what it wants.
  */
 
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** Écart du fuseau avec UTC à un instant donné, en millisecondes. */
+/** The time zone's offset from UTC at a given instant, in milliseconds. */
 function offsetMs(instant: number, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -36,11 +36,11 @@ function offsetMs(instant: number, timeZone: string): number {
 }
 
 /**
- * Minuit du jour `day` dans le fuseau `timeZone`, en instant UTC.
+ * Midnight of day `day` in time zone `timeZone`, as a UTC instant.
  *
- * L'écart est relu à l'instant trouvé : un jour de changement d'heure, celui
- * de minuit UTC n'est pas forcément celui de minuit local. Un fuseau inconnu
- * retombe sur UTC plutôt que de lever.
+ * The offset is read again at the found instant: on a daylight saving day, the
+ * offset at midnight UTC is not necessarily the one at local midnight. An unknown
+ * time zone falls back on UTC rather than throwing.
  */
 export function zonedDayStart(day: string, timeZone: string): Date | null {
   const match = DATE_ONLY.exec(day);
@@ -55,9 +55,9 @@ export function zonedDayStart(day: string, timeZone: string): Date | null {
 }
 
 /**
- * Remplace `from` et `to`, quand ce sont des jours, par les instants qui
- * bornent ces jours dans le fuseau : le début du premier, la dernière
- * milliseconde du second. Les autres paramètres passent sans changement.
+ * Replaces `from` and `to`, when they are days, with the instants that bound those
+ * days in the time zone: the start of the first, the last millisecond of the
+ * second. The other parameters go through unchanged.
  */
 export function expandDayRange(
   params: Record<string, string>,

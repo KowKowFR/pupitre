@@ -1,16 +1,15 @@
 /**
- * CSV des exports, séparé de `export.ts` parce qu'il est pur : il se teste
- * sans serveur, et `export.ts` ne se charge que côté serveur.
+ * The exports' CSV, separate from `export.ts` because it is pure: it is tested
+ * without a server, and `export.ts` only loads on the server side.
  */
 
 /**
- * Une cellule CSV (RFC 4180), neutralisée contre l'injection de formules.
+ * A CSV cell (RFC 4180), neutralized against formula injection.
  *
- * Le fichier finira dans un tableur. Une valeur qui commence par `=`, `+`,
- * `-`, `@`, une tabulation ou un retour chariot y serait exécutée comme une
- * formule — et un message d'erreur de déploiement vient d'une machine
- * distante, donc de n'importe qui. On la préfixe d'une apostrophe, que le
- * tableur n'affiche pas.
+ * The file will end up in a spreadsheet. A value starting with `=`, `+`, `-`,
+ * `@`, a tab or a carriage return would be executed there as a formula — and a
+ * deployment error message comes from a remote machine, hence from anyone. We
+ * prefix it with an apostrophe, which the spreadsheet does not show.
  */
 export function csvCell(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) return '';
@@ -19,7 +18,7 @@ export function csvCell(value: string | number | boolean | null | undefined): st
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-/** Une ligne CSV, fin de ligne CRLF comme le veut la RFC 4180. */
+/** A CSV line, CRLF line ending as RFC 4180 wants it. */
 export function csvRow(cells: ReadonlyArray<string | number | boolean | null | undefined>): string {
   return `${cells.map(csvCell).join(',')}\r\n`;
 }

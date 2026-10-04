@@ -105,13 +105,13 @@ export const GET = apiRoute<Context>(async (request, context) => {
         }
       });
       subscriber.on('error', (error) => {
-        logger.warn({ err: error, channel }, 'connexion Redis du flux applicatif en erreur');
+        logger.warn({ err: error, channel }, 'application stream Redis connection failed');
       });
 
       try {
         await subscriber.subscribe(channel);
       } catch (error) {
-        logger.error({ err: error, channel }, 'abonnement au flux applicatif impossible');
+        logger.error({ err: error, channel }, 'application stream subscription failed');
         send('error', { message: t('stream.unavailable') });
         await cleanup();
         controller.close();
@@ -175,7 +175,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         );
       } catch (error) {
         // Silencing this error would leave the viewer in front of a mute stream.
-        logger.error({ err: error, deploymentId: id }, 'ouverture du flux impossible');
+        logger.error({ err: error, deploymentId: id }, 'stream could not be opened');
         send('error', { message: t('stream.openFailed') });
       }
 

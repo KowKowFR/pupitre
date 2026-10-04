@@ -5,7 +5,7 @@ import type { Translated } from '@pupitre/core';
  * an application's domains.
  */
 const fr = {
-  // ── refus ────────────────────────────────────────────────────────────────
+  // ── refusals ─────────────────────────────────────────────────────────────
   'error.targetNotFound': 'Cible introuvable.',
   'error.routeTaken': 'le domaine « {hostname} » est déjà routé vers « {application} »',
   'error.routeTakenElsewhere': 'le domaine « {hostname} » est déjà routé',
@@ -98,7 +98,7 @@ const fr = {
   'remove.queued': 'Retrait lancé',
   'connect.done': 'Proxy relié — test en cours',
 
-  // ── le proxy central ─────────────────────────────────────────────────────
+  // ── the central proxy ────────────────────────────────────────────────────
   'link.title': 'Ou passer par un autre reverse proxy',
   'link.help':
     'Celui d’une autre machine, ou un Nginx Proxy Manager connecté à Pupitre. Il reçoit les visiteurs et les mène jusqu’ici. Entre les deux, le trafic n’est pas chiffré : préférez une adresse privée — réseau privé de l’hébergeur, VLAN, WireGuard.',
@@ -185,7 +185,7 @@ const fr = {
   'waf.off': 'Sans WAF',
   'route.waf': 'WAF : {mode}',
 
-  // ── les domaines ─────────────────────────────────────────────────────────
+  // ── the domains ──────────────────────────────────────────────────────────
   'domains.title': 'Domaines',
   'domains.help': 'Servis par le reverse proxy de « {target} » ({proxy}).',
   'domains.helpAcme': ' Certificats HTTPS obtenus automatiquement.',

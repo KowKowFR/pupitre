@@ -5,13 +5,13 @@ import { getOpsQueue } from './queue';
 import { logger } from './logger';
 
 /**
- * Miroir BullMQ des tâches planifiées, côté panel.
+ * The BullMQ mirror of the scheduled tasks, panel side.
  *
- * Le panel écrit en base *et* dans Redis, dans cet ordre : la base fait foi,
- * Redis exécute. Si l'écriture Redis échoue, la base reste juste et le worker
- * rattrapera l'écart à son prochain démarrage — c'est exactement le rôle de la
- * réconciliation. L'inverse (Redis à jour, base en retard) laisserait tourner
- * une tâche que plus personne ne voit.
+ * The panel writes to the database *and* to Redis, in that order: the database is
+ * authoritative, Redis executes. If the Redis write fails, the database stays
+ * right and the worker will catch up the gap at its next start — that is exactly
+ * reconciliation's role. The reverse (Redis up to date, database behind) would
+ * leave running a task nobody sees any more.
  */
 
 function templateFor(row: ScheduledJob): { name: string; data: ScheduledJobData } {
@@ -29,7 +29,7 @@ function templateFor(row: ScheduledJob): { name: string; data: ScheduledJobData 
   };
 }
 
-/** Installe ou met à jour le scheduler. Retiré si la tâche est désactivée. */
+/** Installs or updates the scheduler. Removed if the task is disabled. */
 export async function syncScheduler(row: ScheduledJob): Promise<void> {
   const queue = getOpsQueue();
   if (!row.enabled) {
@@ -38,9 +38,9 @@ export async function syncScheduler(row: ScheduledJob): Promise<void> {
   }
 
   const template = templateFor(row);
-  // `tz` n'est pas optionnel : sans lui, cron-parser retomberait sur le fuseau
-  // du process — UTC dans nos conteneurs — et l'heure affichée par le panel ne
-  // serait plus celle à laquelle la tâche tourne.
+  // `tz` is not optional: without it, cron-parser would fall back on the process's
+  // time zone — UTC in our containers — and the time shown by the panel would no
+  // longer be the one at which the task runs.
   await queue.upsertJobScheduler(
     row.key,
     { pattern: row.cron, tz: row.timezone },
@@ -60,7 +60,7 @@ export async function removeScheduler(key: string): Promise<void> {
   await getOpsQueue().removeJobScheduler(key);
 }
 
-/** Déclenchement manuel : une occurrence hors scheduler, tracée comme telle. */
+/** A manual trigger: an occurrence outside the scheduler, traced as such. */
 export async function triggerNow(
   row: ScheduledJob,
   actor: { userId: string; ip: string | null },
@@ -75,23 +75,23 @@ export async function triggerNow(
 }
 
 export type SchedulerState = {
-  /** Prochaine occurrence, telle que BullMQ l'a calculée. */
+  /** The next occurrence, as BullMQ computed it. */
   nextRunAt: string | null;
   /**
-   * Fuseau mémorisé par BullMQ. Rendu tel quel pour que l'écart avec la base
-   * soit visible plutôt que deviné : `null` désigne un scheduler installé avant
-   * la migration `0009`, donc interprété dans le fuseau du process.
+   * The time zone stored by BullMQ. Returned as is so that the gap with the database
+   * is visible rather than guessed: `null` designates a scheduler installed before
+   * migration `0009`, hence interpreted in the process's time zone.
    */
   timeZone: string | null;
   installed: boolean;
 };
 
 /**
- * État des schedulers, lu dans Redis.
+ * The schedulers' state, read in Redis.
  *
- * La prochaine occurrence vient de BullMQ et n'est pas recalculée ici : c'est
- * lui qui ordonnance, et deux calculs de cron indépendants finiraient par ne
- * plus dire la même chose.
+ * The next occurrence comes from BullMQ and is not recomputed here: it is the one
+ * that schedules, and two independent cron computations would end up no longer
+ * saying the same thing.
  */
 export async function schedulerStates(): Promise<Map<string, SchedulerState>> {
   const states = new Map<string, SchedulerState>();
@@ -105,7 +105,7 @@ export async function schedulerStates(): Promise<Map<string, SchedulerState>> {
       });
     }
   } catch (error) {
-    logger.error({ err: error }, 'lecture des schedulers BullMQ impossible');
+    logger.error({ err: error }, 'BullMQ schedulers could not be read');
   }
   return states;
 }

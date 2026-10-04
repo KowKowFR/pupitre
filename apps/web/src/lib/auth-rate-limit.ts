@@ -1,33 +1,33 @@
 /**
- * La limitation de débit de Better Auth, comptée dans Redis.
+ * Better Auth's rate limiting, counted in Redis.
  *
- * Better Auth la garde par défaut en mémoire du processus : juste pour un panel
- * seul, faux dès qu'on en met deux derrière un répartiteur — chaque réplique
- * comptait pour elle, et trois essais de mot de passe par dix secondes en
- * devenaient six. Le compteur vit maintenant là où vivent déjà les files et le
- * temps réel, sous `ratelimit:auth:<clé de Better Auth>` (l'IP et le chemin).
+ * Better Auth keeps it by default in the process's memory: right for a single
+ * panel, wrong as soon as two are put behind a load balancer — each replica
+ * counted for itself, and three password attempts per ten seconds became six.
+ * The counter now lives where the queues and real time already live, under
+ * `ratelimit:auth:<Better Auth's key>` (the IP and the path).
  *
- * Par `rateLimit.customStorage`, et non par un `secondaryStorage` : celui-ci
- * déplacerait aussi les sessions dans Redis. Elles restent en base.
+ * Through `rateLimit.customStorage`, and not through a `secondaryStorage`: that
+ * one would also move the sessions into Redis. They stay in the database.
  *
- * Fenêtre fixe, ouverte par la première requête : `INCR` et `PEXPIRE` dans un
- * seul script, donc atomiques — deux requêtes simultanées ne lisent jamais le
- * même compte. Le défaut connu de la fenêtre fixe (deux rafales à cheval sur
- * sa fin) reste borné à deux fois la limite.
+ * A fixed window, opened by the first request: `INCR` and `PEXPIRE` in a single
+ * script, hence atomic — two simultaneous requests never read the same count.
+ * The fixed window's known flaw (two bursts straddling its end) stays bounded to
+ * twice the limit.
  *
- * **Redis muet** : la connexion du panel attend Redis au lieu d'échouer
- * (`maxRetriesPerRequest: null`) — une connexion resterait pendue. L'appel est
- * donc borné à une seconde ; au-delà, ou sur erreur, le compte se fait en
- * mémoire, comme avant : chaque réplique pour elle, mais jamais sans limite, ni
- * sans connexion possible. Pendant dix secondes ensuite, on ne réessaie pas
- * Redis — chaque connexion paierait sinon la seconde d'attente. Le premier
- * repli et le retour se disent dans les logs.
+ * **Silent Redis**: the panel's connection waits for Redis instead of failing
+ * (`maxRetriesPerRequest: null`) — a sign-in would hang. The call is therefore
+ * bounded to one second; beyond that, or on error, the count is done in memory,
+ * as before: each replica for itself, but never without a limit, nor without a
+ * possible sign-in. For ten seconds afterwards, Redis is not retried — each
+ * sign-in would otherwise pay the second of waiting. The first fallback and the
+ * return are said in the logs.
  *
- * Sans `server-only` ni connexion importée : `auth.ts` fournit Redis, les
- * tests un faux.
+ * Without `server-only` nor an imported connection: `auth.ts` provides Redis, the
+ * tests a fake one.
  */
 
-/** Ce que Better Auth attend de `rateLimit.customStorage`. */
+/** What Better Auth expects from `rateLimit.customStorage`. */
 export type AuthRateLimitStorage = {
   consume: (
     key: string,
@@ -35,7 +35,7 @@ export type AuthRateLimitStorage = {
   ) => Promise<{ allowed: boolean; retryAfter: number | null }>;
 };
 
-/** Le peu de Redis qu'il faut : un script. `ioredis` le fournit tel quel. */
+/** The little of Redis that is needed: a script. `ioredis` provides it as is. */
 export type RateLimitRedis = {
   eval: (script: string, numKeys: number, ...args: Array<string | number>) => Promise<unknown>;
 };
@@ -47,19 +47,19 @@ type Log = {
 
 export const AUTH_RATE_LIMIT_PREFIX = 'ratelimit:auth:';
 
-/** Au-delà, Redis est tenu pour muet : on compte en mémoire. */
+/** Beyond this, Redis is held silent: we count in memory. */
 export const AUTH_RATE_LIMIT_REDIS_TIMEOUT_MS = 1000;
 
-/** Après un échec, le temps pendant lequel on compte en mémoire sans réessayer Redis. */
+/** After a failure, the time during which we count in memory without retrying Redis. */
 export const AUTH_RATE_LIMIT_RETRY_MS = 10_000;
 
-/** Assez pour un flot d'IP, pas assez pour qu'un balayage remplisse la mémoire. */
+/** Enough for a stream of IPs, not enough for a scan to fill the memory. */
 const MEMORY_MAX_KEYS = 10_000;
 
 /**
- * Compte une requête, ouvre la fenêtre à la première, et rend le compte avec ce
- * qu'il reste de la fenêtre. Une clé sans échéance — posée par autre chose —
- * en reçoit une : un compteur éternel bloquerait pour toujours.
+ * Counts a request, opens the window at the first one, and returns the count with
+ * what is left of the window. A key without expiry — set by something else —
+ * receives one: an eternal counter would block forever.
  */
 const CONSUME_SCRIPT = `
 local count = redis.call('INCR', KEYS[1])
@@ -95,7 +95,7 @@ export function createAuthRateLimitStorage(
   const retryMs = options.retryMs ?? AUTH_RATE_LIMIT_RETRY_MS;
   const memory = new Map<string, { count: number; resetAt: number }>();
   let degraded = false;
-  /** Avant cet instant, Redis n'est pas réessayé. */
+  /** Before this instant, Redis is not retried. */
   let retryAt = 0;
 
   function inMemory(key: string, rule: { window: number; max: number }) {
@@ -124,7 +124,7 @@ export function createAuthRateLimitStorage(
         )) as [number | string, number | string];
         if (degraded) {
           degraded = false;
-          logger.info({}, 'limitation de débit de la connexion : Redis répond de nouveau');
+          logger.info({}, 'sign-in rate limiting: Redis answers again');
         }
         return verdict(Number(answer[0]), Number(answer[1]), rule.max);
       } catch (error) {
@@ -133,7 +133,7 @@ export function createAuthRateLimitStorage(
           degraded = true;
           logger.warn(
             { err: error },
-            'limitation de débit de la connexion : Redis indisponible, comptée en mémoire',
+            'sign-in rate limiting: Redis unavailable, counted in memory',
           );
         }
         return inMemory(key, rule);

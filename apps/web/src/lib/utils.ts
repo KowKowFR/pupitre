@@ -2,9 +2,9 @@ import { clsx, type ClassValue } from 'clsx';
 import { extendTailwindMerge } from 'tailwind-merge';
 
 /**
- * `tailwind-merge` doit connaître l'échelle du design system : sans cela,
- * `text-cap` ou `text-page` — des tailles — passeraient pour des couleurs, et
- * `cn('text-cap text-text-3')` jetterait silencieusement la taille.
+ * `tailwind-merge` must know the design system's scale: without that,
+ * `text-cap` or `text-page` — sizes — would pass for colors, and
+ * `cn('text-cap text-text-3')` would silently throw the size away.
  */
 const twMerge = extendTailwindMerge({
   extend: {

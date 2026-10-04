@@ -1,12 +1,12 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Le suivi des failles : ce qui est corrigeable, ce qui est accepté, et ce
- * qui bloque une application. Les identifiants de CVE, les paquets et leurs
- * versions viennent des scanners et ne se traduisent pas.
+ * Vulnerability tracking: what is fixable, what is accepted, and what blocks an
+ * application. The CVE identifiers, the packages and their versions come from
+ * the scanners and are not translated.
  */
 const fr = {
-  // ── Le réglage de l'application ─────────────────────────────────────────
+  // ── The application's setting ───────────────────────────────────────────
   'policy.title': 'Ce qui bloque une mise en ligne',
   'policy.sub':
     "Le seuil de cette application, et s'il ne vaut que pour les failles corrigeables. S'applique aux prochains déploiements, redéploiements compris.",
@@ -22,7 +22,7 @@ const fr = {
   'policy.readOnly': 'Votre rôle permet de lire ce réglage, pas de le changer.',
   'toast.policySaved': 'Réglage de « {app} » enregistré',
 
-  // ── Les failles acceptées ───────────────────────────────────────────────
+  // ── The accepted vulnerabilities ────────────────────────────────────────
   'acceptances.title': 'Failles acceptées',
   'acceptances.sub': 'Lues et motivées : elles restent affichées, mais ne bloquent plus.',
   'acceptances.empty':
@@ -39,7 +39,7 @@ const fr = {
   'acceptances.confirm.action': 'Retirer',
   'toast.acceptanceRemoved': 'Acceptation de {cve} retirée',
 
-  // ── Accepter une faille, depuis un scan ─────────────────────────────────
+  // ── Accepting a vulnerability, from a scan ──────────────────────────────
   'accept.title': 'Accepter {cve}',
   'accept.body':
     'Elle restera affichée, mais ne bloquera plus les mises en ligne de « {app} ». La décision et son motif vont au journal.',
@@ -61,7 +61,7 @@ const fr = {
   'accepted.title': 'Acceptée {by} : {reason}',
   'accepted.revoke': "Retirer l'acceptation",
 
-  // ── La liste d'un scan ──────────────────────────────────────────────────
+  // ── A scan's list ───────────────────────────────────────────────────────
   'view.label': 'Failles affichées',
   'view.all': 'Toutes',
   'view.fixable': 'Corrigeables',

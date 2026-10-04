@@ -18,7 +18,7 @@ import type { Translated } from '@pupitre/core';
  * translator to write HTML.
  */
 const fr = {
-  // ── Liste ───────────────────────────────────────────────────────────────
+  // ── List ────────────────────────────────────────────────────────────────
   'page.title': 'Applications',
   'page.description':
     'Une application est une AppSpec : une description neutre, qui ne connaît ni Docker ni Kubernetes. Le driver la traduit en compose.yml ou en manifests au moment du déploiement.',
@@ -127,7 +127,7 @@ const fr = {
   'action.sending': 'Envoi…',
 
 
-  // ── Suppression ─────────────────────────────────────────────────────────
+  // ── Deletion ────────────────────────────────────────────────────────────
   'delete.title': 'Supprimer « {slug} » ?',
   'delete.title.cascade': 'Détruire et supprimer « {slug} » ?',
   'delete.live': 'Déploiements vivants',
@@ -177,7 +177,7 @@ const fr = {
   'delete.action.force': 'Forcer l’effacement',
   'delete.action.cascade': 'Détruire et supprimer',
 
-  // ── Fiche ───────────────────────────────────────────────────────────────
+  // ── Record ──────────────────────────────────────────────────────────────
   'detail.spec.byPort': 'exposition par port alloué',
 
   'versions.empty':
@@ -317,7 +317,7 @@ const fr = {
   'form.submit.save': "Enregistrer l'application",
   'form.submit.empty': "Écrivez, collez ou générez d'abord une spec.",
 
-  // ── Relecture de la spec, avant enregistrement ──────────────────────────
+  // ── Reviewing the spec, before saving ───────────────────────────────────
   'review.unnamed': '(sans nom)',
   'review.services': { one: '{count} service', other: '{count} services' },
   'review.exposed': 'exposé',
@@ -350,7 +350,7 @@ const fr = {
   'review.declaredSecrets.tail':
     ' sont dans la spec. À l’enregistrement, Pupitre génère une valeur pour chacun, chiffrée et jamais réaffichée ; un alias reprend la valeur de son secret. Une valeur venue d’ailleurs se saisit ensuite sur la fiche de l’application.',
 
-  // ── Refus des routes ────────────────────────────────────────────────────
+  // ── Route refusals ──────────────────────────────────────────────────────
   'error.notFound': 'Application « {id} » introuvable',
   'row.imagesOutdated': {
     one: '{count} image à mettre à jour',

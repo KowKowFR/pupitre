@@ -82,7 +82,7 @@ function dayClock(iso: string, format: FormatSettings): string {
 
 const HATCH = 'repeating-linear-gradient(45deg, var(--surface-3) 0 3px, transparent 3px 6px)';
 
-// ─── barres de taux ───────────────────────────────────────────────────────────
+// ─── rate bars ────────────────────────────────────────────────────────────────
 
 export type RatioBucket = Bucket & {
   /** "Good" measurements in the bucket (healthy probes, for instance). */
@@ -164,7 +164,7 @@ export async function RatioBars({
   );
 }
 
-// ─── courbe ───────────────────────────────────────────────────────────────────
+// ─── curve ────────────────────────────────────────────────────────────────────
 
 export type SeriesBucket = Bucket & { value: number | null };
 
@@ -449,7 +449,7 @@ export async function EventRail({
   );
 }
 
-// ─── axe ──────────────────────────────────────────────────────────────────────
+// ─── axis ─────────────────────────────────────────────────────────────────────
 
 /**
  * The time axis shared by a stack of tracks, in relative time: "−24 h",
@@ -521,7 +521,7 @@ export async function NotEnoughHistory({
   );
 }
 
-// ─── petites formes ───────────────────────────────────────────────────────────
+// ─── small shapes ─────────────────────────────────────────────────────────────
 
 /**
  * A resource's mini gauge: "mem ▬ 62%". Graphite at rest, amber at the

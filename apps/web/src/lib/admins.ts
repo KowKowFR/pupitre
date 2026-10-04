@@ -2,7 +2,7 @@ import 'server-only';
 import { LOCKED_ROLE } from '@pupitre/core';
 import { eq, getDb, userRoles, users } from '@pupitre/db';
 
-/** Nombre d'administrateurs actifs — sert à interdire de retirer le dernier. */
+/** The number of active administrators — serves to forbid removing the last one. */
 export async function countActiveAdmins(excludeUserId?: string): Promise<number> {
   const db = getDb();
   const rows = await db

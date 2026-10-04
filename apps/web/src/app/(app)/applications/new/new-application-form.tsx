@@ -381,7 +381,7 @@ function SpecReview({ spec }: { spec: ReviewSpec }) {
   );
 }
 
-// ─── Formulaire ──────────────────────────────────────────────────────────────
+// ─── Form ────────────────────────────────────────────────────────────────────
 
 export function NewApplicationForm({
   aiEnabled,
@@ -623,7 +623,7 @@ export function NewApplicationForm({
     onSaved({ id: application.id, name: review?.name ?? '' });
   }
 
-  // ─── Blocs communs aux deux cadres ─────────────────────────────────────────
+  // ─── Blocks shared by both frames ──────────────────────────────────────────
 
   const tabs = (
     <Tabs label={t('new.card.title')}>
