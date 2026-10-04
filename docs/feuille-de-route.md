@@ -53,14 +53,6 @@ Ce qu'il faudrait : lire aussi le jeton d'accès (vérifié contre les mêmes
 clés), accepter plusieurs champs à la fois (groupes **et** rôles), et proposer
 `realm_access.roles` comme un choix de l'écran plutôt qu'un chemin à saisir.
 
-### Le constructeur BuildKit reste en place
-
-C'est délibéré — son cache de couches vit dedans — mais rien ne le supprime
-automatiquement. C'est un pod privilégié qui attend sur le cluster,
-volontairement dépourvu d'étiquette `managed-by` pour rester supprimable depuis
-l'écran des charges, et la commande pour s'en défaire est journalisée à chaque
-build. Une politique d'expiration serait mieux qu'une commande dans un journal.
-
 ## Abstractions déclarées mais à une seule implémentation
 
 ### BunkerWeb dans un cluster, et un BunkerWeb trouvé

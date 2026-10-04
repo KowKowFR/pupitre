@@ -72,6 +72,17 @@ export type RenderedFile = {
  * déploiement accepte déjà un contexte de cible, et aucun appel existant ne
  * change.
  */
+/** Ce qu'a fait l'expiration d'un constructeur d'images (`pruneIdleBuilder`). */
+export type BuilderPruneResult = {
+  /**
+   * `absent` : rien à expirer. `kept` : servi récemment, ou réclamé par un
+   * build à l'instant. `removed` : retiré.
+   */
+  outcome: 'absent' | 'kept' | 'removed';
+  /** Son dernier build (ISO), quand il y en avait un. */
+  lastUsedAt: string | null;
+};
+
 export type TargetContext = {
   target: DriverTarget;
   sshSession: SshSession;
@@ -488,6 +499,18 @@ export interface DeploymentDriver {
     onLine: LogSink,
     options: WorkloadExecOptions,
   ): Promise<WorkloadExecResult>;
+
+  /**
+   * Retire ce que le runtime a posé sur la machine **pour construire** des
+   * images, quand aucun build ne s'en est servi depuis longtemps — la durée est
+   * une politique du driver, écrite chez lui.
+   *
+   * **Optionnelle**, comme `openFirewall()` : un runtime qui construit sans
+   * rien poser — le démon Docker sait construire seul — n'a rien à expirer, et
+   * ne l'implémente pas. Le balayage qui l'appelle ne sait pas quel runtime il
+   * interroge. Ne touche à aucune application ni aux images déjà construites.
+   */
+  pruneIdleBuilder?(ctx: TargetContext, onLog: LogSink, now?: Date): Promise<BuilderPruneResult>;
 
   /**
    * Ouvre le port sur le pare-feu de la cible.

@@ -51,10 +51,11 @@ interface `PortAllocator`, dont l'implémentation Drizzle vit dans `packages/db`
 `apply` `probe` `publishAddress`, plus une fabrique `getProxyProvider(kind)`. Voir
 [Reverse proxy](#reverse-proxy--la-route-au-proxy-lamont-au-driver).
 
-**Deux méthodes sont optionnelles** — `openFirewall?` et `closeFirewall?`.
-`DockerComposeDriver` les implémente, `K3sDriver` ne les déclare pas du tout.
-Le pipeline appelle si la méthode existe ; il ne demande jamais quel runtime il
-pilote, il demande ce que le driver sait faire.
+**Trois méthodes sont optionnelles** — `openFirewall?` et `closeFirewall?`,
+que `DockerComposeDriver` implémente et que `K3sDriver` ne déclare pas du tout ;
+`pruneIdleBuilder?`, à l'inverse, que seul `K3sDriver` implémente. Le pipeline
+et le worker appellent si la méthode existe ; ils ne demandent jamais quel
+runtime ils pilotent, ils demandent ce que le driver sait faire.
 
 La règle se vérifie en une commande :
 
@@ -558,6 +559,21 @@ pour l'application, toutes releases confondues : celles dont le nom commence par
 `pruneReleases()` est une **méthode de l'interface** et non un détail interne :
 la tâche planifiée `cleanup:versions` en a besoin depuis l'extérieur, et le
 chemin des releases est une décision du driver, pas de l'appelant.
+
+Le **constructeur d'images** de K3s — un BuildKit en pod, que le driver pose au
+premier build et garde pour son cache — expire de la même façon, par
+`pruneIdleBuilder?()`. Chaque build le date dans le manifeste qu'il applique
+(`pupitre.io/last-build`, sur le Deployment et non sur le pod : rien ne
+redémarre). Toutes les heures, le worker (`builder:prune`, file `ops`) demande
+à chaque cible, pour chaque runtime dont le driver déclare la méthode, de
+retirer ce qui n'a pas servi depuis 24 heures — une durée écrite dans le
+driver. La suppression porte une précondition sur la version lue
+(`kubectl delete --raw` avec `preconditions.resourceVersion`) : un build qui le
+réclame entre la lecture et la suppression change cette version, l'API répond
+`Conflict`, et il reste. Ni le namespace ni les images déjà importées ne sont
+touchés ; le retrait est au journal (`target.builder.removed`). Docker construit
+sans rien poser : son driver ne déclare pas la méthode, et aucune session n'est
+ouverte vers une cible qui n'a rien à expirer.
 
 ## Sauvegardes : un lieu, un format, deux runtimes
 

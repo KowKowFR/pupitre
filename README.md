@@ -391,8 +391,11 @@ propager, aucun hostPath, aucune hypothèse sur la topologie de montage du nœud
 Ce que ça laisse : le constructeur reste en place entre deux builds, parce que
 son cache de couches vit dedans. C'est un pod privilégié qui attend sur le
 cluster, volontairement dépourvu d'étiquette `managed-by` pour rester supprimable
-depuis l'écran des charges, et la commande pour s'en défaire est journalisée à
-chaque build. Rien ne le supprime automatiquement.
+depuis l'écran des charges. Chaque build le date (`pupitre.io/last-build`), et
+le worker le retire après **24 heures sans build** — une suppression sous
+condition de la version lue, qu'un build qui le réclame au même instant fait
+échouer. Le build suivant le repose ; seules les images de base sont à
+retélécharger.
 
 Un refus, lui, tombe désormais au **preflight** et non plus à l'étape `build` :
 le contrôle `image_build` soumet le constructeur au cluster en `--dry-run=server`

@@ -11,6 +11,8 @@ import {
   BACKUP_DESTINATION_CHECK_JOB,
   BACKUP_PANEL_JOB,
   BACKUP_RESTORE_JOB,
+  BUILDER_PRUNE_EVERY_MS,
+  BUILDER_PRUNE_JOB,
   DEPLOYMENT_DESTROY_JOB,
   DEPLOYMENT_ROLLBACK_JOB,
   DEPLOYMENT_RUN_JOB,
@@ -103,6 +105,7 @@ import {
   handleWorkloadLogs,
 } from './handlers/workload.js';
 import { handleScheduledJob } from './handlers/scheduled.js';
+import { handleBuilderPrune } from './handlers/builder.js';
 import { handleImageCheck } from './handlers/images.js';
 import {
   handleProxyApply,
@@ -166,6 +169,8 @@ const handlers: Record<string, JobHandler> = {
   [PROXY_REMOVE_JOB]: handleProxyRemove,
   [PROXY_APPLY_JOB]: handleProxyApply,
   [PROXY_LINK_CHECK_JOB]: handleProxyLinkCheck,
+  // Le ménage des constructeurs d'images : une écriture sur la machine.
+  [BUILDER_PRUNE_JOB]: handleBuilderPrune,
   ...Object.fromEntries(
     SCHEDULED_JOB_TYPES_LIST.map((type) => [
       SCHEDULED_JOB_TYPES[type].jobName,
@@ -377,6 +382,30 @@ async function installImageCheck(): Promise<void> {
   logger.info({ everyMs: IMAGE_CHECK_EVERY_MS }, 'vérification des images installée');
 }
 
+/**
+ * L'horloge du ménage des constructeurs d'images : toutes les heures, sur
+ * `ops`. Même motif que les balayages — réinstallée à l'identique à chaque
+ * démarrage. La durée au-delà de laquelle un constructeur est retiré n'est pas
+ * ici : chaque driver tient la sienne.
+ */
+async function installBuilderPrune(): Promise<void> {
+  const queue = getOpsQueue();
+  await queue.upsertJobScheduler(
+    'builder-prune',
+    { every: BUILDER_PRUNE_EVERY_MS },
+    {
+      name: BUILDER_PRUNE_JOB,
+      data: {},
+      opts: {
+        attempts: 1,
+        removeOnComplete: { age: 24 * 3600, count: 50 },
+        removeOnFail: { age: 7 * 24 * 3600, count: 50 },
+      },
+    },
+  );
+  logger.info({ everyMs: BUILDER_PRUNE_EVERY_MS }, 'ménage des constructeurs installé');
+}
+
 /** L'horloge de la sonde des domaines : toutes les dix minutes, sur `supervision`. */
 async function installRoutesCheck(): Promise<void> {
   const queue = getSupervisionQueue();
@@ -521,6 +550,14 @@ async function main(): Promise<void> {
     // Sans horloge, plus d'annonce de mise à jour d'image ; « Vérifier
     // maintenant » marche toujours.
     logger.error({ err: error }, 'installation de la vérification des images impossible');
+  }
+
+  try {
+    await installBuilderPrune();
+  } catch (error) {
+    // Sans horloge, les constructeurs restent en place, comme avant : leur
+    // cache survit, ils occupent le cluster. Une dégradation, pas une panne.
+    logger.error({ err: error }, 'installation du ménage des constructeurs impossible');
   }
 
   try {
