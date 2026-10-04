@@ -166,7 +166,8 @@ avec un jeton (`POST /api/applications/:id/archives`).
   et rend `202`. Le worker (`source:archive-inspect`, file de supervision) relit
   l'archive entrée par entrée (`@pupitre/core/source-upload`), refuse ce qui
   sortirait du dossier, retire un dossier de tête unique (`mon-app/…`), écarte
-  `.git/` et `__MACOSX/`, et range **une archive refaite** à la place de
+  `.git/`, `__MACOSX/`, `.DS_Store` et les fichiers AppleDouble `._*` du `tar`
+  de macOS, et range **une archive refaite** à la place de
   l'envoi : c'est elle, et elle seule, qui part sur les machines.
 - **Ni le panel ni le worker n'ont de disque en commun** : les octets vivent dans
   `source_archive_chunks`. Rien ne tient en mémoire en entier, et une sauvegarde

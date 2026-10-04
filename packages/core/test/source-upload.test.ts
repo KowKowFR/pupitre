@@ -268,6 +268,33 @@ describe('archive téléversée — une archive saine devient une archive propre
     assert.equal(found.get('source/courant')?.type, 'SymbolicLink');
   });
 
+  it('un tar fait sur un Mac : ses fichiers AppleDouble et .DS_Store n’empêchent pas de retirer le dossier de tête', async () => {
+    // Ce que produit `tar czf code.tar.gz site` sous macOS : un `._nom` à côté
+    // de chaque entrée qui porte des attributs étendus — y compris `._site`, à
+    // côté du dossier de tête, qui laissait croire à deux racines.
+    const { report, output } = await inspect(
+      gz([
+        { name: '._site', data: 'Mac OS X        ATTR' },
+        { name: 'site/', type: '5' },
+        { name: 'site/._Dockerfile', data: 'Mac OS X        ATTR' },
+        { name: 'site/Dockerfile', data: 'FROM busybox\n' },
+        { name: 'site/.DS_Store', data: 'Bud1' },
+        { name: 'site/www/', type: '5' },
+        { name: 'site/www/._index.html', data: 'Mac OS X        ATTR' },
+        { name: 'site/www/index.html', data: '<h1>ok</h1>' },
+      ]),
+      'tar.gz',
+      { expected: ['Dockerfile'] },
+    );
+    assert.equal(report.strippedRoot, 'site');
+    assert.deepEqual(report.dockerfiles, ['Dockerfile']);
+    assert.equal(report.files, 2);
+    assert.equal(report.skippedEntries, 4);
+    const found = [...(await entries(output)).keys()];
+    assert.ok(found.includes('source/Dockerfile'));
+    assert.ok(!found.some((path) => /(^|\/)(\._|\.DS_Store$)/.test(path)), found.join(', '));
+  });
+
   it('un zip fait sous Windows : pas de droits Unix, des fichiers ordinaires', async () => {
     const { report } = await inspect(
       zipBytes([{ name: 'Dockerfile', data: 'FROM x\n', unix: false, mode: 0x20 }]),
