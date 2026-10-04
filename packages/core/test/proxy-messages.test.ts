@@ -50,7 +50,7 @@ describe('Proxy and probe messages — two languages', () => {
       const en = bundle.en as Record<string, Entry>;
       for (const key of Object.keys(fr)) {
         const english = en[key];
-        assert.ok(english !== undefined, `${key} manque en anglais`);
+        assert.ok(english !== undefined, `${key} missing in English`);
         assert.deepEqual(placeholders(english), placeholders(fr[key] as Entry), key);
       }
     });

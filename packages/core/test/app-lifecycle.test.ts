@@ -36,8 +36,8 @@ describe('drivers contract', () => {
     // Each class's private methods differ — that is their right. What must not
     // diverge is what the contract promises.
     for (const method of ['stop', 'start', 'restart', 'destroy', 'rollback']) {
-      assert.ok(surface('docker').includes(method), `docker: ${method} manquant`);
-      assert.ok(surface('k3s').includes(method), `k3s: ${method} manquant`);
+      assert.ok(surface('docker').includes(method), `docker: ${method} missing`);
+      assert.ok(surface('k3s').includes(method), `k3s: ${method} missing`);
     }
   });
 });
@@ -63,7 +63,7 @@ describe('application stream', () => {
 });
 
 describe('permissions', () => {
-  it("stopping falls under `deployment:restart` — no permission was added", () => {
+  it('stopping falls under `deployment:restart` — no permission was added', () => {
     assert.ok(PERMISSIONS.includes('deployment:restart'));
     assert.equal(
       PERMISSIONS.some((permission) => permission === ('deployment:stop' as never)),
@@ -78,7 +78,7 @@ describe('permissions', () => {
   });
 });
 
-describe('statuts', () => {
+describe('statuses', () => {
   it('a stopped deployment stays monitorable: its status does not move', () => {
     // It is the invariant that keeps the logs and the start accessible. If someone
     // adds a `stopped` status, this test fails and reminds it.

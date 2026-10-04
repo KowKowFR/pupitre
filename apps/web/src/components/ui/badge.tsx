@@ -46,7 +46,7 @@ function Badge({ className, variant, dot = false, children, ...props }: BadgePro
   );
 }
 
-/** Pastille d'identifiant technique : port, image, slug, hachage. En Geist Mono. */
+/** Technical identifier chip: port, image, slug, hash. In Geist Mono. */
 function CodeBadge({ className, ...props }: React.ComponentProps<'span'>) {
   return <span data-slot="code-badge" className={cn('code', className)} {...props} />;
 }

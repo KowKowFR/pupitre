@@ -54,7 +54,7 @@ export type ComposeIssue = {
 export type ComposeImport = {
   /** `null` only when the file is unreadable or describes no service. */
   spec: AppSpecInput | null;
-  /** L'AppSpec passe `appSpecSchema` telle quelle. */
+  /** The AppSpec passes `appSpecSchema` as is. */
   valid: boolean;
   issues: ComposeIssue[];
 };
@@ -186,7 +186,7 @@ export function parseDuration(value: unknown): number | null {
   return matched ? Math.max(1, Math.ceil(total)) : null;
 }
 
-/** `512m`, `1g`, `1.5G`, `512Mi`, `1048576` (octets) → Mio. */
+/** `512m`, `1g`, `1.5G`, `512Mi`, `1048576` (bytes) → MiB. */
 export function parseMemoryMi(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.max(16, Math.round(value / (1024 * 1024)));
@@ -373,7 +373,7 @@ export function importCompose(
     return { spec: null, valid: false, issues };
   }
 
-  // ── Premier niveau ──────────────────────────────────────────────────────
+  // ── Top level ───────────────────────────────────────────────────────────
   for (const key of Object.keys(document)) {
     if (key === 'services' || key === 'name') continue;
     if (key.startsWith('x-')) issue('info', 'topLevel', null, { key }, 'extension');

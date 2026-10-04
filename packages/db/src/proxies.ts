@@ -101,7 +101,7 @@ export async function saveTargetProxy(
       set: values,
     })
     .returning();
-  if (!row) throw new Error("the proxy connection was not saved");
+  if (!row) throw new Error('the proxy connection was not saved');
   return view(row);
 }
 
@@ -134,7 +134,7 @@ export async function createRemoteProxy(
       createdBy: input.createdBy,
     })
     .returning();
-  if (!row) throw new Error("the proxy connection was not saved");
+  if (!row) throw new Error('the proxy connection was not saved');
   return view(row);
 }
 
@@ -294,7 +294,7 @@ export async function saveTargetLink(
     .values({ targetId: input.targetId, ...values, createdBy: input.createdBy })
     .onConflictDoUpdate({ target: proxyLinks.targetId, set: values })
     .returning();
-  if (!row) throw new Error("the link was not saved");
+  if (!row) throw new Error('the link was not saved');
   return row;
 }
 

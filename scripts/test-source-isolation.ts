@@ -128,12 +128,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     await driver.build(ctx, log);
     await driver.deploy(ctx, log);
     const health = await driver.healthcheck(ctx);
-    record(
-      runtime,
-      'built from source/app, started healthy',
-      health.healthy,
-      health.detail ?? '',
-    );
+    record(runtime, 'built from source/app, started healthy', health.healthy, health.detail ?? '');
 
     if (runtime === 'docker') {
       const inspect = await exec(

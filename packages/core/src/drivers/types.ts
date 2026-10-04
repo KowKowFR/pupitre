@@ -52,7 +52,7 @@ export type RenderedFile = {
   /** Path relative to the bundle's root. */
   path: string;
   content: string;
-  /** Mode POSIX, ex. `0o644`. */
+  /** POSIX mode, e.g. `0o644`. */
   mode?: number;
 };
 
@@ -97,7 +97,7 @@ export type TargetContext = {
 export type DriverContext = TargetContext & {
   spec: AppSpec;
   deployment: DriverDeployment;
-  /** Identifiant stable de l'application. Sert de namespace : `app-{slug}`. */
+  /** The application's stable identifier. Serves as namespace: `app-{slug}`. */
   appSlug: string;
   /** The application's database identifier, for port reservations. */
   applicationId: string;

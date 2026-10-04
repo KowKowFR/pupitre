@@ -29,7 +29,7 @@ export const chatMessages = pgTable(
     channel: text('channel').notNull().default('general'),
     /** `null`: the author was deleted. The message stays, anonymous. */
     authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
-    /** Texte brut, mentions en jetons `<@kind:id>`. Jamais de HTML. */
+    /** Plain text, mentions as `<@kind:id>` tokens. Never HTML. */
     body: text('body').notNull(),
     mentions: jsonb('mentions').$type<ChatMention[]>().notNull().default([]),
     /**

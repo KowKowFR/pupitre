@@ -2,8 +2,8 @@ import coreWebVitals from 'eslint-config-next/core-web-vitals';
 import typescript from 'eslint-config-next/typescript';
 
 /**
- * `eslint-config-next` 16 exporte directement du flat config :
- * plus besoin de `FlatCompat`.
+ * `eslint-config-next` 16 exports flat config directly: `FlatCompat` is no
+ * longer needed.
  */
 const config = [
   ...coreWebVitals,

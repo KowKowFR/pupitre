@@ -42,7 +42,7 @@ const MIN_MASTER_KEY_BYTES = 32;
 const HKDF_SALT = 'bootstrap-tp-v2/secret-encryption';
 const HKDF_INFO = 'aes-256-gcm/v1';
 
-/** `MASTER_KEY` absente, trop courte ou illisible. */
+/** `MASTER_KEY` missing, too short or unreadable. */
 export class MasterKeyError extends Error {
   override readonly name = 'MasterKeyError';
 }

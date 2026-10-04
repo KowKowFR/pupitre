@@ -37,7 +37,7 @@ async function remoteOr404(id: string) {
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),
   config: z.record(z.string(), z.unknown()),
-  /** Absents : les identifiants d'avant restent. */
+  /** Absent: the previous credentials stay. */
   secrets: z.record(z.string(), z.unknown()).optional(),
 });
 

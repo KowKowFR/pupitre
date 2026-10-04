@@ -203,7 +203,7 @@ async function probeTools(session: SshSession): Promise<Tools> {
 async function probeFirewall(session: SshSession, installed: boolean): Promise<FirewallInfo> {
   if (!installed) return { installed: false, active: false, managedRules: [] };
 
-  // `ufw status` exige root.
+  // `ufw status` requires root.
   const status = await exec(session, 'ufw status 2>/dev/null || true', {
     sudo: true,
     timeout: CHECK_TIMEOUT_MS,

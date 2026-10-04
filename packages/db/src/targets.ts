@@ -224,7 +224,7 @@ export async function createTarget(
     })
     .returning(publicColumns);
 
-  if (!row) throw new Error("createTarget: the insert returned no row");
+  if (!row) throw new Error('createTarget: the insert returned no row');
   return row;
 }
 

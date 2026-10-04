@@ -1,21 +1,20 @@
 name: CI
 
-# Le socle : tout ce qui se vérifie SANS aucun service — ni Postgres, ni Redis,
-# ni cible SSH. Mesuré à ~23 s de calcul sur un poste de dev (M-series), soit de
-# l'ordre de deux minutes sur un runner GitHub, installation comprise.
+# The base: everything that can be checked WITHOUT any service — neither
+# Postgres, nor Redis, nor SSH target. Measured at ~23 s of compute on a dev
+# workstation (M-series), that is around two minutes on a GitHub runner,
+# installation included.
 #
-# Les 26 `scripts/verify-*.sh` ne sont pas ici : ils demandent la stack complète,
-# et pour la moitié d'entre eux une cible docker-in-docker privilégiée. Ils sont
-# dans `e2e.yml`, sur déclenchement manuel seulement. Le détail du
-# raisonnement est dans `.github/ci-local.md`.
+# The 26 `scripts/verify-*.sh` are not here: they require the full stack, and
+# half of them a privileged docker-in-docker target. They are in `e2e.yml`, on
+# manual trigger only. The detail of the reasoning is in `.github/ci-local.md`.
 
 on:
-  # Chaque poussée, sur n'importe quelle branche.
+  # Each push, on any branch.
   push:
-  # Les poussées sur une branche de CE dépôt sont déjà couvertes ci-dessus ;
-  # les jobs se dédoublonnent avec le `if:` qu'ils portent. L'évènement reste
-  # déclaré pour les PR venues d'un fork, dont le `push` n'atteint jamais ce
-  # dépôt.
+  # Pushes to a branch of THIS repository are already covered above; the jobs
+  # dedupe through the `if:` they carry. The event stays declared for PRs coming
+  # from a fork, whose `push` never reaches this repository.
   pull_request:
 
 concurrency:
@@ -26,18 +25,18 @@ permissions:
   contents: read
 
 env:
-  # La version de pnpm n'est PAS écrite ici : `pnpm/action-setup` la lit dans le
-  # champ `packageManager` du package.json racine (aujourd'hui pnpm@10.32.1).
-  # Une seule source de vérité.
+  # The pnpm version is NOT written here: `pnpm/action-setup` reads it from the
+  # root package.json's `packageManager` field (today pnpm@10.32.1). A single
+  # source of truth.
   #
-  # Node, lui, se fixe ici et doit suivre l'ARG NODE_VERSION du Dockerfile
-  # (`24-alpine`) et le champ `engines.node` (`>=24`).
+  # Node, for its part, is set here and must follow the Dockerfile's
+  # NODE_VERSION ARG (`24-alpine`) and the `engines.node` field (`>=24`).
   NODE_VERSION: "24"
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
-  # Deux gardes qui ne coûtent qu'un checkout : aucune dépendance, aucun build.
-  # Elles tournent en parallèle du socle pour que leur verdict arrive vite.
+  # Two guards that only cost a checkout: no dependency, no build. They run in
+  # parallel with the base so that their verdict arrives fast.
   # ═══════════════════════════════════════════════════════════════════════════
   gardes:
     name: Gardes
@@ -47,58 +46,58 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Le contrôle des migrations compare avec la base : il lui faut
-          # l'historique, pas seulement le dernier commit.
+          # The migrations check compares with the base: it needs the history,
+          # not only the last commit.
           fetch-depth: 0
 
       # ─────────────────────────────────────────────────────────────────────
-      # Garde 1 — aucun secret n'entre dans le dépôt.
+      # Guard 1 — no secret enters the repository.
       #
-      # Écrite à la main, sans dépendance : quatre contrôles précis valent mieux
-      # qu'un détecteur générique dont on ne sait pas ce qu'il regarde.
+      # Written by hand, without a dependency: four precise checks are worth
+      # more than a generic detector of which one does not know what it looks at.
       # ─────────────────────────────────────────────────────────────────────
-      - name: 'Garde : aucun secret dans le dépôt'
+      - name: 'Guard: no secret in the repository'
         id: secrets
         shell: bash
         run: |
           set -uo pipefail
           echec=0
-          ko() { printf '::error title=Secret dans le dépôt::%s\n' "$1"; printf '  ÉCHEC   %s\n' "$1"; echec=1; }
+          ko() { printf '::error title=Secret in the repository::%s\n' "$1"; printf '  FAILURE %s\n' "$1"; echec=1; }
           ok() { printf '  ok      %s\n' "$1"; }
 
-          echo "── 1. Fichiers qui ne doivent jamais être suivis par git"
+          echo "── 1. Files that must never be tracked by git"
           suivis=$(git ls-files \
             | grep -E '(^|/)\.env($|\.)|(^|/)\.test-target-key' \
             | grep -vE '(^|/)\.env\.example$' || true)
           if [ -n "$suivis" ]; then
             while IFS= read -r f; do
-              [ -n "$f" ] && ko "« $f » est suivi par git — il doit rester ignoré"
+              [ -n "$f" ] && ko "\"$f\" is tracked by git — it must stay ignored"
             done <<< "$suivis"
           else
-            ok "ni .env ni .test-target-key* dans l'index"
+            ok "neither .env nor .test-target-key* in the index"
           fi
 
-          echo "── 2. .gitignore couvre toujours ces fichiers"
+          echo "── 2. .gitignore still covers these files"
           for motif in '.env' '.test-target-key' '.test-target-key.pub'; do
             if grep -qxF -- "$motif" .gitignore 2>/dev/null; then
-              ok ".gitignore contient « $motif »"
+              ok ".gitignore contains \"$motif\""
             else
-              ko "« $motif » a disparu de .gitignore — la protection d'origine a sauté"
+              ko "\"$motif\" disappeared from .gitignore — the original protection is gone"
             fi
           done
 
-          echo "── 3. Aucune valeur réelle de MASTER_KEY ni de BETTER_AUTH_SECRET"
-          # On ne connaît pas les vraies valeurs et on ne veut surtout pas les
-          # écrire ici : on reconnaît donc leur FORME. Un secret de ce dépôt,
-          # c'est au moins 32 caractères tirés du seul alphabet hex/base64
-          # (`MASTER_KEY` = 32 octets en hex, `BETTER_AUTH_SECRET` ≥ 32).
+          echo "── 3. No real value of MASTER_KEY nor of BETTER_AUTH_SECRET"
+          # We do not know the real values and above all do not want to write
+          # them here: so we recognize their SHAPE. A secret of this repository
+          # is at least 32 characters drawn from the hex/base64 alphabet only
+          # (`MASTER_KEY` = 32 bytes in hex, `BETTER_AUTH_SECRET` ≥ 32).
           #
-          # Ce critère laisse passer sans bruit tout ce qui n'est pas un secret :
-          # `z.string().min(32)` (parenthèses et points hors alphabet), `key;`
-          # (trop court), `${MASTER_KEY}` (référence). Restent à écarter les
-          # gabarits qui, eux, ont bien la forme voulue — d'où la liste courte
-          # ci-dessous, tenue au ras du .env.example.
-          suspecte() { # 0 = suspect, 1 = anodin
+          # This criterion silently lets through everything that is not a
+          # secret: `z.string().min(32)` (parentheses and dots outside the
+          # alphabet), `key;` (too short), `${MASTER_KEY}` (reference). What
+          # remains to rule out are the templates that do have the expected
+          # shape — hence the short list below, kept close to the .env.example.
+          suspecte() { # 0 = suspicious, 1 = harmless
             valeur="$1"
             case "$valeur" in
               ''|'""'|"''")                                       return 1 ;;
@@ -106,20 +105,20 @@ jobs:
               *change-me*|*changeme*|*CHANGE_ME*)                 return 1 ;;
               *votre*|*your*|*'<'*|*'…'*|*TODO*|*example*)        return 1 ;;
             esac
-            # Une suite d'un seul et même caractère (000…0, xxx…x) est un gabarit.
+            # A run of one and the same character (000…0, xxx…x) is a template.
             case "$valeur" in
               *[!0]*) ;; *) return 1 ;;
             esac
             case "$valeur" in
               *[!x]*) ;; *) return 1 ;;
             esac
-            # Forme d'un secret : ≥ 32 caractères, alphabet hex/base64 seulement.
+            # Shape of a secret: ≥ 32 characters, hex/base64 alphabet only.
             printf '%s' "$valeur" | grep -qE '^[A-Za-z0-9+/=_-]{32,}$'
           }
           lignes=$(git grep -nIE '(MASTER_KEY|BETTER_AUTH_SECRET)[[:space:]]*[:=]' \
                      -- . ':(exclude)pnpm-lock.yaml' || true)
           if [ -z "$lignes" ]; then
-            ok "aucune affectation trouvée"
+            ok "no assignment found"
           else
             while IFS= read -r ligne; do
               [ -z "$ligne" ] && continue
@@ -131,72 +130,72 @@ jobs:
                 | sed -E "s/^['\"]//; s/['\"].*$//" \
                 | awk '{print $1}')
               if suspecte "$valeur"; then
-                ko "$fichier:$numero — valeur réelle probable pour ce secret"
+                ko "$fichier:$numero — likely real value for this secret"
               else
-                ok "$fichier:$numero — pas la forme d'un secret"
+                ok "$fichier:$numero — not the shape of a secret"
               fi
             done <<< "$lignes"
           fi
 
-          echo "── 4. Aucune clé d'API en clair"
-          # Motifs calqués sur la forme RÉELLE de chaque fournisseur : une clé
-          # OpenRouter, c'est « sk-or-v1- » suivi d'hexadécimal minuscule. La
-          # sentinelle en majuscules de verify-settings.sh n'en a pas la forme,
-          # et c'est très bien ainsi — elle est là pour être visible, pas secrète.
+          echo "── 4. No API key in clear"
+          # Patterns modeled on each provider's REAL shape: an OpenRouter key is
+          # "sk-or-v1-" followed by lowercase hexadecimal. verify-settings.sh's
+          # uppercase sentinel does not have that shape, and that is just fine —
+          # it is there to be visible, not secret.
           motifs='sk-or-v1-[0-9a-f]{32,}'
           motifs="$motifs"'|sk-ant-[A-Za-z0-9_-]{40,}'
           motifs="$motifs"'|sk-proj-[A-Za-z0-9_-]{40,}'
           motifs="$motifs"'|gh[pousr]_[A-Za-z0-9]{30,}'
           motifs="$motifs"'|AKIA[0-9A-Z]{16}'
-          # Les jetons d'API de Pupitre : `pup_` et 43 caractères base64url.
+          # Pupitre's API tokens: `pup_` and 43 base64url characters.
           motifs="$motifs"'|pup_[A-Za-z0-9_-]{43}'
           trouve=$(git grep -nIE "$motifs" -- . ':(exclude)pnpm-lock.yaml' || true)
           if [ -n "$trouve" ]; then
             while IFS= read -r ligne; do
               [ -z "$ligne" ] && continue
-              ko "clé d'API apparente : ${ligne%%:*}:$(printf '%s' "${ligne#*:}" | cut -d: -f1)"
+              ko "apparent API key: ${ligne%%:*}:$(printf '%s' "${ligne#*:}" | cut -d: -f1)"
             done <<< "$trouve"
           else
-            ok "aucune forme de clé d'API"
+            ok "no API key shape"
           fi
 
-          echo "── 5. Aucune clé privée complète"
-          # L'en-tête PEM seul ne prouve rien : l'écran d'ajout de cible et son
-          # aide l'affichent comme exemple de ce que l'utilisateur doit coller.
-          # Ce qui trahit une vraie clé, c'est le CORPS — de longues lignes de
-          # base64. On exige donc les deux dans le même fichier.
+          echo "── 5. No complete private key"
+          # The PEM header alone proves nothing: the add target screen and its
+          # help show it as an example of what the user must paste. What gives a
+          # real key away is the BODY — long lines of base64. So we require both
+          # in the same file.
           entetes=$(git grep -lE '^-{5}BEGIN [A-Z ]*PRIVATE KEY-{5}' \
                       -- . ':(exclude)pnpm-lock.yaml' || true)
           if [ -z "$entetes" ]; then
-            ok "aucun en-tête de clé privée"
+            ok "no private key header"
           else
             while IFS= read -r f; do
               [ -z "$f" ] && continue
               if grep -qE '^[A-Za-z0-9+/]{60,}={0,2}$' "$f"; then
-                ko "« $f » porte une clé privée complète (en-tête ET corps base64)"
+                ko "\"$f\" carries a complete private key (header AND base64 body)"
               else
-                ok "« $f » ne cite l'en-tête PEM qu'en exemple, sans corps"
+                ok "\"$f\" only quotes the PEM header as an example, without a body"
               fi
             done <<< "$entetes"
           fi
 
           echo
           if [ "$echec" -ne 0 ]; then
-            echo "Un secret ne se retire pas d'un dépôt en le supprimant au commit suivant :"
-            echo "l'historique le garde. Réécrire la branche, puis révoquer la valeur."
+            echo "A secret is not removed from a repository by deleting it at the next commit:"
+            echo "the history keeps it. Rewrite the branch, then revoke the value."
             exit 1
           fi
-          echo "Aucun secret dans le dépôt."
+          echo "No secret in the repository."
 
       # ─────────────────────────────────────────────────────────────────────
-      # Garde 2 — les migrations sont immuables.
+      # Guard 2 — migrations are immutable.
       #
-      # CLAUDE.md : « jamais éditer une migration appliquée, toujours en créer
-      # une nouvelle ». Une migration déjà passée en base sur un déploiement ne
-      # sera jamais rejouée : la modifier ne change rien là-bas et tout ailleurs.
-      # Ajouter un fichier reste évidemment permis.
+      # CLAUDE.md: "never edit an applied migration, always create a new one".
+      # A migration already applied in the database of a deployment will never
+      # be replayed: changing it changes nothing there and everything elsewhere.
+      # Adding a file stays permitted, of course.
       # ─────────────────────────────────────────────────────────────────────
-      - name: 'Garde : migrations immuables'
+      - name: 'Guard: immutable migrations'
         id: migrations
         if: ${{ !cancelled() }}
         shell: bash
@@ -207,12 +206,12 @@ jobs:
           set -uo pipefail
           MIGRATIONS='packages/db/migrations/*.sql'
 
-          # La référence est TOUJOURS « ce qui est déjà sur la branche par
-          # défaut ». Comparer avec la poussée précédente serait faux sur une
-          # branche de travail : une migration ajoutée puis retouchée avant la
-          # fusion n'a jamais été appliquée nulle part, la retoucher est légitime.
-          # Seule exception, la poussée SUR la branche de référence elle-même :
-          # là, la base est bien l'état d'avant la poussée.
+          # The reference is ALWAYS "what is already on the default branch".
+          # Comparing with the previous push would be wrong on a work branch: a
+          # migration added then touched up before the merge was never applied
+          # anywhere, touching it up is legitimate. Single exception, the push ON
+          # the reference branch itself: there, the base is indeed the state
+          # from before the push.
           cible="${BRANCHE_DEFAUT:-main}"
           [ "${GITHUB_EVENT_NAME}" = 'pull_request' ] && cible="${GITHUB_BASE_REF:-$cible}"
           git fetch --no-tags --quiet origin \
@@ -232,68 +231,68 @@ jobs:
           fi
 
           if [ -z "$base" ] || [ "$base" = "$(git rev-parse HEAD)" ]; then
-            echo "Aucune base de comparaison exploitable (branche neuve, ou premier commit)."
-            echo "Rien à comparer — contrôle sans objet."
+            echo "No usable comparison base (new branch, or first commit)."
+            echo "Nothing to compare — check not applicable."
             exit 0
           fi
-          echo "Base de comparaison : $base"
+          echo "Comparison base: $base"
           echo
 
-          # A = ajout, autorisé. M = modification, D = suppression, R = renommage :
-          # tous trois interdits sur un fichier déjà présent sur la base.
-          # La glob reste ENTRE GUILLEMETS : c'est git qui doit l'interpréter.
-          # Développée par le shell, elle ne listerait que les fichiers présents
-          # dans la copie de travail — et une migration SUPPRIMÉE y échapperait.
+          # A = addition, allowed. M = modification, D = deletion, R = rename:
+          # all three forbidden on a file already present on the base. The glob
+          # stays BETWEEN QUOTES: it is git that must interpret it. Expanded by
+          # the shell, it would only list the files present in the working copy
+          # — and a DELETED migration would escape it.
           touchees=$(git diff --name-status --diff-filter=MDR "$base" HEAD -- "$MIGRATIONS" || true)
           if [ -z "$touchees" ]; then
             ajoutees=$(git diff --name-only --diff-filter=A "$base" HEAD -- "$MIGRATIONS" || true)
             if [ -n "$ajoutees" ]; then
-              echo "Migrations ajoutées (c'est la bonne façon de faire) :"
+              echo "Migrations added (it is the right way to do it):"
               while IFS= read -r f; do [ -n "$f" ] && printf '  + %s\n' "$f"; done <<< "$ajoutees"
             else
-              echo "Aucune migration touchée."
+              echo "No migration touched."
             fi
             echo
-            echo "Les migrations déjà présentes sont intactes."
+            echo "The migrations already present are intact."
             exit 0
           fi
 
           echo "$touchees" | while IFS=$'\t' read -r etat fichier _; do
             case "$etat" in
-              M*) verbe='modifiée' ;;
-              D*) verbe='supprimée' ;;
-              R*) verbe='renommée' ;;
-              *)  verbe="touchée ($etat)" ;;
+              M*) verbe='modified' ;;
+              D*) verbe='deleted' ;;
+              R*) verbe='renamed' ;;
+              *)  verbe="touched ($etat)" ;;
             esac
-            printf '::error file=%s,title=Migration modifiée::%s a été %s\n' \
+            printf '::error file=%s,title=Migration modified::%s was %s\n' \
               "$fichier" "$fichier" "$verbe"
-            printf '  ÉCHEC   %s a été %s\n' "$fichier" "$verbe"
+            printf '  FAILURE %s was %s\n' "$fichier" "$verbe"
           done
           echo
-          echo "Une migration déjà sur la base a été touchée."
-          echo "Les instances où elle est passée ne la rejoueront jamais : leur schéma"
-          echo "et le fichier divergeraient en silence."
-          echo "Rétablir le fichier, puis « pnpm db:generate » pour une NOUVELLE migration."
+          echo "A migration already on the base was touched."
+          echo "The instances where it ran will never replay it: their schema"
+          echo "and the file would diverge silently."
+          echo "Restore the file, then \"pnpm db:generate\" for a NEW migration."
           exit 1
 
-      - name: Récapitulatif des gardes
+      - name: Guards summary
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           {
-            echo '### Gardes'
+            echo '### Guards'
             echo
-            echo '| Garde | Verdict |'
+            echo '| Guard | Verdict |'
             echo '| --- | --- |'
-            echo "| Aucun secret dans le dépôt | ${{ steps.secrets.outcome }} |"
+            echo "| No secret in the repository | ${{ steps.secrets.outcome }} |"
             echo "| Migrations immuables | ${{ steps.migrations.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Le socle. Un job, des étapes nommées : la ligne rouge désigne le contrôle
-  # fautif. Les six contrôles sont indépendants, donc ils s'exécutent tous même
-  # si l'un d'eux tombe — un seul passage de CI suffit à voir toute l'ampleur
-  # des dégâts, au lieu de les découvrir un par un.
+  # The base. One job, named steps: the red line designates the faulty check.
+  # The six checks are independent, so they all run even if one of them
+  # falls — a single CI pass is enough to see the full extent of the damage,
+  # instead of discovering them one by one.
   # ═══════════════════════════════════════════════════════════════════════════
   socle:
     name: Socle
@@ -312,74 +311,74 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Dépendances
+      - name: Dependencies
         run: pnpm install --frozen-lockfile
 
       # ─────────────────────────────────────────────────────────────────────
-      # CETTE ÉTAPE DOIT PRÉCÉDER TOUS LES CONTRÔLES DE TYPES.
+      # THIS STEP MUST PRECEDE ALL THE TYPE CHECKS.
       #
-      # @pupitre/core et @pupitre/db sont consommés par leur `dist` : leurs package.json
-      # pointent `exports` vers `./dist/*.js` et `./dist/*.d.ts`, jamais vers
-      # `src`. Sur une copie neuve, `dist/` n'existe pas, et `pnpm -r typecheck`
-      # échoue immédiatement sur ~35 « Cannot find module '@pupitre/core' » dans
-      # @pupitre/db — des symboles qui existent pourtant dans les sources.
+      # @pupitre/core and @pupitre/db are consumed through their `dist`: their
+      # package.json point `exports` to `./dist/*.js` and `./dist/*.d.ts`, never
+      # to `src`. On a fresh copy, `dist/` does not exist, and `pnpm -r
+      # typecheck` fails immediately on ~35 "Cannot find module
+      # '@pupitre/core'" in @pupitre/db — symbols that do exist in the sources.
       #
-      # `pnpm -r` respecte l'ordre topologique, mais cela ne suffit pas : le
-      # `typecheck` de @pupitre/core est en `--noEmit`, il ne produit donc pas le
-      # `dist` dont @pupitre/db a besoin. Il faut une vraie construction.
+      # `pnpm -r` follows the topological order, but that is not enough:
+      # @pupitre/core's `typecheck` runs with `--noEmit`, so it does not produce
+      # the `dist` @pupitre/db needs. A real build is required.
       #
-      # Mesuré sur une copie fraîche, pas supposé.
+      # Measured on a fresh copy, not assumed.
       # ─────────────────────────────────────────────────────────────────────
-      - name: 'Construire @pupitre/core et @pupitre/db (prérequis des typecheck)'
+      - name: 'Build @pupitre/core and @pupitre/db (typecheck prerequisites)'
         id: build
         run: pnpm build:packages
 
-      - name: 'Types : tous les paquets'
+      - name: 'Types: all packages'
         id: types
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm -r typecheck
 
-      - name: 'Types : scripts/'
+      - name: 'Types: scripts/'
         id: types_scripts
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm exec tsc --noEmit -p scripts/tsconfig.json
 
-      - name: 'Lint : @pupitre/web'
+      - name: 'Lint: @pupitre/web'
         id: lint
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm --filter @pupitre/web lint
 
-      - name: 'Tests unitaires : @pupitre/core'
+      - name: 'Unit tests: @pupitre/core'
         id: tests_core
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm --filter @pupitre/core test
 
-      - name: 'Tests : périodicité et cron'
+      - name: 'Tests: periodicity and cron'
         id: tests_schedule
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm test:schedule
 
-      - name: "Tests : catalogue IA (hors ligne, sans clé)"
+      - name: "Tests: AI catalog (offline, without a key)"
         id: tests_ai
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: pnpm test:ai
 
-      - name: Récapitulatif du socle
+      - name: Base summary
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           {
             echo '### Socle'
             echo
-            echo '| Contrôle | Verdict |'
+            echo '| Check | Verdict |'
             echo '| --- | --- |'
             echo "| Construction @pupitre/core + @pupitre/db | ${{ steps.build.outcome }} |"
-            echo "| Types (tous les paquets) | ${{ steps.types.outcome }} |"
+            echo "| Types (all packages) | ${{ steps.types.outcome }} |"
             echo "| Types (scripts/) | ${{ steps.types_scripts.outcome }} |"
             echo "| Lint @pupitre/web | ${{ steps.lint.outcome }} |"
-            echo "| Tests unitaires @pupitre/core | ${{ steps.tests_core.outcome }} |"
-            echo "| Tests périodicité/cron | ${{ steps.tests_schedule.outcome }} |"
-            echo "| Tests catalogue IA | ${{ steps.tests_ai.outcome }} |"
+            echo "| @pupitre/core unit tests | ${{ steps.tests_core.outcome }} |"
+            echo "| Periodicity/cron tests | ${{ steps.tests_schedule.outcome }} |"
+            echo "| AI catalog tests | ${{ steps.tests_ai.outcome }} |"
             echo
-            echo 'Reproduire en local : voir .github/ci-local.md'
+            echo 'Reproduce locally: see .github/ci-local.md'
           } >> "$GITHUB_STEP_SUMMARY"

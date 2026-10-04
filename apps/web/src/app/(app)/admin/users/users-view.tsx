@@ -50,7 +50,7 @@ import { toast } from '@/lib/toast';
 /** Mirror of `TwoFactorState` (`@pupitre/db`) — the client does not depend on the database. */
 export type TwoFactorState = 'none' | 'pending' | 'active';
 
-/** Miroir d'`AccountState` (route `/api/admin/users`). */
+/** Mirror of `AccountState` (route `/api/admin/users`). */
 export type AccountState = 'invited' | 'expired' | 'active';
 
 export type AdminUserRow = {

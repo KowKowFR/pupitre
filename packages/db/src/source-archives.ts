@@ -43,7 +43,7 @@ export async function createSourceArchive(
     .insert(sourceArchives)
     .values({ ...input, status: 'receiving' })
     .returning();
-  if (!row) throw new Error("createSourceArchive: the insert returned nothing");
+  if (!row) throw new Error('createSourceArchive: the insert returned nothing');
   return row;
 }
 
@@ -161,7 +161,7 @@ export async function* readSourceArchiveChunks(
           eq(sourceArchiveChunks.seq, seq),
         ),
       );
-    if (!row) throw new Error(`archive ${archiveId} : morceau ${kind}#${seq} manquant`);
+    if (!row) throw new Error(`archive ${archiveId}: chunk ${kind}#${seq} missing`);
     yield row.data;
   }
 }

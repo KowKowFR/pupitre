@@ -331,7 +331,7 @@ function unwrapIpv4(address: IpAddress): IpAddress {
   const v4 = { bytes: bytes.slice(12), family: 4 as const };
   // `::ffff:a.b.c.d` — the mapped form, by far the most common.
   if (inRange(bytes, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff], 96)) return v4;
-  // `64:ff9b::/96` — traduction NAT64.
+  // `64:ff9b::/96` — NAT64 translation.
   if (inRange(bytes, [0x00, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0], 96)) return v4;
   // `::a.b.c.d` — IPv4-compatible, obsolete but still accepted by stacks.
   // `bytes[12] !== 0` rules out `::1`, which is real IPv6 loopback.

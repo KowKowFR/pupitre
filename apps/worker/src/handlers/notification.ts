@@ -551,7 +551,7 @@ export async function handleNotificationTest(
 
   logger.info(
     { channelId: row.id, kind: row.kind, probeOk: probe.ok, delivered },
-    "essai d'un canal de notification",
+    'notification channel test',
   );
 
   return { channelId: row.id, kind: row.kind, probe, delivered, error };

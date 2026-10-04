@@ -2326,7 +2326,7 @@ type PodJson = {
   }>;
 };
 
-/** Phase Kubernetes → vocabulaire neutre. */
+/** Kubernetes phase → neutral vocabulary. */
 function toServiceState(phase: string, ready: boolean): ServiceState {
   switch (phase) {
     case 'Running':

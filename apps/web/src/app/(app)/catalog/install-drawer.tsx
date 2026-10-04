@@ -26,7 +26,7 @@ import { CATEGORY_ICON, Monogram, type TemplateView } from './catalog-view';
 
 type ApiError = { error?: { message?: string } };
 
-/** Le premier nom libre : `uptime-kuma`, sinon `uptime-kuma-2`, `uptime-kuma-3`… */
+/** The first free name: `uptime-kuma`, otherwise `uptime-kuma-2`, `uptime-kuma-3`… */
 function freeName(base: string, taken: readonly string[]): string {
   if (!taken.includes(base)) return base;
   for (let index = 2; ; index += 1) {

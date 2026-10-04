@@ -72,7 +72,7 @@ export function draftBody(
   return { ...cadence, timezone: draft.timeZone };
 }
 
-/** Ouverture d'une cadence existante : mode simple si `fromCron` y arrive. */
+/** Opening an existing schedule: simple mode if `fromCron` can read it. */
 export function draftFromCron(cron: string, timeZone: string): ScheduleDraft {
   const simple = fromCron(cron);
   return {

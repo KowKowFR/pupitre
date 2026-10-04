@@ -38,7 +38,7 @@ const expirySchema = z.union(
 const createSchema = z.object({
   name: z.string().trim().min(1).max(80),
   permissions: z.array(z.string().min(1).max(60)).min(1).max(64),
-  /** `null` : toutes les applications. */
+  /** `null`: every application. */
   applicationIds: z.array(z.string().uuid()).min(1).max(100).nullable().default(null),
   /** In days; `null`: without expiry. */
   expiresInDays: expirySchema.nullable().default(90),

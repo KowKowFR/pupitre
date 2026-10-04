@@ -44,7 +44,7 @@ function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="card-content" className={cn('card-b', className)} {...props} />;
 }
 
-/** Pied de carte, sur `surface-2` — pagination, actions secondaires, note. */
+/** Card footer, on `surface-2` — pagination, secondary actions, note. */
 function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="card-footer" className={cn('card-f', className)} {...props} />;
 }

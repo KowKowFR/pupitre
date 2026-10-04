@@ -15,7 +15,7 @@ export type ToastInput = {
   title: string;
   description?: string;
   tone?: ToastTone;
-  /** Une action facultative : Suivre, Annuler… */
+  /** An optional action: Follow, Undo… */
   action?: { label: string; href?: string; onClick?: () => void };
 };
 

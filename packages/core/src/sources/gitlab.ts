@@ -148,7 +148,7 @@ export class GitLabSourceProvider implements SourceProvider {
     private readonly credentials: GitLabCredentials,
     private readonly fetchImpl: FetchLike = fetch,
     private readonly guard: (url: string) => Promise<void> = assertEgressAllowed,
-    /** L'archive seulement : voir `plainGet`. */
+    /** The archive only: see `plainGet`. */
     private readonly archiveGet: GetLike = plainGet,
   ) {
     this.apiUrl = `${gitlabBaseUrl(credentials.baseUrl)}/api/v4`;

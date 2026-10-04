@@ -57,9 +57,9 @@ export type ComposeService = {
   cap_drop?: string[];
   /** Capabilities given back. Counterpart of `capabilities.add`. */
   cap_add?: string[];
-  /** Pendant de `allowPrivilegeEscalation: false` : `no-new-privileges:true`. */
+  /** Counterpart of `allowPrivilegeEscalation: false`: `no-new-privileges:true`. */
   security_opt?: string[];
-  /** Pendant de `readOnlyRootFilesystem`. */
+  /** Counterpart of `readOnlyRootFilesystem`. */
   read_only?: boolean;
   /**
    * tmpfs mounts. Short `path:options` syntax — Compose passes it as is to

@@ -5,7 +5,7 @@ import { closeDb, getDb } from './client.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** `dist/migrate.js` → `packages/db/migrations` ; en dev `src/` → idem. */
+/** `dist/migrate.js` → `packages/db/migrations`; in dev `src/` → same. */
 export const migrationsFolder = path.resolve(here, '..', 'migrations');
 
 export async function runMigrations(): Promise<void> {

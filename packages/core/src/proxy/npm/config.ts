@@ -16,7 +16,7 @@ import type { ProbeSignatures } from '../probe.js';
 
 const port = z.number().int().min(1).max(65_535);
 
-/** `http://10.0.0.5:81/` ou `…/api` → `http://10.0.0.5:81` : l'adresse de l'interface. */
+/** `http://10.0.0.5:81/` or `…/api` → `http://10.0.0.5:81`: the interface's address. */
 function interfaceUrl(value: string): string {
   return value
     .trim()

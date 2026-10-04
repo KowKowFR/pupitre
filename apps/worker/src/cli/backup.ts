@@ -84,7 +84,7 @@ async function restorePanel(source: string): Promise<void> {
       ),
     );
     if (manifest.kind !== 'panel') throw new Error(`"${folder}" is not a panel backup`);
-    console.log(`sauvegarde du ${manifest.createdAt}`);
+    console.log(`backup from ${manifest.createdAt}`);
     encrypted = await store.get(`${folder}/${PANEL_DUMP_FILE}`);
   }
 

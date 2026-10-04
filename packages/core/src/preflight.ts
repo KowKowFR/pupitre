@@ -100,7 +100,7 @@ export const firewallSchema = z.object({
 export const targetHealthSchema = z.enum(['unknown', 'ok', 'degraded', 'unreachable']);
 export type TargetHealth = z.infer<typeof targetHealthSchema>;
 
-/** Contenu de `targets.preflight_report`. */
+/** Content of `targets.preflight_report`. */
 export const preflightReportSchema = z.object({
   checkedAt: z.string(),
   reachable: z.boolean(),

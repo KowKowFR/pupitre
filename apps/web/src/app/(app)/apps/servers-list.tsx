@@ -241,7 +241,7 @@ export function ServersList({
   canTune: boolean;
   /** Formatting comes down through props: this list is a client one, the locale is not. */
   format: FormatSettings;
-  /** L'application ouverte, rendue au serveur. */
+  /** The open application, rendered on the server. */
   record: RunningAppRecordView | null;
 }) {
   const t = useT(messages);

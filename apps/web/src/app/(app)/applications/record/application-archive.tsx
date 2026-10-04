@@ -112,7 +112,7 @@ export function ApplicationArchive({
       try {
         message = (JSON.parse(request.responseText) as ApiError).error?.message ?? message;
       } catch {
-        /* le statut suffit */
+        /* the status is enough */
       }
       setError(t('upload.failed', { error: message }));
     };

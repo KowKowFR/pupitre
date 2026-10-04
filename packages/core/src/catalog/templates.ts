@@ -108,7 +108,7 @@ export const CATALOG_TEMPLATES: readonly CatalogTemplate[] = [
       ]),
   },
 
-  // ── Analyse ───────────────────────────────────────────────────────────────
+  // ── Analytics ─────────────────────────────────────────────────────────────
   {
     id: 'metabase',
     name: 'Metabase',

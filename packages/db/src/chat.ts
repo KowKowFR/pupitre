@@ -176,7 +176,7 @@ export async function insertChatMessage(
         replyToId: input.replyToId,
       })
       .returning({ id: chatMessages.id });
-    if (!row) throw new Error("the message was not saved");
+    if (!row) throw new Error('the message was not saved');
     const attachments = input.attachments ?? [];
     if (attachments.length > 0) {
       await tx
@@ -192,7 +192,7 @@ export async function insertChatMessage(
     return row;
   });
   const message = await getChatMessage(created.id, db);
-  if (!message) throw new Error("the message could not be read back");
+  if (!message) throw new Error('the message could not be read back');
   return message;
 }
 

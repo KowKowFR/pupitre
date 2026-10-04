@@ -68,7 +68,7 @@ const tokenInputSchema = z.object({
   token: z.string().trim().min(8).max(500),
 });
 
-/** `GET`, `PUT` et `DELETE` de `/api/integrations/{forge}`. */
+/** `GET`, `PUT` and `DELETE` of `/api/integrations/{forge}`. */
 export function tokenForgeRoutes(kind: TokenForgeKind) {
   const label = SOURCE_PROVIDER_LABELS[kind];
 

@@ -38,7 +38,7 @@ describe('Operations messages — two languages', () => {
       const fr = bundle.fr as Record<string, Entry>;
       const en = bundle.en as Record<string, Entry>;
       for (const key of Object.keys(fr)) {
-        assert.ok(en[key] !== undefined, `${key} manque en anglais`);
+        assert.ok(en[key] !== undefined, `${key} missing in English`);
         assert.deepEqual(placeholders(en[key] as Entry), placeholders(fr[key] as Entry), key);
         for (const form of forms(en[key] as Entry)) {
           assert.doesNotMatch(form, /[éèêàçùœ«»]/, `${key}: “${form}”`);

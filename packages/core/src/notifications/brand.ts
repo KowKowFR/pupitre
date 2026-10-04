@@ -18,7 +18,7 @@ export type InlineImage = {
   contentType: 'image/png';
   /** Referenced in the HTML by `src="cid:…"`. */
   cid: string;
-  /** Octets de l'image, en base64. */
+  /** The image's bytes, in base64. */
   content: string;
 };
 

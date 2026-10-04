@@ -52,7 +52,7 @@ describe('log severity', () => {
     });
   }
 
-  it("a dot in the pattern is not a wildcard", () => {
+  it('a dot in the pattern is not a wildcard', () => {
     // `*.down` must not match `breakdown`: the dot is literal.
     assert.equal(auditSeverityOf('monitor.breakdown'), 'low');
   });
@@ -63,7 +63,7 @@ describe('log severity', () => {
     assert.equal(auditSeverityLikePattern('100%'), '100\\%');
   });
 
-  it("each SQL pattern matches the same actions as the screen", () => {
+  it('each SQL pattern matches the same actions as the screen', () => {
     // Simulated `LIKE`: `%` matches anything, `\x` matches `x`.
     const like = (pattern: string, value: string) => {
       let source = '';

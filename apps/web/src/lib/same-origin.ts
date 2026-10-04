@@ -42,7 +42,7 @@ export function foreignWrite(
   return null;
 }
 
-/** L'origine d'une URL de base (`https://pupitre.exemple.fr/` → `https://pupitre.exemple.fr`). */
+/** The origin of a base URL (`https://pupitre.example.com/` → `https://pupitre.example.com`). */
 export function originOf(url: string): string {
   return new URL(url).origin;
 }

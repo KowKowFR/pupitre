@@ -28,7 +28,7 @@ const bodySchema = z.object({
    * is what allows reviewing what was corrected by hand.
    */
   generation: generationOriginSchema.optional(),
-  /** L'AppSpec vient d'un docker-compose.yml traduit par `import-compose`. */
+  /** The AppSpec comes from a docker-compose.yml translated by `import-compose`. */
   importedFrom: z.literal('compose').optional(),
   /**
    * Values chosen from creation, for the secrets the spec declares: an API key, a

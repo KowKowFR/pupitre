@@ -84,7 +84,7 @@ export function sniffArchiveFormat(head: Uint8Array): SourceArchiveFormat | null
  * belongs to the screen, which says it in the instance's language.
  */
 export const SOURCE_ARCHIVE_REJECTIONS = [
-  /** Ni `tar.gz`, ni `tar`, ni `zip`. */
+  /** Neither `tar.gz`, nor `tar`, nor `zip`. */
   'format',
   /** Unreadable: truncated, invalid header, unknown compression. */
   'corrupt',

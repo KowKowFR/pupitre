@@ -113,7 +113,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
         }
       };
 
-      // 1. Abonnement d'abord.
+      // 1. Subscribe first.
       const pending: string[] = [];
       let live = false;
       subscriber.on('message', (_channel, raw: string) => {

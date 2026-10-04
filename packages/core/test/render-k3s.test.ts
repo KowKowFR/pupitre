@@ -844,7 +844,7 @@ function fakeTarget(
       execCommand: async (command: string) => {
         commands.push(command);
         const answer = answers.shift();
-        assert.ok(answer, `commande inattendue : ${command}`);
+        assert.ok(answer, `unexpected command: ${command}`);
         const { code, stdout = '', stderr = '' } = answer(command);
         return { code, stdout, stderr, signal: null };
       },

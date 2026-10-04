@@ -43,7 +43,7 @@ export async function createApiToken(
   db: Database = getDb(),
 ): Promise<ApiTokenRow> {
   const [row] = await db.insert(apiTokens).values(input).returning();
-  if (!row) throw new Error("the API token was not saved");
+  if (!row) throw new Error('the API token was not saved');
   return row;
 }
 

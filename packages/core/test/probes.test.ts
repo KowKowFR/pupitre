@@ -127,8 +127,8 @@ test('presence only, absence only, or both', () => {
 
 test('the read cap is bounded on both sides', () => {
   const base = { url: 'https://exemple.fr/', mustContain: 'x' };
-  assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 8 }).success, false, 'trop bas');
-  assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 4096 }).success, false, 'trop haut');
+  assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 8 }).success, false, 'too low');
+  assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 4096 }).success, false, 'too high');
   assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 16 }).success, true);
   assert.equal(keywordConfigSchema.safeParse({ ...base, maxKib: 2048 }).success, true);
 });
@@ -580,7 +580,7 @@ test('certificate: days left rounded down, and nothing for a page in clear', asy
 test('certificate: the HTTP and keyword probes declare its two measurements', () => {
   for (const type of ['http', 'keyword'] as const) {
     const keys = MONITOR_TYPES[type].metrics.map((metric) => metric.key);
-    assert.ok(keys.includes('certDaysRemaining'), `${type} : jours restants absents`);
-    assert.ok(keys.includes('certValidTo'), `${type} : date de fin absente`);
+    assert.ok(keys.includes('certDaysRemaining'), `${type}: days remaining missing`);
+    assert.ok(keys.includes('certValidTo'), `${type}: end date missing`);
   }
 });

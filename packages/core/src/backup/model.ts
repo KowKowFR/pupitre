@@ -271,7 +271,7 @@ export function pieceFile(piece: BackupPiece): string {
     : `dump-${safe(piece.service)}-${piece.engine}.gz.pupb`;
 }
 
-/** `apps/blog/2026-10-01T03-00-00Z-1a2b3c4d` — triable, lisible, unique. */
+/** `apps/blog/2026-10-01T03-00-00Z-1a2b3c4d` — sortable, readable, unique. */
 export function backupFolder(kind: BackupKind, slug: string | null, id: string, at: Date): string {
   const stamp = at
     .toISOString()

@@ -38,7 +38,7 @@ export function NpmConnectionDrawer({
 }: {
   open: boolean;
   onClose: () => void;
-  /** `null` : une nouvelle connexion. */
+  /** `null`: a new connection. */
   connection: RemoteProxyViewForUi | null;
   /** After saving — or `null` after removal. */
   onSaved: (proxyId: string | null) => void;

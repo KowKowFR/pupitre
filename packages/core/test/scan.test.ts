@@ -117,8 +117,8 @@ describe('reports normalization', () => {
       const fromTrivy = trivy.find((finding) => finding.cveId === cve);
       const fromGrype = grype.find((finding) => finding.cveId === cve);
 
-      assert.ok(fromTrivy, `${cve} absente du rapport Trivy`);
-      assert.ok(fromGrype, `${cve} absente du rapport Grype`);
+      assert.ok(fromTrivy, `${cve} missing from the Trivy report`);
+      assert.ok(fromGrype, `${cve} missing from the Grype report`);
 
       assert.equal(fromGrype.severity, fromTrivy.severity, `${cve}: diverging severities`);
       assert.equal(fromGrype.package, fromTrivy.package);
@@ -231,7 +231,7 @@ describe('scan configuration', () => {
   });
 });
 
-describe('fabrique', () => {
+describe('factory', () => {
   it('each vocabulary key has a consistent implementation', () => {
     assert.deepEqual(availableScanners(), [...SCANNER_KEYS]);
     for (const key of SCANNER_KEYS) {
@@ -361,7 +361,7 @@ describe('scanners — where to read the images', () => {
   it('the platform follows uname -m', () => {
     const run = spawnSync('sh', ['-c', `echo ${MACHINE_PLATFORM_FLAG}`], { encoding: 'utf8' });
     const arch = ({ x64: 'amd64', arm64: 'arm64' } as Record<string, string>)[process.arch];
-    assert.ok(arch, `architecture de test inattendue : ${process.arch}`);
+    assert.ok(arch, `unexpected test architecture: ${process.arch}`);
     assert.equal(run.stdout.trim(), `--platform linux/${arch}`);
   });
 });

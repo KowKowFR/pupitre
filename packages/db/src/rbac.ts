@@ -258,7 +258,7 @@ export async function createRole(
       })
       .returning();
 
-    if (!role) throw new Error("createRole: the insert returned nothing");
+    if (!role) throw new Error('createRole: the insert returned nothing');
 
     // We return what was REALLY written, not what we were passed: a key unknown to
     // the vocabulary is not persisted, and the response must not claim otherwise.
@@ -288,7 +288,7 @@ export async function updateRole(
       .where(eq(roles.id, existing.id))
       .returning();
 
-    if (!role) throw new Error("updateRole: the update returned nothing");
+    if (!role) throw new Error('updateRole: the update returned nothing');
 
     const granted =
       patch.permissions === undefined

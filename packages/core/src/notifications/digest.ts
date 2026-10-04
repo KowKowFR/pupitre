@@ -303,7 +303,7 @@ export type BuildNotificationDigestInput = {
   /** The event's label in the catalog, e.g. "Deployment failed". */
   eventLabel: string;
   items: NotificationDigestItem[];
-  /** Total retenu, borne de stockage comprise. */
+  /** Total kept, storage bound included. */
   count: number;
   windowStartedAt: string;
   windowEndedAt: string;

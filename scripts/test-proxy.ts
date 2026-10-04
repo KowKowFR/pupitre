@@ -134,7 +134,7 @@ async function guarded<T>(
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ─── l'application de test ───────────────────────────────────────────────────
+// ─── the test application ────────────────────────────────────────────────────
 
 const SPEC: AppSpec = parseAppSpec({
   name: 'proxy-probe',
@@ -162,7 +162,7 @@ async function ensureApplication(spec: AppSpec): Promise<string> {
   return created.id;
 }
 
-// ─── une cible ───────────────────────────────────────────────────────────────
+// ─── a target ────────────────────────────────────────────────────────────────
 
 type Side = {
   runtime: RuntimeKind;
@@ -287,7 +287,7 @@ async function probeUntil(
   return probe;
 }
 
-// ─── le WAF ──────────────────────────────────────────────────────────────────
+// ─── the WAF ─────────────────────────────────────────────────────────────────
 
 /**
  * The WAF, tried out from the other machine — an address no allow list covers,
@@ -664,7 +664,7 @@ async function exercise(
   return installed;
 }
 
-// ─── le proxy central ────────────────────────────────────────────────────────
+// ─── the central proxy ───────────────────────────────────────────────────────
 
 /** The range where the target's applications are published, as the pipeline keeps it. */
 async function appRange(side: Side): Promise<{ min: number; max: number }> {

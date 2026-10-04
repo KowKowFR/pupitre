@@ -12,14 +12,14 @@ npm-debug.log*
 pnpm-debug.log*
 coverage/
 
-# Clé SSH jetable de la cible de test (scripts/setup-test-target.sh)
+# Throwaway SSH key of the test target (scripts/setup-test-target.sh)
 .test-target-key
 .test-target-key.pub
 
-# Arbres de travail isolés des agents — jamais versionnés.
+# Isolated worktrees of the agents — never versioned.
 .claude/worktrees/
 
-# Design system : les planches PNG (15 Mo) et le générateur Python restent
-# hors dépôt. Les sources lisibles (canvas/, tokens/, brand/) sont versionnées.
+# Design system: the PNG boards (15 MB) and the Python generator stay outside
+# the repository. The readable sources (canvas/, tokens/, brand/) are versioned.
 design/pupitre-design-system/png/
 design/pupitre-design-system/generator/

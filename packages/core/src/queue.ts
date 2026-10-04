@@ -694,7 +694,7 @@ export function notificationDedupKey(
 export const NOTIFICATION_DEDUP_TTL_MS = 5 * 60_000;
 
 /* ---------------------------------------------------------------------------
-   Notifications — remise par canal et regroupement
+   Notifications — delivery per channel and grouping
    ------------------------------------------------------------------------- */
 
 /**
@@ -788,7 +788,7 @@ export const NOTIFICATION_DELIVER_ATTEMPTS = 3;
 export const NOTIFICATION_DELIVER_BACKOFF_MS = 5_000;
 
 /* ---------------------------------------------------------------------------
-   Cycle de vie des comptes — e-mails transactionnels
+   Account lifecycle — transactional e-mails
    ------------------------------------------------------------------------- */
 
 /**

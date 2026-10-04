@@ -179,7 +179,7 @@ export async function presenceDisconnected(userId: string): Promise<void> {
   await refreshPresence(userId);
 }
 
-/** Clavier, souris, onglet revenu au premier plan. */
+/** Keyboard, mouse, tab back in the foreground. */
 export async function presenceInput(userId: string): Promise<PresenceStatus> {
   await getRedis().zadd(KEY.input, Date.now(), userId);
   return refreshPresence(userId);

@@ -28,7 +28,7 @@ import { scannerSay } from './messages.js';
  */
 export const SYFT_VERSION = '1.51.1';
 
-/** `uname -m` → suffixe d'archive Syft. */
+/** `uname -m` → Syft archive suffix. */
 const ARCH_SUFFIX: Record<string, string> = {
   x86_64: 'amd64',
   amd64: 'amd64',

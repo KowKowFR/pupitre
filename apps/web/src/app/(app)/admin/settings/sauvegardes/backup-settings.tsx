@@ -91,7 +91,7 @@ export function BackupSettings({
     targetNames: Record<string, string>;
   } | null;
   canManage: boolean;
-  /** `backup:manage` : supprimer une sauvegarde d'application. */
+  /** `backup:manage`: delete an application's backup. */
   canManageBackups: boolean;
   /** `backup:restore`. */
   canRestore: boolean;

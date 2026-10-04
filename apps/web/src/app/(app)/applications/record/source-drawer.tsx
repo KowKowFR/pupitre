@@ -57,7 +57,7 @@ export function SourceDrawer({
   open: boolean;
   onClose: () => void;
   applicationId: string;
-  /** `null` : une nouvelle liaison. */
+  /** `null`: a new link. */
   source: SourceView | null;
   targets: DeployTarget[];
   /** GitHub: where to give the App access to a repository. `null` without GitHub. */

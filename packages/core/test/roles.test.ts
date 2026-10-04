@@ -30,14 +30,14 @@ describe('starting roles', () => {
     }
   });
 
-  it("the auditor reads everything, and writes nothing", () => {
+  it('the auditor reads everything, and writes nothing', () => {
     assert.deepEqual([...ROLE_DEFINITIONS.auditor.permissions].sort(), [...READS].sort());
   });
 
   it('the viewer reads operations, not administration', () => {
     const viewer = ROLE_DEFINITIONS.viewer.permissions;
     for (const permission of ADMINISTRATION) {
-      assert.ok(!viewer.includes(permission), `l'observateur porte ${permission}`);
+      assert.ok(!viewer.includes(permission), `the viewer carries ${permission}`);
     }
     for (const permission of viewer) {
       assert.ok(permission.endsWith(':read'), `the viewer writes: ${permission}`);
@@ -53,7 +53,7 @@ describe('starting roles', () => {
     }
   });
 
-  it("a public sign-up opens nothing", () => {
+  it('a public sign-up opens nothing', () => {
     assert.equal(SIGNUP_ROLE, 'no-access');
     assert.deepEqual(ROLE_DEFINITIONS[SIGNUP_ROLE].permissions, []);
   });

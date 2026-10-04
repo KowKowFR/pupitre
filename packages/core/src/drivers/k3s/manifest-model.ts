@@ -206,7 +206,7 @@ export type KubeManifest =
   | NetworkPolicyManifest
   | IngressManifest;
 
-/** Millicores Kubernetes : `500m`. */
+/** Kubernetes millicores: `500m`. */
 export function milliCpu(value: number): string {
   return `${Math.max(1, Math.round(value))}m`;
 }

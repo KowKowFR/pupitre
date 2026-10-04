@@ -53,7 +53,7 @@ export type OnboardingGate = {
   applies: boolean;
   /** An open journey: neither finished nor abandoned — it can be resumed. */
   resumable: boolean;
-  /** L'assistant doit s'imposer maintenant. */
+  /** The setup guide must take over now. */
   shouldOffer: boolean;
 };
 

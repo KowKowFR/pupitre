@@ -163,7 +163,7 @@ describe('verdict and versions', () => {
   });
 });
 
-describe('registre', () => {
+describe('registry', () => {
   it('reads the authentication challenge and the pagination', () => {
     assert.deepEqual(
       parseBearerChallenge(

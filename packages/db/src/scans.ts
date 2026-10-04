@@ -88,7 +88,7 @@ export async function createScanRun(
     })
     .returning();
 
-  if (!row) throw new Error("createScanRun: the insert returned nothing");
+  if (!row) throw new Error('createScanRun: the insert returned nothing');
   return row;
 }
 

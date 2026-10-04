@@ -82,7 +82,7 @@ export class HttpError extends Error {
   }
 }
 
-/** Aucune session valide : 401. */
+/** No valid session: 401. */
 export class UnauthenticatedError extends HttpError {
   constructor(message: string | MessageRef = msg(errors, 'unauthenticated')) {
     super(401, 'unauthenticated', message);
@@ -118,7 +118,7 @@ export class ApiTokenScopeError extends HttpError {
   }
 }
 
-/** Session valide mais permission manquante : 403. */
+/** Valid session but missing permission: 403. */
 export class ForbiddenError extends HttpError {
   constructor(
     readonly permission: Permission,

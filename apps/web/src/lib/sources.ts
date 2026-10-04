@@ -98,7 +98,7 @@ export function githubConnectionView(connection: SourceConnection): GitHubConnec
 
 /** What the screen can know of a token forge — Gitea, GitLab: everything, except the token. */
 export type TokenForgeConnectionView = {
-  /** L'adresse de la forge. */
+  /** The forge's address. */
   url: string;
   /** The token's account. */
   account: string;

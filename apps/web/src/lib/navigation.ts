@@ -37,7 +37,7 @@ export type NavSection = {
    * shows each one the part that is theirs.
    */
   permission: Permission | readonly Permission[] | null;
-  /** Lettre du raccourci `G` puis… */
+  /** Letter of the `G` then… shortcut. */
   shortcut?: string;
 };
 

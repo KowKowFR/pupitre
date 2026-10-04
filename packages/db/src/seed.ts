@@ -37,7 +37,7 @@ export type SeedReport = {
 
 export async function seedRbac(db: Database = getDb()): Promise<SeedReport> {
   return db.transaction(async (tx) => {
-    // 1. Vocabulaire de permissions.
+    // 1. Permissions vocabulary.
     await tx
       .insert(permissions)
       .values(

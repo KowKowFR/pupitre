@@ -24,7 +24,7 @@ const WITH_HOST: CatalogParams = {
 };
 const WITHOUT_HOST: CatalogParams = { ...WITH_HOST, host: null };
 
-describe('catalogue', () => {
+describe('catalog', () => {
   it('gives each template a unique identifier, in kebab-case', () => {
     const ids = CATALOG_TEMPLATES.map((template) => template.id);
     assert.equal(new Set(ids).size, ids.length);
@@ -35,8 +35,8 @@ describe('catalogue', () => {
     for (const template of CATALOG_TEMPLATES) {
       assert.ok(CATALOG_CATEGORIES.includes(template.category), template.id);
       for (const text of [template.summary, template.firstRun]) {
-        assert.ok(text.fr.trim().length > 0, `${template.id} : fr manquant`);
-        assert.ok(text.en.trim().length > 0, `${template.id} : en manquant`);
+        assert.ok(text.fr.trim().length > 0, `${template.id}: fr missing`);
+        assert.ok(text.en.trim().length > 0, `${template.id}: en missing`);
       }
       assert.match(template.website, /^https:\/\//, template.id);
     }

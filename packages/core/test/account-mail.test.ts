@@ -46,9 +46,9 @@ describe('account life-cycle emails', () => {
     for (const kind of ['invitation', 'password_reset'] as const) {
       const { subject, text, html } = renderAccountMail(mail({ kind }), 'fr');
 
-      assert.ok(subject.length > 0, `sujet vide pour ${kind}`);
-      assert.ok(text.length > 0, `texte vide pour ${kind}`);
-      assert.ok(html.length > 0, `HTML vide pour ${kind}`);
+      assert.ok(subject.length > 0, `empty subject for ${kind}`);
+      assert.ok(text.length > 0, `empty text for ${kind}`);
+      assert.ok(html.length > 0, `empty HTML for ${kind}`);
 
       // The rule `smtp.ts` already imposes on alerts: the `text/plain` part is read
       // as is by a text-mode client. A tag that slips in is noise shown to the user.

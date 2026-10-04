@@ -18,7 +18,7 @@ import type { AppSpec, Service } from '../spec/index.js';
 export type SpecChangeKind = 'code' | 'infra';
 
 export type SpecChange = {
-  /** Chemin lisible : `services.web.port`, `ingress.host`, `services.worker`. */
+  /** Readable path: `services.web.port`, `ingress.host`, `services.worker`. */
   path: string;
   kind: SpecChangeKind;
   /** `added`, `removed`, ou `changed`. */

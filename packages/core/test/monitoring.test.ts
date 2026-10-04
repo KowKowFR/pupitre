@@ -235,9 +235,9 @@ test('each type declares everything the screen needs', () => {
     assert.ok(definition.label.length > 0, `${type}: label missing`);
     assert.ok(definition.description.length > 0, `${type} : description manquante`);
     assert.ok(definition.neverDoes.length > 0, `${type}: “never does” missing`);
-    assert.ok(definition.fields.length > 0, `${type} : aucun champ de configuration`);
+    assert.ok(definition.fields.length > 0, `${type}: no configuration field`);
     assert.ok(definition.metrics.length > 0, `${type}: no measurement declared`);
-    assert.ok(definition.minIntervalSeconds >= 30, `${type} : cadence minimale absurde`);
+    assert.ok(definition.minIntervalSeconds >= 30, `${type}: absurd minimum interval`);
     assert.ok(
       definition.defaultIntervalSeconds >= definition.minIntervalSeconds,
       `${type}: the default interval is under the minimum`,
@@ -386,7 +386,7 @@ test("the allow list opens exactly the requested range", () => {
   const allow = parseCidrList('10.0.0.0/8, 192.168.1.0/24');
   assert.equal(checkAddress('10.9.9.9', allow).allowed, true);
   assert.equal(checkAddress('192.168.1.20', allow).allowed, true);
-  assert.equal(checkAddress('192.168.2.20', allow).allowed, false, 'hors du /24');
+  assert.equal(checkAddress('192.168.2.20', allow).allowed, false, 'outside the /24');
   assert.equal(checkAddress('172.16.0.1', allow).allowed, false, 'range not listed');
   assert.equal(checkAddress('127.0.0.1', allow).allowed, false, 'loopback not listed');
 });

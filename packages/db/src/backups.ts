@@ -147,7 +147,7 @@ export async function saveBackupDestination(
             );
           return inserted;
         });
-  if (!row) throw new Error("the destination was not saved");
+  if (!row) throw new Error('the destination was not saved');
   return view(row);
 }
 
@@ -312,7 +312,7 @@ export async function createBackupRecord(
   db: Database = getDb(),
 ): Promise<BackupRow> {
   const [row] = await db.insert(backups).values(input).returning();
-  if (!row) throw new Error("the backup was not saved");
+  if (!row) throw new Error('the backup was not saved');
   return row;
 }
 

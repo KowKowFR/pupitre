@@ -127,13 +127,10 @@ describe('sign-in rate limiting — Redis down', () => {
     down = false;
     clock.now += 5_000;
     await storage.consume(KEY, SIGN_IN);
-    assert.equal(redis.keys.size, 0, 'pas avant dix secondes');
+    assert.equal(redis.keys.size, 0, 'not before ten seconds');
     clock.now += 5_000;
     await storage.consume(KEY, SIGN_IN);
     assert.equal(redis.keys.get(`${AUTH_RATE_LIMIT_PREFIX}${KEY}`)?.count, 1);
-    assert.equal(
-      log.lines.at(-1),
-      'info sign-in rate limiting: Redis answers again',
-    );
+    assert.equal(log.lines.at(-1), 'info sign-in rate limiting: Redis answers again');
   });
 });

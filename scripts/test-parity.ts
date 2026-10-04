@@ -749,10 +749,7 @@ function summary(): boolean {
   const phases = ['deploy', 'rollback', 'destroy'];
   const labels = [...new Set(checks.map((check) => `${check.phase} ${check.label}`))];
 
-  const width = Math.max(
-    ...labels.map((key) => (key.split(' ')[1] ?? '').length),
-    'Check'.length,
-  );
+  const width = Math.max(...labels.map((key) => (key.split(' ')[1] ?? '').length), 'Check'.length);
 
   write(`\n${bold('Summary — one AppSpec, two runtimes')}\n\n`);
   write(`  ${'Phase'.padEnd(9)}${'Check'.padEnd(width + 2)}${'docker'.padEnd(9)}k3s\n`);
@@ -873,9 +870,7 @@ async function main(): Promise<void> {
 
     const allGreen = summary();
     if (allGreen) {
-      write(
-        `\n${green(bold('Parity verified: the same AppSpec runs on both runtimes.'))}\n\n`,
-      );
+      write(`\n${green(bold('Parity verified: the same AppSpec runs on both runtimes.'))}\n\n`);
     } else {
       write(`\n${red(bold('Parity NOT verified.'))}\n\n`);
       process.exitCode = 1;

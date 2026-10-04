@@ -182,7 +182,7 @@ export async function setApplicationSecret(
     })
     .returning(publicColumns);
 
-  if (!row) throw new Error("setApplicationSecret: the write returned no row");
+  if (!row) throw new Error('setApplicationSecret: the write returned no row');
   return row;
 }
 

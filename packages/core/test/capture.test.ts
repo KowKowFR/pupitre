@@ -72,7 +72,7 @@ test('there are only three capture moments', () => {
   assert.deepEqual([...CAPTURE_KINDS], ['reference', 'incident_open', 'incident_resolved']);
 });
 
-test("only the URLs a browser can open are capturable", () => {
+test('only the URLs a browser can open are capturable', () => {
   assert.equal(captureUrlFor('https://exemple.fr/etat'), 'https://exemple.fr/etat');
   assert.equal(captureUrlFor('http://exemple.fr:8080/'), 'http://exemple.fr:8080/');
   assert.equal(captureUrlFor('ftp://exemple.fr/'), null);

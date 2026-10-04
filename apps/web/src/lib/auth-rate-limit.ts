@@ -80,7 +80,7 @@ function verdict(count: number, remainingMs: number, max: number) {
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Redis muet depuis ${ms} ms`)), ms);
+    timer = setTimeout(() => reject(new Error(`Redis silent for ${ms} ms`)), ms);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }

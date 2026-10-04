@@ -44,7 +44,7 @@ export const sourceConnections = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     provider: sourceProviderEnum('provider').notNull(),
-    /** GitHub : l'App. */
+    /** GitHub: the App. */
     appId: integer('app_id'),
     slug: text('slug'),
     name: text('name').notNull(),

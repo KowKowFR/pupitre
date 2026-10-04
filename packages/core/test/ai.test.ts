@@ -235,7 +235,7 @@ describe('generateAppSpec', () => {
     assert.match(second, /exactly one service/);
   });
 
-  it("stops after the retry: no third call, no repair by hand", async () => {
+  it('stops after the retry: no third call, no repair by hand', async () => {
     const { model, calls } = mockModel([TWO_EXPOSED, TWO_EXPOSED]);
     const result = await generateAppSpec({
       model,
@@ -267,7 +267,7 @@ describe('generateAppSpec', () => {
     assert.equal(result.reason, 'invalid_spec');
     assert.ok(
       result.issues.some((issue) => /au moins un service/.test(issue)),
-      `motif lisible attendu, obtenu : ${result.issues.join(' | ')}`,
+      `readable reason expected, got: ${result.issues.join(' | ')}`,
     );
   });
 

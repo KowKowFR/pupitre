@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.7
 #
-# UNE seule image, deux commandes au runtime :
-#   docker run <image> web       → panel Next.js (applique les migrations au démarrage)
-#   docker run <image> worker    → consommateur BullMQ
+# ONE single image, two commands at runtime:
+#   docker run <image> web       → Next.js panel (applies the migrations at startup)
+#   docker run <image> worker    → BullMQ consumer
 #
 ARG NODE_VERSION=24-alpine
 
@@ -13,7 +13,7 @@ ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
 WORKDIR /app
 
-# ─── manifests (couche de cache) ──────────────────────────────────────────────
+# ─── manifests (cache layer) ──────────────────────────────────────────────────
 FROM base AS manifests
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
@@ -21,12 +21,12 @@ COPY apps/worker/package.json ./apps/worker/
 COPY packages/core/package.json ./packages/core/
 COPY packages/db/package.json ./packages/db/
 
-# ─── dépendances complètes (build) ────────────────────────────────────────────
+# ─── full dependencies (build) ────────────────────────────────────────────────
 FROM manifests AS deps
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
-# ─── dépendances de production seules (runtime) ───────────────────────────────
+# ─── production dependencies only (runtime) ───────────────────────────────────
 FROM manifests AS prod-deps
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --prod
@@ -49,13 +49,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# postgresql16-client : pg_dump / pg_restore de la sauvegarde du panel — même
-# majeure que le serveur (PostgreSQL 16), pour qu'un export se relise toujours.
+# postgresql16-client: pg_dump / pg_restore for the panel's backup — same major
+# as the server (PostgreSQL 16), so that an export always reads back.
 RUN addgroup -g 1001 -S nodejs \
  && adduser -u 1001 -S nodejs -G nodejs \
  && apk add --no-cache openssh-client postgresql16-client
 
-# Arbre « monorepo » : sert le worker et le script de migration.
+# "monorepo" tree: serves the worker and the migration script.
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/apps/worker/node_modules ./apps/worker/node_modules
 COPY --from=prod-deps /app/packages/core/node_modules ./packages/core/node_modules
@@ -69,14 +69,14 @@ COPY --from=builder /app/packages/core/dist ./packages/core/dist
 COPY --from=builder /app/packages/db/dist ./packages/db/dist
 COPY packages/db/migrations ./packages/db/migrations
 
-# Arbre « standalone » : serveur Next autonome, dépendances déjà tracées.
+# "standalone" tree: autonomous Next server, dependencies already traced.
 COPY --from=builder /app/apps/web/.next/standalone ./web/
 COPY --from=builder /app/apps/web/.next/static ./web/apps/web/.next/static
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-# `/backups` existe dans l'image et appartient à `nodejs` : un volume nommé neuf
-# en hérite à son premier montage — sans quoi il naîtrait à root, et le worker
-# n'y écrirait rien.
+# `/backups` exists in the image and belongs to `nodejs`: a new named volume
+# inherits that at its first mount — otherwise it would be born as root, and the
+# worker would write nothing in it.
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh && chown -R nodejs:nodejs /app \
   && mkdir -p /backups && chown nodejs:nodejs /backups
 

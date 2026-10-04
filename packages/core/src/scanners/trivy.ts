@@ -29,7 +29,7 @@ import { scannerSay } from './messages.js';
  */
 export const TRIVY_VERSION = '0.74.0';
 
-/** `uname -m` → suffixe d'archive Trivy. */
+/** `uname -m` → Trivy archive suffix. */
 const ARCH_SUFFIX: Record<string, string> = {
   x86_64: '64bit',
   amd64: '64bit',

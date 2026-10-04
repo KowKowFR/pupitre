@@ -14,7 +14,7 @@ export const users = pgTable(
     email: text('email').notNull().unique(),
     emailVerified: boolean('email_verified').notNull().default(false),
     image: text('image'),
-    // Plugin admin
+    // Admin plugin
     role: text('role'),
     banned: boolean('banned').notNull().default(false),
     banReason: text('ban_reason'),
@@ -39,7 +39,7 @@ export const sessions = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     ipAddress: text('ip_address'),
     userAgent: text('user_agent'),
-    // Plugin admin
+    // Admin plugin
     impersonatedBy: text('impersonated_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

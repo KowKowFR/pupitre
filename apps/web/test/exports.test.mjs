@@ -25,7 +25,7 @@ describe('exports CSV', () => {
 
   it('quotes commas, quotes and line breaks (RFC 4180)', () => {
     assert.equal(csvCell('a,b'), '"a,b"');
-    assert.equal(csvCell('dit "non"'), '"dit ""non"""');
+    assert.equal(csvCell('said "no"'), '"said ""no"""');
     assert.equal(csvCell('ligne\nsuivante'), '"ligne\nsuivante"');
   });
 
@@ -118,6 +118,6 @@ describe('log filter days', () => {
   it('leaves an ISO instant as is, and falls back on UTC for an unknown time zone', () => {
     const iso = '2026-09-30T08:30:00.000Z';
     assert.equal(expandDayRange({ to: iso }, 'Europe/Paris').to, iso);
-    assert.equal(zonedDayStart('2026-09-30', 'Nulle/Part')?.toISOString(), '2026-09-30T00:00:00.000Z');
+    assert.equal(zonedDayStart('2026-09-30', 'Nowhere/Else')?.toISOString(), '2026-09-30T00:00:00.000Z');
   });
 });

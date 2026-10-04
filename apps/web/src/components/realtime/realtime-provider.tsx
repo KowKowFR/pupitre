@@ -370,7 +370,7 @@ export function RealtimeProvider({
 
 export function useRealtime(): RealtimeValue {
   const value = React.useContext(RealtimeContext);
-  if (!value) throw new Error('useRealtime() hors de <RealtimeProvider>');
+  if (!value) throw new Error('useRealtime() outside of <RealtimeProvider>');
   return value;
 }
 

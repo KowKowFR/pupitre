@@ -185,7 +185,7 @@ export async function connect(
       );
 
       if (!isLast) {
-        // Backoff exponentiel : 500 ms, 1 s, 2 s…
+        // Exponential backoff: 500 ms, 1 s, 2 s…
         await sleep(500 * 2 ** (attempt - 1));
       }
     }
@@ -295,7 +295,7 @@ export async function exec(
     return result;
   } catch (error) {
     if (error instanceof SshTimeoutError) {
-      logger.warn({ host: session.host, command, timeout }, 'commande SSH en timeout');
+      logger.warn({ host: session.host, command, timeout }, 'SSH command timed out');
       return {
         code: -1,
         stdout: '',

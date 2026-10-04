@@ -86,7 +86,7 @@ export async function createApplication(
     })
     .returning();
 
-  if (!row) throw new Error("createApplication: the insert returned no row");
+  if (!row) throw new Error('createApplication: the insert returned no row');
   return row;
 }
 

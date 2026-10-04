@@ -81,7 +81,7 @@ export const DEFAULT_VOLUME_SIZE = '1Gi';
  */
 export const RUN_AS_UID = 1000;
 
-/** Namespace de l'application. Convention CLAUDE.md : `app-{slug}`. */
+/** The application's namespace. CLAUDE.md convention: `app-{slug}`. */
 export function namespaceName(appSlug: string): string {
   return `${NAMESPACE_PREFIX}${appSlug}`;
 }

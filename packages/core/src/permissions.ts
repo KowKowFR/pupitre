@@ -308,7 +308,7 @@ export const SENSITIVE_PERMISSIONS: readonly Permission[] = [
   'user:manage',
   'user:reset-2fa',
   'role:manage',
-  // l'instance
+  // the instance
   'settings:manage',
   // machines
   'target:create',

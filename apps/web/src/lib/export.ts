@@ -21,7 +21,7 @@ export function exportResponse(options: {
   fallbackName: string;
   /** Called once, at the end of the stream or at its interruption. */
   onSettled: (complete: boolean) => Promise<void>;
-  /** Contexte des logs d'erreur. */
+  /** Context of the error logs. */
   context: Record<string, unknown>;
 }): Response {
   const { chunks, onSettled } = options;

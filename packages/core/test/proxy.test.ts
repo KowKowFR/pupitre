@@ -566,7 +566,7 @@ describe('the central proxy — a machine served by another’s proxy', () => {
     const cache = services.find((service) => service.metadata.name === 'cache');
     assert.equal(front?.spec.type, 'NodePort');
     assert.equal(front?.spec.ports[0]?.nodePort, 30001);
-    assert.equal(front?.spec.externalTrafficPolicy, 'Local', 'l’adresse d’origine reste lisible');
+    assert.equal(front?.spec.externalTrafficPolicy, 'Local', 'the client address stays readable');
     assert.equal(cache?.spec.type, 'ClusterIP');
 
     const policy = manifests.find((manifest) => manifest.kind === 'NetworkPolicy') as unknown as {

@@ -80,7 +80,7 @@ describe('forecasts', () => {
         200,
       ),
       null,
-      'mur dans 150 jours',
+      'wall in 150 days',
     );
     assert.equal(
       forecastDisk(
@@ -163,7 +163,7 @@ describe('forecasts', () => {
         baselineCount: 500,
       }),
       null,
-      'trop peu de mesures',
+      'too few readings',
     );
   });
 

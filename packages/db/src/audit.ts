@@ -208,7 +208,7 @@ export const auditQuerySchema = z.object({
     .max(60)
     .optional()
     .transform((value) => parseAuditSeverities(value)),
-  /** Recherche libre : action, ressource, acteur, IP, charge utile. */
+  /** Free search: action, resource, actor, IP, payload. */
   q: z.string().trim().min(1).max(200).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
