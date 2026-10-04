@@ -312,8 +312,8 @@ async function checkTemplate(
     const message = error instanceof Error ? error.message : String(error);
     const platform = [message, ...tail].some((line) => NO_PLATFORM.test(line));
     result = platform
-      ? finish('architecture', `pas d'image ${target.architecture} — ${message.split('\n')[0]}`)
-      : finish('failed', `${stage} : ${message.split('\n')[0]}`);
+      ? finish('architecture', `no ${target.architecture} image — ${message.split('\n')[0]}`)
+      : finish('failed', `${stage}: ${message.split('\n')[0]}`);
   }
 
   // The cleanup, whatever happened: a failed template must not get in the next one's way.

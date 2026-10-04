@@ -59,7 +59,7 @@ function main(): void {
    * which makes the comparison more straightforward, by the way.
    */
   const secretValues = Object.fromEntries(
-    secretNamesOf(spec).map((name) => [name, `valeur-de-rendu-${name.toLowerCase()}`]),
+    secretNamesOf(spec).map((name) => [name, `render-value-${name.toLowerCase()}`]),
   );
 
   // ─── Docker ────────────────────────────────────────────────────────────────

@@ -263,12 +263,12 @@ async function main(): Promise<void> {
     ok(`${result.url} → HTTP ${response.status}`);
     info(body.trim().split('\n')[0]?.slice(0, 80) ?? '');
 
-    process.stdout.write(`\n${green(bold('Driver Docker vérifié de bout en bout.'))}\n`);
-    process.stdout.write(`${bold(`  URL : ${result.url}`)}\n`);
+    process.stdout.write(`\n${green(bold('Docker driver verified end to end.'))}\n`);
+    process.stdout.write(`${bold(`  URL: ${result.url}`)}\n`);
 
     if (options.keep) {
       process.stdout.write(
-        `${dim(`  Déploiement conservé. Nettoyage : pnpm test:driver ${options.target} --destroy`)}\n`,
+        `${dim(`  Deployment kept. Cleanup: pnpm test:driver ${options.target} --destroy`)}\n`,
       );
     } else {
       step('9. Cleanup');

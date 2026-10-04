@@ -1,49 +1,50 @@
 /**
- * Le reverse proxy, éprouvé de bout en bout sur les deux runtimes.
+ * The reverse proxy, tried out end to end on both runtimes.
  *
- *   pnpm test:proxy <cible-docker> <cible-k3s> [--proxy=traefik|bunkerweb] [--no-acme] [--keep]
+ *   pnpm test:proxy <docker-target> <k3s-target> [--proxy=traefik|bunkerweb] [--no-acme] [--keep]
  *
- * `--proxy=bunkerweb` éprouve BunkerWeb au lieu de Traefik : il s'installe en
- * conteneur Docker seulement — sur la machine K3s, l'option doit se dire
- * indisponible, et c'est le BunkerWeb de la machine Docker qui sert
- * l'application K3s (proxy central). Son WAF est éprouvé depuis l'autre
- * machine : une injection SQL bloquée en « Protection », qui passe en
- * « Détection seule », et une page et ses ressources jamais limitées.
- * BunkerWeb n'accepte que Let's Encrypt : ses certificats viennent de Pebble
- * par le relais `acme-front`, que le script fait passer, **dans le conteneur
- * de test seulement**, pour Let's Encrypt (`scripts/test-acme/Caddyfile`).
+ * `--proxy=bunkerweb` tries out BunkerWeb instead of Traefik: it only installs
+ * as a Docker container — on the K3s machine, the option must call itself
+ * unavailable, and it is the Docker machine's BunkerWeb that serves the K3s
+ * application (central proxy). Its WAF is tried out from the other machine: an
+ * SQL injection blocked in "Protection", which goes through in "Detection
+ * only", and a page and its resources never rate limited. BunkerWeb only
+ * accepts Let's Encrypt: its certificates come from Pebble through the
+ * `acme-front` relay, which the script passes off as Let's Encrypt, **in the
+ * test container only** (`scripts/test-acme/Caddyfile`).
  *
- * D'abord, avant toute installation : les deux machines se joignent-elles ?
- * Dans les deux sens, par l'épreuve même du produit (`checkReach()`) — une
- * connexion ouverte de l'une vers l'autre, sur un port de la plage des
- * applications — et une adresse injoignable doit être dite telle. Sans quoi
- * le proxy central n'est pas exercé, en le disant.
+ * First, before any installation: do the two machines reach each other? Both
+ * ways, through the product's own trial (`checkReach()`) — a connection opened
+ * from one to the other, on a port of the applications' range — and an
+ * unreachable address must be called so. Otherwise the central proxy is not
+ * exercised, saying so.
  *
- * Puis, pour chaque cible, avec le même code — seul le driver et le mode de Traefik
- * changent, et ils ne sont nommés nulle part ici :
- *   1. Traefik installé par Pupitre (conteneur, ou le Traefik de K3s réglé),
- *      ses certificats demandés à Pebble — l'ACME de test de Let's Encrypt —
- *      quand il tourne (`docker compose --profile test up -d pebble pebble-dns`) ;
- *   2. « Tester » : il répond, et il lit ce qu'on lui confie ;
- *   3. la détection le retrouve tel qu'on l'a posé ;
- *   4. une application déployée par son driver — côté machine, son port
- *      n'est publié que sur la boucle locale ;
- *   5. deux domaines : l'un en HTTPS avec redirection, l'autre en HTTP seul,
- *      qui répondent à travers le proxy ;
- *   6. le certificat émis par l'ACME, pour de vrai ;
- *   7. un domaine retiré ne répond plus, l'autre si ;
- *   8. tout retiré, application détruite.
+ * Then, for each target, with the same code — only the driver and Traefik's
+ * mode change, and they are named nowhere here:
+ *   1. Traefik installed by Pupitre (container, or K3s's Traefik configured),
+ *      its certificates requested from Pebble — Let's Encrypt's test ACME —
+ *      when it runs (`docker compose --profile test up -d pebble pebble-dns`);
+ *   2. "Test": it answers, and it reads what is handed to it;
+ *   3. the detection finds it as it was set;
+ *   4. an application deployed by its driver — on the machine side, its port
+ *      is only published on the loopback;
+ *   5. two domains: one over HTTPS with a redirect, the other over HTTP only,
+ *      which answer through the proxy;
+ *   6. the certificate issued by the ACME, for real;
+ *   7. a removed domain no longer answers, the other one does;
+ *   8. everything removed, application destroyed.
  *
- * Puis le proxy central, dans les deux sens : le Traefik d'une machine sert
- * une application qui tourne sur l'autre.
- *   9. l'adresse de l'autre machine, et celle par laquelle le proxy y arrive ;
- *  10. l'application publiée pour lui seul — sur l'adresse privée en Compose,
- *      en NodePort réservé par une NetworkPolicy en K3s (et un proxy qui n'est
- *      pas le bon s'y voit refusé) ;
- *  11. ses domaines répondent à travers le proxy, certificat compris ;
- *  12. tout retiré, rien ne reste chez le proxy ; Traefik désinstallé.
+ * Then the central proxy, both ways: one machine's Traefik serves an
+ * application that runs on the other.
+ *   9. the other machine's address, and the one through which the proxy gets
+ *      there;
+ *  10. the application published for it alone — on the private address with
+ *      Compose, as a NodePort restricted by a NetworkPolicy with K3s (and a
+ *      proxy that is not the right one is refused there);
+ *  11. its domains answer through the proxy, certificate included;
+ *  12. everything removed, nothing remains at the proxy; Traefik uninstalled.
  *
- * Sortie en code 1 dès qu'un point échoue.
+ * Exit code 1 as soon as a point fails.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -95,7 +96,7 @@ import {
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHALLTESTSRV = 'http://127.0.0.1:8055';
-/** Le relais qui fait passer Pebble pour Let's Encrypt (profil test). */
+/** The relay that passes Pebble off as Let's Encrypt (test profile). */
 const ACME_FRONT = 'pupitre-acme-front-1';
 const LETS_ENCRYPT_NAMES = ['acme-staging-v02.api.letsencrypt.org', 'acme-v02.api.letsencrypt.org'];
 
@@ -157,7 +158,7 @@ async function ensureApplication(spec: AppSpec): Promise<string> {
     .insert(applications)
     .values({ slug: spec.name, name: spec.name, appSpec: spec })
     .returning({ id: applications.id });
-  if (!created) throw new Error("l'application de test n'a pas été créée");
+  if (!created) throw new Error('the test application was not created');
   return created.id;
 }
 
@@ -172,9 +173,9 @@ type Side = {
 
 async function openSide(runtime: RuntimeKind, ref: string, applicationId: string): Promise<Side> {
   const found = (await listTargets()).find((target) => target.id === ref || target.name === ref);
-  if (!found) throw new Error(`cible « ${ref} » introuvable`);
+  if (!found) throw new Error(`target "${ref}" not found`);
   const stored = await getTargetSecret(found.id);
-  if (!stored) throw new Error(`cible « ${ref} » illisible`);
+  if (!stored) throw new Error(`target "${ref}" unreadable`);
   const secret = decrypt(stored.encryptedCredential);
   const ssh: SshTarget = {
     host: stored.target.host,
@@ -212,7 +213,7 @@ async function openSide(runtime: RuntimeKind, ref: string, applicationId: string
   return { runtime, driver: getDriver(runtime), ctx, session };
 }
 
-/** L'adresse de la machine sur le réseau de test, pour le DNS de Pebble. */
+/** The machine's address on the test network, for Pebble's DNS. */
 async function machineAddress(session: SshSession): Promise<string | null> {
   const result = await exec(
     session,
@@ -240,16 +241,16 @@ async function declareDomain(host: string, address: string): Promise<void> {
     method: 'POST',
     body: JSON.stringify({ host, addresses: [address] }),
   });
-  if (!response.ok) throw new Error(`DNS de test : ${host} non déclaré (${response.status})`);
+  if (!response.ok) throw new Error(`test DNS: ${host} not declared (${response.status})`);
 }
 
 /**
- * Le Traefik d'un cluster ne voit pas le DNS de Docker : on apprend à CoreDNS
- * où est Pebble, par un bloc de serveur à part — K3s lit `coredns-custom`.
+ * A cluster's Traefik does not see Docker's DNS: we teach CoreDNS where Pebble
+ * is, through a separate server block — K3s reads `coredns-custom`.
  */
 async function teachClusterWherePebbleIs(session: SshSession): Promise<void> {
   const ip = (await exec(session, "getent hosts pebble | awk '{print $1}'")).stdout.trim();
-  if (!ip) throw new Error('la machine ne résout pas « pebble »');
+  if (!ip) throw new Error('the machine does not resolve "pebble"');
   const manifest = JSON.stringify({
     apiVersion: 'v1',
     kind: 'ConfigMap',
@@ -289,11 +290,11 @@ async function probeUntil(
 // ─── le WAF ──────────────────────────────────────────────────────────────────
 
 /**
- * Le WAF, éprouvé depuis l'autre machine — une adresse qu'aucune liste
- * blanche ne couvre, contrairement aux sondes de Pupitre :
- *   - en « Protection », une injection SQL est refusée (403), et une page et
- *     ses ressources — vingt requêtes à la fois — passent toutes ;
- *   - en « Détection seule », la même injection passe ; puis retour à la
+ * The WAF, tried out from the other machine — an address no allow list covers,
+ * unlike Pupitre's probes:
+ *   - in "Protection", an SQL injection is refused (403), and a page and its
+ *     resources — twenty requests at once — all go through;
+ *   - in "Detection only", the same injection goes through; then back to
  *     protection.
  */
 async function exerciseWaf(
@@ -308,7 +309,7 @@ async function exerciseWaf(
   const { provider, proxyCtx } = installed;
   const log = (line: string) => write(`    ${dim(line)}\n`);
   const address = await machineAddress(side.session);
-  if (!record(runtime, 'WAF : adresse de la machine du proxy', Boolean(address), address ?? '?')) {
+  if (!record(runtime, "WAF: the proxy machine's address", Boolean(address), address ?? '?')) {
     return;
   }
   const host = `-H 'Host: ${route.hostname}'`;
@@ -342,7 +343,7 @@ async function exerciseWaf(
   const blocked = await until('403', 30);
   record(
     runtime,
-    `WAF « Protection » : injection SQL refusée depuis ${outsider.ctx.target.name}`,
+    `WAF "Protection": SQL injection refused from ${outsider.ctx.target.name}`,
     blocked === '403',
     `HTTP ${blocked}`,
   );
@@ -359,7 +360,7 @@ async function exerciseWaf(
   );
   record(
     runtime,
-    'WAF « Protection » : une page et ses ressources (20 requêtes simultanées) passent toutes',
+    'WAF "Protection": a page and its resources (20 simultaneous requests) all go through',
     codes.length === 20 && codes.every((code) => code === '200'),
     tally.join(', '),
   );
@@ -368,14 +369,14 @@ async function exerciseWaf(
   const detected = await until('200', 45);
   record(
     runtime,
-    'WAF « Détection seule » : la même injection passe, journalisée',
+    'WAF "Detection only": the same injection goes through, logged',
     detected === '200',
     `HTTP ${detected}`,
   );
   await applyWith(route.waf);
 }
 
-// ─── le déroulé, par runtime ─────────────────────────────────────────────────
+// ─── the run, per runtime ────────────────────────────────────────────────────
 
 type Installed = {
   side: Side;
@@ -392,8 +393,8 @@ const PROXY_LABEL: Record<ProxyKind, string> = {
 };
 
 /**
- * Le relais `acme-front` : son adresse sur le réseau de test et son autorité,
- * lues par Docker sur le poste. `null` : il ne tourne pas.
+ * The `acme-front` relay: its address on the test network and its authority,
+ * read by Docker on the workstation. `null`: it is not running.
  */
 function acmeFront(): { address: string; ca: string } | null {
   try {
@@ -414,9 +415,9 @@ function acmeFront(): { address: string; ca: string } | null {
 }
 
 /**
- * Dans le conteneur BunkerWeb de test seulement : les noms de Let's Encrypt
- * mènent au relais, et son autorité est reconnue par certbot. Le conteneur
- * recréé, plus rien n'en reste.
+ * In the test BunkerWeb container only: Let's Encrypt's names lead to the
+ * relay, and its authority is recognized by certbot. Once the container is
+ * recreated, nothing of it remains.
  */
 async function teachBunkerWebWherePebbleIs(
   session: SshSession,
@@ -431,7 +432,7 @@ async function teachBunkerWebWherePebbleIs(
     ].join('\n'),
   );
   if (!/bundle=/.test(result.stdout)) {
-    throw new Error(`relais ACME non posé : ${result.stderr.trim() || result.stdout.trim()}`);
+    throw new Error(`ACME relay not set: ${result.stderr.trim() || result.stdout.trim()}`);
   }
 }
 
@@ -440,7 +441,7 @@ async function exercise(
   kind: ProxyKind,
   acme: AcmeSettings | null,
   keep: boolean,
-  /** L'autre machine : d'où viennent les requêtes qu'aucune liste blanche ne couvre. */
+  /** The other machine: where the requests no allow list covers come from. */
   outsider: Side | null,
 ): Promise<Installed | null> {
   const { runtime, driver, ctx, session } = side;
@@ -451,13 +452,13 @@ async function exercise(
 
   const options = await provider.installOptions(ctx);
   const option = options.find((candidate) => candidate.available);
-  // BunkerWeb s'installe en conteneur Docker : sur une machine K3s seule,
-  // l'option doit se dire indisponible — en renvoyant vers le proxy central.
+  // BunkerWeb installs as a Docker container: on a K3s machine alone, the option
+  // must call itself unavailable — pointing to the central proxy.
   if (kind === 'bunkerweb' && runtime === 'k3s') {
     const refused = options.find((candidate) => !candidate.available);
     record(
       runtime,
-      'BunkerWeb : installation indisponible sans Docker, qui renvoie vers la liaison',
+      'BunkerWeb: installation unavailable without Docker, pointing to the link',
       !option && Boolean(refused && /Docker/.test(refused.detail) && /reliez/.test(refused.detail)),
       refused?.detail ?? option?.detail ?? '?',
     );
@@ -466,7 +467,7 @@ async function exercise(
   if (
     !record(
       runtime,
-      'une installation possible',
+      'a possible installation',
       Boolean(option),
       option ? `${option.key} — ${option.detail}` : options.map((o) => o.detail).join(' · '),
     )
@@ -499,12 +500,12 @@ async function exercise(
     proxyCtx,
     kubernetes: option!.key === 'kubernetes',
   };
-  // BunkerWeb ne connaît que Let's Encrypt : dans ce conteneur de test, ses
-  // noms mènent à Pebble par le relais.
+  // BunkerWeb only knows Let's Encrypt: in this test container, its names lead
+  // to Pebble through the relay.
   if (kind === 'bunkerweb' && acme) {
     const front = acmeFront();
-    await guarded(runtime, 'relais ACME de test', async () => {
-      if (!front) throw new Error(`${ACME_FRONT} ne tourne pas`);
+    await guarded(runtime, 'test ACME relay', async () => {
+      if (!front) throw new Error(`${ACME_FRONT} is not running`);
       await teachBunkerWebWherePebbleIs(session, front);
       return true;
     });
@@ -513,47 +514,47 @@ async function exercise(
   const check = await guarded(runtime, 'check()', () => provider.check(proxyCtx, log));
   record(
     runtime,
-    'check() — « Tester »',
+    'check() — "Test"',
     check?.ok === true,
     check?.checks
       .filter((c) => !c.ok)
-      .map((c) => `${c.label} : ${c.detail}`)
+      .map((c) => `${c.label}: ${c.detail}`)
       .join(' · ') ?? '',
   );
 
   const detections = await guarded(runtime, 'detect()', () => provider.detect(ctx, log));
   record(
     runtime,
-    `detect() retrouve le ${label} posé`,
+    `detect() finds the ${label} that was set`,
     Boolean(detections?.some((detection) => detection.config !== null)),
     detections?.map((detection) => detection.summary).join(' · ') ?? '',
   );
 
-  // L'application, déployée par son driver, publiée là où le proxy la joint.
+  // The application, deployed by its driver, published where the proxy reaches it.
   const publishAddress = provider.publishAddress(config);
   if (publishAddress) ctx.exposure = { bindAddress: publishAddress };
-  const port = await guarded(runtime, 'déploiement', async () => {
+  const port = await guarded(runtime, 'deployment', async () => {
     const allocated = await driver.allocatePort(ctx);
     const artifacts = await driver.render(ctx);
     await driver.upload(ctx, artifacts, () => {});
     await driver.build(ctx, () => {});
     const result = await driver.deploy(ctx, () => {});
     const health = await driver.healthcheck(ctx);
-    if (!health.healthy) throw new Error(`application en mauvaise santé : ${health.detail ?? ''}`);
+    if (!health.healthy) throw new Error(`unhealthy application: ${health.detail ?? ''}`);
     return result.publishedPort ?? allocated;
   });
-  // Ce par quoi le proxy la joindra : c'est le driver qui le dit.
+  // What the proxy will reach it through: it is the driver that says so.
   const upstream = driver.upstream(ctx, port);
   if (
     !record(
       runtime,
-      'application déployée et saine',
+      'application deployed and healthy',
       upstream !== null,
       upstream?.kind === 'port'
         ? `port ${upstream.port}`
         : upstream
-          ? 'Service du cluster'
-          : 'rien que le proxy puisse joindre',
+          ? 'cluster Service'
+          : 'nothing the proxy can reach',
     )
   )
     return installed;
@@ -572,7 +573,7 @@ async function exercise(
     );
     record(
       runtime,
-      `port publié là où le proxy le joint seulement (${publishAddress})`,
+      `port published only where the proxy reaches it (${publishAddress})`,
       inside.stdout.trim() === '200' && outside?.stdout.trim() === '000',
       `${publishAddress} → ${inside.stdout.trim()}, ${own ?? '?'} → ${outside?.stdout.trim() ?? '?'}`,
     );
@@ -605,13 +606,13 @@ async function exercise(
       (probe) => probe.ok,
       45,
     );
-    record(runtime, `${secure.hostname} en HTTPS, HTTP redirigé`, securely.ok, securely.detail);
+    record(runtime, `${secure.hostname} over HTTPS, HTTP redirected`, securely.ok, securely.detail);
     const plainly = await probeUntil(
       () => provider.probe(proxyCtx, plain, '/'),
       (probe) => probe.ok,
       30,
     );
-    record(runtime, `${plain.hostname} en HTTP`, plainly.ok, plainly.detail);
+    record(runtime, `${plain.hostname} over HTTP`, plainly.ok, plainly.detail);
     if (kind === 'bunkerweb' && outsider) {
       await exerciseWaf(side, outsider, installed, [secure, plain], plain, upstream!);
     }
@@ -623,9 +624,9 @@ async function exercise(
       );
       record(
         runtime,
-        'certificat émis par l’ACME',
+        'certificate issued by the ACME',
         issued.certificate.status === 'valid',
-        `${issued.certificate.status} — ${issued.certificate.issuer ?? '?'} jusqu’au ${issued.certificate.notAfter?.slice(0, 10) ?? '?'}`,
+        `${issued.certificate.status} — ${issued.certificate.issuer ?? '?'} until ${issued.certificate.notAfter?.slice(0, 10) ?? '?'}`,
       );
     }
 
@@ -638,7 +639,7 @@ async function exercise(
     const kept = await provider.probe(proxyCtx, secure, '/');
     record(
       runtime,
-      'un domaine retiré ne répond plus, l’autre si',
+      'a removed domain no longer answers, the other one does',
       !gone.ok && kept.ok,
       `${gone.detail} · ${kept.detail}`,
     );
@@ -649,7 +650,7 @@ async function exercise(
       (probe) => !probe.ok,
       30,
     );
-    record(runtime, 'tout retiré : plus rien', !none.ok, none.detail);
+    record(runtime, 'everything removed: nothing left', !none.ok, none.detail);
   }
 
   if (!keep) {
@@ -657,7 +658,7 @@ async function exercise(
       await driver.destroy(ctx, () => {});
       return true;
     });
-    if (destroyed) record(runtime, 'application détruite', true);
+    if (destroyed) record(runtime, 'application destroyed', true);
   }
   delete ctx.exposure;
   return installed;
@@ -665,7 +666,7 @@ async function exercise(
 
 // ─── le proxy central ────────────────────────────────────────────────────────
 
-/** La plage où les applications de la cible sont publiées, comme le pipeline la retient. */
+/** The range where the target's applications are published, as the pipeline keeps it. */
 async function appRange(side: Side): Promise<{ min: number; max: number }> {
   if (side.ctx.portRange) return side.ctx.portRange;
   const report = await getTargetPortReport(side.ctx.target.id);
@@ -675,21 +676,21 @@ async function appRange(side: Side): Promise<{ min: number; max: number }> {
 type Reach = { address: string; result: ReachResult };
 
 /**
- * Phase 0 : la machine `from` ouvre-t-elle une connexion vers `to` ? Par
- * l'épreuve du produit, celle du test d'une liaison et du préflight.
+ * Phase 0: does the `from` machine open a connection to `to`? Through the
+ * product's trial, the one of a link's test and of the preflight.
  */
 async function reachBetween(from: Side, to: Side): Promise<Reach | null> {
   const label = `${from.runtime}→${to.runtime}`;
   const address = await machineAddress(to.session);
-  if (!record(label, 'adresse de la machine', Boolean(address), address ?? 'introuvable')) {
+  if (!record(label, "the machine's address", Boolean(address), address ?? 'not found')) {
     return null;
   }
   const portRange = await appRange(to);
-  // Les ports que le panel a réservés sur cette machine : le produit les écarte
-  // aussi — un NodePort en service détournerait la connexion d'essai.
+  // The ports the panel reserved on this machine: the product sets them aside
+  // too — a NodePort in service would hijack the trial connection.
   const report = await getTargetPortReport(to.ctx.target.id);
   const reserved = new Set(report?.allocations.map((allocation) => allocation.port) ?? []);
-  const result = await guarded(label, 'connexion éprouvée', () =>
+  const result = await guarded(label, 'connection tried out', () =>
     checkReach({
       origin: sshReachOrigin(from.ctx),
       served: to.ctx,
@@ -702,21 +703,21 @@ async function reachBetween(from: Side, to: Side): Promise<Reach | null> {
   if (!result) return null;
   record(
     label,
-    `${from.ctx.target.name} joint ${to.ctx.target.name}`,
+    `${from.ctx.target.name} reaches ${to.ctx.target.name}`,
     result.ok === true,
-    `${result.detail}${reachSource(result) ? ` — arrivée depuis ${reachSource(result)}` : ''}`,
+    `${result.detail}${reachSource(result) ? ` — arrival from ${reachSource(result)}` : ''}`,
   );
   return result.ok === true ? { address: address!, result } : null;
 }
 
-/** Et une adresse qui ne mène nulle part est dite telle, sans rien laisser derrière. */
+/** And an address that leads nowhere is called so, without leaving anything behind. */
 async function unreachableIsSaid(from: Side, to: Side): Promise<void> {
   const label = `${from.runtime}→${to.runtime}`;
-  const result = await guarded(label, 'adresse injoignable', () =>
+  const result = await guarded(label, 'unreachable address', () =>
     checkReach({
       origin: sshReachOrigin(from.ctx),
       served: to.ctx,
-      // TEST-NET-1 (RFC 5737) : routée par défaut, jamais attribuée.
+      // TEST-NET-1 (RFC 5737): routed by default, never assigned.
       address: '192.0.2.1',
       portRange: { min: 30000, max: 30009 },
     }),
@@ -725,7 +726,7 @@ async function unreachableIsSaid(from: Side, to: Side): Promise<void> {
   const leftovers = await exec(to.session, 'ls /tmp/pupitre-reach-* 2>/dev/null || true');
   record(
     label,
-    'une adresse injoignable est signalée, rien ne reste',
+    'an unreachable address is reported, nothing remains',
     result.ok === false && leftovers.stdout.trim() === '',
     `${result.failure ?? '?'} — ${result.detail}`,
   );
@@ -744,9 +745,9 @@ async function redeploy(app: Side, exposure: NonNullable<DriverContext['exposure
   await app.driver.build(app.ctx, () => {});
   const result = await app.driver.deploy(app.ctx, () => {});
   const health = await app.driver.healthcheck(app.ctx);
-  if (!health.healthy) throw new Error(`application en mauvaise santé : ${health.detail ?? ''}`);
+  if (!health.healthy) throw new Error(`unhealthy application: ${health.detail ?? ''}`);
   const port = result.publishedPort ?? allocated;
-  if (port === null) throw new Error('aucun port publié pour le proxy distant');
+  if (port === null) throw new Error('no port published for the remote proxy');
   return port;
 }
 
@@ -761,16 +762,16 @@ async function crossExercise(
   const { provider, proxyCtx } = proxy;
   const log = (line: string) => write(`    ${dim(line)}\n`);
   write(
-    `\n${bold(`── proxy central — le ${PROXY_LABEL[proxy.kind]} de ${proxy.side.ctx.target.name} sert ${app.ctx.target.name}`)}\n`,
+    `\n${bold(`── central proxy — the ${PROXY_LABEL[proxy.kind]} of ${proxy.side.ctx.target.name} serves ${app.ctx.target.name}`)}\n`,
   );
 
-  // L'adresse et l'arrivée viennent de la phase 0 : la connexion y a été éprouvée.
+  // The address and the arrival come from phase 0: the connection was tried out there.
   const { address } = reach;
   const source = reachSource(reach.result);
   if (
     !record(
       label,
-      'liaison : adresse et arrivée du proxy',
+      "link: the proxy's address and arrival",
       Boolean(source),
       `${address} ← ${source}`,
     )
@@ -808,16 +809,16 @@ async function crossExercise(
       log,
     );
 
-  // Un proxy qui n'est pas le bon : en K3s, la NetworkPolicy le refuse. En
-  // Compose, c'est l'adresse de publication qui fait la barrière.
+  // A proxy that is not the right one: with K3s, the NetworkPolicy refuses it.
+  // With Compose, it is the publication address that makes the barrier.
   if (app.runtime === 'k3s') {
-    const port = await guarded(label, 'déploiement réservé à une autre adresse', () =>
+    const port = await guarded(label, 'deployment reserved for another address', () =>
       redeploy(app, { byPort: true, allowFrom: '192.0.2.1' }),
     );
     if (port === null) return;
     await applyRoutes([plain], port);
-    // Concluant seulement une fois la route appliquée : le proxy connaît le
-    // domaine, mais ne joint pas l'application (502).
+    // Conclusive only once the route is applied: the proxy knows the domain, but
+    // does not reach the application (502).
     const refused = await probeUntil(
       () => provider.probe(proxyCtx, plain, '/'),
       (probe) => probe.ok || probe.http === 502,
@@ -825,19 +826,19 @@ async function crossExercise(
     );
     record(
       label,
-      'NetworkPolicy : un proxy qui n’est pas le sien est refusé',
+      'NetworkPolicy: a proxy that is not its own is refused',
       !refused.ok && refused.http === 502,
       refused.detail,
     );
   }
 
-  const port = await guarded(label, 'déploiement pour le proxy distant', () =>
+  const port = await guarded(label, 'deployment for the remote proxy', () =>
     redeploy(app, { byPort: true, bindAddress: address!, allowFrom: source! }),
   );
   if (port === null) return;
   record(
     label,
-    app.runtime === 'k3s' ? `NodePort ${port}, réservé au proxy` : `port ${port} publié`,
+    app.runtime === 'k3s' ? `NodePort ${port}, reserved for the proxy` : `port ${port} published`,
     true,
   );
 
@@ -852,13 +853,13 @@ async function crossExercise(
     );
     record(
       label,
-      'port publié sur l’adresse que joint le proxy, seulement',
+      'port published only on the address the proxy reaches',
       local.stdout.trim() === '000' && fromProxy.stdout.trim() === '200',
-      `127.0.0.1 → ${local.stdout.trim()}, ${address} depuis le proxy → ${fromProxy.stdout.trim()}`,
+      `127.0.0.1 → ${local.stdout.trim()}, ${address} from the proxy → ${fromProxy.stdout.trim()}`,
     );
   }
 
-  const applied = await guarded(label, 'apply() vers l’autre machine', async () => {
+  const applied = await guarded(label, 'apply() to the other machine', async () => {
     await applyRoutes([secure, plain], port);
     return true;
   });
@@ -868,7 +869,7 @@ async function crossExercise(
     (probe) => probe.ok,
     60,
   );
-  record(label, `${plain.hostname} en HTTP, à travers le proxy`, plainly.ok, plainly.detail);
+  record(label, `${plain.hostname} over HTTP, through the proxy`, plainly.ok, plainly.detail);
   const securely = await probeUntil(
     () => provider.probe(proxyCtx, secure, '/'),
     (probe) => probe.ok && (!acme || probe.certificate.status === 'valid'),
@@ -876,20 +877,20 @@ async function crossExercise(
   );
   record(
     label,
-    `${secure.hostname} en HTTPS${acme ? ', certificat émis' : ''}`,
+    `${secure.hostname} over HTTPS${acme ? ', certificate issued' : ''}`,
     securely.ok && (!acme || securely.certificate.status === 'valid'),
     `${securely.detail} — ${securely.certificate.status}`,
   );
 
-  // Tout retiré : plus de route, et rien ne reste chez le proxy.
+  // Everything removed: no route left, and nothing remains at the proxy.
   await applyRoutes([], port);
   const gone = await probeUntil(
     () => provider.probe(proxyCtx, plain, '/'),
     (probe) => !probe.ok,
     30,
   );
-  // Ce que chaque proxy garderait s'il oubliait : objets du cluster, fichier
-  // de routes, ou registre des services BunkerWeb de l'application.
+  // What each proxy would keep if it forgot: cluster objects, routes file, or
+  // the application's BunkerWeb services registry.
   const leftovers =
     proxy.kind === 'bunkerweb'
       ? await exec(
@@ -913,7 +914,7 @@ async function crossExercise(
           );
   record(
     label,
-    'tout retiré : plus de route, rien ne reste chez le proxy',
+    'everything removed: no route left, nothing remains at the proxy',
     !gone.ok && leftovers.stdout.trim() === '',
     leftovers.stdout.trim() || gone.detail,
   );
@@ -923,7 +924,7 @@ async function crossExercise(
       await app.driver.destroy(app.ctx, () => {});
       return true;
     });
-    if (destroyed) record(label, 'application détruite', true);
+    if (destroyed) record(label, 'application destroyed', true);
   }
   delete app.ctx.exposure;
 }
@@ -934,16 +935,16 @@ async function teardown(installed: Installed, acme: AcmeSettings | null): Promis
     await provider.uninstall(proxyCtx, (line) => write(`    ${dim(line)}\n`));
     return true;
   });
-  if (removed) record(side.runtime, `${PROXY_LABEL[installed.kind]} désinstallé`, true);
+  if (removed) record(side.runtime, `${PROXY_LABEL[installed.kind]} uninstalled`, true);
   if (removed && installed.kubernetes) {
-    // Le namespace des routes vers d'autres machines part avec lui.
+    // The namespace of the routes to other machines goes with it.
     const phase = await exec(
       side.session,
       `export KUBECONFIG=\${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}; kubectl get namespace ${REMOTE_NAMESPACE} -o jsonpath='{.status.phase}' 2>/dev/null || true`,
     );
     record(
       side.runtime,
-      `namespace ${REMOTE_NAMESPACE} retiré`,
+      `namespace ${REMOTE_NAMESPACE} removed`,
       ['', 'Terminating'].includes(phase.stdout.trim()),
       phase.stdout.trim() || 'absent',
     );
@@ -956,7 +957,7 @@ async function main(): Promise<void> {
   const [dockerRef, k3sRef] = args.filter((arg) => !arg.startsWith('--'));
   if (!dockerRef || !k3sRef) {
     write(
-      'Usage : pnpm test:proxy <cible-docker> <cible-k3s> [--proxy=traefik|bunkerweb] [--no-acme] [--keep]\n',
+      'Usage: pnpm test:proxy <docker-target> <k3s-target> [--proxy=traefik|bunkerweb] [--no-acme] [--keep]\n',
     );
     process.exit(1);
   }
@@ -964,8 +965,8 @@ async function main(): Promise<void> {
     args.find((arg) => arg.startsWith('--proxy='))?.slice('--proxy='.length) ?? 'traefik',
   );
   const pebble = !args.includes('--no-acme') && (await acmeAvailable());
-  // Traefik interroge Pebble directement ; BunkerWeb, qui ne connaît que Let's
-  // Encrypt, par le relais qui en prend les noms.
+  // Traefik queries Pebble directly; BunkerWeb, which only knows Let's Encrypt,
+  // through the relay that takes its names.
   const acme: AcmeSettings | null = !pebble
     ? null
     : kind === 'bunkerweb'
@@ -981,12 +982,12 @@ async function main(): Promise<void> {
             'utf8',
           ),
         };
-  write(bold(`Reverse proxy — ${PROXY_LABEL[kind]} sur les deux runtimes\n`));
+  write(bold(`Reverse proxy — ${PROXY_LABEL[kind]} on both runtimes\n`));
   write(
     dim(
       acme
-        ? `  certificats : Pebble (ACME de test)${kind === 'bunkerweb' ? ', sous les noms de Let’s Encrypt par acme-front' : ''}\n`
-        : `  certificats : non vérifiés — ${pebble ? `${ACME_FRONT} absent` : 'Pebble absent'}\n`,
+        ? `  certificates: Pebble (test ACME)${kind === 'bunkerweb' ? ", under Let's Encrypt's names through acme-front" : ''}\n`
+        : `  certificates: not checked — ${pebble ? `${ACME_FRONT} missing` : 'Pebble missing'}\n`,
     ),
   );
 
@@ -999,16 +1000,16 @@ async function main(): Promise<void> {
       ['docker', dockerRef],
       ['k3s', k3sRef],
     ] as const) {
-      const side = await guarded(runtime, 'ouverture de la cible', () =>
+      const side = await guarded(runtime, 'opening the target', () =>
         openSide(runtime, ref, applicationId),
       );
       if (side) sides.push(side);
     }
 
-    // Phase 0 : les deux machines se joignent-elles, dans les deux sens ?
+    // Phase 0: do the two machines reach each other, both ways?
     const reaches = new Map<Side, Reach | null>();
     if (sides.length === 2) {
-      write(`\n${bold('── les deux machines se joignent-elles ?')}\n`);
+      write(`\n${bold('── do the two machines reach each other?')}\n`);
       for (const [from, to] of [sides, [...sides].reverse()] as Array<[Side, Side]>) {
         reaches.set(to, await reachBetween(from, to));
       }
@@ -1021,7 +1022,7 @@ async function main(): Promise<void> {
       if (done) installed.push(done);
     }
 
-    // Le proxy central, dans les deux sens — seulement entre machines qui se joignent.
+    // The central proxy, both ways — only between machines that reach each other.
     for (const proxy of installed) {
       const app = sides.find((side) => side !== proxy.side);
       if (!app) continue;
@@ -1029,7 +1030,7 @@ async function main(): Promise<void> {
       if (!reach) {
         record(
           `${proxy.side.runtime}→${app.runtime}`,
-          'proxy central non exercé : les machines ne se joignent pas (phase 0)',
+          'central proxy not exercised: the machines do not reach each other (phase 0)',
           false,
         );
         continue;
@@ -1045,11 +1046,11 @@ async function main(): Promise<void> {
     await getDb().delete(applications).where(eq(applications.id, applicationId));
   }
   await closeDb();
-  write(`\n  ${passes} vérification(s) au vert, ${failures} en échec\n`);
+  write(`\n  ${passes} check(s) green, ${failures} failing\n`);
   write(
     failures === 0
-      ? green(bold('\nLe reverse proxy tient sur les deux runtimes.\n'))
-      : red(bold('\nÉchec.\n')),
+      ? green(bold('\nThe reverse proxy holds on both runtimes.\n'))
+      : red(bold('\nFailure.\n')),
   );
   process.exit(failures === 0 ? 0 : 1);
 }

@@ -1,36 +1,36 @@
 /**
- * Configuration multi-fournisseur de la génération d'AppSpec, hors ligne.
+ * Multi-provider configuration of the AppSpec generation, offline.
  *
  *   pnpm test:ai
  *
- * Aucun appel réseau, aucune clé : tout ce qui est éprouvé ici est à nous.
+ * No network call, no key: everything tried out here is ours.
  *
- * Ce qui est prouvé :
- *   1. Le catalogue est complet — chaque fournisseur déclaré a un descripteur
- *      *et* une fabrique. Un fournisseur ajouté à moitié est détecté ici.
- *   2. Le modèle par défaut suit le fournisseur, et jamais l'inverse.
- *   3. La variable d'environnement de repli est **propre au fournisseur** :
- *      `OPENROUTER_API_KEY` n'active rien chez OpenAI ni chez Anthropic.
- *   4. Un modèle qui n'a pas la forme d'un identifiant du fournisseur est
- *      signalé avant l'appel, et l'avertissement nomme le bon coupable.
- *   5. Le schéma de paramètres accepte les trois fournisseurs, refuse les
- *      autres, et valide l'URL de base.
- *   6. `createModel` refuse de se construire sans clé, en nommant la variable
- *      qui manque — et construit un modèle pour chacun des trois, sans réseau.
- *   7. Le mode strict des sorties structurées est désactivé là où il faut :
- *      l'AppSpec produit un `oneOf` que le mode strict d'OpenAI refuse.
- *   8. Le message d'erreur d'un fournisseur est nettoyé de tout ce qui
- *      ressemble à une clé — y compris de la forme masquée qu'OpenAI renvoie.
- *   9. Le prompt système porte bien la consigne multi-services, et **tous** ses
- *      exemples de spec valide passent `appSpecSchema` — sauf les deux
- *      contre-exemples, qui doivent échouer.
+ * What is proven:
+ *   1. The catalog is complete — each declared provider has a descriptor *and*
+ *      a factory. A half-added provider is detected here.
+ *   2. The default model follows the provider, and never the reverse.
+ *   3. The fallback environment variable is **specific to the provider**:
+ *      `OPENROUTER_API_KEY` enables nothing at OpenAI nor at Anthropic.
+ *   4. A model that does not have the shape of a provider identifier is flagged
+ *      before the call, and the warning names the right culprit.
+ *   5. The settings schema accepts the three providers, refuses the others,
+ *      and validates the base URL.
+ *   6. `createModel` refuses to build without a key, naming the missing
+ *      variable — and builds a model for each of the three, without network.
+ *   7. The strict mode of structured outputs is disabled where it must be: the
+ *      AppSpec produces a `oneOf` that OpenAI's strict mode refuses.
+ *   8. A provider's error message is cleaned of anything that looks like a key
+ *      — including the masked form OpenAI returns.
+ *   9. The system prompt does carry the multi-service instruction, and **all**
+ *      its valid spec examples pass `appSpecSchema` — except the two
+ *      counter-examples, which must fail.
  *
- * La boucle de génération elle-même (relance sur erreurs Zod, réponse tronquée,
- * texte hors JSON, panne du fournisseur) est éprouvée avec un modèle simulé
- * dans `packages/core/test/ai.test.ts` : le `MockLanguageModelV3` du SDK n'est
- * résoluble que depuis `packages/core`. `pnpm test` les exécute.
+ * The generation loop itself (retry on Zod errors, truncated response, text
+ * outside JSON, provider failure) is tried out with a simulated model in
+ * `packages/core/test/ai.test.ts`: the SDK's `MockLanguageModelV3` can only be
+ * resolved from `packages/core`. `pnpm test` runs them.
  *
- * Sortie en code 1 dès qu'un seul point échoue.
+ * Exit code 1 as soon as a single point fails.
  */
 import assert from 'node:assert/strict';
 import { aiSettingsSchema, appSettingsPatchSchema, safeParseAppSpec } from '@pupitre/core';
@@ -91,44 +91,44 @@ function info(message: string): void {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-step('1. Le catalogue des fournisseurs est complet');
+step('1. The providers catalog is complete');
 {
-  info(`fournisseurs déclarés : ${AI_PROVIDERS.join(', ')}`);
+  info(`declared providers: ${AI_PROVIDERS.join(', ')}`);
 
-  check('au moins OpenRouter, OpenAI et Anthropic', () => {
+  check('at least OpenRouter, OpenAI and Anthropic', () => {
     for (const expected of ['openrouter', 'openai', 'anthropic']) {
       assert.ok(AI_PROVIDERS.includes(expected as AiProvider), `${expected} absent`);
     }
   });
 
   for (const provider of AI_PROVIDERS) {
-    check(`« ${provider} » a un descripteur exploitable`, () => {
+    check(`"${provider}" has a usable descriptor`, () => {
       const descriptor = aiProviderDescriptor(provider);
       assert.equal(descriptor.key, provider);
-      assert.ok(descriptor.label.length > 0, 'libellé vide');
-      assert.ok(descriptor.defaultModel.length > 0, 'modèle par défaut vide');
-      assert.ok(descriptor.modelHint.length > 0, 'exemple de modèle vide');
-      // Le défaut du fournisseur doit lui-même passer son propre test de forme,
-      // sans quoi le panel s'avertirait lui-même dès l'installation.
+      assert.ok(descriptor.label.length > 0, 'empty label');
+      assert.ok(descriptor.defaultModel.length > 0, 'empty default model');
+      assert.ok(descriptor.modelHint.length > 0, 'empty model example');
+      // The provider's default must itself pass its own shape test, otherwise the
+      // panel would warn itself from the installation on.
       assert.ok(
         descriptor.nativeModel.test(descriptor.defaultModel),
-        `le défaut « ${descriptor.defaultModel} » ne ressemble pas à un identifiant ${descriptor.label}`,
+        `the default "${descriptor.defaultModel}" does not look like a ${descriptor.label} identifier`,
       );
     });
 
-    check(`« ${provider} » a une fabrique`, () => {
+    check(`"${provider}" has a factory`, () => {
       assert.equal(typeof getAiProviderFactory(provider), 'function');
     });
   }
 
-  check('les descripteurs et la liste ne divergent pas', () => {
+  check('the descriptors and the list do not diverge', () => {
     assert.deepEqual(
       aiProviderDescriptors().map((descriptor) => descriptor.key),
       AI_PROVIDERS,
     );
   });
 
-  check('un fournisseur inventé est rejeté', () => {
+  check('a made-up provider is rejected', () => {
     assert.equal(isAiProvider('mistral'), false);
     assert.equal(isAiProvider(''), false);
     assert.equal(isAiProvider(null), false);
@@ -136,7 +136,7 @@ step('1. Le catalogue des fournisseurs est complet');
   });
 }
 
-step('2. Le modèle par défaut suit le fournisseur');
+step('2. The default model follows the provider');
 {
   for (const provider of AI_PROVIDERS) {
     check(`${provider} → ${defaultAiModel(provider)}`, () => {
@@ -150,12 +150,12 @@ step('2. Le modèle par défaut suit le fournisseur');
     });
   }
 
-  check('deux fournisseurs n’ont pas le même défaut', () => {
+  check('two providers do not have the same default', () => {
     const defaults = AI_PROVIDERS.map(defaultAiModel);
     assert.equal(new Set(defaults).size, defaults.length);
   });
 
-  check('un modèle réglé à la main gagne sur le défaut', () => {
+  check('a model set by hand wins over the default', () => {
     const resolved = resolveAiConfig({
       settings: { provider: 'anthropic', model: 'claude-opus-4-5' },
       settingsApiKey: 'sk-test',
@@ -164,7 +164,7 @@ step('2. Le modèle par défaut suit le fournisseur');
     assert.equal(resolved.modelSource, 'settings');
   });
 
-  check('un provider inconnu en base retombe sur OpenRouter, sans planter', () => {
+  check('an unknown provider in the database falls back on OpenRouter, without crashing', () => {
     const resolved = resolveAiConfig({
       settings: { provider: 'skynet' },
       settingsApiKey: 'sk-test',
@@ -173,7 +173,7 @@ step('2. Le modèle par défaut suit le fournisseur');
   });
 }
 
-step('3. La variable d’environnement de repli est propre au fournisseur');
+step("3. The fallback environment variable is specific to the provider");
 {
   const env = {
     OPENROUTER_API_KEY: 'sk-or-xxx',
@@ -189,12 +189,12 @@ step('3. La variable d’environnement de repli est propre au fournisseur');
   });
 
   for (const provider of ['openai', 'anthropic'] as const) {
-    check(`${provider} ignore OPENROUTER_API_KEY — pas de clé, pas de génération`, () => {
+    check(`${provider} ignores OPENROUTER_API_KEY — no key, no generation`, () => {
       const resolved = resolveAiConfig({ settings: { provider }, env });
       assert.equal(resolved.enabled, false);
       assert.equal(resolved.keySource, 'none');
       assert.equal(resolved.apiKey, undefined);
-      // Et surtout : il ne reprend pas non plus le modèle d'OpenRouter.
+      // And above all: it does not take OpenRouter's model either.
       assert.equal(resolved.model, defaultAiModel(provider));
     });
   }
@@ -215,7 +215,7 @@ step('3. La variable d’environnement de repli est propre au fournisseur');
     assert.equal(anthropic.model, 'claude-haiku-4-5');
   });
 
-  check('la clé des paramètres prime sur celle de l’environnement', () => {
+  check("the settings' key takes precedence over the environment's", () => {
     const resolved = resolveAiConfig({
       settings: { provider: 'openrouter' },
       settingsApiKey: 'sk-settings',
@@ -225,112 +225,112 @@ step('3. La variable d’environnement de repli est propre au fournisseur');
     assert.equal(resolved.keySource, 'settings');
   });
 
-  check('l’interrupteur coupe la génération même avec une clé', () => {
+  check('the switch cuts the generation even with a key', () => {
     const resolved = resolveAiConfig({
       settings: { provider: 'openrouter', enabled: false },
       settingsApiKey: 'sk-settings',
     });
     assert.equal(resolved.enabled, false);
-    assert.equal(resolved.apiKey, 'sk-settings', 'la clé reste résolue, seule la génération est coupée');
+    assert.equal(resolved.apiKey, 'sk-settings', 'the key stays resolved, only the generation is switched off');
   });
 
-  check('l’URL de base n’est retenue que par les fournisseurs qui la déclarent', () => {
+  check('the base URL is only kept by the providers that declare it', () => {
     const openai = resolveAiConfig({
-      settings: { provider: 'openai', baseUrl: 'https://llm.interne/v1' },
+      settings: { provider: 'openai', baseUrl: 'https://llm.internal/v1' },
       settingsApiKey: 'k',
     });
-    assert.equal(openai.baseUrl, 'https://llm.interne/v1');
+    assert.equal(openai.baseUrl, 'https://llm.internal/v1');
 
     const anthropic = resolveAiConfig({
-      settings: { provider: 'anthropic', baseUrl: 'https://llm.interne/v1' },
+      settings: { provider: 'anthropic', baseUrl: 'https://llm.internal/v1' },
       settingsApiKey: 'k',
     });
-    assert.equal(anthropic.baseUrl, undefined, 'Anthropic ne déclare pas supportsBaseUrl');
+    assert.equal(anthropic.baseUrl, undefined, 'Anthropic does not declare supportsBaseUrl');
   });
 }
 
-step('4. Un modèle incohérent avec le fournisseur est signalé');
+step('4. A model inconsistent with the provider is flagged');
 {
-  check('OpenRouter + « gpt-5.2 » → averti, et OpenAI est nommé', () => {
+  check('OpenRouter + "gpt-5.2" → warned, and OpenAI is named', () => {
     const warning = aiModelMismatch('openrouter', 'gpt-5.2');
-    assert.ok(warning, 'aucun avertissement');
+    assert.ok(warning, 'no warning');
     assert.match(warning, /OpenAI/);
   });
 
-  check('Anthropic + « anthropic/claude-sonnet-4.5 » → averti, OpenRouter est nommé', () => {
+  check('Anthropic + "anthropic/claude-sonnet-4.5" → warned, OpenRouter is named', () => {
     const warning = aiModelMismatch('anthropic', 'anthropic/claude-sonnet-4.5');
     assert.ok(warning);
     assert.match(warning, /OpenRouter/);
   });
 
-  check('OpenAI + « claude-sonnet-4-5 » → averti, Anthropic est nommé', () => {
+  check('OpenAI + "claude-sonnet-4-5" → warned, Anthropic is named', () => {
     const warning = aiModelMismatch('openai', 'claude-sonnet-4-5');
     assert.ok(warning);
     assert.match(warning, /Anthropic/);
   });
 
-  check('un identifiant natif ne déclenche rien', () => {
+  check('a native identifier triggers nothing', () => {
     assert.equal(aiModelMismatch('openrouter', 'anthropic/claude-sonnet-4.5'), null);
     assert.equal(aiModelMismatch('openai', 'gpt-4.1'), null);
     assert.equal(aiModelMismatch('openai', 'o3-mini'), null);
     assert.equal(aiModelMismatch('anthropic', 'claude-opus-4-5'), null);
   });
 
-  check('une URL de base personnalisée suspend l’avertissement', () => {
+  check('a custom base URL suspends the warning', () => {
     assert.equal(
-      aiModelMismatch('openai', 'mixtral-8x7b-instruct', { baseUrl: 'https://llm.interne/v1' }),
+      aiModelMismatch('openai', 'mixtral-8x7b-instruct', { baseUrl: 'https://llm.internal/v1' }),
       null,
     );
     assert.ok(aiModelMismatch('openai', 'mixtral-8x7b-instruct'));
   });
 
-  check('resolveAiConfig porte l’avertissement jusqu’à la route', () => {
+  check('resolveAiConfig carries the warning to the route', () => {
     const resolved = resolveAiConfig({
       settings: { provider: 'anthropic', model: 'anthropic/claude-sonnet-4.5' },
       settingsApiKey: 'k',
     });
-    assert.ok(resolved.modelWarning, 'aucun avertissement remonté');
+    assert.ok(resolved.modelWarning, 'no warning brought up');
   });
 }
 
-step('5. Les paramètres d’instance acceptent les trois fournisseurs');
+step('5. The instance settings accept the three providers');
 {
   for (const provider of AI_PROVIDERS) {
-    check(`« ${provider} » est une valeur valide`, () => {
+    check(`"${provider}" is a valid value`, () => {
       const parsed = aiSettingsSchema.parse({ provider, model: defaultAiModel(provider) });
       assert.equal(parsed.provider, provider);
     });
   }
 
-  check('un fournisseur hors catalogue est refusé', () => {
+  check('a provider outside the catalog is refused', () => {
     assert.equal(aiSettingsSchema.safeParse({ provider: 'skynet' }).success, false);
   });
 
-  check('une URL de base bancale est refusée à l’entrée', () => {
-    assert.equal(aiSettingsSchema.safeParse({ baseUrl: 'pas-une-url' }).success, false);
+  check('a shaky base URL is refused at the entrance', () => {
+    assert.equal(aiSettingsSchema.safeParse({ baseUrl: 'not-a-url' }).success, false);
     assert.equal(aiSettingsSchema.safeParse({ baseUrl: '' }).success, true);
     assert.equal(aiSettingsSchema.safeParse({ baseUrl: 'https://llm/v1' }).success, true);
   });
 
-  check('un PATCH partiel ne réinitialise pas le reste de la section IA', () => {
+  check('a partial PATCH does not reset the rest of the AI section', () => {
     const patch = appSettingsPatchSchema.parse({ ai: { provider: 'openai' } });
     assert.deepEqual(patch.ai, { provider: 'openai' });
-    assert.equal('model' in (patch.ai ?? {}), false, 'le modèle serait écrasé par un défaut');
+    assert.equal('model' in (patch.ai ?? {}), false, 'the model would be overwritten by a default');
   });
 
-  check('la température et le plafond de jetons restent bornés', () => {
+  check('the temperature and the token cap stay bounded', () => {
     assert.equal(aiSettingsSchema.safeParse({ temperature: 3 }).success, false);
     assert.equal(aiSettingsSchema.safeParse({ maxTokens: 10 }).success, false);
     assert.equal(aiSettingsSchema.parse({}).temperature, DEFAULT_TEMPERATURE);
   });
 }
 
-step('6. createModel refuse sans clé, et construit avec');
+step('6. createModel refuses without a key, and builds with one');
 {
   for (const provider of AI_PROVIDERS) {
     const descriptor = aiProviderDescriptor(provider);
 
-    check(`« ${provider} » sans clé → MissingApiKeyError nommant la bonne variable`, () => {
+    check(`"${provider}" without a key → MissingApiKeyError naming the right variable`, () => {
       assert.throws(
         () => createModel({ provider, apiKey: undefined }),
         (error: unknown) => {
@@ -346,14 +346,14 @@ step('6. createModel refuse sans clé, et construit avec');
       assert.throws(() => createModel({ provider, apiKey: '   ' }), MissingApiKeyError);
     });
 
-    check(`« ${provider} » avec clé → un modèle, sans réseau`, () => {
-      const configured = createModel({ provider, apiKey: 'sk-test-hors-ligne' });
+    check(`"${provider}" with a key → a model, without network`, () => {
+      const configured = createModel({ provider, apiKey: 'sk-test-offline' });
       assert.equal(typeof configured.model, 'object');
       assert.ok(configured.model !== null);
     });
   }
 
-  check('sans fournisseur précisé, on reste sur OpenRouter (compatibilité)', () => {
+  check('without a provider specified, we stay on OpenRouter (compatibility)', () => {
     assert.throws(
       () => createModel({ apiKey: undefined }),
       (error: unknown) => {
@@ -364,136 +364,135 @@ step('6. createModel refuse sans clé, et construit avec');
     );
   });
 
-  check('une URL de base est acceptée par OpenAI sans ouvrir de connexion', () => {
+  check('a base URL is accepted by OpenAI without opening a connection', () => {
     const configured = createModel({
       provider: 'openai',
       apiKey: 'sk-test',
       model: 'mixtral-8x7b',
-      baseUrl: 'https://llm.interne/v1',
+      baseUrl: 'https://llm.internal/v1',
     });
     assert.ok(configured.model);
   });
 }
 
-step('7. Le schéma envoyé au fournisseur, et ce que chacun sait en faire');
+step('7. The schema sent to the provider, and what each one can do with it');
 {
-  // Constaté contre la vraie API OpenAI, avec une vraie clé :
+  // Observed against the real OpenAI API, with a real key:
   //   Invalid schema for response_format 'AppSpec': In context=('properties',
   //   'services','items','properties','source'), 'oneOf' is not permitted.
-  // La cause est ici, et elle est structurelle : `source` est un
-  // discriminatedUnion, que Zod traduit en `oneOf`.
+  // The cause is here, and it is structural: `source` is a discriminatedUnion,
+  // which Zod translates into `oneOf`.
   const jsonSchema = JSON.stringify(appSpecJsonSchema());
 
-  check('le schéma de l’AppSpec contient bien un « oneOf »', () => {
+  check("the AppSpec's schema does contain a \"oneOf\"", () => {
     assert.ok(
       jsonSchema.includes('"oneOf"'),
-      'plus de oneOf : si l’AppSpec a changé, ce garde-fou doit être revu',
+      'no more oneOf: if the AppSpec changed, this safeguard must be reviewed',
     );
   });
 
-  // Le mode strict exige aussi `additionalProperties: false` partout et toutes
-  // les propriétés dans `required` ; l'AppSpec porte des `default` et des
-  // bornes. Le faire entrer dans ce moule voudrait dire maintenir un schéma
-  // appauvri en parallèle. On désactive le mode strict à la place.
-  check('l’AppSpec porte des défauts et des bornes, incompatibles avec le mode strict', () => {
+  // The strict mode also requires `additionalProperties: false` everywhere and
+  // all the properties in `required`; the AppSpec carries `default`s and bounds.
+  // Fitting it into that mold would mean maintaining an impoverished schema in
+  // parallel. We disable the strict mode instead.
+  check('the AppSpec carries defaults and bounds, incompatible with the strict mode', () => {
     assert.ok(/"default"/.test(jsonSchema) || /"minimum"/.test(jsonSchema), jsonSchema.slice(0, 200));
   });
 
-  check('OpenAI reçoit strictJsonSchema: false', () => {
+  check('OpenAI gets strictJsonSchema: false', () => {
     const configured = createModel({ provider: 'openai', apiKey: 'sk-test' });
     assert.deepEqual(configured.callOptions, { openai: { strictJsonSchema: false } });
   });
 
-  check('OpenRouter construit son modèle hors mode strict', () => {
-    // Le réglage se pose à la construction du modèle : on vérifie qu'il est
-    // bien parvenu au modèle, et pas seulement qu'on l'a écrit.
+  check('OpenRouter builds its model outside the strict mode', () => {
+    // The setting is applied when the model is built: we check that it did reach
+    // the model, and not only that we wrote it.
     const configured = createModel({ provider: 'openrouter', apiKey: 'sk-test' });
     const settings = (configured.model as unknown as { settings?: unknown }).settings;
     assert.deepEqual(settings, { structuredOutputs: { strict: false } }, JSON.stringify(settings));
   });
 
-  check('Anthropic n’a aucune option à poser — il passe par l’appel d’outil', () => {
+  check('Anthropic has no option to set — it goes through the tool call', () => {
     const configured = createModel({ provider: 'anthropic', apiKey: 'sk-test' });
     assert.deepEqual(configured.callOptions, {});
   });
 
-  check('chaque fournisseur rend un modèle ET ses options d’appel', () => {
+  check('each provider returns a model AND its call options', () => {
     for (const provider of AI_PROVIDERS) {
       const configured = createModel({ provider, apiKey: 'sk-test' });
-      assert.ok(configured.model, `${provider} : pas de modèle`);
-      assert.equal(typeof configured.callOptions, 'object', `${provider} : pas d’options`);
+      assert.ok(configured.model, `${provider}: no model`);
+      assert.equal(typeof configured.callOptions, 'object', `${provider}: no options`);
     }
   });
 }
 
-step("8. Le message d’un fournisseur est nettoyé avant d’être relayé");
+step("8. A provider's message is cleaned before being relayed");
 {
   const key = 'sk-sentinelle-verif-ia-0000000000000000';
 
-  check('la clé exacte disparaît du message', () => {
+  check('the exact key disappears from the message', () => {
     const cleaned = redactApiKey(`401 rejected key ${key}`, key);
     assert.ok(!cleaned.includes(key), cleaned);
     assert.match(cleaned, /clé masquée/);
   });
 
-  // Constaté en vrai contre l'API OpenAI : le fournisseur recopie les huit
-  // premiers et les quatre derniers caractères de la clé. Un masque qui laisse
-  // douze caractères en clair n'est pas un masque.
-  check('la forme masquée par OpenAI disparaît aussi', () => {
+  // Observed for real against the OpenAI API: the provider copies the first eight
+  // and the last four characters of the key. A mask that leaves twelve characters
+  // in clear is not a mask.
+  check('the form masked by OpenAI disappears too', () => {
     const masked = 'Incorrect API key provided: sk-senti***************************0000. You can find…';
     const cleaned = redactApiKey(masked, key);
     assert.ok(!cleaned.includes('sk-senti'), cleaned);
     assert.match(cleaned, /clé masquée/);
   });
 
-  check('les formes des autres fournisseurs sont couvertes', () => {
+  check("the other providers' forms are covered", () => {
     for (const sample of ['sk-ant-api03-AbCdEf', 'sk-or-v1-0123456789', 'gsk_ABCDEFGHIJ']) {
-      assert.ok(!redactApiKey(`erreur : ${sample}`).includes(sample), sample);
+      assert.ok(!redactApiKey(`error: ${sample}`).includes(sample), sample);
     }
   });
 
-  check('un message sans clé traverse intact', () => {
-    const message = "Le modèle n'a pas répondu dans le délai imparti";
+  check('a message without a key goes through intact', () => {
+    const message = 'The model did not answer within the allotted time';
     assert.equal(redactApiKey(message, key), message);
   });
 }
 
-step('9. Le prompt système guide vers une application multi-services');
+step('9. The system prompt guides toward a multi-service application');
 {
   const prompt = generateAppSpecPrompt();
-  info(`${prompt.length} caractères`);
+  info(`${prompt.length} characters`);
 
-  check('la consigne « application sur étagère + sa base » y figure', () => {
+  check('the "off-the-shelf application + its database" instruction is in it', () => {
     assert.match(prompt, /comes with its database/i);
     assert.match(prompt, /GLPI/);
     assert.match(prompt, /dependsOn/);
   });
 
-  check('la règle « aucun secret inventé » est explicite', () => {
+  check('the "no made-up secret" rule is explicit', () => {
     assert.match(prompt, /\*\*never\*\*\s+make up a secret value/i);
     assert.match(prompt, /changeme/);
   });
 
-  check('aucune marque de fixture ne survit', () => {
+  check('no fixture mark survives', () => {
     assert.ok(!prompt.includes('{{FIXTURE:'));
   });
 
-  // Le point qui compte : un exemple faux dans le prompt apprend au modèle à
-  // produire du faux. Chaque bloc JSON est donc confronté au vrai schéma.
+  // The point that matters: a wrong example in the prompt teaches the model to
+  // produce wrong output. So each JSON block is set against the real schema.
   //
-  // Tous les blocs ne sont pas des specs entières : certains sont des
-  // **extraits** — deux services montrés côte à côte pour illustrer l'alias de
-  // secret, sans le bruit des sources et des sondes. Les confondre avec des
-  // specs faisait échouer ce contrôle sur un bloc parfaitement légitime, et la
-  // seule manière de le faire taire aurait été de gonfler l'extrait jusqu'à
-  // noyer ce qu'il montre.
+  // Not all blocks are whole specs: some are **excerpts** — two services shown
+  // side by side to illustrate the secret alias, without the noise of the
+  // sources and probes. Confusing them with specs made this check fail on a
+  // perfectly legitimate block, and the only way to silence it would have been
+  // to inflate the excerpt until it drowned what it shows.
   //
-  // La distinction se lit dans la forme, pas dans une annotation qu'on
-  // oublierait de poser : une spec est un objet qui porte `name` et `services`.
-  // Un extrait n'est dispensé que de la validation métier, jamais de la
-  // syntaxe — du JSON illisible dans un prompt apprend au modèle à en écrire.
+  // The distinction reads in the shape, not in an annotation one would forget to
+  // set: a spec is an object carrying `name` and `services`. An excerpt is only
+  // exempt from the domain validation, never from the syntax — unreadable JSON in
+  // a prompt teaches the model to write some.
   const blocks = [...prompt.matchAll(/```json\n([\s\S]*?)\n```/g)].map((match) => match[1] ?? '');
-  info(`${blocks.length} blocs JSON dans le prompt`);
+  info(`${blocks.length} JSON blocks in the prompt`);
 
   const parsed = blocks.map((block, index) => {
     try {
@@ -503,33 +502,33 @@ step('9. Le prompt système guide vers une application multi-services');
     }
   });
 
-  check('tous les blocs JSON du prompt sont analysables', () => {
+  check("all the prompt's JSON blocks can be parsed", () => {
     const broken = parsed.filter((block) => !block.readable).map((block) => `#${block.index + 1}`);
-    assert.equal(broken.length, 0, `bloc(s) illisible(s) : ${broken.join(', ')}`);
+    assert.equal(broken.length, 0, `unreadable block(s): ${broken.join(', ')}`);
   });
 
   const isSpec = (value: unknown): boolean =>
     typeof value === 'object' && value !== null && 'name' in value && 'services' in value;
 
   const specs = parsed.filter((block) => block.readable && isSpec(block.value));
-  info(`${specs.length} spec(s) entière(s), ${parsed.length - specs.length} extrait(s)`);
+  info(`${specs.length} whole spec(s), ${parsed.length - specs.length} excerpt(s)`);
 
   const verdicts = specs.map((block) => safeParseAppSpec(block.value).success);
 
   const valid = verdicts.filter(Boolean).length;
   const invalid = verdicts.length - valid;
 
-  check('au moins trois exemples valides', () => {
+  check('at least three valid examples', () => {
     assert.ok(valid >= 3, `${valid} exemple(s) valide(s) seulement`);
   });
 
-  check('exactement deux contre-exemples invalides — pas un de plus', () => {
-    // Les deux voulus : `invalid.json`, et la spec de refus `{ services: [] }`.
-    // Un troisième signifierait qu'un exemple censé être correct ne l'est pas.
+  check('exactly two invalid counter-examples — not one more', () => {
+    // The two intended ones: `invalid.json`, and the refusal spec `{ services: [] }`.
+    // A third would mean that an example supposed to be correct is not.
     assert.equal(
       invalid,
       2,
-      `${invalid} bloc(s) invalide(s) : ` +
+      `${invalid} invalid block(s): ` +
         specs
           .filter((_, position) => !verdicts[position])
           .map((block) => `#${block.index + 1}`)
@@ -537,7 +536,7 @@ step('9. Le prompt système guide vers une application multi-services');
     );
   });
 
-  check('l’exemple sur étagère relie bien ses deux services', () => {
+  check('the off-the-shelf example does link its two services', () => {
     const wordpress = blocks
       .map((block) => {
         try {
@@ -550,40 +549,40 @@ step('9. Le prompt système guide vers une application multi-services');
         (spec): spec is { name: string } =>
           typeof spec === 'object' && spec !== null && 'name' in spec && spec.name === 'wordpress',
       );
-    assert.ok(wordpress, 'exemple « wordpress » introuvable dans le prompt');
+    assert.ok(wordpress, '"wordpress" example not found in the prompt');
 
     const parsed = safeParseAppSpec(wordpress);
-    assert.ok(parsed.success, 'l’exemple ne passe pas appSpecSchema');
+    assert.ok(parsed.success, 'the example does not pass appSpecSchema');
     const spec = parsed.data;
 
-    assert.equal(spec.services.length, 2, 'l’application et sa base');
+    assert.equal(spec.services.length, 2, 'the application and its database');
     const app = spec.services.find((service) => service.exposed);
     const db = spec.services.find((service) => !service.exposed);
     assert.ok(app && db);
-    assert.deepEqual(app.dependsOn, [db.name], 'l’application dépend de sa base');
+    assert.deepEqual(app.dependsOn, [db.name], 'the application depends on its database');
     assert.ok(
       Object.values(app.env).some((value) => value.startsWith(db.name)),
-      'l’application adresse la base par le nom du service',
+      'the application addresses the database by the service name',
     );
-    assert.ok(db.volumes.length > 0, 'la base n’a pas de volume');
-    assert.ok(db.healthcheck.port !== undefined, 'la base est sondée sur son port');
-    assert.ok(app.secrets.length > 0 && db.secrets.length > 0, 'mots de passe non déclarés');
-    // Et surtout : aucune valeur de secret dans `env`.
+    assert.ok(db.volumes.length > 0, 'the database has no volume');
+    assert.ok(db.healthcheck.port !== undefined, 'the database is probed on its port');
+    assert.ok(app.secrets.length > 0 && db.secrets.length > 0, 'passwords not declared');
+    // And above all: no secret value in `env`.
     for (const service of spec.services) {
       for (const [key, value] of Object.entries(service.env)) {
         assert.ok(
           !/PASSWORD|SECRET|TOKEN|API_KEY/.test(key),
-          `« ${key}=${value} » : un secret a fui dans env`,
+          `"${key}=${value}": a secret leaked into env`,
         );
       }
     }
   });
 }
 
-step('Bilan');
+step('Summary');
 if (failures === 0) {
-  process.stdout.write(`  ${green('✓')} ${checks} vérifications, aucune défaillance\n\n`);
+  process.stdout.write(`  ${green('✓')} ${checks} checks, no failure\n\n`);
 } else {
-  process.stdout.write(`  ${red('✗')} ${failures} défaillance(s) sur ${checks} vérifications\n\n`);
+  process.stdout.write(`  ${red('✗')} ${failures} failure(s) out of ${checks} checks\n\n`);
   process.exit(1);
 }
