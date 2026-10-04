@@ -11,21 +11,6 @@ document en est la contrepartie : ce qu'on ferait pour les faire disparaître.
 
 ## Ce qui bloque un usage réel
 
-### Un panel derrière un répartiteur
-
-Le compteur de limitation de débit **de Better Auth** est stocké en mémoire de
-processus, sur la clé (IP, chemin) — voir le bloc `rateLimit` dans
-`apps/web/src/lib/auth.ts`, où la dette est déjà écrite noir sur blanc. Correct
-pour un panel mono-conteneur, ce qui est le déploiement décrit partout ici ;
-faux dès qu'on en met deux derrière un répartiteur, chaque réplique comptant
-pour elle.
-
-À ne pas confondre avec la limitation de débit **du panel**
-(`apps/web/src/lib/rate-limit.ts`), qui protège la route de génération d'AppSpec
-et vit déjà dans Redis. Corriger celle de Better Auth demande soit une table
-`rateLimit` (donc une migration), soit un `secondaryStorage` Redis — qui
-déplacerait aussi les sessions.
-
 ### Rotation de `MASTER_KEY`
 
 Le format de chiffrement est `version:iv:authTag:ciphertext` : le champ

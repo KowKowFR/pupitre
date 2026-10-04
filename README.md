@@ -422,14 +422,6 @@ un vrai modèle répondre sur cette instance.
 
 ### Détails plus petits, mais réels
 
-- **Trivy ne verra pas les images construites sur K3s.** Il cherche containerd
-  sur `/run/containerd/containerd.sock`, namespace `default` ; k3s écoute sur
-  `/run/k3s/containerd/containerd.sock`, namespace `k8s.io`. L'étape de scan rend
-  donc `unknown` — non bloquant, mais silencieusement inutile. Deux variables
-  d'environnement dans `packages/core/src/scanners/trivy.ts` suffiraient.
-- **Le compteur de limitation de débit de l'authentification est en mémoire**,
-  donc par processus. Correct pour un panel mono-conteneur, faux dès qu'on en
-  met deux derrière un répartiteur. Celui du panel, lui, vit déjà dans Redis.
 - **`MASTER_KEY` ne se fait pas tourner.** Le format
   `version:iv:authTag:ciphertext` existe pour le permettre un jour ; le code de
   rotation n'est pas écrit.
