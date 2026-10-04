@@ -168,9 +168,9 @@ la comparaison telle qu'elle est.
 | | |
 |---|---|
 | **Deux runtimes, une seule description** | La même AppSpec se déploie sur Docker Compose et sur K3s. Les panels de cette famille sont Docker — Compose ou Swarm ; Kubernetes est hors de leur périmètre. Ici, `pnpm test:parity` déploie la *même* spec des deux côtés, obtient deux URLs qui répondent à travers le reverse proxy de chaque cible, rollback et détruit — et il rend **32/32 au vert** (tableau plus bas). |
-| **Le scan bloque, avant le déploiement** | Trivy, Grype et Syft tournent sur la machine cible dans le pipeline. Une politique `failOn: CRITICAL \| HIGH \| NONE`, stockée en donnée, arrête le déploiement à l'étape `scan`. Un SBOM est téléchargeable. |
-| **RBAC granulaire et journal d'activité** | Trente-quatre permissions `ressource:action`, des rôles qui sont des **données** modifiables et non des constantes, et un journal d'activité écrit par un point d'entrée unique — refus de permission compris, avec l'IP réelle derrière le reverse proxy. |
-| **Supervision et notifications intégrées** | Sondes HTTP et TLS avec hystérésis, métriques d'hôte avec seuils à trois niveaux, quatre canaux de notification. Pas d'outil séparé à brancher. |
+| **Le scan bloque, avant le déploiement** | Trivy, Grype et Syft tournent sur la machine cible dans le pipeline. Une politique stockée en donnée — un seuil `CRITICAL \| HIGH \| NONE`, seulement les failles corrigeables si on le veut, des failles acceptées avec motif et échéance —, réglée pour l'instance ou par application, arrête le déploiement à l'étape `scan`. Un SBOM est téléchargeable. |
+| **RBAC granulaire et journal d'activité** | Trente-huit permissions `ressource:action`, des rôles qui sont des **données** modifiables et non des constantes, et un journal d'activité écrit par un point d'entrée unique — refus de permission compris, avec l'IP réelle derrière le reverse proxy. |
+| **Supervision et notifications intégrées** | Sondes HTTP et TLS avec hystérésis, métriques d'hôte avec seuils à trois niveaux et prévisions, fenêtres de maintenance qui font taire les alertes, quatre canaux de notification, et des pages de statut publiques avec leurs annonces. Pas d'outil séparé à brancher. |
 | **Une AppSpec que l'IA remplit** | Une description en français produit un JSON validé par Zod — jamais du shell. Éditable avant déploiement. |
 
 **Ce sur quoi il est en retrait, et de loin**
@@ -180,8 +180,10 @@ la comparaison telle qu'elle est.
   webhook : le panel reste privé, hors ses pages de statut publiées — et accepte une archive du code pour une
   application sans dépôt. Pas de déploiement temporaire par pull ou merge
   request — voir la limite sur le contexte de build ci-dessous.
-- **Aucun catalogue d'applications prêtes à l'emploi.** Là où Coolify propose des
-  centaines de services en un clic, ici vous écrivez l'AppSpec.
+- **Un catalogue court.** Vingt-huit modèles — WordPress, Nextcloud,
+  Vaultwarden, Grafana, n8n, Jellyfin… —, chacun déployé, sondé et détruit par
+  `pnpm test:catalog`. Coolify en propose des centaines ; au-delà, ici, vous
+  écrivez l'AppSpec.
 - **Pas de gestion d'équipes ni de multi-tenance.** Un RBAC sur une instance,
   pas des espaces cloisonnés.
 - **Aucune version publiée, aucune communauté.** Pas de tag, pas de release, pas
@@ -203,18 +205,28 @@ le code :
 apps/web        Next.js 16 App Router — UI + Route Handlers REST
 apps/worker     Process Node — consomme BullMQ, exécute par SSH
 packages/db     Schéma Drizzle + migrations (source unique du modèle)
-packages/core   AppSpec, RBAC, crypto, paramètres, queue — et quatre sous-chemins :
-                  /ssh        node-ssh, preflight, métriques d'hôte
-                  /drivers    DeploymentDriver + Docker + K3s
-                  /scanners   Scanner + Trivy / Grype / Syft
-                  /ai         génération d'AppSpec (Vercel AI SDK)
-                  /probe      sondes HTTP et TLS de la supervision de sites
+packages/core   AppSpec, RBAC, crypto, paramètres, queue — et des sous-chemins :
+                  /ssh            node-ssh, preflight, métriques d'hôte
+                  /drivers        DeploymentDriver + Docker + K3s
+                  /proxy          ProxyProvider + Traefik / BunkerWeb, Nginx Proxy Manager
+                  /scanners       Scanner + Trivy / Grype / Syft
+                  /sources        SourceProvider + GitHub / GitLab / Gitea
+                  /source-upload  lecture des archives de code téléversées
+                  /compose        import d'un docker-compose.yml
+                  /ai             génération d'AppSpec (Vercel AI SDK)
+                  /probe          sondes HTTP et TLS de la supervision de sites
+                  /capture        captures d'écran d'un site en panne
+                  /notifications  canaux et événements
+                  /backup         sauvegardes et leurs destinations
+                  /images         mises à jour d'images, lues aux registres
+                  /egress         garde des adresses que le worker appelle
+                  /schedule       tâches planifiées
 ```
 
-Les sous-chemins existent tous pour la même raison : `ssh2`, `nodemailer` et le
-SDK IA ne doivent pas entrer dans le graphe de dépendances du panel Next. Les
-*types* correspondants restent à la racine de `@pupitre/core`, parce que l'UI en a
-besoin et qu'ils n'exécutent rien.
+Les sous-chemins existent pour la même raison : `ssh2`, `nodemailer`, le SDK IA
+et les clients réseau ne doivent pas entrer dans le graphe de dépendances du
+panel Next. Les *types* correspondants restent à la racine de `@pupitre/core`,
+parce que l'UI en a besoin et qu'ils n'exécutent rien.
 
 **Une seule image Docker, deux commandes au runtime : `web` et `worker`.**
 
@@ -235,12 +247,10 @@ grep -rn "runtime === '" apps packages --include='*.ts' --include='*.tsx' \
   | grep -v /drivers/ | grep -v /dist/
 ```
 
-Une seule ligne sort aujourd'hui, et elle mérite d'être nommée plutôt que
-balayée : `packages/db/src/deployments.ts:1329` choisit le mot « namespace » ou
-« projet Compose » dans un message destiné à un humain. Ce n'est pas une
-divergence de comportement — aucun appel, aucun chemin d'exécution n'en dépend —
-mais c'est bien du vocabulaire de runtime hors d'un driver, et la règle serait
-plus propre si ce mot venait du driver lui-même.
+Elle ne sort aucune ligne aujourd'hui. La dernière choisissait le mot
+« namespace » ou « projet Compose » dans un message destiné à un humain ; le
+message dit maintenant « services » et nomme `app-{slug}`, deux mots qui valent
+pour les deux runtimes.
 
 **L'anti-collision de ports est une contrainte de base, pas un `if`.** On insère
 dans `port_allocations (target_id, port)`, et une violation `23505` renvoie le
@@ -252,7 +262,7 @@ relevé de métriques, un envoi de notification : la route HTTP enfile et répon
 `202`, jamais elle n'attend une session SSH. La seule exception assumée est la
 purge d'historique, qui est un `DELETE` en base et rien d'autre.
 
-Le détail — les trois abstractions, l'AppSpec, le pipeline, les logs SSE, les
+Le détail — les quatre abstractions, l'AppSpec, le pipeline, les logs SSE, les
 ports, UFW, le healthcheck, le rollback, la rétention — est dans
 **[`docs/architecture.md`](docs/architecture.md)**.
 
@@ -268,11 +278,19 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 | Déployer depuis une CI (GitHub Actions, GitLab CI) avec un jeton d'API limité à ses applications | [`docs/exploitation.md`](docs/exploitation.md#déployer-depuis-une-ci) |
 | Suivre une branche GitHub, GitLab ou Gitea / Forgejo : son `pupitre.json` décrit l'application, chaque commit la met à jour ou la redéploie, et l'état revient sur le commit | [`docs/exploitation.md`](docs/exploitation.md#une-application-depuis-son-dépôt) |
 | Le code d'une application sans dépôt : une archive téléversée, relue entrée par entrée et refaite propre avant de partir sur la machine | [`docs/exploitation.md`](docs/exploitation.md#le-code-dune-application-sans-dépôt) |
+| Un catalogue de 28 modèles prêts à déployer, sur les deux runtimes | [`docs/architecture.md`](docs/architecture.md#catalogue--des-appspec-toutes-faites) |
+| Les mises à jour d'images : ce qui tourne comparé à ce que le registre annonce, toutes les six heures | [`docs/exploitation.md`](docs/exploitation.md#les-mises-à-jour-dimages) |
 | RBAC (38 permissions), journal d'activité, chiffrement, magasin de secrets, comptes et TOTP | [`docs/securite.md`](docs/securite.md) |
 | Second facteur exigé (droits sensibles ou tous les comptes), durée des sessions réglable | [`docs/securite.md`](docs/securite.md#le-second-facteur-exigé) |
 | Connexion unique OpenID Connect (Keycloak, Authentik, Google, Entra), rôles tirés des groupes | [`docs/exploitation.md`](docs/exploitation.md#connexion-unique-par-keycloak) |
-| Scanners Trivy / Grype / Syft et politique de blocage | [`docs/securite.md`](docs/securite.md#scanners-de-sécurité) |
+| Scanners Trivy / Grype / Syft et politique de blocage : seuil par instance ou par application, failles corrigeables, failles acceptées | [`docs/securite.md`](docs/securite.md#scanners-de-sécurité) |
 | Sondes HTTP et TLS, métriques d'hôte, notifications, tâches planifiées | [`docs/supervision.md`](docs/supervision.md) |
+| Prévisions, sans IA : un disque qui va se remplir, une sonde qui ralentit, un certificat pas renouvelé, une sauvegarde en retard — dits avant la panne | [`docs/supervision.md`](docs/supervision.md#prévisions) |
+| Fenêtres de maintenance : les alertes se taisent, le début et la fin sont annoncés | [`docs/supervision.md`](docs/supervision.md#fenêtres-de-maintenance) |
+| Pages de statut publiques, composées bloc par bloc, et les annonces d'incident ou de maintenance | [`docs/supervision.md`](docs/supervision.md#pages-de-statut) |
+| La palette ⌘K, la discussion entre utilisateurs, des écrans qui se mettent à jour seuls | [`docs/architecture.md`](docs/architecture.md#la-palette-k) |
+| Un assistant de démarrage pour une instance vierge | [`docs/exploitation.md`](docs/exploitation.md#assistant-de-démarrage) |
+| Une interface en français ou en anglais, réglée pour l'instance | [`docs/exploitation.md`](docs/exploitation.md#paramètres-dinstance) |
 | Génération d'AppSpec par IA, trois fournisseurs | [`docs/ia.md`](docs/ia.md) |
 | Toutes les pages et toutes les routes d'API, avec leur permission | [`docs/api.md`](docs/api.md) |
 | Tables et migrations | [`docs/base-de-donnees.md`](docs/base-de-donnees.md) |
@@ -284,7 +302,7 @@ ports, UFW, le healthcheck, le rollback, la rétention — est dans
 
 ## Limites connues
 
-*État au 02/10/2026.* Ce qui suit n'est pas une note en bas de page : c'est un
+*État au 04/10/2026.* Ce qui suit n'est pas une note en bas de page : c'est un
 tiers de ce fichier, et volontairement. Un README qui prétend à l'intemporalité
 vieillit mal ; celui-ci est daté et le dit.
 
@@ -425,6 +443,10 @@ un vrai modèle répondre sur cette instance.
 - **`MASTER_KEY` ne se fait pas tourner.** Le format
   `version:iv:authTag:ciphertext` existe pour le permettre un jour ; le code de
   rotation n'est pas écrit.
+- **Les rôles de Keycloak ne passent pas tels quels.** La connexion unique lit
+  les groupes dans le jeton d'identité ; Keycloak ne met ses rôles que dans le
+  jeton d'accès. Il faut passer par des groupes, ou cocher « Add to ID token »
+  sur le mappeur des rôles.
 
 Ce qu'il faudrait pour lever chacun de ces points est dans
 [`docs/feuille-de-route.md`](docs/feuille-de-route.md).
@@ -433,11 +455,12 @@ Ce qu'il faudrait pour lever chacun de ces points est dans
 
 ## Contribuer
 
-Le français est la langue du projet. Un système FR/EN pour l'interface est prévu ;
-il n'existe pas encore.
+Le français est la langue du projet, de son code et de sa documentation.
+L'interface, elle, est bilingue : chaque écran a ses textes en français et en
+anglais, et une garde des tests refuse un texte écrit en dur.
 
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — à lire avant la première pull
-  request : les trois abstractions, la règle d'immuabilité des migrations, ce que
+  request : les quatre abstractions, la règle d'immuabilité des migrations, ce que
   la revue regarde.
 - **[`CLAUDE.md`](CLAUDE.md)** — le contrat d'architecture. Cinq minutes, et il
   fait autorité.

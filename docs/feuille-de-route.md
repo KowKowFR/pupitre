@@ -70,9 +70,6 @@ domaine. Aujourd'hui, seul HTTP-01 est réglé par Pupitre.
 - **Ansible, ou du cron Linux.** Même document, mêmes raisons : l'exécution
   distante passe par `node-ssh`, la planification par les repeatable jobs de
   BullMQ.
-- **Un catalogue d'applications prêtes à l'emploi.** L'AppSpec est le format
-  d'entrée ; un catalogue serait une collection de fichiers JSON, pas une
-  capacité du moteur.
 
 ## Interface bilingue
 
