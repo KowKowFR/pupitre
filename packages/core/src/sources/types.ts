@@ -1,10 +1,12 @@
+import { z } from 'zod';
+
 /**
  * `SourceProvider` — la quatrième abstraction, à côté de `DeploymentDriver`,
  * `ProxyProvider` et `Scanner`.
  *
  * Elle répond à une seule question : **d'où vient le code d'une application**
  * quand ce n'est pas l'opérateur qui le colle dans le panel. Un dépôt Git
- * hébergé (GitHub, Gitea et Forgejo aujourd'hui, GitLab demain) porte à sa racine — ou
+ * hébergé (GitHub, GitLab, Gitea et Forgejo) porte à sa racine — ou
  * dans le dossier de l'application, pour un monorepo — un `pupitre.json` :
  * l'AppSpec de l'application, versionnée avec son code.
  *
@@ -25,10 +27,10 @@
  * Ajouter un fournisseur, c'est ajouter une classe qui implémente ce contrat,
  * et la ligne qui la fabrique depuis sa connexion (`registry.ts`). Rien d'autre
  * dans le worker ni dans le panel ne connaît son nom — sauf l'écran qui le
- * connecte, par nature propre à chacun (une GitHub App, un jeton Gitea).
+ * connecte, par nature propre à chacun (une GitHub App, un jeton Gitea ou GitLab).
  */
 
-export const SOURCE_PROVIDER_KINDS = ['github', 'gitea'] as const;
+export const SOURCE_PROVIDER_KINDS = ['github', 'gitea', 'gitlab'] as const;
 export type SourceProviderKind = (typeof SOURCE_PROVIDER_KINDS)[number];
 
 /**
@@ -37,15 +39,33 @@ export type SourceProviderKind = (typeof SOURCE_PROVIDER_KINDS)[number];
  */
 export type SourceConnectionSecrets =
   | { provider: 'github'; appId: number; privateKey: string; apiUrl: string | null }
-  | { provider: 'gitea'; baseUrl: string; token: string };
+  | { provider: 'gitea'; baseUrl: string; token: string }
+  | { provider: 'gitlab'; baseUrl: string; token: string };
+
+/**
+ * Le nom d'un dépôt, tel que son fournisseur l'écrit : `propriétaire/nom`, ou
+ * chez GitLab tout le chemin de ses groupes, `groupe/sous-groupe/projet`. Pas
+ * de segment `.` ni `..` : le nom finit dans le chemin d'un appel d'API.
+ */
+export const sourceRepositorySchema = z
+  .string()
+  .trim()
+  .max(255)
+  .regex(
+    /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+){1,19}$/,
+    'dépôt attendu sous la forme propriétaire/nom',
+  )
+  .refine((name) => name.split('/').every((segment) => !/^\.+$/.test(segment)), {
+    message: 'dépôt attendu sous la forme propriétaire/nom',
+  });
 
 /** Un dépôt, désigné comme le fournisseur le désigne : `propriétaire/nom`. */
 export type RepositoryRef = {
-  /** `owner/name`. */
+  /** `owner/name` — `groupe/sous-groupe/projet` chez GitLab. */
   fullName: string;
   /**
    * L'installation de la GitHub App par laquelle Pupitre y a accès. `null`
-   * chez un fournisseur qui n'en a pas : Gitea ouvre tout par son jeton.
+   * chez un fournisseur qui n'en a pas : Gitea et GitLab ouvrent tout par leur jeton.
    */
   installationId: number | null;
 };

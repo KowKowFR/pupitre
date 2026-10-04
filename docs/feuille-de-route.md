@@ -11,15 +11,6 @@ document en est la contrepartie : ce qu'on ferait pour les faire disparaître.
 
 ## Ce qui bloque un usage réel
 
-### GitLab
-
-Pupitre suit un dépôt GitHub ou Gitea / Forgejo, et une application sans dépôt
-reçoit son code par une archive téléversée. GitLab manque : un troisième
-`SourceProvider` (`packages/core/src/sources/types.ts`), sa ligne dans
-`createSourceProvider()`, et l'écran qui le connecte (un jeton de projet ou de
-groupe). Le reste — polling, liaison, statuts, construction — suivra sans rien
-changer ailleurs.
-
 ### Un panel derrière un répartiteur
 
 Le compteur de limitation de débit **de Better Auth** est stocké en mémoire de

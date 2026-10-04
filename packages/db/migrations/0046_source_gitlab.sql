@@ -1,0 +1,1 @@
+ALTER TYPE "public"."source_provider" ADD VALUE 'gitlab';

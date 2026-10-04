@@ -94,8 +94,8 @@ export function githubConnectionView(connection: SourceConnection): GitHubConnec
   };
 }
 
-/** Ce que l'écran peut savoir d'une forge Gitea : tout, sauf le jeton. */
-export type GiteaConnectionView = {
+/** Ce que l'écran peut savoir d'une forge à jeton — Gitea, GitLab : tout, sauf le jeton. */
+export type TokenForgeConnectionView = {
   /** L'adresse de la forge. */
   url: string;
   /** Le compte du jeton. */
@@ -105,7 +105,7 @@ export type GiteaConnectionView = {
   updatedAt: string;
 };
 
-export function giteaConnectionView(connection: SourceConnection): GiteaConnectionView {
+export function tokenForgeConnectionView(connection: SourceConnection): TokenForgeConnectionView {
   return {
     url: sourceConnectionWebUrl(connection),
     account: connection.owner,
@@ -118,7 +118,7 @@ export function giteaConnectionView(connection: SourceConnection): GiteaConnecti
 /** Une forge connectée, telle que les écrans de liaison la montrent. */
 export type ForgeView = {
   provider: SourceProviderKind;
-  /** « GitHub », ou l'adresse de la forge Gitea. */
+  /** « GitHub », ou l'hôte de la forge Gitea ou GitLab. */
   label: string;
   webUrl: string;
   /** GitHub : où choisir les dépôts de l'App. */

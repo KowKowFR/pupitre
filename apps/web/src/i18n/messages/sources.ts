@@ -1,8 +1,8 @@
 import type { Translated } from '@pupitre/core';
 
 /**
- * Les dépôts liés : la connexion de la GitHub App et celle d'une forge Gitea
- * ou Forgejo (Paramètres → Intégrations),
+ * Les dépôts liés : la connexion de la GitHub App, celle d'une instance
+ * GitLab et celle d'une forge Gitea ou Forgejo (Paramètres → Intégrations),
  * la liaison d'une application à une branche, les commits en attente de
  * validation, et les erreurs des routes qui les servent.
  *
@@ -110,7 +110,7 @@ const fr = {
     "Le pupitre.json d'une branche décrit l'application. Pupitre vérifie chaque minute s'il a changé.",
   'card.link': 'Relier un dépôt',
   'card.notConnected':
-    "Pour relier l'application à un dépôt, connectez d'abord GitHub ou une forge Gitea.",
+    "Pour relier l'application à un dépôt, connectez d'abord GitHub, GitLab ou une forge Gitea.",
   'card.notConnected.link': 'Ouvrir les intégrations',
   'card.empty': "Aucun dépôt lié : l'application se modifie depuis le panel.",
   'mode.auto': 'automatique',
@@ -159,43 +159,52 @@ const fr = {
   'proposal.kind.code': 'code',
   'proposal.received': 'reçu {when}',
 
-  // ── Paramètres → Intégrations : Gitea / Forgejo ───────────────────────
+  // ── Paramètres → Intégrations : les forges à jeton, Gitea / Forgejo et GitLab ──
   'gitea.title': 'Gitea / Forgejo',
   'gitea.lead':
     'Gitea, Forgejo et Codeberg, par le jeton d’accès d’un compte de la forge — de préférence un compte de service. Comme pour GitHub, Pupitre interroge la forge : elle n’a jamais besoin de joindre le panel.',
-  'gitea.state.on': 'connectée',
-  'gitea.state.off': 'non connectée',
-  'gitea.url': 'Adresse de la forge',
+  'forge.state.on': 'connectée',
+  'forge.state.off': 'non connectée',
+  'forge.url': 'Adresse de la forge',
   'gitea.url.help': 'Celle qu’ouvre un navigateur : https://codeberg.org, https://git.exemple.fr.',
   'gitea.url.placeholder': 'https://codeberg.org',
-  'gitea.token': 'Jeton d’accès',
+  'forge.token': 'Jeton d’accès',
   'gitea.token.help':
     'Paramètres → Applications → Générer un jeton, avec les portées write:repository (lire le code, écrire l’état des déploiements sur les commits) et read:user. Chiffré dès l’enregistrement, jamais réaffiché.',
-  'gitea.check': 'Tester',
-  'gitea.check.ok': 'La forge répond : compte {login}, version {version}.',
-  'gitea.check.failed': 'La forge refuse : {error}',
-  'gitea.connect': 'Connecter la forge',
-  'gitea.connected': 'Forge connectée',
-  'gitea.replace': 'Remplacer le jeton',
-  'gitea.replaced': 'Jeton remplacé',
-  'gitea.forge': 'Forge',
-  'gitea.account': 'Compte du jeton',
-  'gitea.sources': {
+  'forge.check': 'Tester',
+  'forge.check.ok': 'La forge répond : compte {login}, version {version}.',
+  'forge.check.failed': 'La forge refuse : {error}',
+  'forge.connect': 'Connecter la forge',
+  'forge.connected': 'Forge connectée',
+  'forge.replace': 'Remplacer le jeton',
+  'forge.replaced': 'Jeton remplacé',
+  'forge.forge': 'Forge',
+  'forge.account': 'Compte du jeton',
+  'forge.sources': {
     one: '{count} liaison passe par cette forge.',
     other: '{count} liaisons passent par cette forge.',
   },
-  'gitea.disconnect': 'Déconnecter',
-  'gitea.disconnect.title': 'Déconnecter {url} ?',
-  'gitea.disconnect.sources': {
+  'forge.disconnect': 'Déconnecter',
+  'forge.disconnect.title': 'Déconnecter {url} ?',
+  'forge.disconnect.sources': {
     one: '{count} liaison sera retirée : ses applications restent, sans dépôt.',
     other: '{count} liaisons seront retirées : leurs applications restent, sans dépôt.',
   },
-  'gitea.disconnect.history': 'L’historique des déploiements reste, avec ses commits.',
-  'gitea.disconnect.token':
+  'forge.disconnect.history': 'L’historique des déploiements reste, avec ses commits.',
+  'forge.disconnect.token':
     'Le jeton reste valide sur la forge : révoquez-le là-bas si vous n’en avez plus besoin.',
-  'gitea.disconnected': 'Forge déconnectée',
-  'gitea.error.urlChange':
+  'forge.disconnected': 'Forge déconnectée',
+  'forge.error.urlChange':
     'La forge {url} porte {count} liaison(s) : déconnectez-la avant d’en connecter une autre.',
+  'forge.check.expires': 'Le jeton expire le {date}.',
+  'gitlab.title': 'GitLab',
+  'gitlab.lead':
+    'gitlab.com ou une instance auto-hébergée, par un jeton d’accès — de préférence un jeton de projet ou de groupe, qui borne l’accès à ses projets. Comme pour GitHub, Pupitre interroge GitLab : il n’a jamais besoin de joindre le panel.',
+  'gitlab.url.help':
+    'Celle qu’ouvre un navigateur : https://gitlab.com, https://gitlab.exemple.fr.',
+  'gitlab.url.placeholder': 'https://gitlab.com',
+  'gitlab.token.help':
+    'Paramètres du projet ou du groupe → Jetons d’accès, portée api — la seule qui permette d’écrire l’état des déploiements sur les commits —, rôle Maintainer : sur une branche protégée, GitLab n’accepte un statut que de qui peut y pousser (Developer suffit si les développeurs y poussent). Chiffré dès l’enregistrement, jamais réaffiché.',
 
   // ── Tiroir de liaison ───────────────────────────────────────────────────
   'drawer.kind': 'Dépôt',
@@ -258,7 +267,7 @@ const fr = {
     'La demande de création a expiré, ou ne vient pas de ce navigateur. Recommencez depuis Paramètres → Intégrations.',
   'error.provider': 'Le fournisseur de code a refusé : {message}',
   'error.noProvider':
-    "Aucun fournisseur de code n'est connecté : connectez GitHub ou une forge Gitea dans Paramètres → Intégrations.",
+    "Aucun fournisseur de code n'est connecté : connectez GitHub, GitLab ou une forge Gitea dans Paramètres → Intégrations.",
   'error.privateKey': 'Clé privée illisible : collez le contenu complet du fichier .pem.',
   'error.sourceNotFound': 'Liaison « {id} » introuvable',
   'error.proposalNotFound': 'Commit en attente « {id} » introuvable',
@@ -369,7 +378,7 @@ const en: Translated<typeof fr> = {
     "A branch's pupitre.json describes the application. Pupitre checks every minute whether it changed.",
   'card.link': 'Link a repository',
   'card.notConnected':
-    'To link the application to a repository, connect GitHub or a Gitea forge first.',
+    'To link the application to a repository, connect GitHub, GitLab or a Gitea forge first.',
   'card.notConnected.link': 'Open integrations',
   'card.empty': 'No linked repository: the application is edited from the panel.',
   'mode.auto': 'automatic',
@@ -421,39 +430,47 @@ const en: Translated<typeof fr> = {
   'gitea.title': 'Gitea / Forgejo',
   'gitea.lead':
     'Gitea, Forgejo and Codeberg, through the access token of a forge account — ideally a service account. As with GitHub, Pupitre polls the forge: it never needs to reach the panel.',
-  'gitea.state.on': 'connected',
-  'gitea.state.off': 'not connected',
-  'gitea.url': 'Forge address',
+  'forge.state.on': 'connected',
+  'forge.state.off': 'not connected',
+  'forge.url': 'Forge address',
   'gitea.url.help': 'The one a browser opens: https://codeberg.org, https://git.example.com.',
   'gitea.url.placeholder': 'https://codeberg.org',
-  'gitea.token': 'Access token',
+  'forge.token': 'Access token',
   'gitea.token.help':
     'Settings → Applications → Generate token, with the write:repository scope (read the code, write deployment state on commits) and read:user. Encrypted on save, never shown again.',
-  'gitea.check': 'Test',
-  'gitea.check.ok': 'The forge answers: account {login}, version {version}.',
-  'gitea.check.failed': 'The forge refuses: {error}',
-  'gitea.connect': 'Connect the forge',
-  'gitea.connected': 'Forge connected',
-  'gitea.replace': 'Replace the token',
-  'gitea.replaced': 'Token replaced',
-  'gitea.forge': 'Forge',
-  'gitea.account': 'Token account',
-  'gitea.sources': {
+  'forge.check': 'Test',
+  'forge.check.ok': 'The forge answers: account {login}, version {version}.',
+  'forge.check.failed': 'The forge refuses: {error}',
+  'forge.connect': 'Connect the forge',
+  'forge.connected': 'Forge connected',
+  'forge.replace': 'Replace the token',
+  'forge.replaced': 'Token replaced',
+  'forge.forge': 'Forge',
+  'forge.account': 'Token account',
+  'forge.sources': {
     one: '{count} link goes through this forge.',
     other: '{count} links go through this forge.',
   },
-  'gitea.disconnect': 'Disconnect',
-  'gitea.disconnect.title': 'Disconnect {url}?',
-  'gitea.disconnect.sources': {
+  'forge.disconnect': 'Disconnect',
+  'forge.disconnect.title': 'Disconnect {url}?',
+  'forge.disconnect.sources': {
     one: '{count} link will be removed: its applications stay, without a repository.',
     other: '{count} links will be removed: their applications stay, without a repository.',
   },
-  'gitea.disconnect.history': 'Deployment history stays, with its commits.',
-  'gitea.disconnect.token':
+  'forge.disconnect.history': 'Deployment history stays, with its commits.',
+  'forge.disconnect.token':
     'The token stays valid on the forge: revoke it there if you no longer need it.',
-  'gitea.disconnected': 'Forge disconnected',
-  'gitea.error.urlChange':
+  'forge.disconnected': 'Forge disconnected',
+  'forge.error.urlChange':
     'Forge {url} carries {count} link(s): disconnect it before connecting another one.',
+  'forge.check.expires': 'The token expires on {date}.',
+  'gitlab.title': 'GitLab',
+  'gitlab.lead':
+    'gitlab.com or a self-managed instance, through an access token — ideally a project or group token, which limits access to its projects. As with GitHub, Pupitre polls GitLab: it never needs to reach the panel.',
+  'gitlab.url.help': 'The one a browser opens: https://gitlab.com, https://gitlab.example.com.',
+  'gitlab.url.placeholder': 'https://gitlab.com',
+  'gitlab.token.help':
+    'Project or group settings → Access tokens, api scope — the only one that can write deployment state on commits —, Maintainer role: on a protected branch, GitLab only accepts a status from someone who can push to it (Developer is enough if developers can push there). Encrypted on save, never shown again.',
 
   'drawer.kind': 'Repository',
   'drawer.title.new': 'Link a repository',
@@ -509,7 +526,7 @@ const en: Translated<typeof fr> = {
     'The creation request expired, or did not come from this browser. Start again from Settings → Integrations.',
   'error.provider': 'The code provider refused: {message}',
   'error.noProvider':
-    'No code provider is connected: connect GitHub or a Gitea forge in Settings → Integrations.',
+    'No code provider is connected: connect GitHub, GitLab or a Gitea forge in Settings → Integrations.',
   'error.privateKey': 'Unreadable private key: paste the whole content of the .pem file.',
   'error.sourceNotFound': 'Link “{id}” not found',
   'error.proposalNotFound': 'Pending commit “{id}” not found',

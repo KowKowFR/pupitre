@@ -5,8 +5,9 @@ import type { SourceProviderKind } from './types.js';
  *
  * Module pur : l'écran s'en sert pour un lien vers un commit ou une branche,
  * le panel pour recopier l'adresse d'un dépôt dans un déploiement. Un dépôt
- * s'ouvre à `{base}/{propriétaire}/{nom}` partout ; seule la page d'une
- * branche diffère.
+ * s'ouvre à `{base}/{propriétaire}/{nom}` partout — chez GitLab, avec tout le
+ * chemin de ses groupes ; seules les pages d'une branche et d'un commit
+ * diffèrent.
  */
 
 export const GITHUB_WEB_URL = 'https://github.com';
@@ -15,6 +16,7 @@ export const GITHUB_WEB_URL = 'https://github.com';
 export const SOURCE_PROVIDER_LABELS: Record<SourceProviderKind, string> = {
   github: 'GitHub',
   gitea: 'Gitea',
+  gitlab: 'GitLab',
 };
 
 /**
@@ -41,10 +43,18 @@ export function branchWebUrl(
   repositoryUrl: string,
   branch: string,
 ): string {
-  const segment = provider === 'gitea' ? 'src/branch' : 'tree';
+  const segment = provider === 'gitea' ? 'src/branch' : provider === 'gitlab' ? '-/tree' : 'tree';
   return `${repositoryUrl}/${segment}/${encodeURIComponent(branch)}`;
 }
 
-export function commitWebUrl(repositoryUrl: string, sha: string): string {
-  return `${repositoryUrl}/commit/${sha}`;
+/**
+ * La page d'un commit. Sans fournisseur connu — le run d'une liaison disparue —,
+ * `/commit/` : GitHub et Gitea l'ouvrent, GitLab redirige vers `/-/commit/`.
+ */
+export function commitWebUrl(
+  repositoryUrl: string,
+  sha: string,
+  provider?: SourceProviderKind,
+): string {
+  return `${repositoryUrl}/${provider === 'gitlab' ? '-/commit' : 'commit'}/${sha}`;
 }

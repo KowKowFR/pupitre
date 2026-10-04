@@ -1,4 +1,4 @@
-import { SOURCE_PROVIDER_KINDS } from '@pupitre/core';
+import { SOURCE_PROVIDER_KINDS, sourceRepositorySchema } from '@pupitre/core';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sources as messages } from '@/i18n/messages/sources';
@@ -14,8 +14,8 @@ export const dynamic = 'force-dynamic';
 const querySchema = z.object({
   /** Le fournisseur du dépôt ; GitHub quand rien n'est dit. */
   provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
-  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
-  /** GitHub : l'installation de l'App. Rien chez Gitea. */
+  repository: sourceRepositorySchema,
+  /** GitHub : l'installation de l'App. Rien chez Gitea ni GitLab. */
   installationId: z.coerce.number().int().positive().optional(),
   /** Absente : la branche par défaut du dépôt. */
   branch: z.string().trim().min(1).max(255).optional(),

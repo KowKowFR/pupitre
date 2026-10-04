@@ -72,9 +72,9 @@ const fr = {
     "La destination des sauvegardes — S3, SFTP vers un NAS, ou un dossier monté —, la sauvegarde de la base du panel, et le nombre d'applications sauvegardées automatiquement. Chaque application règle la sienne sur sa fiche.",
   'section.integrations.label': 'Dépôts de code',
   'section.integrations.title': 'Dépôts de code',
-  'section.integrations.short': 'les dépôts GitHub et Gitea liés aux applications',
+  'section.integrations.short': 'les dépôts GitHub, GitLab et Gitea liés aux applications',
   'section.integrations.governs':
-    "Les fournisseurs de code qui relient Pupitre aux dépôts — une GitHub App, une forge Gitea ou Forgejo : ils lisent le code et le pupitre.json des branches liées, et Pupitre écrit l'état des déploiements sur les commits. Le panel reste privé : c'est lui qui interroge les forges.",
+    "Les fournisseurs de code qui relient Pupitre aux dépôts — une GitHub App, une forge Gitea ou Forgejo, une instance GitLab : ils lisent le code et le pupitre.json des branches liées, et Pupitre écrit l'état des déploiements sur les commits. Le panel reste privé : c'est lui qui interroge les forges.",
   'integrations.term.github': 'GitHub',
   'integrations.term.sources': 'Applications liées',
   'integrations.github.connected': 'connectée — {name}',
@@ -378,9 +378,9 @@ const en: Translated<typeof fr> = {
     'The backup destination — S3, SFTP to a NAS, or a mounted folder —, the panel database backup, and how many applications are backed up automatically. Each application sets its own on its page.',
   'section.integrations.label': 'Code repositories',
   'section.integrations.title': 'Code repositories',
-  'section.integrations.short': 'GitHub and Gitea repositories linked to applications',
+  'section.integrations.short': 'GitHub, GitLab and Gitea repositories linked to applications',
   'section.integrations.governs':
-    'The code providers that link Pupitre to repositories — a GitHub App, a Gitea or Forgejo forge: they read the code and the pupitre.json of linked branches, and Pupitre writes deployment states on commits. The panel stays private: it asks the forges itself.',
+    'The code providers that link Pupitre to repositories — a GitHub App, a Gitea or Forgejo forge, a GitLab instance: they read the code and the pupitre.json of linked branches, and Pupitre writes deployment states on commits. The panel stays private: it asks the forges itself.',
   'integrations.term.github': 'GitHub',
   'integrations.term.sources': 'Linked applications',
   'integrations.github.connected': 'connected — {name}',

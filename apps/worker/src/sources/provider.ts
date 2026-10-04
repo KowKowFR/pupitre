@@ -6,7 +6,7 @@ import {
 } from '@pupitre/db';
 
 /**
- * Le client du fournisseur d'une liaison — GitHub, Gitea —, fabriqué depuis sa
+ * Le client du fournisseur d'une liaison — GitHub, GitLab, Gitea —, fabriqué depuis sa
  * connexion. `null` si la connexion n'existe plus.
  *
  * Les secrets sont déchiffrés à la construction et ne vivent qu'en mémoire,

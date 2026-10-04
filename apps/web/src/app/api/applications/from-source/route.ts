@@ -1,4 +1,9 @@
-import { SOURCE_PROVIDER_KINDS, parseSourceSpec, safeParseAppSpec } from '@pupitre/core';
+import {
+  SOURCE_PROVIDER_KINDS,
+  parseSourceSpec,
+  safeParseAppSpec,
+  sourceRepositorySchema,
+} from '@pupitre/core';
 import {
   createApplicationSource,
   deleteApplication,
@@ -24,8 +29,8 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z.object({
   /** Le fournisseur du dépôt ; GitHub quand rien n'est dit. */
   provider: z.enum(SOURCE_PROVIDER_KINDS).default('github'),
-  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
-  /** GitHub : l'installation de l'App. Rien chez Gitea. */
+  repository: sourceRepositorySchema,
+  /** GitHub : l'installation de l'App. Rien chez Gitea ni GitLab. */
   installationId: z.number().int().positive().nullable().default(null),
   branch: z.string().trim().min(1).max(255),
   specPath: repoPathSchema,
