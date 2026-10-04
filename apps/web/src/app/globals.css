@@ -2,23 +2,23 @@
 @import "./components.css";
 
 /*
- * Système visuel du panel — le design system Pupitre.
+ * The panel's visual system — the Pupitre design system.
  *
- * La source de vérité est `design/pupitre-design-system/tokens/pupitre.css` :
- * ce fichier en est la traduction pour Tailwind v4, pas une interprétation.
- * Graphite froid pour la structure, outremer pour ce qui s'actionne, se
- * sélectionne ou est en cours ; vert, ambre et rouge ne disent qu'un état.
+ * The source of truth is `design/pupitre-design-system/tokens/pupitre.css`:
+ * this file is its translation for Tailwind v4, not an interpretation. Cold
+ * graphite for the structure, ultramarine for what is actioned, selected or in
+ * progress; green, amber and red only say a state.
  *
- * Tout passe par des jetons. Aucune couleur littérale ne doit être écrite
- * dans un composant : un thème ne se répare pas composant par composant.
+ * Everything goes through tokens. No literal color must be written in a
+ * component: a theme is not repaired component by component.
  */
 
 /*
- * Le thème sombre a trois états : classe `.dark` explicite, classe `.light`
- * explicite, et rien du tout — le cas par défaut, où seul le média décide.
- * La variante fournie avec le kit ne regarde que la classe : toutes les
- * utilitaires `dark:` seraient muettes sur un poste réglé en sombre qui garde
- * le choix « Système ».
+ * The dark theme has three states: an explicit `.dark` class, an explicit
+ * `.light` class, and nothing at all — the default case, where only the media
+ * query decides. The variant shipped with the kit only looks at the class: all
+ * the `dark:` utilities would be silent on a workstation set to dark that keeps
+ * the "System" choice.
  */
 @custom-variant dark {
   @media (prefers-color-scheme: dark) {
@@ -32,12 +32,12 @@
 }
 
 /* --------------------------------------------------------------------------
-   Palette claire — la définition complète. Les deux blocs sombres plus bas ne
-   redéfinissent que des jetons, jamais des règles.
+   Light palette — the complete definition. The two dark blocks below only
+   redefine tokens, never rules.
    -------------------------------------------------------------------------- */
 
 :root {
-  /* Gammes brutes. Les composants passent par les jetons sémantiques. */
+  /* Raw ranges. The components go through the semantic tokens. */
   --n0: #ffffff;
   --n25: #fafafb;
   --n50: #f5f6f8;
@@ -64,7 +64,7 @@
   --o800: #212f8f;
   --o900: #1f2b6f;
 
-  /* Sémantique. */
+  /* Semantics. */
   --bg: #f7f8fa;
   --bg-subtle: #f1f2f5;
   --surface: #ffffff;
@@ -86,9 +86,9 @@
   --accent-line: #c3ccfb;
   --accent-text: #2536b4;
   /*
-   * Encre posée sur l'outremer plein. Blanc en clair ; en sombre l'outremer
-   * remonte à #7F92FF et le blanc n'y tiendrait plus que 2,9:1 — le kit passe
-   * alors à l'encre du fond, et ce jeton le dit une fois pour tous.
+   * The ink set on full ultramarine. White in light; in dark the ultramarine
+   * rises to #7F92FF and white would only hold 2.9:1 on it — the kit then
+   * switches to the background's ink, and this token says it once for all.
    */
   --accent-fg: #ffffff;
 
@@ -111,8 +111,8 @@
   --idle-text: #515765;
 
   /*
-   * Échelle de gravité des vulnérabilités — ordinale, pas une palette. Les
-   * encres suivent le kit : blanc partout, sauf sur l'ocre de MEDIUM.
+   * The vulnerabilities' severity scale — ordinal, not a palette. The inks
+   * follow the kit: white everywhere, except on MEDIUM's ochre.
    */
   --sev-critical: #8f1d3b;
   --sev-critical-ink: #ffffff;
@@ -124,10 +124,9 @@
   --sev-low-ink: #ffffff;
 
   /*
-   * Teintes d'étiquette — décoratives, jamais sémantiques. Six teintes tenues
-   * à distance du vert, de l'ambre et du rouge : aucune étiquette ne *peut*
-   * emprunter une teinte d'état. Les mêmes valeurs servent aux deux thèmes ;
-   * c'est le mélange de `.tag` qui change (voir plus bas).
+   * Label tints — decorative, never semantic. Six tints kept away from green,
+   * amber and red: no label *can* borrow a state tint. The same values serve
+   * both themes; it is `.tag`'s mixing that changes (see below).
    */
   --tag-1: #2f63c8;
   --tag-2: #6a4bcf;
@@ -137,8 +136,8 @@
   --tag-6: #5a6272;
 
   /*
-   * Le terminal reste sombre dans les deux thèmes : un flux de logs se lit sur
-   * fond noir, c'est un choix, pas un oubli.
+   * The terminal stays dark in both themes: a log stream reads on a black
+   * background, it is a choice, not an oversight.
    */
   --term-bg: #101217;
   --term-fg: #d7dbe3;
@@ -157,14 +156,14 @@
   --sh-sm: 0 1px 3px rgba(18, 20, 26, 0.07), 0 1px 2px rgba(18, 20, 26, 0.04);
   --sh-md: 0 10px 28px -6px rgba(18, 20, 26, 0.14), 0 2px 6px rgba(18, 20, 26, 0.05);
   --sh-lg: 0 28px 64px -16px rgba(18, 20, 26, 0.28), 0 6px 16px rgba(18, 20, 26, 0.06);
-  /* Anneau de focus : une ombre de 3 px, pas un contour. */
+  /* Focus ring: a 3 px shadow, not an outline. */
   --ring: 0 0 0 3px rgba(46, 68, 214, 0.22);
   --ring-danger: 0 0 0 3px rgba(207, 49, 33, 0.18);
 
   /*
-   * Écarts de composant entre les thèmes. Le kit les écrit en sélecteurs
-   * `.pp.dark .x` ; ici ce sont des jetons, pour que le choix « Système » —
-   * sans classe sur <html> — les reçoive aussi.
+   * Component differences between the themes. The kit writes them as
+   * `.pp.dark .x` selectors; here they are tokens, so that the "System" choice —
+   * without a class on <html> — receives them too.
    */
   --hover-line: #bfc3cb;
   --input-hover: #9197a3;
@@ -182,13 +181,13 @@
   --tag-fg-base: var(--text);
   --tag-line-mix: 26%;
 
-  /* Mouvement. */
+  /* Motion. */
   --d-1: 120ms;
   --d-2: 180ms;
   --d-3: 240ms;
   --d-4: 320ms;
 
-  /* Jetons shadcn — alias des jetons ci-dessus, pour les primitives. */
+  /* shadcn tokens — aliases of the tokens above, for the primitives. */
   --radius: 8px;
   --background: var(--bg);
   --foreground: var(--text);
@@ -417,7 +416,7 @@ html.dark {
   --color-scrim: var(--scrim);
   --color-scrim-soft: var(--scrim-soft);
 
-  /* Alias shadcn. `--color-ring` est une couleur ; l'anneau lui-même est `shadow-focus`. */
+  /* shadcn aliases. `--color-ring` is a color; the ring itself is `shadow-focus`. */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -503,8 +502,8 @@ html.dark {
   }
 
   /*
-   * Un chiffre ne doit jamais bouger de colonne : durées, ports, compteurs et
-   * horodatages sont partout dans ce panel.
+   * A digit must never move column: durations, ports, counters and timestamps
+   * are everywhere in this panel.
    */
   code,
   kbd,
@@ -527,7 +526,7 @@ html.dark {
     accent-color: var(--accent);
   }
 
-  /* L'anneau du kit : 3 px d'outremer à 22 %, posé en ombre et non en contour. */
+  /* The kit's ring: 3 px of ultramarine at 22%, set as a shadow and not an outline. */
   :focus-visible {
     outline: none;
     box-shadow: var(--ring);
@@ -544,8 +543,8 @@ html.dark {
   }
 
   /*
-   * Icônes Lucide : 16 px et trait de 1,75 par défaut, comme `.ic` dans le kit.
-   * Une utilitaire `size-*` posée par l'appelant l'emporte toujours.
+   * Lucide icons: 16 px and a 1.75 stroke by default, like `.ic` in the kit. A
+   * `size-*` utility set by the caller always wins.
    */
   svg.lucide {
     width: 16px;
@@ -556,8 +555,8 @@ html.dark {
 }
 
 /* --------------------------------------------------------------------------
-   Mouvement. Courbes : entrée `ease-out`, sortie `ease-in`, standard
-   `ease-std`. Durées : 120, 180, 240 et 320 ms.
+   Motion. Curves: entrance `ease-out`, exit `ease-in`, standard `ease-std`.
+   Durations: 120, 180, 240 and 320 ms.
    -------------------------------------------------------------------------- */
 
 @keyframes pp-fade {
@@ -764,9 +763,8 @@ html.dark {
 }
 
 /*
- * Réduction de mouvement : plus de glissé, plus de shimmer, plus de
- * pulsation. Les états restent lisibles par la forme et le libellé, jamais
- * par la seule animation.
+ * Reduced motion: no more sliding, no more shimmer, no more pulsing. The states
+ * stay readable through the shape and the label, never through animation alone.
  */
 @media (prefers-reduced-motion: reduce) {
   *,

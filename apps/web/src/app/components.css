@@ -1,22 +1,21 @@
 /*
- * Classes de composants du design system — portage de `pupitre.css`.
+ * The design system's component classes — a port of `pupitre.css`.
  *
- * Mêmes noms que dans le kit, pour qu'une planche (`design/…/canvas/*.dc.html`)
- * se traduise en JSX sans table de correspondance. Trois adaptations
- * seulement :
+ * The same names as in the kit, so that a board (`design/…/canvas/*.dc.html`)
+ * translates into JSX without a mapping table. Only three adaptations:
  *
- *   - les écarts entre thèmes, écrits `.pp.dark .x` dans le kit, passent par
- *     des jetons (`--accent-fg`, `--tip-bg`…) pour que le choix « Système »
- *     les reçoive aussi ;
- *   - les couches (voile, drawer, dialogue, palette, toasts) sont en position
- *     fixe sur la fenêtre, et animées par `data-state` (Radix) plutôt que par
- *     une classe `.is-out` ;
- *   - les aides de mise en page du kit (`.row`, `.g8`…) ne sont pas portées :
- *     Tailwind les dit déjà.
+ *   - the differences between themes, written `.pp.dark .x` in the kit, go
+ *     through tokens (`--accent-fg`, `--tip-bg`…) so that the "System" choice
+ *     receives them too;
+ *   - the layers (veil, drawer, dialog, palette, toasts) are fixed on the
+ *     window, and animated by `data-state` (Radix) rather than by an `.is-out`
+ *     class;
+ *   - the kit's layout helpers (`.row`, `.g8`…) are not ported: Tailwind
+ *     already says them.
  */
 
 @layer components {
-  /* ---------- typographie ---------- */
+  /* ---------- typography ---------- */
   .mono { font-family: var(--font-mono); font-size: 0.93em; letter-spacing: 0; font-variant-numeric: tabular-nums; }
   .num { font-variant-numeric: tabular-nums; }
   .t-cap { font-size: 12px; line-height: 16px; }
@@ -34,7 +33,7 @@
   .sep { height: 1px; background: var(--border-subtle); border: 0; }
   .vsep { width: 1px; align-self: stretch; background: var(--border); }
 
-  /* ---------- boutons ---------- */
+  /* ---------- buttons ---------- */
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px;
     border-radius: var(--radius-md); border: 1px solid transparent; font-size: 13px; line-height: 18px; font-weight: 600;
@@ -74,7 +73,7 @@
   .btn-group .btn { border-radius: 0; }
   .btn-group .btn:first-child { border-radius: var(--radius-md) 0 0 var(--radius-md); }
   .btn-group .btn:last-child { border-radius: 0 var(--radius-md) var(--radius-md) 0; margin-left: -1px; }
-  /* Sur écran tactile, une cible fait au moins 44 px, quelle que soit la taille. */
+  /* On a touch screen, a target is at least 44 px, whatever the size. */
   @media (pointer: coarse) {
     .btn:not(.btn-link) { min-height: 44px; }
     .btn-icon { min-width: 44px; }
@@ -87,7 +86,7 @@
     font-family: var(--font-mono); font-size: 11px; line-height: 1; font-weight: 500; box-shadow: inset 0 -1px 0 var(--border);
   }
 
-  /* ---------- formulaires ---------- */
+  /* ---------- forms ---------- */
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .label { font-size: 13px; line-height: 18px; font-weight: 600; color: var(--text); }
   .label .opt { font-weight: 400; color: var(--text-3); margin-left: 4px; }
@@ -202,7 +201,7 @@
   .chip .count { font-weight: 600; color: var(--text-3); }
   .chip[aria-pressed="true"] .count, .chip[aria-current="page"] .count { color: var(--accent-text); }
 
-  /* ---------- état ---------- */
+  /* ---------- state ---------- */
   .badge {
     display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 6px;
     border: 1px solid var(--idle-line); background: var(--idle-soft); color: var(--idle-text); font-size: 12px; line-height: 16px;
@@ -256,15 +255,15 @@
   .sev-m { background: var(--sev-medium); color: var(--sev-medium-ink); }
   .sev-l { background: var(--sev-low); color: var(--sev-low-ink); }
   .sev-u { background: var(--surface-3); color: var(--text-2); }
-  /* L'aide repliée d'un intitulé : une icône discrète, l'explication en info-bulle. */
+  /* A label's folded help: a discreet icon, the explanation in a tooltip. */
   .help-tip { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; margin-left: 4px; padding: 0; border: 0; border-radius: 999px; background: none; color: var(--text-3); vertical-align: -3px; cursor: help; flex: none; }
   .help-tip:hover { color: var(--text-2); }
   .help-tip:focus-visible { outline: none; box-shadow: var(--ring); }
   .help-tip svg { width: 14px; height: 14px; }
-  /* La couleur d'une criticité, seule : dans une puce de filtre. */
+  /* A severity's color, alone: in a filter chip. */
   .sev-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 2px; }
 
-  /* La matrice des rôles : la première colonne reste en place quand on défile. */
+  /* The roles matrix: the first column stays in place when scrolling. */
   .roles-matrix th, .roles-matrix td { white-space: nowrap; }
   .roles-matrix thead th { height: auto; padding-top: 10px; padding-bottom: 10px; vertical-align: bottom; text-transform: none; letter-spacing: 0; }
   .roles-matrix .roles-matrix-corner, .roles-matrix .roles-matrix-family { position: sticky; left: 0; z-index: 1; text-align: left; font-weight: 400; min-width: 180px; }
@@ -300,9 +299,9 @@
   .av.has-img { background: var(--surface-2); overflow: hidden; }
   .av > img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 
-  /* Présence : une pastille au coin de l'avatar. La forme double la couleur —
-     plein vert, plein orange, rouge barré, cercle vide — et le libellé suit
-     toujours à côté ou en info-bulle. */
+  /* Presence: a chip at the avatar's corner. The shape doubles the color —
+     full green, full orange, barred red, empty circle — and the label always
+     follows beside it or in a tooltip. */
   .presence { position: relative; display: inline-flex; flex-shrink: 0; }
   .presence-dot {
     position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%;
@@ -316,17 +315,17 @@
     border-radius: 1px; background: var(--surface);
   }
   .presence-dot.is-offline { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--n400); }
-  /* En ligne de texte : relative et non statique — la barre de « ne pas déranger »
-     se place par rapport à sa pastille, pas au milieu du menu qui la contient. */
+  /* Inline in text: relative and not static — the "do not disturb" bar places
+     itself relative to its chip, not in the middle of the menu containing it. */
   .presence-dot.is-inline { position: relative; right: auto; bottom: auto; display: inline-block; flex-shrink: 0; border: 0; width: 8px; height: 8px; }
   .presence-dot.is-inline.is-busy::after { left: 1px; right: 1px; }
 
-  /* ---------- discussion : la bulle et son panneau ---------- */
-  /* La bulle vit en bas à droite de chaque écran ; les toasts remontent
-     au-dessus d'elle, et s'écartent du panneau quand il est ouvert.
-     Couche 55 : au-dessus de la page, sous les tiroirs et les dialogues (qui
-     piègent le focus — le fil n'y serait pas utilisable), et sous les menus,
-     popovers et info-bulles qui s'ouvrent depuis le panneau lui-même. */
+  /* ---------- chat: the bubble and its panel ---------- */
+  /* The bubble lives at the bottom right of each screen; the toasts move up
+     above it, and step aside from the panel when it is open.
+     Layer 55: above the page, under the drawers and dialogs (which trap the
+     focus — the thread would not be usable there), and under the menus,
+     popovers and tooltips that open from the panel itself. */
   .chat-bubble {
     position: fixed; right: 20px; bottom: 20px; z-index: 55; width: 52px; height: 52px; border-radius: 50%;
     display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: var(--sh-lg);
@@ -393,7 +392,7 @@
   .fg > span:first-child { font-size: 12px; line-height: 16px; color: var(--text-3); }
   .fg > span:last-child { font-size: 13px; line-height: 20px; }
 
-  /* ---------- tableau ---------- */
+  /* ---------- table ---------- */
   .tbl-wrap { overflow-x: auto; }
   .tbl { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 18px; }
   .tbl th {
@@ -417,9 +416,9 @@
   .tbl th .sort { display: inline-flex; align-items: center; gap: 4px; }
   .pager { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border-subtle); font-size: 12.5px; color: var(--text-3); }
 
-  /* ---------- coquille ---------- */
+  /* ---------- shell ---------- */
   .shell { position: relative; display: flex; width: 100%; min-height: 100dvh; background: var(--bg); }
-  /* Le fond du rail court sur toute la hauteur ; son contenu, lui, reste collé à la fenêtre. */
+  /* The rail's background runs the whole height; its content stays stuck to the window. */
   .side-wrap { width: 240px; flex-shrink: 0; background: var(--bg-subtle); border-right: 1px solid var(--border); }
   .side {
     position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; gap: 14px;
@@ -476,7 +475,7 @@
     .page { padding: 20px 16px 48px; gap: 20px; }
   }
 
-  /* ---------- alertes, bandeaux ---------- */
+  /* ---------- alerts, banners ---------- */
   .alert {
     display: flex; gap: 10px; align-items: flex-start; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--idle-line);
     background: var(--surface-2); font-size: 13px; line-height: 19px; color: var(--text-2);
@@ -493,7 +492,7 @@
   .alert-danger > svg { color: var(--danger); }
   .banner { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 24px; border-bottom: 1px solid var(--accent-line); background: var(--accent-soft); font-size: 13px; }
 
-  /* ---------- couches ---------- */
+  /* ---------- layers ---------- */
   .tip {
     z-index: 90; padding: 5px 8px; border-radius: 7px; background: var(--tip-bg); color: var(--tip-fg); font-size: 12px; line-height: 16px;
     font-weight: 500; box-shadow: var(--sh-md); max-width: 280px; animation: pp-tip 120ms var(--ease-std) both;
@@ -512,7 +511,7 @@
   .menu-item svg { color: var(--text-3); }
   .menu-item:hover, .menu-item[data-highlighted] { background: var(--surface-3); }
   .menu-item:focus-visible { box-shadow: none; }
-  /* Une entrée sur deux lignes (un titre, une aide) : la hauteur suit le texte. */
+  /* A two-line entry (a title, a help): the height follows the text. */
   .menu-item.is-tall { height: auto; min-height: 32px; padding: 6px 8px; }
   .menu-item .kbd, .menu-item .meta { margin-left: auto; }
   .menu-item .meta { font-size: 12px; color: var(--text-3); }
@@ -529,14 +528,14 @@
   .pop[data-state="closed"] { animation: pp-pop-out 120ms var(--ease-in) both; }
 
   .scrim { position: fixed; inset: 0; z-index: 70; background: var(--scrim); animation: pp-fade var(--d-3) var(--ease-std) both; }
-  /* Couches, de bas en haut : drawer (60/65), dialogue (70/75), menus (85),
-     info-bulles (90), palette (94/95), toasts (100). Un dialogue ouvert depuis
-     un drawer passe donc au-dessus, voile compris. */
+  /* Layers, from bottom to top: drawer (60/65), dialog (70/75), menus (85),
+     tooltips (90), palette (94/95), toasts (100). A dialog opened from a
+     drawer therefore goes above it, veil included. */
   .scrim.soft { background: var(--scrim-soft); z-index: 60; }
   .scrim.blur { backdrop-filter: blur(2px); }
   .scrim[data-state="closed"] { animation: pp-fade-out var(--d-2) var(--ease-in) both; }
   @media (min-width: 1024px) {
-    /* Le voile d'un drawer ne couvre que le contenu : le rail reste lisible. */
+    /* A drawer's veil only covers the content: the rail stays readable. */
     .scrim.soft.is-content { left: 240px; }
   }
 
@@ -570,7 +569,7 @@
   .drawer[data-state="closed"] { animation: pp-drawer-out 200ms var(--ease-in) both; }
   .drawer.is-wide { width: min(680px, calc(100vw - 16px)); }
   .drawer.is-xwide { width: min(1040px, calc(100vw - 16px)); }
-  /* Les onglets d'une fiche, entre son en-tête et son corps. */
+  /* A record's tabs, between its header and its body. */
   .dr-tabs { padding: 0 18px; flex-shrink: 0; }
   .dr-h:has(+ .dr-tabs) { border-bottom: 0; padding-bottom: 4px; }
   .dr-h { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 16px; border-bottom: 1px solid var(--border-subtle); flex-shrink: 0; }
@@ -582,16 +581,16 @@
   .dr-b > *:nth-child(4) { animation-delay: 120ms; }
   .dr-b > *:nth-child(5) { animation-delay: 160ms; }
   .dr-b > *:nth-child(n + 6) { animation-delay: 200ms; }
-  /* Un onglet de fiche entre d'un bloc, sans attendre son rang : la cascade est
-     pour la première lecture, pas pour chaque changement d'onglet. */
+  /* A record's tab enters in one block, without waiting for its turn: the cascade
+     is for the first reading, not for each tab change. */
   .dr-b > [role="tabpanel"] { animation-delay: 0ms; animation-duration: var(--d-2); }
   .dr-sec { display: flex; flex-direction: column; gap: 10px; }
   .dr-sec > h3 { font-size: 13px; line-height: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .dr-f { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--border-subtle); background: var(--surface-2); flex-shrink: 0; }
-  /* Un bouton qui dit pourquoi il est désactivé grandit vers le bas : ses voisins restent alignés sur lui, pas sur sa raison. */
+  /* A button that says why it is disabled grows downward: its neighbors stay aligned on it, not on its reason. */
   .dr-f:has(> [data-slot='button-with-reason']) { align-items: flex-start; }
   @media (max-width: 1023.98px) {
-    /* Sous lg, le drawer devient une feuille montante. */
+    /* Under lg, the drawer becomes a rising sheet. */
     .drawer, .drawer.is-wide, .drawer.is-xwide {
       top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 88dvh; border-radius: 16px 16px 0 0; border-bottom: 0;
       animation: pp-sheet-in var(--d-4) var(--ease-out) both;
@@ -638,7 +637,7 @@
   .toast .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); animation: pp-timer var(--toast-life, 5s) linear both; }
   .toast:hover .bar { animation-play-state: paused; }
 
-  /* ---------- retours ---------- */
+  /* ---------- feedback ---------- */
   .sk { position: relative; overflow: hidden; background: var(--surface-3); border-radius: 6px; }
   .sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, var(--shimmer), transparent); animation: pp-shimmer 1.6s var(--ease-std) infinite; }
   .sk-t { height: 10px; border-radius: 5px; }
@@ -655,7 +654,7 @@
   .meter > span { height: 100%; }
   .spinner { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: pp-spin 0.7s linear infinite; flex-shrink: 0; }
 
-  /* ---------- données ---------- */
+  /* ---------- data ---------- */
   .mgauge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .mgauge i { display: block; width: 36px; height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; position: relative; }
   .mgauge i b { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--gauge-fill); }
@@ -672,7 +671,7 @@
   .readout:first-child { border-left: 0; }
   .readout .lbl { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 500; color: var(--text-2); }
   .readout .hint { font-size: 12px; line-height: 16px; color: var(--text-3); }
-  /* Bande compacte, posée dans une carte (supervision) : 12/16 et chiffres à 22. */
+  /* A compact band, set in a card (monitoring): 12/16 and figures at 22. */
   .readouts.is-compact .readout { padding: 12px 16px; }
   .readouts.is-compact .t-stat { font-size: 22px; line-height: 28px; }
   @container (max-width: 720px) {
@@ -715,7 +714,7 @@
   .term-b .d { color: var(--term-dim); }
   .term-b .ln.is-err { background: rgba(255, 120, 100, 0.07); box-shadow: inset 2px 0 0 var(--term-err); }
   .term-b .ln.is-warn { background: rgba(242, 193, 102, 0.06); box-shadow: inset 2px 0 0 var(--term-warn); }
-  /* Contrôles posés dans un terminal : sombres quel que soit le thème, comme lui. */
+  /* Controls set in a terminal: dark whatever the theme, like it. */
   .term .input, .term .select { background-color: #171a20; border-color: #2a2e37; color: var(--term-fg); box-shadow: none; }
   .term .input::placeholder { color: var(--term-dim); }
   .term .input:hover, .term .select:hover { border-color: #3a3f4b; }
@@ -755,7 +754,7 @@
   .led-pulse::after {
     display: none;
   }
-  /* Le « +1 » reste lisible, sans s'envoler. */
+  /* The "+1" stays readable, without flying off. */
   .chat-plus { animation: none; top: -12px; transform: translateX(-50%); }
   .chat-bubble, .chat-panel { transition: none; animation: none; }
 }
