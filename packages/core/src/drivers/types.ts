@@ -316,7 +316,13 @@ export interface DeploymentDriver {
    */
   imageStore(ctx: DriverContext): ImageStore;
 
-  /** Démarre les services. Suppose `upload()` et, le cas échéant, `build()` faits. */
+  /**
+   * Démarre les services. Suppose `upload()` et, le cas échéant, `build()` faits.
+   *
+   * Si la nouvelle version a pris la place de l'ancienne sans devenir saine,
+   * l'échec est une `UnhealthyReleaseError` : le pipeline la traite comme un
+   * healthcheck en échec, rollback automatique compris.
+   */
   deploy(ctx: DriverContext, onLog: LogSink): Promise<DeployResult>;
 
   healthcheck(ctx: DriverContext): Promise<HealthResult>;
@@ -545,5 +551,31 @@ export class DriverError extends Error {
   ) {
     super(message);
     this.name = 'DriverError';
+  }
+}
+
+/**
+ * `deploy()` a mis la nouvelle version en place, mais elle n'est pas devenue
+ * saine dans le délai.
+ *
+ * Pour le pipeline, c'est un healthcheck en échec : le rollback automatique
+ * s'applique. Sans ce signal, un échec de `deploy` passerait pour un démarrage
+ * qui n'a jamais eu lieu, où il n'y a rien à défaire — ce qui est faux dès que
+ * le runtime remplace les services **avant** d'attendre leur santé. Seul le
+ * driver sait si c'est le cas : c'est donc lui qui le dit.
+ *
+ * `diagnostics` : la scène capturée avant de rendre la main, comme
+ * `HealthResult.diagnostics` — le rollback qui suit l'effacerait.
+ */
+export class UnhealthyReleaseError extends DriverError {
+  constructor(
+    message: string,
+    runtime: RuntimeKind,
+    step: string,
+    readonly diagnostics: string | null,
+    cause?: unknown,
+  ) {
+    super(message, runtime, step, cause);
+    this.name = 'UnhealthyReleaseError';
   }
 }

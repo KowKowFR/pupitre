@@ -51,7 +51,7 @@ const fr = {
   'pipeline.health.noAnswer': 'le service ne répond pas',
   'pipeline.rollback.notNeeded': 'le déploiement est sain — aucun retour arrière',
   'pipeline.rollback.auto':
-    'healthcheck en échec — retour automatique de la version {from} (déploiement #{fromSequence}) à la version {to} (déploiement #{toSequence})',
+    'la version {from} (déploiement #{fromSequence}) n’est pas saine — retour automatique à la version {to} (déploiement #{toSequence})',
   'pipeline.rollback.healthy': {
     one: 'version {version} saine après {count} tentative — {detail}',
     other: 'version {version} saine après {count} tentatives — {detail}',
@@ -60,7 +60,7 @@ const fr = {
   'pipeline.rollback.restoredButDown':
     'la version {version} a été restaurée mais ne répond pas : {detail}',
   'pipeline.rollback.failed': '{failure} — le rollback automatique a échoué : {error}',
-  'pipeline.healthcheckFailed': 'healthcheck en échec',
+  'pipeline.healthcheckFailed': 'version malsaine',
   'pipeline.step.alreadyDone': 'déjà réussie',
   'pipeline.step.notReached': 'étape non atteinte',
   'pipeline.port.kept': 'port {port} conservé : une version tourne encore sur la cible',
@@ -174,7 +174,7 @@ const en: Translated<typeof fr> = {
   'pipeline.health.noAnswer': 'the service does not respond',
   'pipeline.rollback.notNeeded': 'the deployment is healthy — no rollback',
   'pipeline.rollback.auto':
-    'healthcheck failed — rolling back automatically from version {from} (deployment #{fromSequence}) to version {to} (deployment #{toSequence})',
+    'version {from} (deployment #{fromSequence}) is not healthy — rolling back automatically to version {to} (deployment #{toSequence})',
   'pipeline.rollback.healthy': {
     one: 'version {version} healthy after {count} attempt — {detail}',
     other: 'version {version} healthy after {count} attempts — {detail}',
@@ -183,7 +183,7 @@ const en: Translated<typeof fr> = {
   'pipeline.rollback.restoredButDown':
     'version {version} was restored but does not respond: {detail}',
   'pipeline.rollback.failed': '{failure} — the automatic rollback failed: {error}',
-  'pipeline.healthcheckFailed': 'healthcheck failed',
+  'pipeline.healthcheckFailed': 'unhealthy version',
   'pipeline.step.alreadyDone': 'already succeeded',
   'pipeline.step.notReached': 'step not reached',
   'pipeline.port.kept': 'port {port} kept: a version is still running on the target',
