@@ -80,6 +80,14 @@ opens an SSH session itself. An unreachable target returns a `200` with
 logs over SSE**, read on the machine. `deployment:restart` allows restarting it
 — through the queue, with its life cycle published in the stream.
 
+The same permission **stops** an application and **starts** it again, from its
+console or straight from its row on `/apps`. Stopping keeps the containers,
+the volumes and the reserved port — the confirmation says so — and suspends
+the health probe. A stopped application stays listed, "stopped for …", with
+**Start**, and the overview's "Running" card says "stopped" rather than an
+unknown state. Starting puts the same version back in service, without a
+redeploy.
+
 An application whose **last update failed** stays listed, with a state that says
 so: it still runs, in its previous version. It is the case
 `verify-supervision.sh` specifically isolates.

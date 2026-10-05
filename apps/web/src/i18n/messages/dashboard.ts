@@ -203,6 +203,7 @@ const fr = {
 
   // ── What runs ───────────────────────────────────────────────────────────
   'running.title': 'En marche',
+  'running.stopped': 'arrêtée',
   'running.empty': 'Aucune application en marche. Déployez-en une depuis',
 
   // ── The last deployments ────────────────────────────────────────────────
@@ -415,6 +416,7 @@ const en: Translated<typeof fr> = {
   'fleet.noReadout': 'no readout over 24 h',
 
   'running.title': 'Running',
+  'running.stopped': 'stopped',
   'running.empty': 'No application running. Deploy one from',
 
   'deployments.title': 'Latest deployments',

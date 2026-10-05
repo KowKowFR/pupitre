@@ -362,7 +362,10 @@ export default async function HomePage({
               <ul className="list">
                 {running.slice(0, 6).map((app) => (
                   <li key={app.id}>
-                    <Led tone={HEALTH_TONE[app.healthStatus] ?? 'idle'} />
+                    {/* Stopped from the panel: its health is not probed, and "unknown" would lie. */}
+                    <Led
+                      tone={app.stoppedAt ? 'idle' : (HEALTH_TONE[app.healthStatus] ?? 'idle')}
+                    />
                     <Link
                       href={`/apps?app=${app.id}`}
                       className="mono min-w-0 flex-1 truncate text-[12.5px] text-text hover:underline"
@@ -371,7 +374,9 @@ export default async function HomePage({
                       <span className="text-text-3">@{app.targetName}</span>
                     </Link>
                     <span className="t-cap shrink-0 text-text-3">
-                      {labelOf(HEALTH_KEY, app.healthStatus, t)}
+                      {app.stoppedAt
+                        ? t('running.stopped')
+                        : labelOf(HEALTH_KEY, app.healthStatus, t)}
                     </span>
                   </li>
                 ))}
