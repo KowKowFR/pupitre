@@ -104,6 +104,7 @@ const fr = {
 
   // ── Échecs rendus par l'API ─────────────────────────────────────────────
   'error.channelNotFound': 'Canal « {id} » introuvable',
+  'error.nameTaken': 'Un canal nommé « {name} » existe déjà',
   'error.testTimeout':
     "L'essai n'a pas abouti dans le délai imparti. Le worker est peut-être saturé.",
   'error.testFailed': 'Essai impossible : {detail}',
@@ -190,6 +191,7 @@ const en: Translated<typeof fr> = {
   'digest.state.closesAt': '· closes at {time}',
 
   'error.channelNotFound': 'Channel “{id}” not found',
+  'error.nameTaken': 'A channel named “{name}” already exists',
   'error.testTimeout':
     'The test did not complete within the allotted time. The worker may be saturated.',
   'error.testFailed': 'Test impossible: {detail}',

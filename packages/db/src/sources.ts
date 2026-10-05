@@ -242,7 +242,13 @@ export function sourceTargetsProblem(
 export const applicationSourceCreateSchema = applicationSourceInputSchema.superRefine(
   (input, context) => {
     const problem = sourceTargetsProblem(input.deployTo, input.targets);
-    if (problem) context.addIssue({ code: 'custom', path: ['targets'], message: problem });
+    if (problem) {
+      context.addIssue({
+        code: 'custom',
+        path: ['targets'],
+        ...invalid('sources.atLeastOneTarget'),
+      });
+    }
   },
 );
 

@@ -98,7 +98,9 @@ async function call<T>(
   try {
     await assertEgressAllowed(base);
   } catch (error) {
-    if (error instanceof EgressRefusedError) throw new NpmApiError(error.message, step, 0);
+    if (error instanceof EgressRefusedError) {
+      throw new NpmApiError(error.describe(options.language ?? 'fr'), step, 0);
+    }
     throw error;
   }
   let response: Response;

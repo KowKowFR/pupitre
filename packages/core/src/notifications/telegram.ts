@@ -204,6 +204,7 @@ export class TelegramChannel implements NotificationChannel {
   ): Promise<NotificationTestResult> {
     try {
       const result = await httpCall({
+        language,
         channel: this.kind,
         fetch: this.fetchImpl,
         url: this.endpoint(resolved, 'getMe', language),
@@ -229,6 +230,7 @@ export class TelegramChannel implements NotificationChannel {
 
   async send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void> {
     await httpCall({
+      language: message.language,
       channel: this.kind,
       fetch: this.fetchImpl,
       url: this.endpoint(resolved, 'sendMessage', message.language),
@@ -253,6 +255,7 @@ export class TelegramChannel implements NotificationChannel {
    */
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     await httpCall({
+      language: digest.language,
       channel: this.kind,
       fetch: this.fetchImpl,
       url: this.endpoint(resolved, 'sendMessage', digest.language),

@@ -1,4 +1,5 @@
 import { assertEgressAllowed, EgressRefusedError } from '../egress.js';
+import type { UiLanguage } from '../i18n.js';
 import type { ChannelConfig, NotificationChannelKind } from './catalog.js';
 import { NotificationError, describeFailure, redactSecrets, type FetchLike } from './types.js';
 
@@ -21,6 +22,8 @@ export type HttpCallOptions = {
   timeoutMs: number;
   /** Valeurs à masquer dans tout message d'erreur remonté. */
   secrets: ChannelConfig;
+  /** La langue des erreurs remontées — celle de l'instance. */
+  language?: UiLanguage;
 };
 
 export type HttpCallResult = { status: number; text: string };
@@ -43,7 +46,12 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
     await assertEgressAllowed(options.url);
   } catch (error) {
     if (!(error instanceof EgressRefusedError)) throw error;
-    throw new NotificationError(error.message, options.channel, 'connect', error);
+    throw new NotificationError(
+      error.describe(options.language ?? 'fr'),
+      options.channel,
+      'connect',
+      error,
+    );
   }
 
   let response: Response;
@@ -53,7 +61,7 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
     // Une URL injoignable, un DNS muet, un délai dépassé : tous ici. Le message
     // de `fetch` contient parfois l'URL entière, jeton compris.
     throw new NotificationError(
-      describeFailure(error, options.secrets),
+      describeFailure(error, options.secrets, options.language),
       options.channel,
       'connect',
       error,
@@ -63,7 +71,7 @@ export async function httpCall(options: HttpCallOptions): Promise<HttpCallResult
   const text = await response.text().catch(() => '');
 
   if (!response.ok) {
-    const excerpt = redactSecrets(text.trim(), options.secrets).slice(0, 300);
+    const excerpt = redactSecrets(text.trim(), options.secrets, options.language).slice(0, 300);
     throw new NotificationError(
       `HTTP ${response.status}${excerpt.length > 0 ? ` — ${excerpt}` : ''}`,
       options.channel,

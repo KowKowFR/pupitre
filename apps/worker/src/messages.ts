@@ -163,6 +163,63 @@ const fr = {
   'sourceDeploy.targetGone': 'cible supprimée',
   'sourceDeploy.neverTested': 'jamais testée : lancez un preflight',
   'sourceDeploy.runtimeUnavailable': '{runtime} indisponible sur cette cible',
+
+  'backup.dbNotReady': 'la base « {service} » ne répond pas : {error}',
+  'backup.notRestorable': "cette sauvegarde n'est pas restaurable",
+  'backup.appDeleted': "l'application de cette sauvegarde a été supprimée",
+  'backup.notRunning': "l'application ne tourne pas sur cette cible",
+  'backup.stopped': "l'application est arrêtée : démarrez-la avant de restaurer",
+  'backup.pieceGone': "⚠ « {piece} » n'existe plus dans l'AppSpec en service — morceau ignoré",
+  'backup.pieceFetched': '✓ {file} téléchargé et vérifié',
+  'backup.safety': "sauvegarde de sûreté de l'état actuel",
+  'backup.safetyFailed': 'sauvegarde de sûreté impossible — restauration annulée : {error}',
+  'backup.stoppingForVolumes': "arrêt de l'application pour remplacer ses volumes",
+  'backup.volumeRestored': '✓ volume « {volume} » de « {service} » restauré',
+  'backup.restarting': "redémarrage de l'application",
+  'backup.databaseRestored': '✓ base « {service} » ({engine}) restaurée',
+  'backup.restartingToReconnect': "redémarrage de l'application, pour qu'elle se reconnecte",
+  'backup.appGone': 'application supprimée',
+  'backup.nothing': 'rien à sauvegarder : aucun volume déclaré',
+  'backup.alreadyRunning': 'une sauvegarde de cette application est déjà en cours',
+  'backup.starting': {
+    one: 'sauvegarde de « {slug} » vers {destination} — {count} morceau, mode {mode}',
+    other: 'sauvegarde de « {slug} » vers {destination} — {count} morceaux, mode {mode}',
+  },
+  'backup.mode.hot': 'à chaud',
+  'backup.mode.stop': 'arrêt bref',
+  'backup.briefStop': "arrêt bref de l'application",
+  'backup.volumeLabel': 'volume « {volume} » de « {service} »',
+  'backup.dumpLabel': 'export {engine} de « {service} »',
+  'backup.pieceStored': '✓ {label} — {size} en {seconds} s',
+  'backup.done': 'sauvegarde terminée — {size} au total',
+  'backup.destinationGone': 'la destination de cette sauvegarde a été supprimée',
+  'backup.noDestination': 'aucune destination de sauvegarde configurée — Paramètres › Sauvegardes',
+  'backup.changed': '« {key} » a changé depuis la sauvegarde (empreinte {hash}…)',
+  'backup.retentionFailed': 'rétention : « {location} » non effacée — {error}',
+  'backup.retentionDone': {
+    one: 'rétention : {count} sauvegarde ancienne effacée',
+    other: 'rétention : {count} sauvegardes anciennes effacées',
+  },
+  'backup.panelRunning': 'une sauvegarde du panel est déjà en cours',
+  'backup.commandMissing':
+    "« {command} » introuvable — l'image du worker l'embarque ; hors Docker, installez le client PostgreSQL",
+  'backup.commandFailed': '{command} a échoué (code {code}) : {detail}',
+  'backup.alreadyDeleted': 'déjà effacée',
+  'backup.interrupted': 'interrompue : le worker a redémarré pendant la sauvegarde',
+
+  'mail.noSmtp': 'aucun canal SMTP actif sur cette instance',
+  'schedule.truncated': '… journal tronqué',
+  'schedule.deleted': 'tâche supprimée',
+  'schedule.disabled': 'tâche désactivée',
+  'schedule.stoppedNotProbed': 'arrêtée volontairement, non sondée',
+  'schedule.scanAlert':
+    "⚠ {id} : {count} finding(s) au seuil {failOn} — aucune action automatique, ce scan n'interrompt rien",
+  'schedule.preflightQueued': 'preflight enfilé pour {target} (job {job})',
+  'schedule.noAutoBackup': "aucune application n'a la sauvegarde automatique activée",
+  'schedule.backupQueued': 'sauvegarde enfilée : {slug}',
+  'schedule.panelBackupQueued': 'sauvegarde de la base du panel enfilée (job {job})',
+  'bytes.unit': 'o',
+  'bytes.units': 'Kio,Mio,Gio,Tio',
 } as const;
 
 const en: Translated<typeof fr> = {
@@ -321,6 +378,63 @@ const en: Translated<typeof fr> = {
   'sourceDeploy.targetGone': 'target deleted',
   'sourceDeploy.neverTested': 'never tested: run a preflight',
   'sourceDeploy.runtimeUnavailable': '{runtime} unavailable on this target',
+
+  'backup.dbNotReady': 'database “{service}” does not answer: {error}',
+  'backup.notRestorable': 'this backup cannot be restored',
+  'backup.appDeleted': 'the application of this backup was deleted',
+  'backup.notRunning': 'the application does not run on this target',
+  'backup.stopped': 'the application is stopped: start it before restoring',
+  'backup.pieceGone': '⚠ “{piece}” no longer exists in the AppSpec in service — piece skipped',
+  'backup.pieceFetched': '✓ {file} downloaded and verified',
+  'backup.safety': 'safety backup of the current state',
+  'backup.safetyFailed': 'safety backup failed — restore cancelled: {error}',
+  'backup.stoppingForVolumes': 'stopping the application to replace its volumes',
+  'backup.volumeRestored': '✓ volume “{volume}” of “{service}” restored',
+  'backup.restarting': 'restarting the application',
+  'backup.databaseRestored': '✓ database “{service}” ({engine}) restored',
+  'backup.restartingToReconnect': 'restarting the application so it reconnects',
+  'backup.appGone': 'application deleted',
+  'backup.nothing': 'nothing to back up: no volume declared',
+  'backup.alreadyRunning': 'a backup of this application is already running',
+  'backup.starting': {
+    one: 'backing up “{slug}” to {destination} — {count} piece, mode {mode}',
+    other: 'backing up “{slug}” to {destination} — {count} pieces, mode {mode}',
+  },
+  'backup.mode.hot': 'hot',
+  'backup.mode.stop': 'brief stop',
+  'backup.briefStop': 'stopping the application briefly',
+  'backup.volumeLabel': 'volume “{volume}” of “{service}”',
+  'backup.dumpLabel': '{engine} export of “{service}”',
+  'backup.pieceStored': '✓ {label} — {size} in {seconds} s',
+  'backup.done': 'backup done — {size} in total',
+  'backup.destinationGone': 'the destination of this backup was deleted',
+  'backup.noDestination': 'no backup destination configured — Settings › Backups',
+  'backup.changed': '“{key}” changed since the backup (fingerprint {hash}…)',
+  'backup.retentionFailed': 'retention: “{location}” not deleted — {error}',
+  'backup.retentionDone': {
+    one: 'retention: {count} old backup deleted',
+    other: 'retention: {count} old backups deleted',
+  },
+  'backup.panelRunning': 'a panel backup is already running',
+  'backup.commandMissing':
+    '“{command}” not found — the worker image ships it; outside Docker, install the PostgreSQL client',
+  'backup.commandFailed': '{command} failed (code {code}): {detail}',
+  'backup.alreadyDeleted': 'already deleted',
+  'backup.interrupted': 'interrupted: the worker restarted during the backup',
+
+  'mail.noSmtp': 'no active SMTP channel on this instance',
+  'schedule.truncated': '… log truncated',
+  'schedule.deleted': 'task deleted',
+  'schedule.disabled': 'task disabled',
+  'schedule.stoppedNotProbed': 'stopped on purpose, not probed',
+  'schedule.scanAlert':
+    '⚠ {id}: {count} finding(s) at threshold {failOn} — no automatic action, this scan interrupts nothing',
+  'schedule.preflightQueued': 'preflight queued for {target} (job {job})',
+  'schedule.noAutoBackup': 'no application has automatic backup enabled',
+  'schedule.backupQueued': 'backup queued: {slug}',
+  'schedule.panelBackupQueued': 'panel database backup queued (job {job})',
+  'bytes.unit': 'B',
+  'bytes.units': 'KiB,MiB,GiB,TiB',
 };
 
 export const workerCopy = { fr, en };
@@ -329,4 +443,18 @@ export type WorkerSay = Translate<typeof fr>;
 
 export function workerSay(language: UiLanguage): WorkerSay {
   return translator(workerCopy, language);
+}
+
+/** Une taille lisible, dans les unités de la langue : « 1,4 Mio », « 1.4 MiB ». */
+export function formatBytes(bytes: number, language: UiLanguage): string {
+  const say = workerSay(language);
+  if (bytes < 1024) return `${bytes} ${say('bytes.unit')}`;
+  const units = say('bytes.units').split(',');
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
 }

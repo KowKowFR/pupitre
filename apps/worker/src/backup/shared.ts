@@ -3,7 +3,7 @@ import { createWriteStream } from 'node:fs';
 import { PassThrough, Transform, type Readable, type Writable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
-import { errorMessage } from '@pupitre/core';
+import { errorMessage, type UiLanguage } from '@pupitre/core';
 import {
   createDecryptStream,
   createEncryptStream,
@@ -18,6 +18,8 @@ import {
   pruneFailedBackups,
   resolveBackupDestination,
 } from '@pupitre/db';
+import { instanceLanguage } from '../language.js';
+import { workerSay } from '../messages.js';
 
 /**
  * Ce que partagent sauvegarde et restauration : ouvrir la destination,
@@ -36,15 +38,19 @@ export type OpenedStore = { id: string; name: string; store: BackupStore };
 
 /** La destination active — ou celle d'une sauvegarde existante, même désactivée depuis. */
 export async function openStore(destinationId?: string | null): Promise<OpenedStore> {
+  const language = await instanceLanguage();
   const resolved = await resolveBackupDestination(destinationId ?? null);
   if (!resolved) {
+    const say = workerSay(language);
     throw new BackupError(
-      destinationId
-        ? 'la destination de cette sauvegarde a été supprimée'
-        : 'aucune destination de sauvegarde configurée — Paramètres › Sauvegardes',
+      destinationId ? say('backup.destinationGone') : say('backup.noDestination'),
     );
   }
-  return { id: resolved.id, name: resolved.name, store: openBackupStore(resolved.destination) };
+  return {
+    id: resolved.id,
+    name: resolved.name,
+    store: openBackupStore(resolved.destination, language),
+  };
 }
 
 /**
@@ -115,6 +121,7 @@ export async function fetchPiece(
   key: string,
   expectedSha256: string,
   destination: string,
+  language: UiLanguage = 'fr',
 ): Promise<void> {
   const source: Readable = await store.get(key);
   const hash = createHash('sha256');
@@ -124,11 +131,16 @@ export async function fetchPiece(
       callback(null, chunk);
     },
   });
-  await pipeline(source, tap, createDecryptStream(), createWriteStream(destination));
+  await pipeline(
+    source,
+    tap,
+    createDecryptStream(undefined, language),
+    createWriteStream(destination),
+  );
   const actual = hash.digest('hex');
   if (actual !== expectedSha256) {
     throw new BackupError(
-      `« ${key} » a changé depuis la sauvegarde (empreinte ${actual.slice(0, 12)}…)`,
+      workerSay(language)('backup.changed', { key, hash: actual.slice(0, 12) }),
     );
   }
 }
@@ -144,6 +156,7 @@ export async function applyRetention(
   retention: BackupRetention,
   onLog: (line: string) => void,
 ): Promise<number> {
+  const say = workerSay(await instanceLanguage());
   const retained = await listRetainedBackups(scope, destinationId);
   const expired = expiredBackups(retained, retention);
   const removed: string[] = [];
@@ -153,12 +166,13 @@ export async function applyRetention(
       removed.push(backup.id);
     } catch (error) {
       // Une suppression ratée reste dans l'index : elle sera retentée à la prochaine.
-      onLog(`rétention : « ${backup.location} » non effacée — ${errorMessage(error)}`);
+      onLog(
+        say('backup.retentionFailed', { location: backup.location, error: errorMessage(error) }),
+      );
     }
   }
   await deleteBackupRecords(removed);
-  if (removed.length > 0)
-    onLog(`rétention : ${removed.length} sauvegarde(s) ancienne(s) effacée(s)`);
+  if (removed.length > 0) onLog(say('backup.retentionDone', { count: removed.length }));
   await pruneFailedBackups(scope, new Date(Date.now() - FAILED_BACKUPS_KEPT_MS));
   return removed.length;
 }

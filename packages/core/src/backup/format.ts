@@ -1,6 +1,8 @@
 import { createCipheriv, createDecipheriv, randomBytes, type DecipherGCM } from 'node:crypto';
 import { Transform, type TransformCallback } from 'node:stream';
 import { deriveBackupKey } from '../crypto.js';
+import type { UiLanguage } from '../i18n.js';
+import { backupSay } from './messages.js';
 
 /**
  * Le format d'un fichier de sauvegarde, `.pupb` :
@@ -60,7 +62,8 @@ export function createEncryptStream(masterKey?: string): Transform {
  * `MASTER_KEY` différente — fait échouer le flux au dernier moment, en
  * `BackupFormatError`.
  */
-export function createDecryptStream(masterKey?: string): Transform {
+export function createDecryptStream(masterKey?: string, language: UiLanguage = 'fr'): Transform {
+  const say = backupSay(language);
   let header: Buffer = Buffer.alloc(0);
   let decipher: DecipherGCM | null = null;
   let held: Buffer = Buffer.alloc(0);
@@ -95,17 +98,13 @@ export function createDecryptStream(masterKey?: string): Transform {
     },
     flush(callback: TransformCallback) {
       if (!decipher || held.length !== TAG_BYTES) {
-        return callback(new BackupFormatError('fichier de sauvegarde tronqué'));
+        return callback(new BackupFormatError(say('format.truncated')));
       }
       try {
         decipher.setAuthTag(held);
         callback(null, decipher.final());
       } catch {
-        callback(
-          new BackupFormatError(
-            'authentification impossible : fichier altéré, ou chiffré sous une autre MASTER_KEY',
-          ),
-        );
+        callback(new BackupFormatError(say('format.authFailed')));
       }
     },
   });

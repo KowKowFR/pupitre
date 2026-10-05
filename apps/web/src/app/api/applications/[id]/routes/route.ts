@@ -108,7 +108,14 @@ export const PUT = apiRoute<Context>(async (request, context) => {
   try {
     await replaceRoutes(id, input.targetId, normalized);
   } catch (error) {
-    if (error instanceof RouteTakenError) throw new ConflictError(error.message);
+    if (error instanceof RouteTakenError) {
+      throw new ConflictError(
+        msg(messages, error.application ? 'error.routeTaken' : 'error.routeTakenElsewhere', {
+          hostname: error.hostname,
+          application: error.application ?? '',
+        }),
+      );
+    }
     throw error;
   }
 

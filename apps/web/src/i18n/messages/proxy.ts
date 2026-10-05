@@ -7,6 +7,8 @@ import type { Translated } from '@pupitre/core';
 const fr = {
   // ── refus ────────────────────────────────────────────────────────────────
   'error.targetNotFound': 'Cible introuvable.',
+  'error.routeTaken': 'le domaine « {hostname} » est déjà routé vers « {application} »',
+  'error.routeTakenElsewhere': 'le domaine « {hostname} » est déjà routé',
   'error.applicationNotFound': 'Application introuvable.',
   'error.noProxy':
     'Aucun reverse proxy sur « {target} » : réglez-le d’abord sur la page de la cible, ou dans l’assistant.',
@@ -219,6 +221,8 @@ const fr = {
 
 const en: Translated<typeof fr> = {
   'error.targetNotFound': 'Target not found.',
+  'error.routeTaken': 'domain “{hostname}” is already routed to “{application}”',
+  'error.routeTakenElsewhere': 'domain “{hostname}” is already routed',
   'error.applicationNotFound': 'Application not found.',
   'error.noProxy':
     'No reverse proxy on “{target}”: set it up first on the target page, or in the setup assistant.',

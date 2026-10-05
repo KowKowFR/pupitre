@@ -48,6 +48,7 @@ import {
   type NotificationChannelRecord,
 } from '@pupitre/db';
 import { Queue, UnrecoverableError, type Job } from 'bullmq';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
 import { createRedisConnection } from '../redis.js';
 
@@ -477,7 +478,7 @@ export async function handleNotificationDeliver(
   } catch (error) {
     // `describeFailure` expurge : un message de fournisseur peut contenir un
     // fragment de jeton, et il finirait sinon en base et dans l'audit.
-    const detail = describeFailure(error, resolved.resolved.secrets);
+    const detail = describeFailure(error, resolved.resolved.secrets, await instanceLanguage());
 
     if (attempt < maxAttempts) {
       log.warn({ error: detail }, 'remise en échec, nouvelle tentative programmée');
@@ -549,7 +550,7 @@ export async function handleNotificationTest(
     );
     delivered = true;
   } catch (sendError) {
-    error = describeFailure(sendError, resolved.resolved.secrets);
+    error = describeFailure(sendError, resolved.resolved.secrets, language);
   }
 
   await recordNotificationOutcome(row.id, { ok: delivered, error });

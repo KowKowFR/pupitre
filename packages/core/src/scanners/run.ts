@@ -3,6 +3,8 @@ import { execStream } from '../ssh/client.js';
 import type { SshSession } from '../ssh/client.js';
 import { firstLine, shellQuote } from '../shell.js';
 import { ScannerError, type ScanLogSink } from './types.js';
+import type { UiLanguage } from '../i18n.js';
+import { scannerSay } from './messages.js';
 
 /**
  * Exécution d'un outil qui écrit un document JSON sur `stdout` et sa
@@ -22,6 +24,8 @@ export type ToolRun = {
   stdout: string;
   code: number;
   durationMs: number;
+  /** La langue de la session : celle d'un échec à l'analyse. Français par défaut. */
+  language?: UiLanguage;
 };
 
 /**
@@ -114,13 +118,18 @@ export async function runTool(
 
   if (result.timedOut) {
     throw new ScannerError(
-      `délai dépassé après ${Math.round(timeoutMs / 1000)} s`,
+      scannerSay(session.language)('run.timeout', { seconds: Math.round(timeoutMs / 1000) }),
       scanner,
       'run',
     );
   }
 
-  return { stdout: result.stdout, code: result.code, durationMs: result.durationMs };
+  return {
+    stdout: result.stdout,
+    code: result.code,
+    durationMs: result.durationMs,
+    language: session.language,
+  };
 }
 
 /**
@@ -135,10 +144,14 @@ export function parseJsonOutput<T>(
   run: ToolRun,
   stderrHint: string | null = null,
 ): T {
+  const say = scannerSay(run.language ?? 'fr');
   const trimmed = run.stdout.trim();
   if (trimmed.length === 0) {
     throw new ScannerError(
-      `aucune sortie (code ${run.code})${stderrHint ? ` : ${firstLine(stderrHint) ?? ''}` : ''}`,
+      say('run.noOutput', {
+        code: run.code,
+        hint: stderrHint ? ` : ${firstLine(stderrHint) ?? ''}` : '',
+      }),
       scanner,
       'run',
     );
@@ -148,7 +161,7 @@ export function parseJsonOutput<T>(
     return JSON.parse(trimmed) as T;
   } catch (error) {
     throw new ScannerError(
-      `sortie JSON illisible (code ${run.code}) : ${trimmed.slice(0, 200)}`,
+      say('run.unreadable', { code: run.code, excerpt: trimmed.slice(0, 200) }),
       scanner,
       'parse',
       error,

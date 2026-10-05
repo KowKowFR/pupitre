@@ -169,7 +169,11 @@ export class GitLabSourceProvider implements SourceProvider {
       await this.guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(error.message, null, 'gitlab');
+        throw new SourceProviderError(
+          error.describe(this.credentials.language ?? 'fr'),
+          null,
+          'gitlab',
+        );
       }
       throw error;
     }
@@ -437,7 +441,7 @@ export async function fetchGitLabAccount(
       await guard(url);
     } catch (error) {
       if (error instanceof EgressRefusedError) {
-        throw new SourceProviderError(error.message, null, 'gitlab');
+        throw new SourceProviderError(error.describe(credentials.language ?? 'fr'), null, 'gitlab');
       }
       throw error;
     }

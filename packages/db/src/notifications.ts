@@ -324,7 +324,8 @@ export async function recordNotificationOutcome(
         ? { lastSuccessAt: now, lastError: null, consecutiveFailures: 0 }
         : {
             lastFailureAt: now,
-            lastError: (outcome.error ?? 'échec sans message').slice(0, 400),
+            // Un échec sans message reste un échec : un tiret plutôt qu'une phrase figée.
+            lastError: (outcome.error ?? '—').slice(0, 400),
             consecutiveFailures: sql`${notificationChannels.consecutiveFailures} + 1`,
           },
     )

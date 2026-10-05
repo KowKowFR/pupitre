@@ -106,6 +106,7 @@ export class WebhookChannel implements NotificationChannel {
 
   async send(resolved: ResolvedChannelConfig, message: NotificationMessage): Promise<void> {
     await httpCall({
+      language: message.language,
       channel: this.kind,
       fetch: this.fetchImpl,
       url: this.target(resolved, message.language),
@@ -132,6 +133,7 @@ export class WebhookChannel implements NotificationChannel {
    */
   async sendDigest(resolved: ResolvedChannelConfig, digest: NotificationDigest): Promise<void> {
     await httpCall({
+      language: digest.language,
       channel: this.kind,
       fetch: this.fetchImpl,
       url: this.target(resolved, digest.language),

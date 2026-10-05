@@ -18,6 +18,7 @@ import {
   type ToolCommand,
 } from './run.js';
 import type { ScanContext, ScanLogSink, Scanner } from './types.js';
+import { scannerSay } from './messages.js';
 
 /**
  * Trivy — vulnérabilités des paquets système et applicatifs.
@@ -94,7 +95,7 @@ export class TrivyScanner implements Scanner {
     const raw = parseJsonOutput<TrivyOutput>(this.key, run);
     const findings = normalizeTrivyReport(raw);
 
-    onLog(`${findings.length} vulnérabilité(s) rapportée(s)`);
+    onLog(scannerSay(ctx.session.language)('report.vulnerabilities', { count: findings.length }));
 
     return {
       scanner: this.key,

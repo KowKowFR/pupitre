@@ -285,7 +285,14 @@ export const POST = apiRoute(async (request) => {
         domains.map((route) => ({ ...route, redirectHttps: route.tls && route.redirectHttps })),
       );
     } catch (error) {
-      if (error instanceof RouteTakenError) throw new ConflictError(error.message);
+      if (error instanceof RouteTakenError) {
+        throw new ConflictError(
+          msg(proxyMessages, error.application ? 'error.routeTaken' : 'error.routeTakenElsewhere', {
+            hostname: error.hostname,
+            application: error.application ?? '',
+          }),
+        );
+      }
       throw error;
     }
   }

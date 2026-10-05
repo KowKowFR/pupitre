@@ -3,6 +3,7 @@ import { exec } from '../ssh/client.js';
 import type { SshSession } from '../ssh/client.js';
 import { ScannerError, type ScanLogSink } from './types.js';
 import { firstLine, shellQuote } from '../shell.js';
+import { scannerSay } from './messages.js';
 
 /**
  * Installation des outils sur la machine cible.
@@ -67,35 +68,34 @@ export async function ensureBinary(
   asset: ReleaseAsset,
   onLog?: ScanLogSink,
 ): Promise<string> {
+  const say = scannerSay(session.language);
   const installed = await readVersion(session, asset.binary);
   if (installed !== null && installed.includes(asset.version)) {
-    onLog?.(`${asset.binary} ${asset.version} déjà présent`);
+    onLog?.(say('install.present', { binary: asset.binary, version: asset.version }));
     return asset.version;
   }
 
   const uname = await exec(session, 'uname -m', { timeout: VERSION_TIMEOUT_MS });
   const arch = uname.stdout.trim();
   if (uname.code !== 0 || arch.length === 0) {
-    throw new ScannerError(
-      "impossible de déterminer l'architecture de la cible (`uname -m`)",
-      scanner,
-      'install',
-    );
+    throw new ScannerError(say('install.noArch'), scanner, 'install');
   }
 
   const url = asset.assetUrl(arch);
   if (url === null) {
     throw new ScannerError(
-      `${asset.binary} ne publie pas de binaire pour l'architecture « ${arch} »`,
+      say('install.noBinary', { binary: asset.binary, arch }),
       scanner,
       'install',
     );
   }
 
   onLog?.(
-    installed === null
-      ? `installation de ${asset.binary} ${asset.version} (${arch})`
-      : `mise à jour de ${asset.binary} vers ${asset.version} (${arch})`,
+    say(installed === null ? 'install.installing' : 'install.updating', {
+      binary: asset.binary,
+      version: asset.version,
+      arch,
+    }),
   );
 
   const script = [
@@ -112,7 +112,10 @@ export async function ensureBinary(
   const result = await exec(session, script, { timeout: INSTALL_TIMEOUT_MS });
   if (result.code !== 0) {
     throw new ScannerError(
-      `installation de ${asset.binary} impossible : ${firstLine(result.stderr) ?? `code ${result.code}`}`,
+      say('install.failed', {
+        binary: asset.binary,
+        detail: firstLine(result.stderr) ?? `code ${result.code}`,
+      }),
       scanner,
       'install',
     );
@@ -121,13 +124,13 @@ export async function ensureBinary(
   const confirmed = await readVersion(session, asset.binary);
   if (confirmed === null) {
     throw new ScannerError(
-      `${asset.binary} reste injoignable après installation`,
+      say('install.unreachable', { binary: asset.binary }),
       scanner,
       'install',
     );
   }
 
-  onLog?.(`${asset.binary} installé — ${confirmed}`);
+  onLog?.(say('install.done', { binary: asset.binary, version: confirmed }));
   return confirmed;
 }
 

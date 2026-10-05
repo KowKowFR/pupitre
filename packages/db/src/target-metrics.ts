@@ -1,7 +1,9 @@
 import {
   MONITOR_CHECK_RETENTION_DAYS,
   MONITOR_PRUNE_BATCH,
+  translator,
   type HostMetrics,
+  type UiLanguage,
 } from '@pupitre/core';
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -94,7 +96,8 @@ export function isHostMetricKey(value: string): value is HostMetricKey {
 
 export type HostMetricDefinition = {
   key: HostMetricKey;
-  label: string;
+  /** Le nom de la métrique, dans la langue demandée (français par défaut). */
+  label: (language?: UiLanguage) => string;
   /**
    * Seuil par défaut, en pourcentage. **Ce sont les valeurs que l'écran affiche
    * déjà en rouge** (`host-readouts.tsx`, `saturationTone`) : le seuil d'alerte
@@ -108,8 +111,31 @@ export type HostMetricDefinition = {
   /** Extrait de la ligne la valeur comparable au seuil. `null` = non mesurée. */
   read: (sample: TargetMetricSample) => number | null;
   /** Une phrase de dépassement, pour le journal et pour l'écran. */
-  describe: (value: number, sample: TargetMetricSample) => string;
+  describe: (value: number, sample: TargetMetricSample, language?: UiLanguage) => string;
 };
+
+const hostMetricCopy = {
+  fr: {
+    'disk.label': 'Disque',
+    'memory.label': 'Mémoire',
+    'load.label': 'Charge',
+    'disk.describe': 'disque {path} à {value} %',
+    'memory.describe': 'mémoire utilisée à {value} %',
+    'load.describe': 'charge à {perCore} par cœur{detail}',
+    'load.detail': ' ({load} sur {cores} cœurs)',
+  },
+  en: {
+    'disk.label': 'Disk',
+    'memory.label': 'Memory',
+    'load.label': 'Load',
+    'disk.describe': 'disk {path} at {value}%',
+    'memory.describe': 'memory used at {value}%',
+    'load.describe': 'load at {perCore} per core{detail}',
+    'load.detail': ' ({load} on {cores} cores)',
+  },
+} as const;
+
+const metricSay = (language: UiLanguage = 'fr') => translator(hostMetricCopy, language);
 
 /**
  * Les trois dimensions surveillées, et le réglage qui va avec.
@@ -129,38 +155,50 @@ export type HostMetricDefinition = {
 export const HOST_METRIC_CATALOG: Record<HostMetricKey, HostMetricDefinition> = {
   disk: {
     key: 'disk',
-    label: 'Disque',
+    label: (language) => metricSay(language)('disk.label'),
     defaultLimitPercent: 90,
     // Un seul relevé suffit : le disque ne rebondit pas.
     defaultBreachSamples: 1,
     defaultClearSamples: 2,
     read: (sample) => sample.diskPercent,
-    describe: (value, sample) =>
-      `disque ${sample.diskPath ?? ''} à ${value.toFixed(1)} %`.replace('  ', ' '),
+    describe: (value, sample, language) =>
+      metricSay(language)('disk.describe', {
+        path: sample.diskPath ?? '',
+        value: value.toFixed(1),
+      }).replace('  ', ' '),
   },
   memory: {
     key: 'memory',
-    label: 'Mémoire',
+    label: (language) => metricSay(language)('memory.label'),
     defaultLimitPercent: 90,
     // Deux : un pic de mémoire d'un instant est courant, deux relevés à cinq
     // minutes d'écart ne le sont plus.
     defaultBreachSamples: 2,
     defaultClearSamples: 2,
     read: (sample) => sample.memoryPercent,
-    describe: (value) => `mémoire utilisée à ${value.toFixed(1)} %`,
+    describe: (value, _sample, language) =>
+      metricSay(language)('memory.describe', { value: value.toFixed(1) }),
   },
   load: {
     key: 'load',
-    label: 'Charge',
+    label: (language) => metricSay(language)('load.label'),
     // 100 % = un cœur plein par cœur. C'est la valeur au-delà de laquelle
     // l'écran affiche déjà la charge en rouge.
     defaultLimitPercent: 100,
     defaultBreachSamples: 3,
     defaultClearSamples: 3,
     read: (sample) => sample.loadPercent,
-    describe: (value, sample) =>
-      `charge à ${(value / 100).toFixed(2)} par cœur` +
-      (sample.cores === null ? '' : ` (${sample.loadOne?.toFixed(2) ?? '?'} sur ${sample.cores} cœurs)`),
+    describe: (value, sample, language) =>
+      metricSay(language)('load.describe', {
+        perCore: (value / 100).toFixed(2),
+        detail:
+          sample.cores === null
+            ? ''
+            : metricSay(language)('load.detail', {
+                load: sample.loadOne?.toFixed(2) ?? '?',
+                cores: sample.cores,
+              }),
+      }),
   },
 };
 

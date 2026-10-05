@@ -2,6 +2,8 @@ import { Readable } from 'node:stream';
 import { assertEgressAllowed, EgressRefusedError } from '../../egress.js';
 import type { S3DestinationConfig, S3DestinationSecrets } from '../destinations.js';
 import { BackupStoreError, probeKey, type BackupStore, type StoredObject } from './types.js';
+import type { UiLanguage } from '../../i18n.js';
+import { backupSay, type BackupSay } from '../messages.js';
 import { EMPTY_SHA256, encodeKeyPath, sha256Hex, signV4 } from './sigv4.js';
 
 /**
@@ -39,12 +41,16 @@ export class S3BackupStore implements BackupStore {
   readonly kind = 's3' as const;
   private readonly base: URL;
 
+  private readonly say: BackupSay;
+
   constructor(
     private readonly config: S3DestinationConfig,
     private readonly secrets: S3DestinationSecrets,
     private readonly doFetch: typeof fetch = fetch,
+    private readonly language: UiLanguage = 'fr',
   ) {
     this.base = new URL(config.endpoint);
+    this.say = backupSay(language);
   }
 
   private objectKey(key: string): string {
@@ -89,7 +95,7 @@ export class S3BackupStore implements BackupStore {
       await assertEgressAllowed(url);
     } catch (error) {
       if (!(error instanceof EgressRefusedError)) throw error;
-      throw new BackupStoreError(`stockage S3 : ${error.message}`, error);
+      throw new BackupStoreError(`S3 : ${error.describe(this.language)}`, error);
     }
     let response: Response;
     try {
@@ -133,14 +139,14 @@ export class S3BackupStore implements BackupStore {
       if (uploadId === null) {
         const created = await this.request('POST', objectKey, { query: { uploads: '' } });
         uploadId = xmlValues(await created.text(), 'UploadId')[0] ?? null;
-        if (!uploadId) throw new BackupStoreError('S3 : envoi multipartie refusé (pas d’UploadId)');
+        if (!uploadId) throw new BackupStoreError(this.say('s3.noUploadId'));
       }
       const response = await this.request('PUT', objectKey, {
         query: { partNumber: String(parts.length + 1), uploadId },
         body: part,
       });
       const etag = response.headers.get('etag');
-      if (!etag) throw new BackupStoreError('S3 : partie envoyée sans ETag');
+      if (!etag) throw new BackupStoreError(this.say('s3.noEtag'));
       parts.push(etag);
     };
 
@@ -176,7 +182,7 @@ export class S3BackupStore implements BackupStore {
       const text = await done.text();
       if (text.includes('<Error>')) {
         throw new BackupStoreError(
-          `S3 : assemblage refusé — ${xmlValues(text, 'Message')[0] ?? text}`,
+          this.say('s3.assembleRefused', { detail: xmlValues(text, 'Message')[0] ?? text }),
         );
       }
       return total;
@@ -239,7 +245,7 @@ export class S3BackupStore implements BackupStore {
     for await (const chunk of back) chunks.push(Buffer.from(chunk as Uint8Array));
     await this.remove(key);
     if (Buffer.concat(chunks).toString() !== 'pupitre') {
-      throw new BackupStoreError('S3 : le fichier témoin relu ne correspond pas');
+      throw new BackupStoreError(this.say('s3.probeMismatch'));
     }
   }
 

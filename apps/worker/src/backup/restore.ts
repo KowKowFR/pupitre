@@ -17,7 +17,9 @@ import {
 } from '@pupitre/db';
 import { openDeploymentContext } from '../deploy/context.js';
 import { env } from '../env.js';
+import { instanceLanguage } from '../language.js';
 import { logger } from '../logger.js';
+import { workerSay, type WorkerSay } from '../messages.js';
 import { backupApplication } from './application.js';
 import { BackupError, fetchPiece, openStore } from './shared.js';
 
@@ -51,6 +53,7 @@ async function waitForDatabase(
   ctx: DriverContext,
   service: string,
   command: string,
+  say: WorkerSay,
 ): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   let last: unknown = null;
@@ -63,7 +66,7 @@ async function waitForDatabase(
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }
   }
-  throw new BackupError(`la base « ${service} » ne répond pas : ${errorMessage(last)}`);
+  throw new BackupError(say('backup.dbNotReady', { service, error: errorMessage(last) }));
 }
 
 export async function restoreApplicationBackup(request: {
@@ -79,6 +82,8 @@ export async function restoreApplicationBackup(request: {
     logger.info({ backupId: request.backupId }, line);
   };
 
+  const language = await instanceLanguage();
+  const say = workerSay(language);
   const backup = await getBackup(request.backupId);
   const application = backup?.applicationId ? await getApplication(backup.applicationId) : null;
   const target = await getTarget(request.targetId);
@@ -94,9 +99,9 @@ export async function restoreApplicationBackup(request: {
       backup.status !== 'success' ||
       !backup.manifest
     ) {
-      throw new BackupError("cette sauvegarde n'est pas restaurable");
+      throw new BackupError(say('backup.notRestorable'));
     }
-    if (!application) throw new BackupError("l'application de cette sauvegarde a été supprimée");
+    if (!application) throw new BackupError(say('backup.appDeleted'));
     const manifest = backupManifestSchema.parse(backup.manifest);
 
     const [live] = await listLiveDeployments({
@@ -104,10 +109,8 @@ export async function restoreApplicationBackup(request: {
       targetId: request.targetId,
     });
     const deployment = live?.inService ?? null;
-    if (!deployment) throw new BackupError("l'application ne tourne pas sur cette cible");
-    if (deployment.stoppedAt) {
-      throw new BackupError("l'application est arrêtée : démarrez-la avant de restaurer");
-    }
+    if (!deployment) throw new BackupError(say('backup.notRunning'));
+    if (deployment.stoppedAt) throw new BackupError(say('backup.stopped'));
 
     // 1. Tout télécharger et vérifier, avant de toucher à quoi que ce soit.
     opened = await openStore(backup.destinationId);
@@ -122,21 +125,28 @@ export async function restoreApplicationBackup(request: {
         (piece.kind === 'dump' || service.volumes.some((volume) => volume.name === piece.volume));
       if (!present) {
         onLog(
-          `⚠ « ${piece.kind === 'volume' ? `${piece.service}/${piece.volume}` : piece.service} » ` +
-            "n'existe plus dans l'AppSpec en service — morceau ignoré",
+          say('backup.pieceGone', {
+            piece: piece.kind === 'volume' ? `${piece.service}/${piece.volume}` : piece.service,
+          }),
         );
         continue;
       }
       const local = join(workdir, piece.file.replace(/\.pupb$/, ''));
-      await fetchPiece(opened.store, `${backup.location}/${piece.file}`, piece.sha256, local);
+      await fetchPiece(
+        opened.store,
+        `${backup.location}/${piece.file}`,
+        piece.sha256,
+        local,
+        language,
+      );
       files.set(piece.file, local);
-      onLog(`✓ ${piece.file} téléchargé et vérifié`);
+      onLog(say('backup.pieceFetched', { file: piece.file }));
     }
 
     // 2. L'état actuel, au plus près de son remplacement. Après le téléchargement :
     //    la sauvegarde de sûreté ne doit rien pouvoir retirer de ce qu'on restaure.
     if (request.safetyBackup) {
-      onLog("sauvegarde de sûreté de l'état actuel");
+      onLog(say('backup.safety'));
       const policy = await getBackupPolicy(application.id);
       const safety = await backupApplication({
         applicationId: application.id,
@@ -148,9 +158,7 @@ export async function restoreApplicationBackup(request: {
         onLog: (line) => onLog(`  ${line}`),
       });
       if (safety.status === 'failed') {
-        throw new BackupError(
-          `sauvegarde de sûreté impossible — restauration annulée : ${safety.error}`,
-        );
+        throw new BackupError(say('backup.safetyFailed', { error: safety.error }));
       }
       if (safety.status === 'success') safetyId = safety.backupId;
     }
@@ -170,7 +178,7 @@ export async function restoreApplicationBackup(request: {
 
     // 3. Les volumes, application arrêtée.
     if (volumes.length > 0) {
-      onLog("arrêt de l'application pour remplacer ses volumes");
+      onLog(say('backup.stoppingForVolumes'));
       await driver.stop(ctx, (line) => onLog(`  ${line}`));
       try {
         for (const piece of volumes) {
@@ -180,27 +188,27 @@ export async function restoreApplicationBackup(request: {
             piece.volume,
             createReadStream(files.get(piece.file) as string),
           );
-          onLog(`✓ volume « ${piece.volume} » de « ${piece.service} » restauré`);
+          onLog(say('backup.volumeRestored', { volume: piece.volume, service: piece.service }));
         }
       } finally {
-        onLog("redémarrage de l'application");
+        onLog(say('backup.restarting'));
         await driver.start(ctx, (line) => onLog(`  ${line}`));
       }
     }
 
     // 4. Les bases, une fois prêtes.
     for (const piece of dumps) {
-      await waitForDatabase(driver, ctx, piece.service, readyCommand(piece.engine));
+      await waitForDatabase(driver, ctx, piece.service, readyCommand(piece.engine), say);
       await driver.importIntoService(
         ctx,
         piece.service,
         restoreCommand(piece.engine),
         createReadStream(files.get(piece.file) as string).pipe(createGunzip()),
       );
-      onLog(`✓ base « ${piece.service} » (${piece.engine}) restaurée`);
+      onLog(say('backup.databaseRestored', { service: piece.service, engine: piece.engine }));
     }
     if (dumps.length > 0) {
-      onLog("redémarrage de l'application, pour qu'elle se reconnecte");
+      onLog(say('backup.restartingToReconnect'));
       await driver.restart(ctx, (line) => onLog(`  ${line}`));
     }
 

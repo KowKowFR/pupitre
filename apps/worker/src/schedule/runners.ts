@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { openDeploymentContext } from '../deploy/context.js';
 import { runSecurityScan } from '../deploy/scan.js';
 import { logger } from '../logger.js';
+import type { WorkerSay } from '../messages.js';
 import { getBackupsQueue, getOpsQueue } from '../queue.js';
 
 /**
@@ -42,6 +43,8 @@ import { getBackupsQueue, getOpsQueue } from '../queue.js';
 export type RunnerContext = {
   payload: Record<string, unknown>;
   onLog: (line: string) => void;
+  /** Ce que la tâche écrit à son journal, dans la langue de l'instance. */
+  say: WorkerSay;
 };
 
 export type RunnerSummary = Record<string, unknown>;
@@ -125,7 +128,7 @@ const scanPayloadSchema = scopeSchema.extend({
   failOn: failOnSchema.optional(),
 });
 
-const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
+const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog, say }) => {
   const overrides = scanPayloadSchema.safeParse(payload);
   const forcedScanners = overrides.success ? overrides.data.scanners : undefined;
   const forcedFailOn = overrides.success ? overrides.data.failOn : undefined;
@@ -176,8 +179,11 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
       alerting += 1;
       // Alerte, et rien d'autre. Le déploiement reste en place.
       onLog(
-        `⚠ ${deployment.id} : ${result.blocking.length} finding(s) au seuil ${config.failOn} — ` +
-          'aucune action automatique, ce scan n\'interrompt rien',
+        say('schedule.scanAlert', {
+          id: deployment.id,
+          count: result.blocking.length,
+          failOn: config.failOn,
+        }),
       );
     }
 
@@ -201,7 +207,7 @@ const runScanPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
 
 // ─── health:periodic ─────────────────────────────────────────────────────────
 
-const runHealthPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
+const runHealthPeriodic: ScheduledJobRunner = async ({ payload, onLog, say }) => {
   const byOutcome: Record<string, number> = { healthy: 0, unhealthy: 0, unreachable: 0 };
   let stopped = 0;
 
@@ -216,7 +222,7 @@ const runHealthPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
       byOutcome[health.outcome] = (byOutcome[health.outcome] ?? 0) + 1;
 
       onLog(
-        `${deployment.id.slice(0, 8)} — ${health.outcome}` +
+        `${deployment.id.slice(0, 8)} — ${say(`outcome.${health.outcome}`)}` +
           (health.detail ? ` (${health.detail})` : ''),
       );
 
@@ -234,7 +240,7 @@ const runHealthPeriodic: ScheduledJobRunner = async ({ payload, onLog }) => {
     (deployment) => {
       if (deployment.stoppedAt === null) return null;
       stopped += 1;
-      return 'arrêtée volontairement, non sondée';
+      return say('schedule.stoppedNotProbed');
     },
   );
 
@@ -280,7 +286,7 @@ const runCleanupVersions: ScheduledJobRunner = async ({ payload, onLog }) => {
 
 // ─── target:preflight:all ────────────────────────────────────────────────────
 
-const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog }) => {
+const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog, say }) => {
   const scope = scopeSchema.safeParse(payload);
   const wanted = scope.success ? scope.data.targetIds : undefined;
 
@@ -301,7 +307,7 @@ const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog }) => {
       ip: null,
     });
     enqueued.push(target.name);
-    onLog(`preflight enfilé pour ${target.name} (job ${job.id})`);
+    onLog(say('schedule.preflightQueued', { target: target.name, job: job.id ?? '?' }));
   }
 
   return { targets: targets.length, enqueued };
@@ -315,10 +321,10 @@ const runTargetPreflight: ScheduledJobRunner = async ({ payload, onLog }) => {
  * suite : les sauvegardes, elles, se suivent sur la file `backups`, une à la
  * fois, et chacune a sa ligne et son verdict.
  */
-const runBackupApplications: ScheduledJobRunner = async ({ payload, onLog }) => {
+const runBackupApplications: ScheduledJobRunner = async ({ payload, onLog, say }) => {
   const policies = await listScheduledBackupPolicies();
   if (policies.length === 0) {
-    onLog("aucune application n'a la sauvegarde automatique activée");
+    onLog(say('schedule.noAutoBackup'));
     return { applications: 0, enqueued: 0 };
   }
   const queue = getBackupsQueue();
@@ -336,20 +342,20 @@ const runBackupApplications: ScheduledJobRunner = async ({ payload, onLog }) => 
         ip: null,
       });
       enqueued += 1;
-      onLog(`sauvegarde enfilée : ${slug}`);
+      onLog(say('schedule.backupQueued', { slug }));
     }
   }
   return { applications: policies.length, enqueued };
 };
 
-const runBackupPanel: ScheduledJobRunner = async ({ onLog }) => {
+const runBackupPanel: ScheduledJobRunner = async ({ onLog, say }) => {
   const job = await getBackupsQueue().add(BACKUP_PANEL_JOB, {
     trigger: 'schedule',
     backupId: null,
     actorId: null,
     ip: null,
   });
-  onLog(`sauvegarde de la base du panel enfilée (job ${job.id})`);
+  onLog(say('schedule.panelBackupQueued', { job: job.id ?? '?' }));
   return { enqueued: 1 };
 };
 

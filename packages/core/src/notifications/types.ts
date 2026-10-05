@@ -163,22 +163,29 @@ const TOKEN_LIKE: readonly RegExp[] = [
  * garantie réelle —, puis les formes reconnaissables, qui rattrapent les
  * variantes tronquées ou reformatées par le service distant.
  */
-export function redactSecrets(text: string, secrets: ChannelConfig = {}): string {
+const MASK: Record<UiLanguage, string> = { fr: '[secret masqué]', en: '[redacted secret]' };
+
+export function redactSecrets(
+  text: string,
+  secrets: ChannelConfig = {},
+  language: UiLanguage = 'fr',
+): string {
+  const mask = MASK[language];
   let result = text;
 
   for (const value of Object.values(secrets)) {
     const secret = typeof value === 'string' ? value.trim() : '';
     if (secret.length < 6) continue;
-    result = result.split(secret).join('[secret masqué]');
+    result = result.split(secret).join(mask);
     // Une URL de webhook Discord traverse aussi les messages tronquée à son
     // jeton : on masque donc aussi ce qui suit le dernier `/`.
     const tail = secret.slice(secret.lastIndexOf('/') + 1);
-    if (tail.length >= 10 && tail !== secret) result = result.split(tail).join('[secret masqué]');
+    if (tail.length >= 10 && tail !== secret) result = result.split(tail).join(mask);
   }
 
   for (const pattern of TOKEN_LIKE) {
     result = result.replace(pattern, (_match: string, prefix: string | undefined) =>
-      prefix ? `${prefix}[secret masqué]` : '[secret masqué]',
+      prefix ? `${prefix}${mask}` : mask,
     );
   }
 
@@ -194,7 +201,11 @@ export function redactSecrets(text: string, secrets: ChannelConfig = {}): string
  * Un `last_error` qui dit « fetch failed » ne rend pas l'échec visible, il le
  * rend seulement mentionné.
  */
-export function describeFailure(error: unknown, secrets: ChannelConfig = {}): string {
+export function describeFailure(
+  error: unknown,
+  secrets: ChannelConfig = {},
+  language: UiLanguage = 'fr',
+): string {
   let raw = error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
 
   const cause: unknown = error instanceof Error ? error.cause : undefined;
@@ -204,7 +215,7 @@ export function describeFailure(error: unknown, secrets: ChannelConfig = {}): st
     raw = `${raw} : ${String((cause as { code: unknown }).code)}`;
   }
 
-  return redactSecrets(raw, secrets).slice(0, 400);
+  return redactSecrets(raw, secrets, language).slice(0, 400);
 }
 
 // ─── ce qu'un envoi transporte ────────────────────────────────────────────────
