@@ -55,8 +55,8 @@ It is the worker, not the screen, that reads: a forgotten tab does not become a
 permanent probe. The screen shows the last reading and its age; a button asks
 for a new one.
 
-**Thresholds.** Disk and memory at 90%, load per core at 100%, adjustable per
-machine, with hysteresis: several readings above are needed to open a breach
+**Thresholds.** Disk at 85% — a K3s node starts evicting pods past it —, memory
+at 90%, load per core at 100%, adjustable per machine, with hysteresis: several readings above are needed to open a breach
 (one for disk, two for memory, three for load), and as many below to close it.
 Opening writes `target.threshold.breached`, closing `target.threshold.cleared` —
 one entry per episode, not per reading.

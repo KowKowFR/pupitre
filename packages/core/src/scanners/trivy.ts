@@ -19,6 +19,7 @@ import {
 } from './run.js';
 import type { ScanContext, ScanLogSink, Scanner } from './types.js';
 import { scannerSay } from './messages.js';
+import { GIB } from './space.js';
 
 /**
  * Trivy — vulnerabilities of system and application packages.
@@ -63,6 +64,8 @@ export type TrivyOutput = {
 export class TrivyScanner implements Scanner {
   readonly key = 'trivy' as const;
   readonly kind = SCANNERS.trivy.kind;
+  /** Its database (1.4 GB), plus its Java database (1.4 GB) the first time it meets Java. */
+  readonly diskNeed = { firstBytes: 3 * GIB, updateBytes: 1.5 * GIB };
 
   async ensureInstalled(session: SshSession, onLog?: ScanLogSink): Promise<string> {
     return ensureBinary(

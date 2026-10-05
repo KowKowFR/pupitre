@@ -60,7 +60,7 @@ function formatUptime(seconds: number | null, t: T): string {
  * not change color between two loads.
  */
 const FALLBACK_THRESHOLDS: Record<HistoryMetric, ThresholdView> = {
-  disk: { limitPercent: 90, enabled: true, origin: 'default' },
+  disk: { limitPercent: 85, enabled: true, origin: 'default' },
   memory: { limitPercent: 90, enabled: true, origin: 'default' },
   load: { limitPercent: 100, enabled: true, origin: 'default' },
 };

@@ -130,6 +130,27 @@ describe('Validation complaints — said again in the screen’s language', () =
     );
   });
 
+  it('Zod’s own complaints are said in the screen’s language', () => {
+    const typed = z.object({ n: z.number() }).safeParse({ n: 'x' });
+    assert.ok(!typed.success);
+    const wrongType = typed.error.issues[0]!;
+    assert.equal(wrongType.message, 'Invalid input: expected number, received string');
+    assert.equal(
+      issueMessage(wrongType, 'fr'),
+      'Entrée invalide : nombre attendu, chaîne de caractères reçu',
+    );
+    assert.equal(issueMessage(wrongType, 'en'), wrongType.message);
+
+    const short = z.string().min(3).safeParse('ab');
+    assert.ok(!short.success);
+    assert.match(issueMessage(short.error.issues[0]!, 'fr'), /^Trop petit/);
+
+    // A sentence of ours is never mistaken for Zod's: it stays as written.
+    const custom = z.string().min(3, 'au moins trois').safeParse('ab');
+    assert.ok(!custom.success);
+    assert.equal(issueMessage(custom.error.issues[0]!, 'en'), 'au moins trois');
+  });
+
   it('an unknown complaint stays as is', () => {
     assert.equal(
       issueMessage({ message: 'Too small: expected string' }, 'en'),

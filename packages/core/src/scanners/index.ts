@@ -7,6 +7,7 @@ import type { Scanner } from './types.js';
 export * from './types.js';
 export * from './run.js';
 export { TOOL_BIN, TOOL_HOME, toolPath, cachePath } from './install.js';
+export * from './space.js';
 export { TrivyScanner, TRIVY_VERSION, normalizeTrivyReport, type TrivyOutput } from './trivy.js';
 export { GrypeScanner, GRYPE_VERSION, normalizeGrypeReport, type GrypeOutput } from './grype.js';
 export { SyftSBOM, SYFT_VERSION } from './syft.js';

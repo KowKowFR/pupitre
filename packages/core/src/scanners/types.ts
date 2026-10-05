@@ -1,5 +1,6 @@
 import type { ImageStore, ScanKind, ScanReport, ScannerKey } from '../scan.js';
 import type { SshSession } from '../ssh/client.js';
+import type { ScannerDiskNeed } from './space.js';
 
 /**
  * The contract a tool must fulfill to be runnable by the panel.
@@ -29,6 +30,12 @@ export type ScanContext = {
 export interface Scanner {
   readonly key: ScannerKey;
   readonly kind: ScanKind;
+  /**
+   * What the tool may download into its cache on the target, at worst — its
+   * vulnerability database. The worker checks the target keeps room for it
+   * before scanning (`planScanSpace()`).
+   */
+  readonly diskNeed: ScannerDiskNeed;
 
   /**
    * Guarantees the tool is present on the target, at the expected version.
