@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { invalid } from "../validation.js";
 import {
+  DEFAULT_UI_LANGUAGE,
   translator,
   type Translate,
   type Translated,
@@ -1712,13 +1713,13 @@ export type AnyMonitorTypeDefinition = {
 /**
  * La définition d'un type, dans une langue.
  *
- * Le défaut reste le français : le worker et la base y lisent un schéma, une
- * cadence minimale ou un libellé de journal, et n'ont pas de langue d'instance
- * à offrir. Le panel, lui, passe la sienne.
+ * The default is the fallback language: the worker and the database read a
+ * schema, a minimum interval or a log label from it, and have no instance
+ * language to offer. The panel passes its own.
  */
 export function monitorTypeDefinition(
   type: MonitorType,
-  language: UiLanguage = "fr",
+  language: UiLanguage = DEFAULT_UI_LANGUAGE,
 ): AnyMonitorTypeDefinition {
   return catalogFor(language)[type] as unknown as AnyMonitorTypeDefinition;
 }
@@ -1745,7 +1746,7 @@ export function safeParseMonitorConfig(
 export function describeMonitorTarget(
   type: MonitorType,
   config: unknown,
-  language: UiLanguage = "fr",
+  language: UiLanguage = DEFAULT_UI_LANGUAGE,
 ): string {
   const definition = monitorTypeDefinition(type, language);
   const parsed = definition.schema.safeParse(config);

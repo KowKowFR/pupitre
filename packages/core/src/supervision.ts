@@ -66,6 +66,12 @@ export const appLogMessageSchema = z.discriminatedUnion('kind', [
         'stream.error',
       ]),
       detail: z.string().nullable().default(null),
+      /**
+       * The last event of a gesture (`restart`, `stop`, `start`). Screens rely
+       * on it, never on `detail`: the detail is written in the instance's
+       * language, and a word compared in one language misses the other.
+       */
+      done: z.boolean().optional(),
     }),
   }),
 ]);

@@ -264,8 +264,17 @@ KEYS=$(redis_q --scan --pattern 'bull:*repeat*' | tr -d '\r' | sort)
 [ -n "$KEYS" ] || fail "aucune clé « bull:*repeat* » dans Redis"
 info "clés : $(echo "$KEYS" | tr '\n' ' ')"
 
-REPEAT_KEY=$(echo "$KEYS" | grep -E ':repeat$' | head -1)
-[ -n "$REPEAT_KEY" ] || fail "pas de sorted set « bull:<queue>:repeat »"
+# Several queues have repeatable jobs (ops, supervision, notifications…): keep
+# the one whose sorted set holds the task created above, not the first one in
+# alphabetical order.
+REPEAT_KEY=""
+for candidate in $(echo "$KEYS" | grep -E ':repeat$'); do
+  if [ -n "$(redis_q zscore "$candidate" "$SIMPLE_KEY" | tr -d '\r')" ]; then
+    REPEAT_KEY="$candidate"
+    break
+  fi
+done
+[ -n "$REPEAT_KEY" ] || fail "no « bull:<queue>:repeat » sorted set holds « $SIMPLE_KEY »"
 
 MEMBERS=$(redis_q zrange "$REPEAT_KEY" 0 -1 | tr -d '\r')
 for key in "$SIMPLE_KEY" "$EXPERT_KEY"; do

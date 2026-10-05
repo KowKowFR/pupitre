@@ -81,6 +81,6 @@ code comments, the test titles, the Pino logs and the AI system prompt are still
 in French, and are being translated. The guard's `NOT_PRODUCT` allowlist
 (`apps/web/test/product-messages.test.mjs`) shrinks as they are.
 
-Still in French by default on a new instance: the locale (`fr-FR`), the
-tagline, and the labels of the seeded roles — values an administrator can
-change.
+A new instance starts in English — locale `en-US`, tagline, starting roles —
+and the setup guide offers to change the language at the first sign-in.
+Instances installed before keep the French values they were born with.

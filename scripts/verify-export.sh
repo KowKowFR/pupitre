@@ -128,8 +128,8 @@ esac
 grep -q "filename\*=UTF-8''" <<< "$CD" || fail "la forme RFC 6266 « filename* » manque"
 pass "forme « filename* » présente (RFC 6266)"
 
-grep -q "^# Journal de déploiement" "$OUT" || fail "en-tête du fichier absent"
-grep -q "^# Exporté le " "$OUT" || fail "le fichier ne dit pas quand il a été exporté"
+grep -q "^# Deployment log" "$OUT" || fail "en-tête du fichier absent"
+grep -q "^# Exported on " "$OUT" || fail "le fichier ne dit pas quand il a été exporté"
 pass "en-tête : $(head -1 "$OUT")"
 
 # Une entrée de journal peut tenir sur plusieurs lignes physiques : le bloc de

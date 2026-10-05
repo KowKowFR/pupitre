@@ -186,6 +186,8 @@ jq -e '.settings.instanceName == "Pupitre"' "$BODY" >/dev/null \
   || fail "nom par défaut inattendu : $(jq -c .settings.instanceName "$BODY")"
 jq -e '.settings.timezone == "Europe/Paris"' "$BODY" >/dev/null \
   || fail "fuseau par défaut inattendu"
+jq -e '.settings.locale == "en-US" and .settings.instanceTagline == "Deployment control plane"' "$BODY" >/dev/null \
+  || fail "unexpected default language: $(jq -c '[.settings.locale, .settings.instanceTagline]' "$BODY")"
 jq -e '.aiApiKeyConfigured == false' "$BODY" >/dev/null \
   || fail "une clé est signalée alors que la table est vide"
 TZ_COUNT=$(jq -r '.vocabulary.timezones | length' "$BODY")
@@ -429,7 +431,7 @@ pass "viewer : section visible, champs inactifs, aucun bouton d'enregistrement"
 page /admin/settings/demarrage "$WORK/viewer-onb.html" "$VIEWER_JAR"
 grep -q 'settings:manage' "$WORK/viewer-onb.html" \
   || fail "l'assistant ne dit pas au viewer pourquoi il ne peut pas le relancer"
-grep -q 'Relancer l' "$WORK/viewer-onb.html" \
+grep -qE "Relancer l|Run the guide again" "$WORK/viewer-onb.html" \
   && fail "le bouton de relance est offert à un viewer"
 pass "viewer : l'assistant s'affiche sans son bouton de relance"
 
@@ -592,7 +594,7 @@ isolate regionalisation \
 
 isolate securite \
   '{"security":{"failOn":"NONE"}}' \
-  '.settings.security == {"scanningEnabled":true,"disabledScanners":["syft"],"failOn":"NONE"}'
+  '.settings.security == {"scanningEnabled":true,"disabledScanners":["syft"],"failOn":"NONE","onlyFixable":false}'
 
 isolate ia \
   '{"ai":{"temperature":0.15}}' \
@@ -613,7 +615,7 @@ req PATCH /api/settings '{"accounts":{"twoFactorPolicy":"off","sessionIdleHours"
 req PATCH /api/settings \
   '{"ai":{"enabled":true,"provider":"openrouter","model":"anthropic/claude-sonnet-4.5","baseUrl":"","temperature":0.2,"maxTokens":8192}}' >/dev/null
 code=$(req PATCH /api/settings \
-  '{"instanceName":"Pupitre","instanceTagline":"Plan de contrôle de déploiement","timezone":"Europe/Paris","locale":"fr-FR","dateStyle":"short","timeStyle":"medium"}')
+  '{"instanceName":"Pupitre","instanceTagline":"Deployment control plane","timezone":"Europe/Paris","locale":"en-US","dateStyle":"short","timeStyle":"medium"}')
 [ "$code" = "200" ] || fail "restauration → HTTP $code : $(cat "$BODY")"
 if [ -s "$KEY_SNAPSHOT" ]; then
   pass "paramètres restaurés ; la clé d'instance sera remise en place en sortant"

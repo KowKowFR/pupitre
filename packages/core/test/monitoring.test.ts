@@ -291,7 +291,11 @@ test('la cible se décrit sans connaître le type', () => {
   assert.equal(describeMonitorTarget('http', { url: 'https://exemple.fr/' }), 'https://exemple.fr/');
   assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr' }), 'exemple.fr');
   assert.equal(describeMonitorTarget('tls', { host: 'exemple.fr', port: 8443 }), 'exemple.fr:8443');
-  assert.equal(describeMonitorTarget('http', { url: 'pas une url' }), '(configuration illisible)');
+  assert.equal(describeMonitorTarget('http', { url: 'pas une url' }), '(unreadable configuration)');
+  assert.equal(
+    describeMonitorTarget('http', { url: 'pas une url' }, 'fr'),
+    '(configuration illisible)',
+  );
 });
 
 test('le mot-clé existe aux deux étages, et les deux étages restent distincts', () => {

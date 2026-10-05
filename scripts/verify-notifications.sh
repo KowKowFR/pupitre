@@ -691,7 +691,7 @@ jq -e '(.windowStartedAt | length) > 0 and (.windowEndedAt | length) > 0 and .ne
   "$DIGEST" >/dev/null || fail "le résumé ne dit pas sur quelle fenêtre il porte"
 pass "il dit sa fenêtre ($(jq -r '.windowMs' "$DIGEST") ms) et annonce la suivante, élargie ($(jq -r '.nextWindowMs' "$DIGEST") ms)"
 
-jq -e '(.body | contains("partie seule")) and (.body | contains("regroupement"))' "$DIGEST" >/dev/null \
+jq -e '(.body | test("partie seule|went out on its own")) and (.body | test("regroupement|grouping"))' "$DIGEST" >/dev/null \
   || fail "le corps du résumé n'explique pas pourquoi il existe"
 pass "et il explique l'arbitrage en toutes lettres, pas seulement le nombre"
 
@@ -754,12 +754,12 @@ step "18. Chaque canal rend le résumé à sa façon"
 # quand Telegram dit « et 44 autres », c'est ici qu'on va lire lesquelles.
 MSGS=$(curl -s "$MAILPIT_HTTP/api/v1/messages?limit=50")
 MID=$(jq -r --arg n "$BURST_SIZE" \
-  '[.messages[] | select(.Subject | contains($n + " × ") and contains("résumé"))][0].ID // empty' <<< "$MSGS")
+  '[.messages[] | select(.Subject | contains($n + " × ") and test("résumé|digest"))][0].ID // empty' <<< "$MSGS")
 [ -n "$MID" ] || fail "aucun e-mail de résumé dans Mailpit : $(jq -r '[.messages[].Subject] | join(" | ")' <<< "$MSGS")"
 MAIL=$(curl -s "$MAILPIT_HTTP/api/v1/message/$MID")
 LINES=$(jq -r '.Text' <<< "$MAIL" | grep -c '^• ' || true)
 [ "$LINES" = "$BURST_SIZE" ] || fail "l'e-mail liste $LINES lignes sur $BURST_SIZE"
-jq -e '.Text | contains("autres, non détaillés") | not' <<< "$MAIL" >/dev/null \
+jq -e '.Text | test("autres, non détaillés|more, not detailed") | not' <<< "$MAIL" >/dev/null \
   || fail "l'e-mail tronque alors qu'il n'a pas à le faire"
 jq -e '(.HTML | contains("<ol")) and (.Text | contains("<") | not)' <<< "$MAIL" >/dev/null \
   || fail "l'e-mail n'a pas ses deux parties, ou la partie texte contient du HTML"
@@ -771,13 +771,13 @@ pass "e-mail : « $(jq -r --arg n "$BURST_SIZE" '[.messages[] | select(.Subject 
 # Telegram : court, et il **dit** ce qu'il tait.
 TG="$WORK/tg.json"
 jq -s '[.[] | select(.method == "POST" and (.path | test("/sendMessage$")))
-       | (.body | fromjson) | select(.text | contains("résumé"))][0]' "$RECV" > "$TG"
+       | (.body | fromjson) | select(.text | test("résumé|digest"))][0]' "$RECV" > "$TG"
 jq -e '.text != null' "$TG" >/dev/null || fail "Telegram n'a reçu aucun résumé"
 TG_LINES=$(jq -r '.text' "$TG" | grep -c '^• ' || true)
 TG_LEN=$(jq -r '.text | length' "$TG")
 [ "$TG_LINES" -le 6 ] || fail "Telegram affiche $TG_LINES lignes : ce n'est plus court"
 [ "$TG_LEN" -le 1200 ] || fail "le message Telegram fait $TG_LEN caractères"
-jq -e --argjson n "$((BURST_SIZE - 6))" '.text | contains("et " + ($n | tostring) + " autres")' "$TG" \
+jq -e --argjson n "$((BURST_SIZE - 6))" '.text | test("et " + ($n | tostring) + " autres|and " + ($n | tostring) + " more")' "$TG" \
   >/dev/null || fail "Telegram tronque sans dire combien de lignes il tait"
 jq -e '.parse_mode == "MarkdownV2"' "$TG" >/dev/null || fail "Telegram : MarkdownV2 absent du résumé"
 pass "Telegram : $TG_LINES lignes, $TG_LEN caractères, « et $((BURST_SIZE - 6)) autres » annoncé, MarkdownV2"
@@ -785,13 +785,13 @@ pass "Telegram : $TG_LINES lignes, $TG_LEN caractères, « et $((BURST_SIZE - 6)
 # Discord : un embed, la liste dans la description, quinze lignes puis l'aveu.
 DC="$WORK/dc.json"
 jq -s '[.[] | select(.method == "POST" and (.path | test("/api/webhooks/")))
-       | (.body | fromjson) | select(.embeds[0].title | contains("résumé"))][0]' "$RECV" > "$DC"
+       | (.body | fromjson) | select(.embeds[0].title | test("résumé|digest"))][0]' "$RECV" > "$DC"
 jq -e '.embeds[0].description != null' "$DC" >/dev/null || fail "Discord n'a reçu aucun résumé"
 DC_LINES=$(jq -r '.embeds[0].description' "$DC" | grep -c '^• ' || true)
 [ "$DC_LINES" = "15" ] || fail "Discord affiche $DC_LINES lignes au lieu de 15"
-jq -e --argjson n "$((BURST_SIZE - 15))" '.embeds[0].description | contains("et " + ($n | tostring) + " autres")' \
+jq -e --argjson n "$((BURST_SIZE - 15))" '.embeds[0].description | test("et " + ($n | tostring) + " autres|and " + ($n | tostring) + " more")' \
   "$DC" >/dev/null || fail "Discord tronque sans le dire"
-jq -e '(.embeds[0].color | type) == "number" and (.embeds[0].footer.text | contains("regroupées"))' "$DC" \
+jq -e '(.embeds[0].color | type) == "number" and (.embeds[0].footer.text | test("regroupées|grouped"))' "$DC" \
   >/dev/null || fail "Discord : embed sans couleur ni pied de page"
 pass "Discord : embed coloré, $DC_LINES lignes en description, « et $((BURST_SIZE - 15)) autres » annoncé"
 

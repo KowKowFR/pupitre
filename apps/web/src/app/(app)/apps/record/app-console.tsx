@@ -161,6 +161,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
       const payload = JSON.parse((event as MessageEvent<string>).data) as {
         action: string;
         detail: string | null;
+        done?: boolean;
       };
 
       if (payload.action === 'restart') {
@@ -168,8 +169,7 @@ export function AppConsole({ app, context }: { app: ConsoleApp; context?: ReactN
         // Le redémarrage resonde la santé et l'écrit en base : ce qui a été
         // rendu côté serveur — la santé, l'heure de la dernière sonde — vient
         // de vieillir d'un coup. On le redemande plutôt que de l'afficher faux.
-        // i18n-ignore : « terminé » est le mot du protocole du worker, pas un libellé.
-        if (payload.detail?.startsWith('terminé')) router.refresh();
+        if (payload.done) router.refresh();
         return;
       }
 

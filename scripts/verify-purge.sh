@@ -256,7 +256,7 @@ step "4. Une application EN MARCHE refuse d'être purgée → 409"
 
 code=$(req DELETE "/api/deployments/$DEPLOY_V2/purge")
 [ "$code" = "409" ] || fail "purge de la v2 en service : attendu 409, reçu $code — $(cat "$BODY")"
-jq -e '.error.message | test("Détruisez-la d.abord")' "$BODY" >/dev/null \
+jq -e '.error.message | test("Détruisez-la d.abord|Destroy it first")' "$BODY" >/dev/null \
   || fail "le message ne dit pas quoi faire : $(jq -r '.error.message' "$BODY")"
 pass "409 — $(jq -r '.error.message' "$BODY")"
 
@@ -449,7 +449,7 @@ pass "toujours listée dans /api/apps, avec « dernière mise à jour échouée 
 # LE test : la v1 `success` sous-jacente refuse toujours la purge.
 code=$(req DELETE "/api/deployments/$MAJ_V1/purge")
 [ "$code" = "409" ] || fail "purge de la v1 en service : attendu 409, reçu $code — $(cat "$BODY")"
-jq -e '.error.message | test("Détruisez-la d.abord")' "$BODY" >/dev/null \
+jq -e '.error.message | test("Détruisez-la d.abord|Destroy it first")' "$BODY" >/dev/null \
   || fail "le message ne dit pas quoi faire : $(jq -r '.error.message' "$BODY")"
 pass "409 — $(jq -r '.error.message' "$BODY")"
 

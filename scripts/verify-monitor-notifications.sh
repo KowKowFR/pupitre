@@ -487,9 +487,9 @@ jq -e --arg n "$PREFIX-principal" '.title | contains($n)' "$DOWN" >/dev/null \
   || fail "le titre ne nomme pas la sonde : $(jq -r .title "$DOWN")"
 jq -e --arg u "$SITE_URL" '[.fields[] | select(.value == $u)] | length == 1' "$DOWN" >/dev/null \
   || fail "la cible n'est pas dans les champs : $(jq -c '.fields' "$DOWN")"
-jq -e '[.fields[] | select(.label == "Verdict")][0].value == "répond mal"' "$DOWN" >/dev/null \
+jq -e '[.fields[] | select(.label == "Verdict")][0].value | . == "répond mal" or . == "answering badly"' "$DOWN" >/dev/null \
   || fail "le verdict n'est pas dit : $(jq -c '.fields' "$DOWN")"
-jq -e '[.fields[] | select(.label == "Échecs consécutifs")][0].value == "3"' "$DOWN" >/dev/null \
+jq -e '[.fields[] | select(.label == "Échecs consécutifs" or .label == "Consecutive failures")][0].value == "3"' "$DOWN" >/dev/null \
   || fail "le nombre d'échecs confirmants n'est pas dit"
 jq -e --arg id "$MAIN_ID" '.url | endswith("/monitors/" + $id)' "$DOWN" >/dev/null \
   || fail "le message ne pointe pas la fiche de la sonde : $(jq -r .url "$DOWN")"
@@ -578,13 +578,13 @@ UP="$WORK/up.json"
 jq '[.[] | select(.path == "/hook") | .body | select(.event == "monitor.recovered")][0]' \
   <<< "$(collected)" > "$UP"
 jq -e '.severity == "info"' "$UP" >/dev/null || fail "gravité attendue « info »"
-jq -e '[.fields[] | select(.label == "Durée de la panne")] | length == 1' "$UP" >/dev/null \
+jq -e '[.fields[] | select(.label == "Durée de la panne" or .label == "Outage duration")] | length == 1' "$UP" >/dev/null \
   || fail "la durée de la panne n'est pas dite : $(jq -c '.fields' "$UP")"
-jq -e '[.fields[] | select(.label == "Était")][0].value | . == "répond mal" or . == "injoignable"' "$UP" \
+jq -e '[.fields[] | select(.label == "Était" or .label == "Was")][0].value | IN("répond mal", "injoignable", "answering badly", "unreachable")' "$UP" \
   >/dev/null || fail "le message ne dit pas de quel état on revient"
 pass "canal webhook : « $(jq -r .title "$UP") » — gravité $(jq -r .severity "$UP")"
 info "$(jq -r .body "$UP")"
-pass "durée de panne : $(jq -r '[.fields[] | select(.label == "Durée de la panne")][0].value' "$UP") — le champ vient de l'audit, pas d'un recalcul"
+pass "durée de panne : $(jq -r '[.fields[] | select(.label == "Durée de la panne" or .label == "Outage duration")][0].value' "$UP") — le champ vient de l'audit, pas d'un recalcul"
 
 # Discord n'était PAS abonné au rétablissement : la preuve que l'abonnement est
 # par événement et non par famille.
@@ -748,14 +748,14 @@ pass "canal témoin : toujours 0, rafale comprise"
 
 # Le même résumé, rendu par un vrai serveur SMTP.
 MSGS=$(curl -s "$MAILPIT_HTTP/api/v1/messages?limit=50")
-MID=$(jq -r '[.messages[] | select(.Subject | contains("résumé"))][0].ID // empty' <<< "$MSGS")
+MID=$(jq -r '[.messages[] | select(.Subject | test("résumé|digest"))][0].ID // empty' <<< "$MSGS")
 if [ -n "$MID" ]; then
   MAIL=$(curl -s "$MAILPIT_HTTP/api/v1/message/$MID")
   LINES=$(jq -r '.Text' <<< "$MAIL" | grep -c '^• ' || true)
   [ "$LINES" = "$((BURST_SIZE - 1))" ] || fail "l'e-mail liste $LINES lignes sur $((BURST_SIZE - 1))"
   jq -e --arg p "$PREFIX-" '.Text | contains($p)' <<< "$MAIL" >/dev/null \
     || fail "l'e-mail ne nomme aucun site"
-  pass "Mailpit : « $(jq -r '[.messages[] | select(.Subject | contains("résumé"))][0].Subject' <<< "$MSGS") » — $LINES sites listés nommément"
+  pass "Mailpit : « $(jq -r '[.messages[] | select(.Subject | test("résumé|digest"))][0].Subject' <<< "$MSGS") » — $LINES sites listés nommément"
 else
   fail "aucun e-mail de résumé dans Mailpit : $(jq -r '[.messages[].Subject] | join(" | ")' <<< "$MSGS")"
 fi

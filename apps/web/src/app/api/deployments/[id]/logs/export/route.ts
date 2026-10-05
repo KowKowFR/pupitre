@@ -80,7 +80,7 @@ export const GET = apiRoute<Context>(async (request, context) => {
     contentType:
       format === 'jsonl' ? 'application/x-ndjson; charset=utf-8' : 'text/plain; charset=utf-8',
     filename: `${deployment.applicationSlug}-v${deployment.version}-${stamp}.${extension}`,
-    fallbackName: 'journal-deploiement.log',
+    fallbackName: 'deployment-log.log',
     context: { deploymentId: id },
     onSettled: async (complete) => {
       await logAudit({
@@ -214,25 +214,21 @@ function textHeader(
 ): string {
   const started = deployment.startedAt?.toISOString() ?? '—';
 
-  // i18n-ignore — un fichier exporté n'est pas de l'interface : c'est un
-  // artefact daté, téléchargé, archivé, relu des mois plus tard, en tête de
-  // lignes de log qui restent elles aussi dans la langue du projet. Deux
-  // exports du même déploiement doivent se lire côte à côte, quelle que soit
-  // la langue réglée entre-temps.
-  const finished = deployment.finishedAt?.toISOString() ?? 'non terminé';
-  // i18n-ignore — morceau du même en-tête ; voir la note ci-dessus.
-  const failure = deployment.failedStep ? ` (échec sur « ${deployment.failedStep} »)` : '';
+  // An exported file is not interface: it is a dated artifact, downloaded,
+  // archived, read again months later. Its header is in the project's
+  // language, English, whatever the instance's language: two exports of the
+  // same deployment must read side by side even if the language changed in
+  // between. The log lines below it stay in the language they were written in.
+  const finished = deployment.finishedAt?.toISOString() ?? 'not finished';
+  const failure = deployment.failedStep ? ` (failed at "${deployment.failedStep}")` : '';
 
-  // i18n-ignore — le corps du même en-tête ; voir la note ci-dessus. Un seul
-  // littéral plutôt que neuf lignes de tableau : une dispense se relit mieux
-  // en un seul endroit, et le texte produit est identique.
-  return `# Journal de déploiement — ${deployment.applicationSlug} v${deployment.version}
-# Déploiement : #${deployment.number} · ${deployment.id}
-# Cible : ${deployment.targetName} (${deployment.targetHost}) · ${deployment.runtime}
-# Statut : ${deployment.status}${failure}
-# Démarré : ${started} · terminé : ${finished}
-# Journal complet tel qu'il est conservé en base, dans l'ordre des étapes.
-# Exporté le ${exportedAt.toISOString()} par ${actorEmail}
+  return `# Deployment log — ${deployment.applicationSlug} v${deployment.version}
+# Deployment: #${deployment.number} · ${deployment.id}
+# Target: ${deployment.targetName} (${deployment.targetHost}) · ${deployment.runtime}
+# Status: ${deployment.status}${failure}
+# Started: ${started} · finished: ${finished}
+# Full log as kept in the database, in step order.
+# Exported on ${exportedAt.toISOString()} by ${actorEmail}
 #
 `;
 }

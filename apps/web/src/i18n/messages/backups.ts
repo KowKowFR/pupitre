@@ -116,6 +116,7 @@ const fr = {
 
   // ── les paramètres ──────────────────────────────────────────────────────
   'destination.title': 'Destination',
+  'destination.defaultName': 'Sauvegardes',
   'destination.description':
     'Où partent les sauvegardes — hors de cette machine. Les identifiants sont chiffrés sous MASTER_KEY et ne sont jamais réaffichés.',
   'destination.kind': 'Type',
@@ -318,6 +319,7 @@ const en: Translated<typeof fr> = {
     'No backup destination: set one in Settings › Backups to enable these options.',
 
   'destination.title': 'Destination',
+  'destination.defaultName': 'Backups',
   'destination.description':
     'Where backups go — off this machine. Credentials are encrypted under MASTER_KEY and never shown again.',
   'destination.kind': 'Type',

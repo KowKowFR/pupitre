@@ -67,7 +67,6 @@ const NOT_PRODUCT = {
   'packages/db/src/backups.ts': 'repli de la raison — le worker donne la sienne',
   // Exploitation : ce qui s'adresse à qui lance le panel, pas à qui s'en sert.
   'packages/core/src/crypto.ts': 'MASTER_KEY : démarrage et exploitation',
-  'packages/core/src/settings.ts': 'valeur par défaut d’un réglage (une donnée)',
   'packages/core/src/ssh/client.ts': 'raison de fermeture, journalisée',
   'packages/db/src/seed.ts': 'sortie de la commande de seed',
   'apps/worker/src/env.ts': 'variables d’environnement du worker',

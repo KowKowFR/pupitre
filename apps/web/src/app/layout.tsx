@@ -43,13 +43,13 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * i18n-ignore — le titre de repli, celui qu'on rend quand la base ne répond
- * pas. Il ne peut pas être traduit : la langue vit précisément dans la base
- * qu'on n'arrive pas à joindre. Il reste donc dans la langue du projet.
+ * The fallback title, rendered when the database does not answer. It cannot be
+ * translated: the language lives precisely in the database that cannot be
+ * reached. It is therefore in the project's language, English.
  */
 const FALLBACK_METADATA: Metadata = {
-  title: 'Pupitre — plan de contrôle de déploiement',
-  description: 'Panel de déploiement Docker Compose / K3s',
+  title: 'Pupitre — deployment control plane',
+  description: 'Docker Compose / K3s deployment panel',
 };
 
 /**

@@ -185,12 +185,12 @@ if [ "$FOREIGN_SMTP" != "0" ]; then
   skip "(le script ne touche jamais à un canal qu'il n'a pas créé)"
 else
   html=$(curl -s -H "x-forwarded-for: $IP_ADMIN" "$BASE_URL/login")
-  grep -q 'Mot de passe oubli' <<< "$html" \
+  grep -qE 'Mot de passe oubli|Forgotten password' <<< "$html" \
     && fail "le lien « Mot de passe oublié » est proposé alors qu'aucun e-mail ne peut partir"
   pass "l'écran de connexion ne propose pas « Mot de passe oublié »"
 
   html=$(curl -s -H "x-forwarded-for: $IP_ADMIN" "$BASE_URL/forgot-password")
-  grep -q 'Réinitialisation indisponible' <<< "$html" \
+  grep -qE 'Réinitialisation indisponible|Reset unavailable' <<< "$html" \
     || fail "/forgot-password n'annonce pas que la réinitialisation est indisponible"
   grep -q 'name="email"' <<< "$html" \
     && fail "/forgot-password affiche un formulaire qui ne mènerait nulle part"
@@ -225,7 +225,7 @@ pass "canal « $CHANNEL_NAME » créé ($CHANNEL_ID), abonné à AUCUN événeme
 info "l'invitation empruntera donc son transport, pas ses abonnements"
 
 html=$(curl -s -H "x-forwarded-for: $IP_ADMIN" "$BASE_URL/login")
-grep -q 'Mot de passe oubli' <<< "$html" \
+grep -qE 'Mot de passe oubli|Forgotten password' <<< "$html" \
   || fail "le lien « Mot de passe oublié » reste masqué alors qu'un canal existe"
 pass "l'écran de connexion propose maintenant « Mot de passe oublié »"
 
@@ -317,7 +317,7 @@ grep -qE '<[a-zA-Z/!]' <<< "$TEXT" \
   && fail "la partie texte contient du HTML : $(grep -oE '<[a-zA-Z/!][^>]*>' <<< "$TEXT" | head -3 | tr '\n' ' ')"
 pass "la partie texte ne contient pas une seule balise"
 
-grep -q 'Choisir mon mot de passe' <<< "$TEXT" || fail "la partie texte n'annonce pas l'action"
+grep -qE 'Choisir mon mot de passe|Choose my password' <<< "$TEXT" || fail "la partie texte n'annonce pas l'action"
 grep -q '<a href=' <<< "$HTML" || fail "la partie HTML n'a pas de lien"
 pass "les deux parties portent l'action ; le HTML a un vrai lien cliquable"
 
@@ -408,9 +408,9 @@ pass "POST /api/auth/request-password-reset → 200 (public, sans session)"
 MID=$(mailpit_wait_for "$INVITEE") || fail "aucun e-mail de réinitialisation"
 MAIL=$(curl -s "$MAILPIT_HTTP/api/v1/message/$MID")
 SUBJECT=$(jq -r '.Subject' <<< "$MAIL")
-grep -qi 'initialiser' <<< "$SUBJECT" \
+grep -qiE 'initialiser|reset your password' <<< "$SUBJECT" \
   || fail "le sujet n'est pas celui d'une réinitialisation : « $SUBJECT »"
-grep -qi 'administrateur vous a ouvert' <<< "$(mail_text "$MID")" \
+grep -qiE 'administrateur vous a ouvert|opened an access' <<< "$(mail_text "$MID")" \
   && fail "un compte actif a reçu le texte d'une INVITATION"
 pass "le message est bien celui d'une réinitialisation : « $SUBJECT »"
 info "le texte est choisi côté serveur, à partir de l'état du compte — pas d'un paramètre d'URL"
