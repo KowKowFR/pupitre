@@ -10,7 +10,7 @@ import type { Translated } from '@pupitre/core';
  * Each count therefore goes through `{one, other}` and lets `Intl.PluralRules`
  * decide.
  *
- * ── What stays in French, and why ───────────────────────────────────────────
+ * ── What stays untranslated, and why ────────────────────────────────────────
  * Nothing visible. The screen's only untranslated strings are the raw statuses
  * (`healthy`, `rolled_back`) shown as a last resort when the database returns a
  * value the catalog does not know: they are identifiers, not prose.

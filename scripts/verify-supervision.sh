@@ -22,7 +22,7 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
 # The script's own material: it touches no application already running.
 FAILED_UPDATE_SLUG="${FAILED_UPDATE_SLUG:-supervision-maj-ratee}"
 IMAGE_OK="${IMAGE_OK:-docker.io/library/nginx:1.29-alpine}"

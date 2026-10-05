@@ -6,7 +6,7 @@
 #   2. changing the name, and its reappearance in the home page's HTML
 #   3. a made-up time zone is refused (422)
 #   4. the API key NEVER appears in a GET response, nor in the HTML of ANY of
-#      the settings pages — /admin/settings/ia included
+#      the settings pages — /admin/settings/ai included
 #   5. setting a key; PATCH without the field → kept; PATCH `null` → erased
 #   6. the audit contains `settings.updated` and does NOT contain the key
 #   7. `settings:manage` is required to write, and an auditor sees the sections
@@ -92,14 +92,14 @@ psql_q() { docker compose exec -T postgres psql -U tp -d "${PGDATABASE:-tp}" -tA
 # The settings are no longer a single page: each domain has its address, filed
 # in one of the rail's four groups. This list is what keeps a non-leak
 # assertion from settling for the first page that comes along.
-SETTINGS_PAGES="/admin/settings/identite
-/admin/settings/regionalisation
-/admin/settings/securite
-/admin/settings/connexion
-/admin/settings/comptes
+SETTINGS_PAGES="/admin/settings/identity
+/admin/settings/regional
+/admin/settings/security
+/admin/settings/sso
+/admin/settings/accounts
 /admin/settings/notifications
-/admin/settings/ia
-/admin/settings/demarrage"
+/admin/settings/ai
+/admin/settings/onboarding"
 
 # A page's HTML into $2, requiring an **outright** 200.
 #
@@ -122,15 +122,15 @@ page() {
 fingerprint() {
   local skip="$1" file="$2"
   jq -S --arg skip "$skip" '{
-    identite: { nom: .settings.instanceName, sous_titre: .settings.instanceTagline },
-    regionalisation: {
+    identity: { name: .settings.instanceName, tagline: .settings.instanceTagline },
+    regional: {
       tz: .settings.timezone, locale: .settings.locale,
-      date: .settings.dateStyle, heure: .settings.timeStyle
+      date: .settings.dateStyle, time: .settings.timeStyle
     },
-    securite: .settings.security,
-    ia: (.settings.ai + { cle: .aiApiKeyConfigured, last4: .aiApiKeyLast4 }),
-    comptes: .settings.accounts,
-    demarrage: .settings.onboarding
+    security: .settings.security,
+    ai: (.settings.ai + { key: .aiApiKeyConfigured, last4: .aiApiKeyLast4 }),
+    accounts: .settings.accounts,
+    onboarding: .settings.onboarding
   } | del(.[$skip])' "$file"
 }
 
@@ -317,13 +317,13 @@ for path in $SETTINGS_PAGES; do
 done
 pass "key absent from the HTML of the $(echo "$SETTINGS_PAGES" | wc -l | tr -d ' ') settings pages"
 
-page /admin/settings/ia "$WORK/ia.html"
+page /admin/settings/ai "$WORK/ia.html"
 grep -q 'id="apiKey"' "$WORK/ia.html" \
-  || fail "/admin/settings/ia does not render the key field — the grep above would prove nothing"
-grep -qF "$SECRET_KEY" "$WORK/ia.html" && fail "the key is in the HTML of /admin/settings/ia"
+  || fail "/admin/settings/ai does not render the key field — the grep above would prove nothing"
+grep -qF "$SECRET_KEY" "$WORK/ia.html" && fail "the key is in the HTML of /admin/settings/ai"
 grep -qF "4242" "$WORK/ia.html" \
   || fail "the last 4 characters should be shown as a landmark on the AI section"
-pass "/admin/settings/ia does render the field, with …4242 as a landmark and without the key"
+pass "/admin/settings/ai does render the field, with …4242 as a landmark and without the key"
 
 step "6. The aiApiKey field's three cases"
 code=$(req PATCH /api/settings '{"instanceTagline":"clé inchangée"}')
@@ -416,7 +416,7 @@ for path in $SETTINGS_PAGES; do
 done
 pass "the settings pages answer 200 to a viewer, without the key"
 
-page /admin/settings/ia "$WORK/viewer-ia.html" "$VIEWER_JAR"
+page /admin/settings/ai "$WORK/viewer-ia.html" "$VIEWER_JAR"
 grep -q 'id="apiKey"' "$WORK/viewer-ia.html" \
   || fail "the viewer does not see the AI section: read-only is not an empty page"
 grep -q 'settings:manage' "$WORK/viewer-ia.html" \
@@ -427,7 +427,7 @@ grep -q 'disabled=""' "$WORK/viewer-ia.html" \
   || fail "the AI section's fields are not disabled for a viewer"
 pass "viewer: section visible, inactive fields, no save button"
 
-page /admin/settings/demarrage "$WORK/viewer-onb.html" "$VIEWER_JAR"
+page /admin/settings/onboarding "$WORK/viewer-onb.html" "$VIEWER_JAR"
 grep -q 'settings:manage' "$WORK/viewer-onb.html" \
   || fail "the guide does not tell the viewer why they cannot restart it"
 grep -qE "Relancer l|Run the guide again" "$WORK/viewer-onb.html" \
@@ -506,12 +506,12 @@ step "11. Each subsection is reachable and renders its fields"
 # carries the rail of the four groups, and the tabs of its own.
 root=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -b "$JAR" "$BASE_URL/admin/settings")
 case "$root" in
-  30[78]\ */admin/settings/identite) ;;
-  *) fail "/admin/settings: expected a redirect to /admin/settings/identite, got \"$root\"" ;;
+  30[78]\ */admin/settings/identity) ;;
+  *) fail "/admin/settings: expected a redirect to /admin/settings/identity, got \"$root\"" ;;
 esac
 pass "/admin/settings leads to the Identity tab"
-page /admin/settings/securite "$WORK/group.html"
-for target in identite securite integrations sauvegardes connexion comptes; do
+page /admin/settings/security "$WORK/group.html"
+for target in identity security integrations backups sso accounts; do
   grep -q "href=\"/admin/settings/$target\"" "$WORK/group.html" \
     || fail "the rail or the tabs of \"Security and access\" do not lead to /admin/settings/$target"
 done
@@ -529,15 +529,15 @@ check_page() {
   pass "$path — $# marker(s) present"
 }
 
-check_page /admin/settings/identite 'id="instanceName"' 'id="instanceTagline"'
-check_page /admin/settings/regionalisation \
+check_page /admin/settings/identity 'id="instanceName"' 'id="instanceTagline"'
+check_page /admin/settings/regional \
   'id="timezone"' 'id="locale"' 'id="dateStyle"' 'id="timeStyle"' 'Europe/Paris'
-check_page /admin/settings/securite 'id="failOn"' 'Scanners' 'trivy'
-check_page /admin/settings/connexion 'id="sso-issuer"' 'id="sso-client"' '/api/auth/callback/oidc'
-check_page /admin/settings/comptes 'name="two-factor-policy"' 'id="session-idle"' 'id="session-max"'
+check_page /admin/settings/security 'id="failOn"' 'Scanners' 'trivy'
+check_page /admin/settings/sso 'id="sso-issuer"' 'id="sso-client"' '/api/auth/callback/oidc'
+check_page /admin/settings/accounts 'name="two-factor-policy"' 'id="session-idle"' 'id="session-max"'
 check_page /admin/settings/notifications 'Ajouter un canal' 'Notifications'
-check_page /admin/settings/ia 'id="aiProvider"' 'id="aiModel"' 'id="apiKey"' 'type="submit"'
-check_page /admin/settings/demarrage 'Relancer l' 'Assistant de d'
+check_page /admin/settings/ai 'id="aiProvider"' 'id="aiModel"' 'id="apiKey"' 'type="submit"'
+check_page /admin/settings/onboarding 'Relancer l' 'Assistant de d'
 
 step "12. Saving a section touches no other"
 # THE trap of this test: if the other sections stayed at their default values,
@@ -581,27 +581,27 @@ isolate() {
   pass "\"$name\" saved alone — the other sections are intact down to the bit"
 }
 
-isolate identite \
+isolate identity \
   '{"instanceName":"Renommée depuis sa section"}' \
   '.settings.instanceName == "Renommée depuis sa section"
    and .settings.instanceTagline == "témoin de cloisonnement"'
 
-isolate regionalisation \
+isolate regional \
   '{"timezone":"Europe/Lisbon"}' \
   '.settings.timezone == "Europe/Lisbon" and .settings.locale == "en-GB"
    and .settings.dateStyle == "long" and .settings.timeStyle == "short"'
 
-isolate securite \
+isolate security \
   '{"security":{"failOn":"NONE"}}' \
   '.settings.security == {"scanningEnabled":true,"disabledScanners":["syft"],"failOn":"NONE","onlyFixable":false}'
 
-isolate ia \
+isolate ai \
   '{"ai":{"temperature":0.15}}' \
   '.settings.ai.temperature == 0.15 and .settings.ai.model == "gpt-4.1-mini"
    and .settings.ai.maxTokens == 1024 and .settings.ai.enabled == false
    and .aiApiKeyConfigured == true'
 
-isolate comptes \
+isolate accounts \
   '{"accounts":{"sessionMaxHours":168}}' \
   '.settings.accounts == {"twoFactorPolicy":"off","sessionIdleHours":8,"sessionMaxHours":168}'
 

@@ -22,8 +22,8 @@ import type { Translated } from '@pupitre/core';
  * and the only place that already knows how to be asynchronous renders the
  * sentence.
  *
- * `error.message`, for its part, stays in French, the dictionaries' source
- * language: it is what Pino logs.
+ * `error.message`, for its part, is in English, the language of the code: it is
+ * what Pino logs.
  */
 const fr = {
   'invalid_json': 'Corps de requête JSON invalide',

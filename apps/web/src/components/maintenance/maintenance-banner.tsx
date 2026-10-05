@@ -86,7 +86,7 @@ export async function MaintenanceBanner({
             </span>
             {canRead ? (
               <Link
-                href={`/maintenance?fenetre=${window.id}` as never}
+                href={`/maintenance?window=${window.id}` as never}
                 className="btn btn-ghost btn-sm shrink-0 after:absolute after:inset-0 max-sm:ml-[26px]"
               >
                 {t('banner.open')}

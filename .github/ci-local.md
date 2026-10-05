@@ -70,7 +70,7 @@ Neither Node nor pnpm is chosen at random, and neither is "the latest":
 
 ## The two guards
 
-They run in their own job (`gardes`), in parallel with the base: a checkout, no
+They run in their own job (`guards`), in parallel with the base: a checkout, no
 dependencies, a few seconds.
 
 ### Guard 1 — no secret in the repository
@@ -96,7 +96,7 @@ Replaying on your workstation:
 python3 - <<'PY' > /tmp/guard-secrets.sh
 import yaml
 wf = yaml.safe_load(open('.github/workflows/ci.yml'))
-print(next(s['run'] for s in wf['jobs']['gardes']['steps'] if s.get('id') == 'secrets'))
+print(next(s['run'] for s in wf['jobs']['guards']['steps'] if s.get('id') == 'secrets'))
 PY
 bash /tmp/guard-secrets.sh
 ```
@@ -121,9 +121,9 @@ push to the default branch itself, where the base is indeed
 python3 - <<'PY' > /tmp/guard-migrations.sh
 import yaml
 wf = yaml.safe_load(open('.github/workflows/ci.yml'))
-print(next(s['run'] for s in wf['jobs']['gardes']['steps'] if s.get('id') == 'migrations'))
+print(next(s['run'] for s in wf['jobs']['guards']['steps'] if s.get('id') == 'migrations'))
 PY
-GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/work BRANCHE_DEFAUT=main AVANT='' \
+GITHUB_EVENT_NAME=push GITHUB_REF=refs/heads/work DEFAULT_BRANCH=main BEFORE='' \
   bash /tmp/guard-migrations.sh
 ```
 

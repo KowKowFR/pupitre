@@ -238,7 +238,7 @@ export function ApplicationBackups({
           {!data.destination ? (
             <Alert variant="warn" title={t('card.noDestination')}>
               {canConfigure ? (
-                <Link href="/admin/settings/sauvegardes" className="link">
+                <Link href="/admin/settings/backups" className="link">
                   {t('card.setDestination')}
                 </Link>
               ) : null}

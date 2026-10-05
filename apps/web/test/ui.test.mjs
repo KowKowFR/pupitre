@@ -127,7 +127,7 @@ describe('hiding by permission', () => {
     assert.equal(activeSection('/'), 'dashboard');
     assert.equal(activeSection('/targets/abc'), 'targets');
     assert.equal(activeSection('/catalog'), 'catalog');
-    assert.equal(activeSection('/admin/settings/ia'), 'settings');
+    assert.equal(activeSection('/admin/settings/ai'), 'settings');
     assert.equal(activeSection('/account'), null);
   });
 });

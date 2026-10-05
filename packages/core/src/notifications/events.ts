@@ -2047,7 +2047,7 @@ const CATALOG = {
           [t(lang, 'field.until'), end],
           actorField(ctx),
         ]),
-        path: entry.resourceId ? `/maintenance?fenetre=${entry.resourceId}` : '/maintenance',
+        path: entry.resourceId ? `/maintenance?window=${entry.resourceId}` : '/maintenance',
       };
     },
   },
@@ -2083,7 +2083,7 @@ const CATALOG = {
           [t(lang, 'field.held'), String(held)],
           [t(lang, 'field.stillFailing'), released.length > 0 ? released.join(' ; ') : null],
         ]),
-        path: entry.resourceId ? `/maintenance?fenetre=${entry.resourceId}` : '/maintenance',
+        path: entry.resourceId ? `/maintenance?window=${entry.resourceId}` : '/maintenance',
       };
     },
   },

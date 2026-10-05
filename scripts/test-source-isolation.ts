@@ -95,7 +95,7 @@ async function exercise(runtime: RuntimeKind, ref: string, applicationId: string
     },
     deployment: { id: `trap-${runtime}-${Date.now()}`, version: SPEC.version, sequence: 1 },
     sshSession: session,
-    language: 'fr',
+    language: 'en',
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),

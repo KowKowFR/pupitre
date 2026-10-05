@@ -177,7 +177,7 @@ async function main(): Promise<void> {
     },
     deployment,
     sshSession: session,
-    language: 'fr',
+    language: 'en',
     appSlug: spec.name,
     applicationId,
     ...(previousDeployment ? { previousDeployment } : {}),

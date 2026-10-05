@@ -336,7 +336,7 @@ async function openSide(
     },
     deployment,
     sshSession: session,
-    language: 'fr',
+    language: 'en',
     appSlug: spec.name,
     applicationId,
     // This script only deploys once: the rollback brings back this same release —

@@ -20,10 +20,10 @@ import { errors } from '@/i18n/messages/errors';
  * place of the path that is already asynchronous, that renders the sentence in
  * the current language.
  *
- * `message` stays filled, in French, the dictionaries' source language: it is what
- * `Error.stack` sees, what Pino logs, and what the rare internal callers that
- * catch the error to emit it again read. An error therefore stays readable even
- * if nobody ever serializes it over HTTP.
+ * `message` stays filled, in English, the language of the code: it is what
+ * `Error.stack` sees and what Pino logs. An error therefore stays readable even
+ * if nobody ever serializes it over HTTP. Whoever shows it to someone renders its
+ * `ref` in their language instead (`renderRef()`).
  */
 
 /**
@@ -56,9 +56,9 @@ export function renderRef(ref: MessageRef, language: UiLanguage): string {
   return renderMessage(ref.bundle, language, ref.key, ref.vars);
 }
 
-/** Renders a reference in French — the language of `Error.message` and the logs. */
+/** Renders a reference in English — the language of `Error.message` and the logs. */
 function sourceText(message: string | MessageRef): string {
-  return typeof message === 'string' ? message : renderRef(message, 'fr');
+  return typeof message === 'string' ? message : renderRef(message, 'en');
 }
 
 export class HttpError extends Error {

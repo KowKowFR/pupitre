@@ -11,8 +11,8 @@ import type { Translated } from '@pupitre/core';
  * ("Password" is a field at the entrance, a section here).
  *
  * The routes' error messages go through `msg()`: `apiRoute()` renders them in the
- * instance's language at serialization time, and `error.message` stays in French,
- * the dictionaries' source language, for the logs.
+ * instance's language at serialization time, and `error.message` is in English,
+ * the language of the code, for the logs.
  */
 const fr = {
   // ── The screen ──────────────────────────────────────────────────────────

@@ -30,7 +30,7 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 # ⚠ Never the "vps" target: it is a real production machine.
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
 ROLE_KEY="${ROLE_KEY:-sans-creation-ia}"
 PEON_EMAIL="${PEON_EMAIL:-ia-sans-droit@example.test}"
@@ -314,16 +314,16 @@ code=$(req GET /api/settings)
 if grep -q "$SENTINEL" "$BODY"; then fail "the key leaks through GET /api/settings"; fi
 pass "GET /api/settings does not contain it"
 
-# /admin/settings/ia, and not /admin/settings: since the settings were split
+# /admin/settings/ai, and not /admin/settings: since the settings were split
 # into sub-pages, the root is a summary that renders no key field. Searching it
 # for the sentinel would always pass, without proving anything. So we aim at
 # the page that really carries the field, and check that it carries it.
-curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/admin/settings/ia" > "$WORK/settings.html" || true
+curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/admin/settings/ai" > "$WORK/settings.html" || true
 if ! grep -q 'id="apiKey"' "$WORK/settings.html"; then
-  fail "/admin/settings/ia does not render the key field — the following grep would prove nothing"
+  fail "/admin/settings/ai does not render the key field — the following grep would prove nothing"
 fi
-if grep -q "$SENTINEL" "$WORK/settings.html"; then fail "the key leaks into the HTML of /admin/settings/ia"; fi
-pass "the HTML of /admin/settings/ia does not contain it ($(wc -c < "$WORK/settings.html") bytes)"
+if grep -q "$SENTINEL" "$WORK/settings.html"; then fail "the key leaks into the HTML of /admin/settings/ai"; fi
+pass "the HTML of /admin/settings/ai does not contain it ($(wc -c < "$WORK/settings.html") bytes)"
 
 curl -s -b "$JAR" -H "origin: $BASE_URL" "$BASE_URL/applications?add=new" > "$WORK/new.html" || true
 if grep -q "$SENTINEL" "$WORK/new.html"; then fail "the key leaks into the HTML of /applications?add=new"; fi

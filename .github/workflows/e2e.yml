@@ -76,7 +76,7 @@ env:
 
 jobs:
   e2e:
-    name: Scripts de bout en bout
+    name: End-to-end scripts
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

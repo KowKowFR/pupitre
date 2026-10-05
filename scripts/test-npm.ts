@@ -185,7 +185,7 @@ async function openSide(runtime: RuntimeKind, ref: string, applicationId: string
     },
     deployment: { id: `npm-${runtime}-${Date.now()}`, version: SPEC.version, sequence: 1 },
     sshSession: session,
-    language: 'fr',
+    language: 'en',
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),
@@ -274,7 +274,7 @@ async function main(): Promise<void> {
   const ctx: RemoteProxyContext = {
     config: { url: NPM_URL, email: PUPITRE.email, entrypoint: ENTRYPOINT },
     secrets: { password: PUPITRE.password },
-    language: 'fr',
+    language: 'en',
   };
   const origin: ReachOrigin = {
     name: 'Test NPM',
@@ -296,7 +296,7 @@ async function main(): Promise<void> {
   record(
     'npm',
     'a wrong password is refused, saying so',
-    !refused.ok && login1?.ok === false && /identifiants refusés/.test(login1.detail ?? ''),
+    !refused.ok && login1?.ok === false && /refused the credentials/.test(login1.detail ?? ''),
     login1?.detail ?? '',
   );
 
@@ -339,8 +339,7 @@ async function main(): Promise<void> {
         side.runtime,
         `NPM reaches ${side.ctx.target.name} at ${side.address}`,
         result.ok === true &&
-          (source === npmIp ||
-            (source === null && /n['’]a pas pu être relevé/.test(result.detail))),
+          (source === npmIp || (source === null && /could not be recorded/.test(result.detail))),
         `${result.detail}${source ? ` — arrival from ${source}` : ''}`,
       );
     }
@@ -502,7 +501,7 @@ async function main(): Promise<void> {
     record(
       'npm',
       "another account's domain, claimed, is refused, saying so",
-      conflict !== null && /existe déjà dans NPM/.test(conflict),
+      conflict !== null && /already exists in NPM/.test(conflict),
       conflict ?? 'accepted',
     );
     // NPM reloads nginx after each gesture: the probe retries, like the pipeline's.
@@ -577,8 +576,8 @@ async function main(): Promise<void> {
       `${wildcardHost} serves the wildcard, without a new request`,
       wildcardProbe.ok &&
         /\*\.wildcard/.test(wildcardProbe.certificate.subject ?? '') &&
-        lines.some((line) => line.includes('reprend le certificat')) &&
-        !lines.some((line) => line.includes(`demande d'un certificat pour ${wildcardHost}`)),
+        lines.some((line) => line.includes('reuses certificate')) &&
+        !lines.some((line) => line.includes(`requesting a certificate for ${wildcardHost}`)),
       `${wildcardProbe.detail} — ${wildcardProbe.certificate.subject ?? '?'}`,
     );
 

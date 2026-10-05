@@ -25,7 +25,7 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"
 # Deliberately narrow range: it proves that the range is indeed read on the
 # target, and it stays within the ten ports the test container publishes.

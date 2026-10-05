@@ -50,9 +50,9 @@ language; the codes (`error.code`) do not change.
 | `/domains` | **All domains**: the proxy serving them, their state, their certificate's expiry; "To watch" filter (not answering, or certificate under fourteen days) | `application:read` |
 | `/monitors` | HTTP and TLS probes. `?monitor=<id>` opens the **record in a drawer**: overview, measurements and incidents, reference screenshot; `&edit=1` edits it in place | `monitor:read` — edit `monitor:manage` |
 | `/monitors/:id` | Redirects (307) to `/monitors?monitor=:id` | `monitor:read` |
-| `/status-pages` | Public status pages: the list, and the editor **in a drawer** (`?page=<id>`, `?page=nouvelle`) — blocks, drag and drop, preview. **Announcements** section: the outages and maintenance windows of the pages' probes, each in a drawer (`?annonce=incident:<id>`, `?annonce=maintenance:<id>`) where you publish, correct, remove | `status_page:manage` or `status_page:announce` — each sees their part |
+| `/status-pages` | Public status pages: the list, and the editor **in a drawer** (`?page=<id>`, `?page=new`) — blocks, drag and drop, preview. **Announcements** section: the outages and maintenance windows of the pages' probes, each in a drawer (`?announce=incident:<id>`, `?announce=maintenance:<id>`) where you publish, correct, remove | `status_page:manage` or `status_page:announce` — each sees their part |
 | `/status`, `/status/<address>` | A **published** status page, without sign-in; 404 otherwise | none |
-| `/maintenance` | Maintenance windows in progress, upcoming and ended. `?fenetre=<id>` opens the window **in a drawer** (period, subjects, held alerts); `?nouvelle=1` the form, with `&cible=<id>` or `&sonde=<id>` prefilled | `maintenance:read` — schedule `maintenance:manage` |
+| `/maintenance` | Maintenance windows in progress, upcoming and ended. `?window=<id>` opens the window **in a drawer** (period, subjects, held alerts); `?new=1` the form, with `&target=<id>` or `&monitor=<id>` prefilled | `maintenance:read` — schedule `maintenance:manage` |
 | `/jobs` | Scheduled tasks, cron described in words, scrolling history | `job:read` |
 
 The query parameters keep their original names (`nouvelle`, `annonce`,
@@ -65,8 +65,8 @@ The query parameters keep their original names (`nouvelle`, `annonce`,
 | `/admin/logs` | **Activity log** — paginated table, colored severity, filters and free search | `audit:read` |
 | `/admin/users` | Accounts: creation, status, role, 2FA reset | `user:manage` |
 | `/admin/roles` | Permission matrix — one role per column, one permission family per row; `?role=…` opens its drawer | `role:read` — edit `role:manage` |
-| `/admin/settings` | Redirects (307) to `/admin/settings/identite` | `settings:read` |
-| `/admin/settings/{identite,regionalisation,securite,connexion,comptes,notifications,ia,integrations,sauvegardes,demarrage}` | The ten sections, in four tabbed groups | `settings:read` — write `settings:manage` |
+| `/admin/settings` | Redirects (307) to `/admin/settings/identity` | `settings:read` |
+| `/admin/settings/{identity,regional,security,sso,accounts,notifications,ai,integrations,backups,onboarding}` | The ten sections, in four tabbed groups | `settings:read` — write `settings:manage` |
 
 ### Outside the navigation
 

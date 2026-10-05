@@ -14,10 +14,10 @@ import { SsoForm } from './sso-form';
 
 export const dynamic = 'force-dynamic';
 
-const section = settingsSection('/admin/settings/connexion');
+const section = settingsSection('/admin/settings/sso');
 
 export default async function SsoSettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/connexion', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/sso', 'settings:read');
   const [record, roles, state, t] = await Promise.all([
     getAppSettings(),
     listRoles(),

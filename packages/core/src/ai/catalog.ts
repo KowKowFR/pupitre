@@ -56,9 +56,9 @@ export type AiProviderDescriptor = {
    * **In the source language.** The identifier shown is not translated, but
    * "ex." and "fournisseur/modèle" are prose: the screen therefore goes through
    * `aiModelHint(provider, language)`, which reads the `aiModelHints` dictionary.
-   * This field stays a string, as `Error.message` stays French — it is what the
-   * tools and the checks that inspect the catalog without a language at hand
-   * read.
+   * This field stays a French string, the dictionaries' source language — it is
+   * what the tools and the checks that inspect the catalog without a language at
+   * hand read.
    */
   readonly modelHint: string;
   /**

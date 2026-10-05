@@ -85,8 +85,8 @@ machine — waits for it to answer, then registers **two targets** in the panel:
 
 | Name | Address | Seen from |
 |---|---|---|
-| `cible-de-verification` | `ssh-target:22` | the worker — it is the one the UI and the scripts use |
-| `cible-docker-locale` | `127.0.0.1:2222` | your workstation — for `pnpm test:driver` and `pnpm test:parity` |
+| `verification-target` | `ssh-target:22` | the worker — it is the one the UI and the scripts use |
+| `local-docker-target` | `127.0.0.1:2222` | your workstation — for `pnpm test:driver` and `pnpm test:parity` |
 
 It is the same machine, reached through two network paths. It only publishes ten
 ports (30000-30009), hence the `DRIVER_PORT_RANGE=30000-30009` in
@@ -130,8 +130,8 @@ Then register two targets by hand, in `/targets` or through `POST /api/targets`
 
 | Name | Host | Port | User | For |
 |---|---|---|---|---|
-| `cible-k3s` | `k3s-target` | 22 | `tp` | the worker: UI, preflight, deployments |
-| `cible-k3s-locale` | `127.0.0.1` | 2223 | `tp` | the workstation: `pnpm test:parity` |
+| `verification-k3s-target` | `k3s-target` | 22 | `tp` | the worker: UI, preflight, deployments |
+| `local-k3s-target` | `127.0.0.1` | 2223 | `tp` | the workstation: `pnpm test:parity` |
 
 Authentication method: key, with the content of `.test-target-key` (the
 **private** key). `sudo` is `NOPASSWD` on the target.
@@ -143,7 +143,7 @@ K3s.
 The parity test then runs from the workstation:
 
 ```bash
-pnpm test:parity cible-docker-locale cible-k3s-locale
+pnpm test:parity local-docker-target local-k3s-target
 ```
 
 It returned **32/32 green** on its last run, with a reverse proxy set on each

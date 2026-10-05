@@ -57,16 +57,16 @@ export type SettingsSection = {
 };
 
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  { href: '/admin/settings/identite', id: 'identity', icon: Signature },
-  { href: '/admin/settings/regionalisation', id: 'regional', icon: Globe },
-  { href: '/admin/settings/securite', id: 'security', icon: ScanSearch },
-  { href: '/admin/settings/connexion', id: 'sso', icon: LogIn },
-  { href: '/admin/settings/comptes', id: 'accounts', icon: UserLock },
+  { href: '/admin/settings/identity', id: 'identity', icon: Signature },
+  { href: '/admin/settings/regional', id: 'regional', icon: Globe },
+  { href: '/admin/settings/security', id: 'security', icon: ScanSearch },
+  { href: '/admin/settings/sso', id: 'sso', icon: LogIn },
+  { href: '/admin/settings/accounts', id: 'accounts', icon: UserLock },
   { href: '/admin/settings/notifications', id: 'notifications', icon: Bell },
-  { href: '/admin/settings/ia', id: 'ai', icon: Sparkles },
+  { href: '/admin/settings/ai', id: 'ai', icon: Sparkles },
   { href: '/admin/settings/integrations', id: 'integrations', icon: GitBranch },
-  { href: '/admin/settings/sauvegardes', id: 'backups', icon: DatabaseBackup },
-  { href: '/admin/settings/demarrage', id: 'onboarding', icon: Compass },
+  { href: '/admin/settings/backups', id: 'backups', icon: DatabaseBackup },
+  { href: '/admin/settings/onboarding', id: 'onboarding', icon: Compass },
 ];
 
 /** The settings' root: it leads to the first tab of the first group. */

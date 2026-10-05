@@ -55,7 +55,7 @@ import { cn } from '@/lib/utils';
 type MonitorOption = { id: string; name: string };
 type T = Translate<typeof messages.fr>;
 
-const NEW = 'nouvelle';
+const NEW = 'new';
 
 async function failure(response: Response, fallback: string): Promise<string> {
   const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };

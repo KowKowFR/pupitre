@@ -133,6 +133,6 @@ describe('maintenance — the catalog', () => {
       message.body,
       /3 alerte\(s\) retenue\(s\)\)\. Toujours en panne, annoncé maintenant : Sonde en panne — API facturation\./,
     );
-    assert.ok(message.url?.endsWith('/maintenance?fenetre=w-1'));
+    assert.ok(message.url?.endsWith('/maintenance?window=w-1'));
   });
 });

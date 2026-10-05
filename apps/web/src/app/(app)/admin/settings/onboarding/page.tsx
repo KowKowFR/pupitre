@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * started over.
  */
 export default async function OnboardingSettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/demarrage', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/onboarding', 'settings:read');
   const { settings } = await getAppSettings();
 
   return (

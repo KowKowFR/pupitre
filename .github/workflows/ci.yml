@@ -38,8 +38,8 @@ jobs:
   # Two guards that only cost a checkout: no dependency, no build. They run in
   # parallel with the base so that their verdict arrives fast.
   # ═══════════════════════════════════════════════════════════════════════════
-  gardes:
-    name: Gardes
+  guards:
+    name: Guards
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -61,28 +61,28 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          echec=0
-          ko() { printf '::error title=Secret in the repository::%s\n' "$1"; printf '  FAILURE %s\n' "$1"; echec=1; }
+          failed=0
+          ko() { printf '::error title=Secret in the repository::%s\n' "$1"; printf '  FAILURE %s\n' "$1"; failed=1; }
           ok() { printf '  ok      %s\n' "$1"; }
 
           echo "── 1. Files that must never be tracked by git"
-          suivis=$(git ls-files \
+          tracked=$(git ls-files \
             | grep -E '(^|/)\.env($|\.)|(^|/)\.test-target-key' \
             | grep -vE '(^|/)\.env\.example$' || true)
-          if [ -n "$suivis" ]; then
+          if [ -n "$tracked" ]; then
             while IFS= read -r f; do
               [ -n "$f" ] && ko "\"$f\" is tracked by git — it must stay ignored"
-            done <<< "$suivis"
+            done <<< "$tracked"
           else
             ok "neither .env nor .test-target-key* in the index"
           fi
 
           echo "── 2. .gitignore still covers these files"
-          for motif in '.env' '.test-target-key' '.test-target-key.pub'; do
-            if grep -qxF -- "$motif" .gitignore 2>/dev/null; then
-              ok ".gitignore contains \"$motif\""
+          for pattern in '.env' '.test-target-key' '.test-target-key.pub'; do
+            if grep -qxF -- "$pattern" .gitignore 2>/dev/null; then
+              ok ".gitignore contains \"$pattern\""
             else
-              ko "\"$motif\" disappeared from .gitignore — the original protection is gone"
+              ko "\"$pattern\" disappeared from .gitignore — the original protection is gone"
             fi
           done
 
@@ -97,44 +97,44 @@ jobs:
           # alphabet), `key;` (too short), `${MASTER_KEY}` (reference). What
           # remains to rule out are the templates that do have the expected
           # shape — hence the short list below, kept close to the .env.example.
-          suspecte() { # 0 = suspicious, 1 = harmless
-            valeur="$1"
-            case "$valeur" in
+          suspicious() { # 0 = suspicious, 1 = harmless
+            value="$1"
+            case "$value" in
               ''|'""'|"''")                                       return 1 ;;
               \$*)                                                return 1 ;;
               *change-me*|*changeme*|*CHANGE_ME*)                 return 1 ;;
               *votre*|*your*|*'<'*|*'…'*|*TODO*|*example*)        return 1 ;;
             esac
             # A run of one and the same character (000…0, xxx…x) is a template.
-            case "$valeur" in
+            case "$value" in
               *[!0]*) ;; *) return 1 ;;
             esac
-            case "$valeur" in
+            case "$value" in
               *[!x]*) ;; *) return 1 ;;
             esac
             # Shape of a secret: ≥ 32 characters, hex/base64 alphabet only.
-            printf '%s' "$valeur" | grep -qE '^[A-Za-z0-9+/=_-]{32,}$'
+            printf '%s' "$value" | grep -qE '^[A-Za-z0-9+/=_-]{32,}$'
           }
-          lignes=$(git grep -nIE '(MASTER_KEY|BETTER_AUTH_SECRET)[[:space:]]*[:=]' \
+          lines=$(git grep -nIE '(MASTER_KEY|BETTER_AUTH_SECRET)[[:space:]]*[:=]' \
                      -- . ':(exclude)pnpm-lock.yaml' || true)
-          if [ -z "$lignes" ]; then
+          if [ -z "$lines" ]; then
             ok "no assignment found"
           else
-            while IFS= read -r ligne; do
-              [ -z "$ligne" ] && continue
-              fichier=${ligne%%:*}; reste=${ligne#*:}
-              numero=${reste%%:*};  texte=${reste#*:}
-              valeur=$(printf '%s' "$texte" \
+            while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              file=${line%%:*}; rest=${line#*:}
+              number=${rest%%:*};  text=${rest#*:}
+              value=$(printf '%s' "$text" \
                 | sed -E 's/^.*(MASTER_KEY|BETTER_AUTH_SECRET)[[:space:]]*[:=][[:space:]]*//' \
                 | tr -d '\r' \
                 | sed -E "s/^['\"]//; s/['\"].*$//" \
                 | awk '{print $1}')
-              if suspecte "$valeur"; then
-                ko "$fichier:$numero — likely real value for this secret"
+              if suspicious "$value"; then
+                ko "$file:$number — likely real value for this secret"
               else
-                ok "$fichier:$numero — not the shape of a secret"
+                ok "$file:$number — not the shape of a secret"
               fi
-            done <<< "$lignes"
+            done <<< "$lines"
           fi
 
           echo "── 4. No API key in clear"
@@ -142,19 +142,19 @@ jobs:
           # "sk-or-v1-" followed by lowercase hexadecimal. verify-settings.sh's
           # uppercase sentinel does not have that shape, and that is just fine —
           # it is there to be visible, not secret.
-          motifs='sk-or-v1-[0-9a-f]{32,}'
-          motifs="$motifs"'|sk-ant-[A-Za-z0-9_-]{40,}'
-          motifs="$motifs"'|sk-proj-[A-Za-z0-9_-]{40,}'
-          motifs="$motifs"'|gh[pousr]_[A-Za-z0-9]{30,}'
-          motifs="$motifs"'|AKIA[0-9A-Z]{16}'
+          patterns='sk-or-v1-[0-9a-f]{32,}'
+          patterns="$patterns"'|sk-ant-[A-Za-z0-9_-]{40,}'
+          patterns="$patterns"'|sk-proj-[A-Za-z0-9_-]{40,}'
+          patterns="$patterns"'|gh[pousr]_[A-Za-z0-9]{30,}'
+          patterns="$patterns"'|AKIA[0-9A-Z]{16}'
           # Pupitre's API tokens: `pup_` and 43 base64url characters.
-          motifs="$motifs"'|pup_[A-Za-z0-9_-]{43}'
-          trouve=$(git grep -nIE "$motifs" -- . ':(exclude)pnpm-lock.yaml' || true)
-          if [ -n "$trouve" ]; then
-            while IFS= read -r ligne; do
-              [ -z "$ligne" ] && continue
-              ko "apparent API key: ${ligne%%:*}:$(printf '%s' "${ligne#*:}" | cut -d: -f1)"
-            done <<< "$trouve"
+          patterns="$patterns"'|pup_[A-Za-z0-9_-]{43}'
+          found=$(git grep -nIE "$patterns" -- . ':(exclude)pnpm-lock.yaml' || true)
+          if [ -n "$found" ]; then
+            while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              ko "apparent API key: ${line%%:*}:$(printf '%s' "${line#*:}" | cut -d: -f1)"
+            done <<< "$found"
           else
             ok "no API key shape"
           fi
@@ -164,9 +164,9 @@ jobs:
           # help show it as an example of what the user must paste. What gives a
           # real key away is the BODY — long lines of base64. So we require both
           # in the same file.
-          entetes=$(git grep -lE '^-{5}BEGIN [A-Z ]*PRIVATE KEY-{5}' \
+          headers=$(git grep -lE '^-{5}BEGIN [A-Z ]*PRIVATE KEY-{5}' \
                       -- . ':(exclude)pnpm-lock.yaml' || true)
-          if [ -z "$entetes" ]; then
+          if [ -z "$headers" ]; then
             ok "no private key header"
           else
             while IFS= read -r f; do
@@ -176,11 +176,11 @@ jobs:
               else
                 ok "\"$f\" only quotes the PEM header as an example, without a body"
               fi
-            done <<< "$entetes"
+            done <<< "$headers"
           fi
 
           echo
-          if [ "$echec" -ne 0 ]; then
+          if [ "$failed" -ne 0 ]; then
             echo "A secret is not removed from a repository by deleting it at the next commit:"
             echo "the history keeps it. Rewrite the branch, then revoke the value."
             exit 1
@@ -200,8 +200,8 @@ jobs:
         if: ${{ !cancelled() }}
         shell: bash
         env:
-          AVANT: ${{ github.event.before }}
-          BRANCHE_DEFAUT: ${{ github.event.repository.default_branch }}
+          BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -uo pipefail
           MIGRATIONS='packages/db/migrations/*.sql'
@@ -212,22 +212,22 @@ jobs:
           # anywhere, touching it up is legitimate. Single exception, the push ON
           # the reference branch itself: there, the base is indeed the state
           # from before the push.
-          cible="${BRANCHE_DEFAUT:-main}"
-          [ "${GITHUB_EVENT_NAME}" = 'pull_request' ] && cible="${GITHUB_BASE_REF:-$cible}"
+          ref_branch="${DEFAULT_BRANCH:-main}"
+          [ "${GITHUB_EVENT_NAME}" = 'pull_request' ] && ref_branch="${GITHUB_BASE_REF:-$ref_branch}"
           git fetch --no-tags --quiet origin \
-            "+refs/heads/${cible}:refs/remotes/origin/${cible}" 2>/dev/null || true
+            "+refs/heads/${ref_branch}:refs/remotes/origin/${ref_branch}" 2>/dev/null || true
 
           base=''
-          if [ "${GITHUB_EVENT_NAME}" = 'push' ] && [ "${GITHUB_REF:-}" = "refs/heads/${cible}" ]; then
-            if [ -n "${AVANT:-}" ] \
-               && [ "${AVANT}" != '0000000000000000000000000000000000000000' ] \
-               && git cat-file -e "${AVANT}^{commit}" 2>/dev/null; then
-              base="${AVANT}"
+          if [ "${GITHUB_EVENT_NAME}" = 'push' ] && [ "${GITHUB_REF:-}" = "refs/heads/${ref_branch}" ]; then
+            if [ -n "${BEFORE:-}" ] \
+               && [ "${BEFORE}" != '0000000000000000000000000000000000000000' ] \
+               && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+              base="${BEFORE}"
             else
               base=$(git rev-parse --verify --quiet 'HEAD^' || true)
             fi
           else
-            base=$(git merge-base "origin/${cible}" HEAD 2>/dev/null || true)
+            base=$(git merge-base "origin/${ref_branch}" HEAD 2>/dev/null || true)
           fi
 
           if [ -z "$base" ] || [ "$base" = "$(git rev-parse HEAD)" ]; then
@@ -243,12 +243,12 @@ jobs:
           # stays BETWEEN QUOTES: it is git that must interpret it. Expanded by
           # the shell, it would only list the files present in the working copy
           # — and a DELETED migration would escape it.
-          touchees=$(git diff --name-status --diff-filter=MDR "$base" HEAD -- "$MIGRATIONS" || true)
-          if [ -z "$touchees" ]; then
-            ajoutees=$(git diff --name-only --diff-filter=A "$base" HEAD -- "$MIGRATIONS" || true)
-            if [ -n "$ajoutees" ]; then
+          touched=$(git diff --name-status --diff-filter=MDR "$base" HEAD -- "$MIGRATIONS" || true)
+          if [ -z "$touched" ]; then
+            added=$(git diff --name-only --diff-filter=A "$base" HEAD -- "$MIGRATIONS" || true)
+            if [ -n "$added" ]; then
               echo "Migrations added (it is the right way to do it):"
-              while IFS= read -r f; do [ -n "$f" ] && printf '  + %s\n' "$f"; done <<< "$ajoutees"
+              while IFS= read -r f; do [ -n "$f" ] && printf '  + %s\n' "$f"; done <<< "$added"
             else
               echo "No migration touched."
             fi
@@ -257,16 +257,16 @@ jobs:
             exit 0
           fi
 
-          echo "$touchees" | while IFS=$'\t' read -r etat fichier _; do
-            case "$etat" in
-              M*) verbe='modified' ;;
-              D*) verbe='deleted' ;;
-              R*) verbe='renamed' ;;
-              *)  verbe="touched ($etat)" ;;
+          echo "$touched" | while IFS=$'\t' read -r state file _; do
+            case "$state" in
+              M*) verb='modified' ;;
+              D*) verb='deleted' ;;
+              R*) verb='renamed' ;;
+              *)  verb="touched ($state)" ;;
             esac
             printf '::error file=%s,title=Migration modified::%s was %s\n' \
-              "$fichier" "$fichier" "$verbe"
-            printf '  FAILURE %s was %s\n' "$fichier" "$verbe"
+              "$file" "$file" "$verb"
+            printf '  FAILURE %s was %s\n' "$file" "$verb"
           done
           echo
           echo "A migration already on the base was touched."
@@ -285,7 +285,7 @@ jobs:
             echo '| Guard | Verdict |'
             echo '| --- | --- |'
             echo "| No secret in the repository | ${{ steps.secrets.outcome }} |"
-            echo "| Migrations immuables | ${{ steps.migrations.outcome }} |"
+            echo "| Immutable migrations | ${{ steps.migrations.outcome }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -294,8 +294,8 @@ jobs:
   # falls — a single CI pass is enough to see the full extent of the damage,
   # instead of discovering them one by one.
   # ═══════════════════════════════════════════════════════════════════════════
-  socle:
-    name: Socle
+  base:
+    name: Base
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 20

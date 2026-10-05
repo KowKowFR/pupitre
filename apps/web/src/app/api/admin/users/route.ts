@@ -20,7 +20,7 @@ import { accountStateOf, accountStates, type AccountState } from '@/lib/account-
 import { INVITATION_PATH, getAuth } from '@/lib/auth';
 import { admin } from '@/i18n/messages/admin';
 import { currentLanguage } from '@/i18n/server';
-import { ConflictError, HttpError, NotFoundError, msg } from '@/lib/errors';
+import { ConflictError, HttpError, NotFoundError, msg, renderRef } from '@/lib/errors';
 import { apiRoute, readJsonBody } from '@/lib/http';
 import { PASSWORD_MIN_LENGTH } from '@/lib/password-policy';
 import { requirePermission } from '@/lib/rbac';
@@ -220,7 +220,8 @@ export async function inviteExistingUser(options: {
 }): Promise<{ sent: boolean; channel: string | null; error: string | null }> {
   // The two verdicts below are rendered as is in `/admin/users`' banner: they
   // therefore follow the instance's language, like the rest.
-  const t = translator(admin, await currentLanguage());
+  const language = await currentLanguage();
+  const t = translator(admin, language);
 
   let sent = false;
   let channel: string | null = null;
@@ -244,7 +245,12 @@ export async function inviteExistingUser(options: {
     channel = verdict?.channel ?? null;
     error = verdict?.error ?? (verdict ? null : t('mail.notTriggered'));
   } catch (caught) {
-    error = caught instanceof HttpError ? caught.message : t('mail.sendFailed');
+    error =
+      caught instanceof HttpError
+        ? caught.ref
+          ? renderRef(caught.ref, language)
+          : caught.message
+        : t('mail.sendFailed');
   }
 
   await logAudit({

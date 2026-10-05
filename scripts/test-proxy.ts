@@ -198,7 +198,7 @@ async function openSide(runtime: RuntimeKind, ref: string, applicationId: string
     },
     deployment: { id: `proxy-${runtime}-${Date.now()}`, version: SPEC.version, sequence: 1 },
     sshSession: session,
-    language: 'fr',
+    language: 'en',
     appSlug: SPEC.name,
     applicationId,
     portAllocator: createPortAllocator(),
@@ -459,7 +459,8 @@ async function exercise(
     record(
       runtime,
       'BunkerWeb: installation unavailable without Docker, pointing to the link',
-      !option && Boolean(refused && /Docker/.test(refused.detail) && /reliez/.test(refused.detail)),
+      !option &&
+        Boolean(refused && /Docker/.test(refused.detail) && /link it/.test(refused.detail)),
       refused?.detail ?? option?.detail ?? '?',
     );
     return null;

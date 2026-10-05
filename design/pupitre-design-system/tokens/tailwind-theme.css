@@ -1,4 +1,4 @@
-/* Pupitre · thème Tailwind v4 (à coller dans app/globals.css) */
+/* Pupitre · Tailwind v4 theme (to paste into app/globals.css) */
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));

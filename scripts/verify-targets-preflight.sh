@@ -24,7 +24,7 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
 # Dedicated target: `setup-test-target.sh` registers others, which carry the
 # other scripts' deployments. A target carrying a live deployment cannot be
 # deleted — it is one of the rules checked here.
-TARGET_NAME="${TARGET_NAME:-cible-preflight}"
+TARGET_NAME="${TARGET_NAME:-preflight-target}"
 # Key already provisioned by `setup-test-target.sh`, if any.
 SHARED_KEY="${SHARED_KEY:-.test-target-key}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.42}"

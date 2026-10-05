@@ -19,8 +19,8 @@ set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:3000}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.test}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD:-motdepasse-tres-long}"
-TARGET_NAME="${TARGET_NAME:-cible-de-verification}"
-COBAYE="${COBAYE:-cobaye-verif}"
+TARGET_NAME="${TARGET_NAME:-verification-target}"
+GUINEA_PIG="${GUINEA_PIG:-guinea-pig-verif}"
 VIEWER_EMAIL="${VIEWER_EMAIL:-workload-viewer@example.test}"
 VIEWER_PASSWORD="${VIEWER_PASSWORD:-motdepasse-tres-long}"
 CLIENT_IP="${CLIENT_IP:-198.51.100.77}"
@@ -37,7 +37,7 @@ cleanup() {
   [ -n "$SSE_PID" ] && { kill "$SSE_PID"; wait "$SSE_PID"; } 2>/dev/null || true
   # The guinea pigs do not survive the script, whatever happens.
   docker compose exec -T ssh-target sh -c \
-    "docker rm -f \$(docker ps -aq --filter name=^${COBAYE}) >/dev/null 2>&1" >/dev/null 2>&1 || true
+    "docker rm -f \$(docker ps -aq --filter name=^${GUINEA_PIG}) >/dev/null 2>&1" >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -141,10 +141,10 @@ APPS_COUNT=$(jq -r '.total' "$WORK/apps-before.json")
 info "$APPS_COUNT application(s) deployed by the panel before the test"
 
 step "3. Setting up a workload foreign to the panel"
-on_target "docker rm -f $COBAYE >/dev/null 2>&1" >/dev/null 2>&1 || true
-on_target "docker run -d --name $COBAYE nginx:alpine" >/dev/null \
+on_target "docker rm -f $GUINEA_PIG >/dev/null 2>&1" >/dev/null 2>&1 || true
+on_target "docker run -d --name $GUINEA_PIG nginx:alpine" >/dev/null \
   || fail "could not start the guinea pig on the target"
-pass "container \"$COBAYE\" started on the target, outside the panel"
+pass "container \"$GUINEA_PIG\" started on the target, outside the panel"
 
 step "4. The inventory sees everything, and tells apart"
 inventory
@@ -156,11 +156,11 @@ jq -e '[.runtimes[] | select(.ok | not)] | length == 0' "$WORK/inventory.json" >
   || fail "a runtime could not say anything: $(jq -c '.runtimes' "$WORK/inventory.json")"
 pass "$TOTAL workload(s) seen on $(jq -r '[.runtimes[].runtime] | join(", ")' "$WORK/inventory.json")"
 
-jq -e --arg n "$COBAYE" \
+jq -e --arg n "$GUINEA_PIG" \
   '[.items[] | select(.name == $n and .managed == false)] | length == 1' \
   "$WORK/inventory.json" >/dev/null \
-  || fail "\"$COBAYE\" missing from the inventory, or wrongly marked as managed by the panel"
-pass "\"$COBAYE\" present, marked outside the panel"
+  || fail "\"$GUINEA_PIG\" missing from the inventory, or wrongly marked as managed by the panel"
+pass "\"$GUINEA_PIG\" present, marked outside the panel"
 
 [ "$MANAGED" -ge 1 ] || fail "no workload marked as deployed by the panel"
 jq -e '[.items[] | select(.managed) | select(.managedApp == null)] | length == 0' \
@@ -193,7 +193,7 @@ on_target "docker ps --format '{{.Names}}'" | grep -qx "$MANAGED_NAME" \
 pass "\"$MANAGED_NAME\" still runs on the machine"
 
 step "6. Updating the foreign workload — through the queue, with its progress"
-COBAYE_REF=$(jq -r --arg n "$COBAYE" '.items[] | select(.name == $n) | .ref' "$WORK/inventory.json")
+GUINEA_PIG_REF=$(jq -r --arg n "$GUINEA_PIG" '.items[] | select(.name == $n) | .ref' "$WORK/inventory.json")
 
 # We subscribe BEFORE queuing: subscribing afterwards means losing the start.
 curl -s -N -b "$ADMIN_JAR" --max-time 120 \
@@ -201,7 +201,7 @@ curl -s -N -b "$ADMIN_JAR" --max-time 120 \
 SSE_PID=$!
 sleep 2
 
-code=$(req POST "/api/targets/$TARGET_ID/workloads/$COBAYE_REF/update")
+code=$(req POST "/api/targets/$TARGET_ID/workloads/$GUINEA_PIG_REF/update")
 [ "$code" = "202" ] || fail "update: expected 202 (queued), got $code: $(cat "$BODY")"
 JOB_ID=$(jq -r '.jobId' "$BODY")
 CHANNEL=$(jq -r '.channel' "$BODY")
@@ -227,19 +227,19 @@ pass "$LOG_LINES progress line(s) relayed over SSE, plus the start and the end"
 info "$(sed -n 's/^data: //p' "$SSE" | jq -r 'select(.line) | .line' 2>/dev/null \
         | sed -n '1p;$p' | paste -sd' … ' - || true)"
 
-on_target "docker ps --format '{{.Names}}'" | grep -qx "$COBAYE" \
-  || fail "\"$COBAYE\" did not survive its update"
+on_target "docker ps --format '{{.Names}}'" | grep -qx "$GUINEA_PIG" \
+  || fail "\"$GUINEA_PIG\" did not survive its update"
 on_target "docker ps -a --format '{{.Names}}'" | grep -q -- "-tp-prev-" \
   && fail "a backup container was left behind"
-pass "\"$COBAYE\" still runs, and nothing was left behind"
+pass "\"$GUINEA_PIG\" still runs, and nothing was left behind"
 
 step "7. Deleting the foreign workload"
 # The update recreated the container: its reference changed.
 inventory
-COBAYE_REF=$(jq -r --arg n "$COBAYE" '.items[] | select(.name == $n) | .ref' "$WORK/inventory.json")
-[ -n "$COBAYE_REF" ] && [ "$COBAYE_REF" != "null" ] || fail "\"$COBAYE\" not found after the update"
+GUINEA_PIG_REF=$(jq -r --arg n "$GUINEA_PIG" '.items[] | select(.name == $n) | .ref' "$WORK/inventory.json")
+[ -n "$GUINEA_PIG_REF" ] && [ "$GUINEA_PIG_REF" != "null" ] || fail "\"$GUINEA_PIG\" not found after the update"
 
-code=$(req DELETE "/api/targets/$TARGET_ID/workloads/$COBAYE_REF")
+code=$(req DELETE "/api/targets/$TARGET_ID/workloads/$GUINEA_PIG_REF")
 [ "$code" = "202" ] || fail "deletion: expected 202 (queued), got $code: $(cat "$BODY")"
 JOB_ID=$(jq -r '.jobId' "$BODY")
 pass "deletion queued (job $JOB_ID)"
@@ -248,12 +248,12 @@ state=$(await_job "$JOB_ID")
 [ "$state" = "completed" ] || fail "the deletion job ended \"$state\": $(jq -r '.failedReason // "?"' "$BODY")"
 pass "job completed by the worker"
 
-on_target "docker ps -a --format '{{.Names}}'" | grep -qx "$COBAYE" \
-  && fail "\"$COBAYE\" is still on the machine: the deletion did nothing"
-pass "\"$COBAYE\" really disappeared from the target (docker ps -a)"
+on_target "docker ps -a --format '{{.Names}}'" | grep -qx "$GUINEA_PIG" \
+  && fail "\"$GUINEA_PIG\" is still on the machine: the deletion did nothing"
+pass "\"$GUINEA_PIG\" really disappeared from the target (docker ps -a)"
 
 inventory
-jq -e --arg n "$COBAYE" '[.items[] | select(.name == $n)] | length == 0' \
+jq -e --arg n "$GUINEA_PIG" '[.items[] | select(.name == $n)] | length == 0' \
   "$WORK/inventory.json" >/dev/null || fail "the inventory still shows it"
 pass "it disappeared from the inventory"
 
@@ -307,12 +307,12 @@ for action in workload.remove.refused workload.update.requested workload.updated
   pass "audit: $action"
 done
 
-jq -e --arg n "$COBAYE" --arg t "$TARGET_NAME" \
+jq -e --arg n "$GUINEA_PIG" --arg t "$TARGET_NAME" \
   '[.items[] | select(.action == "workload.removed")
      | select(.after.workload == $n and .after.targetName == $t)] | length > 0' \
   "$BODY" >/dev/null \
   || fail "the deletion is not traced with the workload's name and the target"
-pass "the deletion names \"$COBAYE\" and the target \"$TARGET_NAME\""
+pass "the deletion names \"$GUINEA_PIG\" and the target \"$TARGET_NAME\""
 
 jq -e --arg n "$MANAGED_NAME" \
   '[.items[] | select(.action == "workload.remove.refused")
@@ -345,8 +345,8 @@ done
 pass "their containers still run on \"$TARGET_NAME\": $HERE"
 
 step "11. Cleanup"
-on_target "docker rm -f $COBAYE >/dev/null 2>&1" >/dev/null 2>&1 || true
-remaining=$(on_target "docker ps -aq --filter name=^$COBAYE" | wc -l | tr -d ' ')
+on_target "docker rm -f $GUINEA_PIG >/dev/null 2>&1" >/dev/null 2>&1 || true
+remaining=$(on_target "docker ps -aq --filter name=^$GUINEA_PIG" | wc -l | tr -d ' ')
 [ "$remaining" = "0" ] || fail "$remaining guinea pig(s) surviving on the target"
 pass "no guinea pig survives on the target"
 

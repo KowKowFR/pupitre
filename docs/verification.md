@@ -97,8 +97,8 @@ the drivers **live**, without going through the worker or the queue, and returns
 a two-column table.
 
 ```bash
-pnpm test:parity cible-docker-locale cible-k3s-locale
-pnpm test:parity cible-docker-locale cible-k3s-locale --spec my-spec.json --keep
+pnpm test:parity local-docker-target local-k3s-target
+pnpm test:parity local-docker-target local-k3s-target --spec my-spec.json --keep
 ```
 
 It chains, for each side: `preflight` → `allocatePort` → `render` → `upload` →
@@ -112,7 +112,7 @@ table and its analysis are in the [README](../README.md#known-limits): it is the
 document that carries the project's dated state.
 
 Prerequisites: both targets must be registered and reachable **from the
-workstation** (`cible-docker-locale`, `cible-k3s-locale`) —
+workstation** (`local-docker-target`, `local-k3s-target`) —
 [`getting-started.md`](getting-started.md#the-k3s-test-target) explains how to
 set up the second one, which has no script.
 
@@ -158,8 +158,8 @@ included.
 
 ```bash
 docker compose --profile test up -d pebble pebble-dns acme-front
-pnpm test:proxy cible-docker-locale k3s-locale
-pnpm test:proxy cible-docker-locale k3s-locale --proxy=bunkerweb
+pnpm test:proxy local-docker-target k3s-locale
+pnpm test:proxy local-docker-target k3s-locale --proxy=bunkerweb
 ```
 
 The certificates come from **Pebble**, the Let's Encrypt team's test ACME
@@ -188,7 +188,7 @@ run.
 
 ```bash
 docker compose --profile test up -d pebble pebble-dns npm-proxy
-pnpm test:npm cible-docker-locale k3s-locale
+pnpm test:npm local-docker-target k3s-locale
 ```
 
 The same path was walked through the panel and its worker: connection (refused
@@ -208,7 +208,7 @@ releases stay, the others go with their built images; and destruction leaves no
 built image behind. **12/12** on the last run.
 
 ```bash
-pnpm test:rollback cible-docker-locale k3s-locale
+pnpm test:rollback local-docker-target k3s-locale
 ```
 
 ## `pnpm test:source-isolation` — a booby-trapped repository does not get through
@@ -223,7 +223,7 @@ project nor intruding service, no object of the `k8s/` folder in the cluster.
 **7/7** on the last run.
 
 ```bash
-pnpm test:source-isolation cible-docker-locale k3s-locale
+pnpm test:source-isolation local-docker-target k3s-locale
 ```
 
 ## What is not verified

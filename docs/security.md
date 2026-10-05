@@ -780,7 +780,7 @@ two scanners describing the same vulnerability must produce the same `Finding`.
 
 It left the deployment screen: *a security policy chosen case by case,
 deployment by deployment, is not a policy.* It now lives in
-`/admin/settings/securite` (`settings:manage`):
+`/admin/settings/security` (`settings:manage`):
 
 | Field | Effect |
 |---|---|

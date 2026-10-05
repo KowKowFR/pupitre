@@ -513,7 +513,7 @@ export function forecastSubjectPath(subject: { type: ForecastSubjectType; id: st
     case 'monitor':
       return `/monitors?monitor=${subject.id}`;
     case 'route':
-      return `/domains?domaine=${subject.id}`;
+      return `/domains?domain=${subject.id}`;
     case 'application':
       return `/applications?app=${subject.id}`;
   }

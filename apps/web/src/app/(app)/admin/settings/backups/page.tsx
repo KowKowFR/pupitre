@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic';
  * without going to look for it record by record.
  */
 export default async function BackupSettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/sauvegardes', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/backups', 'settings:read');
   const [destination, panelBackups, panelSchedule, appsSchedule, enabledApps, settings, apps] =
     await Promise.all([
       getActiveBackupDestination(),

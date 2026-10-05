@@ -10,7 +10,7 @@ import { AiForm } from './ai-form';
 
 export const dynamic = 'force-dynamic';
 
-const section = settingsSection('/admin/settings/ia');
+const section = settingsSection('/admin/settings/ai');
 
 /**
  * The only page that shows the AI section.
@@ -19,7 +19,7 @@ const section = settingsSection('/admin/settings/ia');
  * characters. Never the key — `getAppSettings()` physically does not return it.
  */
 export default async function AiSettingsPage() {
-  const auth = await requirePagePermission('/admin/settings/ia', 'settings:read');
+  const auth = await requirePagePermission('/admin/settings/ai', 'settings:read');
   const record = await getAppSettings();
   const t = await getT(messages);
 
